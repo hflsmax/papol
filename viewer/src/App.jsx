@@ -1,4 +1,6 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Progress, Working } from '../../shared/ui/Waiting.js';
+import { formatBytes, formatProgressDetail, progressFraction } from '../../shared/waiting.js';
 import { flushSync } from 'react-dom';
 // The legacy build, not the modern one: the modern build calls JavaScript
 // that WebKit does not have yet (Map.prototype.getOrInsertComputed), so it
@@ -929,11 +931,11 @@ export default function App() {
         if (cancelled) return;
         syncingPdf = true;
         setPdfSyncing(true);
-        setPdfProgress({ loaded: progress.fraction, total: 1 });
+        setPdfProgress({ fraction: progress.fraction, loaded: progress.bytes || 0, total: 0 });
       },
     }).then((input) => {
       if (!cancelled) {
-        if (syncingPdf) setPdfProgress({ loaded: 1, total: 1 });
+        if (syncingPdf) setPdfProgress((current) => ({ fraction: 1, loaded: current?.loaded || 0, total: 0 }));
         setPdfSyncing(false);
       }
       markViewerPerformance('pdf-bytes-ready', {
@@ -3371,13 +3373,18 @@ export default function App() {
     ? pagePreviews.urls
     : new Map();
 
-  // A percentage once the server has said how big the file is; null while
+  // A bar once the server has said how big the file is; the spinner while
   // that is still unknown, which reads as "under way" rather than "stuck
-  // at zero".
-  const pdfPct =
-    pdfProgress && pdfProgress.total > 0
-      ? Math.min(100, Math.round((pdfProgress.loaded / pdfProgress.total) * 100))
-      : null;
+  // at zero". A native sync knows its fraction but not the file's size,
+  // so its detail is the bytes that have arrived.
+  const pdfFraction = pdfProgress
+    ? (pdfProgress.fraction ?? progressFraction(pdfProgress.loaded, pdfProgress.total))
+    : null;
+  const pdfDetail = pdfProgress
+    ? (pdfProgress.total > 0
+      ? formatProgressDetail({ loaded: pdfProgress.loaded, total: pdfProgress.total })
+      : formatBytes(pdfProgress.loaded))
+    : null;
   const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
 
   // The way out is a place, not a step backwards. Each source names where
@@ -4008,16 +4015,11 @@ export default function App() {
           }}
         >
           {!doc && showPdfLoading && (
-            <div className="pdf-loading" role="status" aria-live="polite">
+            <div className="pdf-loading">
               <div className="pdf-loading-card">
-                <p>{pdfSyncing ? 'Syncing the paper…' : 'Loading the paper…'}</p>
-                <div className={`pdf-progress-track${pdfPct == null ? ' indeterminate' : ''}`}>
-                  <div
-                    className="pdf-progress-fill"
-                    style={pdfPct != null ? { width: `${pdfPct}%` } : undefined}
-                  />
-                </div>
-                {pdfPct != null && <span className="pdf-progress-pct">{pdfPct}%</span>}
+                {pdfFraction != null
+                  ? <Progress fraction={pdfFraction} label={pdfSyncing ? 'Syncing' : 'Downloading'} detail={pdfDetail} />
+                  : <Working label={pdfSyncing ? 'Syncing…' : 'Loading…'} />}
               </div>
             </div>
           )}

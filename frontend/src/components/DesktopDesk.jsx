@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { boardFileBlob, deleteBoard, getBoard, updateBoard } from '../../../shared/api/boards.js';
 import { getNook } from '../../../shared/api/people.js';
 import { paperName } from '../../../shared/paperName.js';
@@ -319,7 +320,7 @@ function BoardOverview({ summary, board, loading, error, shelves, onOpen, onUpda
           </div>
         </header>
 
-        {loading && <div className="desktop-board-loading" role="status">Loading board preview…</div>}
+        {loading && <div className="desktop-board-loading"><Working label="Loading board preview…" /></div>}
         {error && <div className="desktop-board-loading error" role="alert">{error}</div>}
         {board && staged.length > 0 && (
               <section className="desktop-board-staging" aria-labelledby="desktop-board-staging-title">
@@ -498,7 +499,8 @@ export function DesktopBrowser({
   const title = libraryView ? 'Library' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
   const noun = boardsView ? (total === 1 ? 'board' : 'boards') : (total === 1 ? 'paper' : 'papers');
-  const subtitle = loading ? 'Loading…' : [
+  // The list below shows the wait itself; the subtitle only counts.
+  const subtitle = loading ? '' : [
     `${total} ${noun}`,
     syncing ? 'Syncing…' : null,
     shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
@@ -567,7 +569,7 @@ export function DesktopBrowser({
   };
 
   let emptyList = null;
-  if (loading) emptyList = 'Loading…';
+  if (loading) emptyList = <Working label="Loading…" />;
   else if (total === 0 && search.trim()) emptyList = 'Nothing matches your search.';
   else if (total === 0 && syncing && !libraryView) {
     emptyList = boardsView

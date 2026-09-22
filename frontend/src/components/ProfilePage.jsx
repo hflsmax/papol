@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Progress, Working } from '../../../shared/ui/Waiting.js';
+import { formatBytes, formatProgressDetail, formatRate, progressFraction } from '../../../shared/waiting.js';
 import {
   updateProfile,
   changePassword,
@@ -27,11 +29,19 @@ const SYNC_PHASES = {
   downloading: 'Downloading files',
 };
 
-function syncProgressLabel(progress) {
-  if (!progress) return 'Starting…';
+// The sync's wait: a bar through the phase's items once the native side has
+// counted them, the spinner before it has. The rate rides along in the
+// detail when there is one.
+function SyncWait({ progress }) {
+  if (!progress) return <Working label="Starting…" />;
   const label = SYNC_PHASES[progress.phase] || 'Syncing';
-  if (!progress.total) return label;
-  return `${label} · ${Math.min(progress.completed + 1, progress.total)} of ${progress.total}`;
+  const fraction = progress.total
+    ? (Number.isFinite(progress.fraction) ? progress.fraction : progressFraction(progress.completed, progress.total))
+    : null;
+  if (fraction == null) return <Working label={`${label}…`} />;
+  const counted = `${Math.min(progress.completed + 1, progress.total)} of ${progress.total}`;
+  const detail = progress.bytes_per_second > 0 ? `${counted} · ${formatRate(progress.bytes_per_second)}` : counted;
+  return <Progress fraction={fraction} label={label} detail={detail} />;
 }
 
 // Which app a PDF opens in is the system's to say; this row reads it again
@@ -220,31 +230,12 @@ function LocalDeviceSettings({ onSynced }) {
       </div>
       {sync.running && (
         <div className="local-sync-progress">
-          <div
-            className="local-sync-bar"
-            role="progressbar"
-            aria-label="Sync progress"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round((sync.progress?.fraction || 0) * 100)}
-          >
-            <span style={{ width: `${(sync.progress?.fraction || 0) * 100}%` }} />
-          </div>
-          <div className="local-sync-detail">
-            <span>{syncProgressLabel(sync.progress)}</span>
-            {sync.progress && (
-              <span className="local-sync-speed">
-                {formatSize(Math.round(sync.progress.bytes_per_second))}/s
-                {' · '}
-                {formatSize(sync.progress.bytes)}
-              </span>
-            )}
-          </div>
+          <SyncWait progress={sync.progress} />
         </div>
       )}
       {!sync.running && (sync.error || sync.lastBytes != null) && (
         <div className={`local-sync-detail${sync.error ? ' error' : ''}`} role="status">
-          {sync.error || `Sync finished · ${formatSize(sync.lastBytes)} transferred`}
+          {sync.error || `Sync finished · ${formatBytes(sync.lastBytes)} transferred`}
         </div>
       )}
       <PdfViewerSetting />
@@ -253,8 +244,8 @@ function LocalDeviceSettings({ onSynced }) {
           <div>
             <strong>Storage</strong>
             <div className="local-storage-totals">
-              {formatSize(storage.classes.unsynced.bytes)} unsynced ·{' '}
-              {formatSize(storage.classes.cache.bytes)} cache
+              {formatBytes(storage.classes.unsynced.bytes)} unsynced ·{' '}
+              {formatBytes(storage.classes.cache.bytes)} cache
             </div>
             {storageError && <div className="local-storage-totals error">{storageError}</div>}
           </div>
@@ -303,7 +294,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
   const [exported, setExported] = useState(null);
-  const [exportStep, setExportStep] = useState('');
+  const [exportStep, setExportStep] = useState(null);
 
   const [closeEmail, setCloseEmail] = useState('');
   const [closeError, setCloseError] = useState(null);
@@ -315,12 +306,12 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
     setExported(null);
     setIsExporting(true);
     try {
-      setExported(await downloadMyData((step) => setExportStep(describeExportStep(step))));
+      setExported(await downloadMyData(setExportStep));
     } catch (err) {
       setExportError(err.message);
     } finally {
       setIsExporting(false);
-      setExportStep('');
+      setExportStep(null);
     }
   };
 
@@ -434,7 +425,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
                   disabled={isAvatarBusy}
                 >
                   {isAvatarBusy
-                    ? 'Working…'
+                    ? 'Uploading…'
                     : user.avatar_path
                       ? 'Change image'
                       : 'Upload image'}
@@ -576,9 +567,14 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
         <h2 className="panel-title">My data</h2>
 
         {exportError && <div className="error" role="alert">{exportError}</div>}
+        {isExporting && (
+          <div className="export-progress">
+            <ExportWait step={exportStep} />
+          </div>
+        )}
         {exported && (
           <div className="success" role="status">
-            Downloaded — {formatSize(exported.bytes)}.
+            Downloaded — {formatBytes(exported.bytes)}.
           </div>
         )}
         {exported?.failed.length > 0 && (
@@ -595,7 +591,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
         <div className="form-actions">
           <button onClick={handleExport} disabled={isExporting}>
-            {isExporting ? exportStep || 'Gathering it up…' : 'Download my data'}
+            {isExporting ? exportLabel(exportStep) : 'Download my data'}
           </button>
         </div>
       </div>
@@ -643,16 +639,25 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   );
 }
 
-// What the button says while the export is put together: the data
-// first, then the files one by one, then the zip.
-function describeExportStep({ phase, done, total }) {
-  if (phase === 'fetching' && total) return `Fetching ${Math.min(done + 1, total)} of ${total} files…`;
-  if (phase === 'packing') return 'Packing the zip…';
-  return 'Gathering it up…';
+// The export's stages: the data first, then the files, then the zip. Only
+// the files are measured — the manifest says how big each one is — so
+// that stage is a bar and the other two the spinner. The button that
+// started it says the same word.
+function exportLabel(step) {
+  if (step?.phase === 'fetching') return 'Fetching files';
+  if (step?.phase === 'packing') return 'Packing…';
+  return 'Gathering…';
 }
 
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} bytes`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+function ExportWait({ step }) {
+  const label = exportLabel(step);
+  if (step?.phase !== 'fetching' || !step.totalBytes) return <Working label={label} />;
+  const files = formatProgressDetail({ loaded: step.done, total: step.total, unit: 'files' });
+  return (
+    <Progress
+      fraction={progressFraction(step.bytes, step.totalBytes)}
+      label={label}
+      detail={`${formatProgressDetail({ loaded: step.bytes, total: step.totalBytes })} · ${files}`}
+    />
+  );
 }

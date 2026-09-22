@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { confirmAction } from '../../../shared/confirmAction';
 import { FEATURE_STATES, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates';
 import {
@@ -119,7 +120,7 @@ function AdminMessagePanel() {
             {selected.size} selected
           </p>
           {loadingRecipients ? (
-            <p className="panel-note" role="status">Loading users…</p>
+            <Working label="Loading users…" />
           ) : (
             <ul className="admin-recipient-list">
               {shownRecipients.map((recipient) => (
@@ -192,7 +193,7 @@ function FeedbackPanel() {
   };
 
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (!items) return <div className="loading" role="status" aria-live="polite">Loading reports…</div>;
+  if (!items) return <div className="loading"><Working label="Loading reports…" /></div>;
 
   const open = items.filter((f) => !f.resolved);
   const done = items.filter((f) => f.resolved);
@@ -448,7 +449,7 @@ export default function AdminPage() {
         {notice && <div className="success">{notice}</div>}
 
         {!data ? (
-          <div className="loading" role="status" aria-live="polite">Loading {selected}…</div>
+          <div className="loading"><Working label={`Loading ${selected}…`} /></div>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">

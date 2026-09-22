@@ -1208,7 +1208,8 @@ ${macHandoffStyles}
 }
 
 /* Over the page skeletons, saying what they alone do not: whether the
-   file is actually moving, and how much of it is left. */
+   file is actually moving, and how much of it is left. The wait itself is
+   the shared one (docs/waiting.md); this is only the card it sits on. */
 .pdf-loading {
   position: absolute;
   inset: 0;
@@ -1219,59 +1220,19 @@ ${macHandoffStyles}
 }
 
 .pdf-loading-card {
-  width: min(260px, 80vw);
-  padding: 16px 20px;
+  display: grid;
+  justify-items: center;
+  width: min(280px, 80vw);
+  padding: 14px 18px;
   border-radius: var(--radius);
   background: var(--card);
   box-shadow: 0 6px 20px rgba(29, 33, 41, 0.18);
-  text-align: center;
   animation: pdfLoadingArrive 160ms ease-out both;
 }
 
 @keyframes pdfLoadingArrive {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.pdf-loading-card p {
-  margin: 0 0 10px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-}
-
-.pdf-progress-track {
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--paper-sunken);
-  overflow: hidden;
-}
-
-.pdf-progress-fill {
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  transition: width 0.2s ease;
-}
-
-/* No total to measure against yet: a segment sweeps the track rather than
-   sitting at a width that would claim to know how far along this is. */
-.pdf-progress-track.indeterminate .pdf-progress-fill {
-  width: 40% !important;
-  animation: pdfProgressSweep 1.2s ease-in-out infinite;
-}
-
-@keyframes pdfProgressSweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(250%); }
-}
-
-.pdf-progress-pct {
-  display: block;
-  margin-top: 8px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
 }
 
 /* The shape of a page before there is one, so the viewer opens into

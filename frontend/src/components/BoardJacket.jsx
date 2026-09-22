@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { getBoard, updateBoard } from '../../../shared/api/boards.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
@@ -64,7 +65,7 @@ export default function BoardJacket({ boardUuid, currentUser, onOpen, onBack, ba
   };
 
   if (error && !board) return <div className="panel board-jacket"><div className="error" role="alert">{error}</div></div>;
-  if (!board) return <div className="loading" role="status" aria-live="polite">Loading board…</div>;
+  if (!board) return <div className="loading"><Working label="Loading board…" /></div>;
 
   const mine = board.can_edit;
   const cards = board.item_count;

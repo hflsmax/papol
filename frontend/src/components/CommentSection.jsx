@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { addComment, updateComment, deleteComment } from '../../../shared/api/papers.js';
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
@@ -107,7 +108,7 @@ export default function CommentSection({
               className="primary"
               disabled={isSubmitting || !newComment.trim()}
             >
-              {isSubmitting ? 'Adding...' : 'Add'}
+              {isSubmitting ? 'Adding…' : 'Add'}
             </button>
             <button type="button" onClick={() => setComposing(false)}>
               Cancel
