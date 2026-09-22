@@ -210,12 +210,21 @@ export class Browser {
   /// second error there would hide the first.
   async capture(name) {
     const stem = join(ARTIFACTS, name.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'page');
-    // The document first: it needs only the page's script, and a page that
-    // draws no frame (a hung renderer) still has one to give.
+    // Both are asked for before anything here is awaited, so they sit on
+    // the socket ahead of whatever the suite does next, and show the page
+    // as the check saw it. The document needs only the page's script: a
+    // page that draws no frame still has one to give.
+    const html = this.evaluate('return "<!-- " + location.href + " -->\\n" + document.documentElement.outerHTML;');
+    const shot = this.send('Page.captureScreenshot', { format: 'png' })
+      .then(({ data }) => Buffer.from(data, 'base64'));
+    // Handled here, so one that fails after `keep` gave up on it is not an
+    // unhandled rejection that ends the run.
+    html.catch(() => {});
+    shot.catch(() => {});
     const kept = [];
-    const keep = async (file, make) => {
+    const keep = async (file, answer) => {
       try {
-        await writeFile(file, await Promise.race([make(),
+        await writeFile(file, await Promise.race([answer,
           new Promise((_, reject) => setTimeout(() => reject(new Error('no answer in 10 s')), 10_000))]));
         kept.push(file);
       } catch (error) {
@@ -223,8 +232,8 @@ export class Browser {
       }
     };
     await mkdir(ARTIFACTS, { recursive: true }).catch(() => {});
-    await keep(`${stem}.html`, () => this.evaluate('return "<!-- " + location.href + " -->\\n" + document.documentElement.outerHTML;'));
-    await keep(`${stem}.png`, async () => Buffer.from((await this.send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    await keep(`${stem}.html`, html);
+    await keep(`${stem}.png`, shot);
     if (kept.length) console.log(`    page kept: ${kept.join(', ')}`);
   }
 
