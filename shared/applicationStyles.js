@@ -1656,6 +1656,19 @@ button.full-width {
 }
 .back-button.disabled { pointer-events: none; opacity: .55; }
 
+/* A jacket's way back sits midway between the page header and the panel:
+   as much space below it as the header leaves above it (.topnav's 28px).
+   A block, so the margin holds; only as wide as its words, so the rest of
+   the row is not a link. Both jackets are laid out the same way, plain
+   blocks spaced by their own margins (.panel's 20px between panels), so
+   one rule places it in each. */
+.paper-jacket > .back-button,
+.board-jacket > .back-button {
+  display: block;
+  width: fit-content;
+  margin: 0 0 28px;
+}
+
 .back-button:hover {
   text-decoration: underline;
   background: none;
@@ -3917,7 +3930,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 
 /* Its one screen in the Library: what is known about the board, and the way
    in. Set like a paper's, because the two are the same kind of thing. */
-.board-jacket { display: flex; flex-direction: column; gap: 12px; }
 .board-jacket-head { display: flex; align-items: center; gap: 10px; }
 .board-jacket .board-jacket-name { flex: 1; min-width: 0; margin: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-2xl); line-height: 1.2; }
 .board-jacket input.board-jacket-name:hover { border-color: var(--line); }
