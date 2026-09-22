@@ -8,6 +8,7 @@ import worker from "../src/index";
 import type { Wakeup } from "../src/jobs/run";
 import { summarizeOpenalex, type Summary } from "../src/papers/bibliography";
 import { bibliographyCard, paperReferences, type Reference } from "../src/papers/references";
+import * as helper from "../src/papers/helper";
 import { candidates, merge, resolve, titleMatches } from "../src/papers/resolve";
 import { normalizeTitle, parseHeader, parseTei } from "../src/papers/tei";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";
@@ -218,6 +219,31 @@ async function kept(user: Account, digest = PDF, title = "KinetiX") {
   await paperWithCopy(user, digest, title, { shelfUuid: await defaultShelf(user) });
   await env.FILES.put(`uploads/${digest}.pdf`, new TextEncoder().encode("%PDF-1.4"));
 }
+
+describe("what the helper is sent", () => {
+  it("is the paper's address on the bucket domain, never the bytes, when the bucket has one", async () => {
+    // Nothing in this Worker's bucket: with a domain, the Worker reads no
+    // bytes at all, and the helper fetches the file itself.
+    const hosted = { ...env, FILES_URL: "https://files.test/" as string } as Env;
+    const sent: Array<[string, string, string]> = [];
+    hosts({ "grobid.test": (url, init) => {
+      sent.push([url.pathname, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
+      return jsonResponse(url.pathname.endsWith("/analyze") ? ANALYSIS : { title: "T", authors: [], journal: null, year: null, doi: null, arxiv_id: null });
+    } });
+    await helper.analyze(hosted, `${OTHER}.pdf`);
+    await helper.header(hosted, `${OTHER}.pdf`);
+    const address = JSON.stringify({ url: `https://files.test/uploads/${OTHER}.pdf` });
+    expect(sent).toEqual([
+      ["/helper/analyze", "application/json", address],
+      ["/helper/header", "application/json", address],
+    ]);
+  });
+
+  it("is the bytes where the Worker serves its files itself, and a missing PDF is said to be missing", async () => {
+    hosts({ "grobid.test": () => jsonResponse(ANALYSIS) });
+    await expect(helper.analyze(env, `${OTHER}.pdf`)).rejects.toThrow("The PDF for this paper is missing");
+  });
+});
 
 describe("the viewer's references", () => {
   it("are read once by a job the first open queues, then served to whoever may read the paper", async () => {

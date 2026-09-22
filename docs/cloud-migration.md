@@ -1252,6 +1252,25 @@ With it, three smaller things from the upload's follow-ups:
   taken. Python's own user agent is refused at the edge (error 1010), so
   the check sends one of its own.
 
+### Step 17 — landed 2026-09-22: the host fetches the paper itself
+
+The last place a PDF passed through a Worker: the reference analysis and
+the title-block reading downloaded the paper from R2 and posted its bytes
+to the host's helper, although the bucket is public by key. Now the
+Worker sends the helper `{ url }`, the paper's address on the bucket
+domain (`FILES_URL`), and the helper fetches it itself
+(`host/helper/src/files.ts`). The Worker only checks that the object is
+there (`head`, no body). It still reads and sends the bytes where there
+is no bucket domain, which is local development.
+
+The helper fetches only `/uploads/<sha256>.pdf` on the origins
+`services.papol.helper.fileOrigins` lists (default `files.papol.io` and
+`files-dev.papol.io`), and only bytes that hash to that name: 400 for any
+other address, 422 for bytes that do not match, 404 for a file the bucket
+does not have. It sends its own user agent, since the edge refuses some
+default ones. Order of the change: the helper learned addresses first and
+was deployed to the host (`./deploy.sh host`), then the Worker switched.
+
 Configuration and one move of the data, once phase 4 passes the suite:
 
 - D1, with its point-in-time restore replacing the dumps in
