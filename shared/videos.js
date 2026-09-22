@@ -3,22 +3,27 @@
 // desktop only.
 //
 // YouTube's oEmbed endpoint and its thumbnail host answer a page on any
-// origin, so this is the page's own fetch there. Bilibili's API refuses
-// other origins and bans clients that are not a browser (412); what does
-// answer is its mobile video page, asked with a phone's User-Agent,
-// whose og:title and og:image name the video. A page cannot read that
-// across origins, so the desktop asks through its HTTP plugin
-// (runtimeFetch), which may reach m.bilibili.com and b23.tv; the web
-// makes the card as its link, and the Mac fills it in when it next opens
-// the board. Both covers come from hosts that let any origin read them;
-// Bilibili's refuses a foreign Referer, so none is sent.
+// origin, so this is the page's own fetch there — and the hosts it asks
+// are in shared/externalHosts.js, which the application's content
+// security policy is held to: a host missing from it is refused inside
+// the app as "Load failed".
+//
+// Bilibili's API refuses other origins and bans clients that are not a
+// browser (412); what does answer is its mobile video page, asked with a
+// phone's User-Agent, whose og:title and og:image name the video. No page
+// can ask that way — a browser will not send a User-Agent it is given,
+// and the HTTP plugin builds its headers with the browser's own Headers,
+// which drops it silently — so the application fetches that page itself
+// (desktop/src-tauri/src/videos.rs). The web makes the card as its link,
+// and the Mac fills it in when it next opens the board. Both covers come
+// from hosts that let any origin read them; Bilibili's refuses a foreign
+// Referer, so none is sent.
 
 import appLimits from './appLimits.js';
 import { IS_DESKTOP } from './appEnvironment.js';
-import { runtimeFetch } from './connectivity.js';
+import { nativeVideoPage } from './nativeData.js';
 
 const { youtube_metadata: METADATA_TIMEOUT_MS, youtube_thumbnail: THUMBNAIL_TIMEOUT_MS } = appLimits.timeouts_ms;
-const MOBILE_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
 // ---------------------------------------------------------------- the link
 
@@ -75,13 +80,13 @@ export function canPreview(link) {
 // `{ id, title, image }` for a video link: its id (a followed short link's
 // too), its title, and its thumbnail as a JPEG blob. Throws with a
 // sentence when either could not be had. `fetch` is the page's own;
-// `pageFetch` the one that may cross to Bilibili (the desktop's plugin).
-export async function videoPreview(url, { fetch = globalThis.fetch, pageFetch = runtimeFetch } = {}) {
+// `videoPage` is the application fetching a video page as a phone.
+export async function videoPreview(url, { fetch = globalThis.fetch, videoPage = nativeVideoPage } = {}) {
   const link = videoLink(url);
   if (!link) throw new Error('This is not a video link Papol knows');
   if (link.kind === 'youtube') return youtubePreview(link.id, { fetch });
   if (!IS_DESKTOP) throw new Error("Only the Mac app can fetch a Bilibili video's details");
-  return bilibiliPreview(url, link.id, { fetch, pageFetch });
+  return bilibiliPreview(url, link.id, { fetch, videoPage });
 }
 
 async function youtubePreview(videoId, { fetch }) {
@@ -94,15 +99,12 @@ async function youtubePreview(videoId, { fetch }) {
   return { id: videoId, title: titleOf(metadata.title), image };
 }
 
-async function bilibiliPreview(url, id, { fetch, pageFetch }) {
-  // The mobile page, which a b23.tv link redirects to when a phone asks.
+async function bilibiliPreview(url, id, { fetch, videoPage }) {
+  // The mobile page, which a b23.tv link lands on when a phone asks, and
+  // only the application can ask that way (shared/nativeData.js).
   const page = id ? `https://m.bilibili.com/video/${id}` : String(url).trim();
-  const answered = await pageFetch(page, {
-    headers: { 'User-Agent': MOBILE_USER_AGENT }, signal: AbortSignal.timeout(METADATA_TIMEOUT_MS),
-  });
-  if (!answered.ok) throw new Error(`Bilibili answered ${answered.status} for this video`);
-  const html = await answered.text();
-  const landed = bilibiliVideo(answered.url || page);
+  const { url: landedAt, html } = await videoPage(page);
+  const landed = bilibiliVideo(landedAt || page);
   const title = metaContent(html, 'og:title')?.replace(/_哔哩哔哩_bilibili$/, '');
   const picture = metaContent(html, 'og:image');
   if (!title && !picture) throw new Error('Bilibili gave no details for this video');

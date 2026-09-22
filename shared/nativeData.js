@@ -255,6 +255,14 @@ export async function nativeCaptureWebpage(url) {
   return invoke('capture_webpage', { url });
 }
 
+// The page a video link leads to, fetched by the application as a phone
+// (desktop/src-tauri/src/videos.rs): `{ url, html }`, the address the
+// fetch ended at and the page itself. A page cannot ask this way — the
+// browser will not let it send a User-Agent — so the application does.
+export function nativeVideoPage(url) {
+  return invoke('video_page', { url });
+}
+
 // Product media is a disposable cache, not user data. It is available before
 // sign-in and is verified by its published digest before the native store
 // adopts it. The content-addressed store ensures another surface cannot save

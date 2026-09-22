@@ -18,6 +18,7 @@
     "allow-blob-read",
     "allow-blob-ensure",
     "allow-capture-webpage",
+    "allow-video-page",
     "allow-local-clear-data",
     "allow-blob-discard",
     "allow-local-setting-get",
@@ -39,8 +40,6 @@
       "allow": [
         { "url": "https://papol.io/**" },
         { "url": "https://files.papol.io/**" },
-        { "url": "https://m.bilibili.com/video/**" },
-        { "url": "https://b23.tv/**" },
         { "url": "http://localhost:**" },
         { "url": "http://127.0.0.1:**" }
       ]
