@@ -20,6 +20,12 @@ import { canPreview, videoLink } from '../../shared/videos.js';
 
 const VIDEO_KINDS = ['youtube', 'bilibili'];
 const VIDEO_SITE = { youtube: 'YouTube', bilibili: 'Bilibili' };
+// A page card with no picture yet. On the Mac that is a page kept while
+// offline, pictured when the board is next open online (fillPageCard). On
+// the web the picture is the Worker's capture, and a card without one is
+// a capture that failed or has not finished, or a Mac card not yet
+// pictured — none of them offline.
+const PAGE_WITHOUT_PICTURE = DESKTOP ? 'Page saved offline' : 'No picture of this page';
 import appLimits from '../../shared/appLimits.js';
 import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -2309,7 +2315,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             ? <div className="board-image-error" role="status">Image unavailable</div>
             : <div className="board-image-loading"><Working label="Loading…" /></div>)}
           {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
-          {!hasCardPreview(item) && [...VIDEO_KINDS, 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{VIDEO_KINDS.includes(item.kind) ? '▶' : '↗'}</span><span>{VIDEO_KINDS.includes(item.kind) ? `${VIDEO_SITE[item.kind]} video` : 'Page saved offline'}</span>{VIDEO_KINDS.includes(item.kind) && !canPreview(videoLink(item.source_url || '')) && <span className="board-link-placeholder-note">Its title and cover come from the Papol Mac app.</span>}</div>}
+          {!hasCardPreview(item) && [...VIDEO_KINDS, 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{VIDEO_KINDS.includes(item.kind) ? '▶' : '↗'}</span><span>{VIDEO_KINDS.includes(item.kind) ? `${VIDEO_SITE[item.kind]} video` : PAGE_WITHOUT_PICTURE}</span>{VIDEO_KINDS.includes(item.kind) && !canPreview(videoLink(item.source_url || '')) && <span className="board-link-placeholder-note">Its title and cover come from the Papol Mac app.</span>}</div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.uuid

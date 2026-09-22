@@ -165,6 +165,12 @@ try {
       `document.querySelector(${JSON.stringify(cardSelector(link.uuid))})?.querySelector('.board-link-placeholder')`,
       { timeout: 10_000, what: 'the link card drawn' }).catch(() => false);
     check('and the canvas draws it as a link', drawn);
+    // Nothing was offline: the web's capture failed, and the card says only
+    // that it has no picture (the Mac's wording is for a page kept offline).
+    const label = await browser.evaluate(
+      `return document.querySelector(${JSON.stringify(cardSelector(link.uuid))})?.querySelector('.board-link-placeholder')?.textContent ?? null;`);
+    check('saying it has no picture, not that it was saved offline',
+      /No picture of this page/.test(label || '') && !/offline/i.test(label || ''), String(label));
   }
 
   console.log('\n== A page that can be ==');
