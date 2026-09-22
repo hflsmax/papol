@@ -566,6 +566,8 @@ export function boardView(row, detail = false) {
     item_count: detail ? items.length : (row.item_count || 0),
     items: detail ? items : [],
     staged_items: detail ? stagedItems : [],
+    // The replica has no join for these; getBoard fills them in.
+    papers: [],
     groups: detail ? (row.groups || []).map((group) => ({
       ...group,
       auto_arrange: Boolean(group.auto_arrange),
