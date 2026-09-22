@@ -886,9 +886,63 @@ so a URL asked for before its object exists stays a 404 that long. Papol
 never hands out an address before the upload has landed, and keys are
 never reused, so this is a probe's problem rather than a user's.
 
+### Step 12 — landed 2026-09-22: uploads go straight to the bucket
+
+The same arithmetic as step 10, on the way in: a PDF that went browser →
+Worker → R2 cost the Worker ~18 ms of CPU a megabyte just to pass it on,
+and a request body is capped at 100 MB besides. Now the Worker never sees
+the file.
+
+- The browser hashes the PDF (WebCrypto SHA-256) and asks `POST
+  /api/papers/upload-address` with `{ sha256, size, name }`. The answer is
+  `{ stored: true, file_path }` when the bucket already holds
+  `uploads/<sha256>.pdf`, else `{ stored: false, file_path, url, headers }`:
+  a presigned S3 PUT to R2 (`aws4fetch`, an R2 API token as the secrets
+  `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, the bucket named by the
+  new `FILES_BUCKET` var), valid fifteen minutes, whose signature covers
+  `x-amz-checksum-sha256` (the digest, base64), `content-type` and
+  `content-length`. R2 honours the checksum on a presigned PUT — verified
+  on dev: same length, one byte different → `400 BadDigest`; a tampered
+  checksum header, or one byte more than the size the address was asked
+  for → `403 SignatureDoesNotMatch`; the right bytes → 200 — so the
+  bucket itself refuses anything that does not hash to its name, and no
+  MD5 fallback was needed. The browser PUTs with a plain `fetch` and the
+  headers listed, no credential of Papol's, then tells `POST
+  /api/papers/uploaded` `{ file_path, uploaded_name, identifier? }`, which
+  checks the object exists and queues the reading as `extract` did.
+  `POST /api/papers/extract` stays for older desktop builds, and the
+  browser falls back to it when the address route answers 404 or 503 (an
+  older Worker, or one without the secrets).
+- The bucket needs a CORS rule, `cloudflare/r2-cors.json`, applied by
+  hand: `npx wrangler r2 bucket cors set papol-files --file r2-cors.json`
+  (and `papol-files-dev`). R2 refuses a port wildcard in an origin, so
+  the development origins are listed by port (5173, 8787).
+- The paper's identifier is read in the browser: `pdfjs-dist` (the
+  viewer's version, its worker loaded the same way) lays out the first
+  three pages while the bytes go up, and `shared/identifiers.js`, the
+  port of the Worker's `identifiers.ts` with a unit test beside it, finds
+  the arXiv id or the first complete-looking DOI. The job asks CrossRef
+  and OpenAlex about a given identifier without fetching the PDF, and
+  turns to the host helper's `/header` only when none was given or no
+  index knew it. A paper limit `files.paper_mb` (200) is in
+  `app_limits.json` now; the address is refused above it.
+
+Measured on dev from headless Chrome, the real form: a 21 MB paper
+(`47602f24…`, which prints a DOI on its first page) had its form open
+2.8 s after the file was chosen — the PUT to `r2.cloudflarestorage.com`
+took 2.1 s of that — and filled 4.9 s after, from CrossRef by the DOI the
+browser read. The Worker saw a 110-byte body for the address (2 ms of
+CPU), a 157-byte body for `uploaded` (3 ms), and the job took 4 ms of CPU
+and 453 ms of wall time without touching the PDF. `attention.pdf`, already
+in the bucket, opened its form in 0.8 s with no PUT at all; OpenAlex does
+not index arXiv's DataCite DOIs, so that one still went to the helper
+(15 ms of CPU, 3.8 s) and filled in 11 s.
+
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
-deleted; the host's configuration.nix trimmed of the retired keys.
+deleted; the host's configuration.nix trimmed of the retired keys; the
+CORS rule applied to `papol-files` and the two R2 secrets set on
+production before the next production deploy.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 

@@ -172,6 +172,91 @@ describe("what a PDF says about itself", () => {
   });
 });
 
+describe("an upload that goes straight to the bucket", () => {
+  const pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF";
+
+  it("answers a stored digest with its file, and a new one with a signed PUT that binds the bytes and their size", async () => {
+    const account = await register();
+    const digest = await sha256(pdf);
+    const address = await ok("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: pdf.length, name: "Some-Paper.pdf" } });
+    expect(address).toMatchObject({ stored: false, file_path: `${digest}.pdf`, headers: { "content-type": "application/pdf" } });
+    const url = new URL(address.url);
+    expect(url.origin).toBe("https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com");
+    expect(url.pathname).toBe(`/papol-files/uploads/${digest}.pdf`);
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("900");
+    expect(url.searchParams.get("X-Amz-Credential")).toMatch(/^test-access-key\/\d{8}\/auto\/s3\/aws4_request$/);
+    expect(url.searchParams.get("X-Amz-SignedHeaders")).toBe("content-length;content-type;host;x-amz-checksum-sha256");
+    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    // The checksum header is the digest again, in the base64 S3 wants.
+    const checksum = address.headers["x-amz-checksum-sha256"];
+    expect([...atob(checksum)].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")).toBe(digest);
+    expect(Object.keys(address.headers).sort()).toEqual(["content-type", "x-amz-checksum-sha256"]);
+
+    await env.FILES.put(`uploads/${digest}.pdf`, pdf);
+    expect(await ok("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: pdf.length, name: "again.pdf" } }))
+      .toEqual({ stored: true, file_path: `${digest}.pdf` });
+
+    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: "not a digest", size: 1, name: "a.pdf" } })).status).toBe(422);
+    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: 1, name: "notes.txt" } })).status).toBe(400);
+    expect((await call("POST", "/api/papers/upload-address", { headers: account.headers, json: { sha256: digest, size: 201 * 1024 * 1024, name: "huge.pdf" } })).status).toBe(413);
+    expect((await call("POST", "/api/papers/upload-address", { json: { sha256: digest, size: 1, name: "a.pdf" } })).status).toBe(401);
+  });
+
+  it("queues the reading once the bytes are in, and not before", async () => {
+    const account = await register();
+    const digest = await sha256(pdf);
+    const early = await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf" } });
+    expect(early.status).toBe(404);
+    await env.FILES.put(`uploads/${digest}.pdf`, pdf);
+    const queued = await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier: { doi: "10.1145/2984511.2984540" } } });
+    expect(queued.status, await queued.clone().text()).toBe(202);
+    const ticket = await queued.json<any>();
+    expect(ticket).toMatchObject({ file_path: `${digest}.pdf`, sha256: digest });
+    expect(JSON.parse((await row<{ payload: string }>("SELECT payload FROM jobs WHERE uuid = ?", ticket.job))!.payload))
+      .toEqual({ file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier: { doi: "10.1145/2984511.2984540" } });
+
+    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: "../secret.pdf" } })).status).toBe(422);
+    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "notes.txt" } })).status).toBe(400);
+    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, identifier: { doi: "not a doi" } } })).status).toBe(422);
+    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, identifier: { arxiv_id: "1706.03762v5" } } })).status).toBe(202);
+  });
+
+  it("asks the indexes about a given identifier and never fetches the PDF, and turns to the helper only when they do not know it", async () => {
+    const account = await register();
+    const digest = await sha256(pdf);
+    await env.FILES.put(`uploads/${digest}.pdf`, pdf);
+    const queue = (identifier: unknown) => ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier } });
+    const asked: string[] = [];
+    const answers = (known: boolean) => apis({
+      "grobid.test": () => { asked.push("helper"); return titleBlock({ title: "As Printed", authors: ["P. Rinted"], journal: "The Page", year: 2020 }); },
+      "api.crossref.org": (url) => { asked.push(url.pathname); return known ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
+      "api.openalex.org": () => { asked.push("openalex"); return new Response("", { status: 404 }); },
+    });
+
+    answers(true);
+    const known = await queue({ doi: "10.1145/2984511.2984540" });
+    await woken(known.job);
+    expect((await ok("GET", `/api/jobs/${known.job}`, { headers: account.headers })).result).toMatchObject({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms", year: 2016 });
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
+
+    // An arXiv id is asked about through its DataCite DOI.
+    asked.length = 0;
+    const arxiv = await queue({ arxiv_id: "1706.03762v5" });
+    await woken(arxiv.job);
+    expect(asked[0]).toBe(`/works/${encodeURIComponent("10.48550/arXiv.1706.03762")}`);
+
+    // Unknown to the indexes: the helper reads the title block, and the
+    // given identifier stays on the form.
+    asked.length = 0;
+    answers(false);
+    const unknown = await queue({ doi: "10.9999/nobody-knows" });
+    await woken(unknown.job);
+    expect((await ok("GET", `/api/jobs/${unknown.job}`, { headers: account.headers })).result)
+      .toMatchObject({ doi: "10.9999/nobody-knows", title: "As Printed", authors: JSON.stringify(["P. Rinted"]), journal: "The Page", year: 2020 });
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "openalex", "helper"]);
+  });
+});
+
 describe("saving, opening and editing", () => {
   async function stored(bytes = "%PDF-1.4 a paper"): Promise<string> {
     const digest = await sha256(bytes);

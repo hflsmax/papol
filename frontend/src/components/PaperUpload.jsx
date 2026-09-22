@@ -9,6 +9,7 @@ import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
+import { readIdentifier } from '../pdfIdentifier.js';
 import { READ_FIELDS, fillUnedited, reviewFields, titleFromFilename } from '../uploadReview';
 
 // The form opens the moment the upload has answered, on the title the
@@ -96,7 +97,10 @@ export default function PaperUpload({
     setError(null);
 
     try {
-      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file), listTags(), listShelves()]);
+      // The PDF's first pages are read for its DOI or arXiv id here, while
+      // the bytes go up; the server starts its reading from what was found.
+      const identifier = readIdentifier(file);
+      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file, { identifier }), listTags(), listShelves()]);
       setExtractedData(uploaded);
       onReviewChange(true);
       setShelves(shelfData);
@@ -120,7 +124,7 @@ export default function PaperUpload({
       const wait = new AbortController();
       readingWait.current = wait;
       setReading('reading');
-      void awaitPaperReading(uploaded, file, { signal: wait.signal }).then((read) => {
+      void awaitPaperReading(uploaded, file, { signal: wait.signal, identifier }).then((read) => {
         // Saved, cancelled, or replaced by another file: nobody is listening.
         if (wait.signal.aborted) return;
         readingWait.current = null;

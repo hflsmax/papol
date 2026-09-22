@@ -34,7 +34,11 @@ export default defineConfig(async () => {
         miniflare: {
           // The suite hands wake-ups to the consumer itself, so a job
           // runs when a test says and not when the runtime delivers.
-          bindings: { TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", GROBID_URL: "https://grobid.test" },
+          bindings: {
+            TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", GROBID_URL: "https://grobid.test",
+            // Any key signs; the suite reads the signature's shape, never sends it.
+            R2_ACCESS_KEY_ID: "test-access-key", R2_SECRET_ACCESS_KEY: "test-secret-key",
+          },
         },
       }),
     ],
