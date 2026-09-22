@@ -11,6 +11,7 @@ import { runtimeFetch } from '../../shared/connectivity.js';
 import { API_BASE, authHeaders, handleResponse } from '../../shared/httpClient.js';
 import { backendPath } from '../../shared/appUrls.js';
 import { assembleExport } from '../../shared/exportArchive.js';
+import { holdFullBar } from '../../shared/waiting.js';
 
 // A response's bytes, read as they arrive so the wait can be measured;
 // `onBytes` hears the running count. A body that cannot be streamed is
@@ -72,9 +73,16 @@ export async function downloadMyData(onProgress = () => {}) {
     if (!answer.ok) throw new Error(`Error ${answer.status}`);
     return readBody(answer, onBytes);
   };
+  // The bar is held full for a moment before the zip's spinner takes its
+  // place (docs/waiting.md).
+  let fullAt = null;
   const { entries, failed } = await assembleExport(tar, fetchFile, {
-    onProgress: (counts) => onProgress({ phase: 'fetching', ...counts }),
+    onProgress: (counts) => {
+      if (fullAt == null && counts.done === counts.total) fullAt = Date.now();
+      onProgress({ phase: 'fetching', ...counts });
+    },
   });
+  if (fullAt != null) await holdFullBar(fullAt);
 
   onProgress({ phase: 'packing' });
   // Let the page paint that before the zip, which holds the thread.
