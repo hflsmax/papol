@@ -630,9 +630,9 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'board' && (
         <BoardJacket
           boardUuid={route.uuid}
-          currentUser={user}
           onOpen={openBoardCanvas}
           onBack={goBackFromJacket}
+          onDeleted={() => navigate(jacketBack.path, { replace: true })}
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
         />
@@ -752,7 +752,7 @@ export default function App({ startupUser = null, startupError = null }) {
               currentUser={user}
               nookState={nookState}
               onNavigate={navigate}
-              onOpenBoard={openBoard}
+              onOpenBoard={openBoardCanvas}
               onSyncRefresh={syncRefresh}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
