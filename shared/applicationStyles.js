@@ -4363,6 +4363,47 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-booklet-header-text.empty { color: var(--ink-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-style: italic; }
 .board-booklet-branch { position: absolute; z-index: 4; left: 10px; height: 1px; border-radius: 1px; background: var(--booklet-line); pointer-events: auto; transition: transform 180ms cubic-bezier(.22,.9,.3,1); }
 .board-booklet-branch::before { content: ''; position: absolute; inset: -15px 0; }
+/* A group's options: a quiet ⋯ at the end of its heading, shown on hover,
+   and once the group is selected a bar just above the heading. Both keep
+   their size on screen whatever the zoom, as the card actions do. An empty
+   header's prompt waits for the same hover, so an untouched group is only
+   its title. */
+.board-booklet-heading.has-options .board-booklet-title { padding-right: calc(34px * var(--board-ui-scale)); }
+.board-group-more { position: absolute; z-index: 1; top: 50%; right: 2px; display: grid; place-items: center; width: 28px; height: 28px; padding: 4px; border-radius: 50%; color: var(--ink-soft); opacity: 0; translate: 0 -50%; scale: var(--board-ui-scale); transform-origin: right center; pointer-events: auto; transition: opacity var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.board-group-more > svg, .board-group-options .item-action > svg { display: block; width: 20px; height: 20px; }
+.board-group-more .action-glyph, .board-group-options .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.board-group-more .action-glyph-fill { fill: currentColor; stroke: none; }
+.board-booklet:hover .board-group-more, .board-group-more:focus-visible, .board-group-more[aria-expanded='true'] { opacity: 1; }
+.board-group-more:hover:not(:disabled), .board-group-more[aria-expanded='true'] { background: var(--accent-soft); color: var(--accent); }
+.board-booklet-header-text.empty:is(button) { opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.board-booklet:hover .board-booklet-header-text.empty, .board-booklet.selected .board-booklet-header-text.empty, .board-booklet-header-text.empty:focus-visible { opacity: 1; }
+.board-group-options-anchor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.board-group-options { position: absolute; right: 0; bottom: calc(6px * var(--board-ui-scale)); scale: var(--board-ui-scale); transform-origin: bottom right; font-family: var(--font-ui); line-height: 1.35; cursor: default; }
+.board-group-options.below { top: 40px; bottom: auto; transform-origin: top right; }
+.board-group-options-surface { display: flex; align-items: center; gap: 2px; width: max-content; padding: 3px; border-radius: 999px; backdrop-filter: blur(8px); }
+.board-group-options-kind { padding: 0 8px 0 11px; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; white-space: nowrap; }
+.board-group-arrange { display: flex; gap: 2px; margin-right: 3px; padding: 2px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, var(--card)); }
+.board-group-arrange button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px 0 8px; border-radius: 999px; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+.board-group-arrange button > svg { width: 17px; height: 17px; }
+.board-group-arrange button:hover:not(:disabled) { color: var(--ink); }
+.board-group-arrange button[aria-checked='true'] { background: var(--card); color: var(--accent); box-shadow: 0 1px 2px rgba(29,33,41,.14), 0 0 0 1px var(--accent-line); }
+.board-group-options-divider { width: 1px; height: 20px; margin: 0 3px; background: var(--line); }
+/* A tidy, an arrange or a reset glides what it moves, and then says what
+   it did, with the way back, at the foot of the canvas. */
+.board-stage.board-gliding .board-canvas-card,
+.board-stage.board-gliding .board-booklet { transition: transform 180ms cubic-bezier(.22,.9,.3,1), width 180ms cubic-bezier(.22,.9,.3,1), height 180ms cubic-bezier(.22,.9,.3,1); }
+.board-notice { position: fixed; z-index: 45; bottom: 22px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; transform: translateX(-50%); border-radius: var(--radius-pill); color: var(--ink); font: var(--fs-sm) var(--font-ui); animation: board-notice-in 160ms var(--ease-out); }
+.board-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-notice button { padding: 5px 12px; border-radius: var(--radius-pill); color: var(--accent); font: 600 var(--fs-sm) var(--font-ui); }
+.board-notice button:hover:not(:disabled) { background: var(--accent-soft); }
+.board-notice:not(:has(button)) { padding-right: 16px; }
+@keyframes board-notice-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+@media (hover: none) {
+  .board-group-more { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .board-group-arrange button { height: 36px; }
+}
 .board-card-drag-handle { position: absolute; z-index: -1; top: -5px; left: -5px; display: grid; width: 58px; height: 54px; place-items: center; padding: 0; border: 2px solid var(--ink-faint); border-radius: 18px 9px 16px 7px; backface-visibility: hidden; background: linear-gradient(145deg, var(--card) 8%, var(--paper) 78%); box-shadow: inset 2px 2px rgba(255,255,255,.72), 2px 4px 9px rgba(29,33,41,.22); opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); transform-origin: bottom right; will-change: transform, opacity; cursor: grab; transition: opacity .16s ease, transform .2s cubic-bezier(.2,.85,.25,1.15), border-color .14s ease, box-shadow .14s ease, z-index 0s .16s; }
 .board-card-drag-handle span { width: 27px; height: 23px; border-radius: 7px; backface-visibility: hidden; background: repeating-linear-gradient(0deg, var(--ink-faint) 0 2px, transparent 2px 6px); opacity: .82; transform: translateZ(0); }
 .board-card-drag-handle.grip-visible, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; transform: translate3d(-18px, -15px, 0) rotate(-5deg) scale(1); }
@@ -4453,7 +4494,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-booklet,
   .board-booklet-branch,
   .board-card-drag-handle,
-  .board-canvas-card.booklet-reorder-peer { transition-duration: 0ms; }
+  .board-canvas-card.booklet-reorder-peer,
+  .board-stage.board-gliding .board-canvas-card,
+  .board-stage.board-gliding .board-booklet { transition-duration: 0ms; }
+  .board-notice { animation: none; }
 }
 
 @media (max-width: 700px) {
@@ -4476,6 +4520,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-card-action-menu .item-actions-surface { top: 8px; right: 0; bottom: auto; left: auto; transform-origin: top right; }
   .board-resize-handle { right: -14px; bottom: -14px; width: 28px; height: 28px; scale: var(--board-ui-scale); }
   .board-booklet-spine { left: calc(-6px * var(--board-ui-scale)); width: calc(32px * var(--board-ui-scale)); }
+  .board-group-options-kind, .board-group-arrange button > span { display: none; }
+  .board-group-arrange button { padding: 0 9px; }
   .board-inline-format button { width: 36px; min-width: 36px; min-height: 34px; }
   .board-inline-description { font-size: 16px; }
   .board-staging { top: 10px; right: 10px; width: min(290px, calc(100vw - 20px)); max-height: 48%; }
