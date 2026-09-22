@@ -18,3 +18,7 @@ export const IS_DESKTOP = APP_ENV.runtime === 'desktop';
 // What this Papol calls itself when it signs in. The installed application
 // ships for macOS; everything else reaches the server as a page.
 export const CLIENT_PLATFORM = IS_DESKTOP ? 'macos' : 'web';
+// The installed application's version, as the build injected it; null on
+// the web and in a desktop build too old to say.
+export const DESKTOP_VERSION = IS_DESKTOP && typeof APP_ENV.version === 'string' && APP_ENV.version
+  ? APP_ENV.version : null;

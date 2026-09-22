@@ -954,6 +954,27 @@ button.full-width {
   font: var(--fs-sm) var(--font-ui);
 }
 
+/* A sync that did not finish, said where the user is (SyncAttention). */
+.sync-attention {
+  position: fixed;
+  z-index: 1000;
+  left: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 6px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--red);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(29,33,41,.18);
+  font: var(--fs-sm) var(--font-ui);
+}
+.sync-attention p { margin: 0; color: var(--ink-soft); line-height: 1.4; }
+.sync-attention-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.sync-attention-close { margin-left: auto; border: 0; background: none; color: var(--ink-soft); font-size: var(--fs-lg); line-height: 1; cursor: pointer; }
+
 .upload-section.compact { flex: 1 1 240px; min-width: 180px; }
 .upload-section.compact .dropzone { display: grid; place-items: center; min-height: 48px; margin: 0; padding: 8px 12px; }
 .upload-section.compact .dropzone p { margin: 0; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.35; }

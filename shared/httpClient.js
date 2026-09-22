@@ -1,4 +1,4 @@
-import { CLIENT_PLATFORM } from './appEnvironment.js';
+import { CLIENT_PLATFORM, DESKTOP_VERSION } from './appEnvironment.js';
 import { backendPath } from './appUrls.js';
 import { currentCredential } from './credentials.js';
 import { runtimeFetch } from './connectivity.js';
@@ -12,10 +12,19 @@ export const PLATFORM_HEADER = 'X-Papol-Platform';
 // And which schema it was built for. The server compares it with its own
 // and answers 426 to any other, which is the whole of the compatibility gate.
 export const SCHEMA_HEADER = 'X-Papol-Schema';
+// And, from the installed application, its version: the server holds the
+// app's windows to the same minimum as its synchronizer, whose User-Agent
+// says the same thing. Without it the startup check would call a build
+// the synchronizer is refused for "supported".
+export const DESKTOP_VERSION_HEADER = 'X-Papol-Desktop-Version';
 
 export function authHeaders(extra = {}) {
   const token = currentCredential();
-  const headers = { [SCHEMA_HEADER]: String(registry.schema_version), ...extra };
+  const headers = {
+    [SCHEMA_HEADER]: String(registry.schema_version),
+    ...(DESKTOP_VERSION ? { [DESKTOP_VERSION_HEADER]: DESKTOP_VERSION } : {}),
+    ...extra,
+  };
   return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
 }
 
