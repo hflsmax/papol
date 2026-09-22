@@ -159,7 +159,66 @@ button:disabled {
 
 .link-button.danger { color: var(--red); }
 
-/* One turning ring for every wait, sized by the line it sits in. */
+/* One way to wait (docs/waiting.md). A wait that can be measured is a
+   bar, .wait-progress; one that cannot is the spinner, .wait-working. Both
+   are the same secondary line, sit where the result will appear, and are
+   the components in shared/ui/Waiting.js: nothing else draws a wait. */
+.wait {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
+.wait-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.wait-progress {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.wait-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wait-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wait-detail {
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar: a hairline's height, the accent on the muted track. */
+.wait-track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+.wait-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .15s linear;
+}
+
+/* One turning ring for every wait, one size everywhere. */
 .spinner {
   display: inline-block;
   flex: 0 0 auto;
@@ -172,6 +231,13 @@ button:disabled {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* A page that is not here yet: its wait, centred where it will be. */
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
 
 .error {
   background: var(--red-soft);
@@ -362,7 +428,7 @@ button:disabled {
 }
 
 /* A hint: an aside the page can afford to whisper. */
-.hint, .loading {
+.hint {
   color: var(--ink-faint);
 }
 

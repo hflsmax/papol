@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Progress, Working } from '../../../shared/ui/Waiting.js';
 import {
   getPaper, updatePaper, deletePaper, createTag, listTags, listShelves,
   addToNook, pdfFileName, pdfHref, reextractPaperMetadata,
@@ -376,7 +377,7 @@ export default function PaperJacket({
   };
 
   if (isLoading) {
-    return <div className="loading" role="status" aria-live="polite">Loading paper…</div>;
+    return <div className="loading"><Working label="Loading paper…" /></div>;
   }
 
   if (error && !paper) {
@@ -481,10 +482,9 @@ export default function PaperJacket({
               onClick={handleMetadataExtract}
               disabled={isExtractingMetadata}
             >
-              {isExtractingMetadata ? (
-                <><span className="spinner metadata-spinner" aria-hidden="true" /> Extracting…</>
-              ) : 'Extract metadata from PDF'}
+              {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
             </button>
+            {isExtractingMetadata && <Working label="Extracting…" />}
           </div>
 
           <div className="form-group">
@@ -751,7 +751,7 @@ export default function PaperJacket({
             {currentUser && !hasEntry && (
               /* The actual next step, so it carries the weight. */
               <button className="primary" onClick={handleAddToNook} disabled={isAddingToNook}>
-                {isAddingToNook ? 'Downloading PDF…' : 'Add to my nook'}
+                {isAddingToNook ? 'Adding to nook…' : 'Add to my nook'}
               </button>
             )}
             {currentUser && canShareThisPdf && (

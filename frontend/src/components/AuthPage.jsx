@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { login, register } from '../../../shared/api/account.js';
 
 export default function AuthPage({ onAuth, initialMode = 'login' }) {
@@ -92,11 +93,9 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           </div>
 
           <button type="submit" className="primary full-width" disabled={isLoading}>
-            {isLoading
-              ? 'Please wait…'
-              : mode === 'login'
-                ? 'Sign in'
-                : 'Create account'}
+            {mode === 'login'
+              ? (isLoading ? 'Signing in…' : 'Sign in')
+              : (isLoading ? 'Creating account…' : 'Create account')}
           </button>
         </form>
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import { useModalDialog } from '../../../shared/useModalDialog.js';
 import { appPath } from '../base';
 import { IS_DESKTOP } from '../../../shared/appEnvironment.js';
@@ -193,7 +194,7 @@ export default function LearnPage() {
                 Your browser does not support embedded video.
               </video>
             )}
-            {playerMedia?.status === 'loading' && <p className="learn-player-status">This video is still loading.</p>}
+            {playerMedia?.status === 'loading' && <div className="learn-player-status"><Working label="Loading video…" /></div>}
             {playerMedia?.status === 'unavailable' && <p className="learn-player-status">This video requires a network connection.</p>}
           </div>
         </div>

@@ -83,7 +83,26 @@ test('assembleExport lays the fetched files beside the data, stored as they are,
   assert.deepEqual(entries['papol-export-2026-09-21/README.txt'][1], { level: 6 });
   assert.deepEqual(entries['papol-export-2026-09-21/pdfs/on-leaving-2024.pdf'][1], { level: 0 });
   assert.equal(decoder.decode(entries['papol-export-2026-09-21/pdfs/on-leaving-2024.pdf'][0]), '%PDF!');
-  assert.deepEqual(progress, [{ done: 0, total: 3 }, { done: 1, total: 3 }, { done: 2, total: 3 }, { done: 3, total: 3 }]);
+  // Each step says how many files are in, and how many of the manifest's
+  // bytes: the one that failed still counts as done, its size with it.
+  assert.equal(progress[0].done, 0);
+  assert.deepEqual(progress.map((step) => step.total), [3, 3, 3, 3]);
+  assert.deepEqual(progress.map((step) => step.totalBytes), [12, 12, 12, 12]);
+  assert.deepEqual(progress.map((step) => step.done), [0, 1, 2, 3]);
+  assert.equal(progress.at(-1).bytes, 12);
+});
+
+test('assembleExport counts the bytes as a file streams in, when its fetch reports them', async () => {
+  const manifest = [{ path: 'pdfs/big.pdf', url: '/uploads/big.pdf', size: 10 }];
+  const bytes = tar({ 'papol-export-2026-09-21/files.json': JSON.stringify(manifest) });
+  const progress = [];
+  const fetchFile = async (file, onBytes) => {
+    onBytes(4);
+    onBytes(10);
+    return new Uint8Array(10);
+  };
+  await assembleExport(bytes, fetchFile, { onProgress: (p) => progress.push(p) });
+  assert.deepEqual(progress.map((step) => [step.done, step.bytes]), [[0, 0], [0, 4], [0, 10], [1, 10]]);
 });
 
 test('assembleExport refuses an archive that names no files', async () => {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Working } from '../../../shared/ui/Waiting.js';
 import {
   getNotifications,
   markNotificationRead,
@@ -20,7 +21,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
   }, []);
 
   if (error) return <div className="error" role="alert">{error}</div>;
-  if (!data) return <div className="loading" role="status" aria-live="polite">Loading inbox…</div>;
+  if (!data) return <div className="loading"><Working label="Loading inbox…" /></div>;
 
   const formatWhen = (dateString) =>
     new Date(dateString).toLocaleDateString('en-US', {
