@@ -1782,6 +1782,329 @@ button.full-width {
   text-decoration: underline;
 }
 
+/* ---------- A board's jacket ---------- */
+
+/* Set like a paper's — the same panel, title row, shelf picker, trash and
+   action row — because the two are the same kind of thing. What is its own
+   is below: the name and description edited in place, the facts line, the
+   preview, and the lists of papers and waiting clips. */
+.board-jacket-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.board-jacket-heading h2 {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-2xl);
+  overflow-wrap: anywhere;
+}
+
+/* The owner's name and description are the words themselves, and pointing
+   at them says they can be changed. */
+.board-jacket-editable {
+  cursor: text;
+  border-radius: var(--radius);
+  outline: none;
+  transition: background-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.board-jacket-editable:hover,
+.board-jacket-editable:focus-visible {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.board-jacket-name-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: -5px 0 -4px;
+  padding: 3px 7px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.board-jacket-name-input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* One muted line, the parts set apart by middots. */
+.board-jacket-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  /* Every part carries its middot in front, and the line is drawn one
+     middot's width to the left with that width clipped away: whichever part
+     starts a line, on a phone too, starts it without a stray dot. */
+  margin-left: -16px;
+  clip-path: inset(0 0 0 16px);
+}
+
+.board-jacket-facts > *::before {
+  content: '·';
+  display: inline-block;
+  width: 16px;
+  color: var(--line-strong);
+  text-align: center;
+}
+
+.board-jacket-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.board-jacket-owner::before { margin-right: -6px; }
+.board-jacket-owner:hover { color: var(--accent); }
+.board-jacket-owner .mini-avatar { width: 20px; height: 20px; }
+
+.board-jacket-description {
+  max-width: 44rem;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.board-jacket-description.board-jacket-editable { width: fit-content; }
+
+.board-jacket-description.empty {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.board-jacket .board-jacket-description-input {
+  display: block;
+  max-width: 44rem;
+  margin-top: 12px;
+}
+
+/* The preview, the papers and the waiting clips each stand a little apart
+   from what is above them, as the paper page's sections do. */
+.board-jacket .board-preview { margin-top: 20px; }
+
+.board-jacket-section { margin-top: 24px; }
+.board-jacket-section .kicker { margin: 0 0 6px; }
+
+.board-jacket-papers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The title, and under it who and when: the same two lines whatever the
+   title's length, so the list reads as a column. */
+.board-jacket-papers li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.board-jacket-papers li:last-child { border-bottom: 1px solid var(--line); }
+
+.board-jacket-papers a {
+  min-width: 0;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.board-jacket-papers a:hover { color: var(--accent); text-decoration: underline; }
+
+.board-jacket-papers span {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.board-jacket-more {
+  margin: 6px 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.board-jacket-section-head p {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-section-head button {
+  flex: none;
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+}
+
+.board-jacket-staged {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.board-jacket-staged-item,
+.board-jacket-staged-more {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.board-jacket-staged-item > span {
+  color: var(--accent);
+  font: 700 var(--fs-2xs) var(--font-ui);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.board-jacket-staged-item p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.board-jacket-staged-item small {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font: var(--fs-2xs) var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-jacket-staged-more {
+  display: grid;
+  min-height: 86px;
+  place-items: center;
+  color: var(--ink-soft);
+  font: 600 var(--fs-sm) var(--font-ui);
+}
+
+/* A board seen from a distance, every card where it sits. Wide and short,
+   so it shrinks with the page rather than filling a phone's screen. */
+.board-preview {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 180px;
+  max-height: 460px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--paper-sunken);
+  background-image: radial-gradient(circle, var(--line-strong) .65px, transparent .75px);
+  background-size: 16px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.board-preview:hover,
+.board-preview:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.board-preview svg {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+}
+
+.board-preview-card rect {
+  fill: var(--card);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 3px 3px rgba(29,33,41,.10));
+}
+
+.board-preview-card line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.board-preview-card text {
+  fill: var(--ink-soft);
+  font: 14px var(--font-serif);
+  pointer-events: none;
+}
+
+.board-preview-card text.kind {
+  fill: var(--ink-faint);
+  font: 700 10px var(--font-ui);
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+
+.board-preview-card.comment rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent-line);
+}
+
+.board-preview.empty {
+  aspect-ratio: auto;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 28px 20px;
+  color: var(--ink-faint);
+  background-image: none;
+  font: var(--fs-sm) var(--font-ui);
+  text-align: center;
+}
+
+.board-preview.empty svg {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  padding: 0;
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+}
+
+.board-preview.empty strong {
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
+}
+
 .nook-chip {
   gap: 10px;
   padding: 5px 16px 5px 6px;
@@ -3927,19 +4250,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
    wear, so one glyph means one thing everywhere in Papol. */
 /* The way back to where the board is kept, beside the house that leaves for
    Papol. Worded, because unlike the house it names what it returns to. */
-/* ---------- A board's jacket ---------- */
-
-/* Its one screen in the Library: what is known about the board, and the way
-   in. Set like a paper's, because the two are the same kind of thing. */
-.board-jacket-head { display: flex; align-items: center; gap: 10px; }
-.board-jacket .board-jacket-name { flex: 1; min-width: 0; margin: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-2xl); line-height: 1.2; }
-.board-jacket input.board-jacket-name:hover { border-color: var(--line); }
-.board-jacket input.board-jacket-name:focus { border-color: var(--accent); background: var(--card); outline: none; }
-.board-jacket-facts { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 0; color: var(--ink-faint); font-size: var(--fs-sm); }
-.board-jacket .board-jacket-note { width: 100%; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-md); line-height: 1.55; resize: vertical; white-space: pre-wrap; }
-.board-jacket textarea.board-jacket-note:focus { border-color: var(--accent); background: var(--card); outline: none; }
-.board-jacket-actions { display: flex; gap: 10px; align-items: center; }
-
 .board-toolbar-title { min-width: 100px; border: 1px solid transparent; padding: 6px 8px; background: transparent; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .board-toolbar-title:focus { outline: none; border-color: var(--accent-line); background: var(--paper); }
 .board-toolbar-title[readonly] { cursor: default; }
@@ -4209,6 +4519,10 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .detail-authors-row .authors {
     flex-basis: 100%;
   }
+
+  /* A board's name keeps its badge beside it; the pair takes the row. */
+  .detail-title-row .board-jacket-heading { flex-basis: 100%; }
+  .detail-title-row .board-jacket-heading h2 { flex-basis: auto; }
 
   .panel {
     padding: 16px;
