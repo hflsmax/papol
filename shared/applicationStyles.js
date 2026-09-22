@@ -285,6 +285,35 @@ ${commonStyles}
   white-space: pre-wrap;
 }
 
+.admin-email-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.sent-email-subject {
+  font-weight: 600;
+  text-align: left;
+}
+
+.sent-email-detail {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+/* An HTML email is drawn on the white its sender assumed. */
+.sent-email-html {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  border: 0;
+  background: #fff;
+}
+
 .notice-banner {
   display: flex;
   align-items: center;

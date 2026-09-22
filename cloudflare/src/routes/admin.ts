@@ -1,12 +1,15 @@
-// The admin pages: every report, the tables as they are, and one raw
-// statement at a time. What the database is made of is asked of the
+// The admin pages: every report, the emails sent and announcements to
+// send, the tables as they are, and one raw statement at a time. What the database is made of is asked of the
 // database, not of a model held beside it.
 
 import limits from "../../../config/app_limits.json";
 import { all, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
+import { mailConfigured, sentEmail, sentEmails, type SentEmail } from "../jobs/mail";
+import { queueAnnouncement } from "../jobs/notifications";
+import { wake } from "../jobs/queue";
 import * as validate from "../validate";
-import { feedbackOut, requireAdmin } from "./inbox";
+import { audienceOf, feedbackOut, requireAdmin } from "./inbox";
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const RETURNS_ROWS = /^\s*(select|with|pragma|explain|values)\b/i;
@@ -53,7 +56,70 @@ function coerce(column: Column, value: unknown): unknown {
   return value;
 }
 
+// Emails sent within this long of each other, to the same subject from
+// the same sender, are one send: an announcement's copies, one per
+// recipient, arrive in Resend's record seconds apart.
+const SEND_WINDOW_MS = 10 * 60 * 1000;
+
+export interface Send {
+  subject: string;
+  from: string;
+  sent_at: string;
+  emails: { id: string; to: string; status: string | null }[];
+}
+
+// Resend's record, newest first, gathered into sends.
+export function groupSends(emails: SentEmail[]): Send[] {
+  const sends: Send[] = [];
+  const time = (at: string) => Date.parse(at.replace(" ", "T").replace(/\+00$/, "Z"));
+  for (const email of emails) {
+    const last = sends[sends.length - 1];
+    const copy = { id: email.id, to: email.to.join(", "), status: email.last_event };
+    if (last && last.subject === email.subject && last.from === email.from && time(last.sent_at) - time(email.created_at) <= SEND_WINDOW_MS) {
+      last.emails.push(copy);
+      last.sent_at = email.created_at;
+    } else {
+      sends.push({ subject: email.subject, from: email.from, sent_at: email.created_at, emails: [copy] });
+    }
+  }
+  return sends;
+}
+
 export function adminRoutes(router: Router) {
+  // Email an announcement to every open account, to the ones picked, or,
+  // as a test, to the admin alone. One job sends every copy.
+  router.on("POST", "/api/admin/announcements", async ({ request, env }) => {
+    const admin = await requireAdmin(request, env);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const subject = check.string("subject", data.subject, { min: 1, max: limits.text.announcement_subject });
+    const body = check.string("body", data.body, { min: 1, max: limits.text.announcement_body });
+    const test = check.boolean("test", data.test ?? false);
+    if (data.user_uuids !== undefined && data.user_uuids !== null && (!Array.isArray(data.user_uuids) || !data.user_uuids.length)) check.fail("user_uuids must name at least one user");
+    check.done();
+    if (!subject!.trim() || !body!.trim()) refuse(400, "An announcement needs a subject and a body");
+    const to = test ? [admin.email] : (await audienceOf(env, data.user_uuids)).map((r) => r.email);
+    const job = queueAnnouncement(env.DB, to, subject!.trim(), body!.trim());
+    await job.statement.run();
+    await wake(env, [job.uuid]);
+    return json({ job: job.uuid, recipient_count: to.length });
+  });
+
+  // Every email Papol has sent — announcements, digests, feedback — as
+  // Resend recorded it, gathered into sends.
+  router.on("GET", "/api/admin/emails", async ({ request, env }) => {
+    await requireAdmin(request, env);
+    if (!mailConfigured(env)) return json({ configured: false, from: null, sends: [] });
+    return json({ configured: true, from: env.EMAIL_FROM, sends: groupSends(await sentEmails(env)) });
+  });
+
+  // What one email said.
+  router.on("GET", "/api/admin/emails/:id", async ({ request, env, params }) => {
+    await requireAdmin(request, env);
+    if (!mailConfigured(env)) refuse(404, "Email is not configured");
+    return json(await sentEmail(env, params.id));
+  });
+
   // Every bug report and feature request, the open ones first, newest first.
   router.on("GET", "/api/admin/feedback", async ({ request, env }) => {
     await requireAdmin(request, env);

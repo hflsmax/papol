@@ -659,8 +659,10 @@ moves. `applied_mutations` was left behind, as the script says.
 `papol.io` and `www.papol.io` are custom domains of the Worker
 (`routes` in `wrangler.toml`); Cloudflare wrote the DNS records on
 deploy. `PAPOL_URL` is `https://papol.io`. The workers.dev address
-stays as a second door for now. Mail is off by decision: no
-`EMAIL_API_*` secrets, notifications stay in the inbox. The previous
+stays as a second door for now. Mail was off by decision at first;
+it comes back through Resend (`EMAIL_API_URL` is
+`https://api.resend.com/emails`), which refuses a request without a
+User-Agent, so the sender names itself. The previous
 production hostname was on the LAN only, so nothing public moves.
 
 ### Step 4 — landed 2026-09-21: GROBID behind a tunnel of Papol's own
