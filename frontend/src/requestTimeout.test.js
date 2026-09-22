@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withAbortTimeout } from '../../shared/requestTimeout.js';
 
-test('aborts a request that exceeds its deadline', async () => {
+// The deadline is under test, not the clock: time moves when a test says.
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test('aborts a request that exceeds its deadline', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let signal;
   const request = withAbortTimeout((requestSignal) => {
     signal = requestSignal;
@@ -11,11 +15,15 @@ test('aborts a request that exceeds its deadline', async () => {
     });
   }, 5);
 
+  t.mock.timers.tick(4);
+  assert.equal(signal.aborted, false, 'not before its deadline');
+  t.mock.timers.tick(1);
   await assert.rejects(request, (error) => error?.name === 'AbortError');
   assert.equal(signal.aborted, true);
 });
 
-test('clears the deadline after a request finishes', async () => {
+test('clears the deadline after a request finishes', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let signal;
   const result = await withAbortTimeout((requestSignal) => {
     signal = requestSignal;
@@ -23,7 +31,8 @@ test('clears the deadline after a request finishes', async () => {
   }, 5);
 
   assert.equal(result, 'done');
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  t.mock.timers.tick(10);
+  await flush();
   assert.equal(signal.aborted, false);
 });
 
