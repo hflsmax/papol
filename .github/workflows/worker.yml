@@ -1,6 +1,7 @@
-# The Worker: its suite on every pull request; on main, a deploy to the
-# dev environment (dev.papol.io) followed by the smoke test against it;
-# production only by hand, from the Actions tab, after dev has passed.
+# The Worker: on main, its suite and then a deploy to the dev environment
+# (dev.papol.io) followed by the smoke test against it; production only by
+# hand, from the Actions tab, after dev has passed. A pull request runs the
+# same suite in pr.yml (the `tests` check), so it is not repeated here.
 #
 # Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
 # "Edit Cloudflare Workers" template plus D1 edit, Queues edit and, for the
@@ -8,8 +9,6 @@
 name: worker
 
 on:
-  pull_request:
-    paths: ["cloudflare/**", "shared/**", "config/**", "schema/**", ".github/workflows/worker.yml"]
   push:
     branches: [main]
   workflow_dispatch:
@@ -20,31 +19,47 @@ on:
         options: [dev, production]
         default: dev
 
+# The deploy talks to Cloudflare with its own token; GITHUB_TOKEN only has
+# to check the code out.
+permissions:
+  contents: read
+
 jobs:
+  # The gate in front of the deploy.
   test:
+    name: worker-test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults: { run: { working-directory: cloudflare } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm, cache-dependency-path: cloudflare/package-lock.json }
       - run: npm ci --legacy-peer-deps
       - run: npm run typecheck
       - run: npm test
 
   deploy:
+    name: worker-deploy
     # main lands on dev by itself; production is asked for.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: ${{ github.event.inputs.environment || 'dev' }}
+    # Two deploys to one environment at once would interleave migrations and
+    # uploads. The second waits for the first rather than cancelling it: a
+    # deploy stopped halfway leaves the environment between two versions.
+    concurrency:
+      group: worker-deploy-${{ github.event.inputs.environment || 'dev' }}
+      cancel-in-progress: false
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       TARGET: ${{ github.event.inputs.environment || 'dev' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       # The three Vite apps, laid out as the Worker serves them.
       - run: for app in frontend viewer board; do (cd $app && npm ci); done
