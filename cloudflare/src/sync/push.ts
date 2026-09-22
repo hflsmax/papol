@@ -26,6 +26,8 @@ import { blobKey, boardFileKey, paperKey, stored } from "../files";
 import { keyColumn, ownedThroughBoard, registry, rule, writable, WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
 import { writePaper, writeSynced } from "./write";
+import { captureFor } from "../jobs/capture";
+import { wake } from "../jobs/queue";
 import limits from "../../../config/app_limits.json";
 
 // ------------------------------------------------------------ the request
@@ -570,6 +572,16 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
     }
   }
 
+  // A video or web page card made on a replica arrives as a bare link: the
+  // replica cannot take its picture. Its capture is queued here, as the
+  // board's own route queues it, and the picture and title come back to
+  // the replica as a later change to the card.
+  const captures = changed
+    .filter((entry) => entry.table === "board_items" && entry.isNew)
+    .map((entry) => captureFor(env.DB, entry.row, user.uuid))
+    .filter((job) => job !== null);
+  statements.push(...captures.map((job) => job.statement));
+
   const rows: Row[] = [];
   for (const entry of work.touched) rows.push({ ...(await rowSnapshot(env.DB, entry.table, entry.row)), table: entry.table });
   const result = { mutation_uuid: payload.mutation_uuid, local_sequence: payload.local_sequence, rows, conflicts, aliases };
@@ -592,6 +604,7 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
     if (winner?.request_hash === fingerprint) return new Response(winner.response_json, { headers: { "content-type": "application/json" } });
     throw error;
   }
+  await wake(env, captures.map((job) => job.uuid));
   return new Response(body, { headers: { "content-type": "application/json" } });
 }
 

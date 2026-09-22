@@ -262,6 +262,37 @@ describe("link cards", () => {
     expect(card).toMatchObject({ content: "Never Gonna", mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg" });
     expect(await (await env.FILES.get(`board_uploads/${card!.file_path}`))!.text()).toBe("jpg dQw4w9WgXcQ");
   });
+
+  it("captures a video or page card the desktop made and pushed, and hands the picture back by the pull", async () => {
+    const account = await register();
+    const client = uuid(), board = uuid(), video = uuid(), page = uuid(), bogus = uuid(), note = uuid();
+    const card = (id: string, kind: string, url: string) => ({
+      table: "board_items", uuid: id, base_revision: 0, operation: "upsert",
+      values: { board_uuid: board, kind, content: url, source_url: url, x: 0, y: 0 },
+    });
+    await pushed(account, mutation([
+      { table: "boards", uuid: board, base_revision: 0, operation: "upsert", values: { name: "Made offline" } },
+      card(video, "youtube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+      card(page, "webpage", "https://example.com/about"),
+      // A video card whose link names no video: it stays the link it is.
+      card(bogus, "youtube", "https://example.com/not-a-video"),
+      { table: "board_items", uuid: note, base_revision: 0, operation: "upsert", values: { board_uuid: board, kind: "comment", content: "a note", x: 0, y: 0 } },
+    ], { client }));
+
+    const jobs = await rows<{ uuid: string; kind: string; payload: string }>("SELECT uuid, kind, payload FROM jobs ORDER BY kind");
+    expect(jobs.map((job) => [job.kind, JSON.parse(job.payload).item_uuid])).toEqual([["capture_webpage", page], ["capture_youtube", video]]);
+
+    const before = await ok("GET", `/api/sync/pull?cursor=0&limit=50&client_uuid=${client}`, { headers: account.headers });
+    capturers.youtubeThumbnail = async (_url, videoId) => ({ image: new TextEncoder().encode(`jpg ${videoId}`), title: "Never Gonna" });
+    capturers.webpage = async () => new TextEncoder().encode("a png");
+    await woken(...jobs.map((job) => job.uuid));
+
+    const after = await ok("GET", `/api/sync/pull?cursor=${before.cursor}&limit=50&client_uuid=${client}`, { headers: account.headers });
+    const changed = Object.fromEntries(after.changes.filter((c: any) => c.table === "board_items").map((c: any) => [c.row.uuid, c.row]));
+    expect(Object.keys(changed).sort()).toEqual([page, video].sort());
+    expect(changed[video]).toMatchObject({ content: "Never Gonna", mime_type: "image/jpeg", sha256: await sha256("jpg dQw4w9WgXcQ") });
+    expect(changed[page]).toMatchObject({ mime_type: "image/png", sha256: await sha256("a png") });
+  });
 });
 
 describe("what a board says of its owner", () => {

@@ -17,7 +17,7 @@ import { one, statement, type Row } from "../db";
 import { refuse } from "../http";
 import { blobKey, boardFileKey, sha256Hex, stored } from "../files";
 import { writeSynced } from "../sync/write";
-import { JobError } from "./queue";
+import { enqueue, JobError, type Enqueued } from "./queue";
 
 export const WEBPAGE = "capture_webpage";
 export const YOUTUBE = "capture_youtube";
@@ -109,6 +109,31 @@ async function attach(env: Env, item: Row, image: Uint8Array, mime: string, orig
     statement(env.DB, "UPDATE boards SET updated_at = ? WHERE uuid = ?", new Date().toISOString(), item.board_uuid),
   ]);
   return { file_path: key, sha256: item.sha256 };
+}
+
+// ------------------------------------------------ a card that came by sync
+
+// The capture a new card needs when it came without its picture: made on
+// a replica, which cannot take one, and pushed (sync/push.ts). The same
+// job the board's own routes queue, keyed by the card so a card is
+// captured once. Null for any other card, and for a link those routes
+// would have refused: it stays the link it is.
+export function captureFor(db: D1Database, item: Row, userUuid: string): Enqueued | null {
+  if (item.deleted_at || item.file_path || typeof item.source_url !== "string") return null;
+  const url = item.source_url.trim();
+  const key = `capture:${item.uuid}`;
+  if (item.kind === "youtube") {
+    const videoId = youtubeId(url);
+    return videoId ? enqueue(db, YOUTUBE, { item_uuid: item.uuid, url, video_id: videoId }, { key, userUuid }) : null;
+  }
+  if (item.kind === "webpage") {
+    try {
+      return enqueue(db, WEBPAGE, { item_uuid: item.uuid, url: publicWebUrl(url) }, { key, userUuid });
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 async function card(env: Env, payload: Row): Promise<Row> {
