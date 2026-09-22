@@ -109,7 +109,7 @@
   },
   "timeouts_ms": {
     "desktop_auth": 10000,
-    "desktop_metadata": 15000,
+    "nook_add_reading": 15000,
     "sync_connect": 5000,
     "sync_read": 20000,
     "youtube_metadata": 8000,

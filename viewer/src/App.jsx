@@ -13,8 +13,9 @@ import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import { pdfjsReady } from './pdfRuntime.js';
 import {
   pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
-  submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip,
+  submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
 } from './api';
+import { identifierInDocument, identifierWithin } from '../../shared/identifiers.js';
 import { annotationKinds } from './annotationKinds.js';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
@@ -640,6 +641,17 @@ export default function App() {
   const [feedbackReportError, setFeedbackReportError] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState('');
   const reportedPdfErrors = useRef(new Set());
+  // A paper just added from an opened file, without the details the
+  // reading would have given it, says why here, once (api.js).
+  useEffect(() => {
+    const notice = takeNookNotice();
+    if (!notice) return;
+    setError(notice.message);
+    if (!notice.report) return;
+    setFeedbackReportError(true);
+    setFeedbackContent(notice.report);
+    setFeedbackOpen(true);
+  }, []);
   const sendDialogRef = useModalDialog(Boolean(sendSelection), () => closeSendSelection());
   // Cows. Nowhere near the server and gone on reload: they are not an annotation
   // on the paper, they are company.
@@ -3236,7 +3248,10 @@ export default function App() {
     setNookPromptOpen(false);
     setNookProgress(null);
     try {
-      const added = await source.addToNook({ onProgress: setNookProgress });
+      // The DOI or arXiv id the open document prints goes with the PDF,
+      // as the upload form's does, and the reading starts from it.
+      const identifier = source.openedFile && doc ? identifierWithin(identifierInDocument(doc)) : null;
+      const added = await source.addToNook({ onProgress: setNookProgress, identifier });
       // Where the paper now is. A file opened from disk becomes the
       // ordinary nook URL it was always destined for; a shared paper
       // becomes this user's own copy of that PDF, which is the only
