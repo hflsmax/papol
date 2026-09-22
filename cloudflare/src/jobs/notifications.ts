@@ -6,7 +6,7 @@
 // day, so it runs once however many isolates the hour finds.
 
 import { all, one, statement, type Row } from "../db";
-import { mailConfigured, sendEmail } from "./mail";
+import { mailConfigured, sendEmail, sendEmails } from "./mail";
 import { enqueue, type Enqueued } from "./queue";
 
 export const SEND_EMAIL = "send_email";
@@ -24,6 +24,22 @@ export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {
     await env.DB.batch(uuids.map((uuid) => statement(env.DB, "UPDATE notifications SET emailed = 1 WHERE uuid = ?", uuid)));
   }
   return { sent: true };
+}
+
+// An announcement an admin writes to many users is one job, each recipient
+// still getting an email of their own: one batch call, not one call per
+// recipient racing the provider's rate limit.
+export const SEND_ANNOUNCEMENT = "send_announcement";
+
+export function queueAnnouncement(db: D1Database, to: string[], subject: string, body: string): Enqueued {
+  return enqueue(db, SEND_ANNOUNCEMENT, { to, subject, body });
+}
+
+export async function sendAnnouncementJob(env: Env, payload: Row): Promise<Row> {
+  if (!mailConfigured(env)) return { sent: false, skipped: "Email not configured" };
+  const to = payload.to as string[];
+  await sendEmails(env, to.map((address) => ({ to: address, subject: String(payload.subject), body: String(payload.body) })));
+  return { sent: true, recipients: to.length };
 }
 
 export async function siteUrl(env: Env): Promise<string> {
