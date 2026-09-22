@@ -2433,6 +2433,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "objc2-web-kit",
+ "regex",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",
@@ -2443,6 +2444,7 @@ dependencies = [
  "tauri-plugin-http",
  "tempfile",
  "tokio",
+ "url",
  "uuid",
  "zip",
 ]

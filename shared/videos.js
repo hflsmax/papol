@@ -131,9 +131,20 @@ function titleOf(value) {
 }
 
 // A <meta property="…" content="…"> value, decoded.
-function metaContent(html, property) {
+// The value runs to the quote it opened with, so "Don't Stop" is whole.
+export function metaContent(html, property) {
   const tag = new RegExp(`<meta[^>]+property=["']${property}["'][^>]*>`, 'i').exec(html)?.[0];
-  const value = tag && /content=["']([^"']*)["']/i.exec(tag)?.[1];
+  const value = tag && /\scontent=(["'])(.*?)\1/is.exec(tag)?.[2];
   if (!value) return null;
-  return value.replace(/&(amp|lt|gt|quot|#39);/g, (_, name) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[name]);
+  return decodeEntities(value);
+}
+
+const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function decodeEntities(text) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name) => {
+    if (name[0] !== '#') return NAMED_ENTITIES[name.toLowerCase()] ?? entity;
+    const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+    return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+  });
 }
