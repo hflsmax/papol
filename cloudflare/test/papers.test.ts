@@ -255,6 +255,37 @@ describe("an upload that goes straight to the bucket", () => {
       .toMatchObject({ doi: "10.9999/nobody-knows", title: "As Printed", authors: JSON.stringify(["P. Rinted"]), journal: "The Page", year: 2020 });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "openalex", "helper"]);
   });
+
+  it("names the version Papol already holds of the same work, by its DOI however it is spelt, and never the upload itself", async () => {
+    const account = await register();
+    // The version Papol holds, its DOI stored as somebody typed it.
+    await aPaper(A_PAPER, "The Published Version");
+    await exec("UPDATE papers SET doi = ' 10.1234/ABC.Def ' WHERE sha256 = ?", A_PAPER);
+    await env.FILES.put(`uploads/${A_PAPER}.pdf`, pdf);
+    const another = "%PDF-1.4 the preprint of the same work";
+    const digest = await sha256(another);
+    await env.FILES.put(`uploads/${digest}.pdf`, another);
+    // Known to no index: the DOI stays as the browser read it, and is
+    // compared without regard to case or the spaces around it.
+    apis({ "grobid.test": () => titleBlock({ title: "As Printed" }), "api.crossref.org": () => new Response("", { status: 404 }), "api.openalex.org": () => new Response("", { status: 404 }) });
+    const queue = (filePath: string) => ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: filePath, uploaded_name: "preprint.pdf", identifier: { doi: "10.1234/abc.def" } } });
+    const preprint = await queue(`${digest}.pdf`);
+    await woken(preprint.job);
+    const read = await ok("GET", `/api/jobs/${preprint.job}`, { headers: account.headers });
+    expect(read.result).toMatchObject({ doi: "10.1234/abc.def", title: "As Printed", file_path: `${digest}.pdf`,
+      existing: { sha256: A_PAPER, title: "The Published Version", file_path: `${A_PAPER}.pdf` } });
+
+    // The same bytes again are that paper, not another version of it.
+    const same = await queue(`${A_PAPER}.pdf`);
+    await woken(same.job);
+    expect((await ok("GET", `/api/jobs/${same.job}`, { headers: account.headers })).result.existing).toBeUndefined();
+
+    // A paper let go of is no version to offer.
+    await exec("UPDATE papers SET deleted_at = ? WHERE sha256 = ?", new Date().toISOString(), A_PAPER);
+    const gone = await queue(`${digest}.pdf`);
+    await woken(gone.job);
+    expect((await ok("GET", `/api/jobs/${gone.job}`, { headers: account.headers })).result.existing).toBeUndefined();
+  });
 });
 
 describe("saving, opening and editing", () => {
@@ -286,6 +317,45 @@ describe("saving, opening and editing", () => {
     expect(await count("papers")).toBe(1);
     expect(await count("copies")).toBe(2);
     expect((await ok("GET", "/api/papers", { headers: ada.headers }))[0].title).toBe("Retitled by Grace");
+  });
+
+  it("offers the known version: taking it makes a copy of that paper and lets the upload go, keeping this one makes a paper of its own", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    const published = await stored("%PDF-1.4 the published version");
+    await ok("POST", "/api/papers", { headers: ada.headers, json: { title: "The Published Version", doi: "10.1234/abc.def", file_path: `${published}.pdf` } });
+
+    // Grace uploaded a preprint of the same work and took the version Papol
+    // holds: her copy is of that paper, and her upload is let go of.
+    const preprint = await stored("%PDF-1.4 the preprint");
+    const took = await ok("POST", "/api/papers", { headers: grace.headers, json: {
+      title: "The Published Version", doi: "10.1234/abc.def", file_path: `${published}.pdf`, discard_file_path: `${preprint}.pdf`,
+    } });
+    expect(took.sha256).toBe(published);
+    expect(took.also_read_by.map((u: any) => u.user.display_name)).toEqual(["Ada", "Grace"]);
+    expect(await count("papers")).toBe(1);
+    expect(await env.FILES.head(`uploads/${preprint}.pdf`)).toBeNull();
+    expect(await env.FILES.head(`uploads/${published}.pdf`)).not.toBeNull();
+
+    // An upload still being read, or one that is some paper's file, is not let go of.
+    const reading = await stored("%PDF-1.4 still being read");
+    await exec("INSERT INTO jobs (uuid, kind, payload, status, user_uuid, attempts, run_at, created_at) VALUES (?, 'extract_metadata', ?, 'queued', ?, 0, ?, ?)",
+      uuid(), JSON.stringify({ file_path: `${reading}.pdf` }), grace.uuid, new Date().toISOString(), new Date().toISOString());
+    const reviewed = { title: "The Published Version", doi: "10.1234/abc.def", file_path: `${published}.pdf` };
+    const third = await register("third@example.test", "Third");
+    await ok("POST", "/api/papers", { headers: third.headers, json: { ...reviewed, discard_file_path: `${reading}.pdf` } });
+    expect(await env.FILES.head(`uploads/${reading}.pdf`)).not.toBeNull();
+    const fourth = await register("fourth@example.test", "Fourth");
+    await ok("POST", "/api/papers", { headers: fourth.headers, json: { ...reviewed, discard_file_path: `${published}.pdf` } });
+    expect(await env.FILES.head(`uploads/${published}.pdf`)).not.toBeNull();
+    expect((await call("POST", "/api/papers", { headers: (await register()).headers, json: { title: "x", file_path: `${published}.pdf`, discard_file_path: "not-a-file" } })).status).toBe(422);
+
+    // Keeping this version: a paper of its own under its own hash, the
+    // same DOI and all — the PDF is the identity, and a DOI has versions.
+    const kept = await stored("%PDF-1.4 the camera-ready");
+    const own = await ok("POST", "/api/papers", { headers: grace.headers, json: { title: "The Camera-Ready", doi: "10.1234/abc.def", file_path: `${kept}.pdf` } });
+    expect(own.sha256).toBe(kept);
+    expect(await rows("SELECT sha256 FROM papers WHERE doi = '10.1234/abc.def' ORDER BY created_at")).toEqual([{ sha256: published }, { sha256: kept }]);
+    expect(await env.FILES.head(`uploads/${kept}.pdf`)).not.toBeNull();
   });
 
   it("keeps the keeper's summary theirs and does not name them when they do not display it", async () => {

@@ -15,7 +15,7 @@
 // id the paper prints or CrossRef knows it by. With no helper, or one
 // that is down, the form gets the filename.
 
-import { type Row } from "../db";
+import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { UPLOADS } from "../sync/blobs";
 import { byDoi, Unavailable } from "./bibliography";
@@ -123,12 +123,34 @@ function storedBytes(env: Env, fileName: string): () => Promise<Uint8Array> {
   };
 }
 
-// The job: answer with the form's fields for the stored PDF.
+// A paper Papol holds already of the same work: one carrying the DOI the
+// reading resolved, under another digest. The PDF is the paper's
+// identity, and a DOI may well have versions — a preprint, the published
+// article — so this is an offer for the form to make, never a rule.
+export interface KnownVersion {
+  sha256: string;
+  title: string;
+  file_path: string;
+}
+
+export async function knownVersion(db: D1Database, doi: string | null, digest: string): Promise<KnownVersion | null> {
+  if (!doi) return null;
+  return one<KnownVersion>(
+    db,
+    "SELECT sha256, title, file_path FROM papers WHERE lower(trim(doi)) = lower(trim(?)) AND sha256 != ? AND deleted_at IS NULL ORDER BY created_at, sha256 LIMIT 1",
+    doi, digest,
+  );
+}
+
+// The job: answer with the form's fields for the stored PDF, and, when
+// Papol already holds a version of the work, which one — `existing`.
 export async function extractMetadataJob(env: Env, payload: Row): Promise<Row> {
   const fileName = String(payload.file_path);
   const identifier = payload.identifier && typeof payload.identifier === "object" ? (payload.identifier as Identifier) : null;
   try {
-    return { ...(await extractedMetadata(env, { bytes: storedBytes(env, fileName), uploadedName: String(payload.uploaded_name || fileName), fileName, identifier })) };
+    const metadata = await extractedMetadata(env, { bytes: storedBytes(env, fileName), uploadedName: String(payload.uploaded_name || fileName), fileName, identifier });
+    const existing = await knownVersion(env.DB, metadata.doi, fileName.slice(0, 64));
+    return existing ? { ...metadata, existing } : { ...metadata };
   } catch (error) {
     if (error instanceof Unavailable) throw new JobError("Metadata lookup failed");
     throw error;

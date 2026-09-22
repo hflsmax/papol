@@ -833,6 +833,11 @@ button.full-width {
   font-size: var(--fs-sm);
 }
 
+/* The version Papol already holds of the work, and the choice between it
+   and this PDF, on the same line as the reading's. */
+.metadata-reading.known-version { flex-wrap: wrap; }
+.metadata-reading.known-version input[type='radio'] { margin: 0; accent-color: var(--accent); }
+
 .upload-review-form .form-group {
   margin-bottom: 12px;
 }
