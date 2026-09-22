@@ -32,6 +32,23 @@ export function reviewFields(read) {
   };
 }
 
+// The version Papol already holds of the work being uploaded, when the
+// reading found one by its DOI (`existing` in the job's result): the
+// line the form says it with. The PDF is a paper's identity and a DOI
+// may have versions, so this is an offer, and the form asks which.
+export function knownVersionLine(read) {
+  const known = read?.existing;
+  if (!known?.sha256) return null;
+  return `Papol already has a version of this paper: ${known.title || 'untitled'}`;
+}
+
+// The file a save names. Taking the known version: that paper's file,
+// and the upload to let go of. Keeping this one: the upload, as ever.
+export function savedFile(uploaded, known, useKnown) {
+  if (known?.sha256 && useKnown) return { file_path: known.file_path || `${known.sha256}.pdf`, discard_file_path: uploaded.file_path };
+  return { file_path: uploaded.file_path };
+}
+
 // The form after the reading came in. A field the user typed in keeps
 // what they typed; one they left alone, or emptied, takes what was read,
 // when something was. `edited` holds the names of the fields the user

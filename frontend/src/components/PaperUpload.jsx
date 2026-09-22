@@ -10,7 +10,7 @@ import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
-import { READ_FIELDS, fillUnedited, reviewFields, titleFromFilename } from '../uploadReview';
+import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
 
 // The form opens the moment the upload has answered, on the title the
 // filename gives, and the reading of the PDF goes on beside it: a
@@ -29,6 +29,10 @@ export default function PaperUpload({
   const [reading, setReading] = useState(null);
   const [error, setError] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
+  // The version Papol already holds of this work, when the reading found
+  // one, and whether the save takes it (the default) or keeps this PDF.
+  const [known, setKnown] = useState(null);
+  const [useKnown, setUseKnown] = useState(true);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -93,6 +97,8 @@ export default function PaperUpload({
   const handleFile = async (file) => {
     stopReading();
     setReading(null);
+    setKnown(null);
+    setUseKnown(true);
     setIsLoading(true);
     setError(null);
 
@@ -129,6 +135,7 @@ export default function PaperUpload({
         if (wait.signal.aborted) return;
         readingWait.current = null;
         if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        setKnown(read?.existing?.sha256 ? read.existing : null);
         setReading(read ? null : 'unread');
       });
     } catch (err) {
@@ -179,7 +186,7 @@ export default function PaperUpload({
         doi: formData.doi || null,
         thought: formData.thought || null,
         summary: formData.summary || null,
-        file_path: extractedData.file_path,
+        ...savedFile(extractedData, known, useKnown),
         shelf_uuid: shelves.find((shelf) => String(shelf.uuid) === String(formData.shelf_uuid))?.uuid,
         is_author: !!formData.is_author,
         rating_expertise: formData.rating_expertise,
@@ -188,7 +195,11 @@ export default function PaperUpload({
         tag_uuids: selectedTags.map((tag) => tag.uuid),
       });
 
+      // The known version was taken over a PDF the nook had stored: that
+      // one has nothing standing behind it now.
+      if (known && useKnown) await discardPaperImport(extractedData).catch(() => {});
       setExtractedData(null);
+      setKnown(null);
       setFormData({});
       setSelectedTags([]);
       onReviewChange(false);
@@ -205,6 +216,7 @@ export default function PaperUpload({
     setReading(null);
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
+    setKnown(null);
     setFormData({});
     setSelectedTags([]);
     setTagDraft('');
@@ -243,6 +255,19 @@ export default function PaperUpload({
           <p className="metadata-reading" role="status">
             Papol could not read the PDF; fill in the details.
           </p>
+        )}
+        {known && (
+          <div className="metadata-reading known-version" role="status">
+            <span>{knownVersionLine({ existing: known })}</span>
+            <label className="checkbox-row inline">
+              <input type="radio" name="known_version" checked={useKnown} onChange={() => setUseKnown(true)} />
+              <span>Use that version</span>
+            </label>
+            <label className="checkbox-row inline">
+              <input type="radio" name="known_version" checked={!useKnown} onChange={() => setUseKnown(false)} />
+              <span>Keep this version</span>
+            </label>
+          </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
         <form className="upload-review-form" onSubmit={handleSubmit}>
