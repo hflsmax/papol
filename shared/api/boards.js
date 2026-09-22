@@ -1,5 +1,5 @@
 import {
-  boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeDataActive,
+  boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeCaptureWebpage, nativeDataActive,
   nativeRepository, newUuid,
 } from '../nativeData.js';
 import { boardSourceDigests } from '../boardPapers.js';
@@ -271,6 +271,47 @@ export async function fillVideoCard(item) {
 
 const thumbnailName = (kind, id) => `${kind}-${id || 'video'}.jpg`;
 
+// Whether a page card is waiting for its picture where this surface can
+// take it: on the Mac, which takes it itself (nativeCaptureWebpage); the
+// web's picture is the Worker's job, queued when the card is made.
+export function pageCardUnfilled(item) {
+  return item?.kind === 'webpage' && !item.sha256 && !item.file_path && Boolean(item.source_url) && nativeDataActive();
+}
+
+// Take the picture a page card was made without — offline, or when the
+// page could not be captured — and give it to the card. Answers the card,
+// or null when there is nothing to do or no way to do it now.
+export async function fillPageCard(item) {
+  if (!pageCardUnfilled(item) || inOfflineMode()) return null;
+  const picture = await nativeCaptureWebpage(item.source_url);
+  try {
+    const receipt = await nativeRepository.transact([{
+      table: 'board_items', uuid: item.uuid, operation: 'upsert',
+      values: { sha256: picture.sha256, original_filename: pageCaptureName(item.source_url), mime_type: 'image/jpeg' },
+    }]);
+    return receipt.rows[0];
+  } catch (error) {
+    await discardNativeBlob(picture.sha256).catch(() => {});
+    throw error;
+  }
+}
+
+// Every card a board can still give a picture to here: a video's title and
+// thumbnail, a page's capture.
+export function cardAwaitingPicture(item) {
+  return videoCardUnfilled(item) || pageCardUnfilled(item);
+}
+
+export function fillCardPicture(item) {
+  return item?.kind === 'webpage' ? fillPageCard(item) : fillVideoCard(item);
+}
+
+const pageCaptureName = (url) => {
+  let host = 'page';
+  try { host = new URL(url).hostname || host; } catch { /* the name is only a name */ }
+  return `webpage-${host.slice(0, 80)}.jpg`;
+};
+
 async function makeVideoCard(uuid, url, link, x, y, preview) {
   const name = thumbnailName(link.kind, preview?.id ?? link.id);
   if (nativeDataActive()) {
@@ -313,17 +354,44 @@ async function captured(queuing) {
   return item;
 }
 
-export function addBoardWebpage(uuid, url, x, y) {
-  if (nativeDataActive()) {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
-    const label = parsed.hostname;
-    return nativeRepository.transact([{
-      table: 'board_items', uuid: newUuid(), operation: 'upsert',
-      values: { board_uuid: uuid, kind: 'webpage', content: label, source_url: url, x, y, width: 480 },
-    }]).then((receipt) => receipt.rows[0]);
+// A page card. On the web the Worker renders the page and the card waits
+// for its job (`captured`). On the Mac the app takes the picture itself
+// (nativeCaptureWebpage) and makes the card with it; offline the card is
+// the link, and `fillPageCard` takes the picture when a board is next open
+// online; a page that could not be captured is the link too, and the
+// promise rejects with the card on the error, as on the web.
+export async function addBoardWebpage(uuid, url, x, y) {
+  if (!nativeDataActive()) return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
+  let picture = null, failure = null;
+  if (!inOfflineMode()) {
+    try {
+      picture = await nativeCaptureWebpage(url);
+    } catch (error) {
+      failure = error;
+    }
   }
-  return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
+  let item;
+  try {
+    const receipt = await nativeRepository.transact([{
+      table: 'board_items', uuid: newUuid(), operation: 'upsert',
+      values: {
+        board_uuid: uuid, kind: 'webpage', content: parsed.hostname, source_url: url, x, y, width: 480,
+        ...(picture ? { sha256: picture.sha256, original_filename: pageCaptureName(url), mime_type: 'image/jpeg' } : {}),
+      },
+    }]);
+    item = receipt.rows[0];
+  } catch (error) {
+    if (picture) await discardNativeBlob(picture.sha256).catch(() => {});
+    throw error;
+  }
+  if (failure) {
+    const error = new Error(`The page's picture could not be taken: ${failure.message || failure}`);
+    error.item = item;
+    throw error;
+  }
+  return item;
 }
 
 export function placeStagedBoardItem(uuid, x, y) {

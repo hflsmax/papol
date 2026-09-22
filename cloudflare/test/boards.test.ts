@@ -319,34 +319,25 @@ describe("link cards", () => {
     expect((await call("POST", `/api/board-items/${other.uuid}/thumbnail`, { headers: stranger.headers, json: { sha256: digest } })).status).toBe(404);
   });
 
-  it("captures a page card the desktop made and pushed, and hands the picture back by the pull", async () => {
+  it("keeps the picture the Mac took of a page, and queues nothing for any card that came by sync", async () => {
     const account = await register();
-    const client = uuid(), board = uuid(), video = uuid(), page = uuid(), bogus = uuid(), note = uuid();
-    const card = (id: string, kind: string, url: string) => ({
-      table: "board_items", uuid: id, base_revision: 0, operation: "upsert",
-      values: { board_uuid: board, kind, content: url, source_url: url, x: 0, y: 0 },
-    });
+    const board = uuid(), page = uuid(), bare = uuid(), video = uuid();
+    const digest = await sha256("a jpeg");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "a jpeg", { httpMetadata: { contentType: "image/jpeg" } });
     await pushed(account, mutation([
-      { table: "boards", uuid: board, base_revision: 0, operation: "upsert", values: { name: "Made offline" } },
-      // A video card brings its own thumbnail, or stays a link: never a job.
-      card(video, "youtube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
-      card(page, "webpage", "https://example.com/about"),
-      // A page card whose link the route would refuse: it stays the link it is.
-      card(bogus, "webpage", "http://localhost:8000/"),
-      { table: "board_items", uuid: note, base_revision: 0, operation: "upsert", values: { board_uuid: board, kind: "comment", content: "a note", x: 0, y: 0 } },
-    ], { client }));
-
-    const jobs = await rows<{ uuid: string; kind: string; payload: string }>("SELECT uuid, kind, payload FROM jobs");
-    expect(jobs.map((job) => [job.kind, JSON.parse(job.payload).item_uuid])).toEqual([["capture_webpage", page]]);
-
-    const before = await ok("GET", `/api/sync/pull?cursor=0&limit=50&client_uuid=${client}`, { headers: account.headers });
-    capturers.webpage = async () => new TextEncoder().encode("a png");
-    await woken(jobs[0].uuid);
-
-    const after = await ok("GET", `/api/sync/pull?cursor=${before.cursor}&limit=50&client_uuid=${client}`, { headers: account.headers });
-    const changed = after.changes.filter((c: any) => c.table === "board_items").map((c: any) => c.row);
-    expect(changed.map((r: any) => r.uuid)).toEqual([page]);
-    expect(changed[0]).toMatchObject({ mime_type: "image/png", sha256: await sha256("a png") });
+      { table: "boards", uuid: board, base_revision: 0, operation: "upsert", values: { name: "Made on the Mac" } },
+      // The Mac took this page's picture itself, and names it.
+      { table: "board_items", uuid: page, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "webpage", content: "example.com", source_url: "https://example.com/about", sha256: digest, original_filename: "webpage-example.com.jpg", mime_type: "image/jpeg", width: 480, x: 0, y: 0 } },
+      // Made offline: the link, until the Mac takes its picture.
+      { table: "board_items", uuid: bare, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "webpage", content: "example.org", source_url: "https://example.org/", width: 480, x: 0, y: 0 } },
+      { table: "board_items", uuid: video, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "youtube", content: "https://youtu.be/dQw4w9WgXcQ", source_url: "https://youtu.be/dQw4w9WgXcQ", x: 0, y: 0 } },
+    ]));
+    expect(await row("SELECT file_path, mime_type FROM board_items WHERE uuid = ?", page)).toEqual({ file_path: `blobs/${digest}`, mime_type: "image/jpeg" });
+    expect(await row("SELECT file_path FROM board_items WHERE uuid = ?", bare)).toEqual({ file_path: null });
+    expect(await count("jobs")).toBe(0);
   });
 });
 

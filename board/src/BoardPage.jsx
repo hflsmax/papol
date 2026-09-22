@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { uploadProgressView } from '../../shared/api/files.js';
-import { addBoardComment, addBoardFile, addBoardWebpage, addBoardVideo, fillVideoCard, videoCardUnfilled, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
+import { addBoardComment, addBoardFile, addBoardWebpage, addBoardVideo, cardAwaitingPicture, fillCardPicture, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
@@ -259,27 +259,27 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
   }), [boardUuid]);
-  // A video card made as its link alone — offline, with the site out of
-  // reach, or a Bilibili video on the web, which only the Mac can ask —
-  // gets its title and thumbnail the next time its board is open online
-  // where they can be fetched (shared/api/boards.js). Each card is tried
-  // once a visit, one at a time, and quietly: a card the site still will
-  // not give stays the link it is. On the desktop, nothing is tried
-  // offline; going online syncs, and the sync reloads the board and
-  // brings this round again.
-  const videoFillsTried = useRef(new Set());
+  // A card made as its link alone — a video offline, with its site out of
+  // reach, or a Bilibili video on the web, which only the Mac can ask; a
+  // page made on the Mac offline, or one it could not capture — gets its
+  // picture the next time its board is open online where it can be had
+  // (shared/api/boards.js). Each card is tried once a visit, one at a
+  // time, and quietly: a card that still cannot be had stays the link it
+  // is. On the desktop, nothing is tried offline; going online syncs, and
+  // the sync reloads the board and brings this round again.
+  const pictureFillsTried = useRef(new Set());
   useEffect(() => {
     if (!board?.can_edit || (nativeDataActive() && inOfflineMode())) return undefined;
-    const due = board.items.filter((item) => videoCardUnfilled(item) && !videoFillsTried.current.has(item.uuid));
+    const due = board.items.filter((item) => cardAwaitingPicture(item) && !pictureFillsTried.current.has(item.uuid));
     if (!due.length) return undefined;
-    due.forEach((item) => videoFillsTried.current.add(item.uuid));
+    due.forEach((item) => pictureFillsTried.current.add(item.uuid));
     let current = true;
     (async () => {
       let filled = 0;
       for (const item of due) {
         try {
-          if (await fillVideoCard(item)) filled += 1;
-        } catch { /* the site out of reach: the card stays a link until the next visit */ }
+          if (await fillCardPicture(item)) filled += 1;
+        } catch { /* out of reach: the card stays a link until the next visit */ }
       }
       if (filled && current) load();
     })();

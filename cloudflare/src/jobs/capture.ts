@@ -1,12 +1,14 @@
-// A picture of a web page, for a board card.
+// A picture of a web page, for a board card made on the web.
 //
 // The request checks the link, writes the card at once, and queues the
 // capture. The card is a link without a preview until the job has
 // rendered the page in Browser Rendering and put the image beside the
 // card. A capture that fails leaves the card as the link it already was;
-// the job says why. A video card is not captured here: the app fetches
-// the video's title and thumbnail itself (shared/videos.js) and makes
-// the card with them.
+// the job says why. The Mac takes a page's picture itself
+// (desktop/src-tauri/src/capture.rs) and pushes the card with it, so
+// nothing here runs for a card that came by sync. Nor is a video card
+// captured here: the app fetches its title and thumbnail itself
+// (shared/videos.js).
 //
 // The browser is Cloudflare's, on Cloudflare's network, so no private
 // address of ours is reachable from it; the check is on the URL itself: a browser scheme, a hostname that is not
@@ -19,7 +21,7 @@ import { one, statement, type Row } from "../db";
 import { refuse } from "../http";
 import { blobKey, boardFileKey, sha256Hex, stored } from "../files";
 import { writeSynced } from "../sync/write";
-import { enqueue, JobError, type Enqueued } from "./queue";
+import { JobError } from "./queue";
 
 export const WEBPAGE = "capture_webpage";
 
@@ -79,22 +81,6 @@ async function attach(env: Env, item: Row, image: Uint8Array, mime: string, orig
     statement(env.DB, "UPDATE boards SET updated_at = ? WHERE uuid = ?", new Date().toISOString(), item.board_uuid),
   ]);
   return { file_path: key, sha256: item.sha256 };
-}
-
-// ------------------------------------------------ a card that came by sync
-
-// The capture a new page card needs when it came without its picture:
-// made on a replica, which cannot render a page, and pushed
-// (sync/push.ts). The same job the board's own route queues, keyed by the
-// card so a card is captured once. Null for any other card, and for a
-// link the route would have refused: it stays the link it is.
-export function captureFor(db: D1Database, item: Row, userUuid: string): Enqueued | null {
-  if (item.kind !== "webpage" || item.deleted_at || item.file_path || typeof item.source_url !== "string") return null;
-  try {
-    return enqueue(db, WEBPAGE, { item_uuid: item.uuid, url: publicWebUrl(item.source_url) }, { key: `capture:${item.uuid}`, userUuid });
-  } catch {
-    return null;
-  }
 }
 
 async function card(env: Env, payload: Row): Promise<Row> {

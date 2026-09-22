@@ -8,6 +8,7 @@ use tauri::menu::{Menu, PredefinedMenuItem, WINDOW_SUBMENU_ID};
 use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
 use tauri::Manager;
 
+pub mod capture;
 pub mod data;
 mod diagnostics;
 mod limits;
@@ -448,6 +449,16 @@ fn blob_cache(
     mime_type: Option<String>,
 ) -> Result<(), String> {
     store.import_remote_blob(&expected_sha256, &bytes, mime_type)
+}
+
+/// A web page's picture for a board card, taken on this Mac (capture.rs).
+#[tauri::command]
+async fn capture_webpage(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, data::LocalStore>,
+    url: String,
+) -> Result<data::BlobRecord, String> {
+    capture::capture_into(&app, &store, &url).await
 }
 
 #[tauri::command]
@@ -1180,6 +1191,7 @@ pub fn run() {
             blob_cache,
             blob_read,
             blob_ensure,
+            capture_webpage,
             local_clear_data,
             blob_discard,
             local_setting_get,

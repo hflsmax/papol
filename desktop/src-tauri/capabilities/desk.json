@@ -17,6 +17,7 @@
     "allow-blob-cache",
     "allow-blob-read",
     "allow-blob-ensure",
+    "allow-capture-webpage",
     "allow-local-clear-data",
     "allow-blob-discard",
     "allow-local-setting-get",

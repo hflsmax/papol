@@ -19,6 +19,7 @@ let syncGate = null;
 let queryPaper = null;
 let queryPaperGate = null;
 let networkMode = 'pdf';
+let captureFailure = null;
 
 global.localStorage = {
   getItem: (key) => values.get(key) ?? null,
@@ -42,6 +43,10 @@ global.window = {
       if (command === 'data_query' && arguments_.queryName === 'annotations') return [];
       if (command === 'data_query' && arguments_.queryName === 'shelves') {
         return [{ uuid: '88888888-8888-4888-8888-888888888888', is_default: 1 }];
+      }
+      if (command === 'capture_webpage') {
+        if (captureFailure) throw captureFailure;
+        return { sha256: 'c'.repeat(64), size: 3, mime_type: 'image/jpeg' };
       }
       if (command === 'blob_import') {
         return { sha256: 'a'.repeat(64), size: arguments_.bytes.length, mime_type: arguments_.mimeType };
@@ -121,7 +126,7 @@ const {
 const {
   addToNook, awaitPaperReading, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
-const { addBoardVideo, fillVideoCard } = await import('../../shared/api/boards.js');
+const { addBoardVideo, addBoardWebpage, fillPageCard, fillVideoCard } = await import('../../shared/api/boards.js');
 
 test('paper and comment reads start together', async () => {
   const paperSha256 = '11111111-1111-4111-8111-111111111111';
@@ -257,6 +262,50 @@ test('a desktop Bilibili card asks the mobile page through the plugin, and takes
   } finally {
     networkMode = 'pdf';
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('a desktop page card is made with the picture the Mac took, or as the link, and filled later', async () => {
+  const board = '33333333-3333-4333-8333-333333333333';
+  const url = 'https://flexible.seas.ucla.edu/';
+  const lastValues = () => calls.findLast(([command]) => command === 'data_mutate')[1].changes[0].values;
+  try {
+    calls.length = 0;
+    await addBoardWebpage(board, url, 1, 2);
+    assert.deepEqual(calls.find(([command]) => command === 'capture_webpage')[1], { url });
+    assert.ok(!calls.some(([command]) => command === 'network_fetch'), 'no Worker: nothing leaves for Papol');
+    assert.deepEqual(lastValues(), {
+      board_uuid: board, kind: 'webpage', content: 'flexible.seas.ucla.edu', source_url: url, x: 1, y: 2, width: 480,
+      sha256: 'c'.repeat(64), original_filename: 'webpage-flexible.seas.ucla.edu.jpg', mime_type: 'image/jpeg',
+    });
+
+    // The page would not load: the card is the link, and the error says why.
+    captureFailure = new Error('The page took too long to load');
+    calls.length = 0;
+    await assert.rejects(addBoardWebpage(board, url, 1, 2), (error) => {
+      assert.match(error.message, /picture could not be taken: The page took too long to load/);
+      assert.ok(error.item);
+      return true;
+    });
+    assert.equal(lastValues().sha256, undefined);
+    captureFailure = null;
+
+    // Offline: nothing is tried, and nothing is wrong.
+    enterOfflineMode();
+    calls.length = 0;
+    await addBoardWebpage(board, url, 1, 2);
+    assert.ok(!calls.some(([command]) => command === 'capture_webpage'));
+    const card = { uuid: '55555555-5555-4555-8555-555555555555', kind: 'webpage', content: 'flexible.seas.ucla.edu', source_url: url };
+    assert.equal(await fillPageCard(card), null, 'still offline');
+
+    exitOfflineMode();
+    calls.length = 0;
+    await fillPageCard(card);
+    assert.deepEqual(lastValues(), { sha256: 'c'.repeat(64), original_filename: 'webpage-flexible.seas.ucla.edu.jpg', mime_type: 'image/jpeg' });
+    assert.equal(await fillPageCard({ ...card, sha256: 'd'.repeat(64) }), null, 'a card with its picture is left alone');
+  } finally {
+    captureFailure = null;
+    exitOfflineMode();
   }
 });
 

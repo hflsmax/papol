@@ -15,6 +15,7 @@ fn main() {
             "blob_cache",
             "blob_read",
             "blob_ensure",
+            "capture_webpage",
             "local_clear_data",
             "blob_discard",
             "local_setting_get",
