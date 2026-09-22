@@ -72,6 +72,8 @@ function uploadFixture(server) {
         window.fetch = async (url, options = {}) => {
           const path = String(url);
           if (path.endsWith('/files/upload-address')) {
+            // What the Tauri HTTP plugin says of a host outside its scope.
+            if (window.failSend) throw new Error('url not allowed on the configured scope');
             if (window.failImport === 'expected') return new Response(JSON.stringify({detail:'File too large'}), {status:413});
             if (window.failImport) return new Response(JSON.stringify({detail:'PDF upload failed'}), {status:500});
             window.uploadSeen.push({step: 'address', body: JSON.parse(options.body)});
@@ -252,7 +254,22 @@ try {
     }
     assert.equal(kept.discarded, false);
     await browser.evaluate('window.knownVersion = false; return true;');
-    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved`);
+    if (mode === 'native') {
+      // Kept in the nook but not sent: the form opens all the same, says
+      // the PDF was not sent rather than that it could not be read, and
+      // offers the fault for a report.
+      await browser.evaluate('window.failSend = true; return true;');
+      await choose();
+      await browser.waitFor('document.querySelector("#upload-paper-title")');
+      await browser.waitFor('document.querySelector("[role=dialog]")');
+      assert.match(await browser.text(), /could not send the PDF to be read \(url not allowed on the configured scope\)/);
+      assert.doesNotMatch(await browser.text(), /could not read the PDF/);
+      assert.match(await browser.evaluate('return document.querySelector("#feedback-content").value;'), /sending a PDF to be read/);
+      await browser.evaluate('document.querySelector("[role=dialog] .feedback-actions button").click();');
+      await browser.waitFor('!document.querySelector("[role=dialog]")');
+      await browser.evaluate('window.failSend = false; return true;');
+    }
+    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
   }
 } finally {
   await browser.stop();
