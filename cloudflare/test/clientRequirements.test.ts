@@ -3,7 +3,7 @@ import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import worker from "../src/index";
-import { MINIMUM_DESKTOP_VERSION, SCHEMA_HEADER, schemaVersion } from "../src/clientRequirements";
+import { DESKTOP_VERSION_HEADER, MINIMUM_DESKTOP_VERSION, SCHEMA_HEADER, schemaVersion } from "../src/clientRequirements";
 
 const CURRENT = String(schemaVersion());
 const OLDER = String(schemaVersion() - 1);
@@ -47,6 +47,16 @@ describe("client requirements", () => {
     const pull = await SELF.fetch("https://papol.test/api/sync/snapshot", { headers: { [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.4.1", Authorization: "Bearer none" } });
     expect(pull.status).toBe(426);
     expect(await pull.json()).toMatchObject({ detail: { error: "client_incompatible", minimum_desktop_version: "0.5.0" } });
+  });
+
+  it("judges the app's windows by the version they announce, as it judges the synchronizer", async () => {
+    // The windows' requests cannot set a User-Agent; without this header
+    // the startup check told a refused build it was supported.
+    const window = (version: string) => ask({ [SCHEMA_HEADER]: CURRENT, [DESKTOP_VERSION_HEADER]: version });
+    expect((await window("0.4.1")).verdict).toBe("incompatible");
+    expect((await window("0.5.0")).verdict).toBe("supported");
+    // The User-Agent, where there is one, is the synchronizer's and wins.
+    expect((await ask({ [SCHEMA_HEADER]: CURRENT, [DESKTOP_VERSION_HEADER]: "0.5.0", "User-Agent": "Papol macOS/0.4.1" })).verdict).toBe("incompatible");
   });
 
   it("says where the files are: the bucket's own address, or nowhere when this Worker serves them", async () => {

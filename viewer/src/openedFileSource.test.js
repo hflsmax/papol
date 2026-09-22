@@ -59,6 +59,7 @@ const {
   handoffOpenedFileToNookViewer, nookViewerHref, resolveSource,
 } = await import('./source.js');
 const { hydrateCredential } = await import('../../shared/credentials.js');
+const { takeNookNotice } = await import('./api.js');
 
 test('a nook source exposes the content hash before its paper query resolves', () => {
   const previous = location.search;
@@ -188,8 +189,10 @@ test('Add to nook imports only the paper graph, with no file-viewer annotations'
   const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
   assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'copies']);
   assert.equal(mutations[0][0].uuid, paperSha256);
-  // The paper's name is the file, so it is not repeated as a value.
-  assert.equal(mutations[0][0].values.sha256, undefined);
+  // The paper's name is the file, and it is said among the values too, as
+  // the upload form says it: that is what has sync put the PDF in the
+  // bucket, here where this offline add never sent it.
+  assert.equal(mutations[0][0].values.sha256, paperSha256);
   assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
   assert.equal(mutations.length, 1);
 });
@@ -227,12 +230,16 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
       },
     }],
   };
-  global.fetch = async (url) => {
-    const [status, body] = answers[new URL(url, 'http://papol.test').pathname];
+  const told = [];
+  global.fetch = async (url, options) => {
+    const path = new URL(url, 'http://papol.test').pathname;
+    if (path === '/api/papers/uploaded') told.push(JSON.parse(options.body));
+    const [status, body] = answers[path];
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   };
   try {
-    await resolveSource().addToNook();
+    // The identifier the open document prints goes with the bytes.
+    await resolveSource().addToNook({ identifier: Promise.resolve({ doi: '10.1234/parsed' }) });
   } finally {
     navigator.onLine = false;
     global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
@@ -243,8 +250,38 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
     doi: '10.1234/parsed', title: 'Parsed title',
     authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
     // A paper is its PDF: the row is named by it, and carries the path.
-    file_path: `${HASH}.pdf`,
+    file_path: `${HASH}.pdf`, sha256: HASH,
   });
+  assert.deepEqual(told, [{ file_path: `${HASH}.pdf`, uploaded_name: 'Local paper.pdf', identifier: { doi: '10.1234/parsed' } }]);
+});
+
+test('an opened file whose send fails is added under its name, and the nook page says why', async () => {
+  values.set('papol.localAccountUuid', ACCOUNT);
+  existingPaper = null;
+  calls.length = 0;
+  navigator.onLine = true;
+  const session = new Map();
+  global.sessionStorage = {
+    getItem: (key) => session.get(key) ?? null,
+    setItem: (key, value) => session.set(key, String(value)),
+    removeItem: (key) => session.delete(key),
+  };
+  // What the Tauri HTTP plugin says of a host outside its scope.
+  global.fetch = async () => { throw new Error('url not allowed on the configured scope'); };
+  try {
+    await resolveSource().addToNook();
+  } finally {
+    navigator.onLine = false;
+    global.fetch = async () => { throw new Error('an opened file must remain private before Add to nook'); };
+  }
+
+  const paperChange = calls.find(([, args]) => args.changes?.[0]?.table === 'papers')[1].changes[0];
+  assert.equal(paperChange.values.title, 'Local paper');
+  const notice = takeNookNotice();
+  assert.match(notice.message, /could not be sent to be read \(url not allowed on the configured scope\)/);
+  assert.match(notice.report, /Area: sending a PDF to be read/);
+  assert.equal(takeNookNotice(), null, 'said once');
+  delete global.sessionStorage;
 });
 
 test('first sign-in adds an open file locally without waiting for its nook snapshot', async () => {

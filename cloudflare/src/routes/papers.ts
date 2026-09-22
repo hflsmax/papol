@@ -175,11 +175,11 @@ export function paperRoutes(router: Router) {
   router.on("POST", "/api/papers/:name/extract-metadata", async ({ request, env, params }) => {
     await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
-    const object = DIGEST.test(paper.file_path.slice(0, 64)) || paper.file_path ? await env.FILES.get(`${UPLOADS}${paper.file_path}`) : null;
+    const object = DIGEST.test(paper.file_path.slice(0, 64)) || paper.file_path ? await env.FILES.head(`${UPLOADS}${paper.file_path}`) : null;
     if (!object) refuse(404, "PDF for this paper is missing");
     let found;
     try {
-      found = await reextractedMetadata(env, new Uint8Array(await object.arrayBuffer()), paper.doi);
+      found = await reextractedMetadata(env, paper.file_path, paper.doi);
     } catch (error) {
       if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
       throw error;

@@ -17,7 +17,6 @@
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
-import { UPLOADS } from "../files";
 import { byDoi, Unavailable } from "./bibliography";
 import * as helper from "./helper";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
@@ -50,10 +49,10 @@ export function lookupDoi(identifier: Identifier | null | undefined): string | n
 
 // The title block, read on the host. Null where there is no helper or it
 // could not read the file: nothing printed to go on.
-async function titleBlock(env: Env, bytes: () => Promise<Uint8Array>, fileName: string): Promise<HeaderMetadata | null> {
+async function titleBlock(env: Env, fileName: string): Promise<HeaderMetadata | null> {
   if (!helper.configured(env)) return null;
   try {
-    return await helper.header(env, await bytes());
+    return await helper.header(env, fileName);
   } catch (error) {
     console.warn(`The helper could not read the header of ${fileName}: ${(error as Error).message}`);
     return null;
@@ -70,8 +69,6 @@ export interface Extracted {
 }
 
 export interface Upload {
-  // The bytes, fetched only if the reading comes to need them.
-  bytes: () => Promise<Uint8Array>;
   uploadedName: string;
   fileName: string;
   identifier?: Identifier | null;
@@ -88,7 +85,7 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
   let header: HeaderMetadata | null = null;
   let printed = given;
   if (!known) {
-    header = await titleBlock(env, upload.bytes, upload.fileName);
+    header = await titleBlock(env, upload.fileName);
     printed = lookupDoi(header) ?? given;
     known = printed && printed !== given ? await byDoi(env, printed) : null;
   }
@@ -109,18 +106,6 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
     metadata.year = header.year;
   }
   return metadata;
-}
-
-// The stored PDF's bytes, fetched when first asked for and not before.
-function storedBytes(env: Env, fileName: string): () => Promise<Uint8Array> {
-  let bytes: Promise<Uint8Array> | null = null;
-  return () => {
-    bytes ??= env.FILES.get(`${UPLOADS}${fileName}`).then(async (object) => {
-      if (!object) throw new JobError("PDF file not found");
-      return new Uint8Array(await object.arrayBuffer());
-    });
-    return bytes;
-  };
 }
 
 // A paper Papol holds already of the same work: one carrying the DOI the
@@ -148,7 +133,7 @@ export async function extractMetadataJob(env: Env, payload: Row): Promise<Row> {
   const fileName = String(payload.file_path);
   const identifier = payload.identifier && typeof payload.identifier === "object" ? (payload.identifier as Identifier) : null;
   try {
-    const metadata = await extractedMetadata(env, { bytes: storedBytes(env, fileName), uploadedName: String(payload.uploaded_name || fileName), fileName, identifier });
+    const metadata = await extractedMetadata(env, { uploadedName: String(payload.uploaded_name || fileName), fileName, identifier });
     const existing = await knownVersion(env.DB, metadata.doi, fileName.slice(0, 64));
     return existing ? { ...metadata, existing } : { ...metadata };
   } catch (error) {
@@ -168,8 +153,8 @@ export interface Reextracted {
 // The edit form's re-read: prefer the identifier the file carries over
 // possibly stale or wrongly entered paper data. Null when nothing
 // resolved; Unavailable when the APIs could not answer.
-export async function reextractedMetadata(env: Env, bytes: Uint8Array, paperDoi: string | null): Promise<Reextracted | null> {
-  const printed = lookupDoi(await titleBlock(env, async () => bytes, "the paper being edited")) ?? paperDoi;
+export async function reextractedMetadata(env: Env, fileName: string, paperDoi: string | null): Promise<Reextracted | null> {
+  const printed = lookupDoi(await titleBlock(env, fileName)) ?? paperDoi;
   const known = printed ? await byDoi(env, printed) : null;
   if (!known) return null;
   return {

@@ -68,9 +68,21 @@ global.CustomEvent = class CustomEvent extends Event {
 
 const credentials = await import('../../shared/credentials.js');
 await credentials.hydrateCredential();
-const { configureNetworkFetch, enterOfflineMode, inOfflineMode } = await import('../../shared/connectivity.js');
+const {
+  configureNetworkFetch, enterOfflineMode, exitOfflineMode, inOfflineMode,
+} = await import('../../shared/connectivity.js');
 configureNetworkFetch(async (url, options) => {
   calls.push(['network_fetch', { url: String(url), options }]);
+  // The send of a PDF to be read: the bucket holds the bytes already, and
+  // the server queues the reading. `refused` is what the Tauri HTTP plugin
+  // says of a URL outside its scope.
+  if (networkMode === 'refused') throw new Error('url not allowed on the configured scope');
+  if (networkMode === 'upload') {
+    const answer = String(url).endsWith('/files/upload-address')
+      ? { stored: true, file_path: `${'a'.repeat(64)}.pdf` }
+      : { job: 'reading-job', file_path: `${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64) };
+    return new Response(JSON.stringify(answer), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
   if (networkMode === 'seminar') {
     return new Response(JSON.stringify({ uuid: 'room-uuid', status: 'open' }), {
       status: 200,
@@ -97,7 +109,7 @@ const {
   postRoomMessage, setRoomAvailability, uncallSeminar, unhostRoom,
 } = await import('../../shared/api/rooms.js');
 const {
-  addToNook, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
+  addToNook, awaitPaperReading, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
 
 test('paper and comment reads start together', async () => {
@@ -140,16 +152,62 @@ test('a replica board carries every list the API declares', () => {
   }
 });
 
+test('a desktop PDF is kept in the nook and sent to be read, as a web upload is', async () => {
+  calls.length = 0;
+  networkMode = 'upload';
+  let uploaded;
+  try {
+    uploaded = await uploadPaper(
+      new File(['%PDF-1.4\nsent\n%%EOF'], 'sent.pdf', { type: 'application/pdf' }),
+      { identifier: { doi: '10.1145/3526113.3545636' } },
+    );
+  } finally {
+    networkMode = 'pdf';
+  }
+  assert.deepEqual(
+    { job: uploaded.job, sha256: uploaded.sha256, sendFailure: uploaded.sendFailure, offline: uploaded.offline },
+    { job: 'reading-job', sha256: 'a'.repeat(64), sendFailure: undefined, offline: undefined },
+  );
+  const kept = calls.findIndex(([command]) => command === 'blob_import');
+  const told = calls.findIndex(([command, args]) => command === 'network_fetch' && args.url.endsWith('/papers/uploaded'));
+  assert.ok(kept >= 0 && told > kept, 'kept first, then sent');
+  assert.deepEqual(JSON.parse(calls[told][1].options.body).identifier, { doi: '10.1145/3526113.3545636' });
+});
+
+test('a desktop PDF whose send fails is kept, and says why rather than that it could not be read', async () => {
+  networkMode = 'refused';
+  let uploaded;
+  try {
+    uploaded = await uploadPaper(new File(['%PDF-1.4\nrefused\n%%EOF'], 'refused.pdf', { type: 'application/pdf' }));
+  } finally {
+    networkMode = 'pdf';
+  }
+  assert.equal(uploaded.sha256, 'a'.repeat(64), 'the nook has it all the same');
+  assert.equal(uploaded.job, null);
+  assert.match(uploaded.sendFailure.message, /not allowed on the configured scope/);
+  assert.equal(await awaitPaperReading(uploaded), null);
+});
+
 test('a PDF added offline is named by its file, and its first thought is a note', async () => {
   // A paper is its PDF on this side of the wire too. Naming the row anything
   // else is refused by the replica before it is refused by the service, so
   // the import simply never lands.
   const digest = 'a'.repeat(64);
-  const extracted = await uploadPaper(
-    new File(['%PDF-1.4\noffline\n%%EOF'], 'offline.pdf', { type: 'application/pdf' }),
-  );
+  enterOfflineMode();
+  calls.length = 0;
+  let extracted;
+  try {
+    extracted = await uploadPaper(
+      new File(['%PDF-1.4\noffline\n%%EOF'], 'offline.pdf', { type: 'application/pdf' }),
+    );
+  } finally {
+    exitOfflineMode();
+  }
   assert.equal(extracted.sha256, digest);
-  assert.equal(extracted.job, null, 'nothing is read from it until the form asks');
+  assert.equal(extracted.offline, true);
+  assert.equal(extracted.job, null, 'offline, it is not sent to be read');
+  assert.ok(!calls.some(([command]) => command === 'network_fetch'));
+  assert.equal(await awaitPaperReading(extracted), null, 'and there is no reading to wait for');
 
   queryPaper = { uuid: digest, sha256: digest };
   calls.length = 0;

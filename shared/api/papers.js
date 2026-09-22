@@ -18,8 +18,6 @@ import {
   rememberPendingPaperBlob, setPaperCopyUuid,
 } from './paperState.js';
 
-const DESKTOP_EXTRACT_TIMEOUT_MS = appLimits.timeouts_ms.desktop_metadata;
-
 // ---------- Papers ----------
 
 // A paper is addressed by the name it goes by in a URL: the first half of
@@ -49,14 +47,31 @@ export async function listPapers() {
   return papers;
 }
 
-// The wait for what the server reads out of an upload. The PDF is on the
-// server the moment the upload answers, and the reading — the printed DOI,
-// the bibliographic APIs, the title block — takes as long as it takes; the
-// form does not wait for it, and after this long stops asking. The paper
-// page has a button that asks again.
-const UPLOAD_READING_TIMEOUT_MS = 2 * 60 * 1000;
+// A PDF comes into Papol one way, from the upload form on the web and on
+// the desktop and from the viewer's "Add to nook" alike, in three steps:
+//
+//   1. Keep: the bytes go where the paper will live — the bucket on the
+//      web, the nook's own store on the desktop.
+//   2. Send: the bytes go to the bucket and the server is told, with the
+//      identifier the caller read off the first pages; it queues the job
+//      that reads the PDF. On the web keeping is sending. On the desktop
+//      sending needs the network and the import does not: offline, or
+//      when the send fails, the paper is kept all the same.
+//   3. Read: the job is waited for, and what it found fills what the
+//      user has not typed.
+//
+// `uploadPaper` is the first two, `awaitPaperReading` the third. A send
+// that failed is said as such, not as a PDF that could not be read: the
+// one is a fault worth reporting, the other is only a paper GROBID could
+// make nothing of.
 
-// The identifier an upload sends: what the caller read off the PDF's
+// The longest a reading is waited for. The PDF is on the server once the
+// send answers, and the reading — the printed DOI, the bibliographic
+// APIs, the title block — takes as long as it takes; after this long the
+// wait gives up, and the paper page has a button that asks again.
+export const PAPER_READING_TIMEOUT_MS = 2 * 60 * 1000;
+
+// The identifier a send carries: what the caller read off the PDF's
 // first pages, given as a value or a promise of one, or nothing.
 async function identifierFor(identifier) {
   try {
@@ -67,71 +82,54 @@ async function identifierFor(identifier) {
   }
 }
 
-// Upload a PDF: the bytes into the bucket (shared/api/files.js), then the
+// Send a PDF: the bytes into the bucket (shared/api/files.js), then the
 // server told they are in, with the identifier read off the file. It
 // answers with the job that reads it: `{ job, file_path, sha256 }`.
 // `onProgress` hears the hash and the PUT as storeFile reports them.
-async function upload(file, filename, signal, identifier, onProgress) {
-  const name = filename || file.name;
-  const stored = await storeFile('paper', file, { name, mime: 'application/pdf', signal, onProgress });
+async function send(file, filename, identifier, onProgress) {
+  // The server takes PDFs by their name; an opened file may have none.
+  const name = /\.pdf$/i.test(filename || '') ? filename : `${filename || 'paper'}.pdf`;
+  const stored = await storeFile('paper', file, { name, mime: 'application/pdf', onProgress });
   return request('/papers/uploaded', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }), signal,
+    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }),
   });
 }
 
-// Upload a PDF and wait for what the server reads out of it: the job's
-// result plus the digest the upload was stored under.
-async function uploadAndRead(file, filename, signal, onProgress) {
-  const queued = await upload(file, filename, signal, null, onProgress);
-  const metadata = await awaitJob(queued.job, { signal });
-  return { ...metadata, file_path: queued.file_path, sha256: queued.sha256 };
-}
-
-export async function lookupPaperMetadata(file, filename = file?.name, { onProgress } = {}) {
-  if (inOfflineMode()) return null;
+// Keep a PDF and send it to be read: steps 1 and 2 above. Answers
+// `{ file_path, sha256, job }`, where `job` is the reading to await.
+// On the desktop, where keeping does not depend on sending, a PDF that
+// was not sent answers `job: null` and says why: `offline: true`, or
+// `sendFailure`, the error the send ended in. On the web a failed send
+// is a failed upload, and throws. `name` is the file name the server
+// records, for a blob that has none of its own. `identifier` is what
+// the caller read off the first pages (shared/identifiers.js), a value
+// or a promise of one. `onProgress` hears the send as it goes.
+export async function uploadPaper(file, { name = file?.name, identifier = null, onProgress } = {}) {
+  if (!nativeDataActive()) {
+    const sent = await send(file, name, identifier, onProgress);
+    return { file_path: sent.file_path, sha256: sent.sha256, job: sent.job };
+  }
+  const blob = await nativeBlobImport(file);
+  rememberPendingPaperBlob(blob);
+  const kept = { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
+  if (inOfflineMode()) return { ...kept, offline: true };
   try {
-    return await withAbortTimeout(
-      (signal) => uploadAndRead(file, filename, signal, onProgress),
-      DESKTOP_EXTRACT_TIMEOUT_MS,
-    );
-  } catch {
-    return null;
+    return { ...kept, job: (await send(file, name, identifier, onProgress)).job };
+  } catch (sendFailure) {
+    return { ...kept, sendFailure };
   }
-}
-
-// Take a PDF in: stored at once — in the bucket under its digest, or in
-// the nook's own store — and answered with where it went, `{ file_path,
-// sha256, job }`. Nothing is read from it here; that is `awaitPaperReading`,
-// and the form is open in the meantime. `identifier` is what the caller
-// read off the PDF's first pages (frontend/src/pdfIdentifier.js), a value
-// or a promise of one; it goes to the server with the upload, and the
-// reading starts from it. `onProgress` hears the upload as it goes
-// (shared/api/files.js); the nook's own store says nothing, being local.
-export async function uploadPaper(file, { identifier = null, onProgress } = {}) {
-  if (nativeDataActive()) {
-    const blob = await nativeBlobImport(file);
-    rememberPendingPaperBlob(blob);
-    return { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
-  }
-  const queued = await upload(file, file.name, undefined, identifier, onProgress);
-  return { file_path: queued.file_path, sha256: queued.sha256, job: queued.job };
 }
 
 // What the PDF says about itself, once the server has read it: the job's
-// fields — `doi, title, authors, journal, year` — or null when it could not
-// be read: the job failed, the wait was given up on or ended by `signal`,
-// the server could not be reached. A nook import has no job yet, so the
-// PDF goes to the server for reading, as the viewer's import does, unless
-// offline. None of it is worth a dialog: the form is open, and the user
-// can type what was not read.
-export async function awaitPaperReading(uploaded, file, { signal, identifier = null } = {}) {
-  if (!uploaded.job && inOfflineMode()) return null;
+// fields — `doi, title, authors, journal, year`, and `existing` when
+// Papol holds another version of the work — or null when there is no
+// reading to have: the PDF was not sent, the job failed, or the wait was
+// given up on (after `timeoutMs`) or ended by `signal`.
+export async function awaitPaperReading(uploaded, { signal, timeoutMs = PAPER_READING_TIMEOUT_MS } = {}) {
+  if (!uploaded?.job) return null;
   try {
-    return await withAbortTimeout(async (stop) => {
-      const job = uploaded.job ?? (await upload(file, file?.name, stop, identifier)).job;
-      return awaitJob(job, { signal: stop });
-    }, UPLOAD_READING_TIMEOUT_MS, { signal });
+    return await withAbortTimeout((stop) => awaitJob(uploaded.job, { signal: stop }), timeoutMs, { signal });
   } catch {
     return null;
   }
