@@ -42,7 +42,11 @@ export function getViewerPaperInfo(hash, share) {
   return request(`/viewer/${hash}/info${share ? `?share=${share}` : ''}`);
 }
 
+// Where the PDF's bytes are: the address the server gives when it gives
+// one — the bucket's own, so the stream never passes through the Worker,
+// not even for a redirect — else Papol's route, which sends us on.
 export function pdfHref(paper) {
+  if (paper?.file_url) return paper.file_url;
   if (!paper?.file_path) return null;
   return backendPath(`/uploads/${paper.file_path}`);
 }

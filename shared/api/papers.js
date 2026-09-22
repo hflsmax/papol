@@ -27,8 +27,12 @@ export function paperHref(paper) {
   return appPath(`/paper/${paperName(paper.sha256)}`);
 }
 
-// An uploaded PDF is served from its content-addressed media URL.
+// An uploaded PDF is served from its content-addressed media URL: the
+// address the server gives for it when it gives one (the bucket's own,
+// which the edge caches and no Worker touches), else Papol's own route,
+// which sends the client on to the same place.
 export function pdfHref(paper) {
+  if (paper.file_url) return paper.file_url;
   if (paper.file_path.startsWith('http')) return paper.file_path;
   return backendPath(`/uploads/${paper.file_path}`);
 }

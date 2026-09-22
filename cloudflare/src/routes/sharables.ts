@@ -63,7 +63,7 @@ export function sharableRoutes(router: Router) {
   // The reading a link opens. Deliberately unauthenticated: the whole
   // point of the link is that it works for someone who is not a user here.
   router.on("GET", "/api/shared/:uuid", async ({ env, params }) => {
-    return json(await sharedReading(env.DB, await openOr404(env, params.uuid)));
+    return json(await sharedReading(env,await openOr404(env, params.uuid)));
   });
 
   // Whether whoever is reading this link already keeps the paper, so the

@@ -64,6 +64,13 @@ crons = ["*/2 * * * *", "0 * * * *"]
 [vars]
 PAPOL_URL = "https://papol.io"
 FILES_BUCKET = "papol-files"
+# Where the bucket answers for its own files (src/sync/blobs.ts): a
+# custom domain on the R2 bucket, cached at the edge, with no Worker in
+# the path. Empty, the Worker serves the file itself. Production's bucket
+# still holds private board files, and a bucket domain exposes every key,
+# so it stays empty until those files have a bucket of their own
+# (docs/cloud-migration.md, phase 5, step 13); then "https://files.papol.io".
+FILES_URL = ""
 
 [observability]
 enabled = true
@@ -92,6 +99,7 @@ routes = [{ pattern = "dev.papol.io", custom_domain = true }]
 [env.dev.vars]
 PAPOL_URL = "https://dev.papol.io"
 FILES_BUCKET = "papol-files-dev"
+FILES_URL = "https://files-dev.papol.io"
 
 [[env.dev.d1_databases]]
 binding = "DB"

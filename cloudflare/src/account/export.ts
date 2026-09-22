@@ -19,7 +19,7 @@
 
 import { type User } from "../auth";
 import { all, type Row } from "../db";
-import { BOARD_FILES, UPLOADS } from "../sync/blobs";
+import { BOARD_FILES, UPLOADS, uploadUrl } from "../sync/blobs";
 
 function authorsOf(paper: Row): unknown[] {
   try { return paper.authors ? JSON.parse(paper.authors as string) : []; } catch { return [paper.authors]; }
@@ -230,7 +230,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
       let avatarLine = "";
       if (user.avatar_path) {
         const suffix = user.avatar_path.slice(user.avatar_path.lastIndexOf("."));
-        const avatar = await locate(env, `${UPLOADS}${user.avatar_path}`, `avatar${suffix}`, `/uploads/${user.avatar_path}`);
+        const avatar = await locate(env, `${UPLOADS}${user.avatar_path}`, `avatar${suffix}`, uploadUrl(env, user.avatar_path));
         if (avatar) { located.push(avatar); avatarLine = `  avatar${suffix}        Your picture.\n`; }
       }
       // One PDF per paper in the nook, named after the paper. Two papers
@@ -241,7 +241,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
         const base = kept.year ? `${slug(kept.title)}-${kept.year}` : slug(kept.title);
         let candidate = `${base}.pdf`;
         for (let n = 2; seen.has(candidate); n++) candidate = `${base}-${n}.pdf`;
-        const pdf = await locate(env, `${UPLOADS}${kept.file_path}`, `pdfs/${candidate}`, `/uploads/${kept.file_path}`);
+        const pdf = await locate(env, `${UPLOADS}${kept.file_path}`, `pdfs/${candidate}`, uploadUrl(env, kept.file_path));
         if (pdf) { located.push(pdf); seen.add(candidate); }
       }
       for (const board of data.boards) {
