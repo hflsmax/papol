@@ -86,7 +86,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: DeterminateSystems/nix-installer-action@v23
-      - uses: DeterminateSystems/magic-nix-cache-action@v13
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       # The accessibility API answers only a process the user has trusted,
       # and there is no user here to click. macOS charges a command-line
