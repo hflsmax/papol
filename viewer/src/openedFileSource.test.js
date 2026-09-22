@@ -213,9 +213,11 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   existingPaper = null;
   calls.length = 0;
   navigator.onLine = true;
-  // The upload answers with a job; the reading is the job's result.
+  // The server already holds the bytes, so no PUT; telling it they are
+  // in answers with a job, and the reading is the job's result.
   const answers = {
-    '/api/papers/extract': [202, { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH }],
+    '/api/papers/upload-address': [200, { stored: true, file_path: `${HASH}.pdf` }],
+    '/api/papers/uploaded': [202, { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH }],
     '/api/jobs/job-1': [200, {
       uuid: 'job-1', kind: 'extract_metadata', status: 'done', detail: null,
       result: {

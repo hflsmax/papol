@@ -8,14 +8,30 @@ import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
 import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
-import { KIND as EXTRACT, reextractedMetadata } from "../papers/extract";
+import { KIND as EXTRACT, reextractedMetadata, type Identifier } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
+import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { viewerPaper } from "../papers/sharables";
+import * as uploads from "../papers/uploads";
 import { UPLOADS, uploadUrl } from "../sync/blobs";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
 const DIGEST = /^[0-9a-f]{64}$/;
+
+// The identifier the browser read off the PDF's first pages, `{ doi }` or
+// `{ arxiv_id }`, held to the forms the Worker's own reading produces.
+function givenIdentifier(check: ReturnType<typeof validate.checking>, given: unknown): Identifier | null {
+  if (given === null || given === undefined) return null;
+  if (typeof given !== "object") { check.fail("identifier must be an object"); return null; }
+  const { doi, arxiv_id: arxivId } = given as Record<string, unknown>;
+  const identifier: Identifier = {};
+  const foundDoi = check.string("identifier.doi", doi, { max: limits.text.paper_doi, pattern: DOI_FORM, optional: true });
+  const foundArxiv = check.string("identifier.arxiv_id", arxivId, { max: 40, pattern: ARXIV_ID_FORM, optional: true });
+  if (foundDoi) identifier.doi = foundDoi;
+  if (foundArxiv) identifier.arxiv_id = foundArxiv;
+  return foundDoi || foundArxiv ? identifier : null;
+}
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
@@ -91,6 +107,49 @@ export function paperRoutes(router: Router) {
     await job.statement.run();
     await wake(env, [job.uuid]);
     return json({ job: job.uuid, file_path: fileName, sha256: digest }, { status: 202 });
+  });
+
+  // Where a PDF goes: the browser has hashed it and says so, and is told
+  // either that the bucket holds those bytes already or where to PUT them
+  // itself (src/papers/uploads.ts). Nothing is stored or queued here; the
+  // upload tells /api/papers/uploaded when the bytes are in.
+  router.on("POST", "/api/papers/upload-address", async ({ request, env }) => {
+    await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const sha256 = check.string("sha256", data.sha256, { pattern: uploads.DIGEST })!;
+    const size = check.integer("size", data.size, { min: 1 })!;
+    const name = check.string("name", data.name, { max: limits.text.uploaded_filename })!;
+    check.done();
+    if (!name.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
+    if (size > uploads.PAPER_LIMIT) refuse(413, `PDF files may be at most ${limits.files.paper_mb} MB`);
+    const filePath = `${sha256}.pdf`;
+    if (await env.FILES.head(uploads.paperKey(sha256))) return json({ stored: true, file_path: filePath });
+    if (!uploads.configured(env)) refuse(503, "Direct uploads are not configured on this server");
+    return json({ stored: false, file_path: filePath, ...(await uploads.uploadAddress(env, sha256, size)) });
+  });
+
+  // The PDF is in the bucket, by the browser's own hand: queue the reading
+  // of it, as /api/papers/extract does once it has stored the bytes. The
+  // browser may have read the paper's identifier off its first pages
+  // already; passed along, the job asks the indexes about it directly.
+  router.on("POST", "/api/papers/uploaded", async ({ request, env }) => {
+    const user = await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const filePath = check.string("file_path", data.file_path, { pattern: /^[0-9a-f]{64}\.pdf$/ })!;
+    const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? filePath;
+    const identifier = givenIdentifier(check, data.identifier);
+    check.done();
+    if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
+    const digest = filePath.slice(0, 64);
+    if (!(await env.FILES.head(uploads.paperKey(digest)))) refuse(404, "PDF file not found");
+    const payload: Row = { file_path: filePath, uploaded_name: uploadedName };
+    if (identifier) payload.identifier = identifier;
+    const job = enqueue(env.DB, EXTRACT, payload, { userUuid: user.uuid });
+    await job.statement.run();
+    await wake(env, [job.uuid]);
+    return json({ job: job.uuid, file_path: filePath, sha256: digest }, { status: 202 });
   });
 
   // Save a paper with user-edited metadata and an optional first note. A
