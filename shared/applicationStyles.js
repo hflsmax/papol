@@ -1656,6 +1656,19 @@ button.full-width {
 }
 .back-button.disabled { pointer-events: none; opacity: .55; }
 
+/* A jacket's way back sits midway between the page header and the panel:
+   as much space below it as the header leaves above it (.topnav's 28px).
+   A block, so the margin holds; only as wide as its words, so the rest of
+   the row is not a link. The board jacket's column already spaces its
+   children by 12px. */
+.paper-jacket > .back-button,
+.board-jacket > .back-button {
+  display: block;
+  width: fit-content;
+  margin: 0 0 28px;
+}
+.board-jacket > .back-button { align-self: flex-start; margin-bottom: 16px; }
+
 .back-button:hover {
   text-decoration: underline;
   background: none;
