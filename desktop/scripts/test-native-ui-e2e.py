@@ -13,9 +13,10 @@ This asks the window for exactly three things, all by the names a user
 sees: the sign-in form, then the desk, then one seeded paper listed in it.
 Everything past that is read from the replica as a value, because a suite
 that drives a whole feature through the accessibility API spends its
-failures on itself (see the head of papol-ui.swift). The service is a real
-FastAPI on a port of its own, the app is the real binary compiled against
-that port, and the replica is a fresh one under a throwaway HOME.
+failures on itself (see the head of papol-ui.swift). The service is the real
+Worker under `wrangler dev` on a port of its own, the app is the real binary
+compiled against that port, and the replica is a fresh one under a throwaway
+HOME.
 
     npm run test:e2e:native-ui          # from desktop/, inside `nix develop`
 

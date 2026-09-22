@@ -30,7 +30,19 @@ updates:
     directory: /desktop/src-tauri
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+  # Third-party actions are pinned to commit SHAs with the tag beside them
+  # as a comment; this moves both together.
   - package-ecosystem: github-actions
     directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  # The Worker's install needs --legacy-peer-deps (see pr.yml), which
+  # Dependabot is not told; an update it cannot resolve says so in its log.
+  - package-ecosystem: npm
+    directory: /cloudflare
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /host/helper
     schedule: { interval: weekly }
     open-pull-requests-limit: 5

@@ -4,21 +4,63 @@ name: Papol PR
 # user driving the real pages see them work. The browser half exists because
 # a passing suite is not a working link — the SPA answers dead URLs with the
 # page itself, status 200, and only a browser watching the wire notices.
+#
+# This is also where a pull request runs the Worker's suite: worker.yml runs
+# it again only in front of a deploy, so a PR pays for it once.
 
 on:
   pull_request:
   push:
     branches: [main]
 
+# The suites read the code and nothing else.
+permissions:
+  contents: read
+
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    # Branch protection requires this name; keep it stable.
+    name: tests
+    # Pinned rather than -latest: the sysctl below is an Ubuntu 24 answer,
+    # and an image that moved under it would fail as a browser that will
+    # not start rather than as a changed runner.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
+      # Two commits deep, so a pull request's merge commit has its base
+      # (HEAD^1) beside it for the migrations check.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
-      - uses: DeterminateSystems/nix-installer-action@v23
-      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      # A migration D1 has applied is history: dev and production record it
+      # by name, and an edit to it never reaches either database. So a pull
+      # request may add files under cloudflare/migrations/ and nothing else.
+      - name: Migrations are only ever added
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-status --no-renames --diff-filter=DMT HEAD^1 HEAD -- cloudflare/migrations/)
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo 'an applied migration was edited or removed; add a new one instead' >&2
+            exit 1
+          fi
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+
+      # The Mac jobs install Rust with rustup, not nix, and clippy's
+      # -D warnings turns each new release's lints into a red build; so the
+      # version is written down once, in rust-toolchain.toml, and this holds
+      # it to the rustc the flake's nixpkgs carries. A flake.lock bump that
+      # moves rustc fails here until the file moves with it.
+      - name: The Mac's Rust is the flake's
+        run: |
+          want=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)
+          # The shell's greeting shares stdout; take the rustc line alone.
+          have=$(nix develop --command rustc --version | sed -n 's/^rustc \([0-9.]*\).*/\1/p')
+          echo "rust-toolchain.toml says $want, the flake has $have"
+          [ -n "$want" ] && [ "$want" = "$have" ]
 
       # Ubuntu 24 confines unprivileged user namespaces, which is how
       # Chromium builds its sandbox; the nix chromium has no setuid fallback.

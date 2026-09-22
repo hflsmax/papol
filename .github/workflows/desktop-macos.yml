@@ -2,11 +2,10 @@ name: Papol macOS
 
 # The test and end-to-end jobs are the gate, and they run everywhere code
 # moves: every pull request, every push to main, and the release tag itself.
-# Between them they carry the suites, the browser smokes (desk against
-# replica rows, a citation clicked in the viewer, a board's cards drawn),
-# the native lints, and the real app signed in to a real backend, on the
-# runner that matches the machine the app ships to. Only a tag goes on to
-# build, notarize, and publish.
+# Between them they carry the crate's tests, the native lints, and the real
+# app signed in to a real backend, on the runner that matches the machine
+# the app ships to; the bundled pages' suites and browser smokes are
+# pr.yml's, on Linux. Only a tag goes on to build, notarize, and publish.
 on:
   pull_request:
   push:
@@ -26,7 +25,14 @@ permissions:
   contents: read
 
 jobs:
+  # What only a Mac can check: the crate's tests against the real
+  # frameworks, its formatting and lints, and the Info.plist writer the
+  # build runs. The bundled pages' suites and browser smokes are not
+  # repeated here; they run on Linux in pr.yml, drive Chromium on either
+  # runner, and a macOS minute costs ten Linux ones.
   test:
+    # Branch protection requires this name; keep it stable.
+    name: macos-test
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -42,36 +48,40 @@ jobs:
             exit 1
           }
 
+      # The plist writer's test needs Node and nothing from npm.
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            desktop/package-lock.json
-            frontend/package-lock.json
-            viewer/package-lock.json
-            board/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Read the pinned Rust
+        id: rust
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
-      - name: Install desktop dependencies
+      # The version comes from rust-toolchain.toml; see its head for why.
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+          components: clippy, rustfmt
+
+      # Saved from main only: every PR branch writing its own target/
+      # would push the repository past GitHub's 10 GB and evict the rest.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # No bundled pages are built: a debug `cargo test` is Tauri's dev
+      # mode, which serves devUrl and does not embed ../dist.
+      - name: Test the native shell
         working-directory: desktop
-        run: npm ci
-
-      - name: Install bundled UI dependencies
-        working-directory: desktop
-        run: npm run install:web
-
-      - name: Test bundled UI and native shell
-        working-directory: desktop
-        run: npm test
+        run: npm run test:native
 
       - name: Check native formatting and lints
         working-directory: desktop
         run: npm run check:native
 
-  # The shell itself, against a service. The test job's smokes open the
-  # bundled pages in a browser with a mocked bridge, and its cargo tests
+  # The shell itself, against a service. pr.yml's smokes open the bundled
+  # pages in a browser with a mocked bridge, and the test job's cargo tests
   # drive the replica with no window anywhere; nothing there says whether
   # the application a person opens comes up, takes a sign-in, and shows
   # the paper the service holds. This job starts the real backend — the
@@ -80,13 +90,14 @@ jobs:
   # a WKWebView — for exactly that. nix rather than the toolchain actions,
   # because the Node and the Rust it needs are listed nowhere but flake.nix.
   end-to-end:
+    name: macos-end-to-end
     runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
-      - uses: DeterminateSystems/nix-installer-action@v23
-      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
 
       # The accessibility API answers only a process the user has trusted,
       # and there is no user here to click. macOS charges a command-line
@@ -137,6 +148,7 @@ jobs:
           if-no-files-found: ignore
 
   build:
+    name: macos-build
     needs: [test, end-to-end]
     # A dispatched run is the gate alone; only a tag builds and publishes.
     if: startsWith(github.ref, 'refs/tags/macos-v')
@@ -155,8 +167,14 @@ jobs:
             viewer/package-lock.json
             board/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Read the pinned Rust
+        id: rust
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      # The release is compiled by the Rust the gate tested with.
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
+          toolchain: ${{ steps.rust.outputs.channel }}
           targets: aarch64-apple-darwin
 
       - name: Install desktop dependencies
@@ -169,7 +187,7 @@ jobs:
 
       - name: Build, sign, and notarize app
         id: tauri
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -211,6 +229,7 @@ jobs:
   # release commit; gh omits target_commitish, which would otherwise make
   # GitHub demand workflows permission (which GITHUB_TOKEN cannot have).
   release:
+    name: macos-release
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15

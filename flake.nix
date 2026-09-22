@@ -35,7 +35,10 @@
     # and recorders drive, and the Rust that builds the Mac app. There used
     # to be a Python interpreter here with the FastAPI service's imports,
     # and a PostgreSQL beside it; they left with the service they ran
-    # (docs/cloud-migration.md, phase 5).
+    # (docs/cloud-migration.md, phase 5). A bare python3 stayed, for the
+    # scripts that still are Python (the Mac end-to-end drivers,
+    # cloudflare/scripts/smoke.sh's JSON reading) and use only its
+    # standard library.
     # ---------------------------------------------------------------------
 
     # No overlays, and the release's default packages. Both are about the
@@ -78,6 +81,10 @@
       ripgrep              # fast repository-wide source search
       gh                   # pull requests and releases on GitHub
       ffmpeg               # the tutorial encoder
+      # The release's default interpreter, nothing added to it, so the
+      # binary cache has it; a runner's own python3 is whatever its image
+      # happens to ship.
+      python3
       (chromium pkgs)
       # The desktop crate: the local replica's storage and sync logic, and
       # the Tauri shell around it. A Mac is not assumed to carry a rustup

@@ -1,0 +1,9 @@
+# The one place the desktop crate's Rust version is written. It is the rustc
+# of the flake's nixpkgs, which is what `nix develop` compiles with; the Mac
+# CI jobs install this channel with rustup, and pr.yml fails when the two
+# part (a flake.lock bump that moves rustc moves this line with it). Pinned
+# rather than `stable` because clippy runs with -D warnings, and every new
+# stable release would otherwise arrive as a red build nobody changed.
+[toolchain]
+channel = "1.95.0"
+components = ["clippy", "rustfmt"]
