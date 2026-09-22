@@ -7,7 +7,8 @@
 // the three variables; unset, mail is skipped and the job says so. The
 // settings-table
 // fallback for SMTP credentials is not carried: a secret belongs in a
-// secret, not in a table the admin page edits.
+// secret, not in a table the admin page edits. A Worker's fetch sends no
+// User-Agent of its own, and Resend refuses a request without one.
 
 import { JobError } from "./queue";
 
@@ -24,7 +25,7 @@ export function mailConfigured(env: Env): boolean {
 export async function sendEmail(env: Env, mail: Mail): Promise<void> {
   const response = await fetch(env.EMAIL_API_URL!, {
     method: "POST",
-    headers: { authorization: `Bearer ${env.EMAIL_API_KEY}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${env.EMAIL_API_KEY}`, "content-type": "application/json", "user-agent": "Papol/1.0" },
     body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.body }),
   });
   if (!response.ok) throw new JobError(`Email to ${mail.to} failed: ${response.status} ${(await response.text()).slice(0, 200)}`);

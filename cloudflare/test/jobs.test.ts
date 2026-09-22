@@ -14,6 +14,7 @@ const posted: unknown[] = [];
 function emailApi(status = 200, body = '{"id":"m1"}') {
   posted.length = 0;
   vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+    expect(new Headers(init.headers).get("user-agent")).toBe("Papol/1.0");
     posted.push(JSON.parse(String(init.body)));
     return new Response(body, { status });
   });
