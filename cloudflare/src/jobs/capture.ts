@@ -1,10 +1,14 @@
-// A picture of a link, for a board card: a webpage or a YouTube thumbnail.
+// A picture of a web page, for a board card made on the web.
 //
 // The request checks the link, writes the card at once, and queues the
 // capture. The card is a link without a preview until the job has
-// rendered the page in Browser Rendering, or fetched the video's
-// thumbnail and title, and put the image beside the card. A capture that
-// fails leaves the card as the link it already was; the job says why.
+// rendered the page in Browser Rendering and put the image beside the
+// card. A capture that fails leaves the card as the link it already was;
+// the job says why. The Mac takes a page's picture itself
+// (desktop/src-tauri/src/capture.rs) and pushes the card with it, so
+// nothing here runs for a card that came by sync. Nor is a video card
+// captured here: the app fetches its title and thumbnail itself
+// (shared/videos.js).
 //
 // The browser is Cloudflare's, on Cloudflare's network, so no private
 // address of ours is reachable from it; the check is on the URL itself: a browser scheme, a hostname that is not
@@ -20,27 +24,10 @@ import { writeSynced } from "../sync/write";
 import { JobError } from "./queue";
 
 export const WEBPAGE = "capture_webpage";
-export const YOUTUBE = "capture_youtube";
 
 const BOARD_FILE_LIMIT = limits.files.board_file_mb * 1024 * 1024;
 
 // ------------------------------------------------------------ what a URL is
-
-export function youtubeId(url: string): string | null {
-  let parsed: URL;
-  try { parsed = new URL(url.trim()); } catch { return null; }
-  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-  let candidate: string | null = null;
-  if (host === "youtu.be") candidate = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/")[0] ?? null;
-  else if (host === "youtube.com" || host === "m.youtube.com") {
-    if (parsed.pathname === "/watch") candidate = parsed.searchParams.get("v");
-    else {
-      const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
-      if (parts.length === 2 && ["shorts", "embed", "live"].includes(parts[0])) candidate = parts[1];
-    }
-  }
-  return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : null;
-}
 
 const PRIVATE_HOST = /^(localhost|.*\.localhost|127\..*|10\..*|192\.168\..*|169\.254\..*|0\.0\.0\.0|\[::1\]|\[fc.*|\[fd.*|172\.(1[6-9]|2\d|3[01])\..*)$/i;
 
@@ -58,7 +45,7 @@ export function publicWebUrl(value: string): string {
 
 // ------------------------------------------------------------- the capturing
 
-// Replaceable, so the suite can stand in for the browser and for YouTube.
+// Replaceable, so the suite can stand in for the browser.
 export const capturers = {
   async webpage(env: Env, url: string): Promise<Uint8Array> {
     if (!env.BROWSER) throw new JobError("The website could not be rendered: no browser is configured");
@@ -73,27 +60,13 @@ export const capturers = {
       await browser.close();
     }
   },
-
-  async youtubeThumbnail(url: string, videoId: string): Promise<{ image: Uint8Array; title: string }> {
-    const endpoint = `https://www.youtube.com/oembed?${new URLSearchParams({ url: `https://www.youtube.com/watch?v=${videoId}`, format: "json" })}`;
-    const answered = await fetch(endpoint, { headers: { "user-agent": "Papol/1.0" }, signal: AbortSignal.timeout(limits.timeouts_ms.youtube_metadata) });
-    if (!answered.ok) throw new Error(`YouTube answered ${answered.status}`);
-    const metadata = (await answered.json()) as { thumbnail_url?: string; title?: string };
-    const thumbnail = String(metadata.thumbnail_url ?? "");
-    const host = (() => { try { return new URL(thumbnail).hostname.toLowerCase(); } catch { return ""; } })();
-    if (host !== "i.ytimg.com" && !host.endsWith(".ytimg.com")) throw new Error("YouTube returned an invalid thumbnail location");
-    const picture = await fetch(thumbnail, { headers: { "user-agent": "Papol/1.0" }, signal: AbortSignal.timeout(limits.timeouts_ms.youtube_thumbnail) });
-    if (!picture.ok) throw new Error(`The thumbnail answered ${picture.status}`);
-    const image = new Uint8Array(await picture.arrayBuffer());
-    return { image, title: String(metadata.title || url).slice(0, limits.text.board_content) };
-  },
 };
 
 // ------------------------------------------------------ putting it on the card
 
 // The picture onto the card, under its digest as every board file is; the
 // card versioned and logged; the board's clock moved.
-async function attach(env: Env, item: Row, image: Uint8Array, mime: string, original: string, title?: string): Promise<Row> {
+async function attach(env: Env, item: Row, image: Uint8Array, mime: string, original: string): Promise<Row> {
   if (!image.length || image.length > BOARD_FILE_LIMIT) throw new JobError("The picture is empty or too large");
   const digest = await sha256Hex(image);
   const key = blobKey(digest);
@@ -102,7 +75,6 @@ async function attach(env: Env, item: Row, image: Uint8Array, mime: string, orig
   item.sha256 = digest;
   item.original_filename = original;
   item.mime_type = mime;
-  if (title !== undefined) item.content = title;
   const board = await one<{ user_uuid: string }>(env.DB, "SELECT user_uuid FROM boards WHERE uuid = ?", item.board_uuid);
   await env.DB.batch([
     ...await writeSynced(env.DB, "board_items", item, board!.user_uuid, false),
@@ -130,14 +102,3 @@ export async function captureWebpageJob(env: Env, payload: Row): Promise<Row> {
   return attach(env, item, image, "image/png", `webpage-${hostname.slice(0, limits.text.display_name)}.png`);
 }
 
-export async function captureYoutubeJob(env: Env, payload: Row): Promise<Row> {
-  const item = await card(env, payload);
-  const url = String(payload.url), videoId = String(payload.video_id);
-  let picture: { image: Uint8Array; title: string };
-  try {
-    picture = await capturers.youtubeThumbnail(url, videoId);
-  } catch (error) {
-    throw new JobError(`Could not fetch the video's thumbnail: ${(error as Error).message}`);
-  }
-  return attach(env, item, picture.image, "image/jpeg", `youtube-${videoId}.jpg`, picture.title);
-}

@@ -248,6 +248,13 @@ export async function nativeBlobImport(blob) {
   return invoke('blob_import', { bytes, mimeType: blob.type || null });
 }
 
+// A web page's picture, taken on this Mac (desktop/src-tauri/src/capture.rs)
+// and kept in the nook's store: answers the stored file, a JPEG.
+export async function nativeCaptureWebpage(url) {
+  if (!nativeDataActive()) throw new Error('Local files require a signed-in desktop account');
+  return invoke('capture_webpage', { url });
+}
+
 // Product media is a disposable cache, not user data. It is available before
 // sign-in and is verified by its published digest before the native store
 // adopts it. The content-addressed store ensures another surface cannot save

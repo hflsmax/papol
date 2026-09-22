@@ -1,12 +1,13 @@
 import {
-  boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeDataActive,
+  boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeCaptureWebpage, nativeDataActive,
   nativeRepository, newUuid,
 } from '../nativeData.js';
 import { boardSourceDigests } from '../boardPapers.js';
-import { runtimeFetch } from '../connectivity.js';
+import { inOfflineMode, runtimeFetch } from '../connectivity.js';
 import { handleResponse, jsonRequest, request } from '../httpClient.js';
 import { storeFile } from './files.js';
 import { JobFailed, awaitJob } from './jobs.js';
+import { canPreview, videoLink, videoPreview } from '../videos.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
 
@@ -197,16 +198,143 @@ export function updateBoardItem(uuid, data) {
   return jsonRequest(`/board-items/${uuid}`, 'PUT', data);
 }
 
-export function addBoardYouTube(uuid, url, x, y) {
-  if (nativeDataActive()) {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Video links must use http or https');
-    return nativeRepository.transact([{
-      table: 'board_items', uuid: newUuid(), operation: 'upsert',
-      values: { board_uuid: uuid, kind: 'youtube', content: url, source_url: url, x, y },
-    }]).then((receipt) => receipt.rows[0]);
+// A video card — YouTube or Bilibili — with the title and thumbnail the
+// app fetches itself (shared/videos.js), and nothing left for the server
+// to do. The thumbnail is the card's file: in the nook's store on the
+// desktop, which sync puts in the bucket before the card, or in the
+// bucket at once on the web. When the video's site cannot be reached the
+// card is made as the link alone, and the promise rejects with it on the
+// error, as a page card whose capture failed does. Where nothing can be
+// tried — offline on the desktop, or a Bilibili link on the web, whose
+// details only the Mac can fetch — nothing is wrong: the card is the
+// link, and `fillVideoCard` fetches the rest when a board that can is
+// open.
+export async function addBoardVideo(uuid, url, x, y) {
+  const link = videoLink(url);
+  if (!link) throw new Error('Paste a YouTube or Bilibili video link');
+  if (!canPreview(link) || (nativeDataActive() && inOfflineMode())) return makeVideoCard(uuid, url, link, x, y, null);
+  let preview = null, failure = null;
+  try {
+    preview = await videoPreview(url);
+  } catch (error) {
+    failure = error;
   }
-  return captured(jsonRequest(`/boards/${uuid}/youtube`, 'POST', { url, x, y }));
+  const item = await makeVideoCard(uuid, url, link, x, y, preview);
+  if (failure) {
+    const error = new Error(`The video's title and thumbnail could not be fetched: ${failure.message || failure}`);
+    error.item = item;
+    throw error;
+  }
+  return item;
+}
+
+// Whether a card is a video card still waiting for its title and
+// thumbnail, and this surface could fetch them: made as the link alone,
+// offline, with the site unreachable, or (Bilibili) on the web.
+export function videoCardUnfilled(item) {
+  if (!['youtube', 'bilibili'].includes(item?.kind) || item.sha256 || item.file_path) return false;
+  const link = videoLink(item.source_url || '');
+  return link?.kind === item.kind && canPreview(link);
+}
+
+// Give such a card what it was made without, fetched by the app as when a
+// card is made: the thumbnail as its file, and the title as its text
+// while that is still the bare link, so a description written since
+// stands. Answers the card, or null when there is nothing to do or no way
+// to do it now (offline on the desktop). Rejects when the video's site
+// could not be reached; the caller tries again another time.
+export async function fillVideoCard(item) {
+  if (!videoCardUnfilled(item)) return null;
+  if (nativeDataActive() && inOfflineMode()) return null;
+  const preview = await videoPreview(item.source_url);
+  const name = thumbnailName(item.kind, preview.id);
+  const bare = !item.content || item.content === item.source_url;
+  if (nativeDataActive()) {
+    const blob = await nativeBlobImport(preview.image);
+    try {
+      const receipt = await nativeRepository.transact([{
+        table: 'board_items', uuid: item.uuid, operation: 'upsert',
+        values: {
+          sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg',
+          ...(bare && preview.title ? { content: preview.title } : {}),
+        },
+      }]);
+      return receipt.rows[0];
+    } catch (error) {
+      await discardNativeBlob(blob.sha256).catch(() => {});
+      throw error;
+    }
+  }
+  const stored = await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' });
+  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: stored.sha256, title: preview.title });
+}
+
+const thumbnailName = (kind, id) => `${kind}-${id || 'video'}.jpg`;
+
+// Whether a page card is waiting for its picture where this surface can
+// take it: on the Mac, which takes it itself (nativeCaptureWebpage); the
+// web's picture is the Worker's job, queued when the card is made.
+export function pageCardUnfilled(item) {
+  return item?.kind === 'webpage' && !item.sha256 && !item.file_path && Boolean(item.source_url) && nativeDataActive();
+}
+
+// Take the picture a page card was made without — offline, or when the
+// page could not be captured — and give it to the card. Answers the card,
+// or null when there is nothing to do or no way to do it now.
+export async function fillPageCard(item) {
+  if (!pageCardUnfilled(item) || inOfflineMode()) return null;
+  const picture = await nativeCaptureWebpage(item.source_url);
+  try {
+    const receipt = await nativeRepository.transact([{
+      table: 'board_items', uuid: item.uuid, operation: 'upsert',
+      values: { sha256: picture.sha256, original_filename: pageCaptureName(item.source_url), mime_type: 'image/jpeg' },
+    }]);
+    return receipt.rows[0];
+  } catch (error) {
+    await discardNativeBlob(picture.sha256).catch(() => {});
+    throw error;
+  }
+}
+
+// Every card a board can still give a picture to here: a video's title and
+// thumbnail, a page's capture.
+export function cardAwaitingPicture(item) {
+  return videoCardUnfilled(item) || pageCardUnfilled(item);
+}
+
+export function fillCardPicture(item) {
+  return item?.kind === 'webpage' ? fillPageCard(item) : fillVideoCard(item);
+}
+
+const pageCaptureName = (url) => {
+  let host = 'page';
+  try { host = new URL(url).hostname || host; } catch { /* the name is only a name */ }
+  return `webpage-${host.slice(0, 80)}.jpg`;
+};
+
+async function makeVideoCard(uuid, url, link, x, y, preview) {
+  const name = thumbnailName(link.kind, preview?.id ?? link.id);
+  if (nativeDataActive()) {
+    const blob = preview ? await nativeBlobImport(preview.image) : null;
+    try {
+      const receipt = await nativeRepository.transact([{
+        table: 'board_items', uuid: newUuid(), operation: 'upsert',
+        values: {
+          board_uuid: uuid, kind: link.kind, content: preview?.title || url, source_url: url, x, y,
+          ...(blob ? { sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg' } : {}),
+        },
+      }]);
+      return receipt.rows[0];
+    } catch (error) {
+      if (blob) await discardNativeBlob(blob.sha256).catch(() => {});
+      throw error;
+    }
+  }
+  // The thumbnail into the bucket (shared/api/files.js), then the card that names it.
+  const stored = preview ? await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' }) : null;
+  return jsonRequest(`/boards/${uuid}/video`, 'POST', {
+    url, x, y, ...(stored ? { sha256: stored.sha256, title: preview.title } : {}),
+  });
 }
 
 // A link card is on the board as soon as the server answers; its picture
@@ -226,17 +354,44 @@ async function captured(queuing) {
   return item;
 }
 
-export function addBoardWebpage(uuid, url, x, y) {
-  if (nativeDataActive()) {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
-    const label = parsed.hostname;
-    return nativeRepository.transact([{
-      table: 'board_items', uuid: newUuid(), operation: 'upsert',
-      values: { board_uuid: uuid, kind: 'webpage', content: label, source_url: url, x, y, width: 480 },
-    }]).then((receipt) => receipt.rows[0]);
+// A page card. On the web the Worker renders the page and the card waits
+// for its job (`captured`). On the Mac the app takes the picture itself
+// (nativeCaptureWebpage) and makes the card with it; offline the card is
+// the link, and `fillPageCard` takes the picture when a board is next open
+// online; a page that could not be captured is the link too, and the
+// promise rejects with the card on the error, as on the web.
+export async function addBoardWebpage(uuid, url, x, y) {
+  if (!nativeDataActive()) return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
+  let picture = null, failure = null;
+  if (!inOfflineMode()) {
+    try {
+      picture = await nativeCaptureWebpage(url);
+    } catch (error) {
+      failure = error;
+    }
   }
-  return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
+  let item;
+  try {
+    const receipt = await nativeRepository.transact([{
+      table: 'board_items', uuid: newUuid(), operation: 'upsert',
+      values: {
+        board_uuid: uuid, kind: 'webpage', content: parsed.hostname, source_url: url, x, y, width: 480,
+        ...(picture ? { sha256: picture.sha256, original_filename: pageCaptureName(url), mime_type: 'image/jpeg' } : {}),
+      },
+    }]);
+    item = receipt.rows[0];
+  } catch (error) {
+    if (picture) await discardNativeBlob(picture.sha256).catch(() => {});
+    throw error;
+  }
+  if (failure) {
+    const error = new Error(`The page's picture could not be taken: ${failure.message || failure}`);
+    error.item = item;
+    throw error;
+  }
+  return item;
 }
 
 export function placeStagedBoardItem(uuid, x, y) {

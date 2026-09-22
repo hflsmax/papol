@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { uploadProgressView } from '../../shared/api/files.js';
-import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
+import { addBoardComment, addBoardFile, addBoardWebpage, addBoardVideo, cardAwaitingPicture, fillCardPicture, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
@@ -14,7 +14,12 @@ import { DESKTOP, DOCUMENT_WINDOW, focusDesktopDeskWindow, openDesktopDocumentWi
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
-import { subscribeNativeData } from '../../shared/nativeData.js';
+import { nativeDataActive, subscribeNativeData } from '../../shared/nativeData.js';
+import { inOfflineMode } from '../../shared/connectivity.js';
+import { canPreview, videoLink } from '../../shared/videos.js';
+
+const VIDEO_KINDS = ['youtube', 'bilibili'];
+const VIDEO_SITE = { youtube: 'YouTube', bilibili: 'Bilibili' };
 import appLimits from '../../shared/appLimits.js';
 import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -121,12 +126,12 @@ function GroupOptions({ group, busy, onArrange, onArrangeColumns, onRename, onHe
 }
 
 const itemTypeLabels = {
-  comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
+  comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', bilibili: 'Bilibili video', webpage: 'Webpage',
 };
 const itemTypeIcons = {
   comment: '✦',
   excerpt: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8c0-2.8 1.4-4.8 4-6v2.2C4.9 4.9 4.3 5.8 4.1 7H6v6H2V8Zm8 0c0-2.8 1.4-4.8 4-6v2.2c-1.1.7-1.7 1.6-1.9 2.8H14v6h-4V8Z" /></svg>,
-  image: '▧', file: '↧', youtube: '▶', webpage: '↗',
+  image: '▧', file: '↧', youtube: '▶', bilibili: '▶', webpage: '↗',
 };
 
 export default function BoardPage({ boardUuid, onHome, homeHref }) {
@@ -254,6 +259,32 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
   }), [boardUuid]);
+  // A card made as its link alone — a video offline, with its site out of
+  // reach, or a Bilibili video on the web, which only the Mac can ask; a
+  // page made on the Mac offline, or one it could not capture — gets its
+  // picture the next time its board is open online where it can be had
+  // (shared/api/boards.js). Each card is tried once a visit, one at a
+  // time, and quietly: a card that still cannot be had stays the link it
+  // is. On the desktop, nothing is tried offline; going online syncs, and
+  // the sync reloads the board and brings this round again.
+  const pictureFillsTried = useRef(new Set());
+  useEffect(() => {
+    if (!board?.can_edit || (nativeDataActive() && inOfflineMode())) return undefined;
+    const due = board.items.filter((item) => cardAwaitingPicture(item) && !pictureFillsTried.current.has(item.uuid));
+    if (!due.length) return undefined;
+    due.forEach((item) => pictureFillsTried.current.add(item.uuid));
+    let current = true;
+    (async () => {
+      let filled = 0;
+      for (const item of due) {
+        try {
+          if (await fillCardPicture(item)) filled += 1;
+        } catch { /* out of reach: the card stays a link until the next visit */ }
+      }
+      if (filled && current) load();
+    })();
+    return () => { current = false; };
+  }, [board]);
   const raiseCards = (itemUuids) => {
     const ids = new Set(itemUuids);
     const ordered = board.items.filter((item) => ids.has(item.uuid)).sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid));
@@ -333,7 +364,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     return () => cancelAnimationFrame(frame);
   }, [board?.uuid]);
   const imageItems = board ? [...board.items, ...board.staged_items]
-    .filter((item) => ['image', 'youtube', 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];
+    .filter((item) => ['image', ...VIDEO_KINDS, 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];
   const imageUuids = imageItems.map((item) => item.uuid).join(',');
   useEffect(() => {
     imageUrlsRef.current = imageUrls;
@@ -569,23 +600,24 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       let parsed;
       try { parsed = new URL(text); } catch { return; }
       if (!['http:', 'https:'].includes(parsed.protocol)) return;
-      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
-      const isYouTube = host === 'youtu.be' || host === 'youtube.com' || host === 'm.youtube.com';
+      // A YouTube or Bilibili video is a video card; any other page is a
+      // page card, captured.
+      const isVideo = Boolean(videoLink(text));
       event.preventDefault();
       const bounds = viewportRef.current?.getBoundingClientRect();
       if (!bounds) return;
       const { x, y } = freeSpot(boardPointFromClient(
         bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
         bounds, viewRef.current, { x: 150, y: 100 },
-      ), isYouTube ? DEFAULT_CARD_WIDTH : 480);
+      ), isVideo ? DEFAULT_CARD_WIDTH : 480);
       const loadingUuid = `${Date.now()}-${Math.random()}`;
-      const loadingItem = { uuid: loadingUuid, x, y, label: isYouTube ? 'Loading video frame…' : 'Capturing webpage…' };
+      const loadingItem = { uuid: loadingUuid, x, y, label: isVideo ? 'Loading video frame…' : 'Capturing webpage…' };
       urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];
       setUrlLoading(urlLoadingRef.current);
       setBusy(true); setError(null);
       try {
-        const item = isYouTube
-          ? await addBoardYouTube(board.uuid, text, x, y)
+        const item = isVideo
+          ? await addBoardVideo(board.uuid, text, x, y)
           : await addBoardWebpage(board.uuid, text, x, y);
         const finalPosition = urlLoadingRef.current.find((candidate) => candidate.uuid === loadingUuid);
         if (finalPosition && (finalPosition.x !== x || finalPosition.y !== y)) {
@@ -2016,7 +2048,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     ));
     const opened = openContextMenu(event, [
       !isSelection && item.source_url && {
-        label: item.kind === 'youtube' ? 'Open Video' : 'Open source in viewer',
+        label: VIDEO_KINDS.includes(item.kind) ? 'Open Video' : 'Open source in viewer',
         onSelect: () => openSource(item.source_url),
       },
       !isSelection && item.kind !== 'comment' && {
@@ -2246,8 +2278,8 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
                 placement="right-start"
                 actions={[
                   item.source_url && {
-                    label: item.kind === 'youtube' ? 'Open video' : 'Open source in viewer',
-                    icon: <ActionGlyph name={item.kind === 'youtube' ? 'external' : 'backlink'} />,
+                    label: VIDEO_KINDS.includes(item.kind) ? 'Open video' : 'Open source in viewer',
+                    icon: <ActionGlyph name={VIDEO_KINDS.includes(item.kind) ? 'external' : 'backlink'} />,
                     tone: 'accent',
                     onSelect: () => openSource(item.source_url),
                   },
@@ -2278,7 +2310,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             ? <div className="board-image-error" role="status">Image unavailable</div>
             : <div className="board-image-loading"><Working label="Loading…" /></div>)}
           {hasCardPreview(item) && imageUrls[item.uuid] && <img src={imageUrls[item.uuid]} alt={item.content || item.original_filename || 'Board image'} draggable="false" />}
-          {!hasCardPreview(item) && ['youtube', 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{item.kind === 'youtube' ? '▶' : '↗'}</span><span>{item.kind === 'youtube' ? 'Video saved offline' : 'Page saved offline'}</span></div>}
+          {!hasCardPreview(item) && [...VIDEO_KINDS, 'webpage'].includes(item.kind) && <div className="board-link-placeholder"><span aria-hidden="true">{VIDEO_KINDS.includes(item.kind) ? '▶' : '↗'}</span><span>{VIDEO_KINDS.includes(item.kind) ? `${VIDEO_SITE[item.kind]} video` : 'Page saved offline'}</span>{VIDEO_KINDS.includes(item.kind) && !canPreview(videoLink(item.source_url || '')) && <span className="board-link-placeholder-note">Its title and cover come from the Papol Mac app.</span>}</div>}
           {item.kind === 'file' && <div className="board-canvas-file"><span aria-hidden="true">↧</span><span>{item.original_filename}</span></div>}
           {item.kind === 'excerpt' && <blockquote className="board-excerpt-text">{item.excerpt_text}</blockquote>}
           {!item.source_url && item.kind !== 'image' && item.content && (board.can_edit && editingText === item.uuid

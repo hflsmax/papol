@@ -4427,7 +4427,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-card-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .board-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .board-card-kind i { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 15px; font-weight: 700; line-height: 1; text-align: center; }
-.board-canvas-card.youtube .board-card-kind i { padding-left: 1px; font-size: 11px; }
+.board-canvas-card.youtube .board-card-kind i,
+.board-canvas-card.bilibili .board-card-kind i { padding-left: 1px; font-size: 11px; }
 .board-canvas-card.excerpt .board-card-kind i svg { display: block; width: 14px; height: 14px; fill: currentColor; }
 .board-canvas-card.webpage .board-card-kind i { font-weight: 900; -webkit-text-stroke: .7px currentColor; }
 .board-card-action-menu .item-actions-surface { z-index: 4; scale: var(--board-ui-scale); transform-origin: top left; }
@@ -4438,11 +4439,13 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--paper); pointer-events: none; }
 .board-image-loading { display: grid; width: 100%; aspect-ratio: 4 / 3; place-items: center; background: var(--paper); }
 .board-image-error { display: grid; width: 100%; min-height: 96px; place-items: center; color: var(--ink-faint); background: var(--paper); font: var(--fs-sm) var(--font-ui); }
-.board-canvas-card.youtube .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
+.board-canvas-card.youtube .board-image-loading, .board-canvas-card.bilibili .board-image-loading, .board-canvas-card.webpage .board-image-loading { aspect-ratio: 16 / 9; }
 .board-link-placeholder { aspect-ratio: 16 / 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--paper); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }
+.board-link-placeholder-note { max-width: 80%; color: var(--ink-faint); font-size: var(--fs-xs); text-align: center; }
 .board-canvas-card.webpage img,
-.board-canvas-card.youtube img { height: auto; max-height: none; object-fit: initial; background: transparent; }
+.board-canvas-card.youtube img,
+.board-canvas-card.bilibili img { height: auto; max-height: none; object-fit: initial; background: transparent; }
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
 .board-canvas-file { display: flex; align-items: center; gap: 10px; width: auto; margin: 0; padding: 16px 14px; overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
 .board-canvas-file > span:first-child { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--accent-soft); }

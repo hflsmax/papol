@@ -139,7 +139,7 @@ export function tag(row: { name?: unknown }) {
 // ---------------------------------------------------------------- boards
 
 export const BOARD_GROUP_KINDS = ["booklet", "collection"] as const;
-export const BOARD_ITEM_KINDS = ["comment", "excerpt", "image", "file", "youtube", "webpage"] as const;
+export const BOARD_ITEM_KINDS = ["comment", "excerpt", "image", "file", "youtube", "bilibili", "webpage"] as const;
 export const TEXT_ALIGNS = ["left", "center", "right"] as const;
 
 export function boardName(name: unknown): string {

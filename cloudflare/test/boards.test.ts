@@ -246,21 +246,98 @@ describe("link cards", () => {
     for (const url of ["ftp://example.test/", "https://user:pw@example.test/", "http://localhost:8000/", "http://192.168.1.1/", "http://10.0.0.1/x"]) {
       expect((await call("POST", `/api/boards/${board.uuid}/webpage`, { headers: account.headers, json: { url, x: 0, y: 0 } })).status, url).toBe(422);
     }
-    expect((await call("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url: "https://example.test/watch", x: 0, y: 0 } })).status).toBe(422);
+    expect((await call("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url: "https://example.test/watch", x: 0, y: 0 } })).status).toBe(422);
     expect(await count("jobs")).toBe(0);
     expect(await count("board_items")).toBe(0);
   });
 
-  it("gives a video card its thumbnail and title, whatever timestamp the link carries", async () => {
+  it("makes a video card with the title and thumbnail the app fetched, whatever timestamp the link carries, and queues nothing", async () => {
     const account = await register();
     const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
-    const queued = await (await call("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s", x: 0, y: 0 } })).json<any>();
-    expect(queued.item).toMatchObject({ kind: "youtube", content: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s" });
-    capturers.youtubeThumbnail = async (_url, videoId) => ({ image: new TextEncoder().encode(`jpg ${videoId}`), title: "Never Gonna" });
-    await woken(queued.job);
-    const card = await row("SELECT content, mime_type, original_filename, file_path FROM board_items WHERE uuid = ?", queued.item.uuid);
-    expect(card).toMatchObject({ content: "Never Gonna", mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg" });
-    expect(await (await env.FILES.get(`board_uploads/${card!.file_path}`))!.text()).toBe("jpg dQw4w9WgXcQ");
+    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s";
+    // The thumbnail the app put in the bucket, by the address it was given.
+    const digest = await sha256("jpg dQw4w9WgXcQ");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "jpg dQw4w9WgXcQ", { httpMetadata: { contentType: "image/jpeg" } });
+    const card = await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, title: "Never Gonna", sha256: digest, x: 0, y: 0 } });
+    expect(card).toMatchObject({ kind: "youtube", content: "Never Gonna", source_url: url, mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg", sha256: digest });
+    // One the app could not reach YouTube for: the link alone.
+    const bare = await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    expect(bare).toMatchObject({ kind: "youtube", content: url, sha256: null });
+    // A thumbnail that was never put in the bucket is refused.
+    expect((await call("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, sha256: "0".repeat(64), x: 0, y: 0 } })).status).toBe(409);
+    expect(await count("jobs")).toBe(0);
+  });
+
+  it("makes a Bilibili card from any of its links, as the link alone from the web or with what the Mac fetched", async () => {
+    const account = await register();
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
+    for (const url of ["https://www.bilibili.com/video/BV11kev6cEhk/?spm_id_from=333", "https://m.bilibili.com/video/av170001", "https://b23.tv/AbC123"]) {
+      expect(await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } }), url)
+        .toMatchObject({ kind: "bilibili", content: url, source_url: url, sha256: null });
+    }
+    const digest = await sha256("cover");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "cover", { httpMetadata: { contentType: "image/jpeg" } });
+    expect(await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url: "https://www.bilibili.com/video/BV11kev6cEhk", title: "正视", sha256: digest, x: 0, y: 0 } }))
+      .toMatchObject({ kind: "bilibili", content: "正视", original_filename: "bilibili-BV11kev6cEhk.jpg", sha256: digest });
+    for (const url of ["https://www.bilibili.com/", "https://space.bilibili.com/12345", "https://www.bilibili.com/video/notanid"]) {
+      expect((await call("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } })).status, url).toBe(422);
+    }
+    // A Bilibili card the desktop made and pushed, with the cover it fetched.
+    const pushedBoard = uuid(), card = uuid();
+    await pushed(account, mutation([
+      { table: "boards", uuid: pushedBoard, base_revision: 0, operation: "upsert", values: { name: "From the Mac" } },
+      { table: "board_items", uuid: card, base_revision: 0, operation: "upsert",
+        values: { board_uuid: pushedBoard, kind: "bilibili", content: "正视", source_url: "https://b23.tv/AbC123", sha256: digest, original_filename: "bilibili-BV11kev6cEhk.jpg", mime_type: "image/jpeg", x: 0, y: 0 } },
+    ]));
+    expect(await row("SELECT kind, file_path FROM board_items WHERE uuid = ?", card)).toEqual({ kind: "bilibili", file_path: `blobs/${digest}` });
+    expect(await count("jobs")).toBe(0);
+  });
+
+  it("gives a link-only video card the thumbnail and title the app fetched later, keeping a description written since", async () => {
+    const account = await register();
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
+    const url = "https://youtu.be/dQw4w9WgXcQ";
+    const digest = await sha256("jpg dQw4w9WgXcQ");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "jpg dQw4w9WgXcQ", { httpMetadata: { contentType: "image/jpeg" } });
+
+    const bare = await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    const filled = await ok("POST", `/api/board-items/${bare.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest, title: "Never Gonna" } });
+    expect(filled).toMatchObject({ content: "Never Gonna", sha256: digest, mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg" });
+    // Asked again, it keeps the thumbnail it has.
+    expect(await ok("POST", `/api/board-items/${bare.uuid}/thumbnail`, { headers: account.headers, json: { sha256: "1".repeat(64), title: "Other" } })).toMatchObject({ content: "Never Gonna", sha256: digest });
+
+    const described = await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    await ok("PUT", `/api/board-items/${described.uuid}`, { headers: account.headers, json: { content: "Watch the ending" } });
+    expect(await ok("POST", `/api/board-items/${described.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest, title: "Never Gonna" } }))
+      .toMatchObject({ content: "Watch the ending", sha256: digest });
+
+    const note = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: account.headers, json: { content: "a note", x: 0, y: 0 } });
+    expect((await call("POST", `/api/board-items/${note.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest } })).status).toBe(422);
+    const other = await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    expect((await call("POST", `/api/board-items/${other.uuid}/thumbnail`, { headers: account.headers, json: { sha256: "0".repeat(64) } })).status).toBe(409);
+    const stranger = await register();
+    expect((await call("POST", `/api/board-items/${other.uuid}/thumbnail`, { headers: stranger.headers, json: { sha256: digest } })).status).toBe(404);
+  });
+
+  it("keeps the picture the Mac took of a page, and queues nothing for any card that came by sync", async () => {
+    const account = await register();
+    const board = uuid(), page = uuid(), bare = uuid(), video = uuid();
+    const digest = await sha256("a jpeg");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "a jpeg", { httpMetadata: { contentType: "image/jpeg" } });
+    await pushed(account, mutation([
+      { table: "boards", uuid: board, base_revision: 0, operation: "upsert", values: { name: "Made on the Mac" } },
+      // The Mac took this page's picture itself, and names it.
+      { table: "board_items", uuid: page, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "webpage", content: "example.com", source_url: "https://example.com/about", sha256: digest, original_filename: "webpage-example.com.jpg", mime_type: "image/jpeg", width: 480, x: 0, y: 0 } },
+      // Made offline: the link, until the Mac takes its picture.
+      { table: "board_items", uuid: bare, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "webpage", content: "example.org", source_url: "https://example.org/", width: 480, x: 0, y: 0 } },
+      { table: "board_items", uuid: video, base_revision: 0, operation: "upsert",
+        values: { board_uuid: board, kind: "youtube", content: "https://youtu.be/dQw4w9WgXcQ", source_url: "https://youtu.be/dQw4w9WgXcQ", x: 0, y: 0 } },
+    ]));
+    expect(await row("SELECT file_path, mime_type FROM board_items WHERE uuid = ?", page)).toEqual({ file_path: `blobs/${digest}`, mime_type: "image/jpeg" });
+    expect(await row("SELECT file_path FROM board_items WHERE uuid = ?", bare)).toEqual({ file_path: null });
+    expect(await count("jobs")).toBe(0);
   });
 });
 

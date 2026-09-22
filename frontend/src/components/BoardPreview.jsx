@@ -8,17 +8,17 @@ import Glyph from './DesktopGlyph';
 // card's own address on the web, from the replica's copy on the Mac.
 
 const previewCardHeight = (item) => {
-  if (['image', 'youtube', 'webpage'].includes(item.kind)) return 180;
+  if (['image', 'youtube', 'bilibili', 'webpage'].includes(item.kind)) return 180;
   if (item.kind === 'excerpt') return 145;
   if (item.kind === 'file') return 82;
   return 112;
 };
 
 const previewCardLabel = (item) => item.content || item.excerpt_text || item.original_filename || item.source_label || {
-  comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', webpage: 'Webpage',
+  comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', bilibili: 'Bilibili video', webpage: 'Webpage',
 }[item.kind] || 'Card';
 
-const hasPicture = (item) => ['image', 'youtube', 'webpage'].includes(item.kind)
+const hasPicture = (item) => ['image', 'youtube', 'bilibili', 'webpage'].includes(item.kind)
   && Boolean(item.sha256 || item.file_path);
 
 // The web draws a card's picture straight from its address. The Mac reads the
