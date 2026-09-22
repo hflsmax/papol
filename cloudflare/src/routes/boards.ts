@@ -73,6 +73,28 @@ function groupOut(group: Group, itemUuids: string[]) {
   return { uuid: group.uuid, kind: group.kind, title: group.title, header: group.header ?? "", auto_arrange: Boolean(group.auto_arrange), item_uuids: itemUuids };
 }
 
+// The paper a clip or an excerpt was taken from: its backlink is the
+// viewer's address, which names the PDF by its digest (shared/boardPapers.js
+// reads it the same way).
+function sourcePaperSha256(item: Item): string | null {
+  const source = item.source_url as string | null | undefined;
+  if (!source) return null;
+  try {
+    const url = new URL(source);
+    const pdf = url.pathname.includes("/viewer/") ? url.searchParams.get("pdf")?.toLowerCase() : null;
+    return pdf && DIGEST.test(pdf) ? pdf : null;
+  } catch {
+    return null;
+  }
+}
+
+// What the board's jacket lists of the papers its cards come from.
+async function sourcePapers(env: Env, items: Item[]) {
+  const digests = [...new Set(items.map(sourcePaperSha256).filter((d): d is string => d !== null))];
+  if (!digests.length) return [];
+  return all(env.DB, `SELECT sha256, title, authors, year FROM papers WHERE sha256 IN (${digests.map(() => "?").join(",")})`, ...digests);
+}
+
 export async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false } = {}) {
   const owner = await one(env.DB, "SELECT * FROM users WHERE uuid = ?", board.user_uuid);
   const items = await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", board.uuid);
@@ -84,6 +106,7 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
     created_at: board.created_at, updated_at: board.updated_at, item_count: active.length,
     items: includeItems ? await Promise.all(active.map((i) => itemOut(env, i))) : [],
     staged_items: includeItems && canEdit ? await Promise.all(staged.map((i) => itemOut(env, i))) : [],
+    papers: includeItems ? await sourcePapers(env, active) : [],
     groups: groups.map((g) => groupOut(g, items.filter((i) => i.group_uuid === g.uuid).map((i) => i.uuid))),
   };
 }

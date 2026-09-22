@@ -11,13 +11,14 @@ import { extractMetadataJob, KIND as EXTRACT } from "../papers/extract";
 import { analyzePaperJob, KIND as ANALYZE } from "../papers/references";
 import { captureWebpageJob, captureYoutubeJob, WEBPAGE, YOUTUBE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
-import { dailyDigest, digestHour, SEND_EMAIL, sendEmailJob } from "./notifications";
+import { dailyDigest, digestHour, SEND_ANNOUNCEMENT, SEND_EMAIL, sendAnnouncementJob, sendEmailJob } from "./notifications";
 import { enqueue } from "./queue";
 
 export type Handler = (env: Env, payload: Row) => Promise<unknown>;
 
 export const HANDLERS: Record<string, Handler> = {
   [SEND_EMAIL]: sendEmailJob,
+  [SEND_ANNOUNCEMENT]: sendAnnouncementJob,
   [WEBPAGE]: captureWebpageJob,
   [YOUTUBE]: captureYoutubeJob,
   [EXTRACT]: extractMetadataJob,

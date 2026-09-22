@@ -3,6 +3,7 @@
 // TEI shapes cloudflare/test/references.test.ts reads.
 import assert from "node:assert/strict";
 import http from "node:http";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { createServer, grobidAt, MAX_BODY } from "../dist/helper.js";
@@ -30,9 +31,9 @@ const HEADER = TEI(`<teiHeader><fileDesc><sourceDesc><biblStruct><analytic>
 
 // A helper on a port of its own, GROBID answering as told, every request
 // logged where the test can read it.
-async function serving(grobid, run) {
+async function serving(grobid, run, options = {}) {
   const lines = [];
-  const server = createServer(grobid, (line) => lines.push(line));
+  const server = createServer(grobid, (line) => lines.push(line), options);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -161,5 +162,90 @@ describe("the rest", () => {
       assert.equal((await post("/elsewhere", PDF)).status, 404);
       assert.equal((await post("/analyze", undefined, { method: "GET" })).status, 405);
     });
+  });
+});
+
+// A bucket domain stood in for on a port of its own: each paper under its
+// own name, and one file whose bytes are not what its name says.
+const DIGEST = createHash("sha256").update(PDF).digest("hex");
+const IMPOSTOR = "f".repeat(64);
+async function bucket(run) {
+  const asked = [];
+  const server = http.createServer((request, response) => {
+    asked.push([request.url, request.headers["user-agent"]]);
+    if (request.url === `/uploads/${DIGEST}.pdf` || request.url === `/uploads/${IMPOSTOR}.pdf`) {
+      response.writeHead(200, { "content-type": "application/pdf" });
+      response.end(request.url.includes(IMPOSTOR) ? Buffer.from("%PDF-1.4 something else") : Buffer.from(PDF));
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await run(origin, asked);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+describe("a paper named by its address", () => {
+  const json = { headers: { "content-type": "application/json" } };
+  const named = (url) => JSON.stringify({ url });
+
+  it("fetches the paper from the bucket and reads it, the Worker sending no bytes", async () => {
+    await bucket(async (origin, asked) => {
+      const calls = [];
+      await serving(seen(calls), async (post) => {
+        const analyzed = await post("/analyze", named(`${origin}/uploads/${DIGEST}.pdf`), json);
+        assert.equal(analyzed.status, 200);
+        assert.equal(analyzed.body.references.length, 2);
+        const header = await post("/header", named(`${origin}/uploads/${DIGEST}.pdf`), json);
+        assert.equal(header.body.title, "The Meaning of Memory Safety");
+        assert.deepEqual(calls, [["fulltext", PDF.length], ["header", PDF.length]]);
+      }, { fileOrigins: [origin] });
+      assert.deepEqual(asked, [[`/uploads/${DIGEST}.pdf`, "papol-helper"], [`/uploads/${DIGEST}.pdf`, "papol-helper"]]);
+    });
+  });
+
+  it("fetches only a paper's address on a bucket domain it was told of", async () => {
+    await bucket(async (origin, asked) => {
+      await serving(seen([]), async (post) => {
+        for (const [url, detail] of [
+          [`http://127.0.0.1:1/uploads/${DIGEST}.pdf`, "The helper does not fetch from http://127.0.0.1:1"],
+          [`${origin}/board_uploads/blobs/${DIGEST}`, "The url is not a paper's address"],
+          [`${origin}/uploads/${DIGEST}.pdf?x=1`, "The url is not a paper's address"],
+          [`${origin}/uploads/../${DIGEST}.pdf`, "The url is not a paper's address"],
+          ["not a url", "The url is not an address"],
+          [42, "Send { url } naming a paper's address"],
+        ]) {
+          const { status, body } = await post("/analyze", named(url), json);
+          assert.equal(status, 400, String(url));
+          assert.equal(body.detail, detail);
+        }
+        assert.equal((await post("/analyze", "{not json", json)).status, 400);
+      }, { fileOrigins: [origin] });
+      assert.deepEqual(asked, []);
+    });
+  });
+
+  it("refuses a file that does not hash to its name, and says when the bucket has none", async () => {
+    await bucket(async (origin) => {
+      const calls = [];
+      await serving(seen(calls), async (post) => {
+        const impostor = await post("/analyze", named(`${origin}/uploads/${IMPOSTOR}.pdf`), json);
+        assert.deepEqual(impostor, { status: 422, body: { detail: "The file does not hash to its name" } });
+        const missing = await post("/analyze", named(`${origin}/uploads/${"0".repeat(64)}.pdf`), json);
+        assert.deepEqual(missing, { status: 404, body: { detail: "The bucket has no file at that address" } });
+        assert.deepEqual(calls, []);
+      }, { fileOrigins: [origin] });
+    });
+  });
+
+  it("knows the production and dev bucket domains unless told otherwise", async () => {
+    const { fileOriginsFrom } = await import("../dist/helper.js");
+    assert.deepEqual(fileOriginsFrom(undefined), ["https://files.papol.io", "https://files-dev.papol.io"]);
+    assert.deepEqual(fileOriginsFrom(" https://a.test/ ,https://b.test"), ["https://a.test", "https://b.test"]);
   });
 });

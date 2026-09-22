@@ -42,6 +42,7 @@ const pages = [
 const desktopPages = [
   { path: '/', page: 'desk' },
   { path: `/paper/${PAPER_NAME}`, page: 'desk-paper' },
+  { path: '/?listing=boards', page: 'desk-board' },
 ];
 const DESKTOP_ACCOUNT = '3a9f1d2e-6b4c-4f8a-9c1d-2e3f4a5b6c7d';
 const DESKTOP_SHELF = '8b7a6c5d-4e3f-4a2b-8c9d-0e1f2a3b4c5d';
@@ -68,6 +69,37 @@ const desktopPaperRow = {
   rating_liking: null,
   tags: [],
 };
+// A board as the replica keeps it: no owner, no file addresses, SQLite
+// flags, and groups without their members. Its cards come from the smoke
+// paper, which the jacket lists from the replica.
+const DESKTOP_BOARD = '4d5e6f70-8192-4a3b-9c4d-5e6f7081920a';
+const desktopBoardRow = {
+  uuid: DESKTOP_BOARD, user_uuid: DESKTOP_ACCOUNT, shelf_uuid: DESKTOP_SHELF,
+  name: 'Smoke board', description: null,
+  created_at: '2026-01-02T03:04:05', updated_at: '2026-01-03T03:04:05', revision: 1, item_count: 2,
+};
+const smokeCard = (uuid, values) => ({
+  uuid, board_uuid: DESKTOP_BOARD, group_uuid: null, kind: 'comment', content: null, excerpt_text: null,
+  file_path: null, sha256: null, original_filename: null, mime_type: null, source_url: null, source_label: null,
+  x: 0, y: 0, width: null, position: 0, staged: 0, created_at: '2026-01-02T03:04:05',
+  ...values,
+});
+const smokeSource = `https://papol.io/viewer/?pdf=${PAPER_DIGEST}&page=2&mark=x`;
+const desktopBoardDetail = {
+  ...desktopBoardRow,
+  items: [
+    smokeCard('5e6f7081-92a3-4b4c-8d5e-6f708192a3b4', { content: 'A first thought' }),
+    smokeCard('6f708192-a3b4-4c5d-9e6f-708192a3b4c5', {
+      kind: 'excerpt', excerpt_text: 'A quoted line', x: 360, source_url: smokeSource, source_label: 'The Smoke Paper, page 2',
+    }),
+  ],
+  staged_items: [
+    smokeCard('708192a3-b4c5-4d6e-8f70-8192a3b4c5d6', {
+      kind: 'excerpt', excerpt_text: 'Waiting to be placed', staged: 1, source_url: smokeSource, source_label: 'The Smoke Paper, page 2',
+    }),
+  ],
+  groups: [],
+};
 const desktopBootstrap = `<script>
   localStorage.setItem('papol.localAccountUuid', '${DESKTOP_ACCOUNT}');
   localStorage.setItem('papol.syncPreference', 'manual');
@@ -81,7 +113,9 @@ const desktopBootstrap = `<script>
           case 'paper': return ${JSON.stringify(desktopPaperRow)};
           case 'papers': return [${JSON.stringify(desktopPaperRow)}];
           case 'annotations': return [];
-          case 'boards': return [];
+          case 'paper_by_pdf': return ${JSON.stringify(desktopPaperRow)};
+          case 'boards': return [${JSON.stringify(desktopBoardRow)}];
+          case 'board': return ${JSON.stringify(desktopBoardDetail)};
           case 'shelves': return [{ uuid: '${DESKTOP_SHELF}', name: 'Reading', position: 1, is_default: 1, is_public: 0 }];
           case 'nook': return {
             shelves: [{ uuid: '${DESKTOP_SHELF}', name: 'Reading', position: 1, is_default: 1, is_public: 0 }],
@@ -103,26 +137,41 @@ const desktopBootstrap = `<script>
   };
 </script>`;
 
-// Ready is a settled surface: the desk shows the nook's rows, the jacket
-// shows its title. A boundary panel means a surface crashed — reported as
-// its own page name so the failure says what happened.
-const desktopProbe = (wantsJacket) => `<script>
+// Ready is a settled surface: the desk shows the nook's rows, a jacket
+// shows its title. The board's jacket is reached as a user reaches it, by
+// choosing its row, and is ready once it lists the paper its cards came
+// from. A boundary panel means a surface crashed — reported as its own page
+// name so the failure says what happened.
+const desktopReadiness = {
+  paper: `
+      const title = document.querySelector('.paper-jacket h2');
+      if (title && title.textContent.trim()) {
+        fetch('/__papol_smoke_ready?page=desk-paper', { method: 'POST' });
+        return;
+      }`,
+  board: `
+      const row = document.querySelector('.desktop-browser .desktop-row');
+      if (row && !row.classList.contains('selected')) row.click();
+      const name = document.querySelector('.board-jacket h2');
+      if (name && name.textContent.trim() && document.querySelector('.board-jacket .board-preview svg')
+          && document.querySelector('.board-jacket-papers a')?.textContent === 'The Smoke Paper') {
+        fetch('/__papol_smoke_ready?page=desk-board', { method: 'POST' });
+        return;
+      }`,
+  desk: `
+      if (document.querySelector('.desktop-browser .desktop-row')) {
+        fetch('/__papol_smoke_ready?page=desk', { method: 'POST' });
+        return;
+      }`,
+};
+const desktopProbe = (surface) => `<script>
   (() => {
     const ready = () => {
       if (document.querySelector('.render-error')) {
         fetch('/__papol_smoke_ready?page=render-error', { method: 'POST' });
         return;
       }
-      ${wantsJacket ? `
-      const title = document.querySelector('.paper-jacket h2');
-      if (title && title.textContent.trim()) {
-        fetch('/__papol_smoke_ready?page=desk-paper', { method: 'POST' });
-        return;
-      }` : `
-      if (document.querySelector('.desktop-browser .desktop-row')) {
-        fetch('/__papol_smoke_ready?page=desk', { method: 'POST' });
-        return;
-      }`}
+      ${desktopReadiness[surface]}
       setTimeout(ready, 10);
     };
     ready();
@@ -221,7 +270,9 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, { 'content-type': mime[extname(file)] || 'application/octet-stream' });
     const body = await readFile(file);
     if (relative === 'index.html' && desktopMode) {
-      const probe = desktopProbe(/\/paper\//.test(url.pathname));
+      const surface = /\/paper\//.test(url.pathname) ? 'paper'
+        : url.searchParams.get('listing') === 'boards' ? 'board' : 'desk';
+      const probe = desktopProbe(surface);
       response.end(body.toString('utf8').replace('</body>', `${desktopBootstrap}${probe}</body>`));
       return;
     }

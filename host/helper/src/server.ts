@@ -1,38 +1,50 @@
 // Papol's helper on the GROBID host: an HTTP service on the loopback
 // interface, behind the same nginx front door and credential as GROBID
-// (module.nix, `grobid.expose`, `location /helper/`). The Worker posts
-// a PDF's bytes and gets JSON back; the CPU that reading takes is spent
-// here, where there is plenty, and not in a Worker invocation on
-// Cloudflare's Free plan, which has about ten milliseconds of it.
+// (module.nix, `grobid.expose`, `location /helper/`). The Worker names a
+// paper's public address, the helper fetches it from the bucket and
+// answers JSON; neither the bytes nor the CPU that reading takes pass
+// through a Worker invocation on Cloudflare's Free plan.
 //
-//   POST /analyze   application/pdf → { references, citations, links }
-//   POST /header    application/pdf → { title, authors, journal, year, doi, arxiv_id }
-//   GET  /health                    → { ok: true }
+//   POST /analyze   application/json { url } or application/pdf → { references, citations, links }
+//   POST /header    application/json { url } or application/pdf → { title, authors, journal, year, doi, arxiv_id }
+//   GET  /health                                                 → { ok: true }
 //
-// A body that is not a PDF is 400; GROBID failing, or saying nothing, is
-// 502; either carries `{ detail }`. One line per request on stdout.
+// The url is a paper's address on a bucket domain this helper is told of
+// (src/files.ts); the bytes are what a Worker with no bucket domain, in
+// local development, still sends. A body that is not a PDF or an address
+// is 400; the bucket or GROBID failing is 502; each carries `{ detail }`.
+// One line per request on stdout.
 
 import fs from "node:fs";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 
+import { fetchPaper, fileOriginsFrom, paperAddress } from "./files";
 import { grobidAt, type Grobid } from "./grobid";
 import { analyze, header, Refusal } from "./service";
 
-export { grobidAt };
+export { fileOriginsFrom, grobidAt };
 export const MAX_BODY = 100 * 1024 * 1024;
+// An address is a line of JSON.
+const MAX_ADDRESS = 4 * 1024;
 const DEFAULT_PORT = 8072;
 const GROBID = "http://127.0.0.1:8070";
 
-function readBody(request: http.IncomingMessage): Promise<Uint8Array> {
+export interface Options {
+  // Bucket domains the helper fetches papers from.
+  fileOrigins?: string[];
+  fetch?: typeof fetch;
+}
+
+function readBody(request: http.IncomingMessage, maxBytes = MAX_BODY): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     request.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY) {
+      if (size > maxBytes) {
         request.destroy();
-        reject(new Refusal(413, `The body is over ${MAX_BODY} bytes`));
+        reject(new Refusal(413, `The body is over ${maxBytes} bytes`));
         return;
       }
       chunks.push(chunk);
@@ -42,21 +54,40 @@ function readBody(request: http.IncomingMessage): Promise<Uint8Array> {
   });
 }
 
-async function answer(grobid: Grobid, request: http.IncomingMessage): Promise<[number, unknown]> {
+// The PDF a request is about: fetched from the address it names, or the
+// body itself.
+async function paperOf(request: http.IncomingMessage, options: Required<Options>): Promise<Uint8Array> {
+  const type = String(request.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+  if (type !== "application/json") return readBody(request);
+  let sent: { url?: unknown };
+  try {
+    sent = JSON.parse(new TextDecoder().decode(await readBody(request, MAX_ADDRESS)));
+  } catch (error) {
+    if (error instanceof Refusal) throw error;
+    throw new Refusal(400, "The body is not JSON");
+  }
+  return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
+}
+
+async function answer(grobid: Grobid, request: http.IncomingMessage, options: Required<Options>): Promise<[number, unknown]> {
   const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
   if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
-  const bytes = await readBody(request);
+  const bytes = await paperOf(request, options);
   return [200, path === "/analyze" ? await analyze(grobid, bytes) : await header(grobid, bytes)];
 }
 
-export function createServer(grobid: Grobid, log: (line: string) => void = console.log): http.Server {
+export function createServer(grobid: Grobid, log: (line: string) => void = console.log, options: Options = {}): http.Server {
+  const settled: Required<Options> = {
+    fileOrigins: options.fileOrigins ?? fileOriginsFrom(undefined),
+    fetch: options.fetch ?? fetch,
+  };
   return http.createServer(async (request, response) => {
     const started = Date.now();
     let status: number, body: unknown, detail = "";
     try {
-      [status, body] = await answer(grobid, request);
+      [status, body] = await answer(grobid, request, settled);
     } catch (error) {
       status = error instanceof Refusal ? error.status : 500;
       detail = error instanceof Refusal ? error.message : `Unexpected: ${(error as Error).message}`;
@@ -75,7 +106,9 @@ export function createServer(grobid: Grobid, log: (line: string) => void = conso
 const runAsProgram = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (runAsProgram) {
   const port = Number(process.env.PAPOL_HELPER_PORT || DEFAULT_PORT);
-  const server = createServer(grobidAt(process.env.PAPOL_GROBID_URL || GROBID));
+  const server = createServer(grobidAt(process.env.PAPOL_GROBID_URL || GROBID), console.log, {
+    fileOrigins: fileOriginsFrom(process.env.PAPOL_HELPER_FILE_ORIGINS),
+  });
   // GROBID may take minutes on a long paper; the response waits for it.
   server.requestTimeout = 300_000;
   server.listen(port, "127.0.0.1", () => console.log(`papol-helper listening on 127.0.0.1:${port}`));

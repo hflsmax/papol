@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import worker from "../src/index";
 import { capturers } from "../src/jobs/capture";
 import type { Wakeup } from "../src/jobs/run";
-import { call, count, mutation, ok, pushed, register, row, rows, sha256, uuid, type Account } from "./helpers";
+import { call, count, mutation, ok, paperWithCopy, pushed, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
 const original = { ...capturers };
 afterEach(() => Object.assign(capturers, original));
@@ -130,6 +130,29 @@ describe("boards", () => {
     expect(placed).toMatchObject({ staged: false, x: 5, y: 6 });
     expect((await call("POST", `/api/board-items/${excerpt.uuid}/place`, { headers: account.headers, json: { x: 0, y: 0 } })).status).toBe(404);
     expect((await call("POST", `/api/boards/${board.uuid}/staging/clip`, { headers: account.headers, json: {} })).status).toBe(422);
+  });
+
+  it("names the papers its placed cards were taken from, once each", async () => {
+    const account = await register();
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Reading" } });
+    const digest = await sha256("the paper");
+    await paperWithCopy(account, digest, "Attention Is All You Need");
+    const from = (page: number) => `https://papol.test/viewer/?pdf=${digest}&page=${page}&mark=x`;
+    const stage = (text: string, source_url: string) => ok("POST", `/api/boards/${board.uuid}/staging`, {
+      headers: account.headers, json: { excerpt_text: text, source_url, source_label: "Attention Is All You Need, page 3" },
+    });
+    const first = await stage("One", from(3));
+    const second = await stage("Two", from(5));
+    const elsewhere = await stage("Three", "https://example.com/article");
+    const waiting = await stage("Four", from(7));
+
+    expect((await ok("GET", `/api/boards/${board.uuid}`, { headers: account.headers })).papers).toEqual([]);
+    for (const item of [first, second, elsewhere]) {
+      await ok("POST", `/api/board-items/${item.uuid}/place`, { headers: account.headers, json: { x: 0, y: 0 } });
+    }
+    const placed = await ok("GET", `/api/boards/${board.uuid}`, { headers: account.headers });
+    expect(placed.papers).toEqual([{ sha256: digest, title: "Attention Is All You Need", authors: null, year: null }]);
+    expect(placed.staged_items.map((i: any) => i.uuid)).toEqual([waiting.uuid]);
   });
 
   it("groups cards into a booklet aligned on the leftmost, moves, edits, lays out and ungroups them", async () => {

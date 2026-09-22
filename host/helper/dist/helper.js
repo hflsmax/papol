@@ -5,43 +5,8 @@ import fs from "node:fs";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 
-// src/grobid.ts
-var TIMEOUT_MS = 3e5;
-var GrobidError = class extends Error {
-};
-async function post(base, path, pdf, fields) {
-  const form = new FormData();
-  form.set("input", new Blob([pdf], { type: "application/pdf" }), "paper.pdf");
-  for (const [name, value] of fields) form.append(name, value);
-  let response;
-  try {
-    response = await fetch(`${base.replace(/\/+$/, "")}${path}`, { method: "POST", body: form, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (error) {
-    throw new GrobidError(`GROBID unreachable: ${error.message}`);
-  }
-  if (response.status === 204) throw new GrobidError("GROBID could not read this PDF (no text extracted)");
-  if (response.status !== 200) throw new GrobidError(`GROBID returned ${response.status}`);
-  return response.text();
-}
-function grobidAt(base) {
-  return {
-    fulltext: (pdf) => post(base, "/api/processFulltextDocument", pdf, [
-      // Repeated once per element boxes are wanted for; without it GROBID
-      // returns the structure but not the geometry.
-      ["teiCoordinates", "ref"],
-      ["teiCoordinates", "biblStruct"],
-      ["teiCoordinates", "figure"],
-      ["includeRawCitations", "1"],
-      // Consolidating the citations would have GROBID call CrossRef once
-      // per reference inside this request. Papol looks up later and lazily.
-      ["consolidateCitations", "0"],
-      ["consolidateHeader", "0"]
-    ]),
-    // Consolidated: GROBID asks CrossRef for the paper itself, which is
-    // how a paper that prints no identifier gets its DOI.
-    header: (pdf) => post(base, "/api/processHeaderDocument", pdf, [["consolidateHeader", "1"]])
-  };
-}
+// src/files.ts
+import { createHash } from "node:crypto";
 
 // ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/StringScanner.js
 var emptyString = "";
@@ -1365,6 +1330,44 @@ ${label.toLowerCase()}`) ?? figures.get((marker.attributes.target ?? "").replace
   return { references, citations, links };
 }
 
+// src/grobid.ts
+var TIMEOUT_MS = 3e5;
+var GrobidError = class extends Error {
+};
+async function post(base, path, pdf, fields) {
+  const form = new FormData();
+  form.set("input", new Blob([pdf], { type: "application/pdf" }), "paper.pdf");
+  for (const [name, value] of fields) form.append(name, value);
+  let response;
+  try {
+    response = await fetch(`${base.replace(/\/+$/, "")}${path}`, { method: "POST", body: form, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (error) {
+    throw new GrobidError(`GROBID unreachable: ${error.message}`);
+  }
+  if (response.status === 204) throw new GrobidError("GROBID could not read this PDF (no text extracted)");
+  if (response.status !== 200) throw new GrobidError(`GROBID returned ${response.status}`);
+  return response.text();
+}
+function grobidAt(base) {
+  return {
+    fulltext: (pdf) => post(base, "/api/processFulltextDocument", pdf, [
+      // Repeated once per element boxes are wanted for; without it GROBID
+      // returns the structure but not the geometry.
+      ["teiCoordinates", "ref"],
+      ["teiCoordinates", "biblStruct"],
+      ["teiCoordinates", "figure"],
+      ["includeRawCitations", "1"],
+      // Consolidating the citations would have GROBID call CrossRef once
+      // per reference inside this request. Papol looks up later and lazily.
+      ["consolidateCitations", "0"],
+      ["consolidateHeader", "0"]
+    ]),
+    // Consolidated: GROBID asks CrossRef for the paper itself, which is
+    // how a paper that prints no identifier gets its DOI.
+    header: (pdf) => post(base, "/api/processHeaderDocument", pdf, [["consolidateHeader", "1"]])
+  };
+}
+
 // src/service.ts
 var Refusal = class extends Error {
   constructor(status, message) {
@@ -1398,19 +1401,69 @@ function header(grobid, bytes) {
   return through(bytes, grobid.header, parseHeader);
 }
 
+// src/files.ts
+var DEFAULT_FILE_ORIGINS = ["https://files.papol.io", "https://files-dev.papol.io"];
+var PAPER_PATH = /^\/uploads\/([0-9a-f]{64})\.pdf$/;
+var TIMEOUT_MS2 = 12e4;
+function fileOriginsFrom(value) {
+  const listed = (value ?? "").split(",").map((origin) => origin.trim().replace(/\/+$/, "")).filter(Boolean);
+  return listed.length ? listed : DEFAULT_FILE_ORIGINS;
+}
+function paperAddress(value, origins) {
+  if (typeof value !== "string") throw new Refusal(400, "Send { url } naming a paper's address");
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Refusal(400, "The url is not an address");
+  }
+  if (!origins.includes(url.origin)) throw new Refusal(400, `The helper does not fetch from ${url.origin}`);
+  const named = PAPER_PATH.exec(url.pathname);
+  if (!named || url.search || url.hash) throw new Refusal(400, "The url is not a paper's address");
+  return { url, sha256: named[1] };
+}
+async function fetchPaper(address, maxBytes, fetchImpl = fetch) {
+  let response;
+  try {
+    response = await fetchImpl(address.url, { headers: { "user-agent": "papol-helper" }, signal: AbortSignal.timeout(TIMEOUT_MS2) });
+  } catch (error) {
+    throw new Refusal(502, `The bucket could not be reached: ${error.message}`);
+  }
+  if (response.status === 404) throw new Refusal(404, "The bucket has no file at that address");
+  if (response.status !== 200 || !response.body) throw new Refusal(502, `The bucket answered ${response.status}`);
+  const chunks = [];
+  let size = 0;
+  const hash = createHash("sha256");
+  const reader = response.body.getReader();
+  for (; ; ) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new Refusal(413, `The file is over ${maxBytes} bytes`);
+    }
+    hash.update(value);
+    chunks.push(value);
+  }
+  if (hash.digest("hex") !== address.sha256) throw new Refusal(422, "The file does not hash to its name");
+  return new Uint8Array(Buffer.concat(chunks));
+}
+
 // src/server.ts
 var MAX_BODY = 100 * 1024 * 1024;
+var MAX_ADDRESS = 4 * 1024;
 var DEFAULT_PORT = 8072;
 var GROBID = "http://127.0.0.1:8070";
-function readBody(request) {
+function readBody(request, maxBytes = MAX_BODY) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     request.on("data", (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY) {
+      if (size > maxBytes) {
         request.destroy();
-        reject(new Refusal(413, `The body is over ${MAX_BODY} bytes`));
+        reject(new Refusal(413, `The body is over ${maxBytes} bytes`));
         return;
       }
       chunks.push(chunk);
@@ -1419,20 +1472,36 @@ function readBody(request) {
     request.on("error", reject);
   });
 }
-async function answer(grobid, request) {
+async function paperOf(request, options) {
+  const type = String(request.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+  if (type !== "application/json") return readBody(request);
+  let sent;
+  try {
+    sent = JSON.parse(new TextDecoder().decode(await readBody(request, MAX_ADDRESS)));
+  } catch (error) {
+    if (error instanceof Refusal) throw error;
+    throw new Refusal(400, "The body is not JSON");
+  }
+  return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
+}
+async function answer(grobid, request, options) {
   const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
   if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
-  const bytes = await readBody(request);
+  const bytes = await paperOf(request, options);
   return [200, path === "/analyze" ? await analyze(grobid, bytes) : await header(grobid, bytes)];
 }
-function createServer(grobid, log = console.log) {
+function createServer(grobid, log = console.log, options = {}) {
+  const settled = {
+    fileOrigins: options.fileOrigins ?? fileOriginsFrom(void 0),
+    fetch: options.fetch ?? fetch
+  };
   return http.createServer(async (request, response) => {
     const started = Date.now();
     let status, body, detail = "";
     try {
-      [status, body] = await answer(grobid, request);
+      [status, body] = await answer(grobid, request, settled);
     } catch (error) {
       status = error instanceof Refusal ? error.status : 500;
       detail = error instanceof Refusal ? error.message : `Unexpected: ${error.message}`;
@@ -1448,7 +1517,9 @@ function createServer(grobid, log = console.log) {
 var runAsProgram = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (runAsProgram) {
   const port = Number(process.env.PAPOL_HELPER_PORT || DEFAULT_PORT);
-  const server = createServer(grobidAt(process.env.PAPOL_GROBID_URL || GROBID));
+  const server = createServer(grobidAt(process.env.PAPOL_GROBID_URL || GROBID), console.log, {
+    fileOrigins: fileOriginsFrom(process.env.PAPOL_HELPER_FILE_ORIGINS)
+  });
   server.requestTimeout = 3e5;
   server.listen(port, "127.0.0.1", () => console.log(`papol-helper listening on 127.0.0.1:${port}`));
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => server.close(() => process.exit(0)));
@@ -1456,5 +1527,6 @@ if (runAsProgram) {
 export {
   MAX_BODY,
   createServer,
+  fileOriginsFrom,
   grobidAt
 };

@@ -42,3 +42,20 @@ export function adminSendMessage(content, userUuids = null) {
 export function adminListMessageRecipients() {
   return request('/admin/message-recipients');
 }
+
+export function adminSendAnnouncement(subject, body, { userUuids = null, test = false } = {}) {
+  return jsonRequest('/admin/announcements', 'POST', {
+    subject,
+    body,
+    test,
+    ...(userUuids == null ? {} : { user_uuids: userUuids }),
+  });
+}
+
+export function adminListEmails() {
+  return request('/admin/emails');
+}
+
+export function adminGetEmail(id) {
+  return request(`/admin/emails/${encodeURIComponent(id)}`);
+}
