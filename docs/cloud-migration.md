@@ -254,7 +254,11 @@ What each piece becomes:
 - **The database**: D1, bound to the Worker; no connection string, no
   pooler, no provider. The schema is the one `models.py` declares — it was
   SQLite before phase 1 and round-trips, as `migrate-sqlite-to-postgres.py`
-  showed. Backups are D1's own point-in-time restore. The one gap is that
+  showed. Backups are D1's own point-in-time restore (Time Travel,
+  always on, `wrangler d1 time-travel restore papol --timestamp=…`), and
+  nothing else: no exports, no dumps, no copy of the bucket. Decided
+  2026-09-22; the Python era's snapshots and dumps were deleted from the
+  host the same day. The one gap is that
   D1 has no interactive transactions: a request cannot read, decide in
   code, and write inside one transaction; it gets `batch()`, which runs a
   list of statements atomically. Two places read-then-write today — the
