@@ -93,14 +93,27 @@ export default function BoardPreview({ board, onOpen }) {
   const cards = items
     .map((item) => ({ ...item, width: item.width || 300, previewHeight: previewCardHeight(item) }))
     .sort((a, b) => (a.position || 0) - (b.position || 0));
-  const padding = 44;
-  const minX = Math.min(...cards.map((item) => item.x)) - padding;
-  const minY = Math.min(...cards.map((item) => item.y)) - padding;
-  const maxX = Math.max(...cards.map((item) => item.x + item.width)) + padding;
-  const maxY = Math.max(...cards.map((item) => item.y + item.previewHeight)) + padding;
+  // The cards' own bounding box and a small margin around it; the frame
+  // takes the box's proportions, so the cards fill it.
+  const left = Math.min(...cards.map((item) => item.x));
+  const top = Math.min(...cards.map((item) => item.y));
+  const right = Math.max(...cards.map((item) => item.x + item.width));
+  const bottom = Math.max(...cards.map((item) => item.y + item.previewHeight));
+  const margin = Math.max(24, 0.03 * Math.max(right - left, bottom - top));
+  const minX = left - margin;
+  const minY = top - margin;
+  const maxX = right + margin;
+  const maxY = bottom + margin;
+  const ratio = (maxX - minX) / (maxY - minY);
 
   return (
-    <div className="board-preview" {...opening} aria-label={`Open ${board.name}`} title="Open board">
+    <div
+      className="board-preview"
+      {...opening}
+      style={{ '--preview-ratio': ratio }}
+      aria-label={`Open ${board.name}`}
+      title="Open board"
+    >
       <svg
         viewBox={`${minX} ${minY} ${Math.max(1, maxX - minX)} ${Math.max(1, maxY - minY)}`}
         preserveAspectRatio="xMidYMid meet"

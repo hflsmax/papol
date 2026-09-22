@@ -2016,15 +2016,17 @@ button.full-width {
   font: 600 var(--fs-sm) var(--font-ui);
 }
 
-/* A board seen from a distance, every card where it sits. Wide and short,
-   so it shrinks with the page rather than filling a phone's screen. */
+/* A board seen from a distance, every card where it sits. The frame takes
+   the proportions of the cards' own extent (--preview-ratio, set by
+   BoardPreview), no taller than 320px — 200px on a phone — and no wider than
+   the panel, centred in it: the cards fill it rather than floating in it. */
 .board-preview {
+  --preview-height: 320px;
   position: relative;
   display: grid;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 180px;
-  max-height: 460px;
+  width: min(100%, calc(var(--preview-height) * var(--preview-ratio, 1.6)));
+  aspect-ratio: var(--preview-ratio, 1.6);
+  margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
@@ -2045,7 +2047,10 @@ button.full-width {
 .board-preview svg {
   width: 100%;
   height: 100%;
-  padding: 16px;
+}
+
+@media (max-width: 600px) {
+  .board-preview { --preview-height: 200px; }
 }
 
 .board-preview-card rect {
@@ -2079,6 +2084,8 @@ button.full-width {
 }
 
 .board-preview.empty {
+  width: 100%;
+  min-height: 180px;
   aspect-ratio: auto;
   align-content: center;
   justify-items: center;
