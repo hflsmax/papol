@@ -36,6 +36,10 @@ export default defineConfig(async () => {
           // runs when a test says and not when the runtime delivers.
           bindings: {
             TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", GROBID_URL: "https://grobid.test",
+            // FILES_URL is empty here, whatever production's is: the suite
+            // tests the Worker serving a file itself, and hands a bucket
+            // address in where a test is about that.
+            FILES_URL: "",
             // Any key signs; the suite reads the signature's shape, never sends it.
             R2_ACCESS_KEY_ID: "test-access-key", R2_SECRET_ACCESS_KEY: "test-secret-key",
           },
