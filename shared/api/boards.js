@@ -3,7 +3,8 @@ import {
   nativeRepository, newUuid,
 } from '../nativeData.js';
 import { runtimeFetch } from '../connectivity.js';
-import { API_BASE, authHeaders, handleResponse, jsonRequest, request } from '../httpClient.js';
+import { handleResponse, jsonRequest, request } from '../httpClient.js';
+import { storeFile } from './files.js';
 import { JobFailed, awaitJob } from './jobs.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
@@ -143,14 +144,13 @@ export async function addBoardFile(uuid, file, caption = '', position = null) {
       throw error;
     }
   }
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('caption', caption);
-  if (position) {
-    formData.append('x', String(position.x));
-    formData.append('y', String(position.y));
-  }
-  return request(`/boards/${uuid}/files`, { method: 'POST', body: formData });
+  // The bytes into the bucket (shared/api/files.js), then the card that names them.
+  const stored = await storeFile('board_file', file, { name: file.name || 'file' });
+  return jsonRequest(`/boards/${uuid}/files`, 'POST', {
+    sha256: stored.sha256, caption, original_filename: file.name || 'file',
+    mime_type: file.type || 'application/octet-stream',
+    ...(position ? { x: position.x, y: position.y } : {}),
+  });
 }
 
 export function deleteBoardItem(uuid) {
@@ -235,13 +235,15 @@ export function placeStagedBoardItem(uuid, x, y) {
   return jsonRequest(`/board-items/${uuid}/place`, 'POST', { x, y });
 }
 
+// A card's file as an object URL: from the local replica on the desktop,
+// else from where the card says it is fetched from — the bucket's own
+// address, which no Worker touches, or a local Worker's route.
 export async function boardFileBlob(item) {
   if (nativeDataActive()) {
     if (!item.sha256) throw new Error('Board image is not available in the local replica');
     return nativeBlobUrl(item.sha256, item.mime_type);
   }
-  const key = `${API_BASE}/board-items/${item.uuid}/file`;
-  const response = await runtimeFetch(key, { headers: authHeaders() });
+  const response = await runtimeFetch(item.file_url);
   if (!response.ok) await handleResponse(response);
   return URL.createObjectURL(await response.blob());
 }

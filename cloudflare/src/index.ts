@@ -9,6 +9,7 @@ import { adminRoutes } from "./routes/admin";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/boards";
+import { fileRoutes } from "./routes/files";
 import { inboxRoutes } from "./routes/inbox";
 import { jobRoutes } from "./routes/jobs";
 import { nookRoutes } from "./routes/nook";
@@ -16,7 +17,7 @@ import { paperRoutes } from "./routes/papers";
 import { referenceRoutes } from "./routes/references";
 import { roomRoutes } from "./routes/rooms";
 import { sharableRoutes } from "./routes/sharables";
-import { getBlob, headBlob, putBlob } from "./sync/blobs";
+import { getBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
 
@@ -34,11 +35,14 @@ router.on("GET", "/boards/:uuid", ({ request, env, url }) => env.ASSETS.fetch(ne
 
 // Deliberately unauthenticated: a user who is signed out, or whose
 // credential was just refused, is the one most likely to be holding a
-// build that can no longer sign in, and they still need to be told.
-router.on("GET", "/api/client-requirements", ({ request }) => json({ ...requirements(), verdict: verdict(request) }));
+// build that can no longer sign in, and they still need to be told. It
+// also says where the files are, which the desktop reads before it
+// fetches any.
+router.on("GET", "/api/client-requirements", ({ request, env }) => json({ ...requirements(env), verdict: verdict(request) }));
 
 authRoutes(router);
 accountRoutes(router);
+fileRoutes(router);
 jobRoutes(router);
 boardRoutes(router);
 nookRoutes(router);
@@ -53,8 +57,6 @@ referenceRoutes(router);
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);
 router.on("GET", "/api/sync/pull", pull);
-router.on("HEAD", "/api/sync/blobs/:sha256", headBlob);
-router.on("PUT", "/api/sync/blobs/:sha256", putBlob);
 router.on("GET", "/api/sync/blobs/:sha256", getBlob);
 
 // The handler is this module's only export: workerd reads every named

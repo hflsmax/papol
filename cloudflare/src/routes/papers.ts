@@ -12,8 +12,7 @@ import { KIND as EXTRACT, reextractedMetadata, type Identifier } from "../papers
 import { Unavailable } from "../papers/bibliography";
 import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { viewerPaper } from "../papers/sharables";
-import * as uploads from "../papers/uploads";
-import { UPLOADS, uploadUrl } from "../sync/blobs";
+import { paperKey, UPLOADS, uploadUrl } from "../files";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
@@ -43,23 +42,6 @@ function givenIdentifier(check: ReturnType<typeof validate.checking>, given: unk
   if (foundDoi) identifier.doi = foundDoi;
   if (foundArxiv) identifier.arxiv_id = foundArxiv;
   return foundDoi || foundArxiv ? identifier : null;
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// Store an uploaded PDF under its own content hash. Content-addressed:
-// the same bytes always land on the same key, so an upload Papol already
-// holds costs nothing and no two names ever refer to different files.
-async function storePdf(env: Env, bytes: Uint8Array): Promise<{ fileName: string; digest: string }> {
-  const digest = await sha256Hex(bytes);
-  const fileName = `${digest}.pdf`;
-  if (!(await env.FILES.head(`${UPLOADS}${fileName}`))) {
-    await env.FILES.put(`${UPLOADS}${fileName}`, bytes, { httpMetadata: { contentType: "application/pdf" } });
-  }
-  return { fileName, digest };
 }
 
 async function ownTags(env: Env, user: User, tagUuids: unknown): Promise<string[]> {
@@ -103,48 +85,12 @@ const METADATA_FIELDS = ["title", "authors", "journal", "year", "doi"] as const;
 const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"] as const;
 
 export function paperRoutes(router: Router) {
-  // Upload a PDF. It is stored now, under its digest; what it says about
-  // itself is a job, and the form polls /api/jobs/{job} for the fields to
-  // review. Nothing is saved to the database until the user saves the paper.
-  router.on("POST", "/api/papers/extract", async ({ request, env }) => {
-    const user = await currentUser(request, env);
-    let data: FormData;
-    try { data = await request.formData(); } catch { return refuse(422, "The request is not a form"); }
-    const file = data.get("file");
-    if (!(file instanceof File)) refuse(422, "file is required");
-    if (!file.name.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const { fileName, digest } = await storePdf(env, bytes);
-    const job = enqueue(env.DB, EXTRACT, { file_path: fileName, uploaded_name: file.name }, { userUuid: user.uuid });
-    await job.statement.run();
-    await wake(env, [job.uuid]);
-    return json({ job: job.uuid, file_path: fileName, sha256: digest }, { status: 202 });
-  });
-
-  // Where a PDF goes: the browser has hashed it and says so, and is told
-  // either that the bucket holds those bytes already or where to PUT them
-  // itself (src/papers/uploads.ts). Nothing is stored or queued here; the
-  // upload tells /api/papers/uploaded when the bytes are in.
-  router.on("POST", "/api/papers/upload-address", async ({ request, env }) => {
-    await currentUser(request, env);
-    const data = await readJson<Row>(request);
-    const check = validate.checking();
-    const sha256 = check.string("sha256", data.sha256, { pattern: uploads.DIGEST })!;
-    const size = check.integer("size", data.size, { min: 1 })!;
-    const name = check.string("name", data.name, { max: limits.text.uploaded_filename })!;
-    check.done();
-    if (!name.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
-    if (size > uploads.PAPER_LIMIT) refuse(413, `PDF files may be at most ${limits.files.paper_mb} MB`);
-    const filePath = `${sha256}.pdf`;
-    if (await env.FILES.head(uploads.paperKey(sha256))) return json({ stored: true, file_path: filePath });
-    if (!uploads.configured(env)) refuse(503, "Direct uploads are not configured on this server");
-    return json({ stored: false, file_path: filePath, ...(await uploads.uploadAddress(env, sha256, size)) });
-  });
-
-  // The PDF is in the bucket, by the browser's own hand: queue the reading
-  // of it, as /api/papers/extract does once it has stored the bytes. The
-  // browser may have read the paper's identifier off its first pages
-  // already; passed along, the job asks the indexes about it directly.
+  // The PDF is in the bucket, by the uploader's own hand (routes/files.ts):
+  // queue the reading of it. What it says about itself is a job, and the
+  // form polls /api/jobs/{job} for the fields to review; nothing is saved
+  // to the database until the user saves the paper. The browser may have
+  // read the paper's identifier off its first pages already; passed
+  // along, the job asks the indexes about it directly.
   router.on("POST", "/api/papers/uploaded", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Row>(request);
@@ -155,7 +101,7 @@ export function paperRoutes(router: Router) {
     check.done();
     if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
     const digest = filePath.slice(0, 64);
-    if (!(await env.FILES.head(uploads.paperKey(digest)))) refuse(404, "PDF file not found");
+    if (!(await env.FILES.head(paperKey(digest)))) refuse(404, "PDF file not found");
     const payload: Row = { file_path: filePath, uploaded_name: uploadedName };
     if (identifier) payload.identifier = identifier;
     const job = enqueue(env.DB, EXTRACT, payload, { userUuid: user.uuid });

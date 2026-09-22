@@ -463,9 +463,15 @@ async fn blob_ensure(
     backend_url: String,
     token: String,
     sha256: String,
+    kind: Option<String>,
 ) -> Result<(), String> {
     use tauri::Emitter;
 
+    // What the file is says where the bucket keeps it; a paper unless said otherwise.
+    let kind = match kind.as_deref() {
+        Some("board_file") => data::BlobKind::BoardFile,
+        _ => data::BlobKind::Paper,
+    };
     let progress_app = app.clone();
     let progress_sha256 = sha256.clone();
     let report = move |progress: sync::SyncProgress| {
@@ -484,7 +490,7 @@ async fn blob_ensure(
         );
     };
     coordinator
-        .ensure_blob(&store, &backend_url, &token, &sha256, &report)
+        .ensure_blob(&store, &backend_url, &token, &sha256, kind, &report)
         .await
 }
 

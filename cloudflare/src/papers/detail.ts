@@ -9,7 +9,7 @@ import { type User } from "../auth";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
-import { uploadUrl } from "../sync/blobs";
+import { uploadUrl } from "../files";
 import { writeSynced } from "../sync/write";
 import { displayedCopies } from "./list";
 import { liveReadingLink } from "./sharables";

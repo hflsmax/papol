@@ -42,12 +42,30 @@ expect "sign-in without it" 401 -X POST "$base/api/auth/login" -H 'content-type:
 expect "who am I" 200 "${auth[@]}" "$base/api/auth/me"
 expect "the nook's papers" 200 "${auth[@]}" "$base/api/papers"
 
-# A paper: a tiny PDF uploaded, its metadata job read, the paper saved,
-# a stroke painted on it and taken back, the paper let go.
+# A paper: a tiny PDF put in the bucket by the address the Worker gives,
+# its metadata job read, the paper saved, a stroke painted on it and taken
+# back, the paper let go.
 pdf=$(mktemp); printf '%%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%%%EOF\n' > "$pdf"
-upload=$(curl -s -m 60 "${auth[@]}" -F "file=@$pdf;filename=smoke.pdf;type=application/pdf" "$base/api/papers/extract")
+digest=$(python3 -c 'import sys,hashlib; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$pdf")
+size=$(wc -c < "$pdf" | tr -d ' ')
+address=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/files/upload-address" -H 'content-type: application/json' \
+  -d "{\"kind\":\"paper\",\"sha256\":\"$digest\",\"size\":$size,\"name\":\"smoke.pdf\"}")
+file_path=$(printf '%s' "$address" | python3 -c 'import sys,json; print(json.load(sys.stdin)["file_path"])') || fail "address: $address"
+# The PUT as the address says: to its URL, with its headers, no credential of ours.
+put=$(printf '%s' "$address" | python3 -c '
+import sys, json, urllib.request, urllib.error
+address, pdf, base = json.load(sys.stdin), sys.argv[1], sys.argv[2]
+if address["stored"]: print("held already"); sys.exit()
+url = address["url"] if address["url"].startswith("http") else base + address["url"]
+try:
+    with urllib.request.urlopen(urllib.request.Request(url, data=open(pdf, "rb").read(), headers=address["headers"], method="PUT"), timeout=60) as r: print(r.status)
+except urllib.error.HTTPError as e: print(e.code)
+' "$pdf" "$base")
 rm -f "$pdf"
-file_path=$(printf '%s' "$upload" | python3 -c 'import sys,json; print(json.load(sys.stdin)["file_path"])') || fail "upload: $upload"
+case "$put" in "held already"|200|204) echo "ok  the PDF is in the bucket ($put)";; *) fail "the PUT to the bucket answered $put";; esac
+upload=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers/uploaded" -H 'content-type: application/json' \
+  -d "{\"file_path\":\"$file_path\",\"uploaded_name\":\"smoke.pdf\"}")
+printf '%s' "$upload" | python3 -c 'import sys,json; json.load(sys.stdin)["job"]' || fail "uploaded: $upload"
 echo "ok  upload"
 saved=$(curl -s -m 30 "${auth[@]}" -X POST "$base/api/papers" -H 'content-type: application/json' \
   -d "{\"file_path\":\"$file_path\",\"title\":\"Smoke test paper\",\"authors\":null,\"journal\":null,\"year\":null,\"doi\":null}")

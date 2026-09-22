@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import worker from "../src/index";
 import { capturers } from "../src/jobs/capture";
 import type { Wakeup } from "../src/jobs/run";
-import { call, count, mutation, ok, pushed, register, row, rows, uuid, type Account } from "./helpers";
+import { call, count, mutation, ok, pushed, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
 const original = { ...capturers };
 afterEach(() => Object.assign(capturers, original));
@@ -15,11 +15,13 @@ async function woken(...uuids: string[]) {
   await worker.queue(batch, env, createExecutionContext());
 }
 
-function upload(account: Account, path: string, file: { name: string; bytes: string; type: string }, fields: Record<string, string> = {}) {
-  const data = new FormData();
-  data.append("file", new File([file.bytes], file.name, { type: file.type }));
-  for (const [k, v] of Object.entries(fields)) data.append(k, v);
-  return call("POST", path, { headers: account.headers, body: data });
+// A file for a card, the way a client sends one: the bytes into the bucket
+// under their digest by the address it was given (files.test.ts), then
+// the card that names them.
+async function upload(account: Account, path: string, file: { name: string; bytes: string; type: string }, fields: Record<string, unknown> = {}) {
+  const digest = await sha256(file.bytes);
+  await env.FILES.put(`board_uploads/blobs/${digest}`, file.bytes, { httpMetadata: { contentType: file.type } });
+  return call("POST", path, { headers: account.headers, json: { sha256: digest, original_filename: file.name, mime_type: file.type, ...fields } });
 }
 
 describe("boards", () => {
@@ -75,24 +77,38 @@ describe("boards", () => {
     for (const item of fetched.items) for (const key of Object.keys(item)) expect(key.endsWith("_id")).toBe(false);
   });
 
-  it("stores a board file privately and immutably, named for the download", async () => {
-    const account = await register(), other = await register();
+  it("keys a board file by its digest, says where it is fetched from, and serves it immutably, named for the download", async () => {
+    const account = await register();
     const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Image cache" } });
+    const digest = await sha256("image bytes");
     const response = await upload(account, `/api/boards/${board.uuid}/files`, { name: "diagram.png", bytes: "image bytes", type: "image/png" }, { caption: "Figure 1" });
     expect(response.status, await response.clone().text()).toBe(200);
     const item = await response.json<any>();
-    expect(item).toMatchObject({ kind: "image", content: "Figure 1", original_filename: "diagram.png", mime_type: "image/png" });
-    const served = await call("GET", `/api/board-items/${item.uuid}/file`, { headers: account.headers });
+    expect(item).toMatchObject({ kind: "image", content: "Figure 1", original_filename: "diagram.png", mime_type: "image/png",
+      sha256: digest, file_path: `blobs/${digest}`, file_url: `/api/board-items/${item.uuid}/file` });
+    // Public by key: whoever holds the card's uuid — or the digest — has the file.
+    const served = await call("GET", `/api/board-items/${item.uuid}/file`);
     expect(served.status).toBe(200);
     expect(await served.text()).toBe("image bytes");
-    expect(served.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    expect(served.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(served.headers.get("content-disposition")).toBe('attachment; filename="diagram.png"');
     expect(served.headers.get("content-type")).toBe("image/png");
-    // On the default (public) shelf, the file is anyone's to see.
-    expect((await call("GET", `/api/board-items/${item.uuid}/file`, { headers: other.headers })).status).toBe(200);
-    const privateShelf = (await row("SELECT uuid FROM shelves WHERE user_uuid = ? AND is_public = 0", account.uuid))!.uuid;
-    await ok("PUT", `/api/boards/${board.uuid}`, { headers: account.headers, json: { shelf_uuid: privateShelf } });
-    expect((await call("GET", `/api/board-items/${item.uuid}/file`, { headers: other.headers })).status).toBe(404);
+    expect((await call("GET", `/api/board-items/${uuid()}/file`)).status).toBe(404);
+    // The same bytes on a second card are one object, named twice.
+    const again = await (await upload(account, `/api/boards/${board.uuid}/files`, { name: "same.png", bytes: "image bytes", type: "image/png" })).json<any>();
+    expect(again.file_path).toBe(`blobs/${digest}`);
+    expect((await env.FILES.list({ prefix: "board_uploads/" })).objects.map((o) => o.key)).toEqual([`board_uploads/blobs/${digest}`]);
+    // A card naming bytes the bucket does not hold is refused.
+    expect((await call("POST", `/api/boards/${board.uuid}/files`, { headers: account.headers, json: { sha256: "f".repeat(64), original_filename: "ghost.png", mime_type: "image/png" } })).status).toBe(409);
+    expect((await call("POST", `/api/boards/${board.uuid}/files`, { headers: account.headers, json: { original_filename: "ghost.png" } })).status).toBe(422);
+    // With a bucket address, the card names it and the route sends the client there.
+    const hosted = { ...env, FILES_URL: "https://files.test" as string } as Env;
+    const fetched = await (await worker.fetch(new Request(`https://papol.test/api/boards/${board.uuid}`, { headers: account.headers }), hosted)).json() as any;
+    expect(fetched.items.map((i: any) => i.file_url)).toEqual([`https://files.test/board_uploads/blobs/${digest}`, `https://files.test/board_uploads/blobs/${digest}`]);
+    const sent = await worker.fetch(new Request(`https://papol.test/api/board-items/${item.uuid}/file`), hosted);
+    expect(sent.status).toBe(301);
+    expect(sent.headers.get("location")).toBe(`https://files.test/board_uploads/blobs/${digest}`);
+    expect(sent.headers.get("cache-control")).toBe("public, max-age=86400");
   });
 
   it("stages an excerpt and a clip, then places them", async () => {
@@ -182,7 +198,7 @@ describe("link cards", () => {
     await woken(queued.job);
     expect((await ok("GET", `/api/jobs/${queued.job}`, { headers: account.headers })).status).toBe("done");
     const card = (await ok("GET", `/api/boards/${board.uuid}`, { headers: account.headers })).items[0];
-    expect(card.file_path).toMatch(new RegExp(`^${board.uuid}/[0-9a-f]{32}\\.png$`));
+    expect(card.file_path).toBe(`blobs/${card.sha256}`);
     expect(card.mime_type).toBe("image/png");
     const served = await call("GET", `/api/board-items/${card.uuid}/file`, { headers: account.headers });
     expect(await served.text()).toBe("a png");

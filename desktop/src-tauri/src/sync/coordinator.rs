@@ -1,8 +1,8 @@
-use crate::data::{declared_schema_version, LocalStore, RemoteChange};
+use crate::data::{declared_schema_version, BlobKind, LocalStore, RemoteChange};
 use crate::limits::value as app_limit;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -229,6 +229,16 @@ async fn read_body(
     Ok(body)
 }
 
+/// The server's answer to where a file's bytes go (cloudflare/src/files.ts).
+#[derive(Deserialize)]
+struct UploadAddress {
+    stored: bool,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    headers: std::collections::HashMap<String, String>,
+}
+
 #[derive(Deserialize)]
 struct PushResponse {
     rows: Vec<Map<String, Value>>,
@@ -320,40 +330,52 @@ impl Coordinator {
                     let Some(sha256) = change.values.get("sha256").and_then(Value::as_str) else {
                         continue;
                     };
-                    let url = backend
-                        .join(&format!("api/sync/blobs/{sha256}"))
-                        .map_err(SyncFailure::transient)?;
-                    let present = self
-                        .client
-                        .head(url.clone())
-                        .bearer_auth(token)
-                        .send()
-                        .await
-                        .map_err(SyncFailure::transient)?;
-                    if present.status() == reqwest::StatusCode::NOT_FOUND {
-                        let bytes = store.read_blob(sha256).map_err(SyncFailure::permanent)?;
-                        let size = bytes.len() as u64;
-                        let mime = change
-                            .values
-                            .get("mime_type")
-                            .and_then(Value::as_str)
-                            .unwrap_or("application/octet-stream");
-                        let uploaded = self
-                            .client
-                            .put(url)
-                            .bearer_auth(token)
-                            .header(reqwest::header::CONTENT_TYPE, mime)
-                            .body(bytes)
-                            .send()
-                            .await
-                            .map_err(SyncFailure::transient)?;
-                        if !uploaded.status().is_success() {
-                            return Err(http_error(uploaded).await);
-                        }
-                        meter.transferred(size, None);
-                    } else if !present.status().is_success() {
-                        return Err(http_error(present).await);
+                    // The bytes go into the bucket by the address the server
+                    // gives — the bucket's own door, with the headers it lists
+                    // and no credential of ours — or nowhere, when the server
+                    // says it holds them already. The row that names them is
+                    // pushed after.
+                    let kind = if change.table == "papers" {
+                        BlobKind::Paper
+                    } else {
+                        BlobKind::BoardFile
+                    };
+                    let bytes = store.read_blob(sha256).map_err(SyncFailure::permanent)?;
+                    let mime = change
+                        .values
+                        .get("mime_type")
+                        .and_then(Value::as_str)
+                        .unwrap_or(match kind {
+                            BlobKind::Paper => "application/pdf",
+                            BlobKind::BoardFile => "application/octet-stream",
+                        });
+                    let name = change
+                        .values
+                        .get("original_filename")
+                        .and_then(Value::as_str)
+                        .unwrap_or(match kind {
+                            BlobKind::Paper => "paper.pdf",
+                            BlobKind::BoardFile => "file",
+                        });
+                    let address = self
+                        .upload_address(backend, token, kind, sha256, bytes.len(), name, mime)
+                        .await?;
+                    if address.stored {
+                        continue;
                     }
+                    let size = bytes.len() as u64;
+                    let url = backend
+                        .join(address.url.trim_start_matches('/'))
+                        .map_err(SyncFailure::transient)?;
+                    let mut request = self.client.put(url).body(bytes);
+                    for (header, value) in &address.headers {
+                        request = request.header(header.as_str(), value.as_str());
+                    }
+                    let uploaded = request.send().await.map_err(SyncFailure::transient)?;
+                    if !uploaded.status().is_success() {
+                        return Err(http_error(uploaded).await);
+                    }
+                    meter.transferred(size, None);
                 }
                 let url = backend
                     .join("api/sync/push")
@@ -457,7 +479,7 @@ impl Coordinator {
         let snapshot_url = backend
             .join("api/sync/snapshot")
             .map_err(|error| error.to_string())?;
-        let snapshot = match self.fetch(&snapshot_url, token, &mut meter).await {
+        let snapshot = match self.fetch(&snapshot_url, Some(token), &mut meter).await {
             Ok((_, body)) => body,
             Err(failure) => {
                 // The snapshot is gated like the pull, and an empty outbox
@@ -491,7 +513,7 @@ impl Coordinator {
                     "limit",
                     &app_limit("counts", "sync_pull_default").to_string(),
                 );
-            let page = match self.fetch(&url, token, &mut meter).await {
+            let page = match self.fetch(&url, Some(token), &mut meter).await {
                 Ok((_, body)) => body,
                 Err(failure) => {
                     if failure.kind == FailureKind::Incompatible {
@@ -521,9 +543,22 @@ impl Coordinator {
         // and board file referenced by the account before reporting success.
         let missing = store.missing_blob_digests(account_uuid)?;
         meter.begin(SyncPhase::Downloading, Some(missing.len()));
-        for sha256 in missing {
-            self.download_blob(store, backend_url, token, &sha256, &mut meter)
-                .await?;
+        let files_url = if missing.is_empty() {
+            None
+        } else {
+            self.files_url(&backend).await
+        };
+        for blob in missing {
+            self.download_blob(
+                store,
+                &backend,
+                files_url.as_deref(),
+                token,
+                &blob.sha256,
+                blob.kind,
+                &mut meter,
+            )
+            .await?;
             meter.item_done();
         }
         meter.finish();
@@ -540,25 +575,95 @@ impl Coordinator {
         backend_url: &str,
         token: &str,
         sha256: &str,
+        kind: BlobKind,
         report: &(dyn Fn(SyncProgress) + Send + Sync),
     ) -> Result<(), String> {
         let _guard = self.gate.lock().await;
+        if token.trim().is_empty() {
+            return Err("Downloading a file requires a signed-in account".into());
+        }
+        let backend = validated_backend(backend_url)?;
         let mut meter = Meter::new(report);
         meter.begin(SyncPhase::Downloading, Some(1));
-        self.download_blob(store, backend_url, token, sha256, &mut meter)
-            .await?;
+        let files_url = self.files_url(&backend).await;
+        self.download_blob(
+            store,
+            &backend,
+            files_url.as_deref(),
+            token,
+            sha256,
+            kind,
+            &mut meter,
+        )
+        .await?;
         meter.item_done();
         meter.finish();
         Ok(())
     }
 
-    /// GETs a sync route and reads the whole body, asking again when the
+    /// Where the bytes of a file go: what the server answers when asked
+    /// with the file's kind, digest, size, name and type. Either it holds
+    /// them already, or here is a PUT to make, with these headers.
+    #[allow(clippy::too_many_arguments)]
+    async fn upload_address(
+        &self,
+        backend: &Url,
+        token: &str,
+        kind: BlobKind,
+        sha256: &str,
+        size: usize,
+        name: &str,
+        mime: &str,
+    ) -> Result<UploadAddress, SyncFailure> {
+        let url = backend
+            .join("api/files/upload-address")
+            .map_err(SyncFailure::transient)?;
+        let body = serde_json::to_vec(&json!({
+            "kind": kind.as_str(), "sha256": sha256, "size": size, "name": name, "mime": mime,
+        }))
+        .map_err(SyncFailure::permanent)?;
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(token)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await
+            .map_err(SyncFailure::transient)?;
+        if !response.status().is_success() {
+            return Err(http_error(response).await);
+        }
+        let body = response.bytes().await.map_err(SyncFailure::transient)?;
+        serde_json::from_slice(&body).map_err(SyncFailure::transient)
+    }
+
+    /// Where the files are, as the server says in its client requirements:
+    /// the bucket's own address, from which every file is fetched with no
+    /// Worker in the path — or nothing, when the Worker serves them itself
+    /// (a local one), or could not be asked, in which case its routes are
+    /// the way and send us on to the bucket anyway.
+    async fn files_url(&self, backend: &Url) -> Option<String> {
+        let url = backend.join("api/client-requirements").ok()?;
+        let response = self.client.get(url).send().await.ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        let body: Value = response.json().await.ok()?;
+        body.get("files_url")?
+            .as_str()
+            .map(|files| files.trim_end_matches('/').to_owned())
+    }
+
+    /// GETs a URL and reads the whole body, asking again when the
     /// connection dies mid-transfer. An HTTP status is the server's answer
     /// and is returned as it stands; only the transport gets second chances.
+    /// The credential goes only where one is given: to Papol's routes, and
+    /// never to the bucket.
     async fn fetch(
         &self,
         url: &Url,
-        token: &str,
+        token: Option<&str>,
         meter: &mut Meter<'_>,
     ) -> Result<(Option<String>, Vec<u8>), SyncFailure> {
         let mut failure = None;
@@ -566,7 +671,11 @@ impl Coordinator {
             if attempt > 0 {
                 tokio::time::sleep(RETRY_PAUSE).await;
             }
-            let response = match self.client.get(url.clone()).bearer_auth(token).send().await {
+            let mut request = self.client.get(url.clone());
+            if let Some(token) = token {
+                request = request.bearer_auth(token);
+            }
+            let response = match request.send().await {
                 Ok(response) => response,
                 Err(error) => {
                     failure = Some(SyncFailure::transient(error));
@@ -589,23 +698,36 @@ impl Coordinator {
         Err(failure.expect("every attempt records its failure"))
     }
 
+    /// One file into the local store: from the bucket's own address when
+    /// there is one, by the key its kind names, with no credential — the
+    /// files are public by key — or from the Worker's route by digest, with
+    /// the credential, when the Worker serves its files itself.
+    #[allow(clippy::too_many_arguments)]
     async fn download_blob(
         &self,
         store: &LocalStore,
-        backend_url: &str,
+        backend: &Url,
+        files_url: Option<&str>,
         token: &str,
         sha256: &str,
+        kind: BlobKind,
         meter: &mut Meter<'_>,
     ) -> Result<(), String> {
-        if token.trim().is_empty() {
-            return Err("Downloading a file requires a signed-in account".into());
-        }
-        let backend = validated_backend(backend_url)?;
-        let url = backend
-            .join(&format!("api/sync/blobs/{sha256}"))
-            .map_err(|error| error.to_string())?;
+        let (url, credential) = match files_url {
+            Some(files) => (
+                Url::parse(&format!("{files}/{}", kind.key(sha256)))
+                    .map_err(|error| error.to_string())?,
+                None,
+            ),
+            None => (
+                backend
+                    .join(&format!("api/sync/blobs/{sha256}"))
+                    .map_err(|error| error.to_string())?,
+                Some(token),
+            ),
+        };
         let (mime, bytes) = self
-            .fetch(&url, token, meter)
+            .fetch(&url, credential, meter)
             .await
             .map_err(|failure| failure.message)?;
         store.import_remote_blob(sha256, &bytes, mime)
