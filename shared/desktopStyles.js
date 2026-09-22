@@ -1065,7 +1065,7 @@ export const desktopStyles = `
   }
 }
 
-[data-shell='desktop'] .back-button:not(.upload-review-back) {
+[data-shell='desktop'] .back-button {
   display: none;
 }
 
