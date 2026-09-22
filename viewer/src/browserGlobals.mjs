@@ -3,3 +3,7 @@
 // bare globals the way page code does. Loaded with `node --import`.
 globalThis.document ??= { addEventListener() {}, visibilityState: 'hidden' };
 globalThis.BroadcastChannel = class { postMessage() {} close() {} };
+
+// The shared modules' bare imports resolve from this app, as under Vite.
+import { register } from 'node:module';
+register('./resolveFromApp.mjs', import.meta.url);

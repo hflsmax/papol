@@ -6,7 +6,9 @@ export default defineConfig({
   // a relative base would incorrectly request /paper/<doi>/assets/….
   base: process.env.VITE_BASE || '/',
   plugins: [react()],
-  resolve: { dedupe: ['react', 'react-dom'] },
+  // shared/ sits outside the root and names its packages bare; these are
+  // resolved from this app, where they are installed.
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
   build: {
     rolldownOptions: {
       output: {

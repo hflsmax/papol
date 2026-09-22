@@ -66,11 +66,14 @@ export async function getNookPaperByPdf(hash) {
 // A file opened from disk becomes a nook paper, and the notes, ink and clips
 // made on it before then come along. Online imports are enriched before the
 // local commit; offline imports retain the filename-derived fallback.
-export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [] }) {
+//
+// `onProgress` hears the upload of the bytes to Papol as it goes
+// (shared/api/files.js), the one measurable part of the import.
+export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], clips = [], onProgress }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
   const pending = openedFileImports.get(sha256);
   if (pending) return pending;
-  const importing = importOpenedFileToNook({ sha256, name, notes, ink, clips });
+  const importing = importOpenedFileToNook({ sha256, name, notes, ink, clips, onProgress });
   openedFileImports.set(sha256, importing);
   try {
     return await importing;
@@ -79,7 +82,7 @@ export async function addOpenedFileToNook({ sha256, name, notes = [], ink = [], 
   }
 }
 
-async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
+async function importOpenedFileToNook({ sha256, name, notes, ink, clips, onProgress }) {
   let paper = await getNookPaperByPdf(sha256);
   if (!paper) {
     const blob = await openedFileBlob(sha256);
@@ -88,7 +91,7 @@ async function importOpenedFileToNook({ sha256, name, notes, ink, clips }) {
     // Opening a file remains private. Once the user explicitly adds it,
     // use the same authenticated parser as the upload form so the replica
     // starts with bibliographic metadata instead of a filename-only stub.
-    const metadata = await lookupPaperMetadata(blob, name);
+    const metadata = await lookupPaperMetadata(blob, name, { onProgress });
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default) || shelves[0];
     // No name is invented for it. The paper is the file, and the service

@@ -1,4 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Progress, Working } from '../../../shared/ui/Waiting.js';
+import { holdFullBar } from '../../../shared/waiting.js';
+import { uploadProgressView } from '../../../shared/api/files.js';
 import {
   awaitPaperReading, createPaper, createTag, discardPaperImport, listShelves, listTags,
   uploadPaper,
@@ -12,12 +15,13 @@ import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
 
-// The form opens the moment the upload has answered, on the title the
-// filename gives, and the reading of the PDF goes on beside it: a
-// spinner while it is read, the fields it read filled in when it is
-// done, a quiet line when it could not be. The user types and saves
-// without waiting for any of it; a save or a cancel while the reading is
-// still on simply stops listening for it.
+// The upload is a bar in the drop zone (docs/waiting.md), over the hash
+// and the bytes going up. The form opens the moment the upload has
+// answered, on the title the filename gives, and the reading of the PDF
+// goes on beside it: the spinner while it is read, the fields it read
+// filled in when it is done, a quiet line when it could not be. The user
+// types and saves without waiting for any of it; a save or a cancel
+// while the reading is still on simply stops listening for it.
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
   incomingFile = null, onIncomingFileHandled = () => {}, onReportableError,
@@ -25,6 +29,8 @@ export default function PaperUpload({
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // The upload as storeFile reports it, while a file is going up.
+  const [uploadProgress, setUploadProgress] = useState(null);
   // 'reading' while the PDF is read, 'unread' when it could not be, null otherwise.
   const [reading, setReading] = useState(null);
   const [error, setError] = useState(null);
@@ -100,13 +106,21 @@ export default function PaperUpload({
     setKnown(null);
     setUseKnown(true);
     setIsLoading(true);
+    setUploadProgress(null);
     setError(null);
 
     try {
       // The PDF's first pages are read for its DOI or arXiv id here, while
       // the bytes go up; the server starts its reading from what was found.
       const identifier = readIdentifier(file);
-      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file, { identifier }), listTags(), listShelves()]);
+      // The bar is held full for a moment before the form takes its place.
+      let fullAt = null;
+      const onProgress = (progress) => {
+        if (fullAt == null && progress.phase === 'stored') fullAt = Date.now();
+        setUploadProgress(progress);
+      };
+      const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file, { identifier, onProgress }), listTags(), listShelves()]);
+      if (fullAt != null) await holdFullBar(fullAt);
       setExtractedData(uploaded);
       onReviewChange(true);
       setShelves(shelfData);
@@ -246,10 +260,9 @@ export default function PaperUpload({
           <h3>Review Paper Metadata</h3>
         </div>
         {reading === 'reading' && (
-          <p className="metadata-reading" role="status">
-            <span className="spinner metadata-spinner" aria-hidden="true" />
-            Reading the PDF for its title and authors…
-          </p>
+          <div className="metadata-reading">
+            <Working label="Extracting…" />
+          </div>
         )}
         {reading === 'unread' && (
           <p className="metadata-reading" role="status">
@@ -469,7 +482,7 @@ export default function PaperUpload({
           style={{ display: 'none' }}
         />
         {isLoading ? (
-          <p>Uploading…</p>
+          <UploadWait progress={uploadProgress} />
         ) : (
           <>
             <p>Drop a PDF here or click to upload</p>
@@ -480,4 +493,13 @@ export default function PaperUpload({
       {error && <div className="error" role="alert">{error}</div>}
     </div>
   );
+}
+
+// The upload's wait, in the drop zone: one bar over the hash and the
+// bytes going up, as storeFile reports them; the spinner before the first
+// report, and on the desktop, whose store says nothing.
+function UploadWait({ progress }) {
+  const view = uploadProgressView(progress);
+  if (!view) return <Working label="Uploading…" />;
+  return <Progress fraction={view.fraction} label="Uploading" detail={view.detail} />;
 }

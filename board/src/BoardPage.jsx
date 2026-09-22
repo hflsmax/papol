@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
+import { uploadProgressView } from '../../shared/api/files.js';
 import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
@@ -52,6 +53,14 @@ function AlignGlyph({ align }) {
   const starts = align === 'left' ? [2, 2, 2] : align === 'center' ? [2, 5, 3] : [2, 8, 4];
   const widths = [16, 10, 14];
   return <svg className="board-align-glyph" viewBox="0 0 20 16" aria-hidden="true">{starts.map((x, index) => <line key={index} x1={x} x2={x + widths[index]} y1={3 + index * 5} y2={3 + index * 5} />)}</svg>;
+}
+
+// What a placeholder card shows while its card is on the way: a bar when
+// the upload can be measured, the spinner and a word when it cannot.
+function PlaceholderWait({ item }) {
+  const view = uploadProgressView(item.progress);
+  if (!view) return <Working label={item.label} />;
+  return <Progress fraction={view.fraction} label="Uploading" detail={view.detail} className="board-placeholder-progress" />;
 }
 
 function TidyGlyph() {
@@ -486,9 +495,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
         );
         setBusy(true); setError(null);
         try {
-          const items = await Promise.all(images.map((image, index) => addBoardFile(board.uuid, image, '', {
-            x: origin.x + index * 28, y: origin.y + index * 28,
-          })));
+          const items = await uploadFiles(images, origin);
           items.forEach((item) => undoStack.current.push({ type: 'add', uuid: item.uuid }));
           redoStack.current = [];
           await load();
@@ -667,6 +674,32 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       })),
     };
   };
+  // Files dropped or pasted, each going up behind a card-shaped placeholder
+  // at the spot it will land: a bar while storeFile reports the bytes
+  // (docs/waiting.md), the spinner where it does not (the desktop's own
+  // store). The placeholder can be dragged like a capture's, and goes
+  // when the card is here or the upload has failed.
+  const uploadFiles = (files, origin) => Promise.all(files.map(async (file, index) => {
+    const uuid = `${Date.now()}-${index}-${Math.random()}`;
+    const position = { x: origin.x + index * 28, y: origin.y + index * 28 };
+    const update = (change) => {
+      urlLoadingRef.current = urlLoadingRef.current.map((item) => item.uuid === uuid ? { ...item, ...change } : item);
+      setUrlLoading(urlLoadingRef.current);
+    };
+    urlLoadingRef.current = [...urlLoadingRef.current, { uuid, ...position, label: 'Uploading…', progress: null }];
+    setUrlLoading(urlLoadingRef.current);
+    try {
+      const item = await addBoardFile(board.uuid, file, '', position, { onProgress: (progress) => update({ progress }) });
+      const moved = urlLoadingRef.current.find((candidate) => candidate.uuid === uuid);
+      if (moved && (moved.x !== position.x || moved.y !== position.y)) {
+        await moveBoardItem(item.uuid, moved.x, moved.y).catch((failure) => setError(failure.message));
+      }
+      return item;
+    } finally {
+      urlLoadingRef.current = urlLoadingRef.current.filter((item) => item.uuid !== uuid);
+      setUrlLoading(urlLoadingRef.current);
+    }
+  }));
   const startLoadingDrag = (event, item) => {
     if (event.button !== 0) return;
     event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
@@ -1719,9 +1752,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     );
     setBusy(true); setError(null);
     try {
-      await Promise.all(files.map((file, index) => addBoardFile(board.uuid, file, '', {
-        x: origin.x + index * 28, y: origin.y + index * 28,
-      })));
+      await uploadFiles(files, origin);
       await load();
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
@@ -1983,7 +2014,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           </div>
           {booklet.kind === 'booklet' && booklet.branches.map((branch) => <span key={branch.uuid} data-branch-uuid={branch.uuid} className="board-booklet-branch" style={{ top: branch.top, width: branch.width }} />)}
         </div>)}
-        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><Working label={item.label} /></div>)}
+        {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><PlaceholderWait item={item} /></div>)}
         {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">

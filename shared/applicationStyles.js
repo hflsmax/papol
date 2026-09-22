@@ -889,6 +889,13 @@ button.full-width {
   color: var(--ink-soft);
 }
 
+/* The upload's wait, where the drop went (docs/waiting.md). */
+.dropzone .wait-progress {
+  max-width: 360px;
+  margin: 0 auto;
+  text-align: left;
+}
+
 .dropzone .hint {
   font-size: var(--fs-sm);
   color: var(--ink-faint);
@@ -4058,6 +4065,7 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-inline-format button:nth-child(3) { text-align: right; }
 .board-inline-format button.active { background: var(--accent-soft); color: var(--accent); }
 .board-align-glyph { display: block; width: 18px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.board-youtube-loading .board-placeholder-progress { width: 240px; }
 .board-youtube-loading { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; width: 300px; min-height: 170px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); color: var(--ink-soft); box-shadow: 0 1px 6px rgba(25,35,50,.18); user-select: none; touch-action: none; font: var(--fs-sm) var(--font-ui); will-change: transform; }
 .board-canvas-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
 

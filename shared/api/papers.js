@@ -70,9 +70,10 @@ async function identifierFor(identifier) {
 // Upload a PDF: the bytes into the bucket (shared/api/files.js), then the
 // server told they are in, with the identifier read off the file. It
 // answers with the job that reads it: `{ job, file_path, sha256 }`.
-async function upload(file, filename, signal, identifier) {
+// `onProgress` hears the hash and the PUT as storeFile reports them.
+async function upload(file, filename, signal, identifier, onProgress) {
   const name = filename || file.name;
-  const stored = await storeFile('paper', file, { name, mime: 'application/pdf', signal });
+  const stored = await storeFile('paper', file, { name, mime: 'application/pdf', signal, onProgress });
   return request('/papers/uploaded', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }), signal,
@@ -81,17 +82,17 @@ async function upload(file, filename, signal, identifier) {
 
 // Upload a PDF and wait for what the server reads out of it: the job's
 // result plus the digest the upload was stored under.
-async function uploadAndRead(file, filename, signal) {
-  const queued = await upload(file, filename, signal);
+async function uploadAndRead(file, filename, signal, onProgress) {
+  const queued = await upload(file, filename, signal, null, onProgress);
   const metadata = await awaitJob(queued.job, { signal });
   return { ...metadata, file_path: queued.file_path, sha256: queued.sha256 };
 }
 
-export async function lookupPaperMetadata(file, filename = file?.name) {
+export async function lookupPaperMetadata(file, filename = file?.name, { onProgress } = {}) {
   if (inOfflineMode()) return null;
   try {
     return await withAbortTimeout(
-      (signal) => uploadAndRead(file, filename, signal),
+      (signal) => uploadAndRead(file, filename, signal, onProgress),
       DESKTOP_EXTRACT_TIMEOUT_MS,
     );
   } catch {
@@ -105,14 +106,15 @@ export async function lookupPaperMetadata(file, filename = file?.name) {
 // and the form is open in the meantime. `identifier` is what the caller
 // read off the PDF's first pages (frontend/src/pdfIdentifier.js), a value
 // or a promise of one; it goes to the server with the upload, and the
-// reading starts from it.
-export async function uploadPaper(file, { identifier = null } = {}) {
+// reading starts from it. `onProgress` hears the upload as it goes
+// (shared/api/files.js); the nook's own store says nothing, being local.
+export async function uploadPaper(file, { identifier = null, onProgress } = {}) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     rememberPendingPaperBlob(blob);
     return { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
   }
-  const queued = await upload(file, file.name, undefined, identifier);
+  const queued = await upload(file, file.name, undefined, identifier, onProgress);
   return { file_path: queued.file_path, sha256: queued.sha256, job: queued.job };
 }
 

@@ -86,11 +86,29 @@ style.
 | Every page not yet here | `Working` | Loading … |
 | Sign-in, comments, avatars, settings | disabled button | Signing in… / Adding… / Uploading… |
 
-Uploads — the paper upload, board file drops, the desktop's Add to nook —
-are measured over the hashing and the PUT (`Progress` "Uploading" in bytes)
-and then `Working` "Extracting…" for the server's reading; see the shared
-file helper for the `onProgress({ phase, loaded, total })` callback that
-drives them.
+## Uploads
+
+Every file reaches Papol through `storeFile` in `shared/api/files.js`,
+and its wait is measured end to end: the hash is taken in slices
+(`shared/fileHash.js`, `@noble/hashes`) and the bytes go up through
+`XMLHttpRequest`, whose `upload.onprogress` says how many have gone.
+`storeFile` takes `onProgress({ phase, loaded, total })` — `hashing`,
+`uploading`, then `stored` — and `uploadProgressView(progress)` turns the
+latest event into the `{ fraction, detail }` of one bar over both phases,
+the hash a sliver of it (it runs at hundreds of MB/s) and the upload the
+rest. A file the server already holds is full the moment it is hashed.
+
+| Wait | Component | Label · detail |
+| --- | --- | --- |
+| Paper upload, in the drop zone | `Progress`, held full, then the form | Uploading · bytes |
+| Paper upload, the server reading the PDF | `Working` in the form | Extracting… |
+| Board file drop or paste, on a placeholder card where it will land | `Progress` | Uploading · bytes |
+| Viewer, Add to nook of an opened file (desktop) | `Progress` under the button, `Working` around it | Adding to nook · bytes / Adding to nook… |
+| The desktop's own store (`blob_import`), which reports nothing | `Working` | Uploading… |
+
+The upload smoke (`frontend/scripts/upload-smoke.mjs`) plays the bucket
+through a fake `XMLHttpRequest` and asserts the bar reached 100% before
+"Extracting…" appeared.
 
 ## Testing
 
