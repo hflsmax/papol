@@ -4,7 +4,8 @@ import { createExecutionContext, createMessageBatch, createScheduledController, 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
-import { queueEmail } from "../src/jobs/notifications";
+import { sentEmails } from "../src/jobs/mail";
+import { queueAnnouncement, queueEmail } from "../src/jobs/notifications";
 import { claim, enqueue, JobError, LEASE_MS, type Job } from "../src/jobs/queue";
 import { HANDLERS, HOURLY_CRON, runOne, SWEEP_CRON, type Wakeup } from "../src/jobs/run";
 import { call, count, exec, ok, register, row, rows, uuid } from "./helpers";
@@ -14,6 +15,7 @@ const posted: unknown[] = [];
 function emailApi(status = 200, body = '{"id":"m1"}') {
   posted.length = 0;
   vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+    expect(new Headers(init.headers).get("user-agent")).toBe("Papol/1.0");
     posted.push(JSON.parse(String(init.body)));
     return new Response(body, { status });
   });
@@ -194,5 +196,32 @@ describe("mail", () => {
     await worker.scheduled(createScheduledController({ cron: HOURLY_CRON, scheduledTime: nineUtc.getTime() + 1000 }), mailed, createExecutionContext());
     expect(await count("jobs", "kind = 'daily_digest'")).toBe(1);
     expect(await count("jobs", "kind = 'send_email'")).toBe(2);
+  });
+
+  it("sends an announcement as batches of a hundred, one email per recipient", async () => {
+    const calls: { url: string; body: any[] }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      expect(new Headers(init.headers).get("user-agent")).toBe("Papol/1.0");
+      calls.push({ url, body: JSON.parse(String(init.body)) });
+      return new Response('{"data":[]}');
+    });
+    const to = Array.from({ length: 150 }, (_, i) => `reader${i}@example.test`);
+    const queued = queueAnnouncement(env.DB, to, "Papol is live", "Hello");
+    await queued.statement.run();
+    await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
+    expect(calls.map((c) => [c.url, c.body.length])).toEqual([["https://mail.example.test/emails/batch", 100], ["https://mail.example.test/emails/batch", 50]]);
+    expect(calls[0].body[0]).toEqual({ from: "papol@example.test", to: ["reader0@example.test"], subject: "Papol is live", text: "Hello" });
+    expect(await job(queued.uuid)).toMatchObject({ status: "done", result: JSON.stringify({ sent: true, recipients: 150 }) });
+  });
+
+  it("reads back what was sent, page by page", async () => {
+    const urls: string[] = [];
+    const email = (id: string) => ({ id, to: ["a@example.test"], from: "papol@example.test", subject: "S", created_at: "2026-09-22 09:50:31.069000+00", last_event: "delivered" });
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      return Response.json(url.includes("after=") ? { data: [email("3")], has_more: false } : { data: [email("1"), email("2")], has_more: true });
+    });
+    expect((await sentEmails({ ...env, ...configured } as Env)).map((e) => e.id)).toEqual(["1", "2", "3"]);
+    expect(urls).toEqual(["https://mail.example.test/emails?limit=100", "https://mail.example.test/emails?limit=100&after=2"]);
   });
 });
