@@ -111,12 +111,12 @@ in {
       };
     };
 
-    # The helper beside GROBID (host/helper/): the Worker posts a PDF's
-    # bytes, the helper runs GROBID on it and reads the TEI into JSON, and
-    # the Worker stores rows. A Worker invocation on Cloudflare's Free plan
-    # has about ten milliseconds of CPU, which is enough to forward bytes
-    # and not enough to read a document. Reached through the same front
-    # door and credential as GROBID, under /helper/.
+    # The helper beside GROBID (host/helper/): the Worker names a paper's
+    # public address, the helper fetches it from the bucket, runs GROBID on
+    # it and reads the TEI into JSON, and the Worker stores rows. Neither
+    # the bytes nor the reading pass through a Worker invocation on
+    # Cloudflare's Free plan. Reached through the same front door and
+    # credential as GROBID, under /helper/.
     helper = {
       port = lib.mkOption {
         type = lib.types.port;
@@ -129,6 +129,16 @@ in {
         default = pkgs.nodejs_22;
         defaultText = lib.literalExpression "pkgs.nodejs_22";
         description = "The Node that runs the bundle; the flake's shell builds it with the same major.";
+      };
+
+      fileOrigins = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "https://files.papol.io" "https://files-dev.papol.io" ];
+        description = ''
+          The bucket domains the helper fetches papers from. It fetches
+          nothing else: only /uploads/<sha256>.pdf on these origins, and
+          only bytes that hash to that name (host/helper/src/files.ts).
+        '';
       };
     };
 
@@ -169,8 +179,8 @@ in {
 
     # The helper: one Node process on the checked-in bundle, as the user
     # whose checkout it is, up after the container it talks to and back
-    # whenever it falls over. It reads one file and two loopback ports,
-    # so the rest of the system is closed to it.
+    # whenever it falls over. It reads one file, two loopback ports and
+    # the bucket domains, so the rest of the system is closed to it.
     systemd.services.papol-helper = {
       description = "Papol's helper beside GROBID: reads PDFs for the Worker";
       wantedBy = [ "multi-user.target" ];
@@ -179,6 +189,7 @@ in {
       environment = {
         PAPOL_HELPER_PORT = toString cfg.helper.port;
         PAPOL_GROBID_URL = "http://127.0.0.1:${toString cfg.grobid.port}";
+        PAPOL_HELPER_FILE_ORIGINS = lib.concatStringsSep "," cfg.helper.fileOrigins;
       };
       serviceConfig = {
         ExecStart = "${cfg.helper.node}/bin/node ${cfg.srcDir}/host/helper/dist/helper.js";
