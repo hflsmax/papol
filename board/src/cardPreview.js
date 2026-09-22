@@ -1,4 +1,4 @@
-const OPTIONAL_PREVIEW_KINDS = new Set(['youtube', 'webpage']);
+const OPTIONAL_PREVIEW_KINDS = new Set(['youtube', 'bilibili', 'webpage']);
 
 export function hasCardPreview(item) {
   if (item.kind === 'image') return true;

@@ -4,8 +4,8 @@
 // capture. The card is a link without a preview until the job has
 // rendered the page in Browser Rendering and put the image beside the
 // card. A capture that fails leaves the card as the link it already was;
-// the job says why. A YouTube card is not captured here: the app fetches
-// the video's title and thumbnail itself (shared/youtube.js) and makes
+// the job says why. A video card is not captured here: the app fetches
+// the video's title and thumbnail itself (shared/videos.js) and makes
 // the card with them.
 //
 // The browser is Cloudflare's, on Cloudflare's network, so no private
@@ -26,22 +26,6 @@ export const WEBPAGE = "capture_webpage";
 const BOARD_FILE_LIMIT = limits.files.board_file_mb * 1024 * 1024;
 
 // ------------------------------------------------------------ what a URL is
-
-export function youtubeId(url: string): string | null {
-  let parsed: URL;
-  try { parsed = new URL(url.trim()); } catch { return null; }
-  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-  let candidate: string | null = null;
-  if (host === "youtu.be") candidate = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/")[0] ?? null;
-  else if (host === "youtube.com" || host === "m.youtube.com") {
-    if (parsed.pathname === "/watch") candidate = parsed.searchParams.get("v");
-    else {
-      const parts = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
-      if (parts.length === 2 && ["shorts", "embed", "live"].includes(parts[0])) candidate = parts[1];
-    }
-  }
-  return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : null;
-}
 
 const PRIVATE_HOST = /^(localhost|.*\.localhost|127\..*|10\..*|192\.168\..*|169\.254\..*|0\.0\.0\.0|\[::1\]|\[fc.*|\[fd.*|172\.(1[6-9]|2\d|3[01])\..*)$/i;
 

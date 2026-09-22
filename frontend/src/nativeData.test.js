@@ -77,6 +77,16 @@ configureNetworkFetch(async (url, options) => {
   // the server queues the reading. `refused` is what the Tauri HTTP plugin
   // says of a URL outside its scope.
   if (networkMode === 'refused') throw new Error('url not allowed on the configured scope');
+  // Bilibili's mobile page, which a b23.tv link lands on when a phone asks.
+  if (networkMode === 'bilibili') {
+    const page = new Response(
+      '<html><head><meta property="og:title" content="正视_哔哩哔哩_bilibili"/>'
+      + '<meta property="og:image" content="https://i1.hdslb.com/bfs/archive/cover.jpg@1200w_630h"/></head></html>',
+      { status: 200, headers: { 'Content-Type': 'text/html' } },
+    );
+    Object.defineProperty(page, 'url', { value: 'https://m.bilibili.com/video/BV11kev6cEhk' });
+    return page;
+  }
   if (networkMode === 'upload') {
     const answer = String(url).endsWith('/files/upload-address')
       ? { stored: true, file_path: `${'a'.repeat(64)}.pdf` }
@@ -111,7 +121,7 @@ const {
 const {
   addToNook, awaitPaperReading, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
-const { addBoardYouTube, fillVideoCard } = await import('../../shared/api/boards.js');
+const { addBoardVideo, fillVideoCard } = await import('../../shared/api/boards.js');
 
 test('paper and comment reads start together', async () => {
   const paperSha256 = '11111111-1111-4111-8111-111111111111';
@@ -200,7 +210,7 @@ test('a desktop video card is made with the title and thumbnail the app fetched,
       ? new Response(JSON.stringify({ title: 'Never Gonna', thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' }))
       : new Response(new Uint8Array([0xff, 0xd8, 0xff])));
     calls.length = 0;
-    await addBoardYouTube(board, url, 10, 20);
+    await addBoardVideo(board, url, 10, 20);
     assert.ok(!calls.some(([command]) => command === 'network_fetch'));
     assert.equal(calls.find(([command]) => command === 'blob_import')[1].mimeType, 'image/jpeg');
     assert.deepEqual(cardChange().values, {
@@ -211,7 +221,7 @@ test('a desktop video card is made with the title and thumbnail the app fetched,
     // Offline, or YouTube unreachable: the card is the link, and the error says why.
     globalThis.fetch = async () => { throw new TypeError('Load failed'); };
     calls.length = 0;
-    await assert.rejects(addBoardYouTube(board, url, 10, 20), (error) => {
+    await assert.rejects(addBoardVideo(board, url, 10, 20), (error) => {
       assert.match(error.message, /could not be fetched: Load failed/);
       assert.ok(error.item);
       return true;
@@ -219,6 +229,33 @@ test('a desktop video card is made with the title and thumbnail the app fetched,
     assert.ok(!calls.some(([command]) => command === 'blob_import'));
     assert.deepEqual(cardChange().values, { board_uuid: board, kind: 'youtube', content: url, source_url: url, x: 10, y: 20 });
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a desktop Bilibili card asks the mobile page through the plugin, and takes its title and cover', async () => {
+  const board = '33333333-3333-4333-8333-333333333333';
+  const url = 'https://b23.tv/AbC123';
+  const originalFetch = globalThis.fetch;
+  const covers = [];
+  globalThis.fetch = async (asked, options) => {
+    covers.push([String(asked), options?.referrerPolicy]);
+    return new Response(new Uint8Array([0xff, 0xd8, 0xff]));
+  };
+  networkMode = 'bilibili';
+  try {
+    calls.length = 0;
+    await addBoardVideo(board, url, 5, 6);
+    const page = calls.find(([command]) => command === 'network_fetch')[1];
+    assert.equal(page.url, url, 'the short link is followed by the plugin');
+    assert.match(page.options.headers['User-Agent'], /iPhone/);
+    assert.deepEqual(covers, [['https://i1.hdslb.com/bfs/archive/cover.jpg', 'no-referrer']]);
+    assert.deepEqual(calls.findLast(([command]) => command === 'data_mutate')[1].changes[0].values, {
+      board_uuid: board, kind: 'bilibili', content: '正视', source_url: url, x: 5, y: 6,
+      sha256: 'a'.repeat(64), original_filename: 'bilibili-BV11kev6cEhk.jpg', mime_type: 'image/jpeg',
+    });
+  } finally {
+    networkMode = 'pdf';
     globalThis.fetch = originalFetch;
   }
 });
@@ -239,7 +276,7 @@ test('offline, a desktop video card is the link, and the board fills it once onl
     enterOfflineMode();
     calls.length = 0;
     // No attempt and no error: the card is the link, and says so on the board.
-    await addBoardYouTube(board, url, 0, 0);
+    await addBoardVideo(board, url, 0, 0);
     assert.equal(asked, 0);
     assert.deepEqual(lastValues(), { board_uuid: board, kind: 'youtube', content: url, source_url: url, x: 0, y: 0 });
     const card = { uuid: '44444444-4444-4444-8444-444444444444', kind: 'youtube', content: url, source_url: url };

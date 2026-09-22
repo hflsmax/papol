@@ -80,7 +80,7 @@ first user of a PDF waits.
 | Term | Meaning | Notes |
 | --- | --- | --- |
 | **Board** | A private ideation space inside one user's nook. | `boards`. Two addresses, as a paper has: its **jacket** (§2) in the Library, and the canvas it opens on, served full-screen at `/boards/<uuid>`. |
-| **Card** | One item on a board. Its kind is `comment`, `excerpt`, `image`, `file`, `youtube` or `webpage`. | `board_items`, `BoardItemOut`. |
+| **Card** | One item on a board. Its kind is `comment`, `excerpt`, `image`, `file`, `youtube`, `bilibili` or `webpage`. | `board_items`, `BoardItemOut`. |
 | **Board group** | A grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Not a stroke group (§3). |
 | **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | `board_items.excerpt_text`. Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
 | **Backlink** | The canonical viewer URL a card keeps, so it can send the user back to the place its excerpt came from. | `board_items.source_url`. Canonical rather than machine-local, so it survives leaving one computer. Only a card has one; the viewer's way out is the **home button** (§6). |

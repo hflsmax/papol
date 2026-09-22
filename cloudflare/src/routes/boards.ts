@@ -9,7 +9,8 @@ import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
 import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext, type Router } from "../http";
-import { WEBPAGE, publicWebUrl, youtubeId } from "../jobs/capture";
+import { WEBPAGE, publicWebUrl } from "../jobs/capture";
+import { videoLink } from "../videos";
 import { enqueue, wake } from "../jobs/queue";
 import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "../files";
 import { rowSnapshot } from "../sync/rows";
@@ -359,26 +360,26 @@ export function boardRoutes(router: Router) {
     return writeItem(env, board, item, true);
   });
 
-  // A video card. The app has fetched the video's title and thumbnail from
-  // YouTube itself (shared/youtube.js) and put the thumbnail in the bucket;
-  // the card names it, as a file card names its file. Without them — the
-  // app could not reach YouTube — the card is the link alone. The link is
-  // checked here, so a URL that is not a video is refused.
-  router.on("POST", "/api/boards/:uuid/youtube", async ({ request, env, params }) => {
+  // A video card: YouTube or Bilibili. The app has fetched the video's
+  // title and thumbnail itself (shared/videos.js) and put the thumbnail in
+  // the bucket; the card names it, as a file card names its file. Without
+  // them — the site could not be reached, or it is a Bilibili video on the
+  // web, which only the Mac can ask — the card is the link alone. The link
+  // is checked here, so a URL that is not a video is refused.
+  router.on("POST", "/api/boards/:uuid/video", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
     const data = await readJson<Row>(request);
     const check = validate.checking();
     const url = check.string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
     const title = check.string("title", data.title, { max: limits.text.board_content, optional: true })?.trim() || null;
-    const videoId = youtubeId(url);
-    if (!videoId) refuse(422, "Paste a valid YouTube video URL");
+    const link = videoLink(url) ?? refuse(422, "Paste a YouTube or Bilibili video link");
     const thumbnail = data.sha256 == null
       ? {}
-      : { ...await announcedFile(env, check, data.sha256), original_filename: `youtube-${videoId}.jpg`, mime_type: "image/jpeg" };
+      : { ...await announcedFile(env, check, data.sha256), original_filename: `${link.kind}-${link.id ?? "video"}.jpg`, mime_type: "image/jpeg" };
     check.done();
     const item = newItem(board, {
-      kind: "youtube", content: title ?? url.trim(), source_url: url.trim(), ...thumbnail,
+      kind: link.kind, content: title ?? url.trim(), source_url: url.trim(), ...thumbnail,
       x: coordinate("x", data.x)!, y: coordinate("y", data.y)!,
     });
     return writeItem(env, board, item, true);
@@ -414,7 +415,7 @@ export function boardRoutes(router: Router) {
   });
 
   // The title and thumbnail for a video card made as its link alone —
-  // YouTube could not be reached when it was made, here or on the desktop
+  // the site could not be reached when it was made, here or on the desktop
   // — fetched by the app when the board is next open (shared/api/boards.js).
   // The title takes the card's text only while that is still the link, so
   // a description written in the meantime stands. A card that has its
@@ -422,13 +423,13 @@ export function boardRoutes(router: Router) {
   router.on("POST", "/api/board-items/:uuid/thumbnail", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const { board, ...item } = await ownedItem(env, params.uuid, user);
-    if (item.kind !== "youtube") refuse(422, "Only a video card takes a thumbnail");
+    if (item.kind !== "youtube" && item.kind !== "bilibili") refuse(422, "Only a video card takes a thumbnail");
     if (item.file_path) return json(await itemOut(env, item));
     const data = await readJson<Row>(request);
     const check = validate.checking();
     const title = check.string("title", data.title, { max: limits.text.board_content, optional: true })?.trim() || null;
     const file = await announcedFile(env, check, data.sha256);
-    Object.assign(item, file, { original_filename: `youtube-${youtubeId(String(item.source_url ?? "")) ?? "video"}.jpg`, mime_type: "image/jpeg" });
+    Object.assign(item, file, { original_filename: `${item.kind}-${videoLink(String(item.source_url ?? ""))?.id ?? "video"}.jpg`, mime_type: "image/jpeg" });
     if (title && (!item.content || item.content === item.source_url)) item.content = title;
     return writeItem(env, board, item, false);
   });
