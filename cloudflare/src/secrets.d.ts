@@ -17,6 +17,12 @@ interface Secrets {
   // Unset, references are "unavailable" and uploads get the filename.
   GROBID_URL?: string;
   GROBID_AUTH?: string;
+  // An R2 API token for the files bucket, with which the Worker signs the
+  // URL a browser PUTs a PDF to directly (src/papers/uploads.ts). Unset,
+  // the upload address is refused and the browser sends the bytes
+  // through the Worker as before.
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
   // "manual" in the suite: wake-ups are handed to the consumer by the
   // test, not sent (src/jobs/queue.ts).
   QUEUE_DELIVERY?: string;

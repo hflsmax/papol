@@ -29,6 +29,16 @@
 #
 # Code goes up with `prod`. Data never goes from development to production;
 # `pull` explicitly replaces the local database with a copy of production's.
+#
+# Two things about the files bucket are set once, by hand, not by a deploy:
+# a browser PUTs a paper's PDF to the bucket directly with a URL the Worker
+# signs (cloudflare/src/papers/uploads.ts), so the bucket needs the CORS
+# rule in cloudflare/r2-cors.json,
+#   (cd cloudflare && npx wrangler r2 bucket cors set papol-files --file r2-cors.json)
+# (and `papol-files-dev` for dev), and the Worker needs an R2 API token as
+# the secrets R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY (`wrangler secret
+# put`, `--env dev` for dev). Without the secrets, uploads still go through
+# the Worker as before.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

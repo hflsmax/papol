@@ -55,9 +55,15 @@ binding = "BROWSER"
 crons = ["*/2 * * * *", "0 * * * *"]
 
 # Secrets are set with `wrangler secret put`, never written here:
-# EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts).
+# EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts),
+# R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for the upload addresses
+# (src/papers/uploads.ts). FILES_BUCKET names the bucket bound as FILES
+# once more, for the S3 URL a browser uploads to; the bucket's CORS rule
+# is r2-cors.json, applied with
+#   npx wrangler r2 bucket cors set papol-files --file r2-cors.json
 [vars]
 PAPOL_URL = "https://papol.io"
+FILES_BUCKET = "papol-files"
 
 [observability]
 enabled = true
@@ -85,6 +91,7 @@ routes = [{ pattern = "dev.papol.io", custom_domain = true }]
 
 [env.dev.vars]
 PAPOL_URL = "https://dev.papol.io"
+FILES_BUCKET = "papol-files-dev"
 
 [[env.dev.d1_databases]]
 binding = "DB"

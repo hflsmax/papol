@@ -53,15 +53,68 @@ export async function listPapers() {
 // page has a button that asks again.
 const UPLOAD_READING_TIMEOUT_MS = 2 * 60 * 1000;
 
-// Upload a PDF. The server stores it at once, under its digest, and
-// answers with the job that reads it: `{ job, file_path, sha256 }`.
-async function upload(file, filename, signal) {
+// The file's SHA-256, in hex: the name it is stored under.
+async function sha256Hex(file) {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// The identifier an upload sends: what the caller read off the PDF's
+// first pages, given as a value or a promise of one, or nothing.
+async function identifierFor(identifier) {
+  try {
+    const found = await identifier;
+    return found && (found.doi || found.arxiv_id) ? found : null;
+  } catch {
+    return null;
+  }
+}
+
+// Upload a PDF through the server: the bytes in a form, stored by the
+// Worker under their digest. The way every Papol uploaded before the
+// bucket took uploads directly, and still the way when the server has no
+// address to give (an older Worker, or one without the bucket's keys).
+async function uploadThroughServer(file, filename, signal) {
   const formData = new FormData();
   if (filename) formData.append('file', file, filename);
   else formData.append('file', file);
   return handleResponse(await runtimeFetch(`${API_BASE}/papers/extract`, {
     method: 'POST', headers: authHeaders(), body: formData, signal,
   }));
+}
+
+// Upload a PDF. Hashed here, so the server can say whether it holds the
+// bytes already and, if not, where the browser PUTs them: the bucket
+// itself, by a signed URL, with the headers the server lists and no
+// credential of Papol's. The server is then told the bytes are in, with
+// the identifier read off the file, and answers with the job that reads
+// it: `{ job, file_path, sha256 }`. A server that gives no address gets
+// the bytes itself.
+async function upload(file, filename, signal, identifier) {
+  const name = filename || file.name;
+  const sha256 = await sha256Hex(file);
+  let address;
+  try {
+    address = await request('/papers/upload-address', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha256, size: file.size, name }), signal,
+    });
+  } catch (failure) {
+    if (failure?.status === 404 || failure?.status === 503) return uploadThroughServer(file, filename, signal);
+    throw failure;
+  }
+  if (!address.stored) {
+    const put = await runtimeFetch(address.url, { method: 'PUT', headers: address.headers, body: file, signal });
+    if (!put.ok) {
+      const failure = new Error(`The PDF could not be stored (the bucket answered ${put.status})`);
+      failure.status = put.status;
+      throw failure;
+    }
+  }
+  return request('/papers/uploaded', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_path: address.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }), signal,
+  });
 }
 
 // Upload a PDF and wait for what the server reads out of it: the job's
@@ -84,17 +137,20 @@ export async function lookupPaperMetadata(file, filename = file?.name) {
   }
 }
 
-// Take a PDF in: stored at once — on the server under its digest, or in
+// Take a PDF in: stored at once — in the bucket under its digest, or in
 // the nook's own store — and answered with where it went, `{ file_path,
 // sha256, job }`. Nothing is read from it here; that is `awaitPaperReading`,
-// and the form is open in the meantime.
-export async function uploadPaper(file) {
+// and the form is open in the meantime. `identifier` is what the caller
+// read off the PDF's first pages (frontend/src/pdfIdentifier.js), a value
+// or a promise of one; it goes to the server with the upload, and the
+// reading starts from it.
+export async function uploadPaper(file, { identifier = null } = {}) {
   if (nativeDataActive()) {
     const blob = await nativeBlobImport(file);
     rememberPendingPaperBlob(blob);
     return { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
   }
-  const queued = await upload(file);
+  const queued = await upload(file, file.name, undefined, identifier);
   return { file_path: queued.file_path, sha256: queued.sha256, job: queued.job };
 }
 
@@ -105,11 +161,11 @@ export async function uploadPaper(file) {
 // PDF goes to the server for reading, as the viewer's import does, unless
 // offline. None of it is worth a dialog: the form is open, and the user
 // can type what was not read.
-export async function awaitPaperReading(uploaded, file, { signal } = {}) {
+export async function awaitPaperReading(uploaded, file, { signal, identifier = null } = {}) {
   if (!uploaded.job && inOfflineMode()) return null;
   try {
     return await withAbortTimeout(async (stop) => {
-      const job = uploaded.job ?? (await upload(file, file?.name, stop)).job;
+      const job = uploaded.job ?? (await upload(file, file?.name, stop, identifier)).job;
       return awaitJob(job, { signal: stop });
     }, UPLOAD_READING_TIMEOUT_MS, { signal });
   } catch {

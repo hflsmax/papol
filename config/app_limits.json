@@ -1,5 +1,6 @@
 {
   "files": {
+    "paper_mb": 200,
     "offline_blob_mb": 40,
     "board_file_mb": 25,
     "avatar_mb": 2,
