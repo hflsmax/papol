@@ -85,6 +85,8 @@ function uploadFixture(server) {
             return new Response(JSON.stringify({job:'j1', file_path:'b'.repeat(64) + '.pdf', sha256:'b'.repeat(64)}), {status:202});
           }
           if (String(url).includes('/jobs/j1')) {
+            // A reading that failed: every index the identifier was asked of was down.
+            if (window.readingFails) return new Response(JSON.stringify({status:'failed', detail:'Metadata lookup failed', result:null}));
             if (!window.readingDone) return new Response(JSON.stringify({status:'running'}));
             // With knownVersion set, the reading found a paper Papol holds
             // already, by the DOI, under another hash.
@@ -254,6 +256,20 @@ try {
     }
     assert.equal(kept.discarded, false);
     await browser.evaluate('window.knownVersion = false; return true;');
+    // A reading that failed leaves the form on the filename's title and
+    // says so, quietly: a paper that could not be read is not a fault to
+    // report. (Against a real Worker, a helper that is down is not this:
+    // the job still answers, with the filename — scripts/share-e2e/upload.mjs.)
+    await browser.evaluate('window.readingFails = true; return true;');
+    await choose();
+    await browser.waitFor('document.querySelector("#upload-paper-title")');
+    await browser.waitFor("document.body.innerText.includes('Papol could not read the PDF; fill in the details.')",
+      { what: 'the failed reading to be said' });
+    assert.equal(await value('upload-paper-title'), 'Attention');
+    assert.doesNotMatch(await browser.text(), /Extracting…/);
+    assert.equal(await browser.evaluate('return !!document.querySelector("[role=dialog]");'), false);
+    await browser.evaluate('document.querySelector(".form-actions button").click(); window.readingFails = false; return true;');
+    await browser.waitFor('document.querySelector("input[type=file]")');
     if (mode === 'native') {
       // Kept in the nook but not sent: the form opens all the same, says
       // the PDF was not sent rather than that it could not be read, and
@@ -269,8 +285,13 @@ try {
       await browser.waitFor('!document.querySelector("[role=dialog]")');
       await browser.evaluate('window.failSend = false; return true;');
     }
-    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, and a known version is offered and the choice saved${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
+    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, a known version is offered and the choice saved, and a reading that failed is said quietly${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
   }
+} catch (error) {
+  // The page as the failed assertion left it, for a run that cannot be
+  // watched (scripts/share-e2e/cdp.mjs, `capture`).
+  await browser.capture('upload-smoke');
+  throw error;
 } finally {
   await browser.stop();
   await server.close();

@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Browser } from './cdp.mjs';
+import { Browser, checker } from './cdp.mjs';
 
 const FIXTURE = process.env.PAPOL_E2E_FIXTURE || join(tmpdir(), 'papol-share-e2e.json');
 let fx;
@@ -22,27 +22,28 @@ try {
 }
 
 const NOTE = fx.note.slice(0, 30);
-let failures = 0;
-const check = (label, ok, detail = '') => {
-  console.log(`  [${ok ? 'ok  ' : 'FAIL'}] ${label}${ok || !detail ? '' : `  — ${detail}`}`);
-  if (!ok) failures += 1;
-};
 const api = (path, token, options = {}) => fetch(`${fx.base}/api${path}`, {
   ...options,
   headers: { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
 });
 
 const browser = new Browser({ headless: process.env.PAPOL_E2E_HEADED !== '1' });
+const checks = checker(browser);
+const { check } = checks;
 
 // `.viewer-bar` is the chrome and appears before the shared reading has been
 // fetched, so waiting on it snapshots a half-built page — and every negative
 // assertion below would then pass for the wrong reason. The paper's name
-// reaching the document title is what says the reading itself arrived.
+// reaching the document title is what says the reading itself arrived; the
+// annotations come in the same answer, and the first page painted
+// (`data-painted`, PdfPage.jsx) is what says they have been drawn on it —
+// which a fixed pause only hoped for.
 const viewerReady = async () => {
   await browser.waitFor(
     `document.title.includes(${JSON.stringify(fx.title.slice(0, 20))})`,
     { timeout: 30_000, what: 'the shared reading to load' });
-  await new Promise((r) => setTimeout(r, 1200));
+  await browser.waitFor('document.querySelector(".pdf-page[data-page=\\"1\\"][data-painted]")',
+    { timeout: 30_000, what: 'the first page to be painted' });
 };
 
 const snapshot = () => browser.evaluate(`
@@ -122,6 +123,13 @@ try {
       Array.isArray(annotations) && annotations.length === 0, `${annotations?.length} came across`);
     await browser.navigate(fx.rich_url);
     await viewerReady();
+    // The nook is looked up beside the reading, not with it: the offer
+    // turns into "Show in nook" when that answer comes, so wait for it —
+    // an "Add to nook" still standing after it would be the failure.
+    const shown = await browser.waitFor(
+      "[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Show in nook')",
+      { what: 'the nook lookup' }).catch(() => false);
+    check('the link sends them to their own copy', shown);
     s = await snapshot();
     check('the link stops offering what they now have', !s.buttons.includes('Add to nook'),
       JSON.stringify(s.buttons.slice(0, 12)));
@@ -150,7 +158,7 @@ try {
     return true;`);
   check('the Share menu opens', opened);
   if (opened) {
-    await new Promise((r) => setTimeout(r, 800));
+    await browser.waitFor('document.querySelector(".share-links-menu")', { what: 'the Share menu' });
     const menu = await browser.evaluate(`
       const field = document.querySelector('#menu-share-url');
       return {
@@ -166,11 +174,13 @@ try {
     htmlFromApi.slice(0, 3).join('  '));
 } catch (error) {
   console.log('\nHARNESS ERROR:', error.message);
-  failures += 1;
+  check('the run itself', false, error.message);
 } finally {
+  await checks.settle();
   await browser.stop();
 }
 
+const { failures } = checks;
 console.log(`\n${'='.repeat(56)}`);
 console.log(failures ? `${failures} FAILED` : 'All browser checks passed.');
 process.exit(failures ? 1 : 0);

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser",
+    "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser && npm run smoke:upload",
     "test:unit": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:upload": "node scripts/upload-smoke.mjs",

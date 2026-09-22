@@ -8,12 +8,38 @@
 // Node 22 has a global WebSocket, so this is the whole of it.
 
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CHROME = process.env.CHROME
-  || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// CHROME names the binary. Unset, a Mac's Chrome where there is one, and
+// else the `chromium` the nix shell puts on PATH — which is what CI has,
+// so a smoke run from an app's `npm test` there needs no variable.
+const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME || process.env.CHROMIUM
+  || (existsSync(MAC_CHROME) ? MAC_CHROME : 'chromium');
+
+// Where a failing run leaves what the page looked like (`capture`). CI
+// names a directory of its own and uploads it; locally it is the temp dir.
+export const ARTIFACTS = process.env.PAPOL_E2E_ARTIFACTS || join(tmpdir(), 'papol-e2e-artifacts');
+
+/// The suites' one way of saying how a check went: a line per check, and,
+/// for one that failed, the page as it stood kept beside the run. The
+/// screenshot is asked for at once, so it is queued on the socket ahead
+/// of whatever the suite does next; `settle` waits for the files.
+export function checker(browser) {
+  const kept = [];
+  const state = { failures: 0 };
+  state.check = (label, ok, detail = '') => {
+    console.log(`  [${ok ? 'ok  ' : 'FAIL'}] ${label}${ok || !detail ? '' : `  — ${detail}`}`);
+    if (ok) return;
+    state.failures += 1;
+    if (browser.socket) kept.push(browser.capture(`${String(state.failures).padStart(2, '0')}-${label}`));
+  };
+  state.settle = () => Promise.all(kept);
+  return state;
+}
 
 export class Browser {
   constructor({ headless = true } = {}) {
@@ -140,6 +166,75 @@ export class Browser {
 
   text() {
     return this.evaluate('return document.body.innerText;');
+  }
+
+  /// Put files on an <input type=file>, as a user choosing them would: the
+  /// input's change event fires, and the page reads real bytes from disk.
+  async setFiles(selector, files) {
+    const { root } = await this.send('DOM.getDocument');
+    const { nodeId } = await this.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+    if (!nodeId) throw new Error(`no ${selector} to put a file on`);
+    await this.send('DOM.setFileInputFiles', { nodeId, files });
+  }
+
+  /// Answer requests the page makes to the outside world from here, so a
+  /// check does not depend on a third party being up. `routes` pairs a
+  /// URL pattern (the Fetch domain's glob) with a function from the
+  /// request to `{ status, headers, body }`; anything it answers null for
+  /// goes on to the network as it was.
+  async intercept(routes) {
+    this.routes = routes;
+    this.listeners.push(async (message) => {
+      if (message.method !== 'Fetch.requestPaused') return;
+      const { requestId, request } = message.params;
+      const route = this.routes.find(({ match }) => match(request.url));
+      const answer = route ? await route.answer(request) : null;
+      if (!answer) {
+        await this.send('Fetch.continueRequest', { requestId }).catch(() => {});
+        return;
+      }
+      const body = Buffer.isBuffer(answer.body) ? answer.body : Buffer.from(String(answer.body ?? ''));
+      await this.send('Fetch.fulfillRequest', {
+        requestId,
+        responseCode: answer.status ?? 200,
+        responseHeaders: Object.entries(answer.headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+        body: body.toString('base64'),
+      }).catch(() => {});
+    });
+    await this.send('Fetch.enable', { patterns: routes.map(({ pattern }) => ({ urlPattern: pattern })) });
+  }
+
+  /// What the page looked like when a check failed: a screenshot, and the
+  /// document as it stood, so a red run in CI can be read without being
+  /// run again. Never throws — it runs on the way out of a failure, and a
+  /// second error there would hide the first.
+  async capture(name) {
+    const stem = join(ARTIFACTS, name.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'page');
+    // Both are asked for before anything here is awaited, so they sit on
+    // the socket ahead of whatever the suite does next, and show the page
+    // as the check saw it. The document needs only the page's script: a
+    // page that draws no frame still has one to give.
+    const html = this.evaluate('return "<!-- " + location.href + " -->\\n" + document.documentElement.outerHTML;');
+    const shot = this.send('Page.captureScreenshot', { format: 'png' })
+      .then(({ data }) => Buffer.from(data, 'base64'));
+    // Handled here, so one that fails after `keep` gave up on it is not an
+    // unhandled rejection that ends the run.
+    html.catch(() => {});
+    shot.catch(() => {});
+    const kept = [];
+    const keep = async (file, answer) => {
+      try {
+        await writeFile(file, await Promise.race([answer,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('no answer in 10 s')), 10_000))]));
+        kept.push(file);
+      } catch (error) {
+        console.log(`    (could not keep ${file}: ${error.message})`);
+      }
+    };
+    await mkdir(ARTIFACTS, { recursive: true }).catch(() => {});
+    await keep(`${stem}.html`, html);
+    await keep(`${stem}.png`, shot);
+    if (kept.length) console.log(`    page kept: ${kept.join(', ')}`);
   }
 
   /// Put a user in the way the application itself does, by storing the

@@ -68,6 +68,9 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Unit tests, all four surfaces
+        env:
+          # The upload smoke (frontend `npm test`) keeps the page here if it fails.
+          PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
         run: |
           nix develop --command bash -c 'cd viewer   && npm ci && npm test'
           nix develop --command bash -c 'cd board    && npm ci && npm test'
@@ -80,29 +83,59 @@ jobs:
           # bundle rebuilt to prove it is what the source says (`check`).
           nix develop --command bash -c 'cd host/helper && npm ci && npm run typecheck && npm run check && npm test'
 
+      # The helper beside GROBID, stood in for: canned answers in the real
+      # one's shapes, told per PDF by the upload suite what to say.
+      - name: Start the stand-in GROBID helper
+        run: |
+          nohup nix develop --command node scripts/share-e2e/fake-helper.mjs > helper.log 2>&1 &
+          for _ in $(seq 60); do
+            curl -fsS -o /dev/null -u papol:e2e http://127.0.0.1:8072/helper/health 2>/dev/null && exit 0
+            sleep 1
+          done
+          echo 'the stand-in helper never came up'; cat helper.log; exit 1
+
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.
+      # --test-scheduled opens /__scheduled, so the suite can fire the cron
+      # sweep when it chooses; GROBID_URL and GROBID_AUTH point the reading
+      # of an upload at the stand-in above.
       - name: Start the Worker on the assembled site
         run: |
           nix develop --command bash -c 'cloudflare/scripts/assemble.sh && cd cloudflare && npx wrangler d1 migrations apply papol --local'
-          cd cloudflare && nohup nix develop .. --command npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false > ../server.log 2>&1 &
+          cd cloudflare && nohup nix develop .. --command npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false \
+            --test-scheduled --var GROBID_URL:http://127.0.0.1:8072 --var GROBID_AUTH:papol:e2e > ../server.log 2>&1 &
           for _ in $(seq 90); do
             curl -fsS -o /dev/null http://127.0.0.1:8010/ 2>/dev/null && exit 0
             sleep 2
           done
           echo 'the Worker never came up'; cat server.log; exit 1
 
+      # Every suite runs even when one before it failed, so one red run
+      # shows every failure at once.
       - name: Browser suite over the real pages
         env:
           PAPOL_BASE: http://127.0.0.1:8010
+          PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
         run: |
           nix develop --command bash -c '
             set -e
             export PAPOL_E2E_FIXTURE="$PWD/e2e-fixture.json"
             export CHROME="$(command -v chromium)"
             node scripts/share-e2e/seed.mjs
-            node scripts/share-e2e/run.mjs'
+            failed=0
+            node scripts/share-e2e/run.mjs || failed=1
+            node scripts/share-e2e/upload.mjs || failed=1
+            node scripts/share-e2e/board.mjs || failed=1
+            exit $failed'
+
+      - name: Pages as the failing checks left them
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-pages
+          path: e2e-artifacts/
+          if-no-files-found: ignore
 
       - name: Worker log
         if: failure()
-        run: cat server.log || true
+        run: cat server.log helper.log || true
