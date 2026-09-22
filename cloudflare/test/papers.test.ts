@@ -291,5 +291,33 @@ describe("saving, opening and editing", () => {
     expect((await call("HEAD", `/uploads/${digest}.pdf`)).status).toBe(200);
     expect((await call("GET", "/uploads/nowhere.pdf")).status).toBe(404);
     expect((await rows("SELECT 1 FROM papers")).length).toBe(0);
+    // Where the file is fetched from is the Worker's own route, the bucket having no address of its own here.
+    const keeper = await register();
+    await paperWithCopy(keeper, digest, "Served");
+    expect((await ok("GET", `/api/viewer/${digest}`, { headers: keeper.headers })).file_url).toBe(`/uploads/${digest}.pdf`);
+  });
+
+  it("sends the client to the bucket's own address for a file when the bucket has one", async () => {
+    const digest = await stored("%PDF-1.4 elsewhere");
+    const hosted = { ...env, FILES_URL: "https://files.test/" as string } as Env;
+    const ask = (method: string, path: string, headers: Record<string, string> = {}) => worker.fetch(new Request(`https://papol.test${path}`, { method, headers }), hosted);
+    const sent = await ask("GET", `/uploads/${digest}.pdf`);
+    expect(sent.status).toBe(301);
+    expect(sent.headers.get("location")).toBe(`https://files.test/uploads/${digest}.pdf`);
+    expect(sent.headers.get("cache-control")).toBe("public, max-age=86400");
+    expect(await sent.text()).toBe("");
+    expect((await ask("HEAD", `/uploads/${digest}.pdf`)).status).toBe(301);
+    expect((await ask("GET", "/uploads/avatars/me.png")).headers.get("location")).toBe("https://files.test/uploads/avatars/me.png");
+    // The key is still held to its shape; whether the file exists is the bucket's to answer.
+    expect((await ask("GET", "/uploads/not%20a%20key.pdf")).status).toBe(404);
+    expect((await ask("GET", "/uploads/nowhere.pdf")).status).toBe(301);
+    // What names the file says where it is fetched from, so the viewer
+    // reads the bytes from the bucket and never through the Worker.
+    const keeper = await register();
+    await paperWithCopy(keeper, digest, "Hosted");
+    const opened = await (await ask("GET", `/api/viewer/${digest}`, keeper.headers)).json() as any;
+    expect(opened).toMatchObject({ file_path: `${digest}.pdf`, file_url: `https://files.test/uploads/${digest}.pdf` });
+    const page = await (await ask("GET", `/api/papers/${digest.slice(0, 32)}`, keeper.headers)).json() as any;
+    expect(page.file_url).toBe(`https://files.test/uploads/${digest}.pdf`);
   });
 });

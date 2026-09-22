@@ -111,7 +111,7 @@ describe("a reading's link", () => {
     expect(response.status).toBe(200);
     const reading = await response.json() as Json;
     expect(reading.user.display_name).toBe("Ada");
-    expect(reading.paper).toMatchObject({ title: "On sharing a reading", sha256: SHARED, file_path: `${SHARED}.pdf` });
+    expect(reading.paper).toMatchObject({ title: "On sharing a reading", sha256: SHARED, file_path: `${SHARED}.pdf`, file_url: `/uploads/${SHARED}.pdf` });
     // No uuid, and so no way to the paper's own page; no summary, which is private.
     expect(reading.paper).not.toHaveProperty("uuid");
     expect(reading.paper).not.toHaveProperty("summary");

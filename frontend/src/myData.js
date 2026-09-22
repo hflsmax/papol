@@ -36,10 +36,12 @@ export async function downloadMyData(onProgress = () => {}) {
   const stem = named ? named[1].replace(/\.tar$/, '') : `papol-export-${new Date().toISOString().slice(0, 10)}`;
   const tar = new Uint8Array(await response.arrayBuffer());
 
-  // A PDF needs no session, its name being a digest nobody guesses; a
-  // board file is private, and its route asks who is asking.
+  // A PDF needs no session, its name being a digest nobody guesses, and
+  // is fetched from wherever the manifest says — the bucket's own address,
+  // as a rule; a board file is private, and its route asks who is asking.
   const fetchFile = async ({ url }) => {
-    const answer = await runtimeFetch(backendPath(url), { headers: url.startsWith('/api/') ? authHeaders() : {} });
+    const where = /^https?:/.test(url) ? url : backendPath(url);
+    const answer = await runtimeFetch(where, { headers: url.startsWith('/api/') ? authHeaders() : {} });
     if (!answer.ok) throw new Error(`Error ${answer.status}`);
     return new Uint8Array(await answer.arrayBuffer());
   };

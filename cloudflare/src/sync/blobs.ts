@@ -12,6 +12,16 @@ import { refuse, type RouteContext } from "../http";
 
 export const UPLOADS = "uploads/";
 export const BOARD_FILES = "board_uploads/";
+
+// Where a file in the uploads area — a paper's PDF, a picture — is
+// fetched from. With FILES_URL set, the bucket's own address: the edge
+// caches it and no Worker is in the path. Without, the Worker's route,
+// which serves the object itself. Board files are never addressed this
+// way: a bucket domain exposes every key, and theirs are private.
+export function uploadUrl(env: Env, path: string): string {
+  const base = (env.FILES_URL || "").replace(/\/+$/, "");
+  return `${base}/${UPLOADS}${path}`;
+}
 const BLOBS = `${BOARD_FILES}blobs/`;
 const BLOB_LIMIT = limits.files.offline_blob_mb * 1024 * 1024;
 const DIGEST = /^[0-9a-f]{64}$/;
