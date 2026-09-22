@@ -189,8 +189,10 @@ test('Add to nook imports only the paper graph, with no file-viewer annotations'
   const mutations = calls.filter(([command]) => command === 'data_mutate').map(([, args]) => args.changes);
   assert.deepEqual(mutations[0].map((change) => change.table), ['papers', 'copies']);
   assert.equal(mutations[0][0].uuid, paperSha256);
-  // The paper's name is the file, so it is not repeated as a value.
-  assert.equal(mutations[0][0].values.sha256, undefined);
+  // The paper's name is the file, and it is said among the values too, as
+  // the upload form says it: that is what has sync put the PDF in the
+  // bucket, here where this offline add never sent it.
+  assert.equal(mutations[0][0].values.sha256, paperSha256);
   assert.equal(mutations[0][1].values.shelf_uuid, SHELF);
   assert.equal(mutations.length, 1);
 });
@@ -248,7 +250,7 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
     doi: '10.1234/parsed', title: 'Parsed title',
     authors: '[{"name":"Ada Lovelace"}]', journal: 'Parsing Letters', year: 2026,
     // A paper is its PDF: the row is named by it, and carries the path.
-    file_path: `${HASH}.pdf`,
+    file_path: `${HASH}.pdf`, sha256: HASH,
   });
   assert.deepEqual(told, [{ file_path: `${HASH}.pdf`, uploaded_name: 'Local paper.pdf', identifier: { doi: '10.1234/parsed' } }]);
 });

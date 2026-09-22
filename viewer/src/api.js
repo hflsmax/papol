@@ -146,7 +146,10 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
     const shelves = await nativeRepository.shelves();
     const shelf = shelves.find((row) => row.is_default) || shelves[0];
     // No name is invented for it. The paper is the file, and the service
-    // reads the same name off the same bytes.
+    // reads the same name off the same bytes. `sha256` among the values,
+    // as the upload form writes it, is what tells sync the row names a
+    // file: it puts the bytes in the bucket before the row, which matters
+    // when the send above did not happen. Sent already, it is told so.
     await nativeRepository.transact([
       {
         table: 'papers', uuid: sha256, operation: 'upsert',
@@ -156,7 +159,7 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
           authors: metadata?.authors ?? null,
           journal: metadata?.journal ?? null,
           year: metadata?.year ?? null,
-          file_path: `${sha256}.pdf`,
+          file_path: `${sha256}.pdf`, sha256,
         },
       },
       {
