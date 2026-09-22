@@ -50,6 +50,10 @@ export default defineConfig(async () => {
     ],
     test: {
       setupFiles: ["./test/setup.ts"],
+      // A stand-in for fetch, or an environment variable, set by one test
+      // is gone before the next begins, whichever file set it.
+      unstubGlobals: true,
+      unstubEnvs: true,
     },
   };
 });
