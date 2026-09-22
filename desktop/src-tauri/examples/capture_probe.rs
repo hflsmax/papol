@@ -3,7 +3,14 @@
 //!
 //!     cargo run --example capture_probe -- https://example.com/ /tmp/page.jpg
 
+use std::sync::atomic::{AtomicI32, Ordering};
+
 use papol_desktop_lib::capture;
+
+/// What the capture answered, as the process's status. The status Tauri's
+/// event loop ends with is 0 whatever code `exit` was given, so a refusal
+/// read as a picture to a script checking it; this keeps the code itself.
+static STATUS: AtomicI32 = AtomicI32::new(1);
 
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
@@ -44,7 +51,9 @@ fn main() {
                 1
             }
         };
+        STATUS.store(code, Ordering::SeqCst);
         handle.exit(code);
     });
-    app.run(|_, _| {});
+    app.run_return(|_, _| {});
+    std::process::exit(STATUS.load(Ordering::SeqCst));
 }

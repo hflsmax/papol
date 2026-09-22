@@ -15,6 +15,7 @@
     "test:sync": "npm run test:sync --prefix ../frontend",
     "test:e2e:native-sync": "python3 scripts/test-native-sync-e2e.py",
     "test:e2e:native-ui": "python3 scripts/test-native-ui-e2e.py",
+    "test:e2e:capture": "python3 scripts/test-capture-e2e.py",
     "check:native": "cargo fmt --check --manifest-path src-tauri/Cargo.toml && cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
     "build": "node scripts/write-info-plist.mjs && APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build",
     "build:dev": "node scripts/write-info-plist.mjs src-tauri/tauri.dev.conf.json && APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build --config src-tauri/tauri.dev.conf.json"

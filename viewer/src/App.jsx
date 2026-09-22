@@ -72,6 +72,7 @@ import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
+import { showInNookTarget } from './nookOffer.js';
 
 // A full page carries the canvas, text layer, annotations, clips, and animal
 // renderer. None of that is needed to draw the real toolbar. Keep it out of
@@ -3263,17 +3264,15 @@ export default function App() {
     }
   };
   const addToNookOnceSignedIn = useEvent(addToNook);
-  // Whether there is a copy of this paper to be shown at all. An opened
-  // file that matched a nook paper says so on the paper itself; a shared
-  // paper says so through the nook lookup its source made.
-  const showInNookHref = source?.openedFile
-    ? (paper?.sha256 || null)
-    : (nookCopy && source?.nookHref?.(nookCopy)) || null;
+  // Whether there is a copy of this paper to be shown at all: what the
+  // nook lookup its source made found, for an opened file and a shared
+  // paper alike (nookOffer.js says why not the paper's own digest).
+  const showInNookHref = showInNookTarget(source, nookCopy);
   const showInNook = () => {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
     if (source?.openedFile) {
-      focusDesktopDeskWindow(paper.sha256);
+      focusDesktopDeskWindow(showInNookHref);
       return;
     }
     window.location.assign(showInNookHref);

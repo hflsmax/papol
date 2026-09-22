@@ -7,6 +7,7 @@
 //   xcrun swift papol-ui.swift dump <pid>
 //   xcrun swift papol-ui.swift roles <pid>
 //   xcrun swift papol-ui.swift press <pid> "Not now"
+//   xcrun swift papol-ui.swift press <pid> "Sync now*" AXButton
 //   xcrun swift papol-ui.swift shot <pid> /tmp/papol.png
 //
 // This is an instrument for looking at a running application by hand, not a
@@ -18,9 +19,13 @@
 //
 // One check does drive it, and stays narrow for that reason:
 // test-native-ui-e2e.py asks the window whether the app came up, took a
-// sign-in, and listed one paper, and reads everything else from the
-// replica. That is the part no value further down can answer — that there
-// is a window at all — and it is the whole of what a window is asked here.
+// sign-in, and listed one paper; then presses a handful of buttons — a
+// shelf added while the service is down, the Sync button, "Add to nook" on
+// a PDF opened with the app — each one press by name, with no typing, and
+// reads every outcome from the replica and the service rather than from
+// the window. That is the part no value further down can answer — that
+// there is a window, and that pressing what a user presses reaches the
+// data — and it is the whole of what a window is asked here.
 //
 // Apple ships no WebDriver for WKWebView, so the usual desktop drivers do not
 // work here. The accessibility API does: WebKit publishes the page as real
@@ -165,19 +170,25 @@ func developmentPid() -> Int32 {
     }
 }
 
+/// Every window, not only the first: a PDF opened from Finder comes up in
+/// a viewer window of its own beside the Desk, and which of the two the
+/// system lists first is its business. A window's title heads its listing.
 func dump(_ pid: pid_t) -> Int32 {
-    guard let window = windows(of: pid).first else {
+    let all = windows(of: pid)
+    guard !all.isEmpty else {
         print("pid \(pid) has no window")
         return 1
     }
     var found = 0
-    walk(window) { element, depth in
-        if let text = name(of: element) {
-            found += 1
-            let indent = String(repeating: "  ", count: min(depth, 12))
-            print("\(indent)\(role(of: element)): \(text.prefix(70))")
+    for window in all {
+        walk(window) { element, depth in
+            if let text = name(of: element) {
+                found += 1
+                let indent = String(repeating: "  ", count: min(depth, 12))
+                print("\(indent)\(role(of: element)): \(text.prefix(70))")
+            }
+            return true
         }
-        return true
     }
     if found == 0 {
         print("nothing named — the window may still be loading")
@@ -217,29 +228,41 @@ func roles(_ pid: pid_t) -> Int32 {
 /// link, and pressing it reloads the form the caller meant to submit —
 /// which looks like a submit that silently did nothing. Pass a role when
 /// the name alone is ambiguous; `dump` shows which roles are in play.
+///
+/// Every window is searched, in the order the system lists them, and a name
+/// ending in `*` is a prefix: a control whose label carries its state, as
+/// "Sync now — 1 pending" does, is asked for as `Sync now*`.
 func find(_ pid: pid_t, named wanted: String, role wantedRole: String? = nil) -> AXUIElement? {
-    guard let window = windows(of: pid).first else { return nil }
     var match: AXUIElement?
-    walk(window) { element, _ in
-        if match != nil { return false }
-        let kind = role(of: element)
-        guard name(of: element) == wanted, kind != "AXStaticText" else { return true }
-        if let wantedRole, kind != wantedRole { return true }
-        match = element
-        return false
+    for window in windows(of: pid) where match == nil {
+        walk(window) { element, _ in
+            if match != nil { return false }
+            let kind = role(of: element)
+            guard matches(name(of: element), wanted), kind != "AXStaticText" else { return true }
+            if let wantedRole, kind != wantedRole { return true }
+            match = element
+            return false
+        }
     }
     return match
+}
+
+func matches(_ published: String?, _ wanted: String) -> Bool {
+    guard let published else { return false }
+    if wanted.hasSuffix("*") { return published.hasPrefix(String(wanted.dropLast())) }
+    return published == wanted
 }
 
 /// Every role a name is published under, so an ambiguous one can say so
 /// rather than quietly picking the first.
 func rolesNamed(_ pid: pid_t, _ wanted: String) -> [String] {
-    guard let window = windows(of: pid).first else { return [] }
     var found: [String] = []
-    walk(window) { element, _ in
-        let kind = role(of: element)
-        if name(of: element) == wanted, kind != "AXStaticText" { found.append(kind) }
-        return true
+    for window in windows(of: pid) {
+        walk(window) { element, _ in
+            let kind = role(of: element)
+            if matches(name(of: element), wanted), kind != "AXStaticText" { found.append(kind) }
+            return true
+        }
     }
     return found
 }
@@ -331,7 +354,9 @@ func typeText(_ pid: pid_t, into wanted: String, text: String) -> Int32 {
     // means through being the active application.
     AXUIElementSetAttributeValue(
         AXUIElementCreateApplication(pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-    if let window = windows(of: pid).first {
+    // The field's own window, which is not always the first one listed.
+    let fieldWindow: AXUIElement? = attribute(field, kAXWindowAttribute as String)
+    if let window = fieldWindow ?? windows(of: pid).first {
         AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         // Raising a window makes it the main one, which is not the same as
         // giving it the keyboard. A window that is main but not focused
@@ -510,11 +535,12 @@ default:
 
       windows              every running Papol, which build it is, and its windows
       dev                  the development build's pid, and only that
-      dump <pid>           every named element in its first window
+      dump <pid>           every named element in each of its windows
       roles <pid>          how many elements of each role the page published
       press <pid> <name> [role]
-                           press the element with that name; a name published
-                           under several roles needs one of them naming
+                           press the element with that name, in any window; a
+                           name published under several roles needs one of
+                           them naming, and a trailing * matches a prefix
       type <pid> <name> <text>
                            focus that field and type into it, as a keyboard does
       shot <pid> <file>    raise the window and capture it
