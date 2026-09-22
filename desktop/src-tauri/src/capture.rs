@@ -37,7 +37,8 @@ static NEXT_CAPTURE: AtomicUsize = AtomicUsize::new(0);
 
 /// The link, if it is one a board card may capture.
 pub fn checked_url(value: &str) -> Result<Url, String> {
-    let url = Url::parse(value.trim()).map_err(|_| "Paste a valid http or https URL".to_string())?;
+    let url =
+        Url::parse(value.trim()).map_err(|_| "Paste a valid http or https URL".to_string())?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err("Paste a valid http or https URL".into());
     }
@@ -59,7 +60,10 @@ fn private_host(host: &str) -> bool {
     if bare.starts_with("fc") || bare.starts_with("fd") {
         return bare.contains(':');
     }
-    let octets: Vec<u8> = bare.split('.').filter_map(|part| part.parse().ok()).collect();
+    let octets: Vec<u8> = bare
+        .split('.')
+        .filter_map(|part| part.parse().ok())
+        .collect();
     if octets.len() != 4 || bare.split('.').count() != 4 {
         return false;
     }
@@ -72,7 +76,11 @@ fn private_host(host: &str) -> bool {
 /// Capture the page at `url` and keep the picture in the nook's store.
 /// Answers the stored file, which the caller names on the card. The
 /// `capture_webpage` command (lib.rs).
-pub async fn capture_into(app: &AppHandle, store: &data::LocalStore, url: &str) -> Result<data::BlobRecord, String> {
+pub async fn capture_into(
+    app: &AppHandle,
+    store: &data::LocalStore,
+    url: &str,
+) -> Result<data::BlobRecord, String> {
     let url = checked_url(url)?;
     let jpeg = snapshot(app, url).await?;
     store.import_blob(&jpeg, Some("image/jpeg".into()))
@@ -136,7 +144,8 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
 async fn unseen(window: &WebviewWindow) -> Result<(), String> {
     use objc2_app_kit::NSWindow;
 
-    let failed = |error: tauri::Error| format!("The page could not be opened for its picture: {error}");
+    let failed =
+        |error: tauri::Error| format!("The page could not be opened for its picture: {error}");
     // A raw pointer is not Send; its address is, and the window outlives this.
     let ns_window = window.ns_window().map_err(failed)? as usize;
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
@@ -153,7 +162,8 @@ async fn unseen(window: &WebviewWindow) -> Result<(), String> {
             let _ = tx.send(());
         })
         .map_err(failed)?;
-    rx.await.map_err(|_| "The page could not be opened for its picture".to_string())?;
+    rx.await
+        .map_err(|_| "The page could not be opened for its picture".to_string())?;
 
     // An invisible window still counts as covered, and WebKit then tells
     // the page it is hidden: one animation frame and throttled timers
@@ -181,7 +191,8 @@ async fn unseen(window: &WebviewWindow) -> Result<(), String> {
             let _ = tx.send(());
         })
         .map_err(failed)?;
-    rx.await.map_err(|_| "The page could not be opened for its picture".to_string())
+    rx.await
+        .map_err(|_| "The page could not be opened for its picture".to_string())
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -245,13 +256,17 @@ fn jpeg_of(image: &objc2_app_kit::NSImage) -> Result<Vec<u8>, String> {
     use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImageCompressionFactor};
     use objc2_foundation::{NSDictionary, NSNumber};
 
-    let tiff = image.TIFFRepresentation().ok_or("The page's picture was empty")?;
-    let bitmap = NSBitmapImageRep::imageRepWithData(&tiff).ok_or("The page's picture could not be read")?;
+    let tiff = image
+        .TIFFRepresentation()
+        .ok_or("The page's picture was empty")?;
+    let bitmap =
+        NSBitmapImageRep::imageRepWithData(&tiff).ok_or("The page's picture could not be read")?;
     let quality = NSNumber::new_f64(JPEG_QUALITY);
     // SAFETY: NSImageCompressionFactor is AppKit's constant key, and its
     // value is an NSNumber between 0 and 1, as the property requires.
     let jpeg = unsafe {
-        let properties = NSDictionary::from_slices(&[NSImageCompressionFactor], &[&*quality as &AnyObject]);
+        let properties =
+            NSDictionary::from_slices(&[NSImageCompressionFactor], &[&*quality as &AnyObject]);
         bitmap.representationUsingType_properties(NSBitmapImageFileType::JPEG, &properties)
     }
     .ok_or("The page's picture could not be encoded")?;

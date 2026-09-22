@@ -32,7 +32,11 @@ fn main() {
         let code = match capture::snapshot(&handle, url).await {
             Ok(picture) => {
                 std::fs::write(&output, &picture).expect("write the picture");
-                println!("{} bytes in {:?} -> {output}", picture.len(), started.elapsed());
+                println!(
+                    "{} bytes in {:?} -> {output}",
+                    picture.len(),
+                    started.elapsed()
+                );
                 0
             }
             Err(error) => {
