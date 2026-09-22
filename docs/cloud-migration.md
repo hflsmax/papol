@@ -978,13 +978,14 @@ What the buckets hold now, which is what to remember:
   `Content-Length`/`Content-Range`/`Accept-Ranges`/`ETag`/`Content-Type`
   exposed — and the direct-upload PUT rule from the upload PR
   (`content-type`, `x-amz-checksum-sha256`; `etag` exposed), each with
-  the same nine origins rather than `*`: `https://papol.io`,
+  the same five origins rather than `*`: `https://papol.io`,
   `https://www.papol.io`, `https://dev.papol.io`, `tauri://localhost`,
-  `http://tauri.localhost`, `http://localhost:5173`,
-  `http://127.0.0.1:5173`, `http://localhost:8787`,
-  `http://127.0.0.1:8787` (the desktop fetches through Tauri's HTTP
-  plugin, its webview origins are listed anyway; 8787 is `wrangler
-  dev`). The upload PR's `r2-cors.json` is superseded by this file.
+  `http://tauri.localhost` (the desktop fetches through Tauri's HTTP
+  plugin, its webview origins are listed anyway). No localhost origin:
+  a local `wrangler dev` reads and takes files itself (`.dev.vars`
+  empties `FILES_URL` and `FILES_BUCKET`), so a page on localhost never
+  talks to a bucket, and a local Worker cannot sign a PUT to one. The
+  upload PR's `r2-cors.json` is superseded by this file.
 - The suite pins `FILES_URL` empty in `vitest.config.ts`, whatever
   production's is, so it keeps testing the Worker serving a file itself
   and hands a bucket address in where a test is about that.
@@ -1007,9 +1008,8 @@ item, and `/api/board-items/:uuid/file` reduced to a 301.
 
 Still to do: the desktop app rebuilt and released against
 `https://papol.io`; the stray `grobid.papol.io.mc-pony.com` record
-deleted; the host's configuration.nix trimmed of the retired keys; the
-CORS rule applied to `papol-files` and the two R2 secrets set on
-production before the next production deploy.
+deleted; the host's configuration.nix trimmed of the retired keys; one
+R2 token per bucket (dev's unable to write production's).
 
 ### Step 14 — landed 2026-09-22: a known version at upload
 
@@ -1198,6 +1198,59 @@ What `papol-files` holds after: `uploads/` 50 PDFs and one picture,
 legacy `2/`, 20 MB) that no card names — orphans of cards long gone,
 left for the owner to delete by hand. A possible follow-up, not built:
 `gc-papers.py`'s counterpart for those.
+
+### Step 16 — landed 2026-09-22: each DOI asked of the registry that holds it
+
+The upload's reading asked CrossRef about every DOI and OpenAlex behind
+it, and an arXiv paper, whose DOI (`10.48550/arXiv.<id>`) is registered
+with DataCite, fell through both to GROBID on the host: eleven seconds,
+and the title block's reading of the authors (`Google Brain` among them).
+Measured before changing anything: Papol's 30 DOIs from production and
+ten well-known arXiv papers, each asked of the three sources three times,
+the way the Worker asks (360 requests, no contact address or key),
+scored against the titles people saved.
+
+| | CrossRef | OpenAlex | DataCite |
+|---|---|---|---|
+| publisher DOIs found (27) | 27 | 27 | 0 |
+| arXiv DOIs found (12) | 0 | 8 | 12 |
+| … with the right title | – | 6 | 12 |
+| LIPIcs (DataCite) found (1) | 0 | 0 | 1 |
+| errors, timeouts, answers changing between rounds | 0 | 0 | 0 |
+| median / p90 ms | 41 / 61 | 105 / 165 | 160 / 204 |
+
+Each registry holds all of its own DOIs and none of the other's, and none
+of the three failed once. OpenAlex added nothing CrossRef had not already
+answered, missed 4 arXiv DOIs (Attention, BERT, GPT-4 among them) and gave
+2 more the wrong title over the right authors — Chain-of-Thought came
+back as "BNAI, NO-TOKEN, and MIND-UNITY: Pillars of a Systemic Revolution
+in Artificial Intelligence". So `byDoi` (`bibliography.ts`) now asks:
+
+- an arXiv DOI of DataCite alone; unknown there or DataCite down, the job
+  reads the title block on the host, never OpenAlex;
+- any other DOI of CrossRef; on its 404 (never heard of it), DataCite,
+  which registers the rest (LIPIcs, Zenodo); OpenAlex only when CrossRef
+  itself could not answer (network, timeout, 5xx, 429), and DataCite
+  after it, since the DOI may be DataCite's. Unavailable, and the job's
+  "Metadata lookup failed", only when all three could not answer.
+
+The experiment's two scripts — one asking every DOI of every source, one
+tabulating — stay out of the repository: the table above is what they
+were for, and rerunning them means another read of production's papers.
+
+With it, three smaller things from the upload's follow-ups:
+
+- The bucket CORS rules (`r2-cors-public.json`) lose their localhost
+  origins; see step 13's paragraph. `.dev.vars` empties `FILES_BUCKET`, so
+  a local Worker gives its own door as the address even with R2 keys at
+  hand, and can never sign a PUT to production's bucket; the suite names
+  the bucket in `vitest.config.ts`.
+- `scripts/smoke.sh` checks the one guarantee the direct upload rests on,
+  which is R2's and not ours: with fresh bytes each run, so the address is
+  a real signed PUT, the same length with one byte changed is refused
+  (400 `BadDigest`; 422 from a local Worker's door) and the right bytes
+  taken. Python's own user agent is refused at the edge (error 1010), so
+  the check sends one of its own.
 
 Configuration and one move of the data, once phase 4 passes the suite:
 
