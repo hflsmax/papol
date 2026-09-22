@@ -7,6 +7,7 @@ import { runtimeFetch } from '../connectivity.js';
 import { handleResponse, jsonRequest, request } from '../httpClient.js';
 import { storeFile } from './files.js';
 import { JobFailed, awaitJob } from './jobs.js';
+import { youtubeId, youtubePreview } from '../youtube.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
 
@@ -197,16 +198,54 @@ export function updateBoardItem(uuid, data) {
   return jsonRequest(`/board-items/${uuid}`, 'PUT', data);
 }
 
-export function addBoardYouTube(uuid, url, x, y) {
-  if (nativeDataActive()) {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Video links must use http or https');
-    return nativeRepository.transact([{
-      table: 'board_items', uuid: newUuid(), operation: 'upsert',
-      values: { board_uuid: uuid, kind: 'youtube', content: url, source_url: url, x, y },
-    }]).then((receipt) => receipt.rows[0]);
+// A video card, with the title and thumbnail the app fetches from YouTube
+// itself (shared/youtube.js) — on the web and on the desktop alike, and
+// with nothing left for the server to do. The thumbnail is the card's
+// file: in the nook's store on the desktop, which sync puts in the bucket
+// before the card, or in the bucket at once on the web. When YouTube
+// cannot be reached the card is made as the link alone, and the promise
+// rejects with it on the error, as a page card whose capture failed does.
+export async function addBoardYouTube(uuid, url, x, y) {
+  const videoId = youtubeId(url);
+  if (!videoId) throw new Error('Paste a valid YouTube video URL');
+  let preview = null, failure = null;
+  try {
+    preview = await youtubePreview(videoId);
+  } catch (error) {
+    failure = error;
   }
-  return captured(jsonRequest(`/boards/${uuid}/youtube`, 'POST', { url, x, y }));
+  const item = await makeVideoCard(uuid, url, videoId, x, y, preview);
+  if (failure) {
+    const error = new Error(`The video's title and thumbnail could not be fetched: ${failure.message || failure}`);
+    error.item = item;
+    throw error;
+  }
+  return item;
+}
+
+async function makeVideoCard(uuid, url, videoId, x, y, preview) {
+  const name = `youtube-${videoId}.jpg`;
+  if (nativeDataActive()) {
+    const blob = preview ? await nativeBlobImport(preview.image) : null;
+    try {
+      const receipt = await nativeRepository.transact([{
+        table: 'board_items', uuid: newUuid(), operation: 'upsert',
+        values: {
+          board_uuid: uuid, kind: 'youtube', content: preview?.title || url, source_url: url, x, y,
+          ...(blob ? { sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg' } : {}),
+        },
+      }]);
+      return receipt.rows[0];
+    } catch (error) {
+      if (blob) await discardNativeBlob(blob.sha256).catch(() => {});
+      throw error;
+    }
+  }
+  // The thumbnail into the bucket (shared/api/files.js), then the card that names it.
+  const stored = preview ? await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' }) : null;
+  return jsonRequest(`/boards/${uuid}/youtube`, 'POST', {
+    url, x, y, ...(stored ? { sha256: stored.sha256, title: preview.title } : {}),
+  });
 }
 
 // A link card is on the board as soon as the server answers; its picture

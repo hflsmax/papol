@@ -111,6 +111,7 @@ const {
 const {
   addToNook, awaitPaperReading, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
+const { addBoardYouTube } = await import('../../shared/api/boards.js');
 
 test('paper and comment reads start together', async () => {
   const paperSha256 = '11111111-1111-4111-8111-111111111111';
@@ -186,6 +187,40 @@ test('a desktop PDF whose send fails is kept, and says why rather than that it c
   assert.equal(uploaded.job, null);
   assert.match(uploaded.sendFailure.message, /not allowed on the configured scope/);
   assert.equal(await awaitPaperReading(uploaded), null);
+});
+
+test('a desktop video card is made with the title and thumbnail the app fetched, or as the link alone', async () => {
+  const board = '33333333-3333-4333-8333-333333333333';
+  const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  const originalFetch = globalThis.fetch;
+  const cardChange = () => calls.findLast(([command]) => command === 'data_mutate')[1].changes[0];
+  try {
+    // YouTube answers the page itself; the desktop's HTTP plugin is not asked.
+    globalThis.fetch = async (asked) => (String(asked).includes('/oembed')
+      ? new Response(JSON.stringify({ title: 'Never Gonna', thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' }))
+      : new Response(new Uint8Array([0xff, 0xd8, 0xff])));
+    calls.length = 0;
+    await addBoardYouTube(board, url, 10, 20);
+    assert.ok(!calls.some(([command]) => command === 'network_fetch'));
+    assert.equal(calls.find(([command]) => command === 'blob_import')[1].mimeType, 'image/jpeg');
+    assert.deepEqual(cardChange().values, {
+      board_uuid: board, kind: 'youtube', content: 'Never Gonna', source_url: url, x: 10, y: 20,
+      sha256: 'a'.repeat(64), original_filename: 'youtube-dQw4w9WgXcQ.jpg', mime_type: 'image/jpeg',
+    });
+
+    // Offline, or YouTube unreachable: the card is the link, and the error says why.
+    globalThis.fetch = async () => { throw new TypeError('Load failed'); };
+    calls.length = 0;
+    await assert.rejects(addBoardYouTube(board, url, 10, 20), (error) => {
+      assert.match(error.message, /could not be fetched: Load failed/);
+      assert.ok(error.item);
+      return true;
+    });
+    assert.ok(!calls.some(([command]) => command === 'blob_import'));
+    assert.deepEqual(cardChange().values, { board_uuid: board, kind: 'youtube', content: url, source_url: url, x: 10, y: 20 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('a PDF added offline is named by its file, and its first thought is a note', async () => {

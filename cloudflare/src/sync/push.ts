@@ -572,10 +572,10 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
     }
   }
 
-  // A video or web page card made on a replica arrives as a bare link: the
-  // replica cannot take its picture. Its capture is queued here, as the
-  // board's own route queues it, and the picture and title come back to
-  // the replica as a later change to the card.
+  // A web page card made on a replica arrives as a bare link: the replica
+  // cannot render the page. Its capture is queued here, as the board's own
+  // route queues it, and the picture comes back to the replica as a later
+  // change to the card. (A video card brings its own thumbnail.)
   const captures = changed
     .filter((entry) => entry.table === "board_items" && entry.isNew)
     .map((entry) => captureFor(env.DB, entry.row, user.uuid))

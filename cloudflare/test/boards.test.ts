@@ -251,19 +251,24 @@ describe("link cards", () => {
     expect(await count("board_items")).toBe(0);
   });
 
-  it("gives a video card its thumbnail and title, whatever timestamp the link carries", async () => {
+  it("makes a video card with the title and thumbnail the app fetched, whatever timestamp the link carries, and queues nothing", async () => {
     const account = await register();
     const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
-    const queued = await (await call("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s", x: 0, y: 0 } })).json<any>();
-    expect(queued.item).toMatchObject({ kind: "youtube", content: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s" });
-    capturers.youtubeThumbnail = async (_url, videoId) => ({ image: new TextEncoder().encode(`jpg ${videoId}`), title: "Never Gonna" });
-    await woken(queued.job);
-    const card = await row("SELECT content, mime_type, original_filename, file_path FROM board_items WHERE uuid = ?", queued.item.uuid);
-    expect(card).toMatchObject({ content: "Never Gonna", mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg" });
-    expect(await (await env.FILES.get(`board_uploads/${card!.file_path}`))!.text()).toBe("jpg dQw4w9WgXcQ");
+    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s";
+    // The thumbnail the app put in the bucket, by the address it was given.
+    const digest = await sha256("jpg dQw4w9WgXcQ");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "jpg dQw4w9WgXcQ", { httpMetadata: { contentType: "image/jpeg" } });
+    const card = await ok("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, title: "Never Gonna", sha256: digest, x: 0, y: 0 } });
+    expect(card).toMatchObject({ kind: "youtube", content: "Never Gonna", source_url: url, mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg", sha256: digest });
+    // One the app could not reach YouTube for: the link alone.
+    const bare = await ok("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    expect(bare).toMatchObject({ kind: "youtube", content: url, sha256: null });
+    // A thumbnail that was never put in the bucket is refused.
+    expect((await call("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, sha256: "0".repeat(64), x: 0, y: 0 } })).status).toBe(409);
+    expect(await count("jobs")).toBe(0);
   });
 
-  it("captures a video or page card the desktop made and pushed, and hands the picture back by the pull", async () => {
+  it("captures a page card the desktop made and pushed, and hands the picture back by the pull", async () => {
     const account = await register();
     const client = uuid(), board = uuid(), video = uuid(), page = uuid(), bogus = uuid(), note = uuid();
     const card = (id: string, kind: string, url: string) => ({
@@ -272,26 +277,25 @@ describe("link cards", () => {
     });
     await pushed(account, mutation([
       { table: "boards", uuid: board, base_revision: 0, operation: "upsert", values: { name: "Made offline" } },
+      // A video card brings its own thumbnail, or stays a link: never a job.
       card(video, "youtube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
       card(page, "webpage", "https://example.com/about"),
-      // A video card whose link names no video: it stays the link it is.
-      card(bogus, "youtube", "https://example.com/not-a-video"),
+      // A page card whose link the route would refuse: it stays the link it is.
+      card(bogus, "webpage", "http://localhost:8000/"),
       { table: "board_items", uuid: note, base_revision: 0, operation: "upsert", values: { board_uuid: board, kind: "comment", content: "a note", x: 0, y: 0 } },
     ], { client }));
 
-    const jobs = await rows<{ uuid: string; kind: string; payload: string }>("SELECT uuid, kind, payload FROM jobs ORDER BY kind");
-    expect(jobs.map((job) => [job.kind, JSON.parse(job.payload).item_uuid])).toEqual([["capture_webpage", page], ["capture_youtube", video]]);
+    const jobs = await rows<{ uuid: string; kind: string; payload: string }>("SELECT uuid, kind, payload FROM jobs");
+    expect(jobs.map((job) => [job.kind, JSON.parse(job.payload).item_uuid])).toEqual([["capture_webpage", page]]);
 
     const before = await ok("GET", `/api/sync/pull?cursor=0&limit=50&client_uuid=${client}`, { headers: account.headers });
-    capturers.youtubeThumbnail = async (_url, videoId) => ({ image: new TextEncoder().encode(`jpg ${videoId}`), title: "Never Gonna" });
     capturers.webpage = async () => new TextEncoder().encode("a png");
-    await woken(...jobs.map((job) => job.uuid));
+    await woken(jobs[0].uuid);
 
     const after = await ok("GET", `/api/sync/pull?cursor=${before.cursor}&limit=50&client_uuid=${client}`, { headers: account.headers });
-    const changed = Object.fromEntries(after.changes.filter((c: any) => c.table === "board_items").map((c: any) => [c.row.uuid, c.row]));
-    expect(Object.keys(changed).sort()).toEqual([page, video].sort());
-    expect(changed[video]).toMatchObject({ content: "Never Gonna", mime_type: "image/jpeg", sha256: await sha256("jpg dQw4w9WgXcQ") });
-    expect(changed[page]).toMatchObject({ mime_type: "image/png", sha256: await sha256("a png") });
+    const changed = after.changes.filter((c: any) => c.table === "board_items").map((c: any) => c.row);
+    expect(changed.map((r: any) => r.uuid)).toEqual([page]);
+    expect(changed[0]).toMatchObject({ mime_type: "image/png", sha256: await sha256("a png") });
   });
 });
 

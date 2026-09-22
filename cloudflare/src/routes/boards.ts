@@ -9,7 +9,7 @@ import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
 import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext, type Router } from "../http";
-import { WEBPAGE, YOUTUBE, publicWebUrl, youtubeId } from "../jobs/capture";
+import { WEBPAGE, publicWebUrl, youtubeId } from "../jobs/capture";
 import { enqueue, wake } from "../jobs/queue";
 import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "../files";
 import { rowSnapshot } from "../sync/rows";
@@ -359,22 +359,29 @@ export function boardRoutes(router: Router) {
     return writeItem(env, board, item, true);
   });
 
-  // A link card, on the board at once; its picture is a job. The link is
-  // checked here, so a URL that is not a video is refused now rather than
-  // by a worker later; the client polls the job to learn when the card
-  // has its picture.
+  // A video card. The app has fetched the video's title and thumbnail from
+  // YouTube itself (shared/youtube.js) and put the thumbnail in the bucket;
+  // the card names it, as a file card names its file. Without them — the
+  // app could not reach YouTube — the card is the link alone. The link is
+  // checked here, so a URL that is not a video is refused.
   router.on("POST", "/api/boards/:uuid/youtube", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
     const data = await readJson<Row>(request);
-    const url = validate.checking().string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
+    const check = validate.checking();
+    const url = check.string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
+    const title = check.string("title", data.title, { max: limits.text.board_content, optional: true })?.trim() || null;
     const videoId = youtubeId(url);
     if (!videoId) refuse(422, "Paste a valid YouTube video URL");
-    const item = newItem(board, { kind: "youtube", content: url.trim(), source_url: url.trim(), x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
-    const job = enqueue(env.DB, YOUTUBE, { item_uuid: item.uuid, url: url.trim(), video_id: videoId }, { userUuid: user.uuid });
-    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, user.uuid, true), touched(env, board), job.statement]);
-    await wake(env, [job.uuid]);
-    return json({ job: job.uuid, item: await itemOut(env, item) }, { status: 202 });
+    const thumbnail = data.sha256 == null
+      ? {}
+      : { ...await announcedFile(env, check, data.sha256), original_filename: `youtube-${videoId}.jpg`, mime_type: "image/jpeg" };
+    check.done();
+    const item = newItem(board, {
+      kind: "youtube", content: title ?? url.trim(), source_url: url.trim(), ...thumbnail,
+      x: coordinate("x", data.x)!, y: coordinate("y", data.y)!,
+    });
+    return writeItem(env, board, item, true);
   });
 
   router.on("POST", "/api/boards/:uuid/webpage", async ({ request, env, params }) => {
