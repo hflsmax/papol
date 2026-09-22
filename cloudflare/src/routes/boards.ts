@@ -413,6 +413,26 @@ export function boardRoutes(router: Router) {
     return writeItem(env, board, item, false);
   });
 
+  // The title and thumbnail for a video card made as its link alone —
+  // YouTube could not be reached when it was made, here or on the desktop
+  // — fetched by the app when the board is next open (shared/api/boards.js).
+  // The title takes the card's text only while that is still the link, so
+  // a description written in the meantime stands. A card that has its
+  // thumbnail already keeps it.
+  router.on("POST", "/api/board-items/:uuid/thumbnail", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const { board, ...item } = await ownedItem(env, params.uuid, user);
+    if (item.kind !== "youtube") refuse(422, "Only a video card takes a thumbnail");
+    if (item.file_path) return json(await itemOut(env, item));
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const title = check.string("title", data.title, { max: limits.text.board_content, optional: true })?.trim() || null;
+    const file = await announcedFile(env, check, data.sha256);
+    Object.assign(item, file, { original_filename: `youtube-${youtubeId(String(item.source_url ?? "")) ?? "video"}.jpg`, mime_type: "image/jpeg" });
+    if (title && (!item.content || item.content === item.source_url)) item.content = title;
+    return writeItem(env, board, item, false);
+  });
+
   router.on("PUT", "/api/board-items/:uuid", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const { board, ...item } = await ownedItem(env, params.uuid, user);

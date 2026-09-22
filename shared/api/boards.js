@@ -3,7 +3,7 @@ import {
   nativeRepository, newUuid,
 } from '../nativeData.js';
 import { boardSourceDigests } from '../boardPapers.js';
-import { runtimeFetch } from '../connectivity.js';
+import { inOfflineMode, runtimeFetch } from '../connectivity.js';
 import { handleResponse, jsonRequest, request } from '../httpClient.js';
 import { storeFile } from './files.js';
 import { JobFailed, awaitJob } from './jobs.js';
@@ -205,9 +205,13 @@ export function updateBoardItem(uuid, data) {
 // before the card, or in the bucket at once on the web. When YouTube
 // cannot be reached the card is made as the link alone, and the promise
 // rejects with it on the error, as a page card whose capture failed does.
+// Offline on the desktop nothing is tried and nothing is wrong: the card
+// is the link, and `fillVideoCard` fetches the rest once a board is open
+// online.
 export async function addBoardYouTube(uuid, url, x, y) {
   const videoId = youtubeId(url);
   if (!videoId) throw new Error('Paste a valid YouTube video URL');
+  if (nativeDataActive() && inOfflineMode()) return makeVideoCard(uuid, url, videoId, x, y, null);
   let preview = null, failure = null;
   try {
     preview = await youtubePreview(videoId);
@@ -221,6 +225,45 @@ export async function addBoardYouTube(uuid, url, x, y) {
     throw error;
   }
   return item;
+}
+
+// Whether a card is a video card still waiting for its title and
+// thumbnail: made as the link alone, offline or with YouTube unreachable.
+export function videoCardUnfilled(item) {
+  return item?.kind === 'youtube' && !item.sha256 && !item.file_path && Boolean(youtubeId(item.source_url || ''));
+}
+
+// Give such a card what it was made without, fetched by the app as when a
+// card is made: the thumbnail as its file, and the title as its text
+// while that is still the bare link, so a description written since
+// stands. Answers the card, or null when there is nothing to do or no way
+// to do it now (offline on the desktop). Rejects when YouTube could not
+// be reached; the caller tries again another time.
+export async function fillVideoCard(item) {
+  if (!videoCardUnfilled(item)) return null;
+  if (nativeDataActive() && inOfflineMode()) return null;
+  const videoId = youtubeId(item.source_url);
+  const preview = await youtubePreview(videoId);
+  const name = `youtube-${videoId}.jpg`;
+  const bare = !item.content || item.content === item.source_url;
+  if (nativeDataActive()) {
+    const blob = await nativeBlobImport(preview.image);
+    try {
+      const receipt = await nativeRepository.transact([{
+        table: 'board_items', uuid: item.uuid, operation: 'upsert',
+        values: {
+          sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg',
+          ...(bare && preview.title ? { content: preview.title } : {}),
+        },
+      }]);
+      return receipt.rows[0];
+    } catch (error) {
+      await discardNativeBlob(blob.sha256).catch(() => {});
+      throw error;
+    }
+  }
+  const stored = await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' });
+  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: stored.sha256, title: preview.title });
 }
 
 async function makeVideoCard(uuid, url, videoId, x, y, preview) {

@@ -111,7 +111,7 @@ const {
 const {
   addToNook, awaitPaperReading, createPaper, deletePaper, getPaper, updatePaper, uploadPaper,
 } = await import('../../shared/api/papers.js');
-const { addBoardYouTube } = await import('../../shared/api/boards.js');
+const { addBoardYouTube, fillVideoCard } = await import('../../shared/api/boards.js');
 
 test('paper and comment reads start together', async () => {
   const paperSha256 = '11111111-1111-4111-8111-111111111111';
@@ -219,6 +219,47 @@ test('a desktop video card is made with the title and thumbnail the app fetched,
     assert.ok(!calls.some(([command]) => command === 'blob_import'));
     assert.deepEqual(cardChange().values, { board_uuid: board, kind: 'youtube', content: url, source_url: url, x: 10, y: 20 });
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('offline, a desktop video card is the link, and the board fills it once online', async () => {
+  const board = '33333333-3333-4333-8333-333333333333';
+  const url = 'https://youtu.be/dQw4w9WgXcQ';
+  const originalFetch = globalThis.fetch;
+  let asked = 0;
+  globalThis.fetch = async (target) => {
+    asked += 1;
+    return String(target).includes('/oembed')
+      ? new Response(JSON.stringify({ title: 'Never Gonna', thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' }))
+      : new Response(new Uint8Array([0xff, 0xd8, 0xff]));
+  };
+  const lastValues = () => calls.findLast(([command]) => command === 'data_mutate')[1].changes[0].values;
+  try {
+    enterOfflineMode();
+    calls.length = 0;
+    // No attempt and no error: the card is the link, and says so on the board.
+    await addBoardYouTube(board, url, 0, 0);
+    assert.equal(asked, 0);
+    assert.deepEqual(lastValues(), { board_uuid: board, kind: 'youtube', content: url, source_url: url, x: 0, y: 0 });
+    const card = { uuid: '44444444-4444-4444-8444-444444444444', kind: 'youtube', content: url, source_url: url };
+    assert.equal(await fillVideoCard(card), null, 'still offline: nothing is tried');
+    assert.equal(asked, 0);
+
+    exitOfflineMode();
+    calls.length = 0;
+    await fillVideoCard(card);
+    assert.deepEqual(lastValues(), {
+      sha256: 'a'.repeat(64), original_filename: 'youtube-dQw4w9WgXcQ.jpg', mime_type: 'image/jpeg', content: 'Never Gonna',
+    });
+    // A description written meanwhile stands; only the thumbnail is added.
+    await fillVideoCard({ ...card, content: 'Watch the ending' });
+    assert.equal(lastValues().content, undefined);
+    // A card that has its thumbnail, or names no video, is left alone.
+    assert.equal(await fillVideoCard({ ...card, sha256: 'b'.repeat(64) }), null);
+    assert.equal(await fillVideoCard({ ...card, source_url: 'https://example.com/' }), null);
+  } finally {
+    exitOfflineMode();
     globalThis.fetch = originalFetch;
   }
 });

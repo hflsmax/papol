@@ -268,6 +268,32 @@ describe("link cards", () => {
     expect(await count("jobs")).toBe(0);
   });
 
+  it("gives a link-only video card the thumbnail and title the app fetched later, keeping a description written since", async () => {
+    const account = await register();
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
+    const url = "https://youtu.be/dQw4w9WgXcQ";
+    const digest = await sha256("jpg dQw4w9WgXcQ");
+    await env.FILES.put(`board_uploads/blobs/${digest}`, "jpg dQw4w9WgXcQ", { httpMetadata: { contentType: "image/jpeg" } });
+
+    const bare = await ok("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    const filled = await ok("POST", `/api/board-items/${bare.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest, title: "Never Gonna" } });
+    expect(filled).toMatchObject({ content: "Never Gonna", sha256: digest, mime_type: "image/jpeg", original_filename: "youtube-dQw4w9WgXcQ.jpg" });
+    // Asked again, it keeps the thumbnail it has.
+    expect(await ok("POST", `/api/board-items/${bare.uuid}/thumbnail`, { headers: account.headers, json: { sha256: "1".repeat(64), title: "Other" } })).toMatchObject({ content: "Never Gonna", sha256: digest });
+
+    const described = await ok("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    await ok("PUT", `/api/board-items/${described.uuid}`, { headers: account.headers, json: { content: "Watch the ending" } });
+    expect(await ok("POST", `/api/board-items/${described.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest, title: "Never Gonna" } }))
+      .toMatchObject({ content: "Watch the ending", sha256: digest });
+
+    const note = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: account.headers, json: { content: "a note", x: 0, y: 0 } });
+    expect((await call("POST", `/api/board-items/${note.uuid}/thumbnail`, { headers: account.headers, json: { sha256: digest } })).status).toBe(422);
+    const other = await ok("POST", `/api/boards/${board.uuid}/youtube`, { headers: account.headers, json: { url, x: 0, y: 0 } });
+    expect((await call("POST", `/api/board-items/${other.uuid}/thumbnail`, { headers: account.headers, json: { sha256: "0".repeat(64) } })).status).toBe(409);
+    const stranger = await register();
+    expect((await call("POST", `/api/board-items/${other.uuid}/thumbnail`, { headers: stranger.headers, json: { sha256: digest } })).status).toBe(404);
+  });
+
   it("captures a page card the desktop made and pushed, and hands the picture back by the pull", async () => {
     const account = await register();
     const client = uuid(), board = uuid(), video = uuid(), page = uuid(), bogus = uuid(), note = uuid();

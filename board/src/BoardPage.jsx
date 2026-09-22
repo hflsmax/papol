@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { uploadProgressView } from '../../shared/api/files.js';
-import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
+import { addBoardComment, addBoardFile, addBoardWebpage, addBoardYouTube, fillVideoCard, videoCardUnfilled, boardFileBlob, createBoardGroup, downloadBoardFile, deleteBoard, deleteBoardItem, getBoard, layoutBoardGroup, moveBoardGroup, moveBoardItem, placeStagedBoardItem, restoreBoardItem, ungroupBoardGroup, updateBoard, updateBoardGroup, updateBoardItem } from '../../shared/api/boards.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
 import BackLink from '../../shared/ui/BackLink.jsx';
@@ -14,7 +14,8 @@ import { DESKTOP, DOCUMENT_WINDOW, focusDesktopDeskWindow, openDesktopDocumentWi
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import { openContextMenu } from '../../shared/contextMenu.js';
-import { subscribeNativeData } from '../../shared/nativeData.js';
+import { nativeDataActive, subscribeNativeData } from '../../shared/nativeData.js';
+import { inOfflineMode } from '../../shared/connectivity.js';
 import appLimits from '../../shared/appLimits.js';
 import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -254,6 +255,30 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
   }), [boardUuid]);
+  // A video card made as its link alone — offline, or with YouTube out of
+  // reach — gets its title and thumbnail the next time its board is open
+  // online (shared/api/boards.js). Each card is tried once a visit, one
+  // at a time, and quietly: a card YouTube still will not give stays the
+  // link it is. On the desktop, nothing is tried offline; going online
+  // syncs, and the sync reloads the board and brings this round again.
+  const videoFillsTried = useRef(new Set());
+  useEffect(() => {
+    if (!board?.can_edit || (nativeDataActive() && inOfflineMode())) return undefined;
+    const due = board.items.filter((item) => videoCardUnfilled(item) && !videoFillsTried.current.has(item.uuid));
+    if (!due.length) return undefined;
+    due.forEach((item) => videoFillsTried.current.add(item.uuid));
+    let current = true;
+    (async () => {
+      let filled = 0;
+      for (const item of due) {
+        try {
+          if (await fillVideoCard(item)) filled += 1;
+        } catch { /* YouTube out of reach: the card stays a link until the next visit */ }
+      }
+      if (filled && current) load();
+    })();
+    return () => { current = false; };
+  }, [board]);
   const raiseCards = (itemUuids) => {
     const ids = new Set(itemUuids);
     const ordered = board.items.filter((item) => ids.has(item.uuid)).sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid));
