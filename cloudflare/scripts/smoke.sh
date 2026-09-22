@@ -78,7 +78,22 @@ stroke_uuid=$(printf '%s' "$stroke" | python3 -c 'import sys,json; print(json.lo
 echo "ok  a stroke"
 expect "the stroke is listed" 200 "${auth[@]}" "$base/api/papers/$name/annotations?kind=ink"
 expect "the stroke taken back" 200 "${auth[@]}" -X DELETE "$base/api/annotations/$stroke_uuid"
-expect "the PDF is served" 200 "$base/uploads/$file_path"
+# A deployed Papol sends a file on to its bucket's own address (FILES_URL);
+# one without a bucket address serves it itself. Either way the PDF has to
+# arrive, as a PDF.
+served=$(curl -s -o /dev/null -m 30 -w '%{http_code} %{redirect_url}' "$base/uploads/$file_path")
+case "${served%% *}" in
+  200) echo "ok  the PDF is served (200)" ;;
+  301)
+    bucket_url=${served#* }
+    [[ "$bucket_url" == https://*/uploads/"$file_path" ]] || fail "the PDF is sent to the bucket: to '$bucket_url'"
+    echo "ok  the PDF is sent to the bucket (301)"
+    type=$(curl -s -o /dev/null -m 30 -w '%{http_code} %{content_type}' "$bucket_url")
+    [ "$type" = "200 application/pdf" ] || fail "the bucket serves the PDF: expected '200 application/pdf', got '$type'"
+    echo "ok  the bucket serves the PDF (200)"
+    ;;
+  *) fail "the PDF is served: expected 200 or 301, got ${served%% *}" ;;
+esac
 expect "the paper let go" 200 "${auth[@]}" -X DELETE "$base/api/papers/$name"
 expect "the account closed behind it" 200 "${auth[@]}" -X DELETE "$base/api/auth/account" -H 'content-type: application/json' -d "{\"confirm_email\":\"$email\"}"
 expect "and the session is over" 401 "${auth[@]}" "$base/api/auth/me"
