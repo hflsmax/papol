@@ -1,0 +1,37 @@
+# Make dev.papol.io a fresh copy of production: its database, sessions
+# included, and every file that data names. Dev keeps its own
+# configuration (database, bucket, queue, no mail); only the data comes
+# across. By hand, from the Actions tab or `gh workflow run refresh-dev.yml`.
+# The steps and what each leaves behind are in cloudflare/scripts/refresh-dev.py.
+name: refresh-dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: refresh-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: dev
+    # The same queue as a deploy to dev: a refresh and a deploy never
+    # interleave, and neither is cancelled halfway.
+    concurrency:
+      group: worker-deploy-dev
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: npm, cache-dependency-path: cloudflare/package-lock.json }
+      - run: npm ci --legacy-peer-deps
+        working-directory: cloudflare
+      - name: Refresh dev from production
+        run: python3 cloudflare/scripts/refresh-dev.py
+      - name: Smoke test
+        run: cloudflare/scripts/smoke.sh https://dev.papol.io
