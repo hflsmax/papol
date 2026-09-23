@@ -102,6 +102,31 @@ def literal(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+# Every table the SQL creates, each after every table that points at it.
+CREATE_TABLE = re.compile(r'CREATE TABLE (?:IF NOT EXISTS )?"?(\w+)"?\s*\((.*?)\n\s*\);', re.S)
+REFERENCES = re.compile(r'REFERENCES\s+"?(\w+)"?')
+
+
+def drop_order(sql):
+    parents = {}
+    for match in CREATE_TABLE.finditer(sql):
+        name = match.group(1)
+        if name.startswith(("sqlite_", "_cf_")):
+            continue
+        parents.setdefault(name, set()).update(p for p in REFERENCES.findall(match.group(2)) if p != name)
+    for above in parents.values():
+        above &= parents.keys()
+    children = {name: {child for child, above in parents.items() if name in above} for name in parents}
+    order, placed = [], set()
+    while len(order) < len(parents):
+        ready = sorted(name for name in parents if name not in placed and children[name] <= placed)
+        if not ready:
+            sys.exit(f"the foreign keys among {sorted(set(parents) - placed)} form a cycle; cannot order the drops")
+        order += ready
+        placed.update(ready)
+    return order
+
+
 def fetch(url, method="GET"):
     request = urllib.request.Request(url, method=method, headers={"User-Agent": AGENT})
     try:
@@ -130,10 +155,16 @@ def main():
         print(f"    {export.stat().st_size / 1e6:.1f} MB")
 
         # The export creates every table, so it goes into an empty database.
-        # Foreign keys are checked at the end of the file, not per drop.
+        # Everything dev could hold is dropped without asking dev anything:
+        # its tables are the ones this checkout's migrations make (dev runs
+        # main), and production's are in the export. Children go before
+        # their parents: dropping a parent deletes its rows one by one, each
+        # deletion looks for children pointing at it, and a parent dropped
+        # first scans its children once per row — paper_references before
+        # paper_citations read 9.6 million rows a refresh on 2026-09-23.
         say("Emptying dev's database")
-        tables = [row["name"] for row in query_dev(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'")]
+        schema = "\n".join(path.read_text() for path in sorted((CLOUDFLARE / "migrations").glob("*.sql")))
+        tables = drop_order(schema + "\n" + export.read_text())
         drop = work / "drop.sql"
         drop.write_text("PRAGMA defer_foreign_keys=TRUE;\n" + "".join(f'DROP TABLE IF EXISTS "{name}";\n' for name in tables))
         run_dev_file(drop)
