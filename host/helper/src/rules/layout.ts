@@ -6,6 +6,7 @@
 // That is what lets a rule be a pattern over text while its answer stays a
 // place on a page.
 
+import { least, most } from "./numbers";
 import type { Doc, Drawn, Page, Run } from "./pdf";
 
 export interface Placed extends Run {
@@ -102,7 +103,7 @@ function scriptFills(runs: Placed[], left: number, right: number, baseline: numb
   // The script has to sit against the text on its left, and leave no more
   // than a word space before the text on its right: a gutter with a
   // superscript at its edge is still a gutter.
-  const from = Math.min(...scripts.map((r) => r.x)), to = Math.max(...scripts.map((r) => r.x + r.width));
+  const from = least(scripts.map((r) => r.x)), to = most(scripts.map((r) => r.x + r.width));
   return from - left <= 0.5 * size && right - to <= 0.8 * size;
 }
 
@@ -150,10 +151,10 @@ export function buildLines(page: Page): Placed[][] {
   const lines = groups.map((g) => g.runs);
   const merged = new Set<number>();
   lines.forEach((small, i) => {
-    const size = Math.max(...small.map((r) => r.size));
+    const size = most(small.map((r) => r.size));
     const chars = small.reduce((n, r) => n + r.text.length, 0);
     if (chars > 16) return;
-    const x0 = Math.min(...small.map((r) => r.x)), x1 = Math.max(...small.map((r) => r.x + r.width));
+    const x0 = least(small.map((r) => r.x)), x1 = most(small.map((r) => r.x + r.width));
     const base = median(small.map((r) => r.baseline));
     let best = -1, bestGap = Infinity, raised = false;
     lines.forEach((big, j) => {
@@ -166,7 +167,7 @@ export function buildLines(page: Page): Placed[][] {
       const down = -lift >= LOWERED[0] && -lift <= LOWERED[1];
       if (!up && !down) return;
       // Touching: within a word space or so of one of the big line's runs.
-      const gap = Math.min(...big.map((r) => Math.max(0, x0 - (r.x + r.width), r.x - x1)));
+      const gap = least(big.map((r) => Math.max(0, x0 - (r.x + r.width), r.x - x1)));
       if (gap > 0.6 * bigSize) return;
       if (gap < bestGap) { best = j; bestGap = gap; raised = up; }
     });
@@ -190,13 +191,13 @@ function joinLabels(lines: Placed[][]): Placed[][] {
     if (!LABEL.test(text)) return;
     const size = median(label.map((r) => r.size));
     const base = median(label.map((r) => r.baseline));
-    const x1 = Math.max(...label.map((r) => r.x + r.width));
+    const x1 = most(label.map((r) => r.x + r.width));
     let best = -1, bestGap = Infinity;
     lines.forEach((other, j) => {
       if (j === i || gone.has(j)) return;
       const otherBase = median(other.map((r) => r.baseline));
       if (Math.abs(otherBase - base) > SAME_LINE * size) return;
-      const gap = Math.min(...other.map((r) => r.x)) - x1;
+      const gap = least(other.map((r) => r.x)) - x1;
       if (gap >= 0 && gap <= 6 * size && gap < bestGap) { best = j; bestGap = gap; }
     });
     if (best < 0) return;
@@ -233,10 +234,10 @@ function lineOf(runs: Placed[], page: number): Line {
   const letters = body.filter((r) => /\p{L}/u.test(r.text));
   return {
     page, index: 0, runs, text, chars,
-    x0: Math.min(...runs.map((r) => r.x)),
-    x1: Math.max(...runs.map((r) => r.x + r.width)),
-    top: Math.min(...runs.map((r) => r.baseline - r.size * 0.8)),
-    bottom: Math.max(...runs.map((r) => r.baseline + r.size * 0.22)),
+    x0: least(runs.map((r) => r.x)),
+    x1: most(runs.map((r) => r.x + r.width)),
+    top: least(runs.map((r) => r.baseline - r.size * 0.8)),
+    bottom: most(runs.map((r) => r.baseline + r.size * 0.22)),
     baseline, size,
     bold: letters.length > 0 && letters.every((r) => r.bold),
     column: "",
@@ -286,7 +287,7 @@ function xyCut(lines: Line[], bodySize: number, path: string, out: { lines: Line
   // No clean cut: often a line across the whole region (a wide caption, a
   // title) set too close to what is under it to leave a band. Set the wide
   // lines apart and cut the bands between them on their own.
-  const left = Math.min(...lines.map((l) => l.x0)), right = Math.max(...lines.map((l) => l.x1));
+  const left = least(lines.map((l) => l.x0)), right = most(lines.map((l) => l.x1));
   const wide = (l: Line) => l.x1 - l.x0 > 0.6 * (right - left);
   const narrow = sorted.filter((l) => !wide(l));
   if (narrow.length && narrow.length < sorted.length && gapIn(narrow.map((l) => [l.x0, l.x1]), 0.8 * bodySize)) {
@@ -322,10 +323,13 @@ function markFurniture(pages: Layout["pages"]): void {
     for (const s of shapes) seen.set(s, (seen.get(s) ?? 0) + 1);
   }
   const recurring = Math.min(RECURS, Math.max(2, Math.ceil(pages.length / 3)));
+  // A running head split in two on one page (its folio set apart) is still
+  // part of the one that recurs.
+  const recurs = [...seen].filter(([, n]) => n >= recurring).map(([s]) => s);
   for (const page of pages) for (const line of page.lines) {
     if (!marginal(line, page.height)) continue;
     const s = shape(line.text);
-    if ((seen.get(s) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s)) line.furniture = true;
+    if ((seen.get(s) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s) || (s.length >= 3 && recurs.some((r) => r.includes(s)))) line.furniture = true;
   }
 }
 

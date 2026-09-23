@@ -40896,6 +40896,18 @@ function grobidAt(base) {
   };
 }
 
+// src/rules/numbers.ts
+function least(xs2) {
+  let m2 = Infinity;
+  for (const x2 of xs2) if (x2 < m2) m2 = x2;
+  return m2;
+}
+function most(xs2) {
+  let m2 = -Infinity;
+  for (const x2 of xs2) if (x2 > m2) m2 = x2;
+  return m2;
+}
+
 // src/rules/layout.ts
 var SAME_LINE = 0.3;
 var GUTTER = 1.4;
@@ -40916,10 +40928,10 @@ function bodySizeOf(doc) {
     const size = Math.round(run.size * 2) / 2;
     counts.set(size, (counts.get(size) ?? 0) + run.text.length);
   }
-  let best = 10, most = -1;
-  for (const [size, count] of counts) if (count > most) {
+  let best = 10, most2 = -1;
+  for (const [size, count] of counts) if (count > most2) {
     best = size;
-    most = count;
+    most2 = count;
   }
   return best;
 }
@@ -40940,7 +40952,7 @@ function scriptFills(runs, left, right, baseline, size) {
     return lift >= RAISED[0] && lift <= RAISED[1] || -lift >= LOWERED[0] && -lift <= LOWERED[1];
   });
   if (!scripts.length) return false;
-  const from = Math.min(...scripts.map((r2) => r2.x)), to2 = Math.max(...scripts.map((r2) => r2.x + r2.width));
+  const from = least(scripts.map((r2) => r2.x)), to2 = most(scripts.map((r2) => r2.x + r2.width));
   return from - left <= 0.5 * size && right - to2 <= 0.8 * size;
 }
 function buildLines(page) {
@@ -40977,10 +40989,10 @@ function buildLines(page) {
   const lines = groups.map((g2) => g2.runs);
   const merged = /* @__PURE__ */ new Set();
   lines.forEach((small, i2) => {
-    const size = Math.max(...small.map((r2) => r2.size));
+    const size = most(small.map((r2) => r2.size));
     const chars = small.reduce((n2, r2) => n2 + r2.text.length, 0);
     if (chars > 16) return;
-    const x0 = Math.min(...small.map((r2) => r2.x)), x1 = Math.max(...small.map((r2) => r2.x + r2.width));
+    const x0 = least(small.map((r2) => r2.x)), x1 = most(small.map((r2) => r2.x + r2.width));
     const base = median(small.map((r2) => r2.baseline));
     let best = -1, bestGap = Infinity, raised = false;
     lines.forEach((big, j2) => {
@@ -40992,7 +41004,7 @@ function buildLines(page) {
       const up = lift >= RAISED[0] && lift <= RAISED[1];
       const down = -lift >= LOWERED[0] && -lift <= LOWERED[1];
       if (!up && !down) return;
-      const gap = Math.min(...big.map((r2) => Math.max(0, x0 - (r2.x + r2.width), r2.x - x1)));
+      const gap = least(big.map((r2) => Math.max(0, x0 - (r2.x + r2.width), r2.x - x1)));
       if (gap > 0.6 * bigSize) return;
       if (gap < bestGap) {
         best = j2;
@@ -41019,13 +41031,13 @@ function joinLabels(lines) {
     if (!LABEL.test(text2)) return;
     const size = median(label.map((r2) => r2.size));
     const base = median(label.map((r2) => r2.baseline));
-    const x1 = Math.max(...label.map((r2) => r2.x + r2.width));
+    const x1 = most(label.map((r2) => r2.x + r2.width));
     let best = -1, bestGap = Infinity;
     lines.forEach((other, j2) => {
       if (j2 === i2 || gone.has(j2)) return;
       const otherBase = median(other.map((r2) => r2.baseline));
       if (Math.abs(otherBase - base) > SAME_LINE * size) return;
-      const gap = Math.min(...other.map((r2) => r2.x)) - x1;
+      const gap = least(other.map((r2) => r2.x)) - x1;
       if (gap >= 0 && gap <= 6 * size && gap < bestGap) {
         best = j2;
         bestGap = gap;
@@ -41067,10 +41079,10 @@ function lineOf(runs, page) {
     runs,
     text: text2,
     chars,
-    x0: Math.min(...runs.map((r2) => r2.x)),
-    x1: Math.max(...runs.map((r2) => r2.x + r2.width)),
-    top: Math.min(...runs.map((r2) => r2.baseline - r2.size * 0.8)),
-    bottom: Math.max(...runs.map((r2) => r2.baseline + r2.size * 0.22)),
+    x0: least(runs.map((r2) => r2.x)),
+    x1: most(runs.map((r2) => r2.x + r2.width)),
+    top: least(runs.map((r2) => r2.baseline - r2.size * 0.8)),
+    bottom: most(runs.map((r2) => r2.baseline + r2.size * 0.22)),
     baseline,
     size,
     bold: letters.length > 0 && letters.every((r2) => r2.bold),
@@ -41110,7 +41122,7 @@ function xyCut(lines, bodySize, path, out) {
     return;
   }
   const sorted = [...lines].sort((a2, b2) => a2.top - b2.top || a2.x0 - b2.x0);
-  const left = Math.min(...lines.map((l2) => l2.x0)), right = Math.max(...lines.map((l2) => l2.x1));
+  const left = least(lines.map((l2) => l2.x0)), right = most(lines.map((l2) => l2.x1));
   const wide = (l2) => l2.x1 - l2.x0 > 0.6 * (right - left);
   const narrow = sorted.filter((l2) => !wide(l2));
   if (narrow.length && narrow.length < sorted.length && gapIn(narrow.map((l2) => [l2.x0, l2.x1]), 0.8 * bodySize)) {
@@ -41149,10 +41161,11 @@ function markFurniture(pages) {
     for (const s2 of shapes) seen.set(s2, (seen.get(s2) ?? 0) + 1);
   }
   const recurring = Math.min(RECURS, Math.max(2, Math.ceil(pages.length / 3)));
+  const recurs = [...seen].filter(([, n2]) => n2 >= recurring).map(([s2]) => s2);
   for (const page of pages) for (const line of page.lines) {
     if (!marginal(line, page.height)) continue;
     const s2 = shape(line.text);
-    if ((seen.get(s2) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s2)) line.furniture = true;
+    if ((seen.get(s2) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s2) || s2.length >= 3 && recurs.some((r2) => r2.includes(s2))) line.furniture = true;
   }
 }
 function layout(doc) {
@@ -41308,7 +41321,7 @@ var CAPTION_STYLED = rule({
 var FLOAT_TYPE = rule({
   id: "float.type",
   stage: "float",
-  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area (where that text is set on nearly every page), and two columns when the measure is well under the text's width.",
+  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area across (where that text is set on nearly every page), its margins (where its running heads and feet end), and two columns when the measure is well under the text's width.",
   why: "What bounds a float is the paper's running text, and papers differ in font, size and spacing; measuring them from the paper keeps the rules free of numbers fitted to one paper."
 });
 var FLOAT_PROSE = rule({
@@ -41329,7 +41342,7 @@ var FLOAT_FRONT_MATTER = rule({
 var FLOAT_GRAPHICS = rule({
   id: "float.graphics",
   stage: "float",
-  summary: "What a page paints \u2014 filled or stroked paths, images \u2014 counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area across, or above a page's running head or below its foot (within a leading of the text area where it has none) \u2014 a running-head rule, crop marks.",
+  summary: "What a page paints \u2014 filled or stroked paths, images \u2014 counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area across, or above a page's running head or below its foot (the paper's, where the page has none) \u2014 a running-head rule, crop marks.",
   why: "Figures are drawn, not typeset; but PDFs also paint page backgrounds, crop marks, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure."
 });
 var FLOAT_CAPTION_PARAGRAPH = rule({
@@ -41359,7 +41372,7 @@ var FLOAT_PIECE = rule({
 var FLOAT_SIDE = rule({
   id: "float.side",
   stage: "float",
-  summary: "Once every float has its bands, a figure whose caption has drawings level with it \u2014 no text between, no other float's \u2014 is set beside them: it takes them, and the bands over and under them.",
+  summary: "Once every float has its bands, a figure whose caption has drawings (not lone rules: an equation's fraction bars) level with it \u2014 no text between, no other float's \u2014 is set beside them: it takes them, and the bands over and under them.",
   why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page."
 });
 var FLOAT_OTHER_SIDE = rule({
@@ -41752,10 +41765,10 @@ function layoutStarts(lines) {
     const step = Math.round((b2.x0 - a2.x0) * 2) / 2;
     if (step > 0.4 * size && step < 3 * size) steps.set(step, (steps.get(step) ?? 0) + 1);
   }
-  let indent = 0, most = 0;
-  for (const [step, count] of steps) if (count > most) {
+  let indent = 0, most2 = 0;
+  for (const [step, count] of steps) if (count > most2) {
     indent = step;
-    most = count;
+    most2 = count;
   }
   const near = (a2, b2) => Math.abs(a2 - b2) <= 1.5;
   const edges = /* @__PURE__ */ new Set();
@@ -42032,8 +42045,8 @@ function superscriptHits(layout2, skip, byNumber) {
         if (/[)\]}|]\s*$/.test(prevText) && /[=+−×÷±√∑∫≤≥≈]/.test(line.text)) continue;
         const numbers = numbersOf(m2.groups.list);
         if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
-        const x0 = Math.min(...runs.map((r2) => r2.x)), x1 = Math.max(...runs.map((r2) => r2.x + r2.width));
-        const top = Math.min(...runs.map((r2) => r2.baseline - r2.size * 0.8)), bottom = Math.max(...runs.map((r2) => r2.baseline + r2.size * 0.22));
+        const x0 = least(runs.map((r2) => r2.x)), x1 = most(runs.map((r2) => r2.x + r2.width));
+        const top = least(runs.map((r2) => r2.baseline - r2.size * 0.8)), bottom = most(runs.map((r2) => r2.baseline + r2.size * 0.22));
         const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
         hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n2) => byNumber.get(n2)), label: text2, boxes: [box], page: page.number });
       }
@@ -42163,10 +42176,10 @@ var keyOf = (kind, number) => `${kind}
 ${number.toLowerCase()}`;
 var rectOf = (l2) => ({ x0: l2.x0, y0: l2.top, x1: l2.x1, y1: l2.bottom });
 var union = (rects) => ({
-  x0: Math.min(...rects.map((r2) => r2.x0)),
-  y0: Math.min(...rects.map((r2) => r2.y0)),
-  x1: Math.max(...rects.map((r2) => r2.x1)),
-  y1: Math.max(...rects.map((r2) => r2.y1))
+  x0: least(rects.map((r2) => r2.x0)),
+  y0: least(rects.map((r2) => r2.y0)),
+  x1: most(rects.map((r2) => r2.x1)),
+  y1: most(rects.map((r2) => r2.y1))
 });
 var across = (a2, b2) => Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0) > 0;
 var median2 = (xs2) => {
@@ -42203,18 +42216,15 @@ function typeOf(layout2) {
   }
   const leading = median2(steps) || 1.2 * bodySize;
   const measure = quantile(body.map((l2) => l2.x1 - l2.x0), 0.75);
-  const text2 = {
-    x0: quantile(body.map((l2) => l2.x0), 0.02),
-    x1: quantile(body.map((l2) => l2.x1), 0.98),
-    y0: 0,
-    y1: 0
-  };
+  const text2 = { x0: quantile(body.map((l2) => l2.x0), 0.02), x1: quantile(body.map((l2) => l2.x1), 0.98) };
   const columns = measure < 0.6 * (text2.x1 - text2.x0) ? [{ x0: text2.x0, x1: text2.x0 + measure }, { x0: text2.x1 - measure, x1: text2.x1 }] : [text2];
-  const type = { bodySize, font, leading, measure, text: text2, columns };
-  const prose = layout2.pages.flatMap((page) => [...proseOn(page, type)]);
-  text2.y0 = prose.length ? Math.min(...prose.map((l2) => l2.top)) : 0;
-  text2.y1 = prose.length ? Math.max(...prose.map((l2) => l2.bottom)) : Infinity;
-  return type;
+  const all = layout2.pages.map(headsOf);
+  const margins = {
+    y0: most(all.flatMap((h2) => h2.heads.map((l2) => l2.bottom))),
+    y1: least(all.flatMap((h2) => h2.feet.map((l2) => l2.top)))
+  };
+  if (margins.y0 === -Infinity) margins.y0 = 0;
+  return { bodySize, font, leading, measure, text: text2, columns, margins };
 }
 function proseOn(page, type) {
   const candidates = page.lines.filter((l2) => !l2.furniture && sameSize(l2.size, type.bodySize) && shareIn(l2, type.font) >= 0.5 && !hasCellGap(l2));
@@ -42239,13 +42249,16 @@ function headingsOn(page, type, prose) {
   return page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && l2.bold && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text) && (/^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/.test(l2.text) || l2.size > type.bodySize + 1 || [...prose].some((p2) => p2.top > l2.top && p2.baseline - l2.baseline <= 2 * type.leading && Math.abs(p2.x0 - l2.x0) <= 2 * l2.size)));
 }
 function marginsOf(page, type) {
+  const own = headsOf(page);
+  return {
+    y0: own.heads.length ? most(own.heads.map((l2) => l2.bottom)) : type.margins.y0,
+    y1: own.feet.length ? least(own.feet.map((l2) => l2.top)) : type.margins.y1
+  };
+}
+function headsOf(page) {
   const text2 = page.lines.filter((l2) => !l2.furniture);
   const furniture = page.lines.filter((l2) => l2.furniture && !text2.some((t2) => t2.top < l2.bottom && t2.bottom > l2.top));
-  const heads = furniture.filter((l2) => l2.bottom <= type.text.y0 + 1), feet = furniture.filter((l2) => l2.top >= type.text.y1 - 1);
-  return {
-    y0: heads.length ? Math.max(...heads.map((l2) => l2.bottom)) : type.text.y0 - type.leading,
-    y1: feet.length ? Math.min(...feet.map((l2) => l2.top)) : type.text.y1 + type.leading
-  };
+  return { heads: furniture.filter((l2) => l2.bottom < page.height / 2), feet: furniture.filter((l2) => l2.top > page.height / 2) };
 }
 function graphicsOf(page, type, prose) {
   const area = page.width * page.height;
@@ -42267,7 +42280,7 @@ function captionParagraph(first, page, captions, type) {
       const ruled = (l2) => page.drawn.some((d2) => d2.h < 1.5 && d2.y >= prev.baseline && d2.y <= l2.top && d2.x < l2.x1 && d2.x + d2.w > l2.x0);
       const next = page.lines.filter((l2) => !l2.furniture && !captions.has(l2) && !lines2.includes(l2) && sameSize(l2.size, first.size) && l2.baseline > prev.baseline + 0.5 * first.size && l2.baseline - prev.baseline <= 1.6 * first.size && across(rectOf(l2), span) && !ruled(l2));
       if (!next.length) return lines2;
-      const top = Math.min(...next.map((l2) => l2.baseline));
+      const top = least(next.map((l2) => l2.baseline));
       const row = next.filter((l2) => l2.baseline - top < 0.5 * first.size);
       lines2.push(...row);
       span = union([span, ...row.map(rectOf)]);
@@ -42308,7 +42321,16 @@ function piecesOf(graphics, bounds) {
   const loose = graphics.filter((g2) => bounds.some((b2) => touching(g2, b2)));
   const joinable = graphics.filter((g2) => !loose.includes(g2)).sort((a2, b2) => a2.x0 - b2.x0);
   const parent = joinable.map((_2, i2) => i2);
-  const find3 = (i2) => parent[i2] === i2 ? i2 : parent[i2] = find3(parent[i2]);
+  const find3 = (i2) => {
+    let root = i2;
+    while (parent[root] !== root) root = parent[root];
+    while (parent[i2] !== root) {
+      const up = parent[i2];
+      parent[i2] = root;
+      i2 = up;
+    }
+    return root;
+  };
   for (let i2 = 0; i2 < joinable.length; i2 += 1) {
     for (let j2 = i2 + 1; j2 < joinable.length && joinable[j2].x0 <= joinable[i2].x1 + 0.5; j2 += 1) {
       if (touching(joinable[i2], joinable[j2])) parent[find3(i2)] = find3(j2);
@@ -42330,8 +42352,8 @@ var gapBetween = (a2, b2) => ({
 function acrossOf(caption, own, ground) {
   const { type } = ground;
   const over = type.columns.filter((c2) => Math.min(c2.x1, caption.x1) - Math.max(c2.x0, caption.x0) > 2 * type.bodySize);
-  let x0 = Math.min(caption.x0, ...over.map((c2) => c2.x0));
-  let x1 = Math.max(caption.x1, ...over.map((c2) => c2.x1));
+  let x0 = Math.min(caption.x0, least(over.map((c2) => c2.x0)));
+  let x1 = Math.max(caption.x1, most(over.map((c2) => c2.x1)));
   for (const other of ground.captions) {
     if (other === own) continue;
     const r2 = union(other.map(rectOf));
@@ -42353,9 +42375,9 @@ function band(caption, own, ground, side, claimed, taken, tableOnly) {
     const ahead = ground.pieces.filter((p2) => !taken.has(p2) && inside(p2) && (side === "below" ? p2.y0 > caption.y1 - 1 : p2.y1 < caption.y0 + 1)).sort((a2, b2) => side === "below" ? a2.y0 - b2.y0 : b2.y1 - a2.y1);
     const first = ahead[0];
     if (first && !first.text && !first.thin) tableOnly = false;
-    else bounds.push(...ahead.filter((p2) => !p2.text && !p2.thin));
+    else for (const p2 of ahead) if (!p2.text && !p2.thin) bounds.push(p2);
   }
-  const limit = side === "above" ? Math.max(0, ...bounds.filter((b2) => b2.y1 <= caption.y0 + 1).map((b2) => b2.y1)) : Math.min(ground.page.height, ...bounds.filter((b2) => b2.y0 >= caption.y1 - 1).map((b2) => b2.y0));
+  const limit = side === "above" ? Math.max(0, most(bounds.filter((b2) => b2.y1 <= caption.y0 + 1).map((b2) => b2.y1))) : Math.min(ground.page.height, least(bounds.filter((b2) => b2.y0 >= caption.y1 - 1).map((b2) => b2.y0)));
   const starts = (r2) => side === "above" ? r2.y0 >= limit - 1 && r2.y0 < caption.y1 : r2.y1 <= limit + 1 && r2.y0 > caption.y0;
   const pieces = ground.pieces.filter((p2) => !taken.has(p2) && starts(p2) && inside(p2) && (!tableOnly || p2.text || p2.thin) && !claimed.some((c2) => gapBetween(c2, p2).xs > 0 && gapBetween(c2, p2).ys > 0 || p2.x0 >= c2.x0 - 1 && p2.x1 <= c2.x1 + 1 && p2.y0 >= c2.y0 - 1 && p2.y1 <= c2.y1 + 1));
   explain?.(`  ${side}: across ${Math.round(x2.x0)}-${Math.round(x2.x1)}, bound at ${Math.round(limit)}, ${pieces.length} pieces`);
@@ -42373,11 +42395,12 @@ function ruledUnder(caption, own, ground, claimed) {
   const rules2 = ground.graphics.filter((g2) => !g2.image && g2.y1 - g2.y0 < 1.5 && g2.y0 >= caption.y1 - 1 && g2.x0 >= x2.x0 - type.bodySize && g2.x1 <= x2.x1 + type.bodySize && g2.x1 - g2.x0 >= 0.5 * (x2.x1 - x2.x0)).sort((a2, b2) => a2.y0 - b2.y0);
   if (!rules2.length) return null;
   const width = (r2) => r2.x1 - r2.x0;
-  const same = rules2.filter((r2) => Math.abs(width(r2) - width(rules2[0])) <= 2 && Math.abs(r2.x0 - rules2[0].x0) <= 2);
-  const bounds = [...ground.bounds.filter((l2) => !own.includes(l2)).map(rectOf), ...claimed].filter((b2) => gapBetween(b2, { ...rules2[0], y0: 0, y1: 1 }).xs > 0 && b2.y0 > caption.y1);
-  const limit = Math.min(ground.page.height, ...bounds.map((b2) => b2.y0));
-  const last = same.filter((r2) => r2.y1 <= limit + 1).pop();
-  if (!last || same.length === 1 && last.y0 - caption.y1 <= type.leading) return null;
+  const same = rules2.filter((r2) => Math.abs(width(r2) - width(rules2[0])) <= 2 && Math.abs(r2.x0 - rules2[0].x0) <= 2).filter((r2, i2, all) => i2 === 0 || r2.y0 - all[i2 - 1].y0 > 1);
+  const bounds = [...ground.captions.filter((c2) => c2 !== own).flat().map(rectOf), ...claimed].filter((b2) => gapBetween(b2, { ...rules2[0], y0: 0, y1: 1 }).xs > 0 && b2.y0 > caption.y1);
+  const limit = Math.min(ground.page.height, least(bounds.map((b2) => b2.y0)));
+  const opening = same[0].y0 - caption.y1 <= type.leading ? same[0] : void 0;
+  const last = same.filter((r2) => r2 !== opening && r2.y1 <= limit + 1).pop();
+  if (!last) return null;
   const span = { x0: Math.min(caption.x0, last.x0), y0: caption.y0, x1: Math.max(caption.x1, last.x1), y1: last.y1 };
   const within = [...ground.graphics, ...ground.lines.filter((l2) => !own.includes(l2)).map(rectOf)].filter((r2) => r2.y0 >= caption.y1 - 1 && r2.y1 <= last.y1 + 1 && gapBetween(r2, span).xs > 0.5 * (r2.x1 - r2.x0));
   explain?.(`  ruled: caption ${show(caption)}, across ${Math.round(x2.x0)}-${Math.round(x2.x1)}, ${same.length} rules, last ${show(last)}, ${within.length} within ${within.length ? show(union(within)) : ""}`);
@@ -42466,7 +42489,7 @@ function findFloats(layout2, trace) {
       if (extents[i2].fixed || found[i2].kind !== "figure") continue;
       const caption = union(paragraphs[i2].map(rectOf));
       const between = (p2) => ground.bounds.some((l2) => !paragraphs[i2].includes(l2) && gapBetween(rectOf(l2), caption).ys > 0 && rectOf(l2).x0 >= Math.min(p2.x1, caption.x1) - 1 && rectOf(l2).x1 <= Math.max(p2.x0, caption.x0) + 1);
-      const level = ground.pieces.filter((p2) => !taken.has(p2) && !p2.text && gapBetween(p2, caption).ys > 0 && !between(p2) && !others(i2).some((c2) => gapBetween(c2, p2).xs > 0 && gapBetween(c2, p2).ys > 0));
+      const level = ground.pieces.filter((p2) => !taken.has(p2) && !p2.text && !p2.thin && gapBetween(p2, caption).ys > 0 && !between(p2) && !others(i2).some((c2) => gapBetween(c2, p2).xs > 0 && gapBetween(c2, p2).ys > 0));
       if (!level.length) continue;
       explain?.(`page ${page.number} ${found[i2].kind} ${found[i2].number}, beside: ${level.length} level`);
       level.forEach((p2) => taken.add(p2));
@@ -42645,7 +42668,7 @@ function drawnOn(ops, OPS, view) {
   const add = (x0, y0, x1, y1, image) => {
     const corners = [apply(ctm, x0, y0), apply(ctm, x1, y0), apply(ctm, x0, y1), apply(ctm, x1, y1)];
     const xs2 = corners.map((c2) => c2[0] - left), ys2 = corners.map((c2) => top - c2[1]);
-    const box = { x: Math.min(...xs2), y: Math.min(...ys2), w: Math.max(...xs2) - Math.min(...xs2), h: Math.max(...ys2) - Math.min(...ys2), image };
+    const box = { x: least(xs2), y: least(ys2), w: most(xs2) - least(xs2), h: most(ys2) - least(ys2), image };
     if ([box.x, box.y, box.w, box.h].every(Number.isFinite)) out.push(box);
   };
   ops.fnArray.forEach((fn2, i2) => {

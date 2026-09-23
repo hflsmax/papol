@@ -125,7 +125,7 @@ export const CAPTION_STYLED = rule({
 
 export const FLOAT_TYPE = rule({
   id: "float.type", stage: "float",
-  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area (where that text is set on nearly every page), and two columns when the measure is well under the text's width.",
+  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area across (where that text is set on nearly every page), its margins (where its running heads and feet end), and two columns when the measure is well under the text's width.",
   why: "What bounds a float is the paper's running text, and papers differ in font, size and spacing; measuring them from the paper keeps the rules free of numbers fitted to one paper.",
 });
 export const FLOAT_PROSE = rule({
@@ -143,7 +143,7 @@ export const FLOAT_FRONT_MATTER = rule({
 });
 export const FLOAT_GRAPHICS = rule({
   id: "float.graphics", stage: "float",
-  summary: "What a page paints — filled or stroked paths, images — counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area across, or above a page's running head or below its foot (within a leading of the text area where it has none) — a running-head rule, crop marks.",
+  summary: "What a page paints — filled or stroked paths, images — counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area across, or above a page's running head or below its foot (the paper's, where the page has none) — a running-head rule, crop marks.",
   why: "Figures are drawn, not typeset; but PDFs also paint page backgrounds, crop marks, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure.",
 });
 export const FLOAT_CAPTION_PARAGRAPH = rule({
@@ -168,7 +168,7 @@ export const FLOAT_PIECE = rule({
 });
 export const FLOAT_SIDE = rule({
   id: "float.side", stage: "float",
-  summary: "Once every float has its bands, a figure whose caption has drawings level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
+  summary: "Once every float has its bands, a figure whose caption has drawings (not lone rules: an equation's fraction bars) level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
   why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page.",
 });
 export const FLOAT_OTHER_SIDE = rule({
