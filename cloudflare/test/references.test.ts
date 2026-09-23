@@ -237,6 +237,15 @@ describe("what the helper is sent", () => {
     ]);
   });
 
+  it("goes to the rule-based analyzer where the environment asks for rules", async () => {
+    const ruled = { ...env, FILES_URL: "https://files.test/" as string, ANALYZER: "rules" } as Env;
+    const paths: string[] = [];
+    hosts({ "grobid.test": (url) => { paths.push(url.pathname); return jsonResponse(ANALYSIS); } });
+    await helper.analyze(ruled, `${OTHER}.pdf`);
+    await helper.analyze({ ...ruled, ANALYZER: undefined } as Env, `${OTHER}.pdf`);
+    expect(paths).toEqual(["/helper/analyze-rules", "/helper/analyze"]);
+  });
+
   it("is the bytes where the Worker serves its files itself, and a missing PDF is said to be missing", async () => {
     hosts({ "grobid.test": () => jsonResponse(ANALYSIS) });
     await expect(helper.analyze(env, `${OTHER}.pdf`)).rejects.toThrow("The PDF for this paper is missing");

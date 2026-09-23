@@ -57,8 +57,10 @@ async function post<T>(env: Env, path: string, filePath: string): Promise<T> {
 // Read a PDF through GROBID on the host: its references and markers.
 // Throws on anything that went wrong, so the caller can record why a
 // paper has no references rather than silently showing none.
+// By rules instead (host/helper/src/rules/) where the environment asks for
+// them: the same answer, with no model in it.
 export function analyze(env: Env, filePath: string): Promise<Analysis> {
-  return post<Analysis>(env, "/analyze", filePath);
+  return post<Analysis>(env, env.ANALYZER === "rules" ? "/analyze-rules" : "/analyze", filePath);
 }
 
 // The title block, with the identifiers GROBID found or CrossRef gave it.
