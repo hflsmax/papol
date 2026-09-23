@@ -183,7 +183,12 @@ export function handoffOffer({
 // the page while leaving it perfectly visible. Believing that blur is how a
 // user with no Papol gets an error they did not ask for *and* loses the
 // download offer that was the whole point of asking. So a blur only extends
-// the wait, and focus returning inside it settles the question the other way.
+// the wait. Focus returning does not settle it either: the commonest panel
+// is the browser's own "Open Papol?", and pressing Open there hands the
+// focus back to this page for a moment before the application takes it.
+// So a return starts one more short look, and losing the page again inside
+// it is the application arriving; only a return that stays is a panel the
+// user dismissed.
 //
 // What remains is a user who leaves such a panel standing for longer than
 // BLUR_GRACE_MS: that still reads as 'opened'. It is the residue of a
@@ -224,10 +229,15 @@ export function attemptHandoff(address, { win, timeoutMs = DETECTION_MS, blurMs 
       if (timer !== null) view.clearTimeout(timer);
       timer = view.setTimeout(decide, blurMs);
     }
-    // Whatever took the focus gave it back, so it was something this user
-    // could dismiss, and dismissing it is not a handoff.
+    // Whatever took the focus gave it back: a panel dismissed, or the
+    // browser's own prompt answered with Open and the application still on
+    // its way. Look once more; losing the page again inside the look is the
+    // application, keeping it is the panel.
     function back() {
-      if (blurred) finish('unknown');
+      if (!blurred || settled) return;
+      blurred = false;
+      if (timer !== null) view.clearTimeout(timer);
+      timer = view.setTimeout(decide, timeoutMs);
     }
     function decide() {
       // A page that lost the user and has not got them back is behind

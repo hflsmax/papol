@@ -304,7 +304,48 @@ test('focus taken by something dismissable, and given back, is not a handoff', a
   win.fire('blur');
   assert.equal(win.timers.size, 1, 'still looking');
   win.fire('focus');
+  win.document.focused = true;
+  assert.equal(win.timers.size, 1, 'one more look after the focus comes back');
+  win.expire();
   assert.equal(await settled, 'unknown');
+});
+
+// The two ends of the commonest path. Chrome and Safari both ask "Open
+// Papol?" in a prompt of their own before handing a scheme to an
+// application; the prompt takes the page's focus, and answering it gives
+// the focus back for a moment. What follows is the whole answer.
+test('handoff succeeds: the prompt answered with Open, then the app takes the page', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur'); // the browser's prompt
+  win.fire('focus'); // Open pressed: the page has the focus for a moment
+  win.document.focused = true;
+  win.fire('blur'); // Papol comes to the front
+  win.document.focused = false;
+  win.expire();
+  assert.equal(await settled, 'opened');
+});
+
+test('handoff succeeds: the prompt answered with Open, then the app hides the page', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur');
+  win.fire('focus');
+  win.document.visibilityState = 'hidden'; // Papol full screen over the browser
+  win.fire('document:visibilitychange');
+  assert.equal(await settled, 'opened');
+});
+
+test('handoff fails: the prompt or the no-application panel dismissed, and nothing else', async () => {
+  const win = fakeWindow();
+  const settled = attemptHandoff('papol://x/viewer/?pdf=a', { win });
+  win.fire('blur'); // "Open Papol?" or "no application can open this link"
+  win.fire('focus'); // Cancel, or OK: back to the reading
+  win.document.focused = true;
+  win.expire();
+  assert.equal(await settled, 'unknown');
+  assert.equal(win.listeners.size, 0);
+  assert.equal(win.timers.size, 0);
 });
 
 test('focus taken and not given back is a handoff', async () => {
