@@ -1,6 +1,7 @@
 import { commonStyles } from '../../shared/commonStyles.js';
 import { designTokens } from '../../shared/designTokens.js';
 import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
+import { compatibilityStyles } from '../../shared/compatibilityStyles.js';
 import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
 
 // Where a window stops being a desktop's and becomes a phone's. One
@@ -49,6 +50,8 @@ button {
 }
 
 ${macHandoffStyles}
+
+${compatibilityStyles}
 
 .shell { max-width: 640px; margin: 80px auto; padding: 0 20px; }
 /* Something failed while reading: said plainly, without taking the page

@@ -45,11 +45,9 @@ be read off the table. It gates nothing.
 | supported | yes | yes | none |
 | incompatible | **stopped** | **yes** | covering panel |
 
-Incompatible never means "will not start". Unsynchronized work lives only
-in `_local_outbox` and unsynced blobs, so the panel offers exactly the two
-actions that help: **Download Papol**, which opens the releases page, and
-**Save unsynced work**, which writes the recovery ZIP through
-`local_recovery_export`.
+Incompatible never means "will not start". The panel says this version can
+no longer work with the backend service and offers one action,
+**Download Papol**, which opens the releases page.
 
 Only a real HTTP answer sets the verdict. A network error, or offline mode,
 leaves it as it was: being unreachable is not being obsolete. The verdict is
