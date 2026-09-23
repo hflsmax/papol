@@ -460,6 +460,19 @@ describe("the nook", () => {
     expect(rejected.status).toBe(422);
   });
 
+  it("lets a replica say which of a copy's fields others see, starting where every copy starts", async () => {
+    const account = await register(), reader = await register();
+    const digest = "5".repeat(64), copy = uuid();
+    await paperWithCopy(reader, digest, "On another's shelf", { shelfUuid: await defaultShelf(reader) });
+    const made = await pushed(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", values: { paper_sha256: digest } }]));
+    expect(made.rows[0]).toMatchObject({ thought_public: true, ratings_public: true, summary_public: false, tags_public: false });
+    const turned = await pushed(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", base_revision: 1,
+      values: { thought_public: false, summary_public: true } }], { sequence: 2 }));
+    expect(turned.rows[0]).toMatchObject({ thought_public: false, ratings_public: true, summary_public: true, tags_public: false });
+    const rejected = await push(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", base_revision: 2, values: { tags_public: "no" } }], { sequence: 3 }));
+    expect(rejected.status).toBe(422);
+  });
+
   it("publishes and hides a paper by the shelf it is moved to, unless a seminar is on", async () => {
     const account = await register();
     const at = new Date().toISOString();

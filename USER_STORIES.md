@@ -35,7 +35,8 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
 - **US-2.2** As a user, I can rate each paper 1–5 on three dimensions — **My expertise**, **Reading depth**, **Merit** — directly on the paper's jacket, one click per change. Each dimension is optional: a set rating shows a small "clear" control; an unset one reads "unrated". Visitors see unrated dimensions as a quiet "unrated".
 - **US-2.3** As a user, only I can delete papers in my nook (via Edit Metadata → Delete paper) and edit my copy's fields: summary, ratings, shelf. Deleting takes my copy and my notes; my ink and clips stay where they are, for when I add the paper again.
 - **US-2.4** **Metadata is shared**: any user can Edit Metadata on any visible paper, and the change applies to every copy of it. The edit form warns about this. "Edit Metadata" and "Edit Summary" are separate buttons — summary belongs to the copy, so only its own user may edit it.
-- **US-2.5** As a user, I choose the shelf my copy sits on, and every shelf is **public** or **private**. A copy on a public shelf shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy on a private shelf is mine alone: nobody is told I have it. Summaries and private notes are mine either way.
+- **US-2.5** As a user, I choose the shelf my copy sits on, and every shelf is **public** or **private**. A copy on a public shelf shows me standing against the paper — to nook visitors, in the Library, and in "also read by". A copy on a private shelf is mine alone: nobody is told I have it. Notes are mine either way.
+- **US-2.5a** As a user, each of my copy's **thought**, **ratings**, **summary** and **tags** is public or private on its own, shown by the chip beside it on the paper's jacket; clicking the chip turns it the other way. Thought and ratings start public, summary and tags private. A public field is seen only while the copy is on a public shelf, and a private one is simply absent for everyone else — nobody can tell a private rating from no rating.
 - **US-2.6** As a user, I can keep private, timestamped notes on my own papers; no one else can read or write them.
 - **US-2.7** **A paper is its PDF.** The file's content hash is the paper's identity, so uploading a PDF Papol already holds adds me to that paper rather than making a second one, and uploading a different PDF makes a paper of its own — even when it prints a DOI Papol has already seen. Nothing ever replaces the file under anyone's notes, because nothing can: a different file is a different paper.
 
@@ -63,9 +64,9 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
 ## 3. Browsing
 
 - **US-3.1** As a user, I can see every user in the Library with avatar, affiliation, and how many copies each keeps on public shelves. The people and the papers are two views of one Library, not two places.
-- **US-3.2** As a user, I can visit another user's nook and browse the copies on their public shelves, with their ratings. Summaries and notes stay private to the user who wrote them.
+- **US-3.2** As a user, I can visit another user's nook and browse the copies on their public shelves, with whatever of each copy its user has made public (US-2.5a). Notes stay private to the user who wrote them.
 - **US-3.3** As a user, I can open the **Library**, which lists **every paper** — not only the ones somebody keeps on a public shelf, because no user's shelf decides what is findable. Each paper appears once, with a row per user whose copy is on a public shelf (avatar, name, ratings) linking to theirs; a paper with no such copy shows no such row. Search matches papers and user names.
-- **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user whose copy of the same paper is on a **public shelf**. Users who keep theirs on a private shelf are not named. Hovering a chip shows their ratings; clicking visits their nook.
+- **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user whose copy of the same paper is on a **public shelf**. Users who keep theirs on a private shelf are not named. Hovering a chip shows what they have made public of their copy — thought, ratings, summary, tags; clicking visits their nook.
 
 ## 4. Calling a seminar
 

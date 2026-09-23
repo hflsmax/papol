@@ -87,8 +87,47 @@ describe("the Library", () => {
       uuid(), digest, grace.uuid, await privateShelf(grace), new Date().toISOString(), new Date().toISOString());
     const entry = (await ok("GET", "/api/papers", { headers: grace.headers }))[0];
     expect(entry.users).toEqual([{ user: { uuid: ada.uuid, display_name: "Ada", affiliation: null, avatar_path: null, email: "ada@example.test" },
-      is_author: true, thought: "Brilliant", rating_expertise: null, rating_reading: null, rating_liking: 5 }]);
+      is_author: true, thought: "Brilliant", rating_expertise: null, rating_reading: null, rating_liking: 5, summary: null, tags: [] }]);
     expect(entry.room_status).toBeNull();
+  });
+});
+
+describe("a copy's fields", () => {
+  it("each say for themselves whether others see them, on a paper's page and in a nook", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    const digest = "e".repeat(64), name = digest.slice(0, 32);
+    const copy = await paperWithCopy(ada, digest, "Read in the open", { shelfUuid: await defaultShelf(ada) });
+    const tag = await ok("POST", "/api/tags", { headers: ada.headers, json: { name: "methods" } });
+    await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { thought: "Brilliant", summary: "Proves it twice", rating_reading: 4, tag_uuids: [tag.uuid] } });
+    const readerOf = async () => (await ok("GET", `/api/papers/${name}`, { headers: grace.headers })).also_read_by[0];
+    const nookRow = async () => (await ok("GET", `/api/users/${ada.uuid}/nook`, { headers: grace.headers })).papers[0];
+
+    // As every copy was: thought and ratings seen, summary and tags kept.
+    expect(await ok("GET", `/api/papers/${name}`, { headers: ada.headers })).toMatchObject({
+      thought_public: true, ratings_public: true, summary_public: false, tags_public: false });
+    expect(await readerOf()).toMatchObject({ thought: "Brilliant", rating_reading: 4, summary: null, tags: [] });
+    expect(await nookRow()).toMatchObject({ thought: "Brilliant", rating_reading: 4, summary: null, tags: [] });
+
+    // Turned the other way, each of the four.
+    const turned = await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: {
+      thought_public: false, ratings_public: false, summary_public: true, tags_public: true } });
+    expect(turned).toMatchObject({ thought_public: false, ratings_public: false, summary_public: true, tags_public: true,
+      thought: "Brilliant", rating_reading: 4, summary: "Proves it twice" });
+    const methods = [{ uuid: tag.uuid, name: "methods" }];
+    expect(await readerOf()).toMatchObject({ thought: null, rating_reading: null, summary: "Proves it twice", tags: methods });
+    expect(await nookRow()).toMatchObject({ thought: null, rating_reading: null, summary: "Proves it twice", tags: methods });
+    // Its owner still sees all of it in their own nook.
+    expect((await ok("GET", `/api/users/${ada.uuid}/nook`, { headers: ada.headers })).papers[0]).toMatchObject({
+      thought: "Brilliant", rating_reading: 4, summary: "Proves it twice", tags: methods });
+    // Every change is a version the replicas hear of.
+    const logged = await row<{ row_json: string }>("SELECT row_json FROM _server_change_log WHERE row_uuid = ? ORDER BY sequence DESC LIMIT 1", copy);
+    expect(JSON.parse(logged!.row_json)).toMatchObject({ thought_public: false, ratings_public: false, summary_public: true, tags_public: true });
+
+    // A public field on a private shelf is still seen by nobody.
+    await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { shelf_uuid: await privateShelf(ada) } });
+    expect((await ok("GET", `/api/papers/${name}`, { headers: grace.headers })).also_read_by).toEqual([]);
+
+    expect((await call("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { summary_public: "yes" } })).status).toBe(422);
   });
 });
 

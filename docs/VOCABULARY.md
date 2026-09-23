@@ -17,7 +17,7 @@ identifier of its own, the notes column gives it.
 | **User** | Someone with a Papol account. Papol has one kind of person and one noun for them. | `User`, `users`. |
 | **Visitor** | A user who is not signed in. | Sees the home page, a sharable and the sign-in pages; the community's pages ask them to sign in. |
 | **Nook** | One user's public reading corner: their copies, shelves, boards and tags. | `Nook.jsx`, `getNook()`, `GET /api/users/<uuid>/nook`, `route.page === 'nook'` at `/u/<uuid>`. |
-| **Shelf** | One of a user's homes for papers, each **public** or **private**. *Visibility lives on the shelf and nowhere else.* | `shelves.is_public`. A copy is public when its shelf is; the toggle in `NookManager.jsx` reads Public / Private. |
+| **Shelf** | One of a user's homes for papers, each **public** or **private**. *The shelf says whether a copy is on display at all; of a copy on display, each of its thought, ratings, summary and tags says for itself.* | `shelves.is_public`. A copy is on display when its shelf is public; the toggle in `NookManager.jsx` reads Public / Private. The fields' own say is `copies.thought_public`, `ratings_public`, `summary_public`, `tags_public`, turned by the chip beside each on the jacket (`VisibilityChip.jsx`). |
 | **Library** | Every paper there is, and every user with a copy on a public shelf. The place a paper is found rather than owned. | Papers and the people who read them are two views of one Library, not two places. `/library`, `route.page === 'papers'`. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
@@ -30,10 +30,10 @@ identifier of its own, the notes column gives it.
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | `copies`, `Copy`. A paper payload carries `copy_uuid` and `is_public` for the viewer's own copy. Everything private in Papol hangs off a copy. |
 | **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper's is at `/paper/<name>`, a board's at `/board/<uuid>`. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`; `route.page` is `paper` or `board`. A jacket is a place in a surface (§9), not the application that opens the work. On the desktop it sits in the Library window while the work opens in a document window of its own. |
 | **Page** | One sheet of a PDF. | `annotations.page`, `data-page`, `.pdf-page`, "page 7" in the Navigator. `route.page` is the frontend router's index of screens (`home`, `signin`, `paper`, `board`, `nook`…), not a work's page. |
-| **Summary** | My private prose about a paper. Mine alone, whatever the shelf says. | `copies.summary`. Only its own user reads or writes it. |
-| **Thought** | My **public** one-line take, shown on my chip wherever I appear beside the paper. | `copies.thought`, labelled "My thought". |
-| **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. | Stored on `copies` as `rating_expertise`, `rating_reading`, `rating_liking`; labels in `Rating.jsx`. |
-| **Tag** | A user's own label, applied to their copies. | `tags`, joined by `copy_tags`. Private to the user. |
+| **Summary** | My prose about a paper. **Private** unless I make it public. | `copies.summary`, `copies.summary_public`. Only its own user writes it. |
+| **Thought** | My one-line take, shown on my chip wherever I appear beside the paper. **Public** unless I make it private. | `copies.thought`, `copies.thought_public`, labelled "My thought". |
+| **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. **Public** unless I make them private, all three together. | Stored on `copies` as `rating_expertise`, `rating_reading`, `rating_liking`, `ratings_public`; labels in `Rating.jsx`. |
+| **Tag** | A user's own label, applied to their copies. | `tags`, joined by `copy_tags`. A copy's tags are private unless `copies.tags_public` says otherwise; the list of a user's tags is theirs alone. |
 
 ## 3. Annotations
 
@@ -160,7 +160,7 @@ For all prose and all new identifiers.
 | --- | --- | --- |
 | copy | entry, my paper | One noun for the per-user row. |
 | annotation | mark | One noun for the umbrella, in all three registers. |
-| public shelf, private shelf | on display, displayed, hidden | Visibility is a property of the shelf. |
+| public shelf, private shelf | on display, displayed, hidden | Whether a copy is seen at all is a property of the shelf. |
 | paint *(verb)* | paint *(noun)* | The noun is **ink**. |
 | ink | paint *(noun)* | Ink is the substance, the kind and the stored stroke. |
 | leader | host | `host` is a hostname. |

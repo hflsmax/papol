@@ -67,6 +67,10 @@ const desktopPaperRow = {
   rating_expertise: null,
   rating_reading: null,
   rating_liking: null,
+  thought_public: 1,
+  ratings_public: 1,
+  summary_public: 0,
+  tags_public: 0,
   tags: [],
 };
 // A board as the replica keeps it: no owner, no file addresses, SQLite

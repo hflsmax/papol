@@ -367,10 +367,11 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 
 - **Panel** — `.panel`: white card, `--line` border, `--radius`.
 - **Tinted card** — `--radius`, compact padding, tinted by visibility:
-  `--green-soft` for public fields (ratings, thought) and `--accent-soft`
-  for private ones (summary, notes). The tint matches the field's
-  visibility badge, so a user can tell at a glance who sees what
-  without reading the badges.
+  `--green-soft` for public fields and `--accent-soft` for private ones.
+  Thought, ratings, summary and tags are either, by the user's choice, and
+  take the tint through `.vis-public` / `.vis-private` on their block;
+  notes are always private. The tint matches the field's visibility badge,
+  so a user can tell at a glance who sees what without reading the badges.
 - **Visibility fields in forms** — tint the container, never the text box:
   `--green-soft` surrounds public fields and `--accent-soft` surrounds
   private fields. Inputs and tag editors remain `--card` inside that tint,
@@ -383,7 +384,10 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - **Visibility badge** — `public` (green-soft) / `private` (accent-soft)
   chip beside a *heading* ("My ratings", "Summary"). A control that states
   its own meaning in a full sentence takes the tint alone — appending a
-  badge to a sentence reads as if the word belongs to it.
+  badge to a sentence reads as if the word belongs to it. Where the user
+  chooses, the badge is the switch (`VisibilityChip.jsx`, `.visibility-toggle`):
+  pressing it turns the field the other way, and it keeps its colours on
+  hover so it never reads as the state it is not in.
 - **User chip** — a circular avatar in a ring, used wherever users are
   listed. A user who authored the paper gets `.author`: squared off and
   gold, so the role reads by shape as well as colour and never depends on

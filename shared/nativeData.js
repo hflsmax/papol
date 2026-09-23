@@ -619,6 +619,8 @@ export function shelfView(row) {
 // every list — what the replica cannot know starts empty, and a caller
 // that knows better (getPaper reads the notes beside the row) fills it in.
 const PAPER_LISTS = [...new Set([...apiShapes.views.paper, ...apiShapes.views.paper_list])];
+// Whether others see a copy's thought, ratings, summary and tags.
+export const FIELD_VISIBILITY = ['thought_public', 'ratings_public', 'summary_public', 'tags_public'];
 
 export function paperView(row) {
   const paper = {
@@ -626,6 +628,7 @@ export function paperView(row) {
     is_public: Boolean(row.is_public),
     is_author: Boolean(row.is_author),
   };
+  for (const field of FIELD_VISIBILITY) if (field in row) paper[field] = Boolean(row[field]);
   for (const field of PAPER_LISTS) paper[field] ??= [];
   return paper;
 }

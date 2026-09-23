@@ -12,6 +12,7 @@ import { KIND as EXTRACT, reextractedMetadata, type Identifier } from "../papers
 import { Unavailable } from "../papers/bibliography";
 import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { viewerPaper } from "../papers/sharables";
+import { FIELD_VISIBILITY, NEW_COPY_VISIBILITY } from "../papers/visibility";
 import { paperKey, UPLOADS, uploadUrl } from "../files";
 import { writePaper, writeSynced } from "../sync/write";
 import * as validate from "../validate";
@@ -95,7 +96,7 @@ async function ownShelf(env: Env, user: User, shelfUuid: unknown): Promise<Row |
 }
 
 const METADATA_FIELDS = ["title", "authors", "journal", "year", "doi"] as const;
-const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author"] as const;
+const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author", ...FIELD_VISIBILITY] as const;
 
 export function paperRoutes(router: Router) {
   // The PDF is in the bucket, by the uploader's own hand (routes/files.ts):
@@ -163,6 +164,7 @@ export function paperRoutes(router: Router) {
       uuid: newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf.uuid as string,
       summary: summary ?? null, thought: thought ?? null, is_author: data.is_author ? 1 : 0,
       rating_expertise: data.rating_expertise ?? null, rating_reading: data.rating_reading ?? null, rating_liking: data.rating_liking ?? null,
+      ...NEW_COPY_VISIBILITY,
       created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
     const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, true)];
@@ -226,7 +228,9 @@ export function paperRoutes(router: Router) {
         if (!target) refuse(400, `Create a ${wantedVisibility ? "public" : "private"} shelf first`);
         mine.shelf_uuid = target.uuid as string;
       }
-      for (const [key, value] of Object.entries(rest)) mine[key] = key === "is_author" ? (value ? 1 : 0) : value;
+      for (const [key, value] of Object.entries(rest)) {
+        mine[key] = key === "is_author" || (FIELD_VISIBILITY as readonly string[]).includes(key) ? (value ? 1 : 0) : value;
+      }
     }
     if (data.tag_uuids !== undefined && data.tag_uuids !== null) {
       statements.push(...await setCopyTags(env, await touchCopy(), await ownTags(env, user, data.tag_uuids)));

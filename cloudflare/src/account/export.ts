@@ -69,6 +69,8 @@ export async function gather(db: D1Database, user: User) {
       paper: paperRef(c), summary: c.summary, thought: c.thought, on_display: Boolean(c.shelf_public), shelf: c.shelf_name ?? null, i_am_an_author: Boolean(c.is_author),
       ratings: { expertise: c.rating_expertise, reading: c.rating_reading, liking: c.rating_liking },
       tags: tagsByCopy.get(c.uuid as string) ?? [], added: c.created_at,
+      // What of it others see while it is on display.
+      shown: { thought: Boolean(c.thought_public), ratings: Boolean(c.ratings_public), summary: Boolean(c.summary_public), tags: Boolean(c.tags_public) },
     })),
     notes: annotations.filter((a) => a.kind === "note").map((n) => ({
       uuid: n.uuid, paper: paperOf(n), name: n.name, content: n.content, page: n.page, anchor: bodyOf(n).anchor ?? null, written: n.created_at,

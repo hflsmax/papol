@@ -1082,6 +1082,10 @@ button.full-width {
 .tag-editor .tag-chip:hover { border-color: var(--red); color: var(--red); }
 .tag-editor .tag-input { flex: 1 1 10rem; width: auto; min-width: 8rem; padding: 3px 2px;font-size: var(--fs-sm); }
 .tag-editor .tag-input:focus { outline: 0; box-shadow: none; }
+.paper-tags.vis-public .tag-editor-card { background: var(--vis-soft); }
+.paper-tags.vis-public .tag-editor { border-color: var(--vis-line); }
+.paper-tags.vis-public .tag-editor:focus-within { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+.paper-tags.vis-public .tag-editor .tag-chip { border-color: var(--vis-line); color: var(--vis-ink); }
 .tag-dropdown { position: absolute; z-index: 20; top: calc(100% + 3px); left: 0; right: 0; overflow: hidden; padding: 3px; border-color: var(--accent-line); font-family: var(--font-ui); }
 .tag-dropdown-label { padding: 4px 8px 2px; color: var(--ink-faint); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .tag-dropdown button { display: flex; width: 100%; gap: 7px; align-items: center;border-radius: var(--radius);text-align: left; padding: 6px 8px; font-size: var(--fs-sm); }
@@ -1524,6 +1528,48 @@ button.full-width {
   background: var(--accent-soft);
 }
 
+/* On a paper's jacket the chip beside a copy's field is also its switch.
+   It stays a badge to look at; the pointer and the ring on hover and focus
+   are what say it can be pressed. */
+.visibility-toggle {
+  line-height: inherit;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+/* Keeps its own colours on hover, where every other button turns blue:
+   a public chip that went blue would be saying private. */
+.visibility-toggle.public:hover:not(:disabled),
+.visibility-toggle.public:focus-visible {
+  color: var(--green-ink);
+  background: var(--green-soft);
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+}
+
+.visibility-toggle.private:hover:not(:disabled),
+.visibility-toggle.private:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+}
+
+/* A field's tint follows its chip: green where others see it, blue where
+   only its user does. The blocks below read these, and fall back to what
+   the field was before it had a say. */
+.vis-public {
+  --vis-soft: var(--green-soft);
+  --vis-line: var(--green-line);
+  --vis-ink: var(--green-ink);
+}
+
+.vis-private {
+  --vis-soft: var(--accent-soft);
+  --vis-line: var(--accent-line);
+  --vis-ink: var(--accent);
+}
+
 /* Neither public nor private: handed to particular people, by a link the
    user can take back. Gold, which is the colour Papol already uses for
    a user's own annotations. */
@@ -1640,14 +1686,13 @@ button.full-width {
 
 /* On the paper page the three rating controls sit side by side on one
    row to keep the first panel short. Each cell stacks its label over
-   the buttons so nothing wraps mid-row. The green tint annotations the
-   ratings as public — see .summary-text / .comment for the private
-   blue counterpart. */
+   the buttons so nothing wraps mid-row. The tint says who sees them
+   (.vis-public, .vis-private). */
 .inline-ratings .rating-inputs {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px 18px;
   padding: 8px 12px;
-  background: var(--green-soft);
+  background: var(--vis-soft, var(--green-soft));
   border-radius: var(--radius);
 }
 
@@ -2861,6 +2906,34 @@ h4 .state-pill {
   color: var(--ink-soft);
 }
 
+/* A reader's summary, when they share it: a few lines of it, since the
+   pop is a glance and not the place to read it. */
+.chip-pop-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  margin-top: 4px;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+
+.chip-pop-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.chip-pop-tag {
+  padding: 1px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-2xs);
+  color: var(--ink-soft);
+}
+
 .home-organize-item { padding: 8px 0; }
 .home-organize-item + .home-organize-item { border-top: 1px solid var(--line); }
 .home-organize-item strong { font-size: var(--fs-base); }
@@ -3938,11 +4011,11 @@ a.button:hover {
   margin: 10px 0;
 }
 
-/* Public, so it carries the same green tint as the ratings. */
+/* Tinted by who sees it, as the ratings are. */
 .inline-thought-text {
   margin: 0;
   padding: 8px 12px;
-  background: var(--green-soft);
+  background: var(--vis-soft, var(--green-soft));
   border-radius: var(--radius);
   font-size: var(--fs-md);
   white-space: pre-wrap;
@@ -3950,12 +4023,12 @@ a.button:hover {
 
 .inline-thought > .inline-edit {
   padding: 8px 12px;
-  background: var(--green-soft);
+  background: var(--vis-soft, var(--green-soft));
   border-radius: var(--radius);
 }
 
 .inline-thought > .inline-edit .inline-edit-box {
-  border-color: var(--green-line);
+  border-color: var(--vis-line, var(--green-line));
 }
 
 .inline-thought > .link-button,
@@ -3968,8 +4041,8 @@ a.button:hover {
 }
 
 .inline-thought > .link-button {
-  background: var(--green-soft);
-  color: var(--green-ink);
+  background: var(--vis-soft, var(--green-soft));
+  color: var(--vis-ink, var(--green-ink));
 }
 
 /* Summary sits beside Notes as an equal: same heading level, and its
@@ -3980,7 +4053,7 @@ a.button:hover {
 
 .summary-text {
   padding: 8px 12px;
-  background: var(--accent-soft);
+  background: var(--vis-soft, var(--accent-soft));
   border-radius: var(--radius);
   font-size: var(--fs-md);
   white-space: pre-wrap;
@@ -3988,17 +4061,17 @@ a.button:hover {
 
 .summary-block > .inline-edit {
   padding: 8px 12px;
-  background: var(--accent-soft);
+  background: var(--vis-soft, var(--accent-soft));
   border-radius: var(--radius);
 }
 
 .summary-block > .inline-edit .inline-edit-box {
-  border-color: var(--accent-line);
+  border-color: var(--vis-line, var(--accent-line));
 }
 
 .summary-block > .link-button {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--vis-soft, var(--accent-soft));
+  color: var(--vis-ink, var(--accent));
 }
 
 .paper-notes h4 {

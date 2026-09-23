@@ -57,7 +57,8 @@ export function nookRoutes(router: Router) {
     return json(users.map((u) => ({ ...userPublic(u), paper_count: u.paper_count })));
   });
 
-  // A user's nook. Signed-in users only; summaries stay with their own user.
+  // A user's nook. Signed-in users only; of another's copies, only what
+  // each lets be seen.
   router.on("GET", "/api/users/:uuid/nook", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const user = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ?", params.uuid);
