@@ -1396,7 +1396,11 @@ ${compatibilityStyles}
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
-.pdf-link:hover,
+/* Translucent for the same reason as a citation's, and written as
+   :hover:not(:disabled) so it outranks the shared button hover — an
+   internal link is a <button>, and that rule's opaque wash would cover the
+   words the link sits on. */
+.pdf-link:hover:not(:disabled),
 .pdf-link:focus-visible {
   background: rgba(43, 74, 111, 0.14);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
@@ -1451,7 +1455,7 @@ ${compatibilityStyles}
   max-width: calc(100vw - 24px);
   overflow-y: auto;
   font-family: var(--font-ui);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
 }
 
 .ref-card-header {
@@ -1469,7 +1473,7 @@ ${compatibilityStyles}
   min-height: 20px;
   margin: 0;
   color: var(--ink-faint);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
 }
 .ref-range-nav button {
   width: 28px;
@@ -1488,7 +1492,7 @@ ${compatibilityStyles}
 .ref-title {
   overflow-wrap: anywhere;
   font-family: var(--font-serif);
-  font-size: var(--fs-lg);
+  font-size: var(--fs-xl);
   line-height: 1.35;
   margin: 0 22px 6px 0;
 }
@@ -1496,12 +1500,12 @@ ${compatibilityStyles}
 .ref-title a { color: var(--accent); text-decoration: none; }
 .ref-title a:hover { text-decoration: underline; }
 
-.ref-authors { margin: 0 0 2px; color: var(--ink-soft); font-size: var(--fs-xs); }
+.ref-authors { margin: 0 0 2px; color: var(--ink-soft); font-size: var(--fs-sm); }
 
 .ref-where {
   margin: 0 0 8px;
   color: var(--ink-faint);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   display: flex;
   gap: 10px;
   align-items: baseline;
@@ -1520,7 +1524,7 @@ ${compatibilityStyles}
 .ref-abstract {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   line-height: 1.55;
   color: var(--ink-soft);
   display: -webkit-box;
@@ -1543,7 +1547,7 @@ ${compatibilityStyles}
 }
 
 .ref-link {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   color: var(--accent);
   text-decoration: none;
   border: 1px solid var(--line);
@@ -1568,7 +1572,7 @@ ${compatibilityStyles}
   margin: 0;
   overflow-wrap: anywhere;
   font-family: var(--font-serif);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   line-height: 1.5;
   color: var(--ink);
   background: var(--paper-sunken);

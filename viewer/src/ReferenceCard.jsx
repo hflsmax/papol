@@ -14,7 +14,7 @@ import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
  * clicking, and honest about what is known.
  */
 
-const WIDTH = 400;
+const WIDTH = 440;
 const MARGIN = 12;
 
 export default function ReferenceCard({
@@ -27,7 +27,7 @@ export default function ReferenceCard({
   // Placed after measuring: whether the card fits below the marker depends
   // on how tall it turned out to be, which depends on what came back.
   //
-  // On a narrow screen 400 points is wider than the window, and on a short
+  // On a narrow screen the card is wider than the window, and on a short
   // one neither side of the marker has room for the whole card. So the
   // width is what the window can spare, and the card takes the roomier
   // side of the marker and is capped to what that side actually holds —
