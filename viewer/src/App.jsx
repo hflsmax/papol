@@ -12,7 +12,7 @@ import { flushSync } from 'react-dom';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import { pdfjsReady } from './pdfRuntime.js';
 import {
-  pdfHref, downloadablePdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
 } from './api';
 import { identifierInDocument, identifierWithin } from '../../shared/identifiers.js';
@@ -3971,29 +3971,15 @@ export default function App() {
                       rel="noreferrer"
                     >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
                   )}
-                  {/* Saving the PDF is something you do to the paper, so it
-                      belongs with the paper's other links rather than on the
-                      bar, where it was spending a button's worth of room on
-                      an errand almost nobody runs twice. */}
+                  {/* The file itself, at its own address, in a tab of its
+                      own: from there the browser reads, saves or prints it. */}
                   {!source?.openedFile && !(DESKTOP && MAC) && (
                     <a
                       className="ref-link"
                       href={pdfHref(paper)}
-                      download={`${(paper.title || 'paper').replace(/[\\/:*?"<>|]/g, '-')}.pdf`}
-                      onClick={(event) => {
-                        // Desktop saves the copy already in its local store.
-                        if (!nativeDataActive()) return;
-                        event.preventDefault();
-                        const name = event.currentTarget.getAttribute('download');
-                        downloadablePdfHref(paper).then((href) => {
-                          const link = document.createElement('a');
-                          link.href = href;
-                          link.download = name;
-                          link.click();
-                          setTimeout(() => URL.revokeObjectURL(href), 60_000);
-                        }).catch(() => {});
-                      }}
-                    >Download</a>
+                      target="_blank"
+                      rel="noreferrer"
+                    >PDF</a>
                   )}
                 </div>
                 </div>
