@@ -1,0 +1,41 @@
+name: Main failure alert
+
+# GitHub's own Actions notifications go to whoever triggered a run, on every
+# branch, with no way to filter. The owner turns those off and relies on this
+# instead: a failed run on main opens (or comments on) one issue assigned to
+# them, so a red PR is silent and a red main is not.
+
+on:
+  workflow_run:
+    workflows: [Papol PR, Papol macOS]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  issues: write
+
+jobs:
+  alert:
+    # event == push keeps out pull requests whose head branch happens to be
+    # called main (a fork's main, say).
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          title="main is failing"
+          body="[$RUN_NAME]($RUN_URL) failed on main at $SHA."
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "@$OWNER $body"
+          else
+            gh issue create --title "$title" --assignee "$OWNER" --body "$body"
+          fi
