@@ -130,8 +130,16 @@ export const FLOAT_TYPE = rule({
 });
 export const FLOAT_PROSE = rule({
   id: "float.prose", stage: "float",
-  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure (within an indent of it), justified with that line (both edges shared), or the short last or indented first line of a paragraph that is; and any paragraph of three lines or more, at least half the measure wide, sharing both edges, in whatever font.",
+  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure (within an indent of it), justified with that line (both edges shared, at least half the measure wide, and not by having as many characters, as monospaced code does), or the short last or indented first line of a paragraph that is; and any paragraph of three lines or more, at least half the measure wide, sharing both edges, in whatever font.",
   why: "A figure can be text — code, a grammar, rules of inference, a label in the text font — and a table's rows are words; what a float is not is the paper's own paragraphs.",
+});
+export const FLOAT_FRONT_MATTER = rule({
+  id: "float.front-matter", stage: "float",
+  summary: "An author's block — a line with an email address, and the lines stacked under it — bounds a float as running text does.",
+  why: "A teaser figure under the title (ACM's UIST, CHI) has the author block over it, short centred lines that are no running text by any other rule.",
+  pattern: /[\w.+-]+@[\w-]+\.[\w.]+/,
+  matches: ["atpa@di.ku.dk", "Jane Doe (jane.doe@mit.edu)"],
+  rejects: ["@article{x", "Department of Computer Science"],
 });
 export const FLOAT_GRAPHICS = rule({
   id: "float.graphics", stage: "float",
@@ -140,12 +148,12 @@ export const FLOAT_GRAPHICS = rule({
 });
 export const FLOAT_CAPTION_PARAGRAPH = rule({
   id: "float.caption-paragraph", stage: "float",
-  summary: "A caption goes on for the lines under its first at its size, each overlapping the ones above and no more than a line and a half of its size below them; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found either side of its caption is its caption.",
+  summary: "A caption goes on for the lines under its first at its size, each overlapping the ones above and no more than a line and a half of its size below them, with no rule drawn between; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found either side of its caption is its caption.",
   why: "A caption is a paragraph, its label only the first line; centred last lines and Nature's two-column captions under wide figures are still the one paragraph.",
 });
 export const FLOAT_FRAME = rule({
   id: "float.frame", stage: "float",
-  summary: "A drawn rectangle around a caption, several times its size, is the float: its frame.",
+  summary: "A drawn rectangle around a caption, several times its size, is the float: its frame, with the fills of the same width stacked against it, less than a line apart (a box's tinted title band and the panel under it).",
   why: "Nature's boxes, and framed listings, are set inside a rule or a tint with the caption at the top.",
 });
 export const FLOAT_BAND = rule({
@@ -160,7 +168,7 @@ export const FLOAT_PIECE = rule({
 });
 export const FLOAT_SIDE = rule({
   id: "float.side", stage: "float",
-  summary: "A caption with nothing over or under it is set beside its float: what is level with it across the text, with no running text between, and the bands over and under that.",
+  summary: "Once every float has its bands, a figure whose caption has drawings level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
   why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page.",
 });
 export const FLOAT_OTHER_SIDE = rule({
