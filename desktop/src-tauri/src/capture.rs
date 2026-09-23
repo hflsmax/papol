@@ -38,8 +38,10 @@ const QUIET_POLL: Duration = Duration::from_millis(150);
 /// with no capabilities cannot call Papol — that is the point of it — so
 /// the page says this in the one place the application can read.
 const QUIET_TITLE: &str = "papol-capture-quiet";
-/// Watches the page and titles it when nothing has changed for a moment:
-/// no DOM mutations, no resources arriving, and the document complete.
+/// Watches the page and titles it once it has stopped changing and has
+/// something to show: no DOM mutations, no resources arriving, the
+/// document complete, and text or a picture in view. Planted in every
+/// document the window loads, before the page's own scripts run.
 const QUIET_SCRIPT: &str = concat!(
     include_str!("../scripts/capture-page.js"),
     "\npapolCapture.watch();"
@@ -198,6 +200,12 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
         .focused(false)
         .skip_taskbar(true)
         .incognito(true)
+        // The watcher is planted in every page the window holds, before
+        // any of its own scripts run. Evaluating it after the load event
+        // reaches only the first document, and a site that answers with
+        // a shell and then goes somewhere else (Etsy's search results)
+        // left the real page unwatched: the wait ran its full length.
+        .initialization_script(QUIET_SCRIPT)
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_navigation(move |to| {
             if to.scheme() == "about" || to.host().is_some_and(|host| !private_host(host)) {
@@ -231,7 +239,10 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
             Ok(Err(_)) => return Err("The page closed before it loaded".to_string()),
             Ok(Ok(outcome)) => outcome?,
         }
-        quiet(&window).await;
+        let showing = quiet(&window).await;
+        if showing.is_some_and(|showing| !showing.worth_a_picture()) {
+            return Err("The page showed nothing to make a picture of".to_string());
+        }
         tokio::time::sleep(SETTLE).await;
         take(&window).await
     }
@@ -310,25 +321,43 @@ async fn guard(_window: &WebviewWindow) -> Result<(), String> {
     Err("Page pictures are taken on macOS only".into())
 }
 
-/// Wait until the page has stopped changing, or until waiting is no
-/// longer worth it. Never an error: a page that will not settle — one
-/// that animates forever, or whose scripts the watcher could not be
-/// planted in — is photographed as it stands, which is what the flat
-/// wait did for every page before.
-async fn quiet(window: &WebviewWindow) {
-    if window.eval(QUIET_SCRIPT).is_err() {
-        tokio::time::sleep(QUIET_TIMEOUT.min(Duration::from_millis(3000))).await;
-        return;
+/// What a page says it is showing when it has gone quiet: the length of
+/// its text, and how many pictures and drawings are in view.
+#[derive(serde::Deserialize, Default)]
+struct Showing {
+    text: usize,
+    pictures: usize,
+    drawings: usize,
+}
+
+impl Showing {
+    /// A page with a line of text and nothing drawn is a wall, an error
+    /// or an empty shell — whatever it is, a picture of it is a blank
+    /// rectangle, and the card is better off as the link it already is.
+    fn worth_a_picture(&self) -> bool {
+        self.text > 40 || self.pictures > 0 || self.drawings > 0
     }
+}
+
+/// Wait until the page has stopped changing, or until waiting is no
+/// longer worth it, and answer what it says it is showing. A page that
+/// will not settle — one that animates forever, or whose scripts the
+/// watcher could not be planted in — is photographed as it stands, which
+/// is what the flat wait did for every page before, and nothing is
+/// claimed about what it shows.
+async fn quiet(window: &WebviewWindow) -> Option<Showing> {
     let deadline = tokio::time::Instant::now() + QUIET_TIMEOUT;
     while tokio::time::Instant::now() < deadline {
         // The page's own title, not the window's: what a document calls
         // itself never reaches the frame around it.
-        if page_title(window).await.as_deref() == Some(QUIET_TITLE) {
-            return;
+        if let Some(title) = page_title(window).await {
+            if let Some(rest) = title.strip_prefix(QUIET_TITLE) {
+                return serde_json::from_str(rest.trim_start_matches(':')).ok();
+            }
         }
         tokio::time::sleep(QUIET_POLL).await;
     }
+    None
 }
 
 /// What the page in the capture window calls itself.
@@ -506,6 +535,48 @@ async fn take(_window: &WebviewWindow) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::checked_url;
+
+    #[test]
+    fn a_page_showing_nothing_is_worth_no_picture() {
+        use super::Showing;
+        let nothing = Showing::default();
+        assert!(!nothing.worth_a_picture());
+        // A shell that has not handed over yet, and a wall with a line on
+        // it, are the same white rectangle to a card.
+        assert!(!Showing {
+            text: 24,
+            ..Showing::default()
+        }
+        .worth_a_picture());
+        // Words, a picture or a drawing: any one of them is a picture.
+        for showing in [
+            Showing {
+                text: 2909,
+                ..Showing::default()
+            },
+            Showing {
+                pictures: 1,
+                ..Showing::default()
+            },
+            Showing {
+                drawings: 1,
+                ..Showing::default()
+            },
+        ] {
+            assert!(showing.worth_a_picture());
+        }
+    }
+
+    /// The same rule as the page's own `worth`, which decides when to stop
+    /// waiting; frontend/src/capturePage.test.js holds that side of it.
+    #[test]
+    fn the_page_and_the_application_measure_a_picture_the_same_way() {
+        let script = include_str!("../scripts/capture-page.js");
+        assert!(script.contains("report.text > 40 || report.pictures > 0 || report.drawings > 0"));
+        // And the wait ends on a page that has gone still *and* has
+        // something in it, never on stillness alone.
+        assert!(script.contains("(still && worth(showing()))"));
+    }
 
     #[test]
     fn a_card_captures_public_web_pages_only() {
