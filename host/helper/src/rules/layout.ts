@@ -6,7 +6,7 @@
 // That is what lets a rule be a pattern over text while its answer stays a
 // place on a page.
 
-import type { Doc, Page, Run } from "./pdf";
+import type { Doc, Drawn, Page, Run } from "./pdf";
 
 export interface Placed extends Run {
   sup: boolean; // raised and smaller than its line: a superscript
@@ -35,7 +35,7 @@ export interface Line {
 export interface Box { page: number; x: number; y: number; w: number; h: number }
 
 export interface Layout {
-  pages: { number: number; width: number; height: number; lines: Line[]; twoColumn: boolean }[];
+  pages: { number: number; width: number; height: number; lines: Line[]; drawn: Drawn[]; twoColumn: boolean }[];
   bodySize: number;
 }
 
@@ -131,8 +131,14 @@ export function buildLines(page: Page): Placed[][] {
         const size = Math.max(last.size, run.size);
         const gap = run.x - (last.x + last.width);
         const bridged = gap > GUTTER * size && scriptFills(runs, last.x + last.width, run.x, run.baseline, size);
+        // Text that changes size across more than a word space, on the
+        // same baseline (a superscript is raised), is two lines side by
+        // side: a caption level with the column beside it.
+        const resized = Math.abs(run.size - last.size) > 0.03 * size && gap > 0.5 * Math.min(run.size, last.size)
+          && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
         const split = (gap > GUTTER * size && !bridged)
-          || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size));
+          || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
+          || (resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size));
         if (split) { groups.push({ runs: line }); line = []; }
       }
       line.push(run);
@@ -326,7 +332,7 @@ function markFurniture(pages: Layout["pages"]): void {
 export function layout(doc: Doc): Layout {
   const bodySize = bodySizeOf(doc);
   const pages = doc.pages.map((page) => ({
-    number: page.number, width: page.width, height: page.height, twoColumn: false,
+    number: page.number, width: page.width, height: page.height, twoColumn: false, drawn: page.drawn,
     lines: buildLines(page).map((runs) => lineOf(runs, page.number)),
   }));
   markFurniture(pages);

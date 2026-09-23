@@ -94,17 +94,23 @@ export async function pageOverlays(doc, pageNumber, analysis) {
 
   const fromAnalyzer = consolidateCitations(analyzed);
 
+  // A link names the float it goes to; the float is where it lands, as a
+  // box the viewer brings into view.
+  const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
   const analyzedLinks = (analysis?.links || [])
-    .filter((link) => link.page === pageNumber)
-    .map((link) => ({
-      kind: link.kind,
-      label: link.label,
-      x: link.x,
-      y: link.y,
-      w: link.w,
-      h: link.h,
-      spot: { page: link.target_page, y: link.target_y },
-    }))
+    .filter((link) => link.page === pageNumber && floats.has(link.float_uuid))
+    .map((link) => {
+      const float = floats.get(link.float_uuid);
+      return {
+        kind: float.kind,
+        label: link.label,
+        x: link.x,
+        y: link.y,
+        w: link.w,
+        h: link.h,
+        spot: { page: float.page, y: float.y, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
+      };
+    })
     .filter((candidate) => ![
       ...annotated.citations,
       ...annotated.links,

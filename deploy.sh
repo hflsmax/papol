@@ -1130,8 +1130,12 @@ link_check() {
 deploy_host() {
   [ $# -eq 0 ] || die "host takes no options"
   say "Updating $HOST"
-  note "$HOST_DIR fast-forwards to origin/main, then nixos-rebuild switch"
+  note "$HOST_DIR fast-forwards to origin/main, then nixos-rebuild switch, then the helper restarts on the new bundle"
   ssh "$HOST" "cd $HOST_DIR && git fetch origin && git merge --ff-only origin/main && sudo /run/current-system/sw/bin/nixos-rebuild switch"
+  # The helper's unit does not change with its bundle, so the rebuild
+  # leaves the old one running; stopped, it is started again (Restart=always).
+  # Matched whole (-x), so the ssh shell's own command line is not.
+  ssh "$HOST" "pkill -u \$(id -u) -x -f '\\S+/bin/node $HOST_DIR/host/helper/dist/helper.js' || true"
 }
 
 case "${1:-}" in

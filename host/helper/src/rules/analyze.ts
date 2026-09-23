@@ -35,6 +35,7 @@ export async function analyzeWithRules(bytes: Uint8Array): Promise<RulesResult> 
       journal: e.journal, doi: e.doi, arxiv_id: e.arxiv_id, page: e.page, y: e.y,
     })),
     citations,
+    floats: [...floats.values()].map(({ caption: _, ...float }) => float),
     links,
   };
   return {

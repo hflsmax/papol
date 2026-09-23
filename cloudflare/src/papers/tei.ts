@@ -36,14 +36,20 @@ export interface Citation extends Box {
   inferred: boolean;
 }
 
-export interface DocumentLink extends Box {
-  kind: string;
-  label: string;
-  target_page: number;
-  target_y: number;
+// A figure, table or box, where a link to it lands: its caption.
+export interface Float extends Box {
+  key: string; // what links name it by
+  kind: string; // figure, table, box, algorithm, listing
+  label: string; // its number, as printed
 }
 
-export interface Analysis { references: Reference[]; citations: Citation[]; links: DocumentLink[] }
+// A place in the text that points at a float.
+export interface DocumentLink extends Box {
+  float: string; // the float's key
+  label: string; // what is printed, e.g. "2a"
+}
+
+export interface Analysis { references: Reference[]; citations: Citation[]; floats: Float[]; links: DocumentLink[] }
 
 export interface HeaderMetadata {
   title: string | null;
@@ -323,16 +329,19 @@ export function parseTei(xml: string): Analysis {
   // an in-text Box reference to a Figure with the same number. Keep the
   // explicit target, but index the printed heading so the document's own
   // words can disambiguate.
-  const figures = new Map<string, Box>();
-  const namedTargets = new Map<string, Box>();
+  const floats: Float[] = [];
+  const byId = new Map<string, Float>();
+  const named = new Map<string, Float>();
   for (const figure of descendants(root, "figure")) {
-    const key = figure.attributes["xml:id"];
+    const id = figure.attributes["xml:id"];
     const found = boxes(figure.attributes.coords, pages);
-    if (!key || !found.length) continue;
-    figures.set(key, found[0]);
+    if (!id || !found.length) continue;
     const heading = [children(figure, "head")[0], children(figure, "label")[0]].map(text).filter(Boolean).join(" ");
     const match = heading.match(TARGET_HEADING);
-    if (match) namedTargets.set(`${linkKind(match[1])}\n${match[2].toLowerCase()}`, found[0]);
+    const float: Float = { key: id, kind: match ? linkKind(match[1]) : "figure", label: match?.[2] ?? "", ...found[0] };
+    floats.push(float);
+    byId.set(id, float);
+    if (match) named.set(`${float.kind}\n${float.label.toLowerCase()}`, float);
   }
   const prefixes = precedingText(root);
   const links: DocumentLink[] = [];
@@ -341,15 +350,15 @@ export function parseTei(xml: string): Analysis {
     const label = text(marker) ?? "";
     const kindMatch = (prefixes.get(marker) ?? "").match(CROSS_REFERENCE_KIND);
     const kind = kindMatch ? linkKind(kindMatch[1]) : "figure";
-    const target = namedTargets.get(`${kind}\n${label.toLowerCase()}`) ?? figures.get((marker.attributes.target ?? "").replace(/^#/, ""));
+    const target = named.get(`${kind}\n${label.toLowerCase()}`) ?? byId.get((marker.attributes.target ?? "").replace(/^#/, ""));
     if (!target) continue;
     for (const box of boxes(marker.attributes.coords, pages)) {
       // Extend left over the prefix so the whole phrase is one pointer
       // target rather than only the numeral.
       const [pageWidth, pageHeight] = pages.get(box.page)!;
       const prefix = Math.min(box.x, box.h * pageHeight / pageWidth * FIGURE_PREFIX_EMS);
-      links.push({ kind, label, ...box, x: box.x - prefix, w: box.w + prefix, target_page: target.page, target_y: target.y });
+      links.push({ float: target.key, label, ...box, x: box.x - prefix, w: box.w + prefix });
     }
   }
-  return { references, citations, links };
+  return { references, citations, floats, links };
 }

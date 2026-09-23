@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "mention" | "bibliography" | "entry" | "field" | "citation";
+export type Stage = "layout" | "caption" | "float" | "mention" | "bibliography" | "entry" | "field" | "citation";
 
 export interface Rule {
   id: string;
@@ -70,6 +70,11 @@ export const LAYOUT_GUTTER = rule({
   summary: "Blank space between two runs on one baseline, which the lines just above and below also leave blank, is a gutter: the runs are in different columns and never one line.",
   why: "Nature Communications' gutter is narrower than a word space in its headings, so a gutter is recognized by lining up with its neighbours, not by its width.",
 });
+export const LAYOUT_SIZE_CHANGE = rule({
+  id: "layout.size-change", stage: "layout",
+  summary: "Two runs on the same baseline (not a raised or lowered script) that differ in size (beyond the 3% a size read off a transform is rounded to), with more than half an em between them, are two lines side by side, not one.",
+  why: "Nature Reviews sets its captions smaller than the text and level with the column beside them, a gutter narrower than the text's gutter rule allows for.",
+});
 export const LAYOUT_COLUMNS = rule({
   id: "layout.columns", stage: "layout",
   summary: "A page is read by recursive XY-cut: split at the widest blank vertical strip (columns, left to right), else the widest blank horizontal band wider than line spacing (top to bottom), and again within each part.",
@@ -115,10 +120,76 @@ export const CAPTION_STYLED = rule({
   matches: ["Fig. 1 (a) Physical prototype", "Figure 2 Kinematics of the"],
   rejects: ["Figure", "Figures 3 and 4"],
 });
-export const CAPTION_REGION = rule({
-  id: "caption.region", stage: "caption",
-  summary: "A figure is the blank (non-text) space above its caption in the caption's column; a table, algorithm or listing starts at its caption.",
-  why: "A link to a figure should land on the figure, which is almost always set above its caption, while tables are captioned above.",
+// ----------------------------------------------------------------- floats
+// How much of the page a float is: the box a link to it brings into view.
+
+export const FLOAT_TYPE = rule({
+  id: "float.type", stage: "float",
+  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area (where that text is set on nearly every page), and two columns when the measure is well under the text's width.",
+  why: "What bounds a float is the paper's running text, and papers differ in font, size and spacing; measuring them from the paper keeps the rules free of numbers fitted to one paper.",
+});
+export const FLOAT_PROSE = rule({
+  id: "float.prose", stage: "float",
+  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure (within an indent of it), justified with that line (both edges shared, at least half the measure wide, and not by having as many characters, as monospaced code does), or the short last or indented first line of a paragraph that is; and any paragraph of three lines or more, at least half the measure wide, sharing both edges, in whatever font.",
+  why: "A figure can be text — code, a grammar, rules of inference, a label in the text font — and a table's rows are words; what a float is not is the paper's own paragraphs.",
+});
+export const FLOAT_FRONT_MATTER = rule({
+  id: "float.front-matter", stage: "float",
+  summary: "An author's block — a line with an email address, and the lines stacked under it — bounds a float as running text does.",
+  why: "A teaser figure under the title (ACM's UIST, CHI) has the author block over it, short centred lines that are no running text by any other rule.",
+  pattern: /[\w.+-]+@[\w-]+\.[\w.]+/,
+  matches: ["atpa@di.ku.dk", "Jane Doe (jane.doe@mit.edu)"],
+  rejects: ["@article{x", "Department of Computer Science"],
+});
+export const FLOAT_GRAPHICS = rule({
+  id: "float.graphics", stage: "float",
+  summary: "What a page paints — filled or stroked paths, images — counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area across, or above a page's running head or below its foot (within a leading of the text area where it has none) — a running-head rule, crop marks.",
+  why: "Figures are drawn, not typeset; but PDFs also paint page backgrounds, crop marks, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure.",
+});
+export const FLOAT_CAPTION_PARAGRAPH = rule({
+  id: "float.caption-paragraph", stage: "float",
+  summary: "A caption goes on for the lines under its first at its size, each overlapping the ones above and no more than a line and a half of its size below them, with no rule drawn between; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found either side of its caption is its caption.",
+  why: "A caption is a paragraph, its label only the first line; centred last lines and Nature's two-column captions under wide figures are still the one paragraph.",
+});
+export const FLOAT_FRAME = rule({
+  id: "float.frame", stage: "float",
+  summary: "A drawn rectangle around a caption, several times its size, is the float: its frame, with the fills of the same width stacked against it, less than a line apart (a box's tinted title band and the panel under it).",
+  why: "Nature's boxes, and framed listings, are set inside a rule or a tint with the caption at the top.",
+});
+export const FLOAT_BAND = rule({
+  id: "float.band", stage: "float",
+  summary: "A float is everything that starts between its caption and the first bound on its side — running text or a heading over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized — across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
+  why: "Growing a float by what touches it cut figures short wherever their panels, or the figure and its caption, were set further apart than the limit; what a float is bounded by is the text around it.",
+});
+export const FLOAT_PIECE = rule({
+  id: "float.piece", stage: "float",
+  summary: "Paths and images that touch or overlap are one piece, which a float takes whole; a path that crosses running text or a caption joins nothing.",
+  why: "A drawing is painted stroke by stroke; a float taking strokes one by one split a line drawing between two stacked figures (Demaine & O'Rourke's linkages).",
+});
+export const FLOAT_SIDE = rule({
+  id: "float.side", stage: "float",
+  summary: "Once every float has its bands, a figure whose caption has drawings level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
+  why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page.",
+});
+export const FLOAT_OTHER_SIDE = rule({
+  id: "float.other-side", stage: "float",
+  summary: "Once every float on a page has its usual band, one that found nothing there takes what no float took on its other side, up to the next bound.",
+  why: "Some figures are captioned over themselves; the usual side goes first so that stacked floats do not take each other's, and only when it is empty, since what follows a caption is otherwise the text resuming — a one-line paragraph, a theorem.",
+});
+export const FLOAT_FIGURE_EXTENT = rule({
+  id: "float.figure-extent", stage: "float",
+  summary: "A figure is the band over its caption; failing that, what is left under it.",
+  why: "A figure is almost always set above its caption.",
+});
+export const FLOAT_TABLE_EXTENT = rule({
+  id: "float.table-extent", stage: "float",
+  summary: "A table (or algorithm, or listing) is the band under its caption (failing that, what is left over it), out of text and thin rules only, and ends at a picture. Tables are sized before figures, and a figure's band ends at them.",
+  why: "Tables are captioned above themselves and are text and rules; a picture under a table is the next figure's.",
+});
+export const FLOAT_RULED = rule({
+  id: "float.ruled", stage: "float",
+  summary: "An algorithm or listing with rules under its caption, as wide as each other, runs down to the last of them before a bound — whatever is set between.",
+  why: "Algorithms are set in the text's own font and size, so they read as running text; the rules around them are what bounds them.",
 });
 
 // --------------------------------------------------------------- mentions

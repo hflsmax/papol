@@ -1535,8 +1535,12 @@ export default function App() {
   };
 
   // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a
-  // fraction down a page, so it survives any zoom.
-  const followLink = ({ page, y }) => {
+  // fraction down a page, so it survives any zoom. A link to a figure or a
+  // table carries the float's box: the whole float is brought into view, a
+  // little below the middle of the window so the eye lands on it rather
+  // than above it, and across as well when the page is wider than the
+  // window — a phone, or a column zoomed into.
+  const followLink = ({ page, y, box: float = null }) => {
     // A link can be activated while text remains selected in the PDF. Once
     // the document jumps, that old highlight no longer describes the place
     // the user is looking at and its paint action should not follow them.
@@ -1549,13 +1553,29 @@ export default function App() {
     const viewBeforeJump = currentView();
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
-    // A little above what was linked to, rather than flush against the top
-    // edge: a heading with nothing above it is hard to place.
-    const target =
-      from + pageBox.top - box.top + y * pageBox.height - box.height * 0.15;
-    const top = Math.max(0, target);
+    const pageTop = from + pageBox.top - box.top;
+    let top, left = scroller.scrollLeft;
+    if (float) {
+      const floatTop = pageTop + float.y * pageBox.height;
+      const floatHeight = float.h * pageBox.height;
+      // Its middle at three fifths of the window; a float taller than the
+      // window starts near the top instead, so its beginning is seen.
+      top = floatHeight > box.height * 0.85
+        ? floatTop - box.height * 0.05
+        : floatTop + floatHeight / 2 - box.height * 0.6;
+      if (scroller.scrollWidth > scroller.clientWidth + 1) {
+        const pageLeft = scroller.scrollLeft + pageBox.left - box.left;
+        left = pageLeft + (float.x + float.w / 2) * pageBox.width - box.width / 2;
+        left = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth, left));
+      }
+    } else {
+      // A little above what was linked to, rather than flush against the top
+      // edge: a heading with nothing above it is hard to place.
+      top = pageTop + y * pageBox.height - box.height * 0.15;
+    }
+    top = Math.max(0, top);
     const far = Math.abs(top - from) > box.height * 1.5;
-    scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
+    scroller.scrollTo({ top, left, behavior: far ? 'auto' : 'smooth' });
     // Only worth offering the way back when the jump actually went
     // somewhere; a link to what is already on screen has not lost anyone.
     // A quarter of the window is enough to have lost it, though — the

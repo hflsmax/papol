@@ -58,7 +58,7 @@ describe("POST /analyze", () => {
       const { status, body } = await post("/analyze", PDF);
       assert.equal(status, 200);
       assert.deepEqual(calls, [["fulltext", PDF.length]]);
-      assert.deepEqual(Object.keys(body), ["references", "citations", "links"]);
+      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
       assert.equal(body.references.length, 2);
       assert.deepEqual({ ...body.references[0], authors: undefined }, {
         key: "b0", index: 0, raw: "Vaswani et al. Attention Is All You Need. 2017.", title: "Attention Is All You Need", year: 2017,
@@ -67,8 +67,9 @@ describe("POST /analyze", () => {
       assert.deepEqual(body.references[0].authors, ["Ashish Vaswani"]);
       assert.deepEqual(body.citations, [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }]);
       assert.equal(body.links.length, 1);
-      assert.equal(body.links[0].kind, "figure");
-      assert.equal(body.links[0].target_y, 400 / 800);
+      const float = body.floats.find((f) => f.key === body.links[0].float);
+      assert.equal(float.kind, "figure");
+      assert.equal(float.y, 400 / 800);
       assert.equal(lines.length, 1);
       assert.match(lines[0], /^\S+ POST \/analyze 200 \d+B \d+ms$/);
     });
@@ -149,12 +150,13 @@ describe("POST /analyze-rules", () => {
       const { status, body } = await post("/analyze-rules", pdf);
       assert.equal(status, 200);
       assert.deepEqual(calls, [], "GROBID is never asked");
-      assert.deepEqual(Object.keys(body), ["references", "citations", "links"]);
+      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
       assert.deepEqual(body.references.map((r) => [r.key, r.year, r.title]), [
         ["b0", 2016, "Metamaterial Mechanisms"], ["b1", 2017, "Digital Mechanical Metamaterials"], ["b2", 2018, "Trussformer"],
       ]);
       assert.deepEqual(body.citations.map((c) => [c.key, c.label]), [["b0", "[1]"], ["b1", "[2]"], ["b0", "[1, 2]"], ["b1", "[1, 2]"]]);
-      assert.deepEqual(body.links.map((l) => [l.kind, l.label, l.page, l.target_page]), [["figure", "1", 1, 1]]);
+      assert.deepEqual(body.floats.map((f) => [f.key, f.kind, f.label, f.page]), [["f0", "figure", "1", 1]]);
+      assert.deepEqual(body.links.map((l) => [l.float, l.label, l.page]), [["f0", "1", 1]]);
       assert.match(lines[0], /^\S+ POST \/analyze-rules 200 \d+B \d+ms$/);
     });
   });

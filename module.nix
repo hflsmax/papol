@@ -179,8 +179,10 @@ in {
 
     # The helper: one Node process on the checked-in bundle, as the user
     # whose checkout it is, up after the container it talks to and back
-    # whenever it falls over. It reads one file, two loopback ports and
-    # the bucket domains, so the rest of the system is closed to it.
+    # whenever it falls over or is stopped — which is how a new bundle is
+    # taken up (deploy.sh host), the unit itself not changing with it. It
+    # reads one file, two loopback ports and the bucket domains, so the
+    # rest of the system is closed to it.
     systemd.services.papol-helper = {
       description = "Papol's helper beside GROBID: reads PDFs for the Worker";
       wantedBy = [ "multi-user.target" ];
@@ -194,8 +196,8 @@ in {
       serviceConfig = {
         ExecStart = "${cfg.helper.node}/bin/node ${cfg.srcDir}/host/helper/dist/helper.js";
         User = cfg.user;
-        Restart = "on-failure";
-        RestartSec = 5;
+        Restart = "always";
+        RestartSec = 2;
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectSystem = "strict";
