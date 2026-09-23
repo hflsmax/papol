@@ -320,15 +320,6 @@ export async function clearNativeData() {
   return removed;
 }
 
-// Everything queued, conflicted or not yet uploaded, written out as a zip.
-// Reachable from the compatibility bar, because a user being asked to
-// replace the application needs somewhere to put the work only this copy
-// holds before they do.
-export function exportNativeRecovery(accountUuid = nativeAccountUuid()) {
-  if (!IS_DESKTOP || accountUuid == null) return Promise.resolve(null);
-  return invoke('local_recovery_export', { accountUuid });
-}
-
 // What the synchronizer last heard about this build. Written natively when
 // a push or pull is refused with 426, and read here at startup so a window
 // opened offline carries the verdict rather than starting hopeful.

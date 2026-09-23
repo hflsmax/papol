@@ -3368,6 +3368,7 @@ export default function App() {
   if (error && !doc) {
     return (
       <>
+        <CompatibilityGate />
         <div className="shell">
           <div className="error" role="alert">{error}</div>
           {/sign in to see this paper|sign in to view this paper/i.test(error) && (

@@ -4,7 +4,6 @@ import {
   COMPATIBILITY_EVENT, INCOMPATIBLE,
   getClientCompatibility, hydrateClientCompatibility,
 } from '../clientCompatibility.js';
-import { exportNativeRecovery } from '../nativeData.js';
 
 const DEFAULT_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
@@ -18,13 +17,9 @@ const DEFAULT_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 // the next one will discard — the work would be made, and then lost, and
 // nobody would have been warned at the moment it mattered.
 //
-// So the two actions on the covering panel are the only two that help: get
-// the version that works, and take whatever was never sent somewhere safe
-// before the update throws this computer's copy away.
+// So the panel offers the one thing that helps: the version that works.
 export default function CompatibilityGate() {
   const [state, setState] = useState(() => (DESKTOP ? hydrateClientCompatibility() : getClientCompatibility()));
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(null);
 
   useEffect(() => {
     if (!DESKTOP) return undefined;
@@ -35,42 +30,18 @@ export default function CompatibilityGate() {
 
   if (!DESKTOP) return null;
   if (state.verdict !== INCOMPATIBLE) return null;
-  const download = (
-    <a href={state.downloadUrl || DEFAULT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-      Download Papol
-    </a>
-  );
-
-  const saveWork = async () => {
-    setSaving(true);
-    try {
-      const receipt = await exportNativeRecovery();
-      setSaved(receipt?.path ? 'Saved to Downloads' : 'Saved');
-    } catch {
-      setSaved('Could not save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="compatibility-stop" role="alertdialog" aria-modal="true" aria-labelledby="compatibility-stop-title">
       <div className="compatibility-stop-panel">
         <h1 id="compatibility-stop-title">Papol needs updating</h1>
         <p>
-          This version can no longer work with the service, so it has stopped
-          here rather than letting you make work it cannot save.
-        </p>
-        <p>
-          Updating starts this computer’s copy again from the service.
-          Everything that reached it is waiting there — anything that never
-          did is only here, so save it first.
+          This version can no longer work with the backend service, so it has
+          stopped. Please download the latest app.
         </p>
         <div className="compatibility-stop-actions">
-          {download}
-          <button type="button" onClick={saveWork} disabled={saving}>
-            {saving ? 'Saving…' : saved || 'Save unsynced work'}
-          </button>
+          <a href={state.downloadUrl || DEFAULT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+            Download Papol
+          </a>
         </div>
       </div>
     </div>
