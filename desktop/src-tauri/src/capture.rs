@@ -322,20 +322,25 @@ async fn guard(_window: &WebviewWindow) -> Result<(), String> {
 }
 
 /// What a page says it is showing when it has gone quiet: the length of
-/// its text, and how many pictures and drawings are in view.
+/// its text, how many pictures and drawings are in view, and — for a page
+/// that draws with neither — how many different things it paints.
 #[derive(serde::Deserialize, Default)]
 struct Showing {
     text: usize,
     pictures: usize,
     drawings: usize,
+    #[serde(default)]
+    fills: usize,
 }
 
 impl Showing {
-    /// A page with a line of text and nothing drawn is a wall, an error
+    /// A page with a line of text on one flat colour is a wall, an error
     /// or an empty shell — whatever it is, a picture of it is a blank
     /// rectangle, and the card is better off as the link it already is.
+    /// The page's own `worth` (scripts/capture-page.js) says the same, to
+    /// decide when it has something worth waiting for.
     fn worth_a_picture(&self) -> bool {
-        self.text > 40 || self.pictures > 0 || self.drawings > 0
+        self.text > 40 || self.pictures > 0 || self.drawings > 0 || self.fills > 1
     }
 }
 
@@ -548,7 +553,14 @@ mod tests {
             ..Showing::default()
         }
         .worth_a_picture());
-        // Words, a picture or a drawing: any one of them is a picture.
+        // A single flat colour is what a shell and a wall both look like.
+        assert!(!Showing {
+            fills: 1,
+            ..Showing::default()
+        }
+        .worth_a_picture());
+        // Words, a picture, a drawing, or paint in more than one colour:
+        // any one of them is a picture.
         for showing in [
             Showing {
                 text: 2909,
@@ -562,6 +574,10 @@ mod tests {
                 drawings: 1,
                 ..Showing::default()
             },
+            Showing {
+                fills: 2,
+                ..Showing::default()
+            },
         ] {
             assert!(showing.worth_a_picture());
         }
@@ -572,7 +588,9 @@ mod tests {
     #[test]
     fn the_page_and_the_application_measure_a_picture_the_same_way() {
         let script = include_str!("../scripts/capture-page.js");
-        assert!(script.contains("report.text > 40 || report.pictures > 0 || report.drawings > 0"));
+        assert!(script.contains(
+            "report.text > 40 || report.pictures > 0 || report.drawings > 0 || report.fills > 1"
+        ));
         // And the wait ends on a page that has gone still *and* has
         // something in it, never on stillness alone.
         assert!(script.contains("(still && worth(showing()))"));

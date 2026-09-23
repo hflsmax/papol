@@ -16,8 +16,8 @@ const script = await readFile(
 );
 
 // A page, as much of one as the rules read: some pictures, some text,
-// and whatever it draws for itself.
-function pageWith(images, { text = '', drawings = [] } = {}) {
+// whatever it draws for itself, and whatever it paints.
+function pageWith(images, { text = '', drawings = [], paint = [] } = {}) {
   const made = images.map((image) => ({
     complete: true, naturalWidth: 640, visibility: 'hidden', away: false,
     box: { width: 300, height: 300, top: 350, bottom: 650 }, style: {},
@@ -26,12 +26,22 @@ function pageWith(images, { text = '', drawings = [] } = {}) {
   const drawn = drawings.map((drawing) => ({
     box: { width: 300, height: 300, top: 350, bottom: 650 }, ...drawing,
   }));
+  const painted = paint.map((fill) => ({
+    box: { width: 1280, height: 400, top: 0, bottom: 400 },
+    backgroundColor: 'rgba(0, 0, 0, 0)', backgroundImage: 'none', visibility: 'visible', display: 'block',
+    ...fill,
+  }));
   const context = {
     innerHeight: 800,
     performance: { now: () => 0 },
     setInterval: () => 0,
     clearInterval: () => {},
-    getComputedStyle: (image) => ({ visibility: image.visibility }),
+    getComputedStyle: (element) => ({
+      visibility: element.visibility,
+      display: element.display,
+      backgroundColor: element.backgroundColor,
+      backgroundImage: element.backgroundImage,
+    }),
     document: {
       body: { innerText: text },
       images: made.map((image) => ({
@@ -40,7 +50,11 @@ function pageWith(images, { text = '', drawings = [] } = {}) {
         closest: () => (image.away ? {} : null),
         style: { setProperty: (name, value) => { image.style[name] = value; } },
       })),
-      querySelectorAll: () => drawn.map((drawing) => ({ getBoundingClientRect: () => drawing.box })),
+      querySelectorAll: (selector) =>
+        (selector === 'body *' ? painted : drawn).map((element) => ({
+          ...element,
+          getBoundingClientRect: () => element.box,
+        })),
     },
   };
   context.globalThis = context;
@@ -84,7 +98,28 @@ test('what the page counts as showing is what a picture of it would hold', () =>
   );
   const report = { ...capture.showing() }; // the page's own realm makes it
   // The hidden one counts: `reveal` brings it back before the picture.
-  assert.deepEqual(report, { text: 21, pictures: 2, drawings: 1 });
+  // Paint goes uncounted: asking the page about every element it shows
+  // is work, and there is already a picture here without it.
+  assert.deepEqual(report, { text: 21, pictures: 2, drawings: 1, fills: 0 });
+});
+
+test('a page that draws with neither words nor pictures is read by what it paints', () => {
+  // A page painted in bands — the end-to-end fixture, a hero behind a
+  // headline, a shop's tiles as backgrounds — is a picture.
+  const bands = pageWith([], {
+    paint: [{ backgroundColor: 'rgb(200, 50, 30)' }, { backgroundColor: 'rgb(30, 100, 200)' }],
+  }).capture;
+  assert.equal(bands.showing().fills, 2);
+  assert.equal(bands.worth(bands.showing()), true);
+
+  // An expanse of one colour is what an empty shell and a wall both
+  // look like, whatever colour it is.
+  const flat = pageWith([], { paint: [{ backgroundColor: 'rgb(255, 255, 255)' }] }).capture;
+  assert.equal(flat.worth(flat.showing()), false);
+
+  // What the page does not paint at all is not paint.
+  const bare = pageWith([], { paint: [{}, { visibility: 'hidden', backgroundColor: 'rgb(9, 9, 9)' }] }).capture;
+  assert.equal(bare.showing().fills, 0);
 });
 
 test('a shell that has not handed over to the page yet is not worth a picture', () => {
