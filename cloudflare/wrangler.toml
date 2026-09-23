@@ -95,7 +95,9 @@ run_worker_first = true
 # A second Papol on the same platform, with its own data, at dev.papol.io:
 # where a branch meets Cloudflare's real limits before it meets people.
 # `wrangler deploy --env dev`. Bindings do not inherit, so each is named
-# again; the assets and the code are the same.
+# again; the assets and the code are the same. Its data is a copy of
+# production's, taken when the refresh-dev workflow is run
+# (cloudflare/scripts/refresh-dev.py); it has no mail secrets.
 [env.dev]
 name = "papol-dev"
 workers_dev = false

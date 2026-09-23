@@ -4,7 +4,6 @@
 #   ./deploy.sh dev            the Worker and the three apps here, live-reloading
 #   ./deploy.sh prod           build the apps, assemble the site, deploy the Worker
 #   ./deploy.sh host           update the NixOS host: GROBID and its tunnel
-#   ./deploy.sh pull           replace the local database with production's
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8787)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
@@ -27,8 +26,9 @@
 # local runtime on this machine, with a D1 and an R2 of its own under
 # cloudflare/.wrangler, and the three Vite servers in front of it.
 #
-# Code goes up with `prod`. Data never goes from development to production;
-# `pull` explicitly replaces the local database with a copy of production's.
+# Code goes up with `prod`. Data never goes from development to production.
+# dev.papol.io takes a fresh copy of production's data from the refresh-dev
+# workflow (.github/workflows/refresh-dev.yml), run by hand.
 #
 # Two things about the files bucket are set once, by hand, not by a deploy:
 # a browser PUTs a paper's PDF to the bucket directly with a URL the Worker
@@ -66,7 +66,7 @@ confirm() {
 }
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -1134,54 +1134,11 @@ deploy_host() {
   ssh "$HOST" "cd $HOST_DIR && git fetch origin && git merge --ff-only origin/main && sudo /run/current-system/sw/bin/nixos-rebuild switch"
 }
 
-# --- pulling production data into development -------------------------------
-
-# Pulling is deliberately one-way and explicit. Production is read through
-# `d1 export`, which takes a consistent snapshot while it continues serving,
-# and is never modified. The files stay where they are: a pulled paper is
-# listed here, but its PDF is in production's bucket and not in the local
-# one, so opening it is a 404 until it is uploaded again.
-pull_data() {
-  [ $# -eq 0 ] || die "pull takes no options"
-  # Replacing a database beneath a running server can leave it answering
-  # from a mixture of the old and new data.
-  port_busy "$WRANGLER_PORT" \
-    && die "the Worker is answering on $WRANGLER_PORT — stop it first"
-  install_node_tree "$DEV_DIR/cloudflare" --legacy-peer-deps
-
-  local dump
-  dump=$(mktemp "${TMPDIR:-/tmp}/papol-prod.XXXXXX")
-  trap 'rm -f "$dump"' RETURN
-
-  say "Exporting production's database"
-  wrangler d1 export papol --remote --output "$dump"
-  note "$(du -h "$dump" | cut -f1)"
-
-  # The export carries the schema, so it goes into an empty database. The
-  # local D1 is a SQLite file under .wrangler/state, and starting over is
-  # deleting it; the migrations table comes across with the rest, so the
-  # next `dev` finds nothing to apply.
-  say "Replacing the local database"
-  rm -rf "$DEV_DIR/cloudflare/.wrangler/state/v3/d1"
-  wrangler d1 execute papol --local --file "$dump"
-
-  # Production sessions must not work here, and production's mail
-  # credentials must not become active here.
-  say "Scrubbing production's reach out of the copy"
-  wrangler d1 execute papol --local \
-    --command "DELETE FROM auth_tokens; DELETE FROM settings WHERE key LIKE 'smtp_%'"
-  note "production sessions and SMTP credentials dropped; sign in again"
-  say "Done. Development now holds a sanitized copy of production's database."
-}
-
-# --- ------------------------------------------------------------------------
-
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   shift; deploy_prod "$@" ;;
   host)   shift; deploy_host "$@" ;;
-  pull)   shift; pull_data "$@" ;;
   macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, host, pull, macos)" ;;
+  *)      die "unknown target: $1 (try dev, prod, host, macos)" ;;
 esac
