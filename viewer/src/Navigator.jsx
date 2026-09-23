@@ -192,7 +192,11 @@ export default function Navigator({
     [anchors],
   );
 
-  const shown = pages > 0 && (segments.length > 0 || marks.length > 0);
+  // Every paper gets the bar, whether or not it names its sections or the
+  // reader has marked it: a PDF printed to PDF often carries no outline,
+  // and the bar is still where the reader is in it and the way to go
+  // anywhere else. With no sections it is the paper by its pages.
+  const shown = pages > 0;
 
   // How wide the bar is, which is what a minimum in pixels is a fraction of.
   const [width, setWidth] = useState(0);
@@ -376,7 +380,11 @@ export default function Navigator({
     const root = rootRef.current;
     if (!tip || !root) return;
     const under = document.elementFromPoint(event.clientX, event.clientY);
-    const text = root.contains(under) ? under?.closest('[data-tip]')?.dataset.tip : null;
+    // A paper with no sections is named by its pages instead.
+    const text = (root.contains(under) ? under?.closest('[data-tip]')?.dataset.tip : null)
+      || (!segments.length && root.contains(under)
+        ? `Page ${Math.min(pages, Math.floor(pressedAt(event)) + 1)}`
+        : null);
     if (!text) {
       tip.hidden = true;
       return;
