@@ -103,12 +103,13 @@ describe("GROBID's TEI", () => {
     expect(parenthesized.citations.map((c) => c.label)).toEqual(["(1)", "(7)"]);
   });
 
-  it("links a figure reference to where the figure is, and a Box to the box rather than the figure of the same number", () => {
+  it("links a figure reference to the figure, and a Box to the box rather than the figure of the same number", () => {
     const figure = parseTei(TEI(`<facsimile><surface n="2" lrx="600" lry="800"/></facsimile>
       <text><body><p>See Figure <ref type="figure" target="#fig_0" coords="2,120,160,12,10">2</ref>.</p></body>
       <back><figure xml:id="fig_0" coords="2,100,400,300,20"><head>Figure 2:</head><label>2</label></figure></back></text>`));
+    expect(figure.floats).toEqual([{ key: "fig_0", kind: "figure", label: "2", page: 2, x: 100 / 600, y: 400 / 800, w: 300 / 600, h: 20 / 800 }]);
     expect(figure.links).toHaveLength(1);
-    expect(figure.links[0]).toMatchObject({ kind: "figure", label: "2", page: 2, target_page: 2, target_y: 400 / 800 });
+    expect(figure.links[0]).toMatchObject({ float: "fig_0", label: "2", page: 2 });
     // Extended left over the "Figure " prefix.
     expect(figure.links[0].x).toBeLessThan(120 / 600);
     expect(figure.links[0].x + figure.links[0].w).toBeCloseTo(132 / 600);
@@ -117,7 +118,8 @@ describe("GROBID's TEI", () => {
       <text><body><p>See <hi>BOX </hi><ref type="figure" target="#fig_1" coords="1,300,160,12,10">1</ref>.</p>
       <figure xml:id="fig_1" coords="1,100,400,300,20"><head>Figure 1</head><label>1</label></figure>
       <figure xml:id="box_1" coords="2,100,240,300,20"><head>Box 1 | Methods</head><label>1</label></figure></body></text>`));
-    expect(box.links.map((l) => [l.kind, l.target_page])).toEqual([["box", 2]]);
+    const named = new Map(box.floats.map((f) => [f.key, f]));
+    expect(box.links.map((l) => [named.get(l.float)!.kind, named.get(l.float)!.page])).toEqual([["box", 2]]);
   });
 });
 
@@ -284,6 +286,32 @@ describe("the viewer's references", () => {
     // A paper Papol holds under the cited title is named, so the user can open it.
     await paperWithCopy(grace, OTHER, "Attention Is All You Need");
     expect((await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers })).references[0].papol_paper_sha256).toBe(OTHER);
+  });
+
+  it("keep a paper's floats, and each link names the float it goes to", async () => {
+    const ada = await register();
+    await kept(ada);
+    const analysis = {
+      references: [], citations: [],
+      floats: [{ key: "f0", kind: "figure", label: "2", page: 3, x: 0.1, y: 0.2, w: 0.4, h: 0.3 }],
+      links: [{ float: "f0", label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }],
+    };
+    hosts({ "grobid.test": () => jsonResponse(analysis) });
+    await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
+    const ready = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    expect(ready.floats).toEqual([{ uuid: expect.any(String), kind: "figure", label: "2", page: 3, x: 0.1, y: 0.2, w: 0.4, h: 0.3 }]);
+    expect(ready.links).toEqual([{ float_uuid: ready.floats[0].uuid, label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }]);
+  });
+
+  it("fail a reading whose links name a float it does not have", async () => {
+    const ada = await register();
+    await kept(ada);
+    hosts({ "grobid.test": () => jsonResponse({ references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
+    await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
+    expect(await count("paper_links")).toBe(0);
+    expect((await row("SELECT status FROM jobs WHERE kind = 'analyze_paper'"))!.status).toBe("failed");
   });
 
   it("record a PDF GROBID cannot read on the paper rather than asking forever, and say so when there is no analyzer", async () => {

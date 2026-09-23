@@ -6,7 +6,7 @@
 // That is what lets a rule be a pattern over text while its answer stays a
 // place on a page.
 
-import type { Doc, Page, Run } from "./pdf";
+import type { Doc, Drawn, Page, Run } from "./pdf";
 
 export interface Placed extends Run {
   sup: boolean; // raised and smaller than its line: a superscript
@@ -35,7 +35,7 @@ export interface Line {
 export interface Box { page: number; x: number; y: number; w: number; h: number }
 
 export interface Layout {
-  pages: { number: number; width: number; height: number; lines: Line[]; twoColumn: boolean }[];
+  pages: { number: number; width: number; height: number; lines: Line[]; drawn: Drawn[]; twoColumn: boolean }[];
   bodySize: number;
 }
 
@@ -326,7 +326,7 @@ function markFurniture(pages: Layout["pages"]): void {
 export function layout(doc: Doc): Layout {
   const bodySize = bodySizeOf(doc);
   const pages = doc.pages.map((page) => ({
-    number: page.number, width: page.width, height: page.height, twoColumn: false,
+    number: page.number, width: page.width, height: page.height, twoColumn: false, drawn: page.drawn,
     lines: buildLines(page).map((runs) => lineOf(runs, page.number)),
   }));
   markFurniture(pages);

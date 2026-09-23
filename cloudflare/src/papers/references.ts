@@ -105,6 +105,7 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   const statements = [
     statement(env.DB, "DELETE FROM paper_citations WHERE paper_sha256 = ?", paperSha256),
     statement(env.DB, "DELETE FROM paper_links WHERE paper_sha256 = ?", paperSha256),
+    statement(env.DB, "DELETE FROM paper_floats WHERE paper_sha256 = ?", paperSha256),
     statement(env.DB, "DELETE FROM paper_references WHERE paper_sha256 = ?", paperSha256),
   ];
   const uuids = new Map<string, string>();
@@ -121,13 +122,22 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
     statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, reference_uuid, label, page, x, y, w, h, inferred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       newUuid(), paperSha256, referenceUuid, cite.label, cite.page, cite.x, cite.y, cite.w, cite.h, cite.inferred ? 1 : 0));
   }
+  const floats = new Map<string, string>();
+  for (const float of analysis.floats) {
+    const uuid = newUuid();
+    floats.set(float.key, uuid);
+    statements.push(statement(env.DB, "INSERT INTO paper_floats (uuid, paper_sha256, kind, label, page, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      uuid, paperSha256, float.kind, float.label, float.page, float.x, float.y, float.w, float.h));
+  }
   for (const link of analysis.links) {
-    statements.push(statement(env.DB, "INSERT INTO paper_links (uuid, paper_sha256, kind, label, page, x, y, w, h, target_page, target_y) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      newUuid(), paperSha256, link.kind, link.label, link.page, link.x, link.y, link.w, link.h, link.target_page, link.target_y));
+    const floatUuid = floats.get(link.float);
+    if (!floatUuid) throw new JobError(`A link names float ${link.float}, which the analysis does not have`);
+    statements.push(statement(env.DB, "INSERT INTO paper_links (uuid, paper_sha256, float_uuid, label, page, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      newUuid(), paperSha256, floatUuid, link.label, link.page, link.x, link.y, link.w, link.h));
   }
   statements.push(finishStatement(env, paperSha256, "ready", null));
   await env.DB.batch(statements);
-  return { references: analysis.references.length, citations: analysis.citations.length, links: analysis.links.length };
+  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
 }
 
 // ----------------------------------------------------------- the answers
@@ -179,20 +189,22 @@ export async function papolPapersFor(db: D1Database, references: Reference[]): P
 // service that read them.
 export async function paperReferences(env: Env, paper: Paper) {
   const stored = paper.references_status === "ready";
-  if (!helper.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], links: [] };
+  if (!helper.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], floats: [], links: [] };
   if (helper.configured(env)) await requestAnalysis(env, paper);
   if (paper.references_status !== "ready") {
-    return { paper_sha256: paper.sha256, status: paper.references_status || "pending", detail: paper.references_error ?? null, references: [], citations: [], links: [] };
+    return { paper_sha256: paper.sha256, status: paper.references_status || "pending", detail: paper.references_error ?? null, references: [], citations: [], floats: [], links: [] };
   }
   const references = await all<Reference>(env.DB, `SELECT * FROM paper_references WHERE paper_sha256 = ? ORDER BY "index", uuid`, paper.sha256);
   const known = await papolPapersFor(env.DB, references);
   const citations = await all<Row>(env.DB, "SELECT * FROM paper_citations WHERE paper_sha256 = ? AND reference_uuid IS NOT NULL ORDER BY page, y, x, uuid", paper.sha256);
+  const floats = await all<Row>(env.DB, "SELECT * FROM paper_floats WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
   const links = await all<Row>(env.DB, "SELECT * FROM paper_links WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
   return {
     paper_sha256: paper.sha256, status: "ready", detail: null,
     references: references.map((r) => referenceOut(r, known.get(r.uuid) ?? null)),
     citations: citations.map((c) => ({ reference_uuid: c.reference_uuid, label: c.label ?? null, page: c.page, x: c.x, y: c.y, w: c.w, h: c.h, inferred: Boolean(c.inferred) })),
-    links: links.map((l) => ({ kind: l.kind, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h, target_page: l.target_page, target_y: l.target_y })),
+    floats: floats.map((f) => ({ uuid: f.uuid, kind: f.kind, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
+    links: links.map((l) => ({ float_uuid: l.float_uuid, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h })),
   };
 }
 

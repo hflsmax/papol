@@ -26,9 +26,19 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   order by recursive XY-cut. Every page's text becomes one string, a *flow*,
   whose every character still knows where it was printed: rules match text,
   and their answers are boxes on the page.
-- `floats.ts` — captions ("Figure 3:", "Fig. 1 |", a bold "Fig. 1 (a)…"),
-  where each float lands (the blank above a figure's caption, a table's
-  caption itself), and the mentions of each in the text.
+- `floats.ts` — floats (figures, tables, boxes, algorithms, listings): each
+  found by its caption ("Figure 3:", "Fig. 1 |", a bold "Fig. 1 (a)…") and
+  sized by the `float.*` rules out of what the page paints (paths and
+  images, read from pdf.js's operator list in `pdf.ts`) and the text set
+  among it. A float grows from its caption paragraph, taking in whatever
+  touches it — drawings, labels, code, a table's cells and rules — and
+  stops at prose, headings and the other floats' captions (`float.prose`);
+  a frame around a caption, and a caption set beside its drawing, are
+  rules of their own. Tables are sized before figures, so a figure grows
+  around a table rather than through it. Then the mentions of each in the
+  text. A float is a box of its own (`paper_floats`); a link names the
+  float it goes to, and the viewer brings the float's box into view a
+  little below the middle of the window, across as well as down.
 - `bibliography.ts` — where the bibliography is (under its heading, down to
   a heading that ends it, kept only if it reads as one), where each entry
   begins (numbered, labelled, a hanging indent learned from the list, or
@@ -61,12 +71,13 @@ analyzer's, `shots/` the drawings.
 
     cd host/helper
     node scripts/run-script.mjs .corpus/pdf .corpus/rules .corpus    # a table beside GROBID's counts
-    CHROME=… node scripts/overlay/render.mjs .corpus/pdf .corpus/rules .corpus/shots [sha…]
+    CHROME=… node scripts/overlay/render.mjs .corpus/pdf .corpus/rules .corpus/shots [sha…]   # body, floats and bibliography sheets
     node scripts/run-script.mjs lines <pdf> [pages] [grep]           # lines as the analyzer sees them
     node scripts/run-script.mjs bib <pdf> [n]                        # the bibliography as read
+    node scripts/run-script.mjs floats <pdf> <page> ["figure 3"]     # how each float grew, and what stopped it
 
 The drawings put citations in blue (tagged with the entry they name),
-figure and table links in green (with a bar where each lands), entries in
+figure and table links in thin green, floats outlined in thick green, entries in
 orange, captions in purple, over each page as pdf.js draws it.
 
 On 2026-09-23, over all 43 papers: references matched GROBID's count on

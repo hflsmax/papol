@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "mention" | "bibliography" | "entry" | "field" | "citation";
+export type Stage = "layout" | "caption" | "float" | "mention" | "bibliography" | "entry" | "field" | "citation";
 
 export interface Rule {
   id: string;
@@ -115,10 +115,43 @@ export const CAPTION_STYLED = rule({
   matches: ["Fig. 1 (a) Physical prototype", "Figure 2 Kinematics of the"],
   rejects: ["Figure", "Figures 3 and 4"],
 });
-export const CAPTION_REGION = rule({
-  id: "caption.region", stage: "caption",
-  summary: "A figure is the blank (non-text) space above its caption in the caption's column; a table, algorithm or listing starts at its caption.",
-  why: "A link to a figure should land on the figure, which is almost always set above its caption, while tables are captioned above.",
+// ----------------------------------------------------------------- floats
+// How much of the page a float is: the box a link to it brings into view.
+
+export const FLOAT_GRAPHICS = rule({
+  id: "float.graphics", stage: "float",
+  summary: "What a page paints — filled or stroked paths, images — counts towards a float, except a page's background (over half the page), a rule running across the margin, specks under two points each way, and a tint or box behind running text or a running head.",
+  why: "Figures are drawn, not typeset; but PDFs also paint white page backgrounds, header rules, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure.",
+});
+export const FLOAT_CAPTION_PARAGRAPH = rule({
+  id: "float.caption-paragraph", stage: "float",
+  summary: "A caption goes on for the lines under its first, at its size, each overlapping the ones above and no more than line spacing below them; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found around its caption is its caption.",
+  why: "A caption is a paragraph, its label only the first line; centred last lines and Nature's two-column captions under wide figures are still the one paragraph.",
+});
+export const FLOAT_PROSE = rule({
+  id: "float.prose", stage: "float",
+  summary: "What ends a float: a line of running text (at the text's size within 8%, 30 characters or more, mostly words, not in a monospaced or mathematics font, no wide gaps between its words) and the short last line of such a paragraph; a heading (bold, at the text's size or above, and numbered, larger, or with running text under it); and every other float's caption.",
+  why: "A figure can be text — code, a grammar, rules of inference — or a table whose header is a line of words, so a float cannot stop at the first text; it stops at text that reads as the paper's own prose, and at the next float's caption, which is what keeps stacked figures apart.",
+});
+export const FLOAT_FRAME = rule({
+  id: "float.frame", stage: "float",
+  summary: "A drawn rectangle around a caption, several times its size, is the float: its frame.",
+  why: "Nature's boxes, and framed listings, are set inside a rule or a tint with the caption at the top.",
+});
+export const FLOAT_FIGURE_EXTENT = rule({
+  id: "float.figure-extent", stage: "float",
+  summary: "A figure grows from its caption, upward (downward when nothing is above): a drawing joins when it touches what has grown so far, within three lines up or down or two and a half across, a label or any other text that is not prose within one and a half lines, until nothing more touches, and never across or over prose, a heading, or another float. On a page of two columns of text, a caption in one column keeps its figure in that column.",
+  why: "A figure is almost always set above its caption, as panels with gaps between them and labels, arrows and nodes sticking out on every side; growing by touch takes all of them in, and stopping at prose and other captions keeps the neighbours out.",
+});
+export const FLOAT_SIDE_CAPTION = rule({
+  id: "float.side-caption", stage: "float",
+  summary: "A figure caption with nothing above or below it, but a drawing level with it up to six lines to the side, is set beside its figure: the figure grows from that drawing, in every direction.",
+  why: "Books (Demaine & O'Rourke) set narrow captions in the margin beside the drawing, further from it than a figure's own parts are from each other.",
+});
+export const FLOAT_TABLE_EXTENT = rule({
+  id: "float.table-extent", stage: "float",
+  summary: "A table (or algorithm, or listing) grows like a figure but downward first, and out of text and the thin rules between it only; tables are sized before figures, and a figure grows around them.",
+  why: "Tables are captioned above themselves and are text and rules; a picture under a table is the next figure's, which otherwise took the table's rows as its own.",
 });
 
 // --------------------------------------------------------------- mentions

@@ -14,7 +14,7 @@ no seminar, no link out and no board card carrying its file.
 
 --list prints every orphan with its title, DOI, hash prefix, age and file
 size. --delete removes those rows, the tombstoned copies that still point
-at them (the database enforces its foreign keys), their paper_links,
+at them (the database enforces its foreign keys), their paper_links, paper_floats,
 paper_references and paper_citations rows, and their bucket objects,
 printing what went. Never --delete on production without a --list first,
 and the day's D1 point-in-time restore behind you.
@@ -162,6 +162,7 @@ def delete(env, papers):
             f"DELETE FROM paper_citations WHERE paper_sha256 = '{sha256}';",
             f"DELETE FROM paper_references WHERE paper_sha256 = '{sha256}';",
             f"DELETE FROM paper_links WHERE paper_sha256 = '{sha256}';",
+            f"DELETE FROM paper_floats WHERE paper_sha256 = '{sha256}';",
             f"DELETE FROM papers WHERE sha256 = '{sha256}' AND deleted_at IS NULL"
             f"  AND NOT EXISTS (SELECT 1 FROM copies WHERE paper_sha256 = '{sha256}')"
             f"  AND NOT EXISTS (SELECT 1 FROM annotations WHERE paper_sha256 = '{sha256}');",

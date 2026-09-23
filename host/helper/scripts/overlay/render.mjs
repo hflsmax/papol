@@ -3,8 +3,9 @@
 //
 //   node scripts/overlay/render.mjs <pdf dir> <json dir> <out dir> [sha prefix…]
 //
-// Two sheets a paper: the body pages with the most citations and links,
-// and the bibliography's first and last pages. CHROME names the browser.
+// Three sheets a paper: the body pages with the most citations and links,
+// the pages with the most floats, and the bibliography's first and last
+// pages. CHROME names the browser.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -84,6 +85,11 @@ for (const file of files) {
   const body = [...busy].sort((x, y) => y[1] - x[1]).slice(0, 4).map(([p]) => p).sort((x, y) => x - y);
   if (!body.length) body.push(1, 2);
   await shoot(sha, body, `${sha.slice(0, 10)}-body.png`);
+  // The pages with the most floats, for judging how each float is clipped.
+  const floatCount = new Map();
+  for (const f of a.floats) floatCount.set(f.page, (floatCount.get(f.page) ?? 0) + 1);
+  const floatPages = [...floatCount].sort((x, y) => y[1] - x[1]).slice(0, 4).map(([p]) => p).sort((x, y) => x - y);
+  if (floatPages.length) await shoot(sha, floatPages, `${sha.slice(0, 10)}-floats.png`);
   const bib = bibPages.length > 3 ? [...bibPages.slice(0, 3), bibPages[bibPages.length - 1]] : bibPages;
   if (bib.length) await shoot(sha, bib, `${sha.slice(0, 10)}-bib.png`);
   console.log(sha.slice(0, 10), "body", body.join(","), "bib", bib.join(","));

@@ -6,7 +6,7 @@ import os from "node:os";
 import * as esbuild from "esbuild";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const script = ["lines", "bib"].includes(process.argv[2]) ? process.argv.splice(2, 1)[0] : "corpus";
+const script = ["lines", "bib", "floats"].includes(process.argv[2]) ? process.argv.splice(2, 1)[0] : "corpus";
 const out = path.join(os.tmpdir(), `papol-corpus-${process.pid}.mjs`);
 await esbuild.build({
   entryPoints: [path.join(here, `${script}.ts`)], outfile: out, bundle: true, platform: "node", format: "esm", target: "node22",

@@ -103,25 +103,25 @@ test('distinguishes tightly spaced references using the raised-link offset', () 
   );
 });
 
-test('turns an analyzed figure reference into an internal PDF link', async () => {
+test('turns an analyzed figure reference into a link to the float it names', async () => {
   const doc = {
     getPage: async () => ({ getAnnotations: async () => [] }),
   };
   const analysis = {
     references: [],
     citations: [],
+    floats: [{ uuid: 'f-2', kind: 'figure', label: '2', page: 3, x: 0.1, y: 0.55, w: 0.8, h: 0.3 }],
     links: [{
-      kind: 'figure', label: '2', page: 2,
+      float_uuid: 'f-2', label: '2a', page: 2,
       x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-      target_page: 2, target_y: 0.55,
     }],
   };
 
   const overlays = await pageOverlays(doc, 2, analysis);
   assert.deepEqual(overlays.links, [{
-    kind: 'figure', label: '2',
+    kind: 'figure', label: '2a',
     x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-    spot: { page: 2, y: 0.55 },
+    spot: { page: 3, y: 0.55, box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
   }]);
 });
 
