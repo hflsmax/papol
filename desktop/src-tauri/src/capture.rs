@@ -40,39 +40,10 @@ const QUIET_POLL: Duration = Duration::from_millis(150);
 const QUIET_TITLE: &str = "papol-capture-quiet";
 /// Watches the page and titles it when nothing has changed for a moment:
 /// no DOM mutations, no resources arriving, and the document complete.
-const QUIET_SCRIPT: &str = r#"(() => {
-  const began = performance.now();
-  let changed = performance.now();
-  const touch = () => { changed = performance.now(); };
-  // A glance down the page and back to the top. Pages that load what is
-  // on screen only once it is scrolled to (Instagram's grid again) ask
-  // for nothing at all until something moves.
-  (async () => {
-    const rest = (ms) => new Promise((done) => setTimeout(done, ms));
-    for (const y of [innerHeight, innerHeight * 2, innerHeight, 0]) {
-      try { scrollTo({ top: y, behavior: 'instant' }); } catch (e) { scrollTo(0, y); }
-      await rest(200);
-    }
-    touch();
-  })();
-  try { new MutationObserver(touch).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true }); } catch (e) {}
-  try { new PerformanceObserver(touch).observe({ type: 'resource', buffered: true }); } catch (e) {}
-  // A picture the page has asked for but not drawn yet is not quiet: a
-  // site that loads what is on screen from script (Instagram's grid) was
-  // photographed with empty frames where its pictures belong.
-  const waiting = () => [...document.images].some((image) => {
-    if (image.complete || !image.currentSrc) return false;
-    const box = image.getBoundingClientRect();
-    return box.bottom > 0 && box.top < innerHeight && box.width > 1 && box.height > 1;
-  });
-  const watch = setInterval(() => {
-    const quiet = performance.now() - changed > 900 && document.readyState === 'complete' && !waiting();
-    if (quiet || performance.now() - began > 14000) {
-      clearInterval(watch);
-      document.title = 'papol-capture-quiet';
-    }
-  }, 120);
-})()"#;
+const QUIET_SCRIPT: &str = concat!(
+    include_str!("../scripts/capture-page.js"),
+    "\npapolCapture.watch();"
+);
 const JPEG_QUALITY: f64 = 0.8;
 /// WebKit answers a snapshot within a frame or two; this is only a guard.
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(10);
