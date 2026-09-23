@@ -30,15 +30,20 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   found by its caption ("Figure 3:", "Fig. 1 |", a bold "Fig. 1 (a)…") and
   sized by the `float.*` rules out of what the page paints (paths and
   images, read from pdf.js's operator list in `pdf.ts`) and the text set
-  among it. A float grows from its caption paragraph, taking in whatever
-  touches it — drawings, labels, code, a table's cells and rules — and
-  stops at prose, headings and the other floats' captions (`float.prose`);
-  a frame around a caption, and a caption set beside its drawing, are
-  rules of their own. Tables are sized before figures, so a figure grows
-  around a table rather than through it. Then the mentions of each in the
-  text. A float is a box of its own (`paper_floats`); a link names the
-  float it goes to, and the viewer brings the float's box into view a
-  little below the middle of the window, across as well as down.
+  among it. A float is found by what bounds it, never by how far it
+  reaches — a figure can be any height, with any space inside it. First
+  the paper's type is measured (`float.type`): its text font, leading,
+  measure, text area and columns. Running text is then recognised by that
+  type (`float.prose`), and a float is everything that starts between its
+  caption and the first bound on its usual side — running text, a heading,
+  another caption, a float already sized — across the columns its caption
+  is set across (`float.band`). Touching strokes are taken as one piece
+  (`float.piece`). A frame around a caption, and an algorithm or booktabs
+  table set between rules, are rules of their own. Tables are sized
+  before figures. Then the mentions of each in the text. A float is a box
+  of its own (`paper_floats`); a link names the float it goes to, and the
+  viewer brings the float's box into view a little below the middle of the
+  window, across as well as down.
 - `bibliography.ts` — where the bibliography is (under its heading, down to
   a heading that ends it, kept only if it reads as one), where each entry
   begins (numbered, labelled, a hanging indent learned from the list, or

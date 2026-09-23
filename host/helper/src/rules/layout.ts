@@ -131,8 +131,14 @@ export function buildLines(page: Page): Placed[][] {
         const size = Math.max(last.size, run.size);
         const gap = run.x - (last.x + last.width);
         const bridged = gap > GUTTER * size && scriptFills(runs, last.x + last.width, run.x, run.baseline, size);
+        // Text that changes size across more than a word space, on the
+        // same baseline (a superscript is raised), is two lines side by
+        // side: a caption level with the column beside it.
+        const resized = Math.abs(run.size - last.size) > 0.03 * size && gap > 0.5 * Math.min(run.size, last.size)
+          && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
         const split = (gap > GUTTER * size && !bridged)
-          || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size));
+          || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
+          || (resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size));
         if (split) { groups.push({ runs: line }); line = []; }
       }
       line.push(run);

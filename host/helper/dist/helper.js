@@ -40963,7 +40963,8 @@ function buildLines(page) {
         const size = Math.max(last.size, run.size);
         const gap = run.x - (last.x + last.width);
         const bridged = gap > GUTTER * size && scriptFills(runs, last.x + last.width, run.x, run.baseline, size);
-        const split = gap > GUTTER * size && !bridged || gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size);
+        const resized = Math.abs(run.size - last.size) > 0.03 * size && gap > 0.5 * Math.min(run.size, last.size) && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
+        const split = gap > GUTTER * size && !bridged || gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size) || resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size);
         if (split) {
           groups.push({ runs: line });
           line = [];
@@ -41113,17 +41114,17 @@ function xyCut(lines, bodySize, path, out) {
   const wide = (l2) => l2.x1 - l2.x0 > 0.6 * (right - left);
   const narrow = sorted.filter((l2) => !wide(l2));
   if (narrow.length && narrow.length < sorted.length && gapIn(narrow.map((l2) => [l2.x0, l2.x1]), 0.8 * bodySize)) {
-    let band = [], n2 = 0;
+    let band2 = [], n2 = 0;
     const flush = () => {
-      if (band.length) xyCut(band, bodySize, `${path}.b${n2++}`, out);
-      band = [];
+      if (band2.length) xyCut(band2, bodySize, `${path}.b${n2++}`, out);
+      band2 = [];
     };
     for (const l2 of sorted) {
       if (wide(l2)) {
         flush();
         l2.column = `${path}.w`;
         out.lines.push(l2);
-      } else band.push(l2);
+      } else band2.push(l2);
     }
     flush();
     return;
@@ -41251,6 +41252,12 @@ var LAYOUT_GUTTER = rule({
   summary: "Blank space between two runs on one baseline, which the lines just above and below also leave blank, is a gutter: the runs are in different columns and never one line.",
   why: "Nature Communications' gutter is narrower than a word space in its headings, so a gutter is recognized by lining up with its neighbours, not by its width."
 });
+var LAYOUT_SIZE_CHANGE = rule({
+  id: "layout.size-change",
+  stage: "layout",
+  summary: "Two runs on the same baseline (not a raised or lowered script) that differ in size (beyond the 3% a size read off a transform is rounded to), with more than half an em between them, are two lines side by side, not one.",
+  why: "Nature Reviews sets its captions smaller than the text and level with the column beside them, a gutter narrower than the text's gutter rule allows for."
+});
 var LAYOUT_COLUMNS = rule({
   id: "layout.columns",
   stage: "layout",
@@ -41298,23 +41305,29 @@ var CAPTION_STYLED = rule({
   matches: ["Fig. 1 (a) Physical prototype", "Figure 2 Kinematics of the"],
   rejects: ["Figure", "Figures 3 and 4"]
 });
-var FLOAT_GRAPHICS = rule({
-  id: "float.graphics",
+var FLOAT_TYPE = rule({
+  id: "float.type",
   stage: "float",
-  summary: "What a page paints \u2014 filled or stroked paths, images \u2014 counts towards a float, except a page's background (over half the page), a rule running across the margin, specks under two points each way, and a tint or box behind running text or a running head.",
-  why: "Figures are drawn, not typeset; but PDFs also paint white page backgrounds, header rules, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure."
-});
-var FLOAT_CAPTION_PARAGRAPH = rule({
-  id: "float.caption-paragraph",
-  stage: "float",
-  summary: "A caption goes on for the lines under its first, at its size, each overlapping the ones above and no more than line spacing below them; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found around its caption is its caption.",
-  why: "A caption is a paragraph, its label only the first line; centred last lines and Nature's two-column captions under wide figures are still the one paragraph."
+  summary: "The paper's type, measured before any float is: its text font (the font most characters at the text's size are set in), its leading (the usual baseline step between such lines), its measure (the usual width of a full line), its text area (where that text is set on nearly every page), and two columns when the measure is well under the text's width.",
+  why: "What bounds a float is the paper's running text, and papers differ in font, size and spacing; measuring them from the paper keeps the rules free of numbers fitted to one paper."
 });
 var FLOAT_PROSE = rule({
   id: "float.prose",
   stage: "float",
-  summary: "What ends a float: a line of running text (at the text's size within 8%, 30 characters or more, mostly words, not in a monospaced or mathematics font, no wide gaps between its words) and the short last line of such a paragraph; a heading (bold, at the text's size or above, and numbered, larger, or with running text under it); and every other float's caption.",
-  why: "A figure can be text \u2014 code, a grammar, rules of inference \u2014 or a table whose header is a line of words, so a float cannot stop at the first text; it stops at text that reads as the paper's own prose, and at the next float's caption, which is what keeps stacked figures apart."
+  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure, justified with that line (both edges shared), or the short last line of a paragraph that is.",
+  why: "A figure can be text \u2014 code, a grammar, rules of inference, a label in the text font \u2014 and a table's rows are words; what a float is not is the paper's own paragraphs."
+});
+var FLOAT_GRAPHICS = rule({
+  id: "float.graphics",
+  stage: "float",
+  summary: "What a page paints \u2014 filled or stroked paths, images \u2014 counts towards a float, except a page's background (over half the page), specks, a tint or box behind running text or a running head, and anything wholly outside the text area (a running-head rule, crop marks).",
+  why: "Figures are drawn, not typeset; but PDFs also paint page backgrounds, crop marks, tinted running-head bars (a book's chapter band) and shaded text boxes that belong to no figure."
+});
+var FLOAT_CAPTION_PARAGRAPH = rule({
+  id: "float.caption-paragraph",
+  stage: "float",
+  summary: "A caption goes on for the lines under its first at its size, each overlapping the ones above and no more than a line and a half of its size below them; a second column of it level with its first line, just right of it, belongs to it when the caption is set smaller than the text. A float with nothing found either side of its caption is its caption.",
+  why: "A caption is a paragraph, its label only the first line; centred last lines and Nature's two-column captions under wide figures are still the one paragraph."
 });
 var FLOAT_FRAME = rule({
   id: "float.frame",
@@ -41322,23 +41335,41 @@ var FLOAT_FRAME = rule({
   summary: "A drawn rectangle around a caption, several times its size, is the float: its frame.",
   why: "Nature's boxes, and framed listings, are set inside a rule or a tint with the caption at the top."
 });
+var FLOAT_BAND = rule({
+  id: "float.band",
+  stage: "float",
+  summary: "A float is everything that starts between its caption and the first bound on its side \u2014 running text, a heading, another caption, a float already sized \u2014 across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
+  why: "Growing a float by what touches it cut figures short wherever their panels, or the figure and its caption, were set further apart than the limit; what a float is bounded by is the text around it."
+});
+var FLOAT_PIECE = rule({
+  id: "float.piece",
+  stage: "float",
+  summary: "Paths and images that touch or overlap are one piece, which a float takes whole; a path that crosses running text or a caption joins nothing.",
+  why: "A drawing is painted stroke by stroke; a float taking strokes one by one split a line drawing between two stacked figures (Demaine & O'Rourke's linkages)."
+});
+var FLOAT_OTHER_SIDE = rule({
+  id: "float.other-side",
+  stage: "float",
+  summary: "Once every float on a page has its usual band, one that found nothing there takes what no float took on its other side, up to the next bound.",
+  why: "Some figures are captioned over themselves; the usual side goes first so that stacked floats do not take each other's, and only when it is empty, since what follows a caption is otherwise the text resuming \u2014 a one-line paragraph, a theorem."
+});
 var FLOAT_FIGURE_EXTENT = rule({
   id: "float.figure-extent",
   stage: "float",
-  summary: "A figure grows from its caption, upward (downward when nothing is above): a drawing joins when it touches what has grown so far, within three lines up or down or two and a half across, a label or any other text that is not prose within one and a half lines, until nothing more touches, and never across or over prose, a heading, or another float. On a page of two columns of text, a caption in one column keeps its figure in that column.",
-  why: "A figure is almost always set above its caption, as panels with gaps between them and labels, arrows and nodes sticking out on every side; growing by touch takes all of them in, and stopping at prose and other captions keeps the neighbours out."
-});
-var FLOAT_SIDE_CAPTION = rule({
-  id: "float.side-caption",
-  stage: "float",
-  summary: "A figure caption with nothing above or below it, but a drawing level with it up to six lines to the side, is set beside its figure: the figure grows from that drawing, in every direction.",
-  why: "Books (Demaine & O'Rourke) set narrow captions in the margin beside the drawing, further from it than a figure's own parts are from each other."
+  summary: "A figure is the band over its caption; failing that, what is left under it.",
+  why: "A figure is almost always set above its caption."
 });
 var FLOAT_TABLE_EXTENT = rule({
   id: "float.table-extent",
   stage: "float",
-  summary: "A table (or algorithm, or listing) grows like a figure but downward first, and out of text and the thin rules between it only; tables are sized before figures, and a figure grows around them.",
-  why: "Tables are captioned above themselves and are text and rules; a picture under a table is the next figure's, which otherwise took the table's rows as its own."
+  summary: "A table (or algorithm, or listing) is the band under its caption (failing that, what is left over it), out of text and thin rules only. Tables are sized before figures, and a figure's band ends at them.",
+  why: "Tables are captioned above themselves and are text and rules; a picture under a table is the next figure's."
+});
+var FLOAT_RULED = rule({
+  id: "float.ruled",
+  stage: "float",
+  summary: "A table or algorithm with rules under its caption, as wide as each other, runs down to the last of them before a bound \u2014 whatever is set between.",
+  why: "Algorithms are set in the text's own font and size, and booktabs tables are followed by the next float with no text between; the rules around them are what bounds them."
 });
 var MENTION_FLOAT = rule({
   id: "mention.float",
@@ -42112,6 +42143,7 @@ function kindOf(word) {
   if (w2.startsWith("listing")) return "listing";
   return w2;
 }
+var PAD = 2;
 var keyOf = (kind, number) => `${kind}
 ${number.toLowerCase()}`;
 var rectOf = (l2) => ({ x0: l2.x0, y0: l2.top, x1: l2.x1, y1: l2.bottom });
@@ -42122,165 +42154,201 @@ var union = (rects) => ({
   y1: Math.max(...rects.map((r2) => r2.y1))
 });
 var across = (a2, b2) => Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0) > 0;
-var MONO = /mono|courier|typewriter|cmtt|inconsolata|menlo|consol|sourcecode|lmmono/i;
-var MATH = /^(cmmi|cmsy|cmex|cmbsy|msbm|msam|eufm|rsfs|stix|lmmath|mathjax|symbol|cambriamath)|math|italic.*math/i;
-function isProse(l2, bodySize) {
-  if (l2.furniture || Math.abs(l2.size - bodySize) > 0.08 * bodySize || l2.text.length < 30) return false;
-  const letters = (pick) => l2.runs.filter((r2) => pick(r2.font)).reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
-  const all = Math.max(1, letters(() => true));
-  if (letters((f2) => MONO.test(f2)) / all > 0.5) return false;
-  const symbols = (l2.text.match(/[=+<>≤≥→←↦⊢∀∃λΓΔ∈∉⊆∪∩∧∨¬|:{}\[\]_^]/g) ?? []).length;
-  if ((letters((f2) => MATH.test(f2)) + symbols) / all > 0.3) return false;
+var median2 = (xs2) => {
+  const s2 = [...xs2].sort((a2, b2) => a2 - b2);
+  return s2.length ? s2[Math.floor(s2.length / 2)] : 0;
+};
+var quantile = (xs2, q2) => {
+  const s2 = [...xs2].sort((a2, b2) => a2 - b2);
+  return s2.length ? s2[Math.min(s2.length - 1, Math.floor(q2 * s2.length))] : 0;
+};
+var sameSize = (a2, b2) => Math.abs(a2 - b2) <= 0.03 * b2;
+var shareIn = (l2, font) => {
+  const all = l2.runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
+  return all ? l2.runs.filter((r2) => r2.font === font).reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0) / all : 0;
+};
+var hasCellGap = (l2) => {
   const runs = [...l2.runs].sort((x2, y2) => x2.x - y2.x);
-  if (runs.some((r2, i2) => i2 > 0 && r2.x - (runs[i2 - 1].x + runs[i2 - 1].width) > 1.5 * l2.size)) return false;
-  const tokens = l2.text.split(/\s+/).filter(Boolean);
-  const words = tokens.filter((t2) => /^[(“"‘']?[A-Za-z][a-z’'-]+[.,;:)”"’']*$/.test(t2)).length;
-  return words >= 0.6 * tokens.length;
+  return runs.some((r2, i2) => i2 > 0 && r2.x - (runs[i2 - 1].x + runs[i2 - 1].width) > 1.5 * l2.size);
+};
+function typeOf(layout2) {
+  const bodySize = layout2.bodySize;
+  const chars = /* @__PURE__ */ new Map();
+  for (const page of layout2.pages) for (const l2 of page.lines) if (!l2.furniture && sameSize(l2.size, bodySize))
+    for (const r2 of l2.runs) chars.set(r2.font, (chars.get(r2.font) ?? 0) + r2.text.length);
+  const font = [...chars].sort((a2, b2) => b2[1] - a2[1])[0]?.[0] ?? "";
+  const body = layout2.pages.flatMap((p2) => p2.lines.filter((l2) => !l2.furniture && sameSize(l2.size, bodySize) && shareIn(l2, font) >= 0.5 && !hasCellGap(l2)));
+  const steps = [];
+  for (const page of layout2.pages) {
+    const lines = page.lines.filter((l2) => body.includes(l2));
+    for (let i2 = 1; i2 < lines.length; i2 += 1) {
+      const step = lines[i2].baseline - lines[i2 - 1].baseline;
+      if (lines[i2].column === lines[i2 - 1].column && step > 0.8 * bodySize && step < 2 * bodySize) steps.push(step);
+    }
+  }
+  const leading = median2(steps) || 1.2 * bodySize;
+  const measure = quantile(body.map((l2) => l2.x1 - l2.x0), 0.75);
+  const text2 = {
+    x0: quantile(body.map((l2) => l2.x0), 0.02),
+    x1: quantile(body.map((l2) => l2.x1), 0.98),
+    y0: quantile(body.map((l2) => l2.top), 0.02),
+    y1: quantile(body.map((l2) => l2.bottom), 0.98)
+  };
+  const columns = measure < 0.6 * (text2.x1 - text2.x0) ? [{ x0: text2.x0, x1: text2.x0 + measure }, { x0: text2.x1 - measure, x1: text2.x1 }] : [text2];
+  return { bodySize, font, leading, measure, text: text2, columns };
 }
-function isHeading(l2, bodySize, prose) {
-  if (l2.furniture || !l2.bold || l2.size < 0.95 * bodySize || !/[A-Za-z]{3}/.test(l2.text) || l2.text.length >= 80) return false;
-  return /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/.test(l2.text) || l2.size >= 1.1 * bodySize || prose.some((p2) => p2.top > l2.top && p2.top - l2.bottom <= 1.2 * l2.size && Math.abs(p2.x0 - l2.x0) <= 2 * l2.size);
+function proseOn(page, type) {
+  const candidates = page.lines.filter((l2) => !l2.furniture && sameSize(l2.size, type.bodySize) && shareIn(l2, type.font) >= 0.5 && !hasCellGap(l2));
+  const stepped = (a2, b2) => Math.abs(Math.abs(a2.baseline - b2.baseline) - type.leading) <= 0.25 * type.leading && across(rectOf(a2), rectOf(b2));
+  const edges = (a2, b2) => Math.abs(a2.x0 - b2.x0) <= 1 && Math.abs(a2.x1 - b2.x1) <= 1;
+  const full = candidates.filter((l2) => candidates.some((o2) => o2 !== l2 && stepped(o2, l2) && (l2.x1 - l2.x0 >= 0.7 * type.measure || edges(o2, l2))));
+  const prose = new Set(full);
+  for (const l2 of candidates) {
+    if (full.some((f2) => f2.baseline < l2.baseline && stepped(f2, l2) && Math.abs(f2.x0 - l2.x0) <= l2.size)) prose.add(l2);
+  }
+  return prose;
 }
-function graphicsOf(page, prose) {
-  const furniture = page.lines.filter((l2) => l2.furniture);
+function headingsOn(page, type, prose) {
+  return page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && l2.bold && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text) && (/^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/.test(l2.text) || l2.size > type.bodySize + 1 || [...prose].some((p2) => p2.top > l2.top && p2.baseline - l2.baseline <= 2 * type.leading && Math.abs(p2.x0 - l2.x0) <= 2 * l2.size)));
+}
+function graphicsOf(page, type, prose) {
   const area = page.width * page.height;
+  const furniture = page.lines.filter((l2) => l2.furniture);
   return page.drawn.filter((d2) => {
-    if (d2.w * d2.h > 0.5 * area) return false;
-    if (d2.w < 2 && d2.h < 2) return false;
-    const inMargin = d2.y + d2.h < page.height * 0.06 || d2.y > page.height * 0.94;
-    const rule2 = d2.h < 2 && d2.w > page.width * 0.6 && (d2.y < page.height * 0.12 || d2.y > page.height * 0.88);
-    const behind = (lines) => lines.some((l2) => l2.x0 >= d2.x - 1 && l2.x1 <= d2.x + d2.w + 1 && l2.top >= d2.y - 1 && l2.bottom <= d2.y + d2.h + 1);
-    return !inMargin && !rule2 && !(!d2.image && behind(prose)) && !behind(furniture);
+    if (d2.w * d2.h > 0.5 * area || d2.w < 1 && d2.h < 1) return false;
+    if (d2.x + d2.w <= type.text.x0 || d2.x >= type.text.x1 || d2.y + d2.h <= type.text.y0 || d2.y >= type.text.y1) return false;
+    const behind = (lines) => [...lines].some((l2) => l2.x0 >= d2.x - 1 && l2.x1 <= d2.x + d2.w + 1 && l2.top >= d2.y - 1 && l2.bottom <= d2.y + d2.h + 1);
+    return !(!d2.image && behind(prose)) && !behind(furniture);
   }).map((d2) => ({ x0: d2.x, y0: d2.y, x1: d2.x + d2.w, y1: d2.y + d2.h, image: d2.image }));
 }
-function captionParagraph(first, page, captions, bodySize) {
-  const near = (a2, b2) => Math.abs(a2 - b2) <= 0.12 * b2;
+function captionParagraph(first, page, captions, type) {
   const column = (start) => {
     const lines2 = [start];
     let span = rectOf(start);
     for (; ; ) {
       const prev = lines2[lines2.length - 1];
-      const next = page.lines.filter((l2) => !l2.furniture && !captions.has(l2) && !lines2.includes(l2) && near(l2.size, first.size) && l2.top >= prev.top + 0.3 * prev.size && l2.top - prev.bottom <= 0.6 * prev.size && across(rectOf(l2), span));
+      const next = page.lines.filter((l2) => !l2.furniture && !captions.has(l2) && !lines2.includes(l2) && sameSize(l2.size, first.size) && l2.baseline > prev.baseline + 0.5 * first.size && l2.baseline - prev.baseline <= 1.6 * first.size && across(rectOf(l2), span));
       if (!next.length) return lines2;
-      const top = Math.min(...next.map((l2) => l2.top));
-      const row = next.filter((l2) => l2.top - top < 0.3 * first.size);
+      const top = Math.min(...next.map((l2) => l2.baseline));
+      const row = next.filter((l2) => l2.baseline - top < 0.5 * first.size);
       lines2.push(...row);
       span = union([span, ...row.map(rectOf)]);
     }
   };
   const lines = column(first);
   const left = union(lines.map(rectOf));
-  const beside = page.lines.find((l2) => !l2.furniture && !captions.has(l2) && !lines.includes(l2) && Math.abs(l2.size - first.size) <= 0.05 * first.size && Math.abs(l2.top - first.top) < 0.3 * first.size && l2.x0 > left.x1 && l2.x0 - left.x1 <= 3 * first.size);
-  if (beside && lines.length > 1 && first.size < 0.95 * bodySize) lines.push(...column(beside));
+  const beside = page.lines.find((l2) => !l2.furniture && !captions.has(l2) && !lines.includes(l2) && sameSize(l2.size, first.size) && Math.abs(l2.baseline - first.baseline) < 0.5 * first.size && l2.x0 > left.x1 && l2.x0 - left.x1 <= 3 * first.size);
+  if (beside && lines.length > 1 && first.size < type.bodySize - 0.5) lines.push(...column(beside));
   return lines;
 }
-function groundOf(page, bodySize, paragraphs) {
+function groundOf(page, type, paragraphs) {
   const inCaption = new Set(paragraphs.flat());
-  const proseLines = page.lines.filter((l2) => isProse(l2, bodySize));
-  const prose = new Set(proseLines);
-  for (const l2 of page.lines) {
-    if (prose.has(l2) || l2.furniture || inCaption.has(l2) || Math.abs(l2.size - bodySize) > 0.08 * bodySize) continue;
-    if (proseLines.some((p2) => l2.top > p2.top && l2.top - p2.bottom <= 0.6 * p2.size && Math.abs(l2.x0 - p2.x0) <= 2)) prose.add(l2);
-  }
-  const heads = page.lines.filter((l2) => !inCaption.has(l2) && isHeading(l2, bodySize, proseLines));
-  const mid = page.width / 2;
-  const twoColumn = proseLines.some((l2) => l2.x1 < mid) && proseLines.some((l2) => l2.x0 > mid);
+  const prose = proseOn(page, type);
+  for (const l2 of inCaption) prose.delete(l2);
+  const heads = headingsOn(page, type, prose).filter((l2) => !inCaption.has(l2));
+  const graphics = graphicsOf(page, type, prose);
+  const bounds = [...prose, ...heads, ...inCaption];
+  const lines = page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && !inCaption.has(l2) && !heads.includes(l2));
   return {
     page,
-    bodySize,
-    graphics: graphicsOf(page, [...prose]),
-    lines: page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && !inCaption.has(l2) && !heads.includes(l2)),
-    barriers: [...prose, ...heads, ...inCaption],
-    mid: twoColumn ? mid : null
+    type,
+    graphics,
+    lines,
+    bounds,
+    captions: paragraphs,
+    pieces: [...piecesOf(graphics, bounds.map(rectOf)), ...lines.map((l2) => ({ ...rectOf(l2), image: false, thin: false, text: l2 }))]
   };
+}
+function piecesOf(graphics, bounds) {
+  const touching = (a2, b2) => a2.x0 <= b2.x1 + 0.5 && b2.x0 <= a2.x1 + 0.5 && a2.y0 <= b2.y1 + 0.5 && b2.y0 <= a2.y1 + 0.5;
+  const thin = (g2) => g2.x1 - g2.x0 < 1.5 || g2.y1 - g2.y0 < 1.5;
+  const loose = graphics.filter((g2) => bounds.some((b2) => touching(g2, b2)));
+  const joinable = graphics.filter((g2) => !loose.includes(g2)).sort((a2, b2) => a2.x0 - b2.x0);
+  const parent = joinable.map((_2, i2) => i2);
+  const find3 = (i2) => parent[i2] === i2 ? i2 : parent[i2] = find3(parent[i2]);
+  for (let i2 = 0; i2 < joinable.length; i2 += 1) {
+    for (let j2 = i2 + 1; j2 < joinable.length && joinable[j2].x0 <= joinable[i2].x1 + 0.5; j2 += 1) {
+      if (touching(joinable[i2], joinable[j2])) parent[find3(i2)] = find3(j2);
+    }
+  }
+  const groups = /* @__PURE__ */ new Map();
+  joinable.forEach((g2, i2) => groups.set(find3(i2), [...groups.get(find3(i2)) ?? [], g2]));
+  return [
+    ...[...groups.values()].map((gs2) => ({ ...union(gs2), image: gs2.some((g2) => g2.image), thin: gs2.every(thin) })),
+    ...loose.map((g2) => ({ ...g2, thin: thin(g2) }))
+  ];
 }
 var explain = null;
 var show = (r2) => `[${Math.round(r2.x0)},${Math.round(r2.y0)} ${Math.round(r2.x1)},${Math.round(r2.y1)}]`;
 var gapBetween = (a2, b2) => ({
-  v: Math.max(0, a2.y0 - b2.y1, b2.y0 - a2.y1),
-  h: Math.max(0, a2.x0 - b2.x1, b2.x0 - a2.x1),
   xs: Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0),
   ys: Math.min(a2.y1, b2.y1) - Math.max(a2.y0, b2.y0)
 });
-function grow(caption, own, ground, side, claimed, rules2) {
-  const { bodySize, mid } = ground;
-  const allowed = (r2) => side === "beside" ? true : side === "above" ? r2.y0 < caption.y0 - 1 || r2.y1 <= caption.y1 + 2 && r2.y0 >= caption.y0 - 1 : r2.y1 > caption.y1 + 1 || r2.y0 >= caption.y0 - 2 && r2.y1 <= caption.y1 + 1;
-  const column = mid === null ? null : caption.x1 <= mid + 5 ? "left" : caption.x0 >= mid - 5 ? "right" : null;
-  const inColumn = (r2) => column === null || (column === "left" ? r2.x1 <= mid + 5 : r2.x0 >= mid - 5);
-  const drawn = rules2 ? ground.graphics.filter((g2) => !g2.image && (g2.x1 - g2.x0 < 3 || g2.y1 - g2.y0 < 3)) : ground.graphics;
-  const items = [
-    ...drawn.map((g2) => ({ rect: g2, drawn: true })),
-    ...ground.lines.filter((l2) => !own.includes(l2)).map((l2) => ({ rect: rectOf(l2), drawn: false }))
-  ].filter((i2) => allowed(i2.rect) && inColumn(i2.rect) && !claimed.some((c2) => i2.rect.x0 >= c2.x0 - 1 && i2.rect.x1 <= c2.x1 + 1 && i2.rect.y0 >= c2.y0 - 1 && i2.rect.y1 <= c2.y1 + 1));
-  const barriers = [...ground.barriers.filter((l2) => !own.includes(l2)).map(rectOf), ...claimed];
-  const blocked = (a2, b2) => barriers.some((w2) => {
-    const g2 = gapBetween(a2, b2);
-    if (g2.xs > 0) {
-      const lo3 = Math.min(a2.y1, b2.y1), hi3 = Math.max(a2.y0, b2.y0);
-      return w2.y0 >= lo3 - 1 && w2.y1 <= hi3 + 1 && Math.min(w2.x1, a2.x1, b2.x1) > Math.max(w2.x0, a2.x0, b2.x0);
-    }
-    const lo2 = Math.min(a2.x1, b2.x1), hi2 = Math.max(a2.x0, b2.x0);
-    return w2.x0 >= lo2 - 1 && w2.x1 <= hi2 + 1 && Math.min(w2.y1, a2.y1, b2.y1) > Math.max(w2.y0, a2.y0, b2.y0);
-  });
-  let rect = caption;
-  let graphics = 0, lines = 0;
-  const left = new Set(items);
-  for (let changed = true; changed; ) {
-    changed = false;
-    for (const item of left) {
-      const g2 = gapBetween(item.rect, rect);
-      const vLimit = (item.drawn ? 3 : 1.5) * bodySize;
-      const hLimit = (item.drawn ? 2.5 : 1) * bodySize;
-      const touches = g2.xs > 0 && g2.v <= vLimit || g2.ys > 0 && g2.h <= hLimit || g2.v <= 0.3 * bodySize && g2.h <= 0.3 * bodySize;
-      if (!touches) continue;
-      if (blocked(item.rect, rect)) {
-        explain?.(`  ${side} blocked ${item.drawn ? "drawn" : "text"} ${show(item.rect)}`);
-        continue;
-      }
-      const next = union([rect, item.rect]);
-      const covered = barriers.find((w2) => gapBetween(w2, next).xs > 0.5 && gapBetween(w2, next).ys > 0.5);
-      if (covered) {
-        explain?.(`  ${side} would cover ${show(covered)} with ${item.drawn ? "drawn" : "text"} ${show(item.rect)}`);
-        continue;
-      }
-      explain?.(`  ${side} took ${item.drawn ? "drawn" : "text"} ${show(item.rect)}`);
-      rect = next;
-      left.delete(item);
-      if (item.drawn) graphics += 1;
-      else lines += 1;
-      changed = true;
-    }
+function acrossOf(caption, own, ground) {
+  const { type } = ground;
+  const over = type.columns.filter((c2) => Math.min(c2.x1, caption.x1) - Math.max(c2.x0, caption.x0) > 2 * type.bodySize);
+  let x0 = Math.min(caption.x0, ...over.map((c2) => c2.x0));
+  let x1 = Math.max(caption.x1, ...over.map((c2) => c2.x1));
+  for (const other of ground.captions) {
+    if (other === own) continue;
+    const r2 = union(other.map(rectOf));
+    if (gapBetween(r2, caption).ys <= 0 || gapBetween(r2, caption).xs > 0) continue;
+    const middle = r2.x0 >= caption.x1 ? (caption.x1 + r2.x0) / 2 : (r2.x1 + caption.x0) / 2;
+    if (r2.x0 >= caption.x1) x1 = Math.min(x1, middle);
+    else x0 = Math.max(x0, middle);
   }
-  return { rect, graphics, lines };
+  return { x0, x1 };
+}
+function band(caption, own, ground, side, claimed, taken, tableOnly) {
+  const x2 = acrossOf(caption, own, ground);
+  const inside = (r2) => Math.min(r2.x1, x2.x1) - Math.max(r2.x0, x2.x0) > 0.5 * Math.min(r2.x1 - r2.x0, x2.x1 - x2.x0) || r2.x0 >= x2.x0 - 1 && r2.x1 <= x2.x1 + 1;
+  const bounds = [...ground.bounds.filter((l2) => !own.includes(l2)).map(rectOf), ...claimed].filter((b2) => Math.min(b2.x1, x2.x1) - Math.max(b2.x0, x2.x0) > 0);
+  const limit = side === "above" ? Math.max(0, ...bounds.filter((b2) => b2.y1 <= caption.y0 + 1).map((b2) => b2.y1)) : Math.min(ground.page.height, ...bounds.filter((b2) => b2.y0 >= caption.y1 - 1).map((b2) => b2.y0));
+  const starts = (r2) => side === "above" ? r2.y0 >= limit - 1 && r2.y0 < caption.y1 : r2.y1 <= limit + 1 && r2.y0 > caption.y0;
+  const pieces = ground.pieces.filter((p2) => !taken.has(p2) && starts(p2) && inside(p2) && (!tableOnly || p2.text || p2.thin) && !claimed.some((c2) => gapBetween(c2, p2).xs > 0 && gapBetween(c2, p2).ys > 0));
+  explain?.(`  ${side}: across ${Math.round(x2.x0)}-${Math.round(x2.x1)}, bound at ${Math.round(limit)}, ${pieces.length} pieces`);
+  for (const p2 of pieces) explain?.(`    ${p2.text ? `text "${p2.text.text.slice(0, 30)}"` : p2.image ? "image" : "drawn"} ${show(p2)}`);
+  return { rect: pieces.length ? union([caption, ...pieces]) : caption, pieces };
 }
 function frameAround(caption, ground) {
   const size = (r2) => (r2.x1 - r2.x0) * (r2.y1 - r2.y0);
   const frames = ground.page.drawn.map((d2) => ({ x0: d2.x, y0: d2.y, x1: d2.x + d2.w, y1: d2.y + d2.h, image: d2.image })).filter((g2) => !g2.image && size(g2) < 0.8 * ground.page.width * ground.page.height && g2.x0 <= caption.x0 + 1 && g2.x1 >= caption.x1 - 1 && g2.y0 <= caption.y0 + 1 && g2.y1 >= caption.y1 - 1 && size(g2) >= 4 * size(caption));
   return frames.sort((a2, b2) => size(a2) - size(b2))[0] ?? null;
 }
-function extentOf(kind, paragraph, ground, claimed, trace) {
+function ruledUnder(caption, own, ground, claimed) {
+  const { type } = ground;
+  const x2 = acrossOf(caption, own, ground);
+  const rules2 = ground.graphics.filter((g2) => !g2.image && g2.y1 - g2.y0 < 1.5 && g2.y0 >= caption.y1 - 1 && g2.x0 >= x2.x0 - type.bodySize && g2.x1 <= x2.x1 + type.bodySize && g2.x1 - g2.x0 >= 0.5 * (x2.x1 - x2.x0)).sort((a2, b2) => a2.y0 - b2.y0);
+  if (!rules2.length) return null;
+  const width = (r2) => r2.x1 - r2.x0;
+  const same = rules2.filter((r2) => Math.abs(width(r2) - width(rules2[0])) <= 2 && Math.abs(r2.x0 - rules2[0].x0) <= 2);
+  const bounds = [...ground.bounds.filter((l2) => !own.includes(l2)).map(rectOf), ...claimed].filter((b2) => gapBetween(b2, { ...rules2[0], y0: 0, y1: 1 }).xs > 0 && b2.y0 > caption.y1);
+  const limit = Math.min(ground.page.height, ...bounds.map((b2) => b2.y0));
+  const last = same.filter((r2) => r2.y1 <= limit + 1).pop();
+  if (!last || same.length === 1 && last.y0 - caption.y1 <= type.leading) return null;
+  const span = { x0: Math.min(caption.x0, last.x0), y0: caption.y0, x1: Math.max(caption.x1, last.x1), y1: last.y1 };
+  const within = [...ground.graphics, ...ground.lines.filter((l2) => !own.includes(l2)).map(rectOf)].filter((r2) => r2.y0 >= caption.y1 - 1 && r2.y1 <= last.y1 + 1 && gapBetween(r2, span).xs > 0);
+  const over = ground.graphics.find((g2) => !g2.image && g2.y1 - g2.y0 < 1.5 && g2.y1 <= caption.y0 + 1 && caption.y0 - g2.y1 <= type.leading && gapBetween(g2, caption).xs > 0);
+  return union([span, ...within, ...over ? [over] : []]);
+}
+function extentOf(kind, paragraph, ground, claimed, taken, trace) {
   const caption = union(paragraph.map(rectOf));
   if (paragraph.length > 1) trace.add(FLOAT_CAPTION_PARAGRAPH.id, ground.page.number, paragraph[0].text.slice(0, 60), []);
   const frame = frameAround(caption, ground);
-  if (frame) return { rect: union([frame, caption]), rule: FLOAT_FRAME.id };
-  const sides = kind === "figure" ? ["above", "below"] : ["below", "above"];
-  const grown = sides.map((side) => grow(caption, paragraph, ground, side, claimed, kind !== "figure"));
-  explain?.(`  caption ${show(caption)}: ${grown.map((g2, i2) => `${sides[i2]} ${g2.graphics} drawn ${g2.lines} text ${show(g2.rect)}`).join("; ")}`);
-  const pick = grown.find((g2) => g2.graphics > 0) ?? grown.find((g2) => g2.lines >= 2);
-  const rule2 = kind === "figure" ? FLOAT_FIGURE_EXTENT.id : FLOAT_TABLE_EXTENT.id;
-  if (pick) return { rect: pick.rect, rule: rule2 };
-  const level = ground.graphics.filter((g2) => !g2.image || kind === "figure").filter((g2) => Math.min(g2.y1, caption.y1 + ground.bodySize) > Math.max(g2.y0, caption.y0 - ground.bodySize) && Math.max(g2.x0 - caption.x1, caption.x0 - g2.x1) <= 6 * ground.bodySize && !claimed.some((c2) => gapBetween(c2, g2).xs > 0 && gapBetween(c2, g2).ys > 0));
-  if (kind === "figure" && level.length) {
-    const seed = union([caption, ...level]);
-    const side = grow(seed, paragraph, ground, "beside", claimed, false);
-    const covered = ground.barriers.some((w2) => !paragraph.includes(w2) && gapBetween(rectOf(w2), side.rect).xs > 0.5 && gapBetween(rectOf(w2), side.rect).ys > 0.5);
-    explain?.(`  beside ${level.length} level, ${side.graphics} drawn ${side.lines} text ${show(side.rect)}${covered ? ", covers prose" : ""}`);
-    if (!covered) return { rect: side.rect, rule: FLOAT_SIDE_CAPTION.id };
+  if (frame) return { rect: union([frame, caption]), rule: FLOAT_FRAME.id, fixed: true };
+  if (kind !== "figure") {
+    const ruled = ruledUnder(caption, paragraph, ground, claimed);
+    if (ruled) return { rect: ruled, rule: FLOAT_RULED.id, fixed: true };
   }
-  return { rect: caption, rule: FLOAT_CAPTION_PARAGRAPH.id };
+  const { rect, pieces } = band(caption, paragraph, ground, kind === "figure" ? "above" : "below", claimed, taken, kind !== "figure");
+  pieces.forEach((p2) => taken.add(p2));
+  const rule2 = kind === "figure" ? FLOAT_FIGURE_EXTENT.id : FLOAT_TABLE_EXTENT.id;
+  return { rect, rule: pieces.length ? rule2 : FLOAT_CAPTION_PARAGRAPH.id, fixed: false };
 }
 function findFloats(layout2, trace) {
   const floats = /* @__PURE__ */ new Map();
+  const type = typeOf(layout2);
+  explain?.(`type ${JSON.stringify(type)}`);
   for (const page of layout2.pages) {
     const found = [];
     const seen = new Set(floats.keys());
@@ -42307,16 +42375,29 @@ function findFloats(layout2, trace) {
       found.push({ kind, number, line });
     }
     const firsts = new Set(found.map((f2) => f2.line));
-    const paragraphs = found.map((f2) => captionParagraph(f2.line, page, firsts, layout2.bodySize));
-    const ground = groundOf(page, layout2.bodySize, paragraphs);
+    const paragraphs = found.map((f2) => captionParagraph(f2.line, page, firsts, type));
+    const ground = groundOf(page, type, paragraphs);
     const order = found.map((_2, i2) => i2).sort((a2, b2) => Number(found[a2].kind === "figure") - Number(found[b2].kind === "figure"));
     const extents = [];
+    const taken = /* @__PURE__ */ new Set();
+    const others = (i2) => extents.filter((e2, j2) => e2 && j2 !== i2).map((e2) => e2.rect);
     for (const i2 of order) {
       explain?.(`page ${page.number} ${found[i2].kind} ${found[i2].number}`);
-      extents[i2] = extentOf(found[i2].kind, paragraphs[i2], ground, extents.filter(Boolean).map((e2) => e2.rect), trace);
+      extents[i2] = extentOf(found[i2].kind, paragraphs[i2], ground, others(i2), taken, trace);
+    }
+    for (const i2 of order) {
+      if (extents[i2].fixed || extents[i2].rule !== FLOAT_CAPTION_PARAGRAPH.id) continue;
+      explain?.(`page ${page.number} ${found[i2].kind} ${found[i2].number}, other side`);
+      const caption = union(paragraphs[i2].map(rectOf));
+      const { rect, pieces } = band(caption, paragraphs[i2], ground, found[i2].kind === "figure" ? "below" : "above", others(i2), taken, found[i2].kind !== "figure");
+      if (!pieces.length) continue;
+      pieces.forEach((p2) => taken.add(p2));
+      const rule2 = found[i2].kind === "figure" ? FLOAT_FIGURE_EXTENT.id : FLOAT_TABLE_EXTENT.id;
+      extents[i2] = { rect: union([extents[i2].rect, rect]), rule: extents[i2].rule === FLOAT_CAPTION_PARAGRAPH.id ? rule2 : extents[i2].rule, fixed: false };
     }
     found.forEach(({ kind, number, line }, i2) => {
-      const { rect, rule: sized } = extents[i2];
+      const { rect: exact, rule: sized } = extents[i2];
+      const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(page.width, exact.x1 + PAD), y1: Math.min(page.height, exact.y1 + PAD) };
       const box = { page: page.number, x: rect.x0 / page.width, y: rect.y0 / page.height, w: (rect.x1 - rect.x0) / page.width, h: (rect.y1 - rect.y0) / page.height };
       floats.set(keyOf(kind, number), { key: `f${floats.size}`, kind, label: number, caption: line, ...box });
       trace.add(sized, page.number, `${kind} ${number}`, [box]);
