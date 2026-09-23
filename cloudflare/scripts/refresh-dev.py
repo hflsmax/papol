@@ -102,6 +102,24 @@ def literal(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+# Every table, each after every table that points at it.
+def drop_order(links):
+    parents = {}
+    for link in links:
+        parents.setdefault(link["child"], set())
+        if link["parent"] and link["parent"] != link["child"]:
+            parents[link["child"]].add(link["parent"])
+    children = {name: {child for child, above in parents.items() if name in above} for name in parents}
+    order, placed = [], set()
+    while len(order) < len(parents):
+        ready = sorted(name for name in parents if name not in placed and children[name] <= placed)
+        if not ready:
+            sys.exit(f"the foreign keys among {sorted(set(parents) - placed)} form a cycle; cannot order the drops")
+        order += ready
+        placed.update(ready)
+    return order
+
+
 def fetch(url, method="GET"):
     request = urllib.request.Request(url, method=method, headers={"User-Agent": AGENT})
     try:
@@ -130,10 +148,15 @@ def main():
         print(f"    {export.stat().st_size / 1e6:.1f} MB")
 
         # The export creates every table, so it goes into an empty database.
-        # Foreign keys are checked at the end of the file, not per drop.
+        # Children go before their parents: dropping a parent deletes its
+        # rows one by one, and each deletion looks for children pointing at
+        # it, so a parent dropped first scans its children once per row —
+        # paper_references before paper_citations read 9.6 million rows a
+        # refresh, twice the free tier's day, on 2026-09-23.
         say("Emptying dev's database")
-        tables = [row["name"] for row in query_dev(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'")]
+        tables = drop_order(query_dev(
+            "SELECT m.name AS child, p.\"table\" AS parent FROM sqlite_master m LEFT JOIN pragma_foreign_key_list(m.name) p "
+            "WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' AND m.name NOT LIKE '\\_cf\\_%' ESCAPE '\\'"))
         drop = work / "drop.sql"
         drop.write_text("PRAGMA defer_foreign_keys=TRUE;\n" + "".join(f'DROP TABLE IF EXISTS "{name}";\n' for name in tables))
         run_dev_file(drop)
