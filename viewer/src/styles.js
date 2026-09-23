@@ -1568,6 +1568,14 @@ ${compatibilityStyles}
 
 .ref-unmatched { margin: 0 22px 6px 0; color: var(--ink-soft); }
 
+.ref-report {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.ref-report .link-button { font-size: var(--fs-sm); color: var(--ink-faint); }
+.ref-report .link-button:hover { color: var(--accent); }
+
 .ref-raw {
   margin: 0;
   overflow-wrap: anywhere;
