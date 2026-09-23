@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   BLUR_GRACE_MS, DETECTION_MS, RETIRED_KEY,
-  attemptHandoff, deferDocument, documentIsDeferred, handoffAddress,
+  attemptHandoff, deferDocument, documentIsDeferred, handoffAddress, handoffAddressAt,
   handoffCapableMac, handoffDocument, handoffIdentity, handoffOffer, writeFlag,
 } from '../../shared/macHandoff.js';
 
@@ -414,4 +414,33 @@ test('nothing else is a Mac', () => {
   assert.equal(handoffCapableMac({ platform: 'Win32', maxTouchPoints: 0 }), false);
   assert.equal(handoffCapableMac({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)' }), false);
   assert.equal(handoffCapableMac(null), false);
+});
+
+test('a handoff from the page the reader has moved to names that page', () => {
+  assert.equal(
+    handoffAddressAt(VIEWER, { page: 14, openingPage: 1 }),
+    'papol://mc-pony.com/papol/viewer/?pdf=abc123&page=14',
+  );
+});
+
+test('a reader still where the address opened keeps its finer place', () => {
+  const noted = `${VIEWER}&note=n-7`;
+  assert.equal(handoffAddressAt(noted, { page: 3, openingPage: 3 }), handoffAddress(noted));
+});
+
+test('a reader who moved on from a named note leaves the note behind', () => {
+  const address = handoffAddressAt(`${VIEWER}&note=n-7&y=0.4`, { page: 9, openingPage: 3 });
+  assert.equal(address, 'papol://mc-pony.com/papol/viewer/?pdf=abc123&page=9');
+});
+
+test('an address that names no place is given the page being read', () => {
+  assert.equal(
+    handoffAddressAt(VIEWER, { page: 5, openingPage: 5 }),
+    'papol://mc-pony.com/papol/viewer/?pdf=abc123&page=5',
+  );
+});
+
+test('without a page being read the address is handed off as it is', () => {
+  assert.equal(handoffAddressAt(VIEWER, {}), handoffAddress(VIEWER));
+  assert.equal(handoffAddressAt('https://mc-pony.com/papol/', { page: 2 }), null);
 });

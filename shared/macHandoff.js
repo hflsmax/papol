@@ -92,6 +92,24 @@ export function handoffAddress(href) {
   return `${HANDOFF_SCHEME}://${url.host}${url.pathname}${query ? `?${query}` : ''}`;
 }
 
+const PLACE_KEYS = Object.freeze(['page', 'note', 'y', 'mark', 'box']);
+
+// The address as it stands when the reader asks, rather than as it stood when
+// the tab opened: the viewer does not rewrite its address as it scrolls, so a
+// handoff from page 14 of a paper opened at page 1 must say page 14 itself
+// (US-7.25). While the reader is still on the page the address opened at,
+// the address is kept whole, since the note or excerpt it names is a finer
+// place than its page; once they have moved on, that place is left behind.
+export function handoffAddressAt(href, { page = null, openingPage = null } = {}) {
+  const url = parse(href);
+  if (!url || !page) return handoffAddress(href);
+  const named = PLACE_KEYS.some((key) => url.searchParams.has(key));
+  if (named && page === openingPage) return handoffAddress(href);
+  for (const key of PLACE_KEYS) url.searchParams.delete(key);
+  url.searchParams.set('page', String(page));
+  return handoffAddress(url.href);
+}
+
 // One document, named so that "Not now" forgets this paper rather than every
 // paper (US-7.27).
 export function handoffIdentity(href) {
