@@ -69,6 +69,9 @@ import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
+import {
+  DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
+} from '../../shared/macHandoff.js';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
@@ -606,6 +609,8 @@ export default function App() {
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
   const clipSaving = useRef(new Map());
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
+  // 'idle' | 'trying' | 'missing': the info window's own way to Papol for Mac.
+  const [macHandoffStep, setMacHandoffStep] = useState('idle');
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
@@ -3959,6 +3964,33 @@ export default function App() {
                         if (focusDesktopDeskWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
+                  )}
+                  {/* The same handoff the bar offers, asked for here on
+                      purpose: so it is shown whether or not the bar was put
+                      away, and only where Papol for Mac could answer it. */}
+                  {!DESKTOP && handoffCapableMac(window.navigator) && (
+                    <button
+                      type="button"
+                      className="ref-link"
+                      disabled={macHandoffStep === 'trying'}
+                      onClick={() => {
+                        const address = handoffAddressAt(window.location.href, {
+                          page: currentView()?.page, openingPage,
+                        });
+                        if (!address) return;
+                        setMacHandoffStep('trying');
+                        attemptHandoff(address).then((verdict) => {
+                          setMacHandoffStep(verdict === 'opened' ? 'idle' : 'missing');
+                        });
+                      }}
+                    >{macHandoffStep === 'trying' ? 'Opening…' : 'Open in Papol for Mac'}</button>
+                  )}
+                  {/* An offer, not a verdict (US-7.34): nothing was seen to
+                      open, which is not the same as nothing having opened. */}
+                  {macHandoffStep === 'missing' && (
+                    <a className="ref-link" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                      Download Papol for Mac
+                    </a>
                   )}
                   {paperInfo?.pdf_url && (
                     <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
