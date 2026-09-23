@@ -503,10 +503,6 @@ export async function openedFileBlob(sha256) {
   return new Blob([await openedFileBytes(sha256)], { type: 'application/pdf' });
 }
 
-export async function openedFileUrl(sha256) {
-  return URL.createObjectURL(await openedFileBlob(sha256));
-}
-
 // A file dropped on the unsigned desktop library should be read by Papol's
 // viewer, not by the webview's built-in PDF renderer.
 export async function openDroppedPdf(file) {

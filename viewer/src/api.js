@@ -4,9 +4,9 @@
 import { appPath, backendPath } from './base.js';
 import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
-  annotationView, boardView, nativeBlobBytes, nativeBlobImport, nativeBlobUrl,
+  annotationView, boardView, nativeBlobBytes, nativeBlobImport,
   ensureNativeBlob, nativeDataActive, nativeRepository, openedFileBlob, openedFileBytes,
-  openedFileUrl, paperView, newUuid,
+  paperView, newUuid,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 import { paperName } from '../../shared/paperName.js';
@@ -198,16 +198,6 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
 // A PDF someone shared is theirs, not this machine's: its bytes come from
 // the service even when a local replica is open in the same app.
 const sharedReading = (paper) => Boolean(paper?.shared_by);
-
-export async function downloadablePdfHref(paper) {
-  if (paper?.opened_file && !paper.copy_uuid) return openedFileUrl(paper.sha256);
-  if (sharedReading(paper)) return pdfHref(paper);
-  if (nativeDataActive()) {
-    if (!paper?.sha256) throw new Error('PDF is not available in the local replica');
-    return nativeBlobUrl(paper.sha256, 'application/pdf');
-  }
-  return pdfHref(paper);
-}
 
 // PDF.js treats a URL as a network request. macOS WebKit reports requests to
 // Tauri-created blob: URLs with status 0, which PDF.js rejects even though the
