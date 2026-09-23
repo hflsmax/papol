@@ -1,6 +1,6 @@
 import { appPath, backendPath } from '../appUrls.js';
 import {
-  discardNativeBlob, importNativeSharedPaper, nativeBlobImport, nativeDataActive,
+  discardNativeBlob, FIELD_VISIBILITY, importNativeSharedPaper, nativeBlobImport, nativeDataActive,
   annotationView, nativeRepository, paperView, shelfView, newUuid,
 } from '../nativeData.js';
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
@@ -264,6 +264,7 @@ export async function getPaper(name) {
         rating_expertise: copy.rating_expertise,
         rating_reading: copy.rating_reading,
         rating_liking: copy.rating_liking,
+        ...Object.fromEntries(FIELD_VISIBILITY.map((field) => [field, Boolean(copy[field])])),
         tags: nook.copy_tags.filter((link) => link.copy_uuid === copy.uuid)
           .map((link) => nook.tags.find((tag) => tag.uuid === link.tag_uuid)).filter(Boolean),
       });
@@ -333,7 +334,7 @@ async function localCopyUuid(uuid) {
 export async function updatePaper(uuid, data) {
   const localFields = new Set([
     'summary', 'shelf_uuid', 'tag_uuids',
-    'rating_expertise', 'rating_reading', 'rating_liking',
+    'rating_expertise', 'rating_reading', 'rating_liking', ...FIELD_VISIBILITY,
   ]);
   if (nativeDataActive() && Object.keys(data).every((key) => localFields.has(key))) {
     const copyUuid = await localCopyUuid(uuid);

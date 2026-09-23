@@ -3,6 +3,7 @@ import { updateBoard } from '../../../shared/api/boards.js';
 import { updatePaper, paperHref } from '../../../shared/api/papers.js';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
+import ReaderPop from './ReaderPop';
 import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
@@ -313,23 +314,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Avatar user={entry.user} className="mini-avatar" />
-                        <span className="chip-pop">
-                          <span className="chip-pop-name">
-                            {entry.user.display_name}
-                            {entry.is_author && (
-                              <span className="author-tag">author</span>
-                            )}
-                          </span>
-                          {entry.user.affiliation && (
-                            <span className="chip-pop-aff">
-                              {entry.user.affiliation}
-                            </span>
-                          )}
-                          {entry.thought && (
-                            <span className="chip-pop-thought">“{entry.thought}”</span>
-                          )}
-                          <RatingSummary paper={entry} />
-                        </span>
+                        <ReaderPop entry={entry} />
                       </a>
                     ))}
                   </div>

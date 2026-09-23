@@ -45,11 +45,11 @@ export default function HomePage({ currentUser }) {
         <h6 className="kicker" id="organize-papers-title">Organize your papers</h6>
         <div className="home-organize-item">
           <strong>Shelves</strong>
-          <p>Every paper belongs to one shelf. Each shelf has a name and a color, and can be either public or private. Papers on public shelves appear in your nook to others; papers on private shelves are visible only to you.</p>
+          <p>Every paper belongs to one shelf. Each shelf has a name and a color, and can be either public or private. Papers on public shelves appear in your nook to others; papers on private shelves are visible only to you. Of a paper on a public shelf, others see its thought and ratings unless you make them private, and its summary and tags only if you make them public — the chip beside each on the paper’s jacket turns it the other way.</p>
         </div>
         <div className="home-organize-item">
           <strong>Tags</strong>
-          <p>Add any number of tags to group papers by topic, project, or reading status. A paper can have several tags, and you can use them to filter your nook. Tags are always visible only to you.</p>
+          <p>Add any number of tags to group papers by topic, project, or reading status. A paper can have several tags, and you can use them to filter your nook. A paper’s tags are private unless you make them public.</p>
         </div>
       </section>
 

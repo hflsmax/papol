@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { listLibraryBoards } from '../../../shared/api/boards.js';
 import { listPapers, paperHref } from '../../../shared/api/papers.js';
-import { RatingSummary } from './Rating';
+import ReaderPop from './ReaderPop';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import PaperUpload from './PaperUpload';
@@ -200,23 +200,7 @@ export default function PapersPage({
                       href={appPath(`/u/${entry.user.uuid}`)}
                     >
                       <Avatar user={entry.user} className="nook-chip-avatar" />
-                      <span className="chip-pop">
-                        <span className="chip-pop-name">
-                          {entry.user.display_name}
-                          {entry.is_author && (
-                            <span className="author-tag">author</span>
-                          )}
-                        </span>
-                        {entry.user.affiliation && (
-                          <span className="chip-pop-aff">
-                            {entry.user.affiliation}
-                          </span>
-                        )}
-                        {entry.thought && (
-                          <span className="chip-pop-thought">“{entry.thought}”</span>
-                        )}
-                        <RatingSummary paper={entry} />
-                      </span>
+                      <ReaderPop entry={entry} />
                     </a>
                   ))}
                 </div>

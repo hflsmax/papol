@@ -14,7 +14,9 @@ import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
 import Avatar from './Avatar';
-import { RatingInput, RatingSummary } from './Rating';
+import { RatingInput } from './Rating';
+import ReaderPop from './ReaderPop';
+import VisibilityChip from './VisibilityChip';
 import Markdown, { MarkdownHint } from './Markdown';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
@@ -171,6 +173,17 @@ export default function PaperJacket({
       setError(err.message);
     }
   };
+
+  // Each of thought, ratings, summary and tags is public or private on its
+  // own; the chip beside its heading turns it the other way.
+  const visibilityChip = (field) => (
+    <VisibilityChip
+      shown={paper[field]}
+      onDisplay={paper.is_public}
+      onToggle={() => handleInlineRating(field, !paper[field])}
+    />
+  );
+  const tint = (field) => (paper[field] ? 'vis-public' : 'vis-private');
 
   const handleShelfChange = async (shelfUuid) => {
     setError(null);
@@ -940,26 +953,7 @@ export default function PaperJacket({
                     href={appPath(`/u/${entry.user.uuid}`)}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
-                    <span className="chip-pop">
-                      <span className="chip-pop-name">
-                        {entry.user.display_name}
-                        {currentUser && entry.user.uuid === currentUser.uuid
-                          ? ' (you)'
-                          : ''}
-                        {entry.is_author && (
-                          <span className="author-tag">author</span>
-                        )}
-                      </span>
-                      {entry.user.affiliation && (
-                        <span className="chip-pop-aff">
-                          {entry.user.affiliation}
-                        </span>
-                      )}
-                      {entry.thought && (
-                        <span className="chip-pop-thought">“{entry.thought}”</span>
-                      )}
-                      <RatingSummary paper={entry} />
-                    </span>
+                    <ReaderPop entry={entry} isYou={Boolean(currentUser) && entry.user.uuid === currentUser.uuid} />
                   </a>
                 ))}
               </div>
@@ -968,20 +962,20 @@ export default function PaperJacket({
 
 
           {hasEntry && (
-            <div className="inline-ratings">
+            <div className={`inline-ratings ${tint('ratings_public')}`}>
               <h4 className="kicker">
                 My ratings
-                <span className="badge visibility-badge public">public</span>
+                {visibilityChip('ratings_public')}
               </h4>
               <RatingInput values={paper} onChange={handleInlineRating} />
             </div>
           )}
 
           {hasEntry && (
-            <div className="inline-thought">
+            <div className={`inline-thought ${tint('thought_public')}`}>
               <h4 className="kicker">
                 My thought
-                <span className="badge visibility-badge public">public</span>
+                {visibilityChip('thought_public')}
                 {!editingThought && paper.thought && (
                   <button
                     className="link-button summary-edit"
@@ -1002,7 +996,7 @@ export default function PaperJacket({
                     maxLength={appLimits.text.paper_thought}
                     rows={2}
                     autoFocus
-                    placeholder="Your public one-line take on this paper"
+                    placeholder="Your one-line take on this paper"
                     onChange={(e) => setThoughtDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setEditingThought(false);
@@ -1036,14 +1030,15 @@ export default function PaperJacket({
         </div>
       )}
 
-      {/* Everything below the separator is private to the user:
-          summary and notes. Above it, everything is public. */}
+      {/* Below the separator, what the user keeps of the paper: summary,
+          tags and notes. Notes are theirs alone; summary and tags, like
+          the thought and ratings above, are whichever their chip says. */}
       {hasEntry && editMode !== 'metadata' && (
         <div className="paper-notes">
-          <div className="summary-block">
+          <div className={`summary-block ${tint('summary_public')}`}>
             <h4>
               Summary
-              <span className="badge visibility-badge private">private</span>
+              {visibilityChip('summary_public')}
               {!editingSummary && paper.summary && (
                 <button
                   className="link-button summary-edit"
@@ -1063,7 +1058,7 @@ export default function PaperJacket({
                   value={summaryDraft}
                   rows={4}
                   autoFocus
-                  placeholder="A summary of the paper, visible only to you"
+                  placeholder="A summary of the paper"
                   onChange={(e) => setSummaryDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') setEditingSummary(false);
@@ -1096,10 +1091,10 @@ export default function PaperJacket({
             )}
           </div>
 
-          <section className="paper-tags private-tags-group" aria-labelledby="paper-tags-title">
+          <section className={`paper-tags ${tint('tags_public')}`} aria-labelledby="paper-tags-title">
             <h4 id="paper-tags-title">
               Tags
-              <span className="badge visibility-badge private">private</span>
+              {visibilityChip('tags_public')}
             </h4>
             <div className="tag-editor-card">
               <div className="tag-picker">
@@ -1119,8 +1114,8 @@ export default function PaperJacket({
                   <input
                     className="tag-input"
                     value={tagDraft}
-                    placeholder="Add a private tag…"
-                    aria-label="Add a private tag"
+                    placeholder="Add a tag…"
+                    aria-label="Add a tag"
                     onFocus={() => { setTagMenuOpen(true); listTags().then(setAvailableTags).catch((err) => setError(err.message)); }}
                     onBlur={() => setTagMenuOpen(false)}
                     onChange={(e) => { setTagDraft(e.target.value); setTagMenuOpen(true); }}

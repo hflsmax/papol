@@ -12,6 +12,7 @@ import { userPublic } from "../routes/boards";
 import { uploadUrl } from "../files";
 import { writeSynced } from "../sync/write";
 import { displayedCopies } from "./list";
+import { NEW_COPY_VISIBILITY, visibilityOut } from "./visibility";
 import { liveReadingLink } from "./sharables";
 
 export const PAPER_NAME_LENGTH = 32;
@@ -87,7 +88,8 @@ export async function keepPaper(db: D1Database, user: User, paperSha256: string)
   const copy: Copy = removed
     ? { ...removed, deleted_at: null, shelf_uuid: shelf?.uuid as string ?? null }
     : { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
-        is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, created_at: at, updated_at: at, revision: 0, deleted_at: null };
+        is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY,
+        created_at: at, updated_at: at, revision: 0, deleted_at: null };
   await batch(db, await writeSynced(db, "copies", copy, user.uuid, !removed));
   return copy;
 }
@@ -134,6 +136,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     file_path: paper.file_path, file_url: uploadUrl(env, paper.file_path), sha256: paper.sha256, created_at: paper.created_at,
     summary: null, thought: null, is_public: null, is_author: null,
     rating_expertise: null, rating_reading: null, rating_liking: null,
+    thought_public: null, ratings_public: null, summary_public: null, tags_public: null,
     notes: [], also_read_by: [], rooms: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {
@@ -142,6 +145,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
       shelf_uuid: copy.shelf_uuid, copy_uuid: copy.uuid, summary: copy.summary, thought: copy.thought,
       is_public: Boolean(shelf?.is_public), is_author: Boolean(copy.is_author),
       rating_expertise: copy.rating_expertise, rating_reading: copy.rating_reading, rating_liking: copy.rating_liking,
+      ...visibilityOut(copy),
       tags: await all(db, `SELECT t.uuid, t.name FROM copy_tags l JOIN tags t ON t.uuid = l.tag_uuid
         WHERE l.copy_uuid = ? AND l.deleted_at IS NULL AND t.deleted_at IS NULL ORDER BY lower(t.name)`, copy.uuid),
       notes: (await all<Row>(db, `SELECT * FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND kind = 'note' AND deleted_at IS NULL

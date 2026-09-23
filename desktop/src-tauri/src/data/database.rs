@@ -2432,6 +2432,10 @@ fn paper_view(
         "rating_expertise",
         "rating_reading",
         "rating_liking",
+        "thought_public",
+        "ratings_public",
+        "summary_public",
+        "tags_public",
     ] {
         object.insert(
             field.into(),

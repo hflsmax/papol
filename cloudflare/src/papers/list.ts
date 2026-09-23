@@ -5,6 +5,7 @@
 
 import { all, type Row } from "../db";
 import { userPublic } from "../routes/boards";
+import { shownFields } from "./visibility";
 
 export interface UserEntry {
   user: ReturnType<typeof userPublic>;
@@ -13,6 +14,8 @@ export interface UserEntry {
   rating_expertise: number | null;
   rating_reading: number | null;
   rating_liking: number | null;
+  summary: string | null;
+  tags: { uuid: string; name: string }[];
 }
 
 // The status of each paper's latest seminar, by the paper's digest.
@@ -25,25 +28,27 @@ export async function roomStatusMap(db: D1Database): Promise<Map<string, string>
 }
 
 // Every displayed copy of these papers, with its user: the readers shown
-// against a paper, which is each user's own business to be among.
+// against a paper, which is each user's own business to be among. Of each
+// copy, only what its user lets be seen.
 export async function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
   const shown = new Map<string, UserEntry[]>();
   if (!digests.length) return shown;
   const rows = await all<Row>(
     db,
-    `SELECT c.paper_sha256, c.is_author, c.thought, c.rating_expertise, c.rating_reading, c.rating_liking,
+    `SELECT c.uuid, c.paper_sha256, c.is_author, c.thought, c.rating_expertise, c.rating_reading, c.rating_liking, c.summary,
+            c.thought_public, c.ratings_public, c.summary_public, c.tags_public,
             u.uuid AS user_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
      FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid JOIN users u ON u.uuid = c.user_uuid
      WHERE c.deleted_at IS NULL AND s.is_public = 1 AND c.paper_sha256 IN (${digests.map(() => "?").join(",")})
      ORDER BY c.created_at, c.uuid`,
     ...digests,
   );
+  const tags = await tagsOf(db, rows.filter((row) => row.tags_public).map((row) => row.uuid as string));
   for (const row of rows) {
     const entries = shown.get(row.paper_sha256 as string) ?? [];
     entries.push({
       user: userPublic({ uuid: row.user_uuid, display_name: row.display_name, affiliation: row.affiliation, avatar_path: row.avatar_path, email: row.email, email_public: row.email_public }),
-      is_author: Boolean(row.is_author), thought: row.thought as string | null,
-      rating_expertise: row.rating_expertise as number | null, rating_reading: row.rating_reading as number | null, rating_liking: row.rating_liking as number | null,
+      is_author: Boolean(row.is_author), ...shownFields(row), tags: tags.get(row.uuid as string) ?? [],
     });
     shown.set(row.paper_sha256 as string, entries);
   }
@@ -72,29 +77,32 @@ export interface Listed {
 }
 
 // The rows, in the order given. `hidePrivate` is every list but the
-// user's own nook: summaries and tags stay with their user.
+// user's own nook: there a copy shows only what its user lets be seen.
 export async function paperListEntries(db: D1Database, listed: Listed[], hidePrivate: boolean): Promise<Row[]> {
   const digests = [...new Set(listed.map((l) => l.paper.sha256 as string))];
   const [shown, rooms, tags] = await Promise.all([
     displayedCopies(db, digests),
     roomStatusMap(db),
-    hidePrivate ? Promise.resolve(new Map()) : tagsOf(db, listed.map((l) => l.copy?.uuid as string).filter(Boolean)),
+    tagsOf(db, listed.map((l) => l.copy).filter((c) => c && (!hidePrivate || c.tags_public)).map((c) => c!.uuid as string)),
   ]);
-  return listed.map(({ paper, copy }) => ({
-    doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year,
-    file_path: paper.file_path, sha256: paper.sha256,
-    created_at: copy ? copy.created_at : paper.created_at,
-    summary: copy && !hidePrivate ? copy.summary : null,
-    thought: copy?.thought ?? null,
-    is_public: copy ? copy.is_public : null,
-    is_author: copy ? Boolean(copy.is_author) : null,
-    rating_expertise: copy?.rating_expertise ?? null,
-    rating_reading: copy?.rating_reading ?? null,
-    rating_liking: copy?.rating_liking ?? null,
-    room_status: rooms.get(paper.sha256 as string) ?? null,
-    users: shown.get(paper.sha256 as string) ?? [],
-    tags: copy && !hidePrivate ? tags.get(copy.uuid as string) ?? [] : [],
-    shelf_uuid: copy?.shelf_uuid ?? null,
-    copy_uuid: copy?.uuid ?? null,
-  }));
+  return listed.map(({ paper, copy }) => {
+    const personal = copy && hidePrivate ? shownFields(copy) : copy;
+    return {
+      doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year,
+      file_path: paper.file_path, sha256: paper.sha256,
+      created_at: copy ? copy.created_at : paper.created_at,
+      summary: personal?.summary ?? null,
+      thought: personal?.thought ?? null,
+      is_public: copy ? copy.is_public : null,
+      is_author: copy ? Boolean(copy.is_author) : null,
+      rating_expertise: personal?.rating_expertise ?? null,
+      rating_reading: personal?.rating_reading ?? null,
+      rating_liking: personal?.rating_liking ?? null,
+      room_status: rooms.get(paper.sha256 as string) ?? null,
+      users: shown.get(paper.sha256 as string) ?? [],
+      tags: copy ? tags.get(copy.uuid as string) ?? [] : [],
+      shelf_uuid: copy?.shelf_uuid ?? null,
+      copy_uuid: copy?.uuid ?? null,
+    };
+  });
 }

@@ -25,6 +25,7 @@ import { requireSupportedClient } from "./client";
 import { blobKey, boardFileKey, paperKey, stored } from "../files";
 import { keyColumn, ownedThroughBoard, registry, rule, writable, WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
+import { NEW_COPY_VISIBILITY } from "../papers/visibility";
 import { writePaper, writeSynced } from "./write";
 import limits from "../../../config/app_limits.json";
 
@@ -263,7 +264,8 @@ async function newRecord(work: Working, env: Env, change: RowChange): Promise<En
       const paper = await visiblePaper(work, values.paper_sha256);
       const shelf = await ownedShelf(work, values.shelf_uuid);
       return work.create(table, { uuid, paper_sha256: paper.row.sha256, user_uuid: user, shelf_uuid: shelf?.row.uuid ?? null,
-        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...bookkeeping });
+        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY,
+        ...bookkeeping });
     }
     case "copy_tags": {
       if (typeof values.copy_uuid !== "string" || typeof values.tag_uuid !== "string") refuse(422, "copy_tags needs copy_uuid and tag_uuid");
