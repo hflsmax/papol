@@ -106,6 +106,9 @@ routes = [{ pattern = "dev.papol.io", custom_domain = true }]
 
 [env.dev.vars]
 PAPOL_URL = "https://dev.papol.io"
+# References read by the rule-based analyzer on the host, not GROBID
+# (host/helper/src/rules/), while it is tried here before production.
+ANALYZER = "rules"
 FILES_BUCKET = "papol-files-dev"
 FILES_URL = "https://files-dev.papol.io"
 

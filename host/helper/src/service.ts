@@ -6,6 +6,7 @@
 
 import { parseHeader, parseTei, type Analysis, type HeaderMetadata } from "../../../cloudflare/src/papers/tei";
 import { GrobidError, type Grobid } from "./grobid";
+import { analyzeWithRules } from "./rules/analyze";
 
 export type { Analysis, HeaderMetadata };
 
@@ -40,6 +41,17 @@ async function through<T>(bytes: Uint8Array, call: (pdf: Uint8Array) => Promise<
 
 export function analyze(grobid: Grobid, bytes: Uint8Array): Promise<Analysis> {
   return through(bytes, grobid.fulltext, parseTei);
+}
+
+// The same answer read by rules, without GROBID (src/rules/). Nothing it
+// finds on the page is taken from a model.
+export async function analyzeByRules(bytes: Uint8Array): Promise<Analysis> {
+  if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
+  try {
+    return (await analyzeWithRules(bytes)).analysis;
+  } catch (error) {
+    throw new Refusal(422, `The PDF could not be read: ${(error as Error).message}`);
+  }
 }
 
 export function header(grobid: Grobid, bytes: Uint8Array): Promise<HeaderMetadata> {
