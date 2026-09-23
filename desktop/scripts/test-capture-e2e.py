@@ -7,7 +7,7 @@ reach none of that: the rule list is tested as regular expressions against
 URLs, which says what the patterns match, not that WebKit took them, and
 nothing at all says the picture is of the page. This takes pictures with
 examples/capture_probe.rs, the app's own `snapshot` outside the app, of
-pages served here, and asks four things of them:
+pages served here, and asks five things of them:
 
   * a page is captured, and the JPEG is that page: the right shape, and the
     two colours the fixture paints where it paints them;
@@ -15,6 +15,8 @@ pages served here, and asks four things of them:
     rules drop the image, not the page;
   * a page that redirects to this machine, and a page that frames it, are
     refused with the capture's own "local or private network" message;
+  * a page that shows nothing — no words, nothing drawn, nothing painted —
+    is refused rather than photographed as a white rectangle;
   * and the server standing in for this machine's network hears nothing
     in all of that, which is the claim the rules exist to make.
 
@@ -123,6 +125,15 @@ def fixture_server(private):
                 self.send_response(302)
                 self.send_header("Location", f"{local}/redirected")
                 self.end_headers()
+                return
+            if self.path == "/blank":
+                # A page that shows nothing at all: no words, nothing drawn
+                # and nothing painted. A site answers a stranger with one of
+                # these, and a picture of it is a white rectangle.
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b"<!doctype html><meta charset=utf-8><title>Nothing here</title>")
                 return
             body = {
                 "/": b"",
@@ -248,16 +259,17 @@ def main():
                 raise RuntimeError(f"{what} was not captured:\n{said}")
             say(f"Captured {what}: {check_picture(output)}")
 
-        for path, what in (
-            ("/redirect", "a page that redirects to this machine"),
-            ("/frame", "a page that frames this machine"),
+        for path, what, why in (
+            ("/redirect", "a page that redirects to this machine", "local or private network"),
+            ("/frame", "a page that frames this machine", "local or private network"),
+            ("/blank", "a page that shows nothing", "showed nothing to make a picture of"),
         ):
             output = ARTIFACTS / f"{path.strip('/')}.jpg"
             status, said = probe(f"{site}{path}", output)
             if status == 0 or output.exists():
                 raise RuntimeError(f"{what} was captured:\n{said}")
-            if "local or private network" not in said:
-                raise RuntimeError(f"{what} failed, but not by the guard:\n{said}")
+            if why not in said:
+                raise RuntimeError(f"{what} failed, but not for its own reason:\n{said}")
             say(f"Refused {what}: {said.splitlines()[-1]}")
 
         if private.heard:

@@ -38,6 +38,61 @@
     }
   };
 
+  // Whether something is where it can be seen: big enough to matter and
+  // within the window as it will be photographed.
+  const inView = (element) => {
+    const box = element.getBoundingClientRect();
+    return box.width > 32 && box.height > 32 && box.bottom > 0 && box.top < innerHeight;
+  };
+
+  // Not every page draws with words and pictures: one may be painted —
+  // a coloured band, a hero behind the text, a shop's tiles as
+  // backgrounds rather than `img`. This is how many different things the
+  // page paints where they can be seen. One is a blank page: an expanse
+  // of a single colour is what an empty shell and a wall both look like.
+  const painted = () => {
+    const fills = new Set();
+    for (const element of document.querySelectorAll('body *')) {
+      if (!inView(element)) continue;
+      const style = getComputedStyle(element);
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+      if (style.backgroundImage && style.backgroundImage !== 'none') fills.add(style.backgroundImage);
+      const colour = style.backgroundColor;
+      if (colour && colour !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(colour)) fills.add(colour);
+    }
+    return fills.size;
+  };
+
+  // What the page is actually showing, as the application reads it off
+  // the title: a page that shows nothing — a wall that never drew, a
+  // site that answered a stranger with an empty shell, a shell still
+  // waiting to hand over to the page proper — is worth no picture yet,
+  // and may be worth none at all.
+  const showing = () => {
+    const text = (document.body ? document.body.innerText : '').trim().length;
+    let pictures = 0;
+    for (const image of document.images) {
+      // A picture `reveal` will bring back counts as shown: by the time
+      // the snapshot is taken it will be.
+      if (!inView(image) || !image.complete || image.naturalWidth <= 32) continue;
+      if (getComputedStyle(image).visibility !== 'hidden' || hiddenPicture(image, innerHeight)) pictures += 1;
+    }
+    let drawings = 0;
+    for (const element of document.querySelectorAll('canvas, svg, video')) {
+      if (inView(element)) drawings += 1;
+    }
+    // Counting paint means asking the page about every element it shows,
+    // which is work, so it is asked only when nothing cheaper has
+    // answered — which is to say, only when the page looks empty.
+    const drawn = text > 40 || pictures > 0 || drawings > 0;
+    return { text, pictures, drawings, fills: drawn ? 0 : painted() };
+  };
+
+  // Is there a picture in this? A line of text on one flat colour is a
+  // notice, a wall or an empty shell, whichever site it came from.
+  const worth = (report) =>
+    report.text > 40 || report.pictures > 0 || report.drawings > 0 || report.fills > 1;
+
   const watch = () => {
     const began = performance.now();
     let changed = performance.now();
@@ -69,16 +124,23 @@
       // decodes a large one on another thread, and a snapshot taken
       // first draws the space where it will be.
       try { await Promise.all([...document.images].map((image) => image.decode?.().catch(() => {}))); } catch (e) {}
-      document.title = QUIET_TITLE;
+      document.title = QUIET_TITLE + ':' + JSON.stringify(showing());
     };
+    // A page can be still and yet show nothing. Etsy's results answer a
+    // stranger with a shell — complete, unchanging, three empty elements
+    // — and hand over to the page proper a second later; it was quiet,
+    // and photographed white. So stillness is the moment for a picture
+    // only once there is something to put in it. A page that never has
+    // anything waits out `LONGEST` and is photographed as it stands,
+    // which says so plainly (`showing`) and costs it its picture.
     const watcher = setInterval(() => {
       const still = performance.now() - changed > STILLNESS && document.readyState === 'complete' && !waiting();
-      if (still || performance.now() - began > LONGEST) {
+      if ((still && worth(showing())) || performance.now() - began > LONGEST) {
         clearInterval(watcher);
         tell();
       }
     }, 120);
   };
 
-  globalThis.papolCapture = { watch, reveal, hiddenPicture, QUIET_TITLE };
+  globalThis.papolCapture = { watch, reveal, hiddenPicture, showing, worth, QUIET_TITLE };
 })();
