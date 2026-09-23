@@ -4,7 +4,7 @@
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/tei";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_RULED, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -112,10 +112,28 @@ function proseOn(page: Page, type: Type): Set<Line> {
   // Set to the full measure, or justified: a line sharing both its edges
   // with the one a leading above or below (text wrapped beside a figure).
   const edges = (a: Line, b: Line) => Math.abs(a.x0 - b.x0) <= 1 && Math.abs(a.x1 - b.x1) <= 1;
-  const full = candidates.filter((l) => candidates.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= 0.7 * type.measure || edges(o, l))));
+  // Full: within an indent (two ems) of the measure — justified text fills it.
+  const full = candidates.filter((l) => candidates.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= type.measure - 2 * l.size || edges(o, l))));
   const prose = new Set(full);
+  // The short last line of a paragraph (its left edge shared with the
+  // line above), and the indented first (its right edge shared with the
+  // line below).
   for (const l of candidates) {
     if (full.some((f) => f.baseline < l.baseline && stepped(f, l) && Math.abs(f.x0 - l.x0) <= l.size)) prose.add(l);
+    if (full.some((f) => f.baseline > l.baseline && stepped(f, l) && Math.abs(f.x1 - l.x1) <= 1 && l.x0 > f.x0)) prose.add(l);
+  }
+  // And a paragraph in any font: three lines or more, each a line's
+  // spacing under the last, sharing both edges — an abstract, a sidebar's
+  // text. (A caption is one too; captions are set apart later.)
+  const lines = page.lines.filter((l) => !l.furniture).sort((a, b) => a.baseline - b.baseline);
+  // (At least half the measure wide: a table's column of cells can share
+  // its edges too.)
+  const next = (l: Line) => lines.find((o) => o.baseline > l.baseline + 0.5 * l.size && o.baseline - l.baseline <= 1.6 * l.size && edges(o, l) && sameSize(o.size, l.size)
+    && o.x1 - o.x0 >= type.measure / 2);
+  for (const l of lines.filter((l) => l.x1 - l.x0 >= type.measure / 2)) {
+    const run = [l];
+    for (let n = next(l); n && run.length < 3; n = next(n)) run.push(n);
+    if (run.length >= 3) run.forEach((r) => prose.add(r));
   }
   return prose;
 }
@@ -132,12 +150,25 @@ function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
 // background (over half the page), not a speck, not a tint behind running
 // text or a running head, and not outside the text area altogether (crop
 // marks, a rule in the margin).
+// Where a page's floats can be, up and down: under its running head and
+// over its foot, or — where it has none — within a leading of the text
+// area (float.graphics).
+function marginsOf(page: Page, type: Type): { y0: number; y1: number } {
+  const furniture = page.lines.filter((l) => l.furniture);
+  const heads = furniture.filter((l) => l.bottom <= type.text.y0 + 1), feet = furniture.filter((l) => l.top >= type.text.y1 - 1);
+  return {
+    y0: heads.length ? Math.max(...heads.map((l) => l.bottom)) : type.text.y0 - type.leading,
+    y1: feet.length ? Math.min(...feet.map((l) => l.top)) : type.text.y1 + type.leading,
+  };
+}
+
 function graphicsOf(page: Page, type: Type, prose: Set<Line>): (Rect & { image: boolean })[] {
   const area = page.width * page.height;
   const furniture = page.lines.filter((l) => l.furniture);
+  const margins = marginsOf(page, type);
   return page.drawn.filter((d: Drawn) => {
     if (d.w * d.h > 0.5 * area || (d.w < 1 && d.h < 1)) return false;
-    if (d.x + d.w <= type.text.x0 || d.x >= type.text.x1 || d.y + d.h <= type.text.y0 || d.y >= type.text.y1) return false;
+    if (d.x + d.w <= type.text.x0 || d.x >= type.text.x1 || d.y + d.h <= margins.y0 || d.y >= margins.y1) return false;
     const behind = (lines: Iterable<Line>) => [...lines].some((l) => l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1 && l.top >= d.y - 1 && l.bottom <= d.y + d.h + 1);
     return !(!d.image && behind(prose)) && !behind(furniture);
   }).map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h, image: d.image }));
@@ -188,7 +219,10 @@ function groundOf(page: Page, type: Type, paragraphs: Line[][]): Ground {
   const heads = headingsOn(page, type, prose).filter((l) => !inCaption.has(l));
   const graphics = graphicsOf(page, type, prose);
   const bounds = [...prose, ...heads, ...inCaption];
-  const lines = page.lines.filter((l) => !l.furniture && !prose.has(l) && !inCaption.has(l) && !heads.includes(l));
+  // Text in the margins (a running head the furniture rule missed) is no
+  // float's, as a drawing there is not.
+  const lines = page.lines.filter((l) => !l.furniture && !prose.has(l) && !inCaption.has(l) && !heads.includes(l)
+    && l.bottom > marginsOf(page, type).y0 && l.top < marginsOf(page, type).y1);
   return {
     page, type, graphics, lines, bounds, captions: paragraphs,
     pieces: [...piecesOf(graphics, bounds.map(rectOf)), ...lines.map((l) => ({ ...rectOf(l), image: false, thin: false, text: l }))],
@@ -257,14 +291,29 @@ function acrossOf(caption: Rect, own: Line[], ground: Ground): { x0: number; x1:
 // caption (a caption set beside its drawing).
 function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below", claimed: Rect[], taken: Set<Piece>, tableOnly: boolean): { rect: Rect; pieces: Piece[] } {
   const x = acrossOf(caption, own, ground);
-  const inside = (r: Rect) => Math.min(r.x1, x.x1) - Math.max(r.x0, x.x0) > 0.5 * Math.min(r.x1 - r.x0, x.x1 - x.x0) || (r.x0 >= x.x0 - 1 && r.x1 <= x.x1 + 1);
-  const bounds = [...ground.bounds.filter((l) => !own.includes(l)).map(rectOf), ...claimed].filter((b) => Math.min(b.x1, x.x1) - Math.max(b.x0, x.x0) > 0);
+  // Mostly in the band: more than half of the piece's own width.
+  const inside = (r: Rect) => Math.min(r.x1, x.x1) - Math.max(r.x0, x.x0) > 0.5 * (r.x1 - r.x0) || (r.x0 >= x.x0 - 1 && r.x1 <= x.x1 + 1);
+  // Text bounds a float where it runs over or under the caption itself;
+  // beside it, it is text wrapped around the float.
+  const bounds = [
+    ...ground.bounds.filter((l) => !own.includes(l)).map(rectOf).filter((b) => Math.min(b.x1, caption.x1) - Math.max(b.x0, caption.x0) > 0),
+    ...claimed.filter((b) => Math.min(b.x1, x.x1) - Math.max(b.x0, x.x0) > 0),
+  ];
+  // A table is text and rules: a picture after them is where the next
+  // float begins. (A table that begins with a picture is a table of them.)
+  if (tableOnly) {
+    const ahead = ground.pieces.filter((p) => !taken.has(p) && inside(p) && (side === "below" ? p.y0 > caption.y1 - 1 : p.y1 < caption.y0 + 1))
+      .sort((a, b) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1));
+    const first = ahead[0];
+    if (first && !first.text && !first.thin) tableOnly = false;
+    else bounds.push(...ahead.filter((p) => !p.text && !p.thin));
+  }
   const limit = side === "above"
     ? Math.max(0, ...bounds.filter((b) => b.y1 <= caption.y0 + 1).map((b) => b.y1))
     : Math.min(ground.page.height, ...bounds.filter((b) => b.y0 >= caption.y1 - 1).map((b) => b.y0));
   const starts = (r: Rect) => side === "above" ? r.y0 >= limit - 1 && r.y0 < caption.y1 : r.y1 <= limit + 1 && r.y0 > caption.y0;
   const pieces = ground.pieces.filter((p) => !taken.has(p) && starts(p) && inside(p) && (!tableOnly || p.text || p.thin)
-    && !claimed.some((c) => gapBetween(c, p).xs > 0 && gapBetween(c, p).ys > 0));
+    && !claimed.some((c) => (gapBetween(c, p).xs > 0 && gapBetween(c, p).ys > 0) || (p.x0 >= c.x0 - 1 && p.x1 <= c.x1 + 1 && p.y0 >= c.y0 - 1 && p.y1 <= c.y1 + 1)));
   explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}, ${pieces.length} pieces`);
   for (const p of pieces) explain?.(`    ${p.text ? `text "${p.text.text.slice(0, 30)}"` : p.image ? "image" : "drawn"} ${show(p)}`);
   return { rect: pieces.length ? union([caption, ...pieces]) : caption, pieces };
@@ -309,7 +358,7 @@ function extentOf(kind: string, paragraph: Line[], ground: Ground, claimed: Rect
   if (paragraph.length > 1) trace.add(FLOAT_CAPTION_PARAGRAPH.id, ground.page.number, paragraph[0].text.slice(0, 60), []);
   const frame = frameAround(caption, ground);
   if (frame) return { rect: union([frame, caption]), rule: FLOAT_FRAME.id, fixed: true };
-  if (kind !== "figure") {
+  if (kind === "algorithm" || kind === "listing") {
     const ruled = ruledUnder(caption, paragraph, ground, claimed);
     if (ruled) return { rect: ruled, rule: FLOAT_RULED.id, fixed: true };
   }
@@ -375,6 +424,27 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       pieces.forEach((p) => taken.add(p));
       const rule = found[i].kind === "figure" ? FLOAT_FIGURE_EXTENT.id : FLOAT_TABLE_EXTENT.id;
       extents[i] = { rect: union([extents[i].rect, rect]), rule: extents[i].rule === FLOAT_CAPTION_PARAGRAPH.id ? rule : extents[i].rule, fixed: false };
+    }
+    // Last, a caption with nothing over or under it is set beside its
+    // float (float.side): what is level with it across the text, with no
+    // running text between, and then the bands over and under that.
+    for (const i of order) {
+      if (extents[i].rule !== FLOAT_CAPTION_PARAGRAPH.id) continue;
+      explain?.(`page ${page.number} ${found[i].kind} ${found[i].number}, beside`);
+      const caption = union(paragraphs[i].map(rectOf));
+      const between = (p: Rect) => ground.bounds.some((l) => !paragraphs[i].includes(l) && gapBetween(rectOf(l), caption).ys > 0
+        && rectOf(l).x0 >= Math.min(p.x1, caption.x1) - 1 && rectOf(l).x1 <= Math.max(p.x0, caption.x0) + 1);
+      const level = ground.pieces.filter((p) => !taken.has(p) && gapBetween(p, caption).ys > 0 && gapBetween(p, caption).xs <= 0
+        && (!p.text || !p.thin) && !between(p) && !others(i).some((c) => gapBetween(c, p).xs > 0 && gapBetween(c, p).ys > 0));
+      if (!level.some((p) => !p.text)) continue;
+      level.forEach((p) => taken.add(p));
+      let rect = union([caption, ...level]);
+      for (const side of ["above", "below"] as const) {
+        const more = band(rect, paragraphs[i], ground, side, others(i), taken, found[i].kind !== "figure");
+        more.pieces.forEach((p) => taken.add(p));
+        rect = more.rect;
+      }
+      extents[i] = { rect, rule: FLOAT_SIDE.id, fixed: false };
     }
     found.forEach(({ kind, number, line }, i) => {
       // A little room around it, so an outline drawn at its edge does not
