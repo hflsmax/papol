@@ -3973,6 +3973,7 @@ export default function App() {
                       type="button"
                       className="ref-link"
                       disabled={macHandoffStep === 'trying'}
+                      title="Open in Papol for Mac"
                       onClick={() => {
                         const address = handoffAddressAt(window.location.href, {
                           page: currentView()?.page, openingPage,
@@ -3983,13 +3984,13 @@ export default function App() {
                           setMacHandoffStep(verdict === 'opened' ? 'idle' : 'missing');
                         });
                       }}
-                    >{macHandoffStep === 'trying' ? 'Opening…' : 'Open in Papol for Mac'}</button>
+                    >{macHandoffStep === 'trying' ? 'Opening…' : 'Open in app'}</button>
                   )}
                   {/* An offer, not a verdict (US-7.34): nothing was seen to
                       open, which is not the same as nothing having opened. */}
                   {macHandoffStep === 'missing' && (
-                    <a className="ref-link" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                      Download Papol for Mac
+                    <a className="ref-link" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" title="Download Papol for Mac">
+                      Download app
                     </a>
                   )}
                   {paperInfo?.pdf_url && (
