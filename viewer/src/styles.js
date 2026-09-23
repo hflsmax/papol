@@ -1557,6 +1557,17 @@ ${compatibilityStyles}
 
 .ref-link:hover { background: var(--accent-soft); }
 
+/* The one ref-link that acts rather than goes somewhere is a button, dressed
+   the same as its neighbours. */
+button.ref-link {
+  font: inherit;
+  font-size: var(--fs-sm);
+  background: none;
+  cursor: pointer;
+}
+
+button.ref-link:disabled { cursor: default; opacity: 0.6; }
+
 /* A paper Papol already holds is the one link worth leading with. */
 .ref-link.here {
   color: var(--ink-inverse);
