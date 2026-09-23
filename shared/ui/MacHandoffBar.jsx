@@ -52,9 +52,10 @@ export default function MacHandoffBar() {
   if (state === 'missing') {
     return (
       <div className="mac-handoff-bar" role="status">
-        {/* What this tab saw, not a verdict about the user's computer
-            (US-7.34): Papol may well be installed and simply slow. */}
-        <span className="mac-handoff-message">Papol didn’t open.</span>
+        {/* A question, not a verdict (US-7.34): this tab saw nothing, which
+            is not the same as nothing having happened. Papol may well have
+            opened behind a window, or be installed and simply slow. */}
+        <span className="mac-handoff-message">Didn’t see Papol open?</span>
         <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download Papol for Mac</a>
         <button type="button" className="mac-handoff-dismiss" onClick={notNow}>
           Not now
