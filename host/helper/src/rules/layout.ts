@@ -375,6 +375,10 @@ export function flowOf(lines: Line[]): Flow {
   return { text, at };
 }
 
+// How far into a run its character `at` begins: from the font's widths where
+// they were read, and evenly otherwise.
+const offsetIn = (run: Run, at: number) => run.offsets?.[at] ?? (run.width * at) / Math.max(run.text.length, 1);
+
 // The boxes a stretch of the flow was printed in, one per line it crosses,
 // as fractions of the page.
 export function boxesOf(flow: Flow, start: number, end: number, pageSize: (page: number) => [number, number]): Box[] {
@@ -385,8 +389,7 @@ export function boxesOf(flow: Flow, start: number, end: number, pageSize: (page:
     const ref = where.line.chars[where.char];
     if (!ref || ref.run < 0) continue;
     const run = where.line.runs[ref.run];
-    const per = run.width / Math.max(run.text.length, 1);
-    const x0 = run.x + per * ref.at, x1 = x0 + per;
+    const x0 = run.x + offsetIn(run, ref.at), x1 = run.x + offsetIn(run, ref.at + 1);
     const top = run.baseline - run.size * 0.8, bottom = run.baseline + run.size * 0.22;
     const span = spans.get(where.line);
     if (!span) spans.set(where.line, { x0, x1, top, bottom });
