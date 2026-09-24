@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "float" | "mention" | "bibliography" | "entry" | "field" | "citation";
+export type Stage = "layout" | "caption" | "float" | "section" | "mention" | "bibliography" | "entry" | "field" | "citation";
 
 export interface Rule {
   id: string;
@@ -201,6 +201,25 @@ export const MENTION_FLOAT = rule({
   pattern: /\b(?<kind>Figures?|FIGURES?|Figs?\.|FIGS?\.|Tables?|TABLES?|Tabs?\.|Box(?:es)?|BOX(?:ES)?|Algorithms?|Alg\.|Listings?)\s*(?<list>S?\d{1,3}(?:\.\d{1,3})?[a-z]?(?:\s*[-–—]\s*[a-z](?![a-z]))?(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*S?\d{1,3}(?:\.\d{1,3})?[a-z]?(?:\s*[-–—]\s*[a-z](?![a-z]))?)*)/,
   matches: ["see Figure 3 for", "(Fig. 1a)", "Figs. 3 and 4", "Figures 3–5", "Table 2", "in Fig. 2a-b", "FIGURE 7", "Figure 3.12 shows"],
   rejects: ["figure out", "the Tables", "Figure", "Configure 3"],
+});
+
+// ---------------------------------------------------------------- sections
+
+export const SECTION_HEADING = rule({
+  id: "section.heading", stage: "section",
+  summary: "A line that begins with a section number (\"2\", \"2.1\", \"2.1.3\", \"A.1\") and a capitalised title (a word, not a unit's letter; or \"3D …\"), mostly bold or larger than the text (by more than the half point its size is measured to), not inside a float, and not a contents entry (a title ending in its page number), heads that section; the first such line for a number is the section's.",
+  why: "Numbered headings are where \"Section 2.1\" sends a reader, and the number is the one thing heading and mention share.",
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|\d[A-Za-z])[^]*)$/,
+  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material"],
+  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke"],
+});
+export const MENTION_SECTION = rule({
+  id: "mention.section", stage: "mention",
+  summary: "\"Section\", \"Sec.\", \"Sect.\" or \"§\" followed by one or more section numbers (\"Section 2.1\", \"Sections 3 and 4\", \"§§2–4\") mentions each of them.",
+  why: "Papers point the reader to their own sections as often as to their figures; the mention becomes a link to the heading.",
+  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.)|§§?)\s*(?<list>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})*)/,
+  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see §3.1", "Section A.2"],
+  rejects: ["this section", "Section", "the sections below"],
 });
 
 // ------------------------------------------------------------ bibliography

@@ -147,6 +147,77 @@ test('recognizes Springer Nature superscript reference destinations without anal
 });
 
 
+test('a section link lands on its heading at the top of the window, not centred like a figure', async () => {
+  const doc = { getPage: async () => ({ getAnnotations: async () => [] }) };
+  const analysis = {
+    references: [],
+    citations: [],
+    floats: [{ uuid: 's-2.1', kind: 'section', label: '2.1', page: 2, x: 0.09, y: 0.3, w: 0.3, h: 0.015 }],
+    links: [{ float_uuid: 's-2.1', label: '2.1', page: 1, x: 0.5, y: 0.6, w: 0.08, h: 0.015 }],
+  };
+
+  const overlays = await pageOverlays(doc, 1, analysis);
+  assert.deepEqual(overlays.links.map((l) => [l.kind, l.label, l.spot]), [['section', '2.1', { page: 2, y: 0.3 }]]);
+});
+
+// A Nature page: the publisher links only the first number of a
+// superscript marker, and only the number of a figure mention.
+function natureLinks() {
+  const dest = (n) => `springernature_nature_3623.indd:\uFEFF${n}.\uFEFF\tAuthor, A. Title ${n}.:1${n}`;
+  return {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: dest(66), rect: [10, 80, 12, 82] }, // "66" of "66–73"
+      { subtype: 'Link', dest: dest(76), rect: [40, 80, 42, 82] }, // "76" of "76,77"
+      { subtype: 'Link', dest: dest(90), rect: [70, 80, 72, 82] }, // a marker the analyzer missed
+    ],
+  };
+}
+
+test("an analyzed marker wins over the publisher's link to its first number", async () => {
+  const page = natureLinks();
+  const doc = { getPage: async () => page };
+  const cite = (uuid, x, w, label) => ({ reference_uuid: uuid, label, page: 1, x, y: 0.18, w, h: 0.02, inferred: false });
+  const range = ['r66', 'r67', 'r68', 'r69', 'r70', 'r71', 'r72', 'r73'].map((uuid) => cite(uuid, 0.1, 0.05, '66–73'));
+  const list = ['r76', 'r77'].map((uuid) => cite(uuid, 0.4, 0.04, '76,77'));
+
+  const overlays = await pageOverlays(doc, 1, { references: [], citations: [...range, ...list], links: [] });
+
+  const labels = overlays.citations.map((c) => [c.label, c.referenceUuids?.length ?? 1]);
+  assert.deepEqual(labels.slice(0, 2), [['66–73', 8], ['76,77', 2]]);
+  // The one the analyzer did not read is still the publisher's.
+  assert.equal(overlays.citations.length, 3);
+  assert.equal(overlays.citations[2].reference.key, '90');
+});
+
+test("an analyzed figure mention wins over the publisher's link to its number", async () => {
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [{ subtype: 'Link', dest: 'Fig3', rect: [34, 80, 38, 82] }], // "3b"
+  };
+  const doc = {
+    getPage: async () => page,
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 700],
+    getPageIndex: async () => 4,
+  };
+  const analysis = {
+    references: [],
+    citations: [],
+    floats: [{ uuid: 'f-3', kind: 'figure', label: '3', page: 5, x: 0.1, y: 0.1, w: 0.8, h: 0.4 }],
+    links: [{ float_uuid: 'f-3', label: '3b', page: 1, x: 0.28, y: 0.18, w: 0.1, h: 0.02 }], // "Fig. 3b"
+  };
+
+  const overlays = await pageOverlays(doc, 1, analysis);
+
+  assert.deepEqual(overlays.links.map((l) => [l.label, l.x, l.w]), [['3b', 0.28, 0.1]]);
+});
+
 // A two-column bibliography, as Elsevier and ACM set them. Entries run down
 // the left column and then down the right, so y climbs and then falls back to
 // the top of the page at r25 — which is the only sign, from where entries

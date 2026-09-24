@@ -41408,6 +41408,24 @@ var MENTION_FLOAT = rule({
   matches: ["see Figure 3 for", "(Fig. 1a)", "Figs. 3 and 4", "Figures 3\u20135", "Table 2", "in Fig. 2a-b", "FIGURE 7", "Figure 3.12 shows"],
   rejects: ["figure out", "the Tables", "Figure", "Configure 3"]
 });
+var SECTION_HEADING = rule({
+  id: "section.heading",
+  stage: "section",
+  summary: `A line that begins with a section number ("2", "2.1", "2.1.3", "A.1") and a capitalised title (a word, not a unit's letter; or "3D \u2026"), mostly bold or larger than the text (by more than the half point its size is measured to), not inside a float, and not a contents entry (a title ending in its page number), heads that section; the first such line for a number is the section's.`,
+  why: 'Numbered headings are where "Section 2.1" sends a reader, and the number is the one thing heading and mention share.',
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|\d[A-Za-z])[^]*)$/,
+  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material"],
+  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke"]
+});
+var MENTION_SECTION = rule({
+  id: "mention.section",
+  stage: "mention",
+  summary: '"Section", "Sec.", "Sect." or "\xA7" followed by one or more section numbers ("Section 2.1", "Sections 3 and 4", "\xA7\xA72\u20134") mentions each of them.',
+  why: "Papers point the reader to their own sections as often as to their figures; the mention becomes a link to the heading.",
+  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.)|§§?)\s*(?<list>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})*)/,
+  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see \xA73.1", "Section A.2"],
+  rejects: ["this section", "Section", "the sections below"]
+});
 var BIB_HEADING = rule({
   id: "bibliography.heading",
   stage: "bibliography",
@@ -42560,6 +42578,68 @@ function findMentions(flow, floats, layout2, trace) {
   return links;
 }
 
+// src/rules/sections.ts
+var keyOf2 = (number) => `section
+${number.toLowerCase()}`;
+var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
+function findSections(layout2, skip, floats, trace) {
+  const sections = /* @__PURE__ */ new Map();
+  const within = [...floats];
+  const inFloat = (line, page) => within.some((f2) => f2.page === page.number && line.x0 / page.width >= f2.x - 1e-3 && line.x1 / page.width <= f2.x + f2.w + 1e-3 && line.top / page.height >= f2.y - 1e-3 && line.bottom / page.height <= f2.y + f2.h + 1e-3);
+  for (const page of layout2.pages) {
+    for (const line of page.lines) {
+      if (line.furniture || skip.has(line)) continue;
+      const match = SECTION_HEADING.pattern.exec(line.text);
+      if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
+      const letters = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
+      const set = letters(line.runs.filter((r2) => r2.bold)) > letters(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      if (!set) continue;
+      const number = match.groups.number;
+      if (sections.has(keyOf2(number))) continue;
+      const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
+      sections.set(keyOf2(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
+      trace.add(SECTION_HEADING.id, page.number, line.text.slice(0, 80), [box]);
+    }
+  }
+  return sections;
+}
+function numbersIn2(list) {
+  const out = [];
+  const re2 = /(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}/g;
+  let previous = null;
+  let match;
+  while (match = re2.exec(list)) {
+    const number = match[0];
+    const start = match.index, end = start + number.length;
+    const between = previous ? list.slice(previous.end, start) : "";
+    if (previous && /^\s*(?:[-–—]|to)\s*$/.test(between) && /^\d+$/.test(previous.number) && /^\d+$/.test(number)) {
+      for (let n2 = Number(previous.number) + 1; n2 < Number(number); n2 += 1) out.push({ number: String(n2), start: previous.start, end });
+    }
+    out.push({ number, start, end });
+    previous = { number, start, end };
+  }
+  return out;
+}
+function findSectionMentions(flow, sections, layout2, trace) {
+  const links = [];
+  const size = (page) => [layout2.pages[page - 1].width, layout2.pages[page - 1].height];
+  const re2 = new RegExp(MENTION_SECTION.pattern.source, "g");
+  let match;
+  while (match = re2.exec(flow.text)) {
+    const groups = match.groups;
+    const listStart = match.index + match[0].length - groups.list.length;
+    numbersIn2(groups.list).forEach((item, index) => {
+      const section2 = sections.get(keyOf2(item.number));
+      if (!section2) return;
+      const from = index === 0 ? match.index : listStart + item.start;
+      const boxes2 = boxesOf(flow, from, listStart + item.end, size);
+      for (const box of boxes2) links.push({ float: section2.key, label: groups.list.slice(item.start, item.end).trim(), ...box });
+      trace.add(MENTION_SECTION.id, boxes2[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes2);
+    });
+  }
+  return links;
+}
+
 // node_modules/unpdf/dist/index.mjs
 function polyfillDOMMatrix2() {
   if (typeof globalThis.DOMMatrix !== "undefined") return;
@@ -42749,7 +42829,8 @@ async function analyzeWithRules(bytes) {
   const readable = (line) => !line.furniture && !bibliography.lines.has(line);
   const flows = layout2.pages.map((page) => flowOf(page.lines.filter(readable)));
   const floats = findFloats(layout2, trace);
-  const links = flows.flatMap((flow) => findMentions(flow, floats, layout2, trace));
+  const sections = findSections(layout2, bibliography.lines, floats.values(), trace);
+  const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout2, trace), ...findSectionMentions(flow, sections, layout2, trace)]);
   const citations = findCitations(layout2, flows, bibliography, trace);
   const analysis = {
     references: bibliography.entries.map((e2) => ({
@@ -42766,7 +42847,7 @@ async function analyzeWithRules(bytes) {
       y: e2.y
     })),
     citations,
-    floats: [...floats.values()].map(({ caption: _2, ...float }) => float),
+    floats: [...floats.values(), ...sections.values()].map(({ caption: _2, ...float }) => float),
     links
   };
   return {
@@ -42777,7 +42858,8 @@ async function analyzeWithRules(bytes) {
       bodySize: layout2.bodySize,
       numbering: bibliography.numbering,
       twoColumnPages: layout2.pages.filter((p2) => p2.twoColumn).length,
-      floats: floats.size
+      floats: floats.size,
+      sections: sections.size
     }
   };
 }
