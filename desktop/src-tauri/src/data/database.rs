@@ -1724,9 +1724,9 @@ fn apply_identity_aliases(
     account_uuid: &str,
     aliases: &Map<String, Value>,
 ) -> Result<(), String> {
-    // Collapse the most dependent identities first. A duplicate imported
-    // copy may still point at the temporary paper ID; removing/merging it
-    // before the paper alias avoids violating UNIQUE(paper_sha256,user_uuid).
+    // The service aliases only a copy, or a copy's tag, that it already
+    // holds for this user. A paper is named by its file, so it never needs
+    // one. Links go first, so they are merged before their copy is renamed.
     for (old_uuid, new_value) in aliases {
         let new_uuid = new_value
             .as_str()
@@ -1803,59 +1803,6 @@ fn apply_identity_aliases(
                     "UPDATE copies SET uuid=?1 WHERE uuid=?2",
                     params![new_uuid, old_uuid],
                 )
-                .map_err(|error| error.to_string())?;
-        }
-    }
-    for (old_uuid, new_value) in aliases {
-        let new_uuid = new_value
-            .as_str()
-            .ok_or("Server alias target must be a UUID")?;
-        Uuid::parse_str(new_uuid).map_err(|_| "Server alias target must be a UUID")?;
-        let old_paper: Option<i64> = transaction
-            .query_row("SELECT 1 FROM papers WHERE sha256=?1", [old_uuid], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(|error| error.to_string())?;
-        if old_paper.is_none() {
-            continue;
-        }
-        let canonical_exists: Option<i64> = transaction
-            .query_row("SELECT 1 FROM papers WHERE sha256=?1", [new_uuid], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(|error| error.to_string())?;
-        if canonical_exists.is_none() {
-            transaction
-                .execute(
-                    "UPDATE papers SET sha256=?1 WHERE sha256=?2",
-                    params![new_uuid, old_uuid],
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        for (table, column) in [("copies", "paper_sha256"), ("annotations", "paper_sha256")] {
-            transaction
-                .execute(
-                    &format!("UPDATE {table} SET {column}=?1 WHERE {column}=?2"),
-                    params![new_uuid, old_uuid],
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        // The canonical paper can already have a blob reference when a
-        // snapshot introduced it before this offline import was pushed.
-        // Rebuild the reference under the canonical identity instead of
-        // renaming the temporary row into the same primary key.
-        transaction
-            .execute(
-                "DELETE FROM _local_blob_refs WHERE table_name='papers' AND row_uuid=?1",
-                [old_uuid],
-            )
-            .map_err(|error| error.to_string())?;
-        refresh_blob_reference(transaction, "papers", new_uuid)?;
-        if canonical_exists.is_some() {
-            transaction
-                .execute("DELETE FROM papers WHERE sha256=?1", [old_uuid])
                 .map_err(|error| error.to_string())?;
         }
     }
