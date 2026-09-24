@@ -6,6 +6,7 @@
 // space the viewer's fractions are taken of, and with what its font's name
 // says about it: bold, italic. Nothing here decides what anything means.
 
+import { least, most } from "./numbers";
 import { getDocumentProxy, getResolvedPDFJS } from "unpdf";
 
 export interface Run {
@@ -75,7 +76,7 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
   const add = (x0: number, y0: number, x1: number, y1: number, image: boolean) => {
     const corners = [apply(ctm, x0, y0), apply(ctm, x1, y0), apply(ctm, x0, y1), apply(ctm, x1, y1)];
     const xs = corners.map((c) => c[0] - left), ys = corners.map((c) => top - c[1]);
-    const box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys), image };
+    const box = { x: least(xs), y: least(ys), w: most(xs) - least(xs), h: most(ys) - least(ys), image };
     if ([box.x, box.y, box.w, box.h].every(Number.isFinite)) out.push(box);
   };
   ops.fnArray.forEach((fn, i) => {

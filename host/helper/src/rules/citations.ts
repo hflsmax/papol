@@ -8,6 +8,7 @@
 // that cites with (1, 2), and equation numbers "(3)" from becoming
 // citations in one that cites with [3].
 
+import { least, most } from "./numbers";
 import type { Entry, Bibliography } from "./bibliography";
 import { normalizeName } from "./bibliography";
 import { boxesOf, type Box, type Flow, type Layout, type Line } from "./layout";
@@ -136,8 +137,8 @@ function superscriptHits(layout: Layout, skip: Set<Line>, byNumber: Map<number, 
         if (/[)\]}|]\s*$/.test(prevText) && /[=+−×÷±√∑∫≤≥≈]/.test(line.text)) continue;
         const numbers = numbersOf(m.groups!.list);
         if (!numbers?.length || numbers.some((n) => !byNumber.has(n))) continue;
-        const x0 = Math.min(...runs.map((r) => r.x)), x1 = Math.max(...runs.map((r) => r.x + r.width));
-        const top = Math.min(...runs.map((r) => r.baseline - r.size * 0.8)), bottom = Math.max(...runs.map((r) => r.baseline + r.size * 0.22));
+        const x0 = least(runs.map((r) => r.x)), x1 = most(runs.map((r) => r.x + r.width));
+        const top = least(runs.map((r) => r.baseline - r.size * 0.8)), bottom = most(runs.map((r) => r.baseline + r.size * 0.22));
         const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
         hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n) => byNumber.get(n)!), label: text, boxes: [box], page: page.number });
       }
