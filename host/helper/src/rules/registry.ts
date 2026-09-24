@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "float" | "section" | "mention" | "bibliography" | "entry" | "field" | "citation";
+export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "mention" | "bibliography" | "entry" | "field" | "citation";
 
 export interface Rule {
   id: string;
@@ -220,6 +220,19 @@ export const MENTION_SECTION = rule({
   pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.)|§§?)\s*(?<list>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})*)/,
   matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see §3.1", "Section A.2"],
   rejects: ["this section", "Section", "the sections below"],
+});
+
+// --------------------------------------------------------------- footnotes
+
+export const FOOTNOTE_NOTE = rule({
+  id: "footnote.note", stage: "footnote",
+  summary: "A line smaller than the text that opens with a raised number and then words, with nothing at the text's size under it in its column, is a footnote; the lines under it at its size, up to the next such line, are the rest of it.",
+  why: "A footnote is set at the foot of its page, smaller than the text, numbered by a superscript — the same number that marks the place in the text it annotates.",
+});
+export const FOOTNOTE_MARKER = rule({
+  id: "footnote.marker", stage: "footnote",
+  summary: "A raised number in a line of the text, whose footnote is on the same page, marks that footnote — unless the paper cites with raised numbers and this one is a citation.",
+  why: "A reader follows a footnote mark to its note (ACM's \"linear neurons¹\"); Nature-style papers raise their citation numbers too, and those stay citations.",
 });
 
 // ------------------------------------------------------------ bibliography
