@@ -16,6 +16,8 @@ import apiShapes from '../schema/api_shapes.json' with { type: 'json' };
 const ACCOUNT_KEY = 'papol.localAccountUuid';
 // Accounts are named by UUID; anything else in storage is not an account.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Papers are named by their file's SHA-256.
+const SHA256 = /^[0-9a-f]{64}$/i;
 let scheduledSync = null;
 let activeNativeSyncs = 0;
 let syncStatusListening = false;
@@ -522,7 +524,7 @@ export function subscribeSignInRequests(listener) {
 
 export function subscribeShowPaperRequests(listener) {
   return subscribeNativeEvents(['papol://show-paper-requested'], (payload) => {
-    if (UUID.test(payload?.paper_sha256 || '')) listener(payload.paper_sha256.toLowerCase());
+    if (SHA256.test(payload?.paper_sha256 || '')) listener(payload.paper_sha256.toLowerCase());
   });
 }
 

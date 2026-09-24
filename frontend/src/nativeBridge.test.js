@@ -8,6 +8,7 @@ import { installNativeHarness } from '../../shared/testing/nativeHarness.js';
 const native = await installNativeHarness();
 const {
   configureNativeBridge, nativeRepository, REPORTABLE_NATIVE_ERROR_EVENT, subscribeNativeData,
+  subscribeShowPaperRequests,
 } = await import('../../shared/nativeData.js');
 
 test('a bridge without both halves is refused', () => {
@@ -51,4 +52,22 @@ test('a command the Mac does not register is announced as a defect, even when th
   await assert.rejects(nativeRepository.boards(), (failure) => /not allowed by ACL/.test(failure));
   const reported = native.events.find((event) => event.type === REPORTABLE_NATIVE_ERROR_EVENT);
   assert.equal(reported?.detail.area, 'native command data_query');
+});
+
+test('a document window asking the Desk to show its paper names it by its digest', async () => {
+  const handlers = new Map();
+  configureNativeBridge({
+    invoke: native.invoke,
+    listen: async (eventName, handler) => { handlers.set(eventName, handler); return () => {}; },
+  });
+  const shown = [];
+  subscribeShowPaperRequests((paperSha256) => shown.push(paperSha256));
+  await native.until(() => handlers.has('papol://show-paper-requested'), { what: 'the show-paper listener' });
+  const show = (paper_sha256) => handlers.get('papol://show-paper-requested')({ payload: { paper_sha256 } });
+
+  const digest = 'AB'.repeat(32);
+  show(digest);
+  show('not a paper');
+  show('0f8fad5b-d9cb-469f-a165-70867728950e');
+  assert.deepEqual(shown, [digest.toLowerCase()]);
 });
