@@ -44,7 +44,6 @@ test('every host Papol asks for says which way it is asked, and why', () => {
     assert.ok(['page', 'plugin'].includes(entry.by), `${entry.host} is asked in no known way`);
     assert.ok(entry.why.length > 20, `${entry.host} does not say why`);
   }
-  // The R2 upload address and YouTube are the two a release shipped without.
+  // The R2 upload address is one a release shipped without.
   assert.ok(pageHosts().some((host) => host.endsWith('.r2.cloudflarestorage.com')));
-  assert.ok(pageHosts().includes('https://www.youtube.com'));
 });

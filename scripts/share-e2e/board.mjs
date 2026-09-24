@@ -4,20 +4,21 @@
 //
 // A link pasted onto a board becomes a card, and what the card can show
 // depends on what the link is and on who fetches its picture: a YouTube
-// video's title and thumbnail the page fetches itself (shared/videos.js);
-// a web page's picture is a job the Worker runs in Browser Rendering
+// video's title and thumbnail the Cloudflare Worker reads from its page
+// with linkpeek (cloudflare/src/linkPreview.ts); a web page's picture is a
+// job the Cloudflare Worker runs in Browser Rendering
 // (cloudflare/src/jobs/capture.ts); a Bilibili video's title and cover
 // only the Mac app can fetch, so the web makes the card as the link and
 // says so. board/scripts/browser-smoke.mjs draws cards from a faked API;
 // this pastes, and follows each card to where it ends.
 //
-// YouTube is answered from here, through the DevTools Fetch domain, so the
-// check never depends on YouTube being up or on what a video is called
-// today. `wrangler dev` runs Browser Rendering on a Chrome of its own
-// (downloaded on first use); the page whose picture must fail is under
-// `.invalid`, a name that never resolves (RFC 2606), and the one whose
-// picture must be taken is example.com — the one check here that needs
+// The Cloudflare Worker's own requests cannot be answered from here, so
+// YouTube and example.com are the real ones — the checks here that need
 // the network.
+// `wrangler dev` runs Browser Rendering on a Chrome of its own (downloaded
+// on first use); the page whose picture must fail is under `.invalid`, a
+// name that never resolves (RFC 2606). What the page itself asks is
+// watched: it must ask neither YouTube nor Bilibili.
 
 import { randomBytes } from 'node:crypto';
 import { Browser, checker } from './cdp.mjs';
@@ -30,13 +31,14 @@ const { check } = checks;
 
 const VIDEO_ID = 'dQw4w9WgXcQ';
 const YOUTUBE = `https://www.youtube.com/watch?v=${VIDEO_ID}`;
-const VIDEO_TITLE = `A Video Answered From the Suite ${suffix}`;
+// What YouTube calls it, as its page's og:title says.
+const VIDEO_TITLE = /Never Gonna Give You Up/;
 const UNREACHABLE = `https://papol-e2e-${suffix}.invalid/`;
 const REACHABLE = 'https://example.com/';
 const BILIBILI = 'https://www.bilibili.com/video/BV1xx411c7mD';
 
 // What reached YouTube's hosts and Bilibili's, as the page asked.
-const asked = { oembed: [], thumbnail: [], bilibili: [] };
+const asked = { youtube: [], bilibili: [] };
 
 // A paste as the board hears it: on the window, from outside any field,
 // with the link as the clipboard's text (BoardPage.jsx, handlePaste).
@@ -70,37 +72,16 @@ try {
   await browser.start();
   await browser.signIn({ token: me.token, accountUuid: me.uuid, origin: BASE });
 
-  // The thumbnail YouTube would send: a real JPEG, drawn by this browser,
-  // so the card has something it can decode and show.
-  const jpeg = Buffer.from((await browser.evaluate(`
-    const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 });
-    const g = canvas.getContext('2d');
-    g.fillStyle = '#b3923d'; g.fillRect(0, 0, 320, 180);
-    g.fillStyle = '#fff'; g.font = '28px sans-serif'; g.fillText('papol e2e', 90, 100);
-    return canvas.toDataURL('image/jpeg', 0.9);`)).split(',')[1], 'base64');
   const open = { 'access-control-allow-origin': '*' };
   await browser.intercept([
     {
-      pattern: 'https://www.youtube.com/oembed*',
-      match: (url) => url.startsWith('https://www.youtube.com/oembed'),
+      // The Cloudflare Worker reads YouTube; were the page to ask it, it
+      // is refused here rather than sent.
+      pattern: '*youtube*',
+      match: (url) => /(^|\.)(youtube\.com|ytimg\.com|youtu\.be)$/.test(new URL(url).hostname),
       answer: (request) => {
-        asked.oembed.push(request.url);
-        return {
-          headers: { ...open, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            type: 'video', version: '1.0', provider_name: 'YouTube', title: VIDEO_TITLE,
-            author_name: 'Papol', thumbnail_url: `https://i.ytimg.com/vi/${VIDEO_ID}/hqdefault.jpg`,
-            thumbnail_width: 320, thumbnail_height: 180,
-          }),
-        };
-      },
-    },
-    {
-      pattern: 'https://i.ytimg.com/*',
-      match: (url) => url.startsWith('https://i.ytimg.com/'),
-      answer: (request) => {
-        asked.thumbnail.push(request.url);
-        return { headers: { ...open, 'content-type': 'image/jpeg' }, body: jpeg };
+        asked.youtube.push(request.url);
+        return { status: 503, headers: open, body: '' };
       },
     },
     {
@@ -130,18 +111,16 @@ try {
   const video = await settledItem(me.token, board.uuid, YOUTUBE);
   check('the card is made', !!video);
   if (video) {
-    check('as a YouTube card with the title and a thumbnail', video.kind === 'youtube' && video.content === VIDEO_TITLE && !!video.sha256,
+    check('as a YouTube card with the title and a thumbnail', video.kind === 'youtube' && VIDEO_TITLE.test(video.content) && !!video.sha256,
       JSON.stringify({ kind: video.kind, content: video.content, sha256: video.sha256 }));
     const shown = await browser.waitFor(
       `(() => { const el = document.querySelector(${JSON.stringify(cardSelector(video.uuid))});
         const img = el?.querySelector('img');
-        return el && el.textContent.includes(${JSON.stringify(VIDEO_TITLE)}) && img && img.complete && img.naturalWidth > 0; })()`,
+        return el && el.textContent.includes(${JSON.stringify(video.content)}) && img && img.complete && img.naturalWidth > 0; })()`,
       { timeout: 20_000, what: 'the video card drawn' }).catch(() => false);
     check('the canvas shows its title and its picture', shown);
   }
-  check('the page asked YouTube for the video, and for its thumbnail',
-    asked.oembed.length === 1 && asked.oembed[0].includes(VIDEO_ID) && asked.thumbnail.length === 1,
-    JSON.stringify(asked));
+  check('and the page never asked YouTube', asked.youtube.length === 0, JSON.stringify(asked.youtube));
 
   console.log('\n== A page that cannot be reached ==');
   await paste(UNREACHABLE);

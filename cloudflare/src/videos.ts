@@ -1,7 +1,7 @@
 // A video link on a board: which site's, and which video. The app reads
 // links the same way (shared/videos.js), so a change to one is a change
-// to the other. The Worker fetches nothing about a video: the app brings
-// its title and thumbnail, or the card is the link alone.
+// to the other. Its title and picture are read from its page: YouTube's
+// here (linkPreview.ts), Bilibili's by the Mac.
 
 export type VideoKind = "youtube" | "bilibili";
 

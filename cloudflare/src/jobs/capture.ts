@@ -7,8 +7,8 @@
 // the job says why. The Mac takes a page's picture itself
 // (desktop/src-tauri/src/capture.rs) and pushes the card with it, so
 // nothing here runs for a card that came by sync. Nor is a video card
-// captured here: the app fetches its title and thumbnail itself
-// (shared/videos.js).
+// captured here: its title and picture are read from its page
+// (linkPreview.ts, shared/videos.js).
 //
 // The browser is Cloudflare's, on Cloudflare's network, so no private
 // address of ours is reachable from it; the check is on the URL itself: a browser scheme, a hostname that is not

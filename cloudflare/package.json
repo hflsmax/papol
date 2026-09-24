@@ -16,7 +16,8 @@
     "@noble/hashes": "^2.4.0",
     "@rgrove/parse-xml": "^5.0.0",
     "aws4fetch": "^1.0.20",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "linkpeek": "^2.1.5"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",

@@ -11,6 +11,7 @@ import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext, type Router } from "../http";
 import { WEBPAGE, publicWebUrl } from "../jobs/capture";
 import { videoLink } from "../videos";
+import { videoPreview } from "../linkPreview";
 import { enqueue, wake } from "../jobs/queue";
 import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "../files";
 import { rowSnapshot } from "../sync/rows";
@@ -360,12 +361,25 @@ export function boardRoutes(router: Router) {
     return writeItem(env, board, item, true);
   });
 
-  // A video card: YouTube or Bilibili. The app has fetched the video's
-  // title and thumbnail itself (shared/videos.js) and put the thumbnail in
-  // the bucket; the card names it, as a file card names its file. Without
-  // them — the site could not be reached, or it is a Bilibili video on the
-  // web, which only the Mac can ask — the card is the link alone. The link
-  // is checked here, so a URL that is not a video is refused.
+  // A YouTube video's title and picture, read from its page
+  // (linkPreview.ts), for a video card the web or the Mac is about to make
+  // or fill. The picture is in the bucket when this answers; the card
+  // names its digest.
+  router.on("POST", "/api/video-preview", async ({ request, env }) => {
+    await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const url = validate.checking().string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
+    const { id, title, sha256 } = await videoPreview(env, url);
+    return json({ id, title, sha256 });
+  });
+
+  // A video card: YouTube or Bilibili, with its title and the digest of
+  // its picture, which is in the bucket: YouTube's put there by
+  // POST /api/video-preview, Bilibili's by the Mac (shared/videos.js). The
+  // card names it, as a file card names its file. Without them — the site
+  // could not be reached, or it is a Bilibili video on the web, which only
+  // the Mac can ask — the card is the link alone. The link is checked
+  // here, so a URL that is not a video is refused.
   router.on("POST", "/api/boards/:uuid/video", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
@@ -416,7 +430,7 @@ export function boardRoutes(router: Router) {
 
   // The title and thumbnail for a video card made as its link alone —
   // the site could not be reached when it was made, here or on the desktop
-  // — fetched by the app when the board is next open (shared/api/boards.js).
+  // — asked for again when the board is next open (shared/api/boards.js).
   // The title takes the card's text only while that is still the link, so
   // a description written in the meantime stands. A card that has its
   // thumbnail already keeps it.

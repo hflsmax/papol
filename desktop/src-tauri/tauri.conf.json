@@ -36,7 +36,7 @@
       "devCsp": {
         "default-src": "'self'",
         "base-uri": "'self'",
-        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:5173 https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com https://files.papol.io https://www.youtube.com https://*.ytimg.com https://*.hdslb.com",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:5173 https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com https://files.papol.io https://*.hdslb.com",
         "font-src": "'self' data:",
         "form-action": "'self'",
         "frame-ancestors": "'none'",
@@ -51,7 +51,7 @@
       "csp": {
         "default-src": "'self'",
         "base-uri": "'self'",
-        "connect-src": "'self' ipc: http://ipc.localhost https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com https://files.papol.io https://www.youtube.com https://*.ytimg.com https://*.hdslb.com",
+        "connect-src": "'self' ipc: http://ipc.localhost https://9315a859bb8887b2a0ca2cc576f57ae2.r2.cloudflarestorage.com https://files.papol.io https://*.hdslb.com",
         "font-src": "'self' data:",
         "form-action": "'self'",
         "frame-ancestors": "'none'",

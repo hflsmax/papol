@@ -6,7 +6,6 @@
     "avatar_mb": 2,
     "demo_workspace_mb": 100,
     "proxy_request_mb": 200,
-    "youtube_metadata_kb": 256,
     "local_annotation_mb": 4,
     "idempotency_response_mb": 5
   },
@@ -112,8 +111,8 @@
     "nook_add_reading": 15000,
     "sync_connect": 5000,
     "sync_read": 20000,
-    "youtube_metadata": 8000,
-    "youtube_thumbnail": 10000,
+    "link_preview": 8000,
+    "link_preview_image": 10000,
     "media_capture": 30000,
     "bibliography_http": 15000,
     "grobid_http": 5000,

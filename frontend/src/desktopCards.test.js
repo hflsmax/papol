@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { installNativeHarness } from '../../shared/testing/nativeHarness.js';
 
 const native = await installNativeHarness();
@@ -12,44 +13,50 @@ const BOARD = '33333333-3333-4333-8333-333333333333';
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff]);
 const cardValues = () => native.lastArgs('data_mutate').changes[0].values;
 
-// YouTube answers the page itself: oEmbed for the title, ytimg for the
-// thumbnail. The desktop's HTTP plugin is not asked.
+const JPEG_SHA256 = createHash('sha256').update(JPEG).digest('hex');
+
+// The Cloudflare Worker reads a YouTube video's page and puts its picture
+// in the bucket (cloudflare/src/linkPreview.ts); the Mac brings the
+// picture into the nook by its digest, as it brings any board file.
+// Nothing on the Mac asks YouTube.
 function youtubeAnswers() {
   let asked = 0;
-  native.route('GET https://www.youtube.com/oembed', () => {
+  native.route('POST /api/video-preview', () => {
     asked += 1;
-    return { json: { title: 'Never Gonna', thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' } };
+    return { json: { id: 'dQw4w9WgXcQ', title: 'Never Gonna', sha256: JPEG_SHA256 } };
   });
-  native.route('GET https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', () => { asked += 1; return { body: JPEG }; });
+  native.on('blob_ensure', ({ sha256, kind }) => {
+    assert.equal(kind, 'board_file');
+    assert.equal(native.importBlob(JPEG, 'image/jpeg').sha256, sha256);
+    return null;
+  });
   return { get asked() { return asked; } };
 }
 
-test('a desktop video card is made with the title and thumbnail the app fetched', async () => {
+test('a desktop video card is made with the title the Cloudflare Worker read and the picture it put in the bucket', async () => {
   youtubeAnswers();
   const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
   await addBoardVideo(BOARD, url, 10, 20);
-  assert.deepEqual(native.requests('plugin'), []);
-  assert.equal(native.lastArgs('blob_import').mimeType, 'image/jpeg');
-  const values = cardValues();
-  assert.deepEqual(
-    { ...values, sha256: undefined },
-    {
-      board_uuid: BOARD, kind: 'youtube', content: 'Never Gonna', source_url: url, x: 10, y: 20,
-      sha256: undefined, original_filename: 'youtube-dQw4w9WgXcQ.jpg', mime_type: 'image/jpeg',
-    },
-  );
-  assert.ok(native.blobs.has(values.sha256), 'the card names the thumbnail the nook holds');
+  const [asked] = native.requests('plugin');
+  assert.equal(new URL(asked.url).pathname, '/api/video-preview');
+  assert.deepEqual(native.requests('webview'), [], 'the page asks YouTube nothing');
+  assert.deepEqual(native.argsOf('blob_ensure').map(({ sha256 }) => sha256), [JPEG_SHA256]);
+  assert.deepEqual(cardValues(), {
+    board_uuid: BOARD, kind: 'youtube', content: 'Never Gonna', source_url: url, x: 10, y: 20,
+    sha256: JPEG_SHA256, original_filename: 'youtube-dQw4w9WgXcQ.jpg', mime_type: 'image/jpeg',
+  });
+  assert.ok(native.blobs.has(JPEG_SHA256), 'the card names the thumbnail the nook holds');
 });
 
 test('a desktop video card whose site cannot be reached is the link, and the error says why', async () => {
   const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-  native.route(/youtube\.com/, () => { throw new TypeError('Load failed'); });
+  native.route('POST /api/video-preview', { status: 502, json: { detail: 'YouTube answered 404 for this video' } });
   await assert.rejects(addBoardVideo(BOARD, url, 10, 20), (error) => {
-    assert.match(error.message, /could not be fetched: Load failed/);
+    assert.match(error.message, /could not be fetched: YouTube answered 404 for this video/);
     assert.equal(error.item.source_url, url, 'the card that was made rides on the error');
     return true;
   });
-  assert.deepEqual(native.argsOf('blob_import'), []);
+  assert.deepEqual(native.argsOf('blob_ensure'), []);
   assert.deepEqual(cardValues(), { board_uuid: BOARD, kind: 'youtube', content: url, source_url: url, x: 10, y: 20 });
 });
 
