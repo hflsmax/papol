@@ -217,16 +217,30 @@ describe("link cards", () => {
     expect(queued.item).toMatchObject({ kind: "webpage", content: "example.test", file_path: null, width: 480 });
     expect((await ok("GET", `/api/jobs/${queued.job}`, { headers: account.headers })).status).toBe("queued");
 
-    capturers.webpage = async () => new TextEncoder().encode("a png");
+    capturers.webpage = async () => ({ image: new TextEncoder().encode("a png"), title: " No free lunch in search\n and optimization - Wikipedia " });
     await woken(queued.job);
     expect((await ok("GET", `/api/jobs/${queued.job}`, { headers: account.headers })).status).toBe("done");
     const card = (await ok("GET", `/api/boards/${board.uuid}`, { headers: account.headers })).items[0];
+    expect(card.content, "the page's title in place of its hostname").toBe("No free lunch in search and optimization - Wikipedia");
     expect(card.file_path).toBe(`blobs/${card.sha256}`);
     expect(card.mime_type).toBe("image/png");
     const served = await call("GET", `/api/board-items/${card.uuid}/file`, { headers: account.headers });
     expect(await served.text()).toBe("a png");
     // The card was made, then pictured: two versions for the replicas.
     expect(await count("_server_change_log", "table_name = 'board_items'")).toBe(2);
+  });
+
+  it("keeps what was written on a webpage card while its picture was taken, and its hostname when the page has no title", async () => {
+    const account = await register();
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
+    const written = await (await call("POST", `/api/boards/${board.uuid}/webpage`, { headers: account.headers, json: { url: "https://example.test/a", x: 0, y: 0 } })).json<any>();
+    await ok("PUT", `/api/board-items/${written.item.uuid}`, { headers: account.headers, json: { content: "Read before Friday" } });
+    const untitled = await (await call("POST", `/api/boards/${board.uuid}/webpage`, { headers: account.headers, json: { url: "https://example.test/b", x: 0, y: 0 } })).json<any>();
+    capturers.webpage = async (_env, url) => ({ image: new TextEncoder().encode(url), title: url.endsWith("/a") ? "A title" : "  " });
+    await woken(written.job);
+    await woken(untitled.job);
+    expect(await row("SELECT content FROM board_items WHERE uuid = ?", written.item.uuid)).toEqual({ content: "Read before Friday" });
+    expect(await row("SELECT content FROM board_items WHERE uuid = ?", untitled.item.uuid)).toEqual({ content: "example.test" });
   });
 
   it("leaves the link card when the capture fails, and says why", async () => {
