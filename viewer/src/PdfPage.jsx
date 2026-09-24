@@ -2030,7 +2030,7 @@ function PdfPage({
         const cite = citations[index];
         const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
-        onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids);
+        onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids, cite.label || null);
       }}
       data-page={pageNumber}
       data-page-width={size.width || undefined}
@@ -2307,7 +2307,8 @@ function PdfPage({
                   cite.referenceUuid,
                   e.currentTarget,
                   cite.reference || null,
-                  cite.referenceUuids
+                  cite.referenceUuids,
+                  cite.label || null
                 );
               }}
             />

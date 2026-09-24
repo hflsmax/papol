@@ -8,10 +8,22 @@ name: Papol PR
 # This is also where a pull request runs the Worker's suite: worker.yml runs
 # it again only in front of a deploy, so a PR pays for it once.
 
+#
+# A pull request labelled `hotfix` skips the suites: GitHub counts a skipped
+# job as a passing check, so it merges at once. Labelling runs this again;
+# the deploy (worker.yml) still runs the Worker's suite before it ships.
+
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
+
+# A newer run of the same pull request (a push, the hotfix label) replaces
+# the one under way.
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The suites read the code and nothing else.
 permissions:
@@ -21,6 +33,7 @@ jobs:
   tests:
     # Branch protection requires this name; keep it stable.
     name: tests
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
     # Pinned rather than -latest: the sysctl below is an Ubuntu 24 answer,
     # and an image that moved under it would fail as a browser that will
     # not start rather than as a changed runner.
