@@ -10,7 +10,7 @@ import { flushSync } from 'react-dom';
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
-import { pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
+import { documentWorker, pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
 import {
   pdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
@@ -990,6 +990,7 @@ export default function App() {
         const asset = (dir) => new URL(`${dir}/`, document.baseURI).href;
         task = pdfjs.getDocument({
           ...input,
+          worker: documentWorker(),
           standardFontDataUrl: asset('standard_fonts'),
           wasmUrl: asset('wasm'),
           // Character maps for CJK text whose font does not carry its own.

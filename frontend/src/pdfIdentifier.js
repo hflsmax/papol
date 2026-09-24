@@ -12,21 +12,24 @@ import { identifierInDocument, identifierWithin } from '../../shared/identifiers
 
 // PDF.js is loaded the first time a file is chosen, not with the page:
 // it is most of a megabyte, and the library page has no other use for it.
+// Its worker is kept for every reading and handed to each by name, so a
+// reading being put away never takes it from the next one (a file chosen
+// again at once would otherwise be read as having no identifier).
 let runtime = null;
 function pdfjs() {
-  runtime ??= import('pdfjs-dist/legacy/build/pdf.mjs').then((lib) => {
-    lib.GlobalWorkerOptions.workerPort = new Worker(workerUrl, { type: 'module' });
-    return lib;
-  });
+  runtime ??= import('pdfjs-dist/legacy/build/pdf.mjs').then((lib) => ({
+    lib,
+    worker: new lib.PDFWorker({ port: new Worker(workerUrl, { type: 'module' }) }),
+  }));
   return runtime;
 }
 
 // The identifier in a PDF's bytes, read from a document opened for it.
 async function identifierInBytes(bytes) {
-  const lib = await pdfjs();
+  const { lib, worker } = await pdfjs();
   // Text only: no fonts are loaded, and the warning that the standard
   // ones could not be is not worth the console.
-  const task = lib.getDocument({ data: bytes, disableFontFace: true, isEvalSupported: false, verbosity: 0 });
+  const task = lib.getDocument({ data: bytes, worker, disableFontFace: true, isEvalSupported: false, verbosity: 0 });
   try {
     return await identifierInDocument(await task.promise);
   } finally {
