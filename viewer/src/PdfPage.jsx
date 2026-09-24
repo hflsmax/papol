@@ -13,6 +13,7 @@ import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
 import { markViewerPerformance, measureViewerPerformance } from './performance.js';
 import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
+import { keepSelectionSteady } from './selectionEnd.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 
@@ -1033,6 +1034,7 @@ function PdfPage({
           wrapper.remove();
           return;
         }
+        keepSelectionSteady(container);
         textLayerRef.current?.wrapper.remove();
         const ratio = renderScaleRef.current / layoutScale;
         wrapper.style.transform = ratio === 1 ? '' : `scale(${ratio})`;
