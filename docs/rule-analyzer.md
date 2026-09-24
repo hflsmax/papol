@@ -44,6 +44,13 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   of its own (`paper_floats`); a link names the float it goes to, and the
   viewer brings the float's box into view a little below the middle of the
   window, across as well as down.
+- `sections.ts` — numbered sections: each found by its heading (a line
+  opening with a section number and a title, mostly bold or larger than the
+  text, not inside a float, not a contents entry; `section.heading`), and
+  the mentions of each ("Section 2.1", "Sections 3 and 4", "§3";
+  `mention.section`). A section is stored as a float of kind `section`
+  whose box is its heading, and the viewer takes a link to it to the top
+  of the window, as the PDF's own section links do.
 - `bibliography.ts` — where the bibliography is (under its heading, down to
   a heading that ends it, kept only if it reads as one), where each entry
   begins (numbered, labelled, a hanging indent learned from the list, or
@@ -53,6 +60,12 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   is tried, and the paper's way is the one that names the most different
   entries.
 - `analyze.ts` — the whole, answering `Analysis` and a trace.
+
+In the viewer (`viewer/src/references.js`), the analyzer's citations and
+links come first; a PDF's own links fill in only where the analyzer found
+nothing. Publishers often link only part of a marker — Nature the "66" of
+"66–73", hyperref the "3b" of "Fig. 3b" — so the PDF's link is the lesser
+reading wherever both exist.
 
 ## How the rules are kept
 
