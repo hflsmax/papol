@@ -4,13 +4,16 @@ import { dirname, extname, join } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// PDF.js fetches its image decoders (wasm/) and standard fonts at run time,
-// relative to the viewer page. Serve them from the installed pdfjs-dist in
+// PDF.js fetches its image decoders (wasm/), standard fonts, CJK character
+// maps (cmaps/) and CMYK colour profile (iccs/) at run time, relative to the
+// viewer page. Serve them from the installed pdfjs-dist in
 // development and emit them into every build, so scanned pages decode on any
 // server and the files always match the library version.
 const pdfjsRoot = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
-const pdfjsAssetDirs = ['standard_fonts', 'wasm'];
+const pdfjsAssetDirs = ['standard_fonts', 'wasm', 'cmaps', 'iccs'];
 const pdfjsAssetTypes = {
+  '.bcmap': 'application/octet-stream',
+  '.icc': 'application/vnd.iccprofile',
   '.js': 'text/javascript',
   '.pfb': 'application/octet-stream',
   '.ttf': 'font/ttf',
@@ -33,7 +36,7 @@ function pdfjsAssets() {
           return next();
         }
         const match = pathname.startsWith(base)
-          && pathname.slice(base.length).match(/^(standard_fonts|wasm)\/([^/]+)$/);
+          && pathname.slice(base.length).match(/^(standard_fonts|wasm|cmaps|iccs)\/([^/]+)$/);
         if (!match) return next();
         const file = join(pdfjsRoot, match[1], match[2]);
         let stats;
