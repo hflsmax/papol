@@ -6,8 +6,12 @@ name: Papol macOS
 # app signed in to a real backend, on the runner that matches the machine
 # the app ships to; the bundled pages' suites and browser smokes are
 # pr.yml's, on Linux. Only a tag goes on to build, notarize, and publish.
+#
+# A pull request labelled `hotfix` skips both (a skipped job passes its
+# check), so it merges at once; labelling runs this again.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
     tags:
@@ -33,6 +37,7 @@ jobs:
   test:
     # Branch protection requires this name; keep it stable.
     name: macos-test
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -94,6 +99,7 @@ jobs:
   # because the Node and the Rust it needs are listed nowhere but flake.nix.
   end-to-end:
     name: macos-end-to-end
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
     runs-on: macos-26
     timeout-minutes: 60
     steps:

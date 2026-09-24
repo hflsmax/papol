@@ -38,7 +38,7 @@ import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
-import { readNamedReference } from './references';
+import { readNamedReference, stillToLookUp } from './references';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -1464,6 +1464,16 @@ export default function App() {
     () => new Map((analysis?.references || []).map((r) => [r.uuid, r])),
     [analysis]
   );
+  // Lookups under way, so a marker opened twice asks once.
+  const lookingUp = useRef(new Set());
+
+  // A looked-up reference is kept, so opening the same marker again, or
+  // stepping back to it, costs nothing.
+  const keepReference = (full) => setAnalysis((prev) =>
+    prev
+      ? { ...prev, references: prev.references.map((r) => (r.uuid === full.uuid ? full : r)) }
+      : prev
+  );
 
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
@@ -1516,22 +1526,24 @@ export default function App() {
     }
     // Show a cached answer immediately, and ask the item endpoint, which
     // looks the reference up the first time anyone opens it.
-    (source?.references?.open || getViewerReference)(referenceUuid)
+    const lookUp = source?.references?.open || getViewerReference;
+    lookUp(referenceUuid)
       .then((full) => {
         setReference((current) =>
           current && current.uuid !== referenceUuid ? current : full
         );
-        // Keep it, so opening the same marker again costs nothing.
-        setAnalysis((prev) =>
-          prev
-            ? {
-                ...prev,
-                references: prev.references.map((r) => (r.uuid === full.uuid ? full : r)),
-              }
-            : prev
-        );
+        keepReference(full);
       })
       .catch((e) => setReferenceError(e.message));
+    // A marker that cites several works ("119–122", "76,77") has the rest
+    // looked up at the same time, so stepping to each finds it ready.
+    for (const other of stillToLookUp(ids, referenceUuid, referencesByUuid, lookingUp.current)) {
+      lookingUp.current.add(other);
+      lookUp(other)
+        .then(keepReference)
+        .catch(() => { /* its own card asks again when it is shown */ })
+        .finally(() => lookingUp.current.delete(other));
+    }
   };
 
   // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a

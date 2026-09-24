@@ -4,7 +4,7 @@ import { destinationHeight } from './sections.js';
 
 import {
   citationNumbers, columnsOnPage, consolidateCitations, destinationNumber,
-  pageOverlays, readNamedReference, referenceAt,
+  pageOverlays, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
 
 test('expands every reference in numeric citation ranges', () => {
@@ -406,4 +406,17 @@ test('follows a destination set at a page break to the entry overleaf', async ()
   assert.match(raw, /Indentability of conventional/);
   assert.doesNotMatch(raw, /self-actuated/, 'the page it landed on prints no entry 16');
   assert.doesNotMatch(raw, /Fracture toughness/, 'the next entry must not bleed in');
+});
+
+test('a marker citing several works has the rest looked up with the one shown', () => {
+  const known = new Map([
+    ['r119', { uuid: 'r119' }],
+    ['r120', { uuid: 'r120', resolved_status: 'ok' }],
+    ['r121', { uuid: 'r121', resolved_status: null }],
+    ['r122', { uuid: 'r122' }],
+  ]);
+  const underWay = new Set(['r122']);
+  // Shown: 119. Already resolved: 120. Being asked for: 122. A PDF-only link has no row.
+  assert.deepEqual(stillToLookUp(['r119', 'r120', 'r121', 'r122', 'pdf:cite.x'], 'r119', known, underWay), ['r121']);
+  assert.deepEqual(stillToLookUp(['r76', 'r77'], 'r76', new Map(), new Set()), ['r77']);
 });
