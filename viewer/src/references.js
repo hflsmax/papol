@@ -663,3 +663,16 @@ function rectToFractions(rect, viewport) {
     h: height / viewport.height,
   };
 }
+
+/**
+ * The other works a marker cites that still want looking up when its card
+ * opens on `shown`: not the one shown (its own card asks), not one read
+ * off the PDF alone (it has no row to look up yet), not one already
+ * resolved or already being asked for.
+ */
+export function stillToLookUp(ids, shown, known, underWay) {
+  return ids.filter((id) => id !== shown
+    && !String(id).startsWith('pdf:')
+    && !known.get(id)?.resolved_status
+    && !underWay.has(id));
+}
