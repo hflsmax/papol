@@ -1584,8 +1584,9 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   justify-content: flex-end;
   margin-top: 8px;
 }
-.ref-report .link-button { font-size: var(--fs-sm); color: var(--ink-faint); }
-.ref-report .link-button:hover { color: var(--accent); }
+.ref-report-button.link-button { font-size: var(--fs-sm); color: var(--ink-faint); }
+.ref-report-button.link-button:hover { color: var(--accent); }
+.ref-links .ref-report-button { margin-left: auto; align-self: center; }
 
 .ref-raw {
   margin: 0;
