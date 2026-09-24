@@ -105,6 +105,17 @@ export default function ReferenceCard({
     requiresNook || looking || status === 'resolving' || status === 'pdf_text'
   );
 
+  // A wrong match, a wrong reference behind the marker, a card that never
+  // finishes: the reader is the one who can tell. It sits at the end of
+  // the links row when the card has one.
+  const report = onReportProblem && (
+    <button type="button" className="link-button ref-report-button" onClick={onReportProblem}>
+      Report a problem
+    </button>
+  );
+  const linksRow = (!looking && work)
+    || (!requiresNook && !waiting && !work && status !== 'pdf_text' && raw);
+
   return (
     <div
       ref={cardRef}
@@ -226,6 +237,7 @@ export default function ReferenceCard({
                 Scholar
               </a>
             )}
+            {report}
           </div>
         </>
       )}
@@ -248,20 +260,14 @@ export default function ReferenceCard({
               >
                 Search for it
               </a>
+              {report}
             </div>
           )}
         </>
       )}
 
-      {onReportProblem && (
-        // A wrong match, a wrong reference behind the marker, a card that
-        // never finishes: the reader is the one who can tell.
-        <div className="ref-report">
-          <button type="button" className="link-button" onClick={onReportProblem}>
-            Report a problem
-          </button>
-        </div>
-      )}
+      {/* Without a row of links, the report stands on its own. */}
+      {report && !linksRow && <div className="ref-report">{report}</div>}
     </div>
   );
 }
