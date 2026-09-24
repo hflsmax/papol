@@ -1,4 +1,5 @@
 import { destinationHeight } from './sections.js';
+import { findTextLinks, linkPieces, runningText } from './textLinks.js';
 /**
  * What is clickable on a page: the citations, and the PDF's own links.
  *
@@ -19,7 +20,9 @@ import { destinationHeight } from './sections.js';
  * The same pass yields everything else the author linked: "see Section 3.2",
  * "Figure 4", a URL in a footnote. Those are not citations and get no card
  * — they simply go where they say they go. They fall out of the same walk
- * over the annotations, so a page costs one look either way.
+ * over the annotations, so a page costs one look either way. An address
+ * printed in the text that nobody linked is found in the text, as the
+ * pdf.js viewer finds it.
  */
 
 // How near a link's destination has to land to a reference's first line to
@@ -146,10 +149,44 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   }
 
   const pdfLinks = annotated.links.filter((pdf) => ![...analyzedLinks, ...fromAnalyzer].some((known) => overlaps(known, pdf)));
+  const links = [...analyzedLinks, ...pdfLinks];
+  // Only where nothing else is: a linked address stays the author's link,
+  // and a citation keeps its card.
+  try {
+    const printed = await textLinks(doc, pageNumber);
+    links.push(...printed.filter((link) => ![...links, ...citations].some((known) => overlaps(known, link))));
+  } catch {
+    // The page's text is a bonus, never a reason to lose its other links.
+  }
+  return { citations, links };
+}
+
+// Where characters [start, end) of a text item sit, in fractions of the
+// page from its top-left corner. The item's width is shared out evenly
+// between its characters: close enough to put a box over the words.
+function itemBox(item, viewport, start, end) {
+  const transform = multiply(viewport.transform, item.transform);
+  const height = Math.max(1, Math.hypot(transform[2], transform[3]));
+  const fullWidth = Math.max(1, item.width * viewport.scale);
   return {
-    citations,
-    links: [...analyzedLinks, ...pdfLinks],
+    x: (transform[4] + fullWidth * (start / item.str.length)) / viewport.width,
+    y: (transform[5] - height) / viewport.height,
+    w: Math.max(3, fullWidth * ((end - start) / item.str.length)) / viewport.width,
+    h: height / viewport.height,
   };
+}
+
+/** Addresses printed on a page, as links: a box for each line one covers. */
+async function textLinks(doc, pageNumber) {
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  const items = (await page.getTextContent()).items || [];
+  const { text, from } = runningText(items);
+  return findTextLinks(text).flatMap(({ href, index, length }) => (
+    linkPieces(from, index, length)
+      .filter((piece) => Array.isArray(items[piece.itemIndex].transform))
+      .map((piece) => ({ href, ...itemBox(items[piece.itemIndex], viewport, piece.start, piece.end) }))
+  ));
 }
 
 /** Numbered markers GROBID omitted, recovered from selectable PDF text. */
@@ -173,17 +210,7 @@ async function numberedCitations(doc, pageNumber, references) {
       const targets = ids.map((n) => byNumber.get(n));
       if (!targets.length || targets.some((ref) => !ref)) continue;
 
-      const transform = multiply(viewport.transform, item.transform);
-      const height = Math.max(1, Math.hypot(transform[2], transform[3]));
-      const fullWidth = Math.max(1, item.width * viewport.scale);
-      const start = match.index / item.str.length;
-      const share = match[0].length / item.str.length;
-      const box = {
-        x: (transform[4] + fullWidth * start) / viewport.width,
-        y: (transform[5] - height) / viewport.height,
-        w: Math.max(3, fullWidth * share) / viewport.width,
-        h: height / viewport.height,
-      };
+      const box = itemBox(item, viewport, match.index, match.index + match[0].length);
       found.push({
         referenceUuid: targets[0].uuid,
         referenceUuids: targets.map((reference) => reference.uuid),

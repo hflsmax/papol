@@ -10,7 +10,7 @@ import { flushSync } from 'react-dom';
 // pdf.js's own text-layer rules: the spans are laid out by CSS variables it
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
-import { pdfjsReady } from './pdfRuntime.js';
+import { pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
 import {
   pdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
@@ -46,7 +46,7 @@ import { citationAt, superscriptCitationIndexes } from './citationText.js';
 import { STRIP_RATIO } from './ink';
 import { selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
-import { findTextMatches, indexPdfDocument } from './pdfSearch';
+import { createPdfFinder } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
@@ -188,6 +188,7 @@ const INK_SHAPES = [
 ];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
+const NO_RESULTS = [];
 const PAGE_PREVIEW_WIDTH = 320;
 const PAGE_PREVIEW_QUALITY = 0.72;
 
@@ -489,7 +490,10 @@ export default function App() {
   const [defaultPageSize, setDefaultPageSize] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchIndex, setSearchIndex] = useState([]);
+  // pdf.js's find controller for the open document, made when search is
+  // first opened, with what it has found for the current query.
+  const [searchFinder, setSearchFinder] = useState(null);
+  const [searchResults, setSearchResults] = useState(NO_RESULTS);
   const [searchIndexing, setSearchIndexing] = useState(false);
   const [activeSearchResult, setActiveSearchResult] = useState(0);
   const [searchWrap, setSearchWrap] = useState(null);
@@ -979,10 +983,24 @@ export default function App() {
       .then(([input, pdfjs]) => {
         if (!input?.url && !input?.data) throw new Error('This paper has no PDF.');
         if (cancelled) return null;
+        // The settings the pdf.js viewer opens a document with. The data
+        // folders are absolute: with every one of them on http(s), pdf.js
+        // fetches from its worker, where a relative path would be read
+        // against the worker's script instead of this page.
+        const asset = (dir) => new URL(`${dir}/`, document.baseURI).href;
         task = pdfjs.getDocument({
           ...input,
-          standardFontDataUrl: 'standard_fonts/',
-          wasmUrl: 'wasm/',
+          standardFontDataUrl: asset('standard_fonts'),
+          wasmUrl: asset('wasm'),
+          // Character maps for CJK text whose font does not carry its own.
+          cMapUrl: asset('cmaps'),
+          cMapPacked: true,
+          // A CMYK profile, so print-ready figures keep their colours. If
+          // it cannot be read, pdf.js falls back to its rough conversion.
+          iccUrl: asset('iccs'),
+          // Lets pdf.js's own scratch canvases (soft masks, patterns) stay
+          // on the GPU rather than being kept readable on the CPU.
+          enableHWA: true,
         });
         task.onProgress = ({ loaded, total }) => {
           if (!cancelled) setPdfProgress({ loaded, total });
@@ -1102,7 +1120,8 @@ export default function App() {
     () => setLearnLinkNavigation(false), { escape: false });
 
   useEffect(() => {
-    setSearchIndex([]);
+    setSearchFinder(null);
+    setSearchResults(NO_RESULTS);
     setSections([]);
   }, [doc]);
 
@@ -1136,40 +1155,62 @@ export default function App() {
     };
   }, [doc]);
 
-  // Search is optional and indexing a long document is not. Defer the pass
-  // over every PDF page until search is actually opened, then retain it for
-  // the rest of this document's session.
+  // Search is optional and reading every page's text is not free. The
+  // finder is made when search is first opened, reads the text on its first
+  // query, and is kept for the rest of this document's session.
   useEffect(() => {
-    if (!doc) {
+    if (!doc || !searchOpen || searchFinder?.doc === doc) return undefined;
+    let cancelled = false;
+    Promise.all([pdfjsReady, pdfViewerReady()])
+      .then(([pdfjs, viewer]) => {
+        if (cancelled) return;
+        setSearchFinder({
+          doc,
+          finder: createPdfFinder(doc, {
+            EventBus: viewer.EventBus,
+            PDFFindController: viewer.PDFFindController,
+            normalizeUnicode: pdfjs.normalizeUnicode,
+          }),
+        });
+      })
+      .catch((e) => {
+        if (!cancelled) setError(`PDF search failed: ${e.message}`);
+      });
+    return () => { cancelled = true; };
+  }, [doc, searchOpen, searchFinder]);
+
+  useEffect(() => () => searchFinder?.finder.destroy(), [searchFinder]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    const finder = searchFinder?.doc === doc ? searchFinder.finder : null;
+    if (!query) {
+      setSearchResults(NO_RESULTS);
+      setSearchIndexing(false);
       return undefined;
     }
-    if (!searchOpen || searchIndex.length === doc.numPages) return undefined;
+    // Only the first query waits on reading the text; after that an answer
+    // is a few milliseconds away, and the count is left standing meanwhile.
+    if (!finder || !finder.warm) setSearchIndexing(true);
+    if (!finder) return undefined;
     let cancelled = false;
-    setSearchIndexing(true);
-    (async () => {
-      try {
-        const indexed = await indexPdfDocument(doc, { cancelled: () => cancelled });
-        if (!indexed) return;
-        setSearchIndex(indexed);
-      } catch (e) {
+    finder.find(query)
+      .then((pages) => {
+        if (cancelled || !pages) return;
+        setSearchResults(pages.flatMap((matches, page) => (
+          matches.map((match, occurrence) => ({
+            ...match,
+            page: page + 1,
+            id: `${page + 1}-${occurrence}`,
+          }))
+        )));
+        setSearchIndexing(false);
+      })
+      .catch((e) => {
         if (!cancelled) setError(`PDF search failed: ${e.message}`);
-      } finally {
-        if (!cancelled) setSearchIndexing(false);
-      }
-    })();
+      });
     return () => { cancelled = true; };
-  }, [doc, searchOpen, searchIndex.length]);
-
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return searchIndex.flatMap((pageIndex, page) => (
-      findTextMatches(pageIndex, searchQuery).map((match, occurrence) => ({
-        ...match,
-        page: page + 1,
-        id: `${page + 1}-${occurrence}`,
-      }))
-    ));
-  }, [searchIndex, searchQuery]);
+  }, [doc, searchFinder, searchQuery]);
   const searchResultsByPage = useMemo(() => {
     const byPage = new Map();
     for (const result of searchResults) {
