@@ -19,7 +19,7 @@ const MARGIN = 12;
 
 export default function ReferenceCard({
   anchor, reference, error, requiresNook = false, onClose,
-  position = 0, count = 1, onPrevious, onNext,
+  position = 0, count = 1, onPrevious, onNext, onReportProblem,
 }) {
   const cardRef = useRef(null);
   const [showAll, setShowAll] = useState(false);
@@ -251,6 +251,16 @@ export default function ReferenceCard({
             </div>
           )}
         </>
+      )}
+
+      {onReportProblem && (
+        // A wrong match, a wrong reference behind the marker, a card that
+        // never finishes: the reader is the one who can tell.
+        <div className="ref-report">
+          <button type="button" className="link-button" onClick={onReportProblem}>
+            Report a problem
+          </button>
+        </div>
       )}
     </div>
   );
