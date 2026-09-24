@@ -170,9 +170,11 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   signedIn({ offline: false });
   navigator.onLine = true;
   await hydrateCredential();
-  // The server already holds the bytes, so no PUT; telling it they are
-  // in answers with a job, and the reading is the job's result.
+  // The server already holds the bytes, so no PUT; no index knows the
+  // identifier, so telling it they are in answers with a job, and the
+  // reading is the job's result.
   native.route('POST /api/files/upload-address', { json: { stored: true, file_path: `${HASH}.pdf` } });
+  native.route('POST /api/papers/lookup', { status: 404, json: { detail: 'No index knows this identifier' } });
   native.route('POST /api/papers/uploaded', { status: 202, json: { job: 'job-1', file_path: `${HASH}.pdf`, sha256: HASH } });
   native.route('GET /api/jobs/job-1', {
     json: {
