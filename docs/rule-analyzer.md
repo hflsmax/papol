@@ -51,6 +51,12 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   `mention.section`). A section is stored as a float of kind `section`
   whose box is its heading, and the viewer takes a link to it to the top
   of the window, as the PDF's own section links do.
+- `footnotes.ts` — footnotes: each note found at the foot of its page (a
+  line smaller than the text opening with a raised number and then words,
+  nothing at the text's size under it; `footnote.note`), and each raised
+  number in the text whose note is on the same page (`footnote.marker`),
+  unless the paper cites with raised numbers and it is a citation. A note
+  is stored as a float of kind `footnote`.
 - `bibliography.ts` — where the bibliography is (under its heading, down to
   a heading that ends it, kept only if it reads as one), where each entry
   begins (numbered, labelled, a hanging indent learned from the list, or

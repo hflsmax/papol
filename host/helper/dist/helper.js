@@ -41426,6 +41426,18 @@ var MENTION_SECTION = rule({
   matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see \xA73.1", "Section A.2"],
   rejects: ["this section", "Section", "the sections below"]
 });
+var FOOTNOTE_NOTE = rule({
+  id: "footnote.note",
+  stage: "footnote",
+  summary: "A line smaller than the text that opens with a raised number and then words, with nothing at the text's size under it in its column, is a footnote; the lines under it at its size, up to the next such line, are the rest of it.",
+  why: "A footnote is set at the foot of its page, smaller than the text, numbered by a superscript \u2014 the same number that marks the place in the text it annotates."
+});
+var FOOTNOTE_MARKER = rule({
+  id: "footnote.marker",
+  stage: "footnote",
+  summary: "A raised number in a line of the text, whose footnote is on the same page, marks that footnote \u2014 unless the paper cites with raised numbers and this one is a citation.",
+  why: `A reader follows a footnote mark to its note (ACM's "linear neurons\xB9"); Nature-style papers raise their citation numbers too, and those stay citations.`
+});
 var BIB_HEADING = rule({
   id: "bibliography.heading",
   stage: "bibliography",
@@ -42578,8 +42590,65 @@ function findMentions(flow, floats, layout2, trace) {
   return links;
 }
 
+// src/rules/footnotes.ts
+var NUMBER = /^\s*(\d{1,2})\s*$/;
+var keyOf2 = (page, number) => `footnote
+${page}
+${number}`;
+var sameSize2 = (a2, b2) => Math.abs(a2 - b2) <= 0.03 * b2;
+var across2 = (a2, b2) => Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0) > 0;
+var boxOf = (page, x0, top, x1, bottom) => ({ page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height });
+function openingNumber(line) {
+  const first = line.runs[0];
+  const rest = line.runs.slice(1).map((r2) => r2.text).join("").trimStart();
+  return first?.sup && /^[\p{L}"“‘(]/u.test(rest) ? NUMBER.exec(first.text)?.[1] ?? null : null;
+}
+function findFootnotes(layout2, trace) {
+  const notes = /* @__PURE__ */ new Map();
+  for (const page of layout2.pages) {
+    const lines = page.lines.filter((l2) => !l2.furniture);
+    for (const line of lines) {
+      const number = openingNumber(line);
+      if (!number || line.size >= layout2.bodySize - 0.5) continue;
+      if (lines.some((o2) => o2.top > line.bottom && across2(o2, line) && sameSize2(o2.size, layout2.bodySize) && !o2.runs.every((r2) => r2.sup || r2.sub))) continue;
+      const own = [line];
+      for (const next of lines.filter((o2) => o2.top > line.top && across2(o2, line) && sameSize2(o2.size, line.size)).sort((a2, b2) => a2.top - b2.top)) {
+        const last = own[own.length - 1];
+        if (openingNumber(next) || next.top - last.bottom > 0.6 * line.size) break;
+        own.push(next);
+      }
+      const box = boxOf(page, Math.min(...own.map((l2) => l2.x0)), line.top, Math.max(...own.map((l2) => l2.x1)), own[own.length - 1].bottom);
+      if (notes.has(keyOf2(page.number, number))) continue;
+      notes.set(keyOf2(page.number, number), { key: `n${notes.size}`, kind: "footnote", label: number, caption: line, ...box });
+      trace.add(FOOTNOTE_NOTE.id, page.number, line.text.slice(0, 80), [box]);
+    }
+  }
+  return notes;
+}
+function findFootnoteMarkers(layout2, notes, cited, trace) {
+  const links = [];
+  const overlaps = (a2, b2) => a2.page === b2.page && a2.x < b2.x + b2.w && b2.x < a2.x + a2.w && a2.y < b2.y + b2.h && b2.y < a2.y + a2.h;
+  const noteLines = new Set([...notes.values()].map((n2) => n2.caption));
+  for (const page of layout2.pages) {
+    for (const line of page.lines) {
+      if (line.furniture || noteLines.has(line)) continue;
+      line.runs.forEach((run, index) => {
+        const number = run.sup ? NUMBER.exec(run.text)?.[1] : void 0;
+        if (!number || index === 0 && openingNumber(line)) return;
+        const note = notes.get(keyOf2(page.number, number));
+        if (!note || note.caption === line) return;
+        const box = boxOf(page, run.x, run.baseline - run.size, run.x + run.width, run.baseline + 0.2 * run.size);
+        if (cited.some((c2) => overlaps(c2, box))) return;
+        links.push({ float: note.key, label: number, ...box });
+        trace.add(FOOTNOTE_MARKER.id, page.number, `${line.text.slice(0, 40)} \u2192 ${number}`, [box]);
+      });
+    }
+  }
+  return links;
+}
+
 // src/rules/sections.ts
-var keyOf2 = (number) => `section
+var keyOf3 = (number) => `section
 ${number.toLowerCase()}`;
 var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
 function findSections(layout2, skip, floats, trace) {
@@ -42595,9 +42664,9 @@ function findSections(layout2, skip, floats, trace) {
       const set = letters(line.runs.filter((r2) => r2.bold)) > letters(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
       if (!set) continue;
       const number = match.groups.number;
-      if (sections.has(keyOf2(number))) continue;
+      if (sections.has(keyOf3(number))) continue;
       const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
-      sections.set(keyOf2(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
+      sections.set(keyOf3(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
       trace.add(SECTION_HEADING.id, page.number, line.text.slice(0, 80), [box]);
     }
   }
@@ -42629,7 +42698,7 @@ function findSectionMentions(flow, sections, layout2, trace) {
     const groups = match.groups;
     const listStart = match.index + match[0].length - groups.list.length;
     numbersIn2(groups.list).forEach((item, index) => {
-      const section2 = sections.get(keyOf2(item.number));
+      const section2 = sections.get(keyOf3(item.number));
       if (!section2) return;
       const from = index === 0 ? match.index : listStart + item.start;
       const boxes2 = boxesOf(flow, from, listStart + item.end, size);
@@ -42832,6 +42901,8 @@ async function analyzeWithRules(bytes) {
   const sections = findSections(layout2, bibliography.lines, floats.values(), trace);
   const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout2, trace), ...findSectionMentions(flow, sections, layout2, trace)]);
   const citations = findCitations(layout2, flows, bibliography, trace);
+  const notes = findFootnotes(layout2, trace);
+  links.push(...findFootnoteMarkers(layout2, notes, citations, trace));
   const analysis = {
     references: bibliography.entries.map((e2) => ({
       key: e2.key,
@@ -42847,7 +42918,7 @@ async function analyzeWithRules(bytes) {
       y: e2.y
     })),
     citations,
-    floats: [...floats.values(), ...sections.values()].map(({ caption: _2, ...float }) => float),
+    floats: [...floats.values(), ...sections.values(), ...notes.values()].map(({ caption: _2, ...float }) => float),
     links
   };
   return {
@@ -42859,7 +42930,8 @@ async function analyzeWithRules(bytes) {
       numbering: bibliography.numbering,
       twoColumnPages: layout2.pages.filter((p2) => p2.twoColumn).length,
       floats: floats.size,
-      sections: sections.size
+      sections: sections.size,
+      footnotes: notes.size
     }
   };
 }

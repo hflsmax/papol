@@ -161,6 +161,24 @@ describe("POST /analyze-rules", () => {
     });
   });
 
+  it("links a footnote mark to its note at the foot of the page", async () => {
+    const pdf = writtenPdf([
+      [60, 500, "Iteration is possible by compiling programs to linear neurons"],
+      [326.5, 504, "1", 7],
+      [60, 485, "and this lets us express differentiable algorithms with structure."],
+      [60, 470, "The rest of the paragraph carries on at the size of the text here."],
+      [60, 120, "1", 6],
+      [65, 117, "Linear neurons are essentially linear maps.", 8],
+    ]);
+    await serving(seen([]), async (post) => {
+      const { status, body } = await post("/analyze-rules", pdf);
+      assert.equal(status, 200);
+      const notes = body.floats.filter((f) => f.kind === "footnote");
+      assert.deepEqual(notes.map((f) => [f.label, f.page]), [["1", 1]]);
+      assert.deepEqual(body.links.filter((l) => l.float === notes[0].key).map((l) => [l.label, l.page]), [["1", 1]]);
+    });
+  });
+
   it("refuses a body that is not a PDF", async () => {
     await serving(seen([]), async (post) => {
       const { status, body } = await post("/analyze-rules", "just some text");
