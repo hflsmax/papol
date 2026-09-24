@@ -47,6 +47,7 @@ import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
+import { droppedFolder } from './agentFolder.js';
 import {
   nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
   setNativeAccount, subscribeNativeData, subscribeShowPaperRequests, subscribeSignInRequests,
@@ -124,12 +125,12 @@ function DeskFileDropFeedback({ state, message, opensViewer = false }) {
         <div className="desk-file-drop-card">
           <strong>{state === 'reject'
             ? 'PDF files only'
-            : opensViewer ? 'Drop PDF to open' : 'Drop PDF to import'}</strong>
+            : opensViewer ? 'Drop PDF to open' : 'Drop a PDF or a folder to import'}</strong>
           <span>{state === 'reject'
             ? 'Papol’s Desk only supports PDF files.'
             : opensViewer
               ? 'The paper will open in Papol’s PDF viewer.'
-              : 'The paper will open for metadata review.'}</span>
+              : 'Papers open for review before they are added.'}</span>
         </div>
       </div>
     )}
@@ -150,6 +151,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [deskFileDrag, setDeskFileDrag] = useState(null);
   const [deskDropNotice, setDeskDropNotice] = useState(null);
   const [incomingPaperFile, setIncomingPaperFile] = useState(null);
+  const [incomingPaperFolder, setIncomingPaperFolder] = useState(null);
   const deskDragDepth = useRef(0);
   const deskDropNoticeTimer = useRef(null);
   const offeredErrorReports = useRef(new Set());
@@ -255,6 +257,19 @@ export default function App({ startupUser = null, startupError = null }) {
       resetDrag();
       if (event.defaultPrevented) return;
       event.preventDefault();
+      // A folder is one an agent gathered (USER_STORIES.md §2c): it opens
+      // the folder's review. Its entry is read now, while the drop lasts.
+      const folder = droppedFolder(event.dataTransfer);
+      if (folder) {
+        if (openInViewer) {
+          showNotice('Sign in to add a folder of papers.');
+          return;
+        }
+        setDeskDropNotice(null);
+        setIncomingPaperFolder({ uuid: globalThis.crypto.randomUUID(), entry: folder });
+        navigate('/library');
+        return;
+      }
       const files = Array.from(event.dataTransfer.files || []);
       if (files.length !== 1) {
         showNotice('Import one PDF at a time.');
@@ -645,6 +660,8 @@ export default function App({ startupUser = null, startupError = null }) {
           onSelectBoard={openBoard}
           incomingPaperFile={incomingPaperFile}
           onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
+          incomingPaperFolder={incomingPaperFolder}
+          onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
         />
       )}
       {route.page === 'room' && (
@@ -756,6 +773,8 @@ export default function App({ startupUser = null, startupError = null }) {
               onSyncRefresh={syncRefresh}
               incomingPaperFile={incomingPaperFile}
               onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
+              incomingPaperFolder={incomingPaperFolder}
+              onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
               onReportableError={offerErrorReport}
             />
           ) : (
