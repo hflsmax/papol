@@ -185,8 +185,12 @@ export async function installNativeHarness({
       return [...blob.bytes];
     },
     blob_discard: ({ sha256 }) => { blobs.delete(sha256); return null; },
-    // The Mac's picture of a page: a JPEG, kept in the store like any file.
-    capture_webpage: ({ url }) => importBlob(new Uint8Array([0xff, 0xd8, 0xff, ...new TextEncoder().encode(url)]), 'image/jpeg'),
+    // The Mac's picture of a page: a JPEG, kept in the store like any file,
+    // and the title the page gave itself.
+    capture_webpage: ({ url }) => ({
+      ...importBlob(new Uint8Array([0xff, 0xd8, 0xff, ...new TextEncoder().encode(url)]), 'image/jpeg'),
+      title: `The page at ${url}`,
+    }),
     local_setting_get: ({ key }) => settings.get(key) ?? null,
     local_setting_set: ({ key, value }) => { settings.set(key, value); return null; },
     local_account_remove: () => 0,

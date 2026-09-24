@@ -279,15 +279,20 @@ export function pageCardUnfilled(item) {
 }
 
 // Take the picture a page card was made without — offline, or when the
-// page could not be captured — and give it to the card. Answers the card,
-// or null when there is nothing to do or no way to do it now.
+// page could not be captured — and give it to the card, with the page's
+// title as its text while that is still the bare hostname. Answers the
+// card, or null when there is nothing to do or no way to do it now.
 export async function fillPageCard(item) {
   if (!pageCardUnfilled(item) || inOfflineMode()) return null;
   const picture = await nativeCaptureWebpage(item.source_url);
+  const bare = !item.content || item.content === pageHost(item.source_url);
   try {
     const receipt = await nativeRepository.transact([{
       table: 'board_items', uuid: item.uuid, operation: 'upsert',
-      values: { sha256: picture.sha256, original_filename: pageCaptureName(item.source_url), mime_type: 'image/jpeg' },
+      values: {
+        sha256: picture.sha256, original_filename: pageCaptureName(item.source_url), mime_type: 'image/jpeg',
+        ...(bare && picture.title ? { content: picture.title } : {}),
+      },
     }]);
     return receipt.rows[0];
   } catch (error) {
@@ -306,11 +311,11 @@ export function fillCardPicture(item) {
   return item?.kind === 'webpage' ? fillPageCard(item) : fillVideoCard(item);
 }
 
-const pageCaptureName = (url) => {
-  let host = 'page';
-  try { host = new URL(url).hostname || host; } catch { /* the name is only a name */ }
-  return `webpage-${host.slice(0, 80)}.jpg`;
+const pageHost = (url) => {
+  try { return new URL(url).hostname; } catch { return ''; }
 };
+
+const pageCaptureName = (url) => `webpage-${(pageHost(url) || 'page').slice(0, 80)}.jpg`;
 
 async function makeVideoCard(uuid, url, link, x, y, preview) {
   const name = thumbnailName(link.kind, preview?.id ?? link.id);
@@ -377,7 +382,7 @@ export async function addBoardWebpage(uuid, url, x, y) {
     const receipt = await nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: {
-        board_uuid: uuid, kind: 'webpage', content: parsed.hostname, source_url: url, x, y, width: 480,
+        board_uuid: uuid, kind: 'webpage', content: picture?.title || parsed.hostname, source_url: url, x, y, width: 480,
         ...(picture ? { sha256: picture.sha256, original_filename: pageCaptureName(url), mime_type: 'image/jpeg' } : {}),
       },
     }]);

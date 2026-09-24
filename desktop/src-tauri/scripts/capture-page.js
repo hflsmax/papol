@@ -88,6 +88,14 @@
     return { text, pictures, drawings, fills: drawn ? 0 : painted() };
   };
 
+  // What the page calls itself, for the card's text: the title it gives
+  // to anyone sharing it, else the one on its tab. Read before `tell`
+  // takes the tab's title over for its signal.
+  const title = () => {
+    const shared = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]')?.content;
+    return (shared || document.title || '').replace(/\s+/g, ' ').trim();
+  };
+
   // Is there a picture in this? A line of text on one flat colour is a
   // notice, a wall or an empty shell, whichever site it came from.
   const worth = (report) =>
@@ -124,7 +132,7 @@
       // decodes a large one on another thread, and a snapshot taken
       // first draws the space where it will be.
       try { await Promise.all([...document.images].map((image) => image.decode?.().catch(() => {}))); } catch (e) {}
-      document.title = QUIET_TITLE + ':' + JSON.stringify(showing());
+      document.title = QUIET_TITLE + ':' + JSON.stringify({ ...showing(), title: title() });
     };
     // A page can be still and yet show nothing. Etsy's results answer a
     // stranger with a shell — complete, unchanging, three empty elements
@@ -142,5 +150,5 @@
     }, 120);
   };
 
-  globalThis.papolCapture = { watch, reveal, hiddenPicture, showing, worth, QUIET_TITLE };
+  globalThis.papolCapture = { watch, reveal, hiddenPicture, showing, title, worth, QUIET_TITLE };
 })();

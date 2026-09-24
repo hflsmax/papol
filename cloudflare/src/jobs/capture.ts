@@ -62,9 +62,12 @@ export function publicWebUrl(value: string): string {
 
 // ------------------------------------------------------------- the capturing
 
+// A page's picture, and what the page calls itself.
+export type Capture = { image: Uint8Array; title: string | null };
+
 // Replaceable, so the suite can stand in for the browser.
 export const capturers = {
-  async webpage(env: Env, url: string): Promise<Uint8Array> {
+  async webpage(env: Env, url: string): Promise<Capture> {
     if (!env.BROWSER) throw new JobError("The website could not be rendered: no browser is configured");
     const browser = await puppeteer.launch(env.BROWSER);
     try {
@@ -72,7 +75,12 @@ export const capturers = {
       await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
       await page.goto(url, { waitUntil: "networkidle0", timeout: limits.timeouts_ms.media_capture });
       const image = await page.screenshot({ type: "png" });
-      return new Uint8Array(image as Uint8Array);
+      // The title it gives to sharing, else the one on its tab, as the
+      // Mac reads it (desktop/src-tauri/scripts/capture-page.js).
+      const title = await page.evaluate(
+        `document.querySelector('meta[property="og:title"], meta[name="twitter:title"]')?.content || document.title`,
+      ).then((read) => (typeof read === "string" ? read : null), () => null);
+      return { image: new Uint8Array(image as Uint8Array), title };
     } finally {
       await browser.close();
     }
@@ -106,16 +114,25 @@ async function card(env: Env, payload: Row): Promise<Row> {
   return item;
 }
 
+// The page's title as a card's text: one line, no longer than a card holds.
+export function pageTitle(title: string | null | undefined): string | null {
+  return (title ?? "").replace(/\s+/g, " ").trim().slice(0, limits.text.board_content) || null;
+}
+
 export async function captureWebpageJob(env: Env, payload: Row): Promise<Row> {
   const item = await card(env, payload);
   const url = String(payload.url);
-  let image: Uint8Array;
+  let captured: Capture;
   try {
-    image = await capturers.webpage(env, url);
+    captured = await capturers.webpage(env, url);
   } catch (error) {
     throw new JobError(`Could not capture the webpage: ${(error as Error).message}`);
   }
   const hostname = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-  return attach(env, item, image, "image/png", `webpage-${hostname.slice(0, limits.text.display_name)}.png`);
+  // The title in place of the hostname the card was made with; text
+  // written on the card since stands.
+  const title = pageTitle(captured.title);
+  if (title && (!item.content || item.content === hostname)) item.content = title;
+  return attach(env, item, captured.image, "image/png", `webpage-${hostname.slice(0, limits.text.display_name)}.png`);
 }
 

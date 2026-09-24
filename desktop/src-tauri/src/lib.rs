@@ -464,7 +464,7 @@ async fn capture_webpage(
     app: tauri::AppHandle,
     store: tauri::State<'_, data::LocalStore>,
     url: String,
-) -> Result<data::BlobRecord, String> {
+) -> Result<capture::CapturedPage, String> {
     capture::capture_into(&app, &store, &url).await
 }
 

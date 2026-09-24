@@ -92,14 +92,14 @@ test('a desktop Bilibili card asks the application for the mobile page, and take
   assert.ok(native.blobs.has(values.sha256));
 });
 
-test('a desktop page card is made with the picture the Mac took', async () => {
+test('a desktop page card is made with the picture the Mac took, and the page\'s title', async () => {
   const url = 'https://flexible.seas.ucla.edu/';
   await addBoardWebpage(BOARD, url, 1, 2);
   assert.deepEqual(native.lastArgs('capture_webpage'), { url });
   assert.deepEqual(native.requests(), [], 'no Worker: nothing leaves for Papol');
   const values = cardValues();
   assert.equal(values.kind, 'webpage');
-  assert.equal(values.content, 'flexible.seas.ucla.edu');
+  assert.equal(values.content, `The page at ${url}`);
   assert.equal(values.width, 480);
   assert.equal(values.original_filename, 'webpage-flexible.seas.ucla.edu.jpg');
   assert.ok(native.blobs.has(values.sha256));
@@ -129,9 +129,24 @@ test('a page card made offline is the link, and the board fills it once online',
   exitOfflineMode();
   await fillPageCard(card);
   const values = cardValues();
-  assert.deepEqual(Object.keys(values).sort(), ['mime_type', 'original_filename', 'sha256']);
+  assert.deepEqual(Object.keys(values).sort(), ['content', 'mime_type', 'original_filename', 'sha256']);
+  assert.equal(values.content, `The page at ${url}`, 'the bare hostname gives way to the title');
   assert.ok(native.blobs.has(values.sha256));
   assert.equal(await fillPageCard({ ...card, sha256: 'd'.repeat(64) }), null, 'a card with its picture is left alone');
+
+  // Something written on the card meanwhile stands.
+  await fillPageCard({ ...card, content: 'Read before Friday' });
+  assert.equal(cardValues().content, undefined);
+});
+
+test('a desktop page with no title keeps its hostname', async () => {
+  const url = 'https://flexible.seas.ucla.edu/';
+  native.on('capture_webpage', async () => ({
+    ...(await native.invoke('blob_import', { bytes: [0xff, 0xd8, 0xff], mimeType: 'image/jpeg' })),
+    title: null,
+  }));
+  await addBoardWebpage(BOARD, url, 1, 2);
+  assert.equal(cardValues().content, 'flexible.seas.ucla.edu');
 });
 
 test('a page picture the replica will not attach is let go', async () => {
