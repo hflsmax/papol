@@ -1391,16 +1391,17 @@ ${compatibilityStyles}
   display: block;
   padding: 0;
   border-radius: 2px;
-  cursor: pointer;
-  pointer-events: auto;
+  /* Like a citation, pointer clicks are delegated from the page by
+     coordinates: a box that caught the pointer would snap a text selection
+     dragged across it. It remains a real link or button for keyboard focus
+     and activation. */
+  pointer-events: none;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
-/* Translucent for the same reason as a citation's, and written as
-   :hover:not(:disabled) so it outranks the shared button hover — an
-   internal link is a <button>, and that rule's opaque wash would cover the
-   words the link sits on. */
-.pdf-link:hover:not(:disabled),
+/* Translucent for the same reason as a citation's: this layer is drawn
+   over the words the link sits on. */
+.pdf-link.hovered,
 .pdf-link:focus-visible {
   background: rgba(43, 74, 111, 0.14);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);

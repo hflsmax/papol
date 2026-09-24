@@ -127,6 +127,18 @@ const distanceFromView = (el) => {
     + Math.abs((box.top + box.bottom) / 2 - (view.top + view.bottom) / 2) / 1000;
 };
 
+// Whether a point, as fractions of the page, falls in a box stored the same way.
+const boxHolds = (box, x, y) => (
+  x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
+);
+
+// What a PDF link says it does, for its tooltip and its label.
+const linkTitle = (link) => {
+  if (link.href) return link.href;
+  if (link.kind) return `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`;
+  return `Go to page ${link.spot.page}`;
+};
+
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
   left: `${box.x * 100}%`,
@@ -585,6 +597,7 @@ function PdfPage({
   const [hoveredCitation, setHoveredCitation] = useState(-1);
   // The PDF's own links: "see Section 3", "Figure 4", a URL in a footnote.
   const [links, setLinks] = useState([]);
+  const [hoveredLink, setHoveredLink] = useState(-1);
   // The drag lives in a ref, because pointermove fires faster than React
   // re-renders and a stale `moved` flag would read a drag as a click. The
   // state alongside it exists only to redraw the pin under the pointer.
@@ -1957,7 +1970,7 @@ function PdfPage({
       style={{
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
-        cursor: hoveredCitation >= 0 ? 'pointer' : undefined,
+        cursor: hoveredCitation >= 0 || hoveredLink >= 0 ? 'pointer' : undefined,
         // Do not advertise an invisible background image to paint/LCP while
         // an opaque sharp canvas is already present. It appears only in the
         // interval after that canvas is released and before its replacement.
@@ -1969,24 +1982,23 @@ function PdfPage({
         overRef.current = true;
         lastAtRef.current = at;
         onHover({ page: pageNumber, anchor: at });
-        if (tool !== 'arrow' || !e.target.closest?.('.textLayer')) {
-          setHoveredCitation(-1);
-          return;
-        }
         const box = holderRef.current?.getBoundingClientRect();
-        if (!box?.width || !box.height) {
+        if (tool !== 'arrow' || !e.target.closest?.('.textLayer') || !box?.width || !box.height) {
           setHoveredCitation(-1);
+          setHoveredLink(-1);
           return;
         }
         const x = (e.clientX - box.left) / box.width;
         const y = (e.clientY - box.top) / box.height;
-        setHoveredCitation(citations.findIndex((cite) => (
-          x >= cite.x && x <= cite.x + cite.w && y >= cite.y && y <= cite.y + cite.h
-        )));
+        const cite = citations.findIndex((c) => boxHolds(c, x, y));
+        setHoveredCitation(cite);
+        // Where a box is both a citation and a link, the card wins.
+        setHoveredLink(cite >= 0 ? -1 : links.findIndex((link) => boxHolds(link, x, y)));
       }}
       onPointerLeave={() => {
         overRef.current = false;
         setHoveredCitation(-1);
+        setHoveredLink(-1);
         onHover(null);
         setDoomed(EMPTY_DOOMED);
         onHoverInkObjects(pageNumber, []);
@@ -1995,18 +2007,24 @@ function PdfPage({
       }}
       onClick={(e) => {
         if (tool !== 'arrow' || e.button !== 0 || !e.target.closest?.('.textLayer')) return;
-        // Citation boxes must not sit between the pointer and selectable PDF
-        // text. Resolve a genuine click by coordinates instead; a completed
-        // drag has a non-collapsed selection and remains purely a selection.
+        // Citation and link boxes must not sit between the pointer and
+        // selectable PDF text: a drag passing over one would snap the
+        // selection to the empty box. Resolve a genuine click by coordinates
+        // instead; a completed drag has a non-collapsed selection and remains
+        // purely a selection.
         if (!window.getSelection()?.isCollapsed) return;
         const box = holderRef.current?.getBoundingClientRect();
         if (!box?.width || !box.height) return;
         const x = (e.clientX - box.left) / box.width;
         const y = (e.clientY - box.top) / box.height;
-        const index = citations.findIndex((cite) => (
-          x >= cite.x && x <= cite.x + cite.w && y >= cite.y && y <= cite.y + cite.h
-        ));
-        if (index < 0) return;
+        const index = citations.findIndex((c) => boxHolds(c, x, y));
+        if (index < 0) {
+          const link = links.find((l) => boxHolds(l, x, y));
+          if (!link) return;
+          if (link.href) window.open(link.href, '_blank', 'noopener,noreferrer');
+          else onFollowLink(link.spot);
+          return;
+        }
         const cite = citations[index];
         const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
@@ -2016,6 +2034,8 @@ function PdfPage({
       data-page-width={size.width || undefined}
       data-page-height={size.height || undefined}
       data-render-scale={renderScale}
+      // The link boxes let the pointer through, so their tooltip is the page's.
+      title={hoveredLink >= 0 && links[hoveredLink] ? linkTitle(links[hoveredLink]) : undefined}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
           during a pinch this is a compositor transform, and the sharp
@@ -2234,24 +2254,19 @@ function PdfPage({
             link.href ? (
               <a
                 key={`u${i}`}
-                className="pdf-link"
+                className={`pdf-link${i === hoveredLink ? ' hovered' : ''}`}
                 href={link.href}
                 target="_blank"
                 rel="noreferrer noopener"
-                title={link.href}
+                aria-label={linkTitle(link)}
                 style={boxStyle(link)}
               />
             ) : (
               <button
                 key={`d${i}`}
                 type="button"
-                className="pdf-link"
-                title={link.kind
-                  ? `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`
-                  : `Go to page ${link.spot.page}`}
-                aria-label={link.kind
-                  ? `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`
-                  : `Go to page ${link.spot.page}`}
+                className={`pdf-link${i === hoveredLink ? ' hovered' : ''}`}
+                aria-label={linkTitle(link)}
                 style={boxStyle(link)}
                 onClick={(e) => {
                   e.stopPropagation();
