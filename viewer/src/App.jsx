@@ -982,10 +982,24 @@ export default function App() {
       .then(([input, pdfjs]) => {
         if (!input?.url && !input?.data) throw new Error('This paper has no PDF.');
         if (cancelled) return null;
+        // The settings the pdf.js viewer opens a document with. The data
+        // folders are absolute: with every one of them on http(s), pdf.js
+        // fetches from its worker, where a relative path would be read
+        // against the worker's script instead of this page.
+        const asset = (dir) => new URL(`${dir}/`, document.baseURI).href;
         task = pdfjs.getDocument({
           ...input,
-          standardFontDataUrl: 'standard_fonts/',
-          wasmUrl: 'wasm/',
+          standardFontDataUrl: asset('standard_fonts'),
+          wasmUrl: asset('wasm'),
+          // Character maps for CJK text whose font does not carry its own.
+          cMapUrl: asset('cmaps'),
+          cMapPacked: true,
+          // A CMYK profile, so print-ready figures keep their colours. If
+          // it cannot be read, pdf.js falls back to its rough conversion.
+          iccUrl: asset('iccs'),
+          // Lets pdf.js's own scratch canvases (soft masks, patterns) stay
+          // on the GPU rather than being kept readable on the CPU.
+          enableHWA: true,
         });
         task.onProgress = ({ loaded, total }) => {
           if (!cancelled) setPdfProgress({ loaded, total });
