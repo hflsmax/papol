@@ -119,10 +119,32 @@ const probe = `<script>
       }
       const title = document.querySelector('.ref-card .ref-title');
       if (title && title.textContent.includes('The Cited Work')) {
-        fetch('/__papol_smoke_ready?page=viewer-citation', { method: 'POST' });
+        search();
         return;
       }
       setTimeout(ready, 25);
+    };
+    // Then search, as a reader does: ⌘F, a phrase, and a highlight on the
+    // page. Search runs on pdf.js's find controller, loaded on first use,
+    // so this is what proves that module loads and its matches land on the
+    // words.
+    let typed = false;
+    const search = () => {
+      const input = document.querySelector('.search-pop input');
+      if (!input) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, ctrlKey: true, bubbles: true }));
+      } else if (!typed) {
+        typed = true;
+        // React owns the field's value: set it the way typing would.
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'worth citing');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      const count = document.querySelector('.search-count');
+      if (document.querySelector('.search-highlight') && count && count.textContent.includes('1 / 1')) {
+        fetch('/__papol_smoke_ready?page=viewer-citation', { method: 'POST' });
+        return;
+      }
+      setTimeout(search, 25);
     };
     ready();
   })();
@@ -203,6 +225,7 @@ await runSmoke(
 );
 
 console.log(
-  'Viewer browser smoke: a citation marker opened its reference card, and '
+  'Viewer browser smoke: a citation marker opened its reference card, search '
+  + 'found and highlighted a phrase, and '
   + 'the layout held from 320px to 1920px.',
 );
