@@ -94,28 +94,36 @@ export async function pageOverlays(doc, pageNumber, analysis) {
 
   const fromAnalyzer = consolidateCitations(analyzed);
 
+  // A link names the float it goes to; the float is where it lands, as a
+  // box the viewer brings into view. A section is where it begins: its
+  // heading goes to the top of the window, as a PDF's own link would take it.
+  const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
   const analyzedLinks = (analysis?.links || [])
-    .filter((link) => link.page === pageNumber)
-    .map((link) => ({
-      kind: link.kind,
-      label: link.label,
-      x: link.x,
-      y: link.y,
-      w: link.w,
-      h: link.h,
-      spot: { page: link.target_page, y: link.target_y },
-    }))
-    .filter((candidate) => ![
-      ...annotated.citations,
-      ...annotated.links,
-    ].some((known) => overlaps(known, candidate)));
+    .filter((link) => link.page === pageNumber && floats.has(link.float_uuid))
+    .map((link) => {
+      const float = floats.get(link.float_uuid);
+      return {
+        kind: float.kind,
+        label: link.label,
+        x: link.x,
+        y: link.y,
+        w: link.w,
+        h: link.h,
+        spot: float.kind === 'section'
+          ? { page: float.page, y: float.y }
+          : { page: float.page, y: float.y, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
+      };
+    });
 
   // A single PDF link is sometimes emitted as several adjacent annotation
   // rectangles (one per text run). Treat those fragments the same way as
   // analyzer rows so the printed citation is one clickable target rather
   // than a row of tiny, independent buttons.
+  // The analyzer's reading comes first: it knows a whole marker ("66–73",
+  // "76,77", "Fig. 3b") where a publisher links only its first number. The
+  // PDF's own links fill in where the analyzer found nothing.
   const fromPdf = consolidateCitations(annotated.citations);
-  let citations = fromPdf.length ? fromPdf : fromAnalyzer;
+  let citations = [...fromAnalyzer, ...fromPdf.filter((pdf) => !fromAnalyzer.some((known) => overlaps(known, pdf)))];
   if (references.length) {
     try {
       const inferred = await numberedCitations(doc, pageNumber, references);
@@ -137,9 +145,10 @@ export async function pageOverlays(doc, pageNumber, analysis) {
     }
   }
 
+  const pdfLinks = annotated.links.filter((pdf) => ![...analyzedLinks, ...fromAnalyzer].some((known) => overlaps(known, pdf)));
   return {
     citations,
-    links: [...annotated.links, ...analyzedLinks],
+    links: [...analyzedLinks, ...pdfLinks],
   };
 }
 
@@ -653,4 +662,17 @@ function rectToFractions(rect, viewport) {
     w: width / viewport.width,
     h: height / viewport.height,
   };
+}
+
+/**
+ * The other works a marker cites that still want looking up when its card
+ * opens on `shown`: not the one shown (its own card asks), not one read
+ * off the PDF alone (it has no row to look up yet), not one already
+ * resolved or already being asked for.
+ */
+export function stillToLookUp(ids, shown, known, underWay) {
+  return ids.filter((id) => id !== shown
+    && !String(id).startsWith('pdf:')
+    && !known.get(id)?.resolved_status
+    && !underWay.has(id));
 }

@@ -127,9 +127,7 @@ export default function PaperUpload({
         ...reviewFields({ title: titleFromFilename(file.name) }),
         thought: '',
         summary: '',
-        shelf_uuid: (localImport
-          ? shelfData.find((shelf) => !shelf.is_public)
-          : shelfData.find((shelf) => shelf.is_default))?.uuid || shelfData[0]?.uuid || '',
+        shelf_uuid: shelfData.find((shelf) => shelf.is_default)?.uuid || shelfData[0]?.uuid || '',
         is_author: false,
         rating_expertise: null,
         rating_reading: null,

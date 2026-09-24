@@ -39,7 +39,7 @@ import { hydrateCredential } from '../../shared/credentials.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
-import { readNamedReference } from './references';
+import { readNamedReference, stillToLookUp } from './references';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -70,6 +70,9 @@ import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
+import {
+  DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
+} from '../../shared/macHandoff.js';
 import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
@@ -607,6 +610,8 @@ export default function App() {
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
   const clipSaving = useRef(new Map());
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
+  // 'idle' | 'trying' | 'missing': the info window's own way to Papol for Mac.
+  const [macHandoffStep, setMacHandoffStep] = useState('idle');
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
@@ -1460,6 +1465,16 @@ export default function App() {
     () => new Map((analysis?.references || []).map((r) => [r.uuid, r])),
     [analysis]
   );
+  // Lookups under way, so a marker opened twice asks once.
+  const lookingUp = useRef(new Set());
+
+  // A looked-up reference is kept, so opening the same marker again, or
+  // stepping back to it, costs nothing.
+  const keepReference = (full) => setAnalysis((prev) =>
+    prev
+      ? { ...prev, references: prev.references.map((r) => (r.uuid === full.uuid ? full : r)) }
+      : prev
+  );
 
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
@@ -1512,27 +1527,33 @@ export default function App() {
     }
     // Show a cached answer immediately, and ask the item endpoint, which
     // looks the reference up the first time anyone opens it.
-    (source?.references?.open || getViewerReference)(referenceUuid)
+    const lookUp = source?.references?.open || getViewerReference;
+    lookUp(referenceUuid)
       .then((full) => {
         setReference((current) =>
           current && current.uuid !== referenceUuid ? current : full
         );
-        // Keep it, so opening the same marker again costs nothing.
-        setAnalysis((prev) =>
-          prev
-            ? {
-                ...prev,
-                references: prev.references.map((r) => (r.uuid === full.uuid ? full : r)),
-              }
-            : prev
-        );
+        keepReference(full);
       })
       .catch((e) => setReferenceError(e.message));
+    // A marker that cites several works ("119–122", "76,77") has the rest
+    // looked up at the same time, so stepping to each finds it ready.
+    for (const other of stillToLookUp(ids, referenceUuid, referencesByUuid, lookingUp.current)) {
+      lookingUp.current.add(other);
+      lookUp(other)
+        .then(keepReference)
+        .catch(() => { /* its own card asks again when it is shown */ })
+        .finally(() => lookingUp.current.delete(other));
+    }
   };
 
   // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a
-  // fraction down a page, so it survives any zoom.
-  const followLink = ({ page, y }) => {
+  // fraction down a page, so it survives any zoom. A link to a figure or a
+  // table carries the float's box: the whole float is brought into view, a
+  // little below the middle of the window so the eye lands on it rather
+  // than above it, and across as well when the page is wider than the
+  // window — a phone, or a column zoomed into.
+  const followLink = ({ page, y, box: float = null }) => {
     // A link can be activated while text remains selected in the PDF. Once
     // the document jumps, that old highlight no longer describes the place
     // the user is looking at and its paint action should not follow them.
@@ -1545,13 +1566,29 @@ export default function App() {
     const viewBeforeJump = currentView();
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
-    // A little above what was linked to, rather than flush against the top
-    // edge: a heading with nothing above it is hard to place.
-    const target =
-      from + pageBox.top - box.top + y * pageBox.height - box.height * 0.15;
-    const top = Math.max(0, target);
+    const pageTop = from + pageBox.top - box.top;
+    let top, left = scroller.scrollLeft;
+    if (float) {
+      const floatTop = pageTop + float.y * pageBox.height;
+      const floatHeight = float.h * pageBox.height;
+      // Its middle at three fifths of the window; a float taller than the
+      // window starts near the top instead, so its beginning is seen.
+      top = floatHeight > box.height * 0.85
+        ? floatTop - box.height * 0.05
+        : floatTop + floatHeight / 2 - box.height * 0.6;
+      if (scroller.scrollWidth > scroller.clientWidth + 1) {
+        const pageLeft = scroller.scrollLeft + pageBox.left - box.left;
+        left = pageLeft + (float.x + float.w / 2) * pageBox.width - box.width / 2;
+        left = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth, left));
+      }
+    } else {
+      // A little above what was linked to, rather than flush against the top
+      // edge: a heading with nothing above it is hard to place.
+      top = pageTop + y * pageBox.height - box.height * 0.15;
+    }
+    top = Math.max(0, top);
     const far = Math.abs(top - from) > box.height * 1.5;
-    scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
+    scroller.scrollTo({ top, left, behavior: far ? 'auto' : 'smooth' });
     // Only worth offering the way back when the jump actually went
     // somewhere; a link to what is already on screen has not lost anyone.
     // A quarter of the window is enough to have lost it, though — the
@@ -3977,6 +4014,34 @@ export default function App() {
                         if (focusDesktopDeskWindow(paper.sha256)) event.preventDefault();
                       }}
                     >Show in Papol</a>
+                  )}
+                  {/* The same handoff the bar offers, asked for here on
+                      purpose: so it is shown whether or not the bar was put
+                      away, and only where Papol for Mac could answer it. */}
+                  {!DESKTOP && handoffCapableMac(window.navigator) && (
+                    <button
+                      type="button"
+                      className="ref-link"
+                      disabled={macHandoffStep === 'trying'}
+                      title="Open in Papol for Mac"
+                      onClick={() => {
+                        const address = handoffAddressAt(window.location.href, {
+                          page: currentView()?.page, openingPage,
+                        });
+                        if (!address) return;
+                        setMacHandoffStep('trying');
+                        attemptHandoff(address).then((verdict) => {
+                          setMacHandoffStep(verdict === 'opened' ? 'idle' : 'missing');
+                        });
+                      }}
+                    >{macHandoffStep === 'trying' ? 'Opening…' : 'Open in app'}</button>
+                  )}
+                  {/* An offer, not a verdict (US-7.34): nothing was seen to
+                      open, which is not the same as nothing having opened. */}
+                  {macHandoffStep === 'missing' && (
+                    <a className="ref-link" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" title="Download Papol for Mac">
+                      Download app
+                    </a>
                   )}
                   {paperInfo?.pdf_url && (
                     <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>

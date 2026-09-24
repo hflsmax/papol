@@ -58,7 +58,7 @@ describe("POST /analyze", () => {
       const { status, body } = await post("/analyze", PDF);
       assert.equal(status, 200);
       assert.deepEqual(calls, [["fulltext", PDF.length]]);
-      assert.deepEqual(Object.keys(body), ["references", "citations", "links"]);
+      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
       assert.equal(body.references.length, 2);
       assert.deepEqual({ ...body.references[0], authors: undefined }, {
         key: "b0", index: 0, raw: "Vaswani et al. Attention Is All You Need. 2017.", title: "Attention Is All You Need", year: 2017,
@@ -67,8 +67,9 @@ describe("POST /analyze", () => {
       assert.deepEqual(body.references[0].authors, ["Ashish Vaswani"]);
       assert.deepEqual(body.citations, [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }]);
       assert.equal(body.links.length, 1);
-      assert.equal(body.links[0].kind, "figure");
-      assert.equal(body.links[0].target_y, 400 / 800);
+      const float = body.floats.find((f) => f.key === body.links[0].float);
+      assert.equal(float.kind, "figure");
+      assert.equal(float.y, 400 / 800);
       assert.equal(lines.length, 1);
       assert.match(lines[0], /^\S+ POST \/analyze 200 \d+B \d+ms$/);
     });
@@ -110,6 +111,80 @@ describe("POST /analyze", () => {
         await new Promise((resolve) => fake.close(resolve));
       }
     }
+  });
+});
+
+// A one-page PDF written here, line by line in Helvetica at 10pt: enough
+// for the rules to find a caption, a mention of it, citations and a
+// bibliography of three entries (fewer is not taken for a bibliography).
+function writtenPdf(lines) {
+  const content = lines.map(([x, y, text, size = 10]) => `BT /F1 ${size} Tf ${x} ${y} Td (${text.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = objects.map((body, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${body}\nendobj\n`; return at; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+describe("POST /analyze-rules", () => {
+  it("reads the references, citations and figure links by rules, without GROBID", async () => {
+    const calls = [];
+    const pdf = writtenPdf([
+      [60, 740, "Mechanisms were studied before [1], and again [2]."],
+      [60, 725, "The latch is shown in Figure 1 below, as in [1, 2]."],
+      [60, 500, "Figure 1: A door latch made of cells."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] Alexandra Ion. 2016. Metamaterial Mechanisms. In Proc. UIST."],
+      [60, 265, "[2] Ludwig Wall. 2017. Digital Mechanical Metamaterials. In Proc. CHI."],
+      [60, 250, "[3] Robert Kovacs. 2018. Trussformer. In Proc. CHI."],
+    ]);
+    await serving(seen(calls), async (post, lines) => {
+      const { status, body } = await post("/analyze-rules", pdf);
+      assert.equal(status, 200);
+      assert.deepEqual(calls, [], "GROBID is never asked");
+      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
+      assert.deepEqual(body.references.map((r) => [r.key, r.year, r.title]), [
+        ["b0", 2016, "Metamaterial Mechanisms"], ["b1", 2017, "Digital Mechanical Metamaterials"], ["b2", 2018, "Trussformer"],
+      ]);
+      assert.deepEqual(body.citations.map((c) => [c.key, c.label]), [["b0", "[1]"], ["b1", "[2]"], ["b0", "[1, 2]"], ["b1", "[1, 2]"]]);
+      assert.deepEqual(body.floats.map((f) => [f.key, f.kind, f.label, f.page]), [["f0", "figure", "1", 1]]);
+      assert.deepEqual(body.links.map((l) => [l.float, l.label, l.page]), [["f0", "1", 1]]);
+      assert.match(lines[0], /^\S+ POST \/analyze-rules 200 \d+B \d+ms$/);
+    });
+  });
+
+  it("links a footnote mark to its note at the foot of the page", async () => {
+    const pdf = writtenPdf([
+      [60, 500, "Iteration is possible by compiling programs to linear neurons"],
+      [326.5, 504, "1", 7],
+      [60, 485, "and this lets us express differentiable algorithms with structure."],
+      [60, 470, "The rest of the paragraph carries on at the size of the text here."],
+      [60, 120, "1", 6],
+      [65, 117, "Linear neurons are essentially linear maps.", 8],
+    ]);
+    await serving(seen([]), async (post) => {
+      const { status, body } = await post("/analyze-rules", pdf);
+      assert.equal(status, 200);
+      const notes = body.floats.filter((f) => f.kind === "footnote");
+      assert.deepEqual(notes.map((f) => [f.label, f.page]), [["1", 1]]);
+      assert.deepEqual(body.links.filter((l) => l.float === notes[0].key).map((l) => [l.label, l.page]), [["1", 1]]);
+    });
+  });
+
+  it("refuses a body that is not a PDF", async () => {
+    await serving(seen([]), async (post) => {
+      const { status, body } = await post("/analyze-rules", "just some text");
+      assert.equal(status, 400);
+      assert.deepEqual(body, { detail: "The body is not a PDF" });
+    });
   });
 });
 

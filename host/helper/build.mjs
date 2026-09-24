@@ -26,4 +26,7 @@ await esbuild.build({
   nodePaths: [path.join(here, "node_modules")],
   legalComments: "none",
   banner: { js: "// Built by `npm run build` in host/helper from src/ and cloudflare/src/papers/tei.ts. Do not edit." },
+  // pdf.js, bundled through unpdf, asks for `canvas` and `path2d` only to
+  // draw pages, which the rules never do.
+  external: ["canvas", "path2d", "@napi-rs/canvas"],
 });

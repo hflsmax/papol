@@ -4,7 +4,7 @@ import { destinationHeight } from './sections.js';
 
 import {
   citationNumbers, columnsOnPage, consolidateCitations, destinationNumber,
-  pageOverlays, readNamedReference, referenceAt,
+  pageOverlays, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
 
 test('expands every reference in numeric citation ranges', () => {
@@ -103,25 +103,25 @@ test('distinguishes tightly spaced references using the raised-link offset', () 
   );
 });
 
-test('turns an analyzed figure reference into an internal PDF link', async () => {
+test('turns an analyzed figure reference into a link to the float it names', async () => {
   const doc = {
     getPage: async () => ({ getAnnotations: async () => [] }),
   };
   const analysis = {
     references: [],
     citations: [],
+    floats: [{ uuid: 'f-2', kind: 'figure', label: '2', page: 3, x: 0.1, y: 0.55, w: 0.8, h: 0.3 }],
     links: [{
-      kind: 'figure', label: '2', page: 2,
+      float_uuid: 'f-2', label: '2a', page: 2,
       x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-      target_page: 2, target_y: 0.55,
     }],
   };
 
   const overlays = await pageOverlays(doc, 2, analysis);
   assert.deepEqual(overlays.links, [{
-    kind: 'figure', label: '2',
+    kind: 'figure', label: '2a',
     x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-    spot: { page: 2, y: 0.55 },
+    spot: { page: 3, y: 0.55, box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
   }]);
 });
 
@@ -146,6 +146,77 @@ test('recognizes Springer Nature superscript reference destinations without anal
   assert.equal(overlays.citations[0].reference.dest, dest);
 });
 
+
+test('a section link lands on its heading at the top of the window, not centred like a figure', async () => {
+  const doc = { getPage: async () => ({ getAnnotations: async () => [] }) };
+  const analysis = {
+    references: [],
+    citations: [],
+    floats: [{ uuid: 's-2.1', kind: 'section', label: '2.1', page: 2, x: 0.09, y: 0.3, w: 0.3, h: 0.015 }],
+    links: [{ float_uuid: 's-2.1', label: '2.1', page: 1, x: 0.5, y: 0.6, w: 0.08, h: 0.015 }],
+  };
+
+  const overlays = await pageOverlays(doc, 1, analysis);
+  assert.deepEqual(overlays.links.map((l) => [l.kind, l.label, l.spot]), [['section', '2.1', { page: 2, y: 0.3 }]]);
+});
+
+// A Nature page: the publisher links only the first number of a
+// superscript marker, and only the number of a figure mention.
+function natureLinks() {
+  const dest = (n) => `springernature_nature_3623.indd:\uFEFF${n}.\uFEFF\tAuthor, A. Title ${n}.:1${n}`;
+  return {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: dest(66), rect: [10, 80, 12, 82] }, // "66" of "66–73"
+      { subtype: 'Link', dest: dest(76), rect: [40, 80, 42, 82] }, // "76" of "76,77"
+      { subtype: 'Link', dest: dest(90), rect: [70, 80, 72, 82] }, // a marker the analyzer missed
+    ],
+  };
+}
+
+test("an analyzed marker wins over the publisher's link to its first number", async () => {
+  const page = natureLinks();
+  const doc = { getPage: async () => page };
+  const cite = (uuid, x, w, label) => ({ reference_uuid: uuid, label, page: 1, x, y: 0.18, w, h: 0.02, inferred: false });
+  const range = ['r66', 'r67', 'r68', 'r69', 'r70', 'r71', 'r72', 'r73'].map((uuid) => cite(uuid, 0.1, 0.05, '66–73'));
+  const list = ['r76', 'r77'].map((uuid) => cite(uuid, 0.4, 0.04, '76,77'));
+
+  const overlays = await pageOverlays(doc, 1, { references: [], citations: [...range, ...list], links: [] });
+
+  const labels = overlays.citations.map((c) => [c.label, c.referenceUuids?.length ?? 1]);
+  assert.deepEqual(labels.slice(0, 2), [['66–73', 8], ['76,77', 2]]);
+  // The one the analyzer did not read is still the publisher's.
+  assert.equal(overlays.citations.length, 3);
+  assert.equal(overlays.citations[2].reference.key, '90');
+});
+
+test("an analyzed figure mention wins over the publisher's link to its number", async () => {
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [{ subtype: 'Link', dest: 'Fig3', rect: [34, 80, 38, 82] }], // "3b"
+  };
+  const doc = {
+    getPage: async () => page,
+    getDestination: async () => [{}, { name: 'XYZ' }, 0, 700],
+    getPageIndex: async () => 4,
+  };
+  const analysis = {
+    references: [],
+    citations: [],
+    floats: [{ uuid: 'f-3', kind: 'figure', label: '3', page: 5, x: 0.1, y: 0.1, w: 0.8, h: 0.4 }],
+    links: [{ float_uuid: 'f-3', label: '3b', page: 1, x: 0.28, y: 0.18, w: 0.1, h: 0.02 }], // "Fig. 3b"
+  };
+
+  const overlays = await pageOverlays(doc, 1, analysis);
+
+  assert.deepEqual(overlays.links.map((l) => [l.label, l.x, l.w]), [['3b', 0.28, 0.1]]);
+});
 
 // A two-column bibliography, as Elsevier and ACM set them. Entries run down
 // the left column and then down the right, so y climbs and then falls back to
@@ -335,4 +406,17 @@ test('follows a destination set at a page break to the entry overleaf', async ()
   assert.match(raw, /Indentability of conventional/);
   assert.doesNotMatch(raw, /self-actuated/, 'the page it landed on prints no entry 16');
   assert.doesNotMatch(raw, /Fracture toughness/, 'the next entry must not bleed in');
+});
+
+test('a marker citing several works has the rest looked up with the one shown', () => {
+  const known = new Map([
+    ['r119', { uuid: 'r119' }],
+    ['r120', { uuid: 'r120', resolved_status: 'ok' }],
+    ['r121', { uuid: 'r121', resolved_status: null }],
+    ['r122', { uuid: 'r122' }],
+  ]);
+  const underWay = new Set(['r122']);
+  // Shown: 119. Already resolved: 120. Being asked for: 122. A PDF-only link has no row.
+  assert.deepEqual(stillToLookUp(['r119', 'r120', 'r121', 'r122', 'pdf:cite.x'], 'r119', known, underWay), ['r121']);
+  assert.deepEqual(stillToLookUp(['r76', 'r77'], 'r76', new Map(), new Set()), ['r77']);
 });

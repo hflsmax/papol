@@ -2246,11 +2246,11 @@ function PdfPage({
                 key={`d${i}`}
                 type="button"
                 className="pdf-link"
-                title={link.kind === 'figure'
-                  ? `Go to Figure ${link.label}`
+                title={link.kind
+                  ? `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`
                   : `Go to page ${link.spot.page}`}
-                aria-label={link.kind === 'figure'
-                  ? `Go to Figure ${link.label}`
+                aria-label={link.kind
+                  ? `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`
                   : `Go to page ${link.spot.page}`}
                 style={boxStyle(link)}
                 onClick={(e) => {

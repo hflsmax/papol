@@ -6,6 +6,7 @@
 // through a Worker invocation on Cloudflare's Free plan.
 //
 //   POST /analyze   application/json { url } or application/pdf → { references, citations, links }
+//   POST /analyze-rules   the same, read by rules instead of GROBID (src/rules/)
 //   POST /header    application/json { url } or application/pdf → { title, authors, journal, year, doi, arxiv_id }
 //   GET  /health                                                 → { ok: true }
 //
@@ -21,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { fetchPaper, fileOriginsFrom, paperAddress } from "./files";
 import { grobidAt, type Grobid } from "./grobid";
-import { analyze, header, Refusal } from "./service";
+import { analyze, analyzeByRules, header, Refusal } from "./service";
 
 export { fileOriginsFrom, grobidAt };
 export const MAX_BODY = 100 * 1024 * 1024;
@@ -72,9 +73,10 @@ async function paperOf(request: http.IncomingMessage, options: Required<Options>
 async function answer(grobid: Grobid, request: http.IncomingMessage, options: Required<Options>): Promise<[number, unknown]> {
   const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
-  if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
+  if (path !== "/analyze" && path !== "/analyze-rules" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
+  if (path === "/analyze-rules") return [200, await analyzeByRules(bytes)];
   return [200, path === "/analyze" ? await analyze(grobid, bytes) : await header(grobid, bytes)];
 }
 
