@@ -41209,6 +41209,7 @@ function flowOf(lines) {
   });
   return { text: text2, at: at2 };
 }
+var offsetIn = (run, at2) => run.offsets?.[at2] ?? run.width * at2 / Math.max(run.text.length, 1);
 function boxesOf(flow, start, end, pageSize) {
   const spans = /* @__PURE__ */ new Map();
   for (let i2 = start; i2 < end; i2 += 1) {
@@ -41217,8 +41218,7 @@ function boxesOf(flow, start, end, pageSize) {
     const ref = where.line.chars[where.char];
     if (!ref || ref.run < 0) continue;
     const run = where.line.runs[ref.run];
-    const per = run.width / Math.max(run.text.length, 1);
-    const x0 = run.x + per * ref.at, x1 = x0 + per;
+    const x0 = run.x + offsetIn(run, ref.at), x1 = run.x + offsetIn(run, ref.at + 1);
     const top = run.baseline - run.size * 0.8, bottom = run.baseline + run.size * 0.22;
     const span = spans.get(where.line);
     if (!span) spans.set(where.line, { x0, x1, top, bottom });
@@ -42838,6 +42838,40 @@ function drawnOn(ops, OPS, view) {
   });
   return out;
 }
+function glyphWidths(ops, OPS) {
+  const fonts = /* @__PURE__ */ new Map();
+  let font = null;
+  ops.fnArray.forEach((fn2, i2) => {
+    const args = ops.argsArray[i2];
+    if (fn2 === OPS.setFont) {
+      const id = String(args?.[0] ?? "");
+      font = fonts.get(id) ?? /* @__PURE__ */ new Map();
+      fonts.set(id, font);
+    } else if (fn2 === OPS.showText && font && Array.isArray(args?.[0])) {
+      for (const glyph of args[0]) {
+        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width) || font.has(glyph.unicode)) continue;
+        font.set(glyph.unicode, glyph.width);
+      }
+    }
+  });
+  return fonts;
+}
+function offsetsOf(text2, width, font) {
+  if (!font?.size || [...text2].length !== text2.length) return void 0;
+  let total = 0;
+  for (const w2 of font.values()) total += w2;
+  const average = total / font.size;
+  const widths = Array.from(text2, (c2) => font.get(c2) ?? (c2 === " " ? 250 : average));
+  const sum = widths.reduce((s2, w2) => s2 + w2, 0);
+  if (!(sum > 0)) return void 0;
+  const offsets = [0];
+  let at2 = 0;
+  for (const w2 of widths) {
+    at2 += w2;
+    offsets.push(at2 / sum * width);
+  }
+  return offsets;
+}
 async function readPdf(bytes) {
   const { OPS } = await getResolvedPDFJS();
   const proxy = await getDocumentProxy(new Uint8Array(bytes));
@@ -42849,6 +42883,7 @@ async function readPdf(bytes) {
       const content = await page.getTextContent();
       const operators = await page.getOperatorList();
       const drawn = drawnOn(operators, OPS, page.view);
+      const widths = glyphWidths(operators, OPS);
       const fonts = /* @__PURE__ */ new Map();
       const fontName = (id) => {
         if (!fonts.has(id)) {
@@ -42874,6 +42909,7 @@ async function readPdf(bytes) {
           x: e2 - left,
           baseline: top - f2,
           width: raw.width,
+          offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
           size,
           font,
           bold: BOLD.test(font),

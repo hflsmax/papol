@@ -14,6 +14,11 @@ export interface Run {
   x: number; // left edge
   baseline: number; // from the top of the page, growing down
   width: number;
+  // Where each character begins, measured from `x`, and where the last one
+  // ends: one more entry than `text` has characters. Absent when the font's
+  // glyphs could not be read, and then each character is taken to be as
+  // wide as any other.
+  offsets?: number[];
   size: number; // the font's height on the page
   font: string;
   bold: boolean;
@@ -98,6 +103,54 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
   return out;
 }
 
+// How wide each character is in each font, in thousandths of the font
+// size, read from the glyphs the page draws. pdf.js reports a run of text
+// with its width but not where inside it any character falls, and spacing
+// its characters evenly misplaces a word late in a line by as much as a
+// word: in "shearing and rigid cells. Figure 3" the narrow letters before
+// "Figure" put it eight points to the right of where it is printed. The
+// fonts' own widths put it within a fraction of a point.
+type Glyph = { unicode?: string; width?: number };
+function glyphWidths(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>): Map<string, Map<string, number>> {
+  const fonts = new Map<string, Map<string, number>>();
+  let font: Map<string, number> | null = null;
+  ops.fnArray.forEach((fn, i) => {
+    const args = ops.argsArray[i] as unknown[];
+    if (fn === OPS.setFont) {
+      const id = String(args?.[0] ?? "");
+      font = fonts.get(id) ?? new Map();
+      fonts.set(id, font);
+    } else if (fn === OPS.showText && font && Array.isArray(args?.[0])) {
+      for (const glyph of args[0] as (Glyph | number)[]) {
+        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width) || font.has(glyph.unicode)) continue;
+        font.set(glyph.unicode, glyph.width!);
+      }
+    }
+  });
+  return fonts;
+}
+
+// A run's character offsets, from its font's widths stretched to the width
+// pdf.js measured, which carries what the widths do not: kerning, and the
+// spacing a justified line adds. A character the page never drew alone (half
+// of a ligature) is taken at the font's average; a space pdf.js inserted for
+// a gap, at a quarter of the size, which is what most fonts make it.
+export function offsetsOf(text: string, width: number, font: Map<string, number> | undefined): number[] | undefined {
+  // Characters outside the basic plane take two places in `text`: keep those
+  // runs even rather than misnumber them.
+  if (!font?.size || [...text].length !== text.length) return undefined;
+  let total = 0;
+  for (const w of font.values()) total += w;
+  const average = total / font.size;
+  const widths = Array.from(text, (c) => font.get(c) ?? (c === " " ? 250 : average));
+  const sum = widths.reduce((s, w) => s + w, 0);
+  if (!(sum > 0)) return undefined;
+  const offsets = [0];
+  let at = 0;
+  for (const w of widths) { at += w; offsets.push((at / sum) * width); }
+  return offsets;
+}
+
 export async function readPdf(bytes: Uint8Array): Promise<Doc> {
   const { OPS } = await getResolvedPDFJS();
   // pdf.js takes ownership of the buffer it is given.
@@ -113,6 +166,7 @@ export async function readPdf(bytes: Uint8Array): Promise<Doc> {
       // it is also what the page draws.
       const operators = await page.getOperatorList();
       const drawn = drawnOn(operators, OPS as unknown as Record<string, number>, page.view);
+      const widths = glyphWidths(operators, OPS as unknown as Record<string, number>);
       const fonts = new Map<string, string>();
       const fontName = (id: string) => {
         if (!fonts.has(id)) {
@@ -136,6 +190,7 @@ export async function readPdf(bytes: Uint8Array): Promise<Doc> {
           x: e - left,
           baseline: top - f,
           width: raw.width,
+          offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
           size,
           font,
           bold: BOLD.test(font),
