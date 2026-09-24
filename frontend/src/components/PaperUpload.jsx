@@ -3,15 +3,16 @@ import { Progress, Working } from '../../../shared/ui/Waiting.js';
 import { holdFullBar } from '../../../shared/waiting.js';
 import { uploadProgressView } from '../../../shared/api/files.js';
 import {
-  awaitPaperReading, createPaper, createTag, discardPaperImport, listShelves, listTags,
-  uploadPaper,
+  awaitPaperReading, createPaper, discardPaperImport, listShelves, listTags, uploadPaper,
 } from '../../../shared/api/papers.js';
 import { RatingInput } from './Rating';
+import TagPicker from './TagPicker';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
+import { droppedFolder } from '../agentFolder.js';
 import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
 
 // The upload is a bar in the drop zone (docs/waiting.md), over the hash
@@ -23,7 +24,7 @@ import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, t
 // while the reading is still on simply stops listening for it.
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
-  incomingFile = null, onIncomingFileHandled = () => {}, onReportableError,
+  incomingFile = null, onIncomingFileHandled = () => {}, onReportableError, onAddFolder = null,
 }) {
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
@@ -42,8 +43,6 @@ export default function PaperUpload({
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [tagDraft, setTagDraft] = useState('');
-  const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
   const handledIncomingFile = useRef(null);
   // The fields the user has typed in since the form opened: the reading
@@ -80,8 +79,11 @@ export default function PaperUpload({
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
     setIsDragging(false);
+    // A folder is the window's to take (App.jsx): it opens a folder's
+    // review, not this form.
+    if (droppedFolder(e.dataTransfer)) return;
+    e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (isPdfFile(file)) {
       handleFile(file);
@@ -135,7 +137,6 @@ export default function PaperUpload({
       });
       editedFields.current = new Set();
       setSelectedTags([]);
-      setTagDraft('');
       setAvailableTags(tags);
 
       // Kept but not sent (the desktop only): there is no reading to wait
@@ -247,25 +248,11 @@ export default function PaperUpload({
     setKnown(null);
     setFormData({});
     setSelectedTags([]);
-    setTagDraft('');
     setError(null);
     onReviewChange(false);
   };
 
   if (extractedData) {
-    const selectedUuids = new Set(selectedTags.map((tag) => tag.uuid));
-    const query = tagDraft.trim().toLowerCase();
-    const suggestions = availableTags.filter(
-      (tag) => !selectedUuids.has(tag.uuid) && (!query || tag.name.toLowerCase().includes(query))
-    );
-    const exactTagExists = availableTags.some((tag) => tag.name.toLowerCase() === query);
-    const selectTag = (tag) => {
-      setSelectedTags((current) => current.some((item) => item.uuid === tag.uuid) ? current : [...current, tag]);
-      setAvailableTags((current) => current.some((item) => item.uuid === tag.uuid) ? current : [...current, tag]);
-      setTagDraft('');
-      setTagMenuOpen(false);
-    };
-
     return (
       <>
       <div className="panel paper-form">
@@ -398,44 +385,14 @@ export default function PaperUpload({
 
           <div className="form-group upload-private-field">
             <label htmlFor="upload-paper-tags">Private tags</label>
-            <div className="tag-editor-card upload-tag-editor">
-              <div className="tag-picker">
-                <div className="tag-editor">
-                  {selectedTags.map((tag) => (
-                    <button type="button" className="tag-chip selected" key={tag.uuid} onClick={() => setSelectedTags((current) => current.filter((item) => item.uuid !== tag.uuid))}>
-                      {tag.name} ×
-                    </button>
-                  ))}
-                  <input
-                    id="upload-paper-tags"
-                    className="tag-input"
-                    value={tagDraft}
-                    placeholder="Add a private tag…"
-                    onFocus={() => setTagMenuOpen(true)}
-                    onBlur={() => setTagMenuOpen(false)}
-                    onChange={(e) => { setTagDraft(e.target.value); setTagMenuOpen(true); }}
-                  />
-                </div>
-                {tagMenuOpen && (
-                  <div className="tag-dropdown">
-                    {suggestions.length > 0 && <div className="tag-dropdown-label">Your tags</div>}
-                    {suggestions.map((tag) => (
-                      <button type="button" key={tag.uuid} onMouseDown={(e) => e.preventDefault()} onClick={() => selectTag(tag)}>
-                        <span className="tag-option-mark">#</span><span>{tag.name}</span><span className="tag-option-hint">Add</span>
-                      </button>
-                    ))}
-                    {query && !exactTagExists && (
-                      <button type="button" className="tag-create-option" onMouseDown={(e) => e.preventDefault()} onClick={async () => {
-                        try { selectTag(await createTag(tagDraft.trim())); } catch (err) { showError(err, 'creating a tag for an imported PDF'); }
-                      }}>
-                        <span className="tag-create-mark">+</span><span>Create <strong>{tagDraft.trim()}</strong></span>
-                      </button>
-                    )}
-                    {!query && suggestions.length === 0 && <span className="tag-empty">All of your tags are selected.</span>}
-                  </div>
-                )}
-              </div>
-            </div>
+            <TagPicker
+              id="upload-paper-tags"
+              available={availableTags}
+              onAvailableChange={setAvailableTags}
+              selected={selectedTags}
+              onSelectedChange={setSelectedTags}
+              onError={(err) => showError(err, 'creating a tag for an imported PDF')}
+            />
           </div>
 
           <div className="form-group upload-private-field upload-private-summary">
@@ -513,6 +470,11 @@ export default function PaperUpload({
           </>
         )}
       </div>
+      {onAddFolder && !isLoading && (
+        <button type="button" className="link-button add-folder-link" onClick={onAddFolder}>
+          Add a folder from an agent…
+        </button>
+      )}
       {error && <div className="error" role="alert">{error}</div>}
     </div>
   );

@@ -950,6 +950,49 @@ button.full-width {
 .upload-section.compact .dropzone p { margin: 0; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.35; }
 .upload-section.compact .error { position: absolute; z-index: 10; width: min(360px, 100%); margin-top: 6px; }
 
+/* A folder from an agent (FolderImport): the instructions to hand over,
+   then the folder's review, one quiet row per paper. */
+.upload-section > .add-folder-link { display: block; margin: -12px auto 20px; font-size: var(--fs-sm); }
+.folder-import h3 { margin: 0; }
+.folder-import-lede { margin: 8px 0 14px; color: var(--ink-soft); }
+.folder-import-instructions { margin-bottom: 16px; }
+.folder-import-instructions pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  font: var(--fs-sm)/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.folder-import-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.folder-import-instructions .hint { margin: 6px 0 0; color: var(--ink-faint); font-size: var(--fs-sm); }
+.folder-rows { list-style: none; margin: 14px 0; padding: 0; border-top: 1px solid var(--line); }
+.folder-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.folder-row > input[type='checkbox'] { margin-top: 5px; accent-color: var(--accent); }
+.folder-row.left-out .folder-row-body { opacity: .55; }
+.folder-row-body { display: grid; gap: 2px; min-width: 0; }
+.folder-row-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--ink); }
+input.folder-row-title { width: 100%; padding: 2px 4px; margin-left: -5px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; }
+input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(--line); background: var(--card); }
+.folder-row-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); overflow-wrap: anywhere; }
+.folder-row-note { color: var(--ink-soft); font-size: var(--fs-sm); font-style: italic; }
+.folder-row-known { margin-top: 2px; font: var(--fs-xs) var(--font-ui); color: var(--ink-soft); }
+.folder-row-status { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); white-space: nowrap; text-align: right; padding-top: 4px; }
+.folder-row-status.trouble { color: var(--red); white-space: normal; max-width: 180px; }
+@media (max-width: 640px) {
+  .folder-row { grid-template-columns: auto minmax(0, 1fr); }
+  .folder-row-status { grid-column: 2; text-align: left; padding-top: 0; }
+}
+
 /* ---------- Paper list ---------- */
 .tag-editor { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .tag-chip { padding: 4px 10px;}

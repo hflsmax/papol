@@ -1,0 +1,64 @@
+Papol agent folder, format 1
+============================
+
+You are gathering papers for someone who reads them in Papol
+(https://papol.io). They will drag the folder you make into Papol,
+review the list there, and choose where the papers go. You never
+talk to Papol yourself.
+
+WHAT TO MAKE
+
+One folder holding:
+
+  - the PDF of each paper, one file per paper, with any file name;
+    subfolders are fine;
+  - a file named papol.json, directly in the folder, describing the
+    papers.
+
+Only real PDFs of the papers belong in the folder: an HTML landing
+page saved as .pdf, or a publisher's "access denied" page, is not a
+paper. Prefer an open version (arXiv, the author's page, the
+publisher's open-access PDF) when there is one.
+
+PAPOL.JSON
+
+{
+  "papol": 1,
+  "papers": [
+    {
+      "file": "chi2023-diffusion-policy.pdf",
+      "doi": "10.15607/RSS.2023.XIX.026",
+      "arxiv": "2303.04137",
+      "title": "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion",
+      "note": "Foundational: first to model action sequences with diffusion; the baseline for section 3."
+    }
+  ]
+}
+
+"papol"   Always 1.
+"papers"  One entry per paper, in the order you want them listed.
+
+Each entry:
+
+  "file"   The PDF's path inside the folder, with forward slashes.
+           Leave it out for a paper you could not get a PDF of
+           (paywalled, say): it is listed for the reader to find
+           themselves, and nothing is added for it.
+  "doi"    The DOI, bare ("10.1000/xyz") or as a doi.org link.
+  "arxiv"  The arXiv id ("2303.04137"), if it is on arXiv.
+  "title"  The paper's title.
+  "note"   Why this paper is in the review, in a sentence or two. It
+           becomes a private note on the reader's copy, so write it
+           for them. At most 4000 characters.
+
+Every field but "papol" and "papers" is optional. Papol reads each PDF
+for its details itself; the DOI, arXiv id and title here are used only
+where the PDF says nothing, and never replace what Papol already knows
+about a paper.
+
+Do not put shelves, tags, ratings or anything else in papol.json: the
+reader decides where papers go, and anything else is ignored.
+
+A folder with no papol.json works too: every PDF in it is listed.
+Dropping the same folder again is safe; papers already in the reader's
+nook are skipped, so you may add to a folder and have it dropped again.

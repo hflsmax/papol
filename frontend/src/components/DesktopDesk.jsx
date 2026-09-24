@@ -14,6 +14,7 @@ import PaperJacket from './PaperJacket';
 import BoardJacket from './BoardJacket';
 import ErrorBoundary from '../../../shared/ui/ErrorBoundary.jsx';
 import PaperUpload from './PaperUpload';
+import FolderImport from './FolderImport';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
@@ -119,11 +120,12 @@ export function useNook(userUuid, refreshKey) {
 export function DesktopBrowser({
   listing, route, currentUser, nookState, onNavigate, onOpenBoard, onSyncRefresh,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
+  incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
 }) {
   const { nook, setNook, reload, syncing } = nookState;
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
-  const [composer, setComposer] = useState(null); // null | 'paper' | 'board'
+  const [composer, setComposer] = useState(null); // null | 'paper' | 'folder' | 'board'
   const [draggingSha256, setDraggingSha256] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
@@ -144,6 +146,9 @@ export function DesktopBrowser({
   useEffect(() => {
     if (incomingPaperFile) setComposer('paper');
   }, [incomingPaperFile]);
+  useEffect(() => {
+    if (incomingPaperFolder) setComposer('folder');
+  }, [incomingPaperFolder]);
 
   const openUser = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
@@ -294,6 +299,25 @@ export function DesktopBrowser({
             }}
             incomingFile={incomingPaperFile}
             onIncomingFileHandled={onIncomingPaperFileHandled}
+            onAddFolder={() => setComposer('folder')}
+          />
+        </div>
+      </div>
+    );
+  } else if (composer === 'folder') {
+    detail = (
+      <div className="desktop-scroll">
+        <div className="desktop-content">
+          <FolderImport
+            currentUser={currentUser}
+            incomingFolder={incomingPaperFolder}
+            onIncomingFolderHandled={onIncomingPaperFolderHandled}
+            onReportableError={onReportableError}
+            onAdded={reload}
+            onClose={() => {
+              setComposer(null);
+              reload();
+            }}
           />
         </div>
       </div>
@@ -384,6 +408,17 @@ export function DesktopBrowser({
             <h1>{title}</h1>
             <span>{subtitle}</span>
           </div>
+          {canCompose && !boardsView && (
+            <button
+              type="button"
+              className="desktop-toolbar-button"
+              onClick={() => setComposer('folder')}
+              title="Add a folder from an agent"
+              aria-label="Add a folder from an agent"
+            >
+              <Glyph name="folder" />
+            </button>
+          )}
           {canCompose && (
             <button
               type="button"

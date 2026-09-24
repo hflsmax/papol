@@ -6,6 +6,7 @@ import ReaderPop from './ReaderPop';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import PaperUpload from './PaperUpload';
+import FolderImport from './FolderImport';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst as newest, seminarRank } from '../paperFormat';
 
@@ -49,6 +50,7 @@ const SORTS = {
 export default function PapersPage({
   currentUser, onSelectPaper, onSelectBoard,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
+  incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
 }) {
   const [papers, setPapers] = useState(null);
   const [boards, setBoards] = useState(null);
@@ -57,6 +59,9 @@ export default function PapersPage({
   const [selectedUser, setSelectedUser] = useState(null);
   const [error, setError] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
+  // A folder from an agent, being brought in (FolderImport), in place of
+  // the one-paper upload.
+  const [addingFolder, setAddingFolder] = useState(false);
 
   const load = () => {
     // Boards are secondary here: if that list fails, the papers still show.
@@ -66,6 +71,9 @@ export default function PapersPage({
   };
 
   useEffect(load, []);
+  useEffect(() => {
+    if (incomingPaperFolder) setAddingFolder(true);
+  }, [incomingPaperFolder]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
   if (papers === null || boards === null) return <div className="loading"><Working label="Loading the library…" /></div>;
@@ -98,9 +106,20 @@ export default function PapersPage({
   const hasActiveFilters = selectedUser != null || Boolean(search.trim());
 
   return (
-    <div className={reviewingUpload ? 'library-page upload-review-mode' : 'library-page'}>
-      {currentUser && (
+    <div className={reviewingUpload || addingFolder ? 'library-page upload-review-mode' : 'library-page'}>
+      {currentUser && addingFolder && (
+        <FolderImport
+          currentUser={currentUser}
+          incomingFolder={incomingPaperFolder}
+          onIncomingFolderHandled={onIncomingPaperFolderHandled}
+          onReportableError={onReportableError}
+          onAdded={load}
+          onClose={() => { setAddingFolder(false); load(); }}
+        />
+      )}
+      {currentUser && !addingFolder && (
         <PaperUpload
+          onAddFolder={() => setAddingFolder(true)}
           onReportableError={onReportableError}
           onPaperCreated={(paper) => {
             if (paper?.sha256 != null) onSelectPaper(paper.sha256);

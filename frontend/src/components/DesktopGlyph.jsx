@@ -14,6 +14,7 @@ const GLYPHS = {
   feedback: <path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />,
   manage: <><path d="M4.5 7.5h9m4 0h2m-15 9h2m4 0h9" /><circle cx="15.5" cy="7.5" r="2" /><circle cx="8.5" cy="16.5" r="2" /></>,
   plus: <path d="M12 5.5v13M5.5 12h13" />,
+  folder: <path d="M4 7a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />,
   search: <><circle cx="10.5" cy="10.5" r="6" /><path d="m19.5 19.5-4.6-4.6" /></>,
   document: <><path d="M14 4.5H7.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8z" /><path d="M14 4.5V8h3.5M9.5 12.5h5m-5 3h3" /></>,
 };

@@ -61,6 +61,23 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
   for one (US-1.4), and the jacket is the Library's. The shelf decides nothing
   here: it governs the copy it holds and nothing else.
 
+## 2c. Bringing in a folder of papers
+
+A literature review ends with a list: works, and why each one matters. My
+agent gathers their PDFs into a folder, with a **manifest** beside them, and
+I drop the folder into Papol. The agent never touches Papol; I bring the
+papers in, and I decide where they go.
+
+- **US-2.20** As a user, I can **drop a folder** onto Papol, in Papol for Mac or in the browser, and every PDF in it is brought in as if I had uploaded each one (US-2.1, US-2.7) — after a review, never before.
+- **US-2.21** If the folder holds a **`papol.json`**, Papol reads it. It describes the papers, not where they go: for each PDF its identifier, its title, and a note on why it is in the review — and for a work the agent could not get a PDF of, the work alone. It names no shelf and no tag; one that does is read as if it did not. A folder with no manifest still comes in, every PDF listed; a manifest that cannot be read is said so, and the folder comes in as if it had none.
+- **US-2.22** **I get the instructions where I add papers.** Beside *Drop a PDF here* is *Add a folder from an agent…*, and on the Mac a folder button beside the **+**. It says in one line how this works, gives me the instructions to copy for my agent, and takes the folder when I come back with it. The instructions point to a page on Papol that describes the folder (`/agent-folder.txt`), so the format is kept in one place and instructions I saved long ago still work; for an agent that cannot open a page, I can copy the whole description instead.
+- **US-2.23** Dropping a folder opens **one review of the whole batch**, not a form per paper: a row per work, in the manifest's order, then the folder's other PDFs. Each PDF goes up and is read while I look, and its row says what it is: **new**, **already in Papol**, **already in my nook** (skipped, never sent), or a problem — **not in the folder**, **no PDF** (find it yourself), **too large**. I can untick a row, and fix a title.
+- **US-2.24** **I file the batch in the review**: the shelf, picked as for one upload, or a new private shelf named after the folder; and private tags, given to every paper in it. Nothing arrives already filed, so an agent cannot put me on display or fill my tags with its own grouping.
+- **US-2.25** **The manifest fills gaps only.** Metadata is shared (US-2.4): an identifier or a title from the manifest is used only where the PDF says nothing, and a PDF Papol already holds keeps the metadata it has. When Papol holds another version of the work, the row offers it, as the upload form does.
+- **US-2.26** The agent's **note** becomes a note on my copy, private like every note. It never goes into my summary or my thought, which are mine to write.
+- **US-2.27** **Dropping the same folder again is safe**: papers already in my nook are skipped and left untouched, so an agent may add to a folder and I may drop all of it again.
+- **US-2.28** One paper failing never stops the rest. The review ends on what happened — *34 added, 2 already yours, 4 problems* — with each problem still on its row.
+
 ## 3. Browsing
 
 - **US-3.1** As a user, I can see every user in the Library with avatar, affiliation, and how many copies each keeps on public shelves. The people and the papers are two views of one Library, not two places.
