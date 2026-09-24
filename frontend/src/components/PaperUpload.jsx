@@ -147,6 +147,16 @@ export default function PaperUpload({
         if (failure && isReportableUploadError(failure)) onReportableError?.(failure, 'sending a PDF to be read');
         return;
       }
+      const settle = (read) => {
+        if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        setKnown(read?.existing?.sha256 ? read.existing : null);
+        setReading(read ? null : 'unread');
+      };
+      // The indexes knew the paper while it went up: the form opens filled.
+      if (uploaded.reading) {
+        settle(uploaded.reading);
+        return;
+      }
       const wait = new AbortController();
       readingWait.current = wait;
       setReading('reading');
@@ -154,9 +164,7 @@ export default function PaperUpload({
         // Saved, cancelled, or replaced by another file: nobody is listening.
         if (wait.signal.aborted) return;
         readingWait.current = null;
-        if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
-        setKnown(read?.existing?.sha256 ? read.existing : null);
-        setReading(read ? null : 'unread');
+        settle(read);
       });
     } catch (err) {
       showError(err, 'importing a PDF');

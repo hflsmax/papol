@@ -8,7 +8,7 @@ import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
 import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
-import { KIND as EXTRACT, reextractedMetadata, type Identifier } from "../papers/extract";
+import { KIND as EXTRACT, indexedMetadata, knownVersion, reextractedMetadata, type Identifier } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
 import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { viewerPaper } from "../papers/sharables";
@@ -99,12 +99,35 @@ const METADATA_FIELDS = ["title", "authors", "journal", "year", "doi"] as const;
 const PERSONAL_FIELDS = ["summary", "thought", "rating_expertise", "rating_reading", "rating_liking", "is_public", "is_author", ...FIELD_VISIBILITY] as const;
 
 export function paperRoutes(router: Router) {
+  // The indexes asked about the identifier the browser read off a PDF's
+  // first pages, while that PDF is still going up: the form's fields, or
+  // 404 when no index knows it. The upload then says it has its reading
+  // (`doi` below), and no job is queued for it.
+  router.on("POST", "/api/papers/lookup", async ({ request, env }) => {
+    await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const identifier = givenIdentifier(data.identifier);
+    const check = validate.checking();
+    const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? "";
+    check.done();
+    if (!identifier) refuse(422, "No DOI or arXiv id to look up");
+    try {
+      return json((await indexedMetadata(env, identifier, uploadedName)) ?? refuse(404, "No index knows this identifier"));
+    } catch (error) {
+      if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
+      throw error;
+    }
+  });
+
   // The PDF is in the bucket, by the uploader's own hand (routes/files.ts):
   // queue the reading of it. What it says about itself is a job, and the
   // form polls /api/jobs/{job} for the fields to review; nothing is saved
   // to the database until the user saves the paper. The browser may have
   // read the paper's identifier off its first pages already; passed
-  // along, the job asks the indexes about it directly.
+  // along, the job asks the indexes about it directly. When the browser
+  // had them asked already (/api/papers/lookup) and they knew it, `doi`
+  // is the DOI they gave: there is nothing left to read, and the answer
+  // says only whether Papol holds another version of the work.
   router.on("POST", "/api/papers/uploaded", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Row>(request);
@@ -112,10 +135,15 @@ export function paperRoutes(router: Router) {
     const filePath = check.string("file_path", data.file_path, { pattern: /^[0-9a-f]{64}\.pdf$/ })!;
     const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? filePath;
     const identifier = givenIdentifier(data.identifier);
+    const knownDoi = check.string("doi", data.doi, { max: limits.text.paper_doi, pattern: DOI_FORM, optional: true });
     check.done();
     if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
     const digest = filePath.slice(0, 64);
     if (!(await env.FILES.head(paperKey(digest)))) refuse(404, "PDF file not found");
+    if (knownDoi) {
+      const existing = await knownVersion(env.DB, knownDoi, digest);
+      return json({ job: null, file_path: filePath, sha256: digest, ...(existing ? { existing } : {}) });
+    }
     const payload: Row = { file_path: filePath, uploaded_name: uploadedName };
     if (identifier) payload.identifier = identifier;
     const job = enqueue(env.DB, EXTRACT, payload, { userUuid: user.uuid });
