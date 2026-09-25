@@ -3,7 +3,7 @@
 #   site/            the main frontend (index.html, assets/)
 #   site/viewer/     the PDF viewer, at /viewer/
 #   site/boards/     the board workspace, at /boards/<uuid> and /boards/assets/
-# Run inside `nix develop` (or any shell with the repository's Node).
+# Run from a shell with the repository's Node (mise.toml).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 site="$root/cloudflare/site"

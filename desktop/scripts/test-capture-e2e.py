@@ -37,7 +37,7 @@ resolves to 127.0.0.1 — papol.localtest.me does, if its DNS is reachable.
 Not 127.0.0.1.nip.io: the rules read a host that begins `127.` as the
 address it spells, and the page never loads.
 
-    npm run test:e2e:capture            # from desktop/, inside `nix develop`
+    npm run test:e2e:capture            # from desktop/, with mise.toml's tools
 
 Pictures are kept in PAPOL_E2E_ARTIFACTS/capture, pass or fail.
 """

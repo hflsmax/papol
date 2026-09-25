@@ -60,9 +60,9 @@ the viewer and the API behind it. CI (`.github/workflows/pr.yml`) assembles
 the site and points it at the Cloudflare Worker itself.
 
 Seed and run from the same shell, or name the fixture explicitly with
-`PAPOL_E2E_FIXTURE`: the default path lives in `TMPDIR`, and `nix develop`
-sets a `TMPDIR` of its own, so seeding inside that shell and running outside
-it looks exactly like a fixture that was never written.
+`PAPOL_E2E_FIXTURE`: the default path lives in `TMPDIR`, and a shell that sets
+a `TMPDIR` of its own makes seeding in one shell and running in another look
+exactly like a fixture that was never written.
 
 ## Uploading, and the queue behind it
 

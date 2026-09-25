@@ -96,13 +96,14 @@ as_root() {
   fi
 }
 
-# The tools come from flake.nix. A shell that entered through direnv has
-# them; one that did not is handed the same environment for the one command.
+# The tools come from mise.toml. A shell with mise activated (or direnv) has
+# them; one that has not is handed the same environment for the one command,
+# in the directory it was called from.
 with_tools() {
   if command -v npm >/dev/null 2>&1; then
     "$@"
   else
-    (cd "$DEV_DIR" && nix develop "$DEV_DIR" --command "$@")
+    mise -C "$DEV_DIR" exec -- bash -c 'cd "$0" && exec "$@"' "$PWD" "$@"
   fi
 }
 

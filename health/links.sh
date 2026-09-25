@@ -29,7 +29,8 @@ NOBODY=2f1c6f60-3f5b-4a19-9c2a-7d0e1b8c4a53
 
 browser() {
   local candidate
-  for candidate in "${CHROME:-}" chromium chromium-browser google-chrome google-chrome-stable; do
+  for candidate in "${CHROME:-}" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      google-chrome google-chrome-stable chromium chromium-browser; do
     [ -n "$candidate" ] || continue
     command -v "$candidate" >/dev/null 2>&1 && { command -v "$candidate"; return 0; }
   done

@@ -20,7 +20,7 @@ const token = process.env.PAPOL_TOKEN || JSON.parse(execFileSync(
   ['wrangler', 'd1', 'execute', 'papol', '--local', '--json', '--command', 'SELECT token FROM auth_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1;'],
   { cwd: path.join(ROOT, '..', '..', 'cloudflare'), encoding: 'utf8' },
 ))[0].results[0].token;
-const chromiumPath = process.env.CHROMIUM_PATH || execFileSync('which', ['chromium'], { encoding: 'utf8' }).trim();
+const chromiumPath = process.env.CHROMIUM_PATH || process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 const request = async (route, options = {}) => {
   const response = await fetch(`${ORIGIN}/api${route}`, {

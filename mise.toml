@@ -1,0 +1,31 @@
+# Papol's tools, and the one place they are listed.
+#
+#   mise install        # once, and after this file changes
+#   mise activate       # in your shell's rc, so entering the checkout uses them
+#
+# CI reads the same file (jdx/mise-action). What is not here comes with
+# the machine: python3 (the Mac end-to-end drivers and smoke.sh use only
+# its standard library), sqlite3, jq, Google Chrome (the browser the
+# smokes, the share suite and the tutorial recorders drive; CHROME names
+# another), ffmpeg for the tutorial encoder, and on a Mac Xcode's Command
+# Line Tools — the linker, the SDK, codesign.
+[tools]
+node = "22.22.0"
+# The desktop crate's Rust. Pinned rather than `stable` because clippy
+# runs with -D warnings, and every new stable release would otherwise
+# arrive as a red build nobody changed. desktop/src-tauri/rust-toolchain.toml
+# says the same for a plain rustup; pr.yml fails when the two part.
+rust = { version = "1.95.0", components = "clippy,rustfmt" }
+# Conveniences: repository search, pull requests and releases.
+ripgrep = "latest"
+gh = "latest"
+
+[env]
+# The minimum macOS that tauri.conf.json declares, read from there rather
+# than copied here, so plain Cargo commands and Tauri builds share native
+# dependency fingerprints: `tauri build` sets it itself, and a `cargo run`
+# without it would rebuild every C dependency for the other target.
+MACOSX_DEPLOYMENT_TARGET = "{{ exec(command='jq -r .bundle.macOS.minimumSystemVersion ' ~ config_root ~ '/desktop/src-tauri/tauri.conf.json') }}"
+# The tutorial recorders' one dependency, puppeteer-core, installed once
+# with `npm ci --prefix tutorials/runtime`; the recorders require it by name.
+NODE_PATH = "{{ config_root }}/tutorials/runtime/node_modules"

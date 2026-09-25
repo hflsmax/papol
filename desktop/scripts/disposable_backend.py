@@ -8,7 +8,7 @@ different services.
 
 The Worker is `wrangler dev`, run from cloudflare/ with its state — the D1,
 the R2 — persisted under the run's temporary directory rather than the
-checkout's .wrangler. Its Node is the one from flake.nix; this file wants
+checkout's .wrangler. Its Node is the one mise.toml pins; this file wants
 nothing of Python's but the standard library, so the Mac's own interpreter
 is enough to run the checks.
 """
@@ -70,7 +70,7 @@ def require_backend_python():
     """
     if shutil.which("npx") is None:
         raise SystemExit(
-            "This check needs Node: run it inside `nix develop`."
+            "This check needs Node: run `mise install` and `mise activate` (mise.toml)."
         )
     if not (CLOUDFLARE / "node_modules" / ".bin" / "wrangler").exists():
         raise SystemExit(

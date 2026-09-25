@@ -23,7 +23,7 @@ __pycache__/
 nohup.out
 
 # Local environment. .env holds settings and secrets; .direnv is direnv's
-# cache of the nix shell.
+# own state.
 .env
 .env.macos-notarization
 .credentials/

@@ -59,48 +59,65 @@ jobs:
             exit 1
           fi
 
-      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+      # The tools mise.toml lists; this job needs only its Node. The tool
+      # and npm caches are saved from main alone: every PR branch writing
+      # its own would push the repository past GitHub's 10 GB and evict
+      # the rest.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref != 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
 
-      # The Mac jobs install Rust with rustup, not nix, and clippy's
-      # -D warnings turns each new release's lints into a red build; so the
-      # version is written down once, in rust-toolchain.toml, and this holds
-      # it to the rustc the flake's nixpkgs carries. A flake.lock bump that
-      # moves rustc fails here until the file moves with it.
-      - name: The Mac's Rust is the flake's
+      # clippy's -D warnings turns each new Rust release's lints into a red
+      # build, so the version is pinned: in mise.toml, for a shell and the
+      # end-to-end job, and in rust-toolchain.toml, for a plain rustup and
+      # the macos-test job. This holds the two to one answer.
+      - name: One Rust, in both places it is written
         run: |
           want=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)
-          # The shell's greeting shares stdout; take the rustc line alone.
-          have=$(nix develop --command rustc --version | sed -n 's/^rustc \([0-9.]*\).*/\1/p')
-          echo "rust-toolchain.toml says $want, the flake has $have"
+          have=$(sed -n 's/^rust = { version = "\([^"]*\)".*/\1/p' mise.toml)
+          echo "rust-toolchain.toml says $want, mise.toml says $have"
           [ -n "$want" ] && [ "$want" = "$have" ]
 
       # Ubuntu 24 confines unprivileged user namespaces, which is how
-      # Chromium builds its sandbox; the nix chromium has no setuid fallback.
-      - name: Let Chromium sandbox itself
+      # Chrome builds its sandbox.
+      - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # The browser is the runner's own Google Chrome, found on PATH.
       - name: Unit tests, all four surfaces
         env:
           # The upload smoke (frontend `npm test`) keeps the page here if it fails.
           PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
         run: |
-          nix develop --command bash -c 'cd viewer   && npm ci && npm test'
-          nix develop --command bash -c 'cd board    && npm ci && npm test'
-          nix develop --command bash -c 'cd frontend && npm ci && npm test'
+          (cd viewer   && npm ci && npm test)
+          (cd board    && npm ci && npm test)
+          (cd frontend && npm ci && npm test)
           # The Worker: its suite runs in the Workers runtime against a local
           # D1. --legacy-peer-deps because npm's peer resolver crashes on
           # Vitest 5's optional peers while the pool still wants Vitest 4.
-          nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test'
+          (cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test)
           # The host's helper beside GROBID: its tests, and the checked-in
           # bundle rebuilt to prove it is what the source says (`check`).
-          nix develop --command bash -c 'cd host/helper && npm ci && npm run typecheck && npm run check && npm test'
+          (cd host/helper && npm ci && npm run typecheck && npm run check && npm test)
 
       # The helper beside GROBID, stood in for: canned answers in the real
       # one's shapes, told per PDF by the upload suite what to say.
       - name: Start the stand-in GROBID helper
         run: |
-          nohup nix develop --command node scripts/share-e2e/fake-helper.mjs > helper.log 2>&1 &
+          nohup node scripts/share-e2e/fake-helper.mjs > helper.log 2>&1 &
           for _ in $(seq 60); do
             curl -fsS -o /dev/null -u papol:e2e http://127.0.0.1:8072/helper/health 2>/dev/null && exit 0
             sleep 1
@@ -114,14 +131,16 @@ jobs:
       # of an upload at the stand-in above.
       - name: Start the Worker on the assembled site
         run: |
-          nix develop --command bash -c 'cloudflare/scripts/assemble.sh && cd cloudflare && npx wrangler d1 migrations apply papol --local'
-          cd cloudflare && nohup nix develop .. --command npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false \
+          cloudflare/scripts/assemble.sh
+          cd cloudflare
+          npx wrangler d1 migrations apply papol --local
+          nohup npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false \
             --test-scheduled --var GROBID_URL:http://127.0.0.1:8072 --var GROBID_AUTH:papol:e2e > ../server.log 2>&1 &
           for _ in $(seq 90); do
             curl -fsS -o /dev/null http://127.0.0.1:8010/ 2>/dev/null && exit 0
             sleep 2
           done
-          echo 'the Worker never came up'; cat server.log; exit 1
+          echo 'the Worker never came up'; cat ../server.log; exit 1
 
       # Every suite runs even when one before it failed, so one red run
       # shows every failure at once.
@@ -130,16 +149,13 @@ jobs:
           PAPOL_BASE: http://127.0.0.1:8010
           PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
         run: |
-          nix develop --command bash -c '
-            set -e
-            export PAPOL_E2E_FIXTURE="$PWD/e2e-fixture.json"
-            export CHROME="$(command -v chromium)"
-            node scripts/share-e2e/seed.mjs
-            failed=0
-            node scripts/share-e2e/run.mjs || failed=1
-            node scripts/share-e2e/upload.mjs || failed=1
-            node scripts/share-e2e/board.mjs || failed=1
-            exit $failed'
+          export PAPOL_E2E_FIXTURE="$PWD/e2e-fixture.json"
+          node scripts/share-e2e/seed.mjs
+          failed=0
+          node scripts/share-e2e/run.mjs || failed=1
+          node scripts/share-e2e/upload.mjs || failed=1
+          node scripts/share-e2e/board.mjs || failed=1
+          exit $failed
 
       - name: Pages as the failing checks left them
         if: failure()

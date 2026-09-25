@@ -95,18 +95,99 @@ jobs:
   # a WKWebView — for exactly that, then for a shelf added while the service
   # is down and a PDF opened with the app, both followed to the service. It
   # also has the page capture photograph a served fixture and refuse the
-  # pages that lead to this machine. nix rather than the toolchain actions,
-  # because the Node and the Rust it needs are listed nowhere but flake.nix.
-  end-to-end:
-    name: macos-end-to-end
+  # pages that lead to this machine.
+  #
+  # Two jobs, side by side, since a public repository's macOS minutes cost
+  # nothing and most of each is waiting on the app: the replica and the
+  # capture in one, the window in the other. `end-to-end` below answers
+  # for both under the name branch protection requires.
+  end-to-end-replica:
+    name: macos-end-to-end-replica
     if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
-      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+      # Node and MACOSX_DEPLOYMENT_TARGET from mise.toml; Rust as the test
+      # job installs it, from rust-toolchain.toml.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Read the pinned Rust
+        id: rust
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+      # One target/ for both jobs: `cargo run` here and `tauri build
+      # --debug` there compile the same dependencies. Saved from main
+      # only, and by the app job alone, so the two never race for the key.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          shared-key: end-to-end
+          save-if: false
+
+      - name: Install desktop and bundled UI dependencies
+        run: cd desktop && npm ci && npm run install:web
+
+      # The disposable backend the checks start is `wrangler dev`.
+      - name: Install the Worker's dependencies
+        run: cd cloudflare && npm ci --legacy-peer-deps
+
+      - name: The replica against the service
+        run: cd desktop && npm run test:e2e:native-sync
+
+      # The capture refuses a local link and WebKit's rules refuse any
+      # address that spells one, so the fixture it photographs is served on
+      # loopback under a name that looks public. The rules read the name,
+      # not where it resolves, which is what lets the app's own code take
+      # the picture with no test-only way around its guard.
+      - name: Name the capture fixture
+        run: |
+          set -euo pipefail
+          echo '127.0.0.1 capture-fixture.papol.test' | sudo tee -a /etc/hosts
+          sudo dscacheutil -flushcache
+          sudo killall -HUP mDNSResponder || true
+
+      - name: The page capture and its guard
+        env:
+          PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/capture-e2e
+        run: cd desktop && npm run test:e2e:capture
+
+      - name: Keep the pictures the capture took
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: capture-pictures
+          path: ${{ runner.temp }}/capture-e2e
+          if-no-files-found: ignore
+
+  end-to-end-app:
+    name: macos-end-to-end-app
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Read the pinned Rust
+        id: rust
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          shared-key: end-to-end
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # The accessibility API answers only a process the user has trusted,
       # and there is no user here to click. macOS charges a command-line
@@ -134,44 +215,15 @@ jobs:
           xcrun swift desktop/scripts/papol-ui.swift windows
 
       - name: Install desktop and bundled UI dependencies
-        run: nix develop --command bash -c 'cd desktop && npm ci && npm run install:web'
+        run: cd desktop && npm ci && npm run install:web
 
-      # The disposable backend the checks start is `wrangler dev`.
       - name: Install the Worker's dependencies
-        run: nix develop --command bash -c 'cd cloudflare && npm ci --legacy-peer-deps'
-
-      - name: The replica against the service
-        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-sync'
-
-      # The capture refuses a local link and WebKit's rules refuse any
-      # address that spells one, so the fixture it photographs is served on
-      # loopback under a name that looks public. The rules read the name,
-      # not where it resolves, which is what lets the app's own code take
-      # the picture with no test-only way around its guard.
-      - name: Name the capture fixture
-        run: |
-          set -euo pipefail
-          echo '127.0.0.1 capture-fixture.papol.test' | sudo tee -a /etc/hosts
-          sudo dscacheutil -flushcache
-          sudo killall -HUP mDNSResponder || true
-
-      - name: The page capture and its guard
-        env:
-          PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/capture-e2e
-        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:capture'
-
-      - name: Keep the pictures the capture took
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: capture-pictures
-          path: ${{ runner.temp }}/capture-e2e
-          if-no-files-found: ignore
+        run: cd cloudflare && npm ci --legacy-peer-deps
 
       - name: The app against the service
         env:
           PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/e2e
-        run: nix develop --command bash -c 'cd desktop && npm run test:e2e:native-ui'
+        run: cd desktop && npm run test:e2e:native-ui
 
       - name: Keep what the window showed
         if: failure()
@@ -180,6 +232,22 @@ jobs:
           name: native-ui-failure
           path: ${{ runner.temp }}/e2e
           if-no-files-found: ignore
+
+  # The check branch protection requires: both halves passed, or were
+  # skipped together (a `hotfix` pull request, where a skipped check passes).
+  end-to-end:
+    name: macos-end-to-end
+    needs: [end-to-end-replica, end-to-end-app]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Both halves of the end-to-end check
+        run: |
+          echo "replica: ${{ needs.end-to-end-replica.result }}, app: ${{ needs.end-to-end-app.result }}"
+          for result in "${{ needs.end-to-end-replica.result }}" "${{ needs.end-to-end-app.result }}"; do
+            [ "$result" = success ] || [ "$result" = skipped ] || exit 1
+          done
 
   build:
     name: macos-build

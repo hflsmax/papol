@@ -29,29 +29,30 @@ live in the `lessons` array in `frontend/src/components/LearnPage.jsx`.
 
 ## Environment preflight
 
-Use the repository flake through `nix develop` for every production command.
-The development shell supplies Chromium, FFmpeg, `ffprobe`, SQLite, and the
-shared Puppeteer Core runtime. Do not run `npm install` before recording.
+Run every production command in a shell with mise activated (mise.toml): it
+supplies Node and points NODE_PATH at the shared Puppeteer Core runtime, which
+`npm ci --prefix tutorials/runtime` installs once. Google Chrome (or CHROME),
+FFmpeg with `ffprobe` (`brew install ffmpeg`) and SQLite come with the machine.
 
 Before recording:
 
-1. Enter `nix develop` and confirm Chromium, FFmpeg, Node, and Puppeteer Core
-   resolve from that shell.
+1. Confirm Chrome, FFmpeg, Node, and Puppeteer Core resolve from that shell.
 2. Confirm the local Papol is reachable — `cloudflare/scripts/assemble.sh`
    for the built pages, then `./deploy.sh dev` — and that the recorder's
    required account token, database rows, and source files exist. The
    recorders read the newest session out of the local D1 through wrangler,
    or take one from `PAPOL_TOKEN`.
 3. Launch the recorder from the repository root, for example:
-   `nix develop --command node tutorials/<lesson>/record.mjs`.
+   `node tutorials/<lesson>/record.mjs`.
 
 Running from the tutorial directory can break scripts that intentionally use
 repository-relative paths such as `cloudflare/`. Do not rely on globally
 installed Node packages: a successful run must be reproducible directly from
-the flake and repository sources. If a required recorder import is missing,
-fix `flake.nix` rather than installing it ad hoc. The voice generator is the
+mise.toml, tutorials/runtime and repository sources. If a required recorder
+import is missing, add it to tutorials/runtime/package.json rather than
+installing it ad hoc. The voice generator is the
 one exception: Kokoro is a Python package, run from a disposable virtual
-environment of your own, and nothing of it is in the flake.
+environment of your own, and nothing of it is in mise.toml.
 
 ## Production sequence
 
