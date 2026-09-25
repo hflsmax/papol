@@ -126,28 +126,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   // "76,77", "Fig. 3b") where a publisher links only its first number. The
   // PDF's own links fill in where the analyzer found nothing.
   const fromPdf = consolidateCitations(annotated.citations);
-  let citations = [...fromAnalyzer, ...fromPdf.filter((pdf) => !fromAnalyzer.some((known) => overlaps(known, pdf)))];
-  if (references.length) {
-    try {
-      const inferred = await numberedCitations(doc, pageNumber, references);
-      for (const candidate of inferred) {
-        const covered = citations.filter((known) => overlaps(known, candidate));
-        // PDFs commonly link only the two endpoint digits in "[1–7]".
-        // Selectable text is the only place where the range itself survives,
-        // so let that complete group replace those incomplete native boxes.
-        if (candidate.referenceUuids.length > 1 && covered.length) {
-          citations = citations.filter((known) => !overlaps(known, candidate));
-          citations.push(candidate);
-        } else if (!covered.length) {
-          citations.push(candidate);
-        }
-      }
-    } catch {
-      // Selectable text is a fallback, never a reason to lose PDF-native or
-      // analyzer-provided citation markers.
-    }
-  }
-
+  const citations = [...fromAnalyzer, ...fromPdf.filter((pdf) => !fromAnalyzer.some((known) => overlaps(known, pdf)))];
   const pdfLinks = annotated.links.filter((pdf) => ![...analyzedLinks, ...fromAnalyzer].some((known) => overlaps(known, pdf)));
   const links = [...analyzedLinks, ...pdfLinks];
   // Only where nothing else is: a linked address stays the author's link,
@@ -187,58 +166,6 @@ async function textLinks(doc, pageNumber) {
       .filter((piece) => Array.isArray(items[piece.itemIndex].transform))
       .map((piece) => ({ href, ...itemBox(items[piece.itemIndex], viewport, piece.start, piece.end) }))
   ));
-}
-
-/** Numbered markers the analyzer omitted, recovered from selectable PDF text. */
-async function numberedCitations(doc, pageNumber, references) {
-  const page = await doc.getPage(pageNumber);
-  const viewport = page.getViewport({ scale: 1 });
-  const content = await page.getTextContent();
-  const found = [];
-  const byNumber = new Map(references.map((ref) => [ref.index + 1, ref]));
-  // Require a closing bracket. OCR fragments such as "[9," are too
-  // ambiguous; the analyzer can still supply them when it reads the line
-  // around them, but this deliberately conservative fallback cannot.
-  const marker = /\[\s*(\d{1,3}(?:(?:\s*[,;]\s*|\s*[–—-]\s*)\d{1,3})*)\s*\]/g;
-
-  for (const item of content.items || []) {
-    if (!item?.str || !Array.isArray(item.transform) || !item.str.includes('[')) continue;
-    marker.lastIndex = 0;
-    let match;
-    while ((match = marker.exec(item.str))) {
-      const ids = citationNumbers(match[1]);
-      const targets = ids.map((n) => byNumber.get(n));
-      if (!targets.length || targets.some((ref) => !ref)) continue;
-
-      const box = itemBox(item, viewport, match.index, match.index + match[0].length);
-      found.push({
-        referenceUuid: targets[0].uuid,
-        referenceUuids: targets.map((reference) => reference.uuid),
-        label: match[0],
-        ...box,
-        exact: false,
-      });
-    }
-  }
-  return found;
-}
-
-/** Expand a printed numeric citation list, including inclusive ranges. */
-export function citationNumbers(text) {
-  const numbers = [];
-  for (const part of String(text).split(/[,;]/)) {
-    const range = part.trim().match(/^(\d{1,3})\s*[–—-]\s*(\d{1,3})$/);
-    if (!range) {
-      const value = Number(part.trim());
-      if (Number.isInteger(value)) numbers.push(value);
-      continue;
-    }
-    const start = Number(range[1]);
-    const end = Number(range[2]);
-    if (end < start || end - start > 100) continue;
-    for (let value = start; value <= end; value += 1) numbers.push(value);
-  }
-  return [...new Set(numbers)];
 }
 
 /**
