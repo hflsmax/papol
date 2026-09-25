@@ -6,6 +6,7 @@
 // day, so it runs once however many isolates the hour finds.
 
 import { all, one, statement, type Row } from "../db";
+import { letterHtml, letterText } from "./letter";
 import { mailConfigured, sendEmail, sendEmails } from "./mail";
 import { enqueue, type Enqueued } from "./queue";
 
@@ -28,7 +29,8 @@ export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {
 
 // An announcement an admin writes to many users is one job, each recipient
 // still getting an email of their own: one batch call, not one call per
-// recipient racing the provider's rate limit.
+// recipient racing the provider's rate limit. The admin writes Markdown;
+// each copy carries it as HTML, pictures and all, and as plain text.
 export const SEND_ANNOUNCEMENT = "send_announcement";
 
 export function queueAnnouncement(db: D1Database, to: string[], subject: string, body: string): Enqueued {
@@ -38,7 +40,9 @@ export function queueAnnouncement(db: D1Database, to: string[], subject: string,
 export async function sendAnnouncementJob(env: Env, payload: Row): Promise<Row> {
   if (!mailConfigured(env)) return { sent: false, skipped: "Email not configured" };
   const to = payload.to as string[];
-  await sendEmails(env, to.map((address) => ({ to: address, subject: String(payload.subject), body: String(payload.body) })));
+  const markdown = String(payload.body);
+  const body = letterText(markdown), html = letterHtml(markdown);
+  await sendEmails(env, to.map((address) => ({ to: address, subject: String(payload.subject), body, html })));
   return { sent: true, recipients: to.length };
 }
 

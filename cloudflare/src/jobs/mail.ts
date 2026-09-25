@@ -1,7 +1,7 @@
 // Outgoing email, through Resend's HTTP API.
 //
 // A Worker has no place for an SMTP conversation, so mail is one HTTP
-// call: from, to, subject, text, a bearer key. EMAIL_API_URL is Resend's
+// call: from, to, subject, text (and HTML, for an announcement), a bearer key. EMAIL_API_URL is Resend's
 // emails endpoint (https://api.resend.com/emails); a batch is posted to
 // its /batch, and the admin page's record of what was sent is read back
 // from the same endpoint, so Resend is the one record of every email.
@@ -17,6 +17,9 @@ export interface Mail {
   to: string;
   subject: string;
   body: string;
+  // An HTML form of the same message, for mail apps that show it; the
+  // body is always sent too, as its plain text.
+  html?: string;
 }
 
 // Resend takes at most this many emails in one batch.
@@ -34,7 +37,7 @@ function emailApi(env: Env, path = "", init: RequestInit = {}): Promise<Response
 }
 
 function outgoing(env: Env, mail: Mail) {
-  return { from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.body };
+  return { from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.body, ...(mail.html ? { html: mail.html } : {}) };
 }
 
 export async function sendEmail(env: Env, mail: Mail): Promise<void> {
