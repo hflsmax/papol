@@ -192,6 +192,20 @@ describe("what a PDF says about itself", () => {
     expect(openalex).toMatchObject({ title: "Layer Normalization", venue: null, host: "arXiv (Cornell University)", abstract: "Training deep nets", doi: "10.48550/arXiv.1607.06450", source: "openalex" });
   });
 
+  it("names the venue by an issue the publisher named, not one it numbered", () => {
+    const pacmpl = "Proceedings of the ACM on Programming Languages";
+    const crossref = (issue: string | undefined) => summarizeCrossref({ DOI: "10.1145/3158093", title: ["Linear Haskell"], "container-title": [pacmpl], volume: "2", issue }).venue;
+    expect(crossref("POPL")).toBe(`${pacmpl} (POPL)`);
+    expect(crossref("12")).toBe(pacmpl);
+    expect(crossref("3-4")).toBe(pacmpl);
+    expect(crossref(undefined)).toBe(pacmpl);
+    expect(summarizeCrossref({ "container-title": ["Brain"], issue: "Supplement_1" }).venue).toBe("Brain (Supplement 1)");
+    expect(summarizeCrossref({ issue: "POPL" }).venue).toBeNull();
+    const openalex = summarizeOpenalex({ display_name: "Linear Haskell", biblio: { volume: "2", issue: "POPL" },
+      primary_location: { source: { display_name: pacmpl, type: "journal" } } });
+    expect(openalex.venue).toBe(`${pacmpl} (POPL)`);
+  });
+
   it("takes OpenAlex's raw source name as the venue when no location has a source", () => {
     const popl = "Proceedings of the 39th annual ACM SIGPLAN-SIGACT symposium on Principles of programming languages";
     const bare = summarizeOpenalex({ display_name: "Information effects", publication_year: 2012,
