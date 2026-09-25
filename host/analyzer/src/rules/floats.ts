@@ -124,7 +124,10 @@ function proseOn(page: Page, type: Type): Set<Line> {
   const edges = (a: Line, b: Line) => Math.abs(a.x0 - b.x0) <= 1 && Math.abs(a.x1 - b.x1) <= 1 && a.x1 - a.x0 >= type.measure / 2
     && a.text.length !== b.text.length;
   // Full: within an indent (two ems) of the measure — justified text fills it.
-  const full = candidates.filter((l) => candidates.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= type.measure - 2 * l.size || edges(o, l))));
+  // The line a leading from it shows it is in a paragraph whatever it is
+  // set in (a line of code words, under a line of text).
+  const texty = page.lines.filter((l) => !l.furniture && sameSize(l.size, type.bodySize) && !hasCellGap(l));
+  const full = candidates.filter((l) => texty.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= type.measure - 2 * l.size || edges(o, l))));
   const prose = new Set(full);
   // The short last line of a paragraph (its left edge shared with the
   // line above), and the indented first (its right edge shared with the
@@ -150,6 +153,13 @@ function proseOn(page: Page, type: Type): Set<Line> {
     for (let n = next(l); n && run.length < 3; n = next(n)) run.push(n);
     if (run.length >= 3) run.forEach((r) => prose.add(r));
   }
+  // But not the text of a ruled table's cells, however it is set: a line
+  // with a vertical rule close on its left, and another on its right (as
+  // far off as a cell's short last line leaves it).
+  const vertical = page.drawn.filter((d) => d.w < 1.5 && d.h >= 1);
+  const ruledBeside = (l: Line, side: "left" | "right") => vertical.some((d) => d.y < l.bottom && d.y + d.h > l.top
+    && (side === "left" ? d.x <= l.x0 && l.x0 - d.x <= 1.5 * l.size : d.x >= l.x1));
+  for (const l of [...prose]) if (ruledBeside(l, "left") && ruledBeside(l, "right")) prose.delete(l);
   return prose;
 }
 
