@@ -121,6 +121,18 @@ describe("GROBID's TEI", () => {
     const named = new Map(box.floats.map((f) => [f.key, f]));
     expect(box.links.map((l) => [named.get(l.float)!.kind, named.get(l.float)!.page])).toEqual([["box", 2]]);
   });
+
+  it("links to a figure whose caption GROBID read as body text, and reads a 'Fig. 2 |' heading", () => {
+    // Nature's style: GROBID found Fig. 4 but left Fig. 1's caption in the
+    // body, its number a reference to nothing.
+    const analysis = parseTei(TEI(`<facsimile><surface n="2" lrx="600" lry="800"/><surface n="6" lrx="600" lry="800"/><surface n="8" lrx="600" lry="800"/></facsimile>
+      <text><body><p>Interaction with the environment Fig. <ref type="figure" coords="2,50,300,3,7">1</ref> | Three-level hierarchy.</p>
+      <p>a substrate layer (Fig. <ref type="figure" coords="8,130,300,3,8">1</ref>, Fig. <ref type="figure" coords="8,150,300,3,8" target="#fig_2">4</ref>) and panels (Fig. <ref type="figure" coords="8,200,320,6,8">1b</ref>).</p>
+      <figure xml:id="fig_2" coords="6,40,490,230,7"><head>Fig. 4 |</head><label>4</label></figure></body></text>`));
+    const byKey = new Map(analysis.floats.map((f) => [f.key, f]));
+    expect(analysis.floats.map((f) => [f.kind, f.label])).toEqual([["figure", "4"], ["figure", "1"]]);
+    expect(analysis.links.map((l) => [l.label, l.page, byKey.get(l.float)!.label])).toEqual([["1", 8, "1"], ["4", 8, "4"], ["1b", 8, "1"]]);
+  });
 });
 
 // ----------------------------------------------------------- the lookup

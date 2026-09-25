@@ -186,8 +186,14 @@ const MARKER_NUMBER = /[[(]\s*(\d{1,3})/;
 // and nothing else. "(2016)" is a year, "[7]" the very thing this must
 // not touch.
 const EQUATION_NUMBER = /^\(\s*\d{1,3}\s*\)$/;
-const CROSS_REFERENCE_KIND = /\b(box|fig(?:ure)?|table)\s*$/i;
-const TARGET_HEADING = /^\s*(box|fig(?:ure)?|table)\s*([\w.-]+)/i;
+// What is printed before a cross-reference: "Figure ", "Fig. ", "Figs. ".
+const CROSS_REFERENCE_KIND = /\b(box|fig(?:ure)?s?|tables?)\.?\s*$/i;
+// A float's heading: "Figure 2:", "Fig. 2 |", "Box 1 | Methods". GROBID
+// can prefix a stray panel letter from the artwork ("bFig. 3 |").
+const TARGET_HEADING = /^\s*[a-z]?(box|fig(?:ure)?|table)\.?\s*(\w+(?:[.-]\w+)*)/i;
+// A caption GROBID did not see as a figure reads as body text, with its
+// number marked as a cross-reference to nothing: "Fig. <ref>1</ref> | …".
+const CAPTION_AFTER_LABEL = /^\s*\|/;
 // GROBID's figure-reference tag contains only the label: "Figure " is
 // outside the tag, and in the source font that prefix is about three ems.
 const FIGURE_PREFIX_EMS = 3.0;
@@ -282,6 +288,28 @@ function precedingText(root: XmlElement): Map<XmlElement, string> {
   return prefixes;
 }
 
+// The first characters of text after each element: what follows a label.
+function followingText(root: XmlElement): Map<XmlElement, string> {
+  const suffixes = new Map<XmlElement, string>();
+  let waiting: XmlElement[] = [];
+  const visit = (element: XmlElement) => {
+    for (const child of element.children) {
+      if (child instanceof XmlText) {
+        if (!child.text.trim()) continue;
+        for (const e of waiting) suffixes.set(e, child.text.slice(0, 40));
+        waiting = [];
+      } else if (isElement(child)) { visit(child); waiting.push(child); }
+    }
+  };
+  visit(root);
+  return suffixes;
+}
+
+// "2a" is panel a of figure 2.
+function withoutPanel(label: string): string {
+  return label.replace(/(?<=\d)[a-z]+$/i, "");
+}
+
 export function parseTei(xml: string): Analysis {
   const root = parse(xml);
   const pages: Pages = new Map();
@@ -338,19 +366,38 @@ export function parseTei(xml: string): Analysis {
     if (!id || !found.length) continue;
     const heading = [children(figure, "head")[0], children(figure, "label")[0]].map(text).filter(Boolean).join(" ");
     const match = heading.match(TARGET_HEADING);
-    const float: Float = { key: id, kind: match ? linkKind(match[1]) : "figure", label: match?.[2] ?? "", ...found[0] };
+    const label = text(children(figure, "label")[0] ?? null) || match?.[2] || "";
+    const float: Float = { key: id, kind: match ? linkKind(match[1]) : "figure", label, ...found[0] };
     floats.push(float);
     byId.set(id, float);
     if (match) named.set(`${float.kind}\n${float.label.toLowerCase()}`, float);
   }
   const prefixes = precedingText(root);
-  const links: DocumentLink[] = [];
-  for (const marker of descendants(root, "ref")) {
-    if (marker.attributes.type !== "figure") continue;
-    const label = text(marker) ?? "";
+  const crossReferences = [...descendants(root, "ref")].filter((r) => r.attributes.type === "figure").map((marker) => {
     const kindMatch = (prefixes.get(marker) ?? "").match(CROSS_REFERENCE_KIND);
-    const kind = kindMatch ? linkKind(kindMatch[1]) : "figure";
-    const target = named.get(`${kind}\n${label.toLowerCase()}`) ?? byId.get((marker.attributes.target ?? "").replace(/^#/, ""));
+    return { marker, label: text(marker) ?? "", kind: kindMatch ? linkKind(kindMatch[1]) : "figure" };
+  });
+  const floatNamed = (kind: string, label: string) =>
+    named.get(`${kind}\n${label.toLowerCase()}`) ?? named.get(`${kind}\n${withoutPanel(label).toLowerCase()}`);
+
+  // A caption GROBID left in the body stands in for its figure: a link
+  // lands on the caption, which is beside the figure.
+  const suffixes = followingText(root);
+  const captions = new Set<XmlElement>();
+  for (const { marker, label, kind } of crossReferences) {
+    if (!label || floatNamed(kind, label) || !CAPTION_AFTER_LABEL.test(suffixes.get(marker) ?? "")) continue;
+    const found = boxes(marker.attributes.coords, pages);
+    if (!found.length) continue;
+    const float: Float = { key: `caption_${floats.length}`, kind, label, ...found[0] };
+    floats.push(float);
+    named.set(`${kind}\n${label.toLowerCase()}`, float);
+    captions.add(marker);
+  }
+
+  const links: DocumentLink[] = [];
+  for (const { marker, label, kind } of crossReferences) {
+    if (captions.has(marker)) continue; // the caption's own number points nowhere
+    const target = floatNamed(kind, label) ?? byId.get((marker.attributes.target ?? "").replace(/^#/, ""));
     if (!target) continue;
     for (const box of boxes(marker.attributes.coords, pages)) {
       // Extend left over the prefix so the whole phrase is one pointer
