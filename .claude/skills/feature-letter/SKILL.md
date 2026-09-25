@@ -74,16 +74,10 @@ out how it works and the smaller fixes around it. Sign it from the team,
 with no marketing adjectives.
 
 The letter is a directory in `newsletters/` (its README has the layout),
-`YYYY-MM-DD-<topic>/` with:
+`YYYY-MM-DD-<topic>/` with nothing but the letter and its pictures:
 
 - `letter.md`: the letter as it reads, every screenshot from `img/`
   beside the paragraph it shows.
-- `announcement.txt`: the plain text for the admin page, with the subject
-  on the first line. The announcement email is sent as `text` only
-  (`outgoing()` in `mail.ts`), so it cannot carry pictures. It names each
-  feature in a line or two and ends with a `{LINK TO THE PUBLISHED LETTER}`
-  placeholder. Limits (`config/app_limits.json`): subject 200, body 20,000,
-  and an in-app message 4,000.
 - `img/`: the pictures, scaled to about 1,300–1,600 px wide.
 
 Add a row to the README's table. Then open a pull request with the
