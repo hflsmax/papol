@@ -32,8 +32,13 @@ with `git archive origin/<topic>-screenshots | tar -x -C <dir>`.
 
 ## 3. Choose
 
-Five to seven things a reader would notice, grouped by what they do
-(reading a paper, citations, adding papers, boards, sharing, the Mac app).
+About six features, each one a thing a reader would notice. Put the one
+used most often in everyday reading first, and number them in that order:
+the letter says "most useful first". Give each a short name worth
+remembering, not a description (the first letter used Intelligent link
+navigation, Reverse citation, Folder Drop, Tiny links, Papol on your Mac,
+Reading log). Propose the list to the owner before writing, if they are
+around.
 Leave out infrastructure, tests, deploys, refactors, releases by number.
 Say anything a user must act on: old links that stopped working, an app
 that must be updated, a feature removed (the migration doc records
@@ -62,9 +67,11 @@ share-e2e CDP driver, `scripts/share-e2e/cdp.mjs`, as the UI PRs do.
 
 ## 5. Write
 
-Plain words from the reader's side: what they can do now, and how to try
-it (where to click, which key). One short paragraph per feature, its
-picture under it. Signed by the team, no marketing adjectives.
+Succinct, and about how the feature makes reading and research easier:
+what the reader can do now and how to try it (where to click, which key).
+Each feature gets two to four sentences and at most one picture. Leave
+out how it works and the smaller fixes around it. Sign it from the team,
+with no marketing adjectives.
 
 The letter is a directory in `newsletters/` (its README has the layout),
 `YYYY-MM-DD-<topic>/` with:

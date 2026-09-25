@@ -1,33 +1,28 @@
-Subject: What's new in Papol: whole folders, citation trails, and a note about share links
+Subject: What's new in Papol: intelligent link navigation, reverse citation, and more
 
 Hello,
 
-It's been a busy week for Papol. Here is what changed.
+Six new things in Papol, most useful first.
 
-ADD A WHOLE FOLDER OF PAPERS
-Every upload box now takes several PDFs at once, or a whole folder: drop them in, or click "Add a folder". You review the batch before anything is saved. Papol shows which papers are new, skips the ones already in your nook, and lets you pick one shelf and tags for all of them.
+1. INTELLIGENT LINK NAVIGATION
+Click "Figure 4" and the figure fills your window. A section link opens at its heading, and a footnote mark goes to its note. "Back to page …" (or [) returns you.
 
-EVERY PLACE A PAPER CITES A WORK
-Click a citation such as [18] and its card says how often the paper cites that work. The up and down arrows step through each place. "Back to page …", or the [ key, takes you back to where you started.
+2. REVERSE CITATION
+Click a citation such as [18] to see every place the paper cites that work, and step through them with the up and down arrows.
 
-LINKS THAT LAND WHERE THEY POINT
-A link to a figure or table zooms until it fills the window. A link to a section opens at its heading, and footnote marks go to their notes. Every jump leaves a Back button.
+3. FOLDER DROP
+Drop a folder of PDFs on any upload box. Review them in one list, skip the ones you have, and file them all at once.
 
-MY ACTIVITY
-Your profile shows the time you spent reading, by day, week or month, and on which papers. Only you can see it.
+4. TINY LINKS
+Share links are now short, like papol.io/s/KedS24Oq7W. Links made before September 25 no longer work: open the paper, choose Share, and send the new link.
 
-BOARDS
-Link cards come onto a board at one size. Webpage cards are named by the page's title and show a picture of the page.
+5. PAPOL ON YOUR MAC
+Papol for Mac 0.5.5 keeps your papers with you. Get it from "Mac app" at the top of papol.io.
 
-SHARE LINKS: PLEASE READ
-Share links are now short, like papol.io/s/KedS24Oq7W. A share link made before September 25 no longer works. To share a paper again, open it, choose Share, and send the new link.
-
-PAPOL FOR MAC
-The Mac app is at 0.5.5. If yours is too old, it will ask you to update. "Mac app" at the top of papol.io has the latest.
+6. READING LOG
+My activity on your profile shows how long you read, and on which papers. Only you can see it.
 
 The full letter, with pictures: {LINK TO THE PUBLISHED LETTER}
-
-If something looks wrong, the Feedback button on every page comes straight to us.
 
 Happy reading,
 The Papol team

@@ -23,4 +23,4 @@ to. How a letter is drafted is in `.claude/skills/feature-letter/SKILL.md`.
 
 | Letter | Covers |
 |---|---|
-| [2026-09-25-whats-new](2026-09-25-whats-new/letter.md) | 2026-09-21 to 2026-09-25: the first letter after the move to papol.io |
+| [2026-09-25-whats-new](2026-09-25-whats-new/letter.md) | 2026-09-21 to 2026-09-25: Intelligent link navigation, Reverse citation, Folder Drop, Tiny links, Papol on your Mac, Reading log |
