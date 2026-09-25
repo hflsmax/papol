@@ -1,7 +1,7 @@
 { config, lib, pkgs, ... }:
 
 # What is left of Papol on a NixOS host. The application itself is a
-# Cloudflare Worker (cloudflare/, deployed with `deploy.sh prod`); the host
+# Cloudflare Worker (cloudflare/, deployed by .github/workflows/worker.yml); the host
 # keeps GROBID, the reference analyzer the Worker cannot run itself, a
 # small helper beside it (host/helper/) that runs GROBID on a PDF and
 # reads its answer where the CPU is, and a Cloudflare Tunnel of Papol's

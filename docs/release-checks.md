@@ -40,7 +40,7 @@ otherwise, per surface:
     (cd viewer   && npm test)
     (cd board    && npm test)
     (cd cloudflare && npm run typecheck && npm test)   # the Worker, on a local D1
-    (cd desktop  && cargo test --manifest-path src-tauri/Cargo.toml)
+    (cd desktop  && npm run test:native && npm run check:native)
 
 `npm run test` in `frontend` includes the browser smoke test, which now opens
 every link shape the application answers — a paper, a user, a room, the
@@ -110,7 +110,8 @@ says so at its head).
 
 ## After a release
 
-`./deploy.sh prod` waits for the page to answer and then runs the link check
+`./deploy.sh prod` runs the worker workflow for production (its suite, D1's
+migrations, the deploy, a read-only smoke) and then runs the link check
 itself; `check.sh` is the probe module.nix's timer runs every minute. Both
 can be run by hand.
 
