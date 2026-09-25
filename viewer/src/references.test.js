@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { destinationHeight } from './sections.js';
 
 import {
-  columnsOnPage, consolidateCitations, destinationNumber,
+  citationHolds, columnsOnPage, consolidateCitations, destinationNumber,
   pageOverlays, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
 
@@ -391,4 +391,114 @@ test('a marker citing several works has the rest looked up with the one shown', 
   // Shown: 119. Already resolved: 120. Being asked for: 122. A PDF-only link has no row.
   assert.deepEqual(stillToLookUp(['r119', 'r120', 'r121', 'r122', 'pdf:cite.x'], 'r119', known, underWay), ['r121']);
   assert.deepEqual(stillToLookUp(['r76', 'r77'], 'r76', new Map(), new Set()), ['r77']);
+});
+
+// Rows as the analyzer stores them for "Rendel and Ostermann 2010",
+// "Matsuda et al. 2007" and friends: one per printed line of the marker.
+// The coordinates are those of a real two-column paper.
+const row = (referenceUuid, label, x, y, w, h = 0.0141) => ({ referenceUuid, label, x, y, w, h, exact: true });
+
+test('one citation broken over a line is one target with a box per line', () => {
+  const [citation, ...rest] = consolidateCitations([
+    row('matsuda2007', 'Matsuda et al. 2007', 0.7914, 0.137, 0.1175),
+    row('matsuda2007', 'Matsuda et al. 2007', 0.0943, 0.1536, 0.0381),
+  ]);
+
+  assert.equal(rest.length, 0);
+  assert.deepEqual(citation.referenceUuids, ['matsuda2007']);
+  assert.deepEqual(citation.boxes, [
+    { x: 0.7914, y: 0.137, w: 0.1175, h: 0.0141 },
+    { x: 0.0943, y: 0.1536, w: 0.0381, h: 0.0141 },
+  ]);
+  // Where the button sits: the first piece, not a box around both lines.
+  assert.deepEqual([citation.x, citation.y, citation.w], [0.7914, 0.137, 0.1175]);
+
+  assert.ok(citationHolds(citation, 0.85, 0.144), 'the end of the first line');
+  assert.ok(citationHolds(citation, 0.11, 0.16), 'the start of the next');
+  assert.ok(!citationHolds(citation, 0.5, 0.144), 'the words before it on the first line');
+  assert.ok(!citationHolds(citation, 0.5, 0.16), 'the words after it on the next');
+});
+
+test('a wrapped citation leaves the next citation on its second line alone', () => {
+  const citations = consolidateCitations([
+    row('rendel2010', 'Rendel and Ostermann 2010', 0.8092, 0.2864, 0.0965),
+    row('rendel2010', 'Rendel and Ostermann 2010', 0.0943, 0.303, 0.1418),
+    row('wang2013', 'Wang et al. 2013', 0.2464, 0.303, 0.1438),
+  ]);
+
+  assert.deepEqual(
+    citations.map((c) => [c.label, c.boxes.length]),
+    [['Rendel and Ostermann 2010', 2], ['Wang et al. 2013', 1]],
+  );
+});
+
+test('two wrapped citations sharing a line each keep their own pieces', () => {
+  // "... Hidaka et al. | 2010; ... Matsuda and Wang | 2015b": the second
+  // marker starts on the line where the first one ends.
+  const citations = consolidateCitations([
+    row('hidaka2010', 'Hidaka et al. 2010', 0.8447, 0.8012, 0.061),
+    row('hidaka2010', 'Hidaka et al. 2010', 0.0943, 0.8178, 0.0818),
+    row('matsuda2015b', 'Matsuda and Wang 2015b', 0.8353, 0.8178, 0.0704),
+    row('matsuda2015b', 'Matsuda and Wang 2015b', 0.0943, 0.8344, 0.1384),
+  ]);
+
+  assert.equal(citations.length, 2);
+  const [hidaka, matsuda] = citations;
+  assert.deepEqual(hidaka.boxes.map((b) => b.y), [0.8012, 0.8178]);
+  assert.deepEqual(matsuda.boxes.map((b) => b.y), [0.8178, 0.8344]);
+  assert.ok(!citationHolds(hidaka, 0.87, 0.825), 'Matsuda\'s first piece is not Hidaka\'s');
+});
+
+test('separate markers are not joined across lines', () => {
+  const cases = {
+    'a different work': [
+      row('rendel2010', 'Rendel and Ostermann 2010', 0.8092, 0.2864, 0.0965),
+      row('wang2013', 'Wang et al. 2013', 0.0943, 0.303, 0.1438),
+    ],
+    'the same work under another label': [
+      row('matsuda2018c', 'Matsuda and Wang 2018c', 0.6839, 0.2698, 0.2131),
+      row('matsuda2018c', 'Matsuda and Wang [2018c]', 0.1191, 0.2864, 0.2207),
+    ],
+    'the same marker further right on the next line': [
+      row('matsuda2020', 'Matsuda 2020', 0.3, 0.363, 0.1134),
+      row('matsuda2020', 'Matsuda 2020', 0.6718, 0.3796, 0.1134),
+    ],
+    'the same marker several lines down': [
+      row('matsuda2020', 'Matsuda 2020', 0.6718, 0.363, 0.1134),
+      row('matsuda2020', 'Matsuda 2020', 0.0943, 0.4128, 0.1134),
+    ],
+  };
+  for (const [name, rows] of Object.entries(cases)) {
+    const citations = consolidateCitations(rows);
+    assert.equal(citations.length, 2, name);
+    assert.ok(citations.every((c) => c.boxes.length === 1), name);
+  }
+});
+
+test('a PDF link on the second line of a wrapped citation does not become a second button', async () => {
+  // The analyzer's marker, broken over two lines, and hyperref's link over
+  // just the "2007" that starts the second. Page coordinates run 0–100.
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [
+      { subtype: 'Link', dest: 'cite.matsuda2007', rect: [10, 83.5, 13, 84.5] },
+    ],
+    getTextContent: async () => ({ items: [] }),
+  };
+  const doc = { getPage: async () => page };
+  const analysis = {
+    references: [{ uuid: 'matsuda2007', index: 38, page: 30, y: 0.4 }],
+    citations: [
+      { reference_uuid: 'matsuda2007', label: 'Matsuda et al. 2007', page: 2, x: 0.7914, y: 0.137, w: 0.1175, h: 0.0141, inferred: false },
+      { reference_uuid: 'matsuda2007', label: 'Matsuda et al. 2007', page: 2, x: 0.0943, y: 0.1536, w: 0.0381, h: 0.0141, inferred: false },
+    ],
+  };
+
+  const { citations } = await pageOverlays(doc, 2, analysis);
+
+  assert.equal(citations.length, 1);
+  assert.equal(citations[0].boxes.length, 2);
 });

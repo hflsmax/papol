@@ -62,7 +62,7 @@ const EXPECTED_DROP = 0.007;
 
 /**
  * Citation boxes for one page, in fractions of the page from its
- * top-left corner: [{ referenceUuid, label, x, y, w, h, exact }].
+ * top-left corner: [{ referenceUuid, label, x, y, w, h, boxes, exact }].
  *
  * `analysis` is what the backend returned; `doc` and `pageNumber` are the
  * open PDF. Returns the analyzer's boxes when the PDF offers nothing
@@ -174,6 +174,12 @@ async function textLinks(doc, pageNumber) {
  * box (the collapsed middle numbers have no glyphs of their own), while the
  * range endpoints occupy touching boxes. Turn that physical marker back into
  * one target and retain every referenced work for the card's range controls.
+ *
+ * A marker can also break across a line — "Matsuda et al." at the end of
+ * one, "2007" at the start of the next — and then arrives as one row per
+ * line. Those lines are one citation too: one target, whose `boxes` are the
+ * printed pieces in reading order. `x`, `y`, `w`, `h` stay the first piece's,
+ * never a rectangle around both lines, which would take in the words between.
  */
 export function consolidateCitations(citations) {
   const ordered = [...citations].sort((a, b) => a.y - b.y || a.x - b.x);
@@ -207,8 +213,50 @@ export function consolidateCitations(citations) {
     }
   }
 
-  return groups;
+  return joinWrapped(groups);
 }
+
+// Pieces of one marker carried over a line break, joined up. The piece that
+// continues a marker has its label and its works, sits on the very next
+// line, and starts left of where the last piece began: the line wrapped
+// back. Only a second marker printing the same label for the same works,
+// one line down, could pass for a continuation; were it joined, both
+// would still open the very same card.
+function joinWrapped(groups) {
+  const joined = [];
+  for (const group of groups) {
+    const piece = { x: group.x, y: group.y, w: group.w, h: group.h };
+    const cited = [...group.referenceUuids].sort().join('\n');
+    const continued = joined
+      .filter((candidate) => {
+        const last = candidate.boxes[candidate.boxes.length - 1];
+        const drop = piece.y - last.y;
+        return candidate.label === group.label
+          && candidate.cited === cited
+          && drop >= Math.min(last.h, piece.h) * 0.5
+          && drop <= Math.max(last.h, piece.h) * 2
+          && piece.x < last.x;
+      })
+      .sort((a, b) => b.boxes[b.boxes.length - 1].y - a.boxes[a.boxes.length - 1].y)[0];
+
+    if (!continued) {
+      joined.push({ ...group, boxes: [piece], cited });
+      continue;
+    }
+    continued.boxes.push(piece);
+    continued.exact = continued.exact && group.exact;
+  }
+  return joined.map(({ cited, ...citation }) => citation);
+}
+
+/** Whether a point, as fractions of the page, falls on any printed piece of a citation. */
+export function citationHolds(citation, x, y) {
+  return piecesOf(citation).some((box) => (
+    x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
+  ));
+}
+
+const piecesOf = (box) => box.boxes || [box];
 
 function multiply(a, b) {
   return [
@@ -221,12 +269,16 @@ function multiply(a, b) {
   ];
 }
 
+// Whether two boxes share any area. A citation broken over a line counts
+// by its pieces, so a PDF link on its second line is still the same marker.
 function overlaps(a, b) {
-  const left = Math.max(a.x, b.x);
-  const top = Math.max(a.y, b.y);
-  const right = Math.min(a.x + a.w, b.x + b.w);
-  const bottom = Math.min(a.y + a.h, b.y + b.h);
-  return right > left && bottom > top;
+  return piecesOf(a).some((p) => piecesOf(b).some((q) => {
+    const left = Math.max(p.x, q.x);
+    const top = Math.max(p.y, q.y);
+    const right = Math.min(p.x + p.w, q.x + q.w);
+    const bottom = Math.min(p.y + p.h, q.y + q.h);
+    return right > left && bottom > top;
+  }));
 }
 
 /**
