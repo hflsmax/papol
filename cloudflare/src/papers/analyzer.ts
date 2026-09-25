@@ -12,7 +12,7 @@
 // credential.
 
 import { fileUrl, UPLOADS } from "../files";
-import type { Analysis, HeaderMetadata } from "./reading";
+import { ANALYSIS_FORMAT, type Analysis, type HeaderMetadata } from "./reading";
 
 // Fetching and reading a long paper can take a while; this is a job, so
 // it can wait. nginx and the analyzer allow the same.
@@ -55,9 +55,10 @@ async function post<T>(env: Env, path: string, filePath: string): Promise<T> {
 // A paper's references, the markers that point at them, and its links to
 // figures and tables. Throws on anything that went wrong, so the caller
 // can record why a paper has no references rather than silently showing
-// none.
-export function analyze(env: Env, filePath: string): Promise<Analysis> {
-  return post<Analysis>(env, "/analyze", filePath);
+// none. Asks for the format this Worker stores; an analyzer older than it
+// answers without saying so, and the caller must not store that.
+export function analyze(env: Env, filePath: string): Promise<Analysis & { format?: number }> {
+  return post<Analysis & { format?: number }>(env, `/analyze?format=${ANALYSIS_FORMAT}`, filePath);
 }
 
 // The title block, with the identifiers printed on the first pages.

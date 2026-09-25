@@ -81,7 +81,7 @@ const analysis = {
   detail: null,
   references: [reference],
   citations: [
-    { reference_uuid: REFERENCE, label: '[1]', page: 1, x: 0.2, y: 0.2, w: 0.08, h: 0.02, inferred: false },
+    { reference_uuids: [REFERENCE], label: '[1]', inferred: false, boxes: [{ page: 1, x: 0.2, y: 0.2, w: 0.08, h: 0.02 }] },
   ],
   links: [],
 };

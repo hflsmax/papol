@@ -129,12 +129,13 @@ describe("resolving a reference", () => {
 
 // What the host's analyzer answers for the paper: two entries, the first
 // cited once on page 1.
-const ANALYSIS: Analysis = {
+const ANALYSIS: Analysis & { format: number } = {
+  format: 2,
   references: [
     { key: "b0", index: 0, raw: "Vaswani et al. Attention Is All You Need. 2017.", title: "Attention Is All You Need", authors: [], year: 2017, journal: null, doi: null, arxiv_id: null, page: 1, y: 700 / 800 },
     { key: "b1", index: 1, raw: "Knuth D. The art of computer programming.", title: null, authors: [], year: null, journal: null, doi: null, arxiv_id: null, page: 1, y: 712 / 800 },
   ],
-  citations: [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }],
+  citations: [{ keys: ["b0"], label: "[1]", inferred: false, boxes: [{ page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }] }],
   floats: [],
   links: [],
 };
@@ -151,14 +152,14 @@ describe("what the analyzer is sent", () => {
     const hosted = { ...env, FILES_URL: "https://files.test/" as string } as Env;
     const sent: Array<[string, string, string]> = [];
     hosts({ "analyzer.test": (url, init) => {
-      sent.push([url.pathname, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
+      sent.push([url.pathname + url.search, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
       return jsonResponse(url.pathname.endsWith("/analyze") ? ANALYSIS : { title: "T", authors: [], journal: null, year: null, doi: null, arxiv_id: null });
     } });
     await analyzer.analyze(hosted, `${OTHER}.pdf`);
     await analyzer.header(hosted, `${OTHER}.pdf`);
     const address = JSON.stringify({ url: `https://files.test/uploads/${OTHER}.pdf` });
     expect(sent).toEqual([
-      ["/analyze", "application/json", address],
+      ["/analyze?format=2", "application/json", address],
       ["/header", "application/json", address],
     ]);
   });
@@ -200,7 +201,9 @@ describe("the viewer's references", () => {
     const ready = await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers });
     expect(ready.status).toBe("ready");
     expect(ready.references.map((r: Json) => [r.key, r.index, r.title, r.page])).toEqual([["b0", 0, "Attention Is All You Need", 1], ["b1", 1, null, 1]]);
-    expect(ready.citations).toEqual([expect.objectContaining({ reference_uuid: ready.references[0].uuid, label: "[1]", page: 1, inferred: false })]);
+    expect(ready.citations).toEqual([
+      { reference_uuids: [ready.references[0].uuid], label: "[1]", inferred: false, boxes: [{ page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }] },
+    ]);
     // A paper Papol holds under the cited title is named, so the user can open it.
     await paperWithCopy(grace, OTHER, "Attention Is All You Need");
     expect((await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers })).references[0].papol_paper_sha256).toBe(OTHER);
@@ -210,7 +213,7 @@ describe("the viewer's references", () => {
     const ada = await register();
     await kept(ada);
     const analysis = {
-      references: [], citations: [],
+      format: 2, references: [], citations: [],
       floats: [{ key: "f0", kind: "figure", label: "2", page: 3, x: 0.1, y: 0.2, w: 0.4, h: 0.3 }],
       links: [{ float: "f0", label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }],
     };
@@ -222,10 +225,70 @@ describe("the viewer's references", () => {
     expect(ready.links).toEqual([{ float_uuid: ready.floats[0].uuid, label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }]);
   });
 
+  it("keep a marker whole: the works it names in the order printed, a box for each line it is printed on", async () => {
+    const ada = await register();
+    await kept(ada);
+    const line = (x: number, y: number, w: number) => ({ page: 2, x, y, w, h: 0.0141 });
+    hosts({ "analyzer.test": () => jsonResponse({
+      ...ANALYSIS,
+      citations: [
+        // "Matsuda et al. | 2007", broken over a line.
+        { keys: ["b0"], label: "Matsuda et al. 2007", inferred: false, boxes: [line(0.7914, 0.137, 0.1175), line(0.0943, 0.1536, 0.0381)] },
+        // "[2, 1, 9]": b9 is in no list the analysis gave, and is left out.
+        { keys: ["b1", "b0", "b9"], label: "[2, 1, 9]", inferred: false, boxes: [line(0.5, 0.3, 0.05)] },
+        // A marker that names nothing in the list leads nowhere.
+        { keys: ["b9"], label: "[9]", inferred: false, boxes: [line(0.6, 0.3, 0.02)] },
+      ],
+    }) });
+    const read = async () => {
+      await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+      await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper' AND status <> 'done'"))!.uuid as string);
+      return ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    };
+
+    const ready = await read();
+    const [b0, b1] = ready.references.map((r: Json) => r.uuid);
+    expect(ready.citations).toEqual([
+      { reference_uuids: [b0], label: "Matsuda et al. 2007", inferred: false, boxes: [line(0.7914, 0.137, 0.1175), line(0.0943, 0.1536, 0.0381)] },
+      { reference_uuids: [b1, b0], label: "[2, 1, 9]", inferred: false, boxes: [line(0.5, 0.3, 0.05)] },
+    ]);
+    expect(await count("paper_citations")).toBe(2);
+    expect(await count("paper_citation_works")).toBe(3);
+
+    // A fresh reading replaces the markers and the works under them.
+    await exec("UPDATE papers SET references_status = NULL WHERE sha256 = ?", PDF);
+    const again = await read();
+    expect(again.citations.map((c: Json) => [c.label, c.reference_uuids.length, c.boxes.length])).toEqual([["Matsuda et al. 2007", 1, 2], ["[2, 1, 9]", 2, 1]]);
+    expect(await count("paper_citations")).toBe(2);
+    expect(await count("paper_citation_works")).toBe(3);
+  });
+
+  it("store nothing from an analyzer that predates whole markers, and leave the paper to be read again", async () => {
+    const ada = await register();
+    await kept(ada);
+    // An analyzer not yet brought up to date ignores ?format=2 and answers
+    // as it always did: a row a work a box, and no format.
+    const { format: _, ...unformatted } = ANALYSIS;
+    hosts({ "analyzer.test": () => jsonResponse({
+      ...unformatted,
+      citations: [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 0.1, y: 0.1, w: 0.02, h: 0.01 }],
+    }) });
+    await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
+
+    expect((await row("SELECT status, error FROM jobs WHERE kind = 'analyze_paper'"))).toEqual({
+      status: "failed", error: "The analyzer answered format 1; this Worker stores format 2",
+    });
+    // Not the paper's failure: it is still pending, and nothing was written.
+    expect((await row("SELECT references_status FROM papers WHERE sha256 = ?", PDF))!.references_status).toBe("pending");
+    expect(await count("paper_references")).toBe(0);
+    expect(await count("paper_citations")).toBe(0);
+  });
+
   it("fail a reading whose links name a float it does not have", async () => {
     const ada = await register();
     await kept(ada);
-    hosts({ "analyzer.test": () => jsonResponse({ references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
+    hosts({ "analyzer.test": () => jsonResponse({ format: 2, references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     expect(await count("paper_links")).toBe(0);

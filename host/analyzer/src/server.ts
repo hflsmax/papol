@@ -5,7 +5,8 @@
 // answers JSON; neither the bytes nor the CPU that reading takes pass
 // through a Worker invocation on Cloudflare's Free plan.
 //
-//   POST /analyze   application/json { url } or application/pdf → { references, citations, floats, links }
+//   POST /analyze?format=2  application/json { url } or application/pdf → { format, references, citations, floats, links }
+//   POST /analyze   the same, citations flattened for a Worker from before format 2 (see flattened)
 //   POST /header    application/json { url } or application/pdf → { title, authors, journal, year, doi, arxiv_id }
 //   GET  /health                                                 → { ok: true }
 //
@@ -22,6 +23,7 @@ import { fileURLToPath } from "node:url";
 
 import { fetchPaper, fileOriginsFrom, paperAddress } from "./files";
 import { analyze, header, Refusal } from "./service";
+import { ANALYSIS_FORMAT, type Analysis } from "../../../cloudflare/src/papers/reading";
 
 export { fileOriginsFrom };
 export const MAX_BODY = 100 * 1024 * 1024;
@@ -68,13 +70,25 @@ async function paperOf(request: http.IncomingMessage, options: Required<Options>
   return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
 }
 
+// A Worker deployed before citations were whole markers stores one row a
+// work a box, and asks for no format. It is answered as it was until
+// every Worker asks for format 2; then this goes.
+function flattened({ references, citations, floats, links }: Analysis) {
+  const rows = citations.flatMap(({ keys, label, inferred, boxes }) => keys.flatMap((key) => boxes.map((box) => ({ key, label, inferred, ...box }))));
+  return { references, citations: rows, floats, links };
+}
+
 async function answer(request: http.IncomingMessage, options: Required<Options>): Promise<[number, unknown]> {
-  const path = (request.url ?? "/").split("?")[0];
+  const url = new URL(request.url ?? "/", "http://analyzer");
+  const path = url.pathname;
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
   if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
-  return [200, path === "/analyze" ? await analyze(bytes) : await header(bytes)];
+  if (path === "/header") return [200, await header(bytes)];
+  const analysis = await analyze(bytes);
+  if (url.searchParams.get("format") === String(ANALYSIS_FORMAT)) return [200, { format: ANALYSIS_FORMAT, ...analysis }];
+  return [200, flattened(analysis)];
 }
 
 export function createServer(log: (line: string) => void = console.log, options: Options = {}): http.Server {

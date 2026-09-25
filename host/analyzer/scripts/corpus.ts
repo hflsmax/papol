@@ -26,7 +26,7 @@ for (const file of files) {
     const ms = Date.now() - started;
     const { analysis, trace, stats } = result;
     fs.writeFileSync(path.join(outDir, `${sha}.json`), JSON.stringify({ sha, stats, analysis, trace: trace.items, counts: trace.counts() }));
-    const citedKeys = new Set(analysis.citations.map((c) => c.key));
+    const citedKeys = new Set(analysis.citations.flatMap((c) => c.keys));
     const cited = analysis.references.length ? Math.round((100 * citedKeys.size) / analysis.references.length) : 0;
     row = { sha, ...stats, refs: analysis.references.length, cites: analysis.citations.length, cited, links: analysis.links.length, ms };
     console.log(`${sha.slice(0, 10)}  ${String(stats.numbering).padEnd(8)} ${String(stats.pages).padStart(5)} | ${String(row.refs).padStart(5)} | ${String(row.cites).padStart(5)} ${String(cited).padStart(4)}% | ${String(row.links).padStart(5)} | ${ms}`);

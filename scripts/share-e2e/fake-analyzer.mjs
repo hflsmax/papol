@@ -9,7 +9,7 @@
 // asks for in front of it:
 //
 //   POST /header   application/pdf → { title, authors, journal, year, doi, arxiv_id }
-//   POST /analyze  application/pdf → { references, citations, floats, links }
+//   POST /analyze?format=2  application/pdf → { format, references, citations, floats, links }
 //
 // A local Worker has no bucket domain, so it sends the bytes themselves
 // (analyzer.ts, `sent`); the stand-in takes only that, and a body that is
@@ -81,7 +81,9 @@ async function answer(request, response) {
 
   const plan = plans.get(sha256);
   if (plan?.status) return reply(response, plan.status, { detail: plan.detail || 'The PDF could not be read' });
-  if (path === '/analyze') return reply(response, 200, { references: [], citations: [], floats: [], links: [] });
+  // The format asked for is stated, as the real analyzer states it.
+  const format = new URL(request.url || '/', 'http://analyzer').searchParams.get('format');
+  if (path === '/analyze') return reply(response, 200, { ...(format ? { format: Number(format) } : {}), references: [], citations: [], floats: [], links: [] });
   return reply(response, 200, { ...NOTHING_READ, ...(plan?.header || {}) });
 }
 

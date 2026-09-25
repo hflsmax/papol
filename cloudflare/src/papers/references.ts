@@ -16,6 +16,7 @@ import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
 import * as analyzer from "./analyzer";
+import { ANALYSIS_FORMAT, type Analysis, type Box } from "./reading";
 import { extractArxivId } from "./identifiers";
 import { resolve, type Printed } from "./resolve";
 
@@ -100,9 +101,23 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
     await finishStatement(env, paperSha256, "failed", detail).run();
     throw new JobError(detail);
   }
+  // An analyzer older than this Worker reads citations as rows that cannot
+  // be told apart into markers. That is the service's age, not the paper's
+  // fault: nothing is stored and the paper stays pending, so it is read
+  // again once the pass goes stale (ANALYSIS_STALE_MS) — by then, one hopes,
+  // on an analyzer brought up to date (./deploy.sh host).
+  if (analysis.format !== ANALYSIS_FORMAT) {
+    throw new JobError(`The analyzer answered format ${analysis.format ?? 1}; this Worker stores format ${ANALYSIS_FORMAT}`);
+  }
+  await store(env, paperSha256, analysis);
+  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
+}
+
+async function store(env: Env, paperSha256: string, analysis: Analysis): Promise<void> {
   // A re-analysis replaces what was there. Resolutions are lost with it,
   // which is honest: they were attached to references read a different way.
   const statements = [
+    statement(env.DB, "DELETE FROM paper_citation_works WHERE citation_uuid IN (SELECT uuid FROM paper_citations WHERE paper_sha256 = ?)", paperSha256),
     statement(env.DB, "DELETE FROM paper_citations WHERE paper_sha256 = ?", paperSha256),
     statement(env.DB, "DELETE FROM paper_links WHERE paper_sha256 = ?", paperSha256),
     statement(env.DB, "DELETE FROM paper_floats WHERE paper_sha256 = ?", paperSha256),
@@ -116,11 +131,18 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
       `INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw, title, authors, year, journal, doi, arxiv_id, page, y) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       uuid, paperSha256, ref.key, ref.index, ref.raw, ref.title, ref.authors.length ? JSON.stringify(ref.authors) : null, ref.year, ref.journal, ref.doi, ref.arxiv_id, ref.page, ref.y));
   }
+  // A marker is kept with the works of it that are in the list; one that
+  // names none of them leads nowhere and is not kept.
   for (const cite of analysis.citations) {
-    const referenceUuid = uuids.get(cite.key);
-    if (!referenceUuid) continue;
-    statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, reference_uuid, label, page, x, y, w, h, inferred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      newUuid(), paperSha256, referenceUuid, cite.label, cite.page, cite.x, cite.y, cite.w, cite.h, cite.inferred ? 1 : 0));
+    const referenceUuids = cite.keys.map((key) => uuids.get(key)).filter((uuid): uuid is string => Boolean(uuid));
+    if (!referenceUuids.length || !cite.boxes.length) continue;
+    const citationUuid = newUuid();
+    const boxes: Box[] = cite.boxes.map(({ page, x, y, w, h }) => ({ page, x, y, w, h }));
+    statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, label, inferred, boxes) VALUES (?, ?, ?, ?, ?)",
+      citationUuid, paperSha256, cite.label, cite.inferred ? 1 : 0, JSON.stringify(boxes)));
+    referenceUuids.forEach((referenceUuid, position) => statements.push(statement(env.DB,
+      "INSERT INTO paper_citation_works (uuid, citation_uuid, position, reference_uuid) VALUES (?, ?, ?, ?)",
+      newUuid(), citationUuid, position, referenceUuid)));
   }
   const floats = new Map<string, string>();
   for (const float of analysis.floats) {
@@ -137,7 +159,6 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   }
   statements.push(finishStatement(env, paperSha256, "ready", null));
   await env.DB.batch(statements);
-  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
 }
 
 // ----------------------------------------------------------- the answers
@@ -196,13 +217,21 @@ export async function paperReferences(env: Env, paper: Paper) {
   }
   const references = await all<Reference>(env.DB, `SELECT * FROM paper_references WHERE paper_sha256 = ? ORDER BY "index", uuid`, paper.sha256);
   const known = await papolPapersFor(env.DB, references);
-  const citations = await all<Row>(env.DB, "SELECT * FROM paper_citations WHERE paper_sha256 = ? AND reference_uuid IS NOT NULL ORDER BY page, y, x, uuid", paper.sha256);
+  const citations = await all<Row>(env.DB, "SELECT * FROM paper_citations WHERE paper_sha256 = ?", paper.sha256);
+  const works = await all<Row>(env.DB,
+    "SELECT w.citation_uuid, w.reference_uuid FROM paper_citation_works w JOIN paper_citations c ON c.uuid = w.citation_uuid WHERE c.paper_sha256 = ? ORDER BY w.citation_uuid, w.position",
+    paper.sha256);
+  const worksOf = new Map<string, string[]>();
+  for (const work of works) worksOf.set(String(work.citation_uuid), [...(worksOf.get(String(work.citation_uuid)) ?? []), String(work.reference_uuid)]);
   const floats = await all<Row>(env.DB, "SELECT * FROM paper_floats WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
   const links = await all<Row>(env.DB, "SELECT * FROM paper_links WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
   return {
     paper_sha256: paper.sha256, status: "ready", detail: null,
     references: references.map((r) => referenceOut(r, known.get(r.uuid) ?? null)),
-    citations: citations.map((c) => ({ reference_uuid: c.reference_uuid, label: c.label ?? null, page: c.page, x: c.x, y: c.y, w: c.w, h: c.h, inferred: Boolean(c.inferred) })),
+    citations: citations
+      .map((c) => ({ reference_uuids: worksOf.get(String(c.uuid)) ?? [], label: c.label ?? null, inferred: Boolean(c.inferred), boxes: JSON.parse(String(c.boxes)) as Box[] }))
+      .filter((c) => c.reference_uuids.length && c.boxes.length)
+      .sort((a, b) => a.boxes[0].page - b.boxes[0].page || a.boxes[0].y - b.boxes[0].y || a.boxes[0].x - b.boxes[0].x),
     floats: floats.map((f) => ({ uuid: f.uuid, kind: f.kind, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
     links: links.map((l) => ({ float_uuid: l.float_uuid, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h })),
   };
