@@ -58,6 +58,20 @@ someone has no profile picture (applied via `.avatar-initial.avatar-tint-N`,
 two classes so role colors like the leader's gold still win). They say
 "which person", never "what state".
 
+**Activity colors** are a third axis, used only where time is drawn (the
+activity panel, a paper's time on the nook): `--activity-paper-1`…`4` say
+which paper a stretch of time went to. Four, because blocks of any two
+papers may sit side by side, and four is as many hues as stay apart for
+every pair, colour-blind eyes included. The four papers with most time in
+the period wear them, each keeping the hue its digest points to where it
+can; the rest share `--activity-other`. `--activity-heat-1`…`5` is one
+hue light to dark for
+how much: the time a day held on the month's calendar, and a paper's
+**effort level** on the nook (`.effort-level-N`, at fixed marks of 30 min,
+2 h, 5 h and 10 h, so a level means the same on every paper); steps 4 and
+5 carry `--ink-inverse` text. None
+is ever used for a state.
+
 ## Type
 
 Three families, by role:
@@ -152,6 +166,20 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   not a particular device model. Test at 320, 560, 760/860, and a wide desktop.
 
 ## Recurring patterns
+
+- **Activity** — time is drawn one way at every scale where "when"
+  matters: a day runs left to right, each span a block where it was and as
+  long as it was (the Day and Week views, one row per day). Where only
+  "how much" matters it is a calendar shaded at fixed marks (15 min, 1 h,
+  2 h, 4 h), so one month compares with another rather than with itself.
+  Blocks wear their paper's colour, the list of where the time went is
+  their key, and hovering a paper in either picks out all its time. A week
+  or month can also be read **by paper**: small multiples, a row to each
+  paper, a column to each day, every row on one scale (the note under them
+  says what the tallest column is), so a paper's days read along its row
+  and papers compare down the page.
+  Every block and day says its content in words to hover, focus and a
+  screen reader; colour is never the only channel. `ActivityPanel.jsx`.
 
 - **Learn lesson** — tutorial videos live on the public Learn page in a
   two-column grid of bordered white cards. Each card contains only a 16:9

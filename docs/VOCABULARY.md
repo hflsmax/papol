@@ -37,6 +37,14 @@ identifier of its own, the notes column gives it.
 | **Folder** | PDFs an agent gathered into one directory, dropped into Papol and brought in after one review of the batch. | `FolderImport.jsx`, `agentFolder.js`. Client-side only: each PDF goes up and is saved as one upload would be. |
 | **Manifest** | The `papol.json` beside a folder's PDFs: for each work its file, identifier, title and the agent's note. It describes papers and never where they go; shelf and tags are the user's, picked in the review. | Format 1, described at `/agent-folder.txt` (`frontend/public/agent-folder.txt`), which the prompt shown for the agent points to. `parseManifest()`. |
 
+### Activity
+
+| Term | Meaning | Notes |
+| --- | --- | --- |
+| **Activity** | The time a user spends reading a paper in the viewer. Boards are not recorded. One rule: time runs from one **use** (a scroll, key or pointer in its window while in front, or bringing the window back) to the next, and a pause between two uses counts if it is ten minutes or less (`gap_ms`) and was not spent on another paper in Papol. Nothing after the last use counts. Theirs alone: nobody else sees any of it. | `activity`, `shared/activity.js`, `POST`/`GET /api/activity`, `ActivityPanel.jsx` on the profile page. Not synchronized: the desktop sends it as the browser does. |
+| **Span** | One stretch of reading: the paper's sha256 (`subject`; `kind` is always `reading`), when it started and ended, and the seconds in it that counted. At most half an hour. | Named by the window that saw it and sent again as it grows; the server keeps the longest. Kept in the browser's **outbox** (`papol.activity.span.*`) until sent. |
+| **Effort** | A user's total reading of one paper, shown on its author line in their own nook: a clock and the time on a pill tinted by its **effort level**, one of five at fixed marks (under 30 min, 30 min–2 h, 2–5 h, 5–10 h, 10 h or more). It opens the paper's time — the level's key, its last twelve weeks and latest days. | `effort` on the nook's paper entries, null for anyone but the nook's user; `GET /api/activity/<kind>/<subject>`; `EffortPop.jsx`; `effortLevel()`, `EFFORT_MARKS`. Boards carry none on the nook. |
+
 ## 3. Annotations
 
 Everything a user leaves on a PDF. One table, `annotations`, three kinds that

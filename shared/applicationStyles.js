@@ -3097,6 +3097,542 @@ h4 .state-pill {
   font-style: normal;
 }
 
+/* ---------- My activity (ActivityPanel.jsx) ----------
+   One grammar for day and week: time runs left to right across a day,
+   each span a block where it was and as long as it was, so "when" and
+   "how much" are read off the same marks. A month is a calendar whose
+   days are shaded by how much, at fixed marks, and open into their day.
+   Colour says what the time was spent on and nothing else; every block
+   and day also says it in words, to a hover, to focus, and to a screen
+   reader. */
+.activity-panel .panel-head-row { align-items: center; margin-bottom: var(--space-1); }
+.activity-panel .panel-title { margin-bottom: 0; }
+
+.activity-views {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.activity-views button {
+  border: 0;
+  border-radius: 0;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  padding: var(--space-1) var(--space-3);
+  min-height: 32px;
+}
+
+.activity-views button + button { border-left: 1px solid var(--line-strong); }
+.activity-views button:hover { background: var(--paper); color: var(--ink); }
+.activity-views button[aria-pressed='true'] { background: var(--accent); color: var(--ink-inverse); }
+
+.activity-period {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+.activity-period-label {
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
+  font-weight: normal;
+  margin: 0;
+  min-width: 0;
+}
+
+.activity-step {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  background: var(--card);
+}
+
+.activity-step:disabled { opacity: 0.35; cursor: default; }
+.activity-today { font-size: var(--fs-sm); padding: var(--space-1) var(--space-3); }
+.activity-period-tools { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* ---------- A week or month paper by paper ----------
+   Small multiples: a row to each paper, a column to each day, one scale.
+   Columns grow from a shared baseline; an empty day is a faint tick on it,
+   so a row still reads as its days. */
+.activity-paper-row {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 48px;
+  align-items: end;
+  gap: var(--space-3);
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.activity-paper-row.is-faded { opacity: 0.2; }
+.activity-papers-head { border-top: 0; padding-bottom: 2px; align-items: center; }
+
+.activity-paper-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  align-self: center;
+}
+
+.activity-paper-name a,
+.activity-paper-name .activity-subject-gone {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--activity-days), minmax(0, 1fr));
+  gap: 2px;
+  height: 36px;
+}
+
+.activity-papers.is-week .activity-columns { gap: var(--space-2); }
+.activity-papers-head .activity-columns { height: auto; }
+
+.activity-papers-head .activity-columns span {
+  font-size: var(--fs-2xs);
+  color: var(--ink-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-papers.is-month .activity-papers-head .activity-columns span { text-align: left; }
+
+.activity-column {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.activity-column:hover { background: var(--paper); }
+.activity-column i { display: block; width: 100%; max-width: 24px; margin: 0 auto; border-radius: 3px 3px 0 0; }
+.activity-paper-row .activity-row-total { align-self: center; }
+
+.activity-papers-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+.activity-papers-note .activity-more { margin-top: 0; }
+
+/* The period's time, said once above the chart. */
+.activity-total {
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+}
+
+.activity-total strong { font-size: var(--fs-xl); font-weight: normal; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.activity-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.activity-paper-1 { background: var(--activity-paper-1); }
+.activity-paper-2 { background: var(--activity-paper-2); }
+.activity-paper-3 { background: var(--activity-paper-3); }
+.activity-paper-4 { background: var(--activity-paper-4); }
+.activity-other { background: var(--activity-other); }
+
+/* One paper picked out, by hovering its blocks or its line in the list:
+   every other stretch of time steps back. */
+.activity-block,
+.activity-subjects li { transition: opacity var(--motion-fast) var(--ease-out); }
+.activity-block.is-faded,
+.activity-subjects li.is-faded { opacity: 0.2; }
+
+.activity-figure { position: relative; }
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+
+.activity-row-label {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.activity-day-link {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  text-align: left;
+  color: var(--ink-soft);
+}
+
+.activity-day-link:hover { color: var(--accent); text-decoration: underline; }
+.activity-row.is-today .activity-row-label { color: var(--ink); font-weight: 600; }
+
+.activity-row-total {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-track {
+  position: relative;
+  height: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.activity-day .activity-track { height: 28px; }
+
+.activity-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+  opacity: 0.6;
+}
+
+.activity-now {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink-faint);
+}
+
+/* At least 3px wide, so a two-minute span is a mark that can be found and
+   hovered rather than a hairline. Touching blocks are kept apart by a gap
+   of the card's own colour, not by an outline. */
+.activity-block {
+  position: absolute;
+  top: 3px;
+  bottom: 0;
+  min-width: 3px;
+  border-radius: 3px 3px 0 0;
+  outline: 1px solid var(--card);
+}
+
+.activity-block:hover,
+.activity-block:focus-visible { filter: brightness(0.85); }
+
+.activity-axis {
+  position: relative;
+  height: 18px;
+  font-size: var(--fs-2xs);
+  color: var(--ink-faint);
+}
+
+.activity-axis span { position: absolute; top: 3px; transform: translateX(-50%); white-space: nowrap; }
+.activity-axis span:first-child { transform: none; }
+.activity-axis span:last-child { transform: translateX(-100%); }
+
+.activity-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.activity-weekday {
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  padding-bottom: 2px;
+}
+
+.activity-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 52px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+
+.activity-cell:hover { background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink-faint); }
+.activity-cell.is-outside { opacity: 0.45; }
+.activity-cell.is-today { box-shadow: inset 0 0 0 2px var(--ink); }
+.activity-cell-day { font-variant-numeric: tabular-nums; }
+.activity-cell-total { align-self: flex-end; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.activity-shade-1,
+.activity-cell.activity-shade-1:hover { background: var(--activity-heat-1); color: var(--ink); }
+.activity-shade-2,
+.activity-cell.activity-shade-2:hover { background: var(--activity-heat-2); color: var(--ink); }
+.activity-shade-3,
+.activity-cell.activity-shade-3:hover { background: var(--activity-heat-3); color: var(--ink); }
+.activity-shade-4,
+.activity-cell.activity-shade-4:hover { background: var(--activity-heat-4); color: var(--ink-inverse); }
+.activity-shade-5,
+.activity-cell.activity-shade-5:hover { background: var(--activity-heat-5); color: var(--ink-inverse); }
+
+.activity-scale {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+.activity-scale i { width: 14px; height: 14px; border-radius: 2px; }
+.activity-scale span:first-child { margin-right: 4px; }
+.activity-scale span:last-child { margin-left: 4px; }
+
+.activity-tip {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, calc(-100% - 8px));
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.activity-tip strong { color: var(--ink); font-family: var(--font-serif); font-size: var(--fs-sm); font-weight: normal; }
+
+.activity-subjects { margin-top: var(--space-5); }
+.activity-subjects .kicker { font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--ink-soft); font-variant: small-caps; letter-spacing: 0.04em; margin: 0 0 var(--space-2); }
+.activity-subjects ol { list-style: none; margin: 0; padding: 0; }
+
+.activity-subjects li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) minmax(40px, 120px) minmax(88px, max-content);
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.activity-subjects li a,
+.activity-subject-gone {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-subject-gone { color: var(--ink-faint); }
+.activity-subject-bar { height: 6px; }
+.activity-subject-bar i { display: block; height: 100%; border-radius: 0 3px 3px 0; }
+.activity-subject-time { text-align: right; white-space: nowrap; font-size: var(--fs-sm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+.activity-more {
+  margin-top: var(--space-2);
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--fs-sm);
+}
+
+.activity-empty { color: var(--ink-faint); font-size: var(--fs-sm); margin: var(--space-4) 0 0; }
+
+@media (max-width: 560px) {
+  .activity-panel .panel-head-row { flex-wrap: wrap; }
+  .activity-row { grid-template-columns: 48px minmax(0, 1fr) 40px; gap: 6px; }
+  .activity-cell { min-height: 40px; padding: 3px 4px; }
+  .activity-cell-total { font-size: var(--fs-2xs); }
+  .activity-subjects li { grid-template-columns: 10px minmax(0, 1fr) max-content; }
+  .activity-period { flex-wrap: wrap; }
+  .activity-period-tools { flex-basis: 100%; margin-left: 0; }
+  .activity-paper-row { grid-template-columns: minmax(0, 1fr) 40px; row-gap: 4px; }
+  .activity-paper-row .activity-paper-name { grid-column: 1 / -1; }
+  .activity-papers-head .activity-columns { grid-column: 1; }
+  .activity-papers-head > span:first-child { display: none; }
+  .activity-subject-bar { display: none; }
+}
+
+/* A paper's effort on its user's own nook: a small pill at the end of its
+   author line, the clock and the time on a tint of its level — five fixed
+   steps of the one-hue activity ramp, light to dark, so a glance down the
+   nook reads which papers took the most. The level is a measure, not a
+   goal, so it is a colour and a number and never a bar. It is a button,
+   and opens the paper's time (EffortPop), which carries the key. */
+.nook-effort-anchor { position: relative; display: inline-flex; }
+
+.nook-effort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 0;
+  margin: 0;
+  padding: 1px 7px 1px 5px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
+  box-shadow: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nook-effort:hover,
+.nook-effort[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--accent); }
+
+.effort-level-1 { background: var(--activity-heat-1); color: var(--ink); }
+.effort-level-2 { background: var(--activity-heat-2); color: var(--ink); }
+.effort-level-3 { background: var(--activity-heat-3); color: var(--ink); }
+.effort-level-4 { background: var(--activity-heat-4); color: var(--ink-inverse); }
+.effort-level-5 { background: var(--activity-heat-5); color: var(--ink-inverse); }
+
+.effort-levels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.effort-levels-scale { display: inline-flex; gap: 2px; }
+.effort-levels-scale i { width: 14px; height: 10px; border-radius: 2px; }
+.effort-levels-scale i.is-current { box-shadow: 0 0 0 1.5px var(--card), 0 0 0 3px var(--ink); }
+
+.nook-effort svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.effort-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -4px;
+  z-index: 40;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-3) var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.effort-pop .kicker { margin: 0; font-size: var(--fs-xs); font-variant: small-caps; letter-spacing: 0.04em; color: var(--ink-soft); }
+.effort-pop-head { display: flex; align-items: center; justify-content: space-between; }
+
+.effort-pop-close {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  color: var(--ink-faint);
+}
+
+.effort-pop-close:hover { color: var(--ink); background: var(--paper); }
+.effort-pop-total { margin: 2px 0 0; font-size: var(--fs-xl); color: var(--ink); font-variant-numeric: tabular-nums; }
+.effort-pop-note { margin: 2px 0 0; font-size: var(--fs-xs); color: var(--ink-faint); }
+
+/* Twelve weeks as twelve columns, Monday at the top: the month view's
+   shading, at a size that fits in the hand. */
+.effort-weeks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-columns: 12px;
+  gap: 3px;
+  margin-top: var(--space-3);
+}
+
+.effort-weeks i { border-radius: 2px; }
+.effort-weeks .activity-shade-0 { background: var(--paper-sunken); }
+.effort-weeks i.is-future { background: none; }
+
+.effort-pop .effort-pop-days-title { margin-top: var(--space-3); }
+.effort-pop-days { list-style: none; margin: var(--space-1) 0 0; padding: 0; }
+
+.effort-pop-days li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: var(--space-3);
+  white-space: nowrap;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.effort-pop-when { color: var(--ink-faint); }
+.effort-pop-when { overflow: hidden; text-overflow: ellipsis; }
+.effort-pop-time { text-align: right; color: var(--ink); }
+.effort-pop-link { display: inline-block; margin-top: var(--space-3); font-size: var(--fs-sm); }
+
+
+/* The author line as two items, the prose and the effort, centred on each
+   other: on the baseline, the smaller upright face rode low beside the
+   serif italic. It wraps under the authors when they fill the line. */
+.paper-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+}
+
+
+
 .local-setting-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

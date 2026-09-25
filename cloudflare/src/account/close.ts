@@ -72,6 +72,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   // forgotten by the replicas; then the row itself.
   const counted: [string, D1PreparedStatement][] = [
     ["annotations", statement(db, "DELETE FROM annotations WHERE user_uuid = ?", user.uuid)],
+    ["activity", statement(db, "DELETE FROM activity WHERE user_uuid = ?", user.uuid)],
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
     ["papers_in_nook", statement(db, "DELETE FROM copies WHERE user_uuid = ?", user.uuid)],
     ["tags", statement(db, "DELETE FROM tags WHERE user_uuid = ?", user.uuid)],

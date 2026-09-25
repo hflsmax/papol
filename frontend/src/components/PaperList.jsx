@@ -9,6 +9,7 @@ import HintPop from './HintPop';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 import { contextMenuHandler } from '../../../shared/contextMenu';
+import Effort from './EffortPop';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
@@ -289,10 +290,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   </span>
                 )}
                 </div>
-                <p className="paper-meta">
-                  {formatAuthors(paper.authors)}
-                  {paper.year && ` (${paper.year})`}
-                  {paper.journal && ` - ${paper.journal}`}
+                <p className="paper-meta paper-meta-row">
+                  <span>
+                    {formatAuthors(paper.authors)}
+                    {paper.year && ` (${paper.year})`}
+                    {paper.journal && ` - ${paper.journal}`}
+                  </span>
+                  <Effort effort={paper.effort} subject={paper.sha256} />
                 </p>
                 <RatingSummary paper={paper} compact />
               </div>

@@ -51,6 +51,22 @@ export const designTokens = `
   --identity-4: #6b3f5e;
   --identity-5: #4b4f7a;
 
+  /* Activity — which paper a stretch of time went to: four hues that stay
+     distinct from one another, every pair, for colour-blind eyes too; the
+     papers past four share --activity-other. How much time a day held, or a
+     paper's effort level, is one hue, light to dark; steps 4 and 5 carry
+     --ink-inverse text. */
+  --activity-paper-1: #2a78d6;
+  --activity-paper-2: #eb6834;
+  --activity-paper-3: #1baf7a;
+  --activity-paper-4: #4a3aa7;
+  --activity-other: #b4becb;
+  --activity-heat-1: #e1e9f3;
+  --activity-heat-2: #bccfe5;
+  --activity-heat-3: #88a9cf;
+  --activity-heat-4: #5580b3;
+  --activity-heat-5: #2b4a6f;
+
   /* Typography */
   --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
