@@ -8,10 +8,15 @@ Six new things in Papol, most useful first.
 
 ## 1. Intelligent link navigation
 
-Click "Figure 4" and the figure fills your window. A link to "Section 3.2"
-opens at its heading, at a size you can read. A footnote mark takes you to
-its note. Every jump leaves **Back to page …** (or press `[`), so you never
-lose your place.
+In most PDF viewers, clicking "Figure 4" drops you somewhere on the right
+page, if the link works at all. You scroll and zoom to find the figure, and
+then scroll back to find where you were.
+
+Papol reads the paper itself, so its figures, tables, sections and footnotes
+become links even where the publisher made none. Each jump lands on the
+content itself, not just the page: the figure is centred and zoomed to fill
+your window, and a section opens at its heading in its own column, at a size
+you can read. **Back to page …** (or `[`) takes you back to where you were.
 
 ![Following a link to Fig. 4: the figure fills the window, with "Back to page 20" at the bottom](img/figure-link.png)
 
