@@ -120,7 +120,7 @@ const cancel = async () => {
 };
 
 const unread = () => browser.evaluate("return document.body.innerText.includes('could not read the PDF');");
-const sentToHelper = async (file) => (await helper('/__seen')).filter((r) => r.sha256 === file.sha256 && r.path === '/helper/header');
+const sentToHelper = async (file) => (await helper('/__seen')).filter((r) => r.sha256 === file.sha256 && /^\/helper\/header(?:-rules)?$/.test(r.path));
 
 try {
   const me = await account(`uploader-${suffix}@papol.test`, 'Una Uploader');
