@@ -156,6 +156,9 @@ try {
   await browser.signIn({ token: fx.sharer.token, accountUuid: fx.sharer.uuid, origin: fx.base });
   await browser.navigate(fx.nook_url);
   await viewerReady();
+  // The annotations arrive after the first page is painted; on a slow
+  // runner, reading the page at once can come before the clip does.
+  await browser.waitFor('document.querySelector(".paper-clip")', { timeout: 10_000, what: 'the clip to be drawn' }).catch(() => {});
   const nook = await browser.evaluate(`return {
     errorBar: document.querySelector('.error-bar, .error')?.textContent?.trim() ?? null,
     clip: !!document.querySelector('.paper-clip'),
