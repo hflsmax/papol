@@ -56,7 +56,14 @@ const snapshot = () => browser.evaluate(`
     tools: !!(document.querySelector('[aria-label="Clipper"]')
       && document.querySelector('[aria-label="Brush"]')),
     buttons: [...document.querySelectorAll('button')].map(b => b.textContent.trim()).filter(Boolean),
-    signInWall: /sign in to papol|please sign in/i.test(document.body.innerText),
+    // A wall is a page that will not read without an account. The offer a
+    // link opens with is not one: it floats over the reading, which goes on.
+    signInWall: (() => {
+      const page = document.body.cloneNode(true);
+      page.querySelector('.sign-in-offer')?.remove();
+      return /sign in to papol|please sign in/i.test(page.textContent);
+    })(),
+    signInOffer: !!document.querySelector('.sign-in-offer'),
   };`);
 
 const clickText = (text) => browser.evaluate(`
@@ -93,6 +100,9 @@ try {
   check('the whole tool bar is there', s.bar && s.tools);
   check('the paper is offered', s.buttons.includes('Add to nook'),
     JSON.stringify(s.buttons.slice(0, 12)));
+  check('they are invited to sign in', s.signInOffer);
+  check('and can say "Not now"', await clickText('Not now'));
+  check('which puts the invitation away', !(await snapshot()).signInOffer);
 
   console.log('\n== The same visitor follows a lean link ==');
   await browser.navigate(fx.lean_url);
@@ -102,6 +112,7 @@ try {
   check('it names nobody', s.attribution === null, String(s.attribution));
   check('and carries none of the annotations', !s.annotationsInDom, 'a lean link leaked the note');
   check('the paper is still offered', s.buttons.includes('Add to nook'));
+  check('and they are invited to sign in again', s.signInOffer);
 
   console.log('\n== A signed-in user takes the shared paper ==');
   const before = await (await api(`/shared/${fx.rich}/nook`, fx.user.token)).json();
@@ -109,6 +120,7 @@ try {
   await browser.signIn({ token: fx.user.token, accountUuid: fx.user.uuid, origin: fx.base });
   await browser.navigate(fx.rich_url);
   await viewerReady();
+  check('someone signed in is not invited to', !(await snapshot()).signInOffer);
   check('"Add to nook" is pressed', await clickText('Add to nook'));
   let added = null;
   for (let i = 0; i < 40 && !added; i += 1) {

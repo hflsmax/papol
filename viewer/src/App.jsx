@@ -631,6 +631,9 @@ export default function App() {
   // Kept apart from the sign-in step so clicking away can hide the prompt
   // without cancelling a sign-in already under way in the Desk window.
   const [nookPromptOpen, setNookPromptOpen] = useState(false);
+  // The invitation a visitor with no account sees when a link opens. Offered
+  // once per opening; putting it away is final for this page.
+  const [signInOffer, setSignInOffer] = useState(false);
   // This user's own copy of the paper in front of them, when they keep
   // one. What turns "add to nook" into "show in nook": the offer should be
   // the one they can still act on.
@@ -1115,7 +1118,17 @@ export default function App() {
   // shared it with anyone.
   const fromALink = Boolean(paper?.shared_kind);
 
-  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip;
+  // A link reads without an account, but what a visitor can do with the
+  // paper — keep it, write on it — starts with one. So the link says so
+  // once, as it opens, and the reading goes on behind it either way.
+  const offeredSignIn = useRef(false);
+  useEffect(() => {
+    if (!fromALink || offeredSignIn.current || signedInHere()) return;
+    offeredSignIn.current = true;
+    setSignInOffer(true);
+  }, [fromALink]);
+
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer;
 
   // Everything hung from the paper menu is the same kind of transient
   // window, even though the contents differ. A click beyond the menu puts
@@ -1125,6 +1138,7 @@ export default function App() {
     setPaperInfoOpen(false);
     setNookPromptOpen(false);
     setPdfViewerTip(false);
+    setSignInOffer(false);
   }, { escape: false });
 
   useDismiss(learnLinkNavigation, learnLinkTipRef,
@@ -1361,6 +1375,7 @@ export default function App() {
         setPaperInfoOpen(false);
         setNookPromptOpen(false);
         setPdfViewerTip(false);
+        setSignInOffer(false);
         return;
       }
       if (e.key === 'Escape' && selectedClipUuid != null) {
@@ -3398,6 +3413,18 @@ export default function App() {
     setNookPromptOpen(true);
     requestSignIn().catch(() => setNookStep('ask'));
   };
+  // Signing in from the offer a link opens with, which asks for nothing
+  // more: on the web the visitor comes back to this link, and on the
+  // desktop the Desk window does it while the reading stays where it is.
+  const signInFromOffer = () => {
+    setSignInOffer(false);
+    if (!IS_DESKTOP) {
+      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+      window.location.assign(appPath(`/signin?next=${encodeURIComponent(back)}`));
+      return;
+    }
+    requestSignIn().catch(() => {});
+  };
   // Signing in happens in the Desk window. This window hears of it when
   // the account is written to shared storage, or when it is focused again.
   useEffect(() => {
@@ -3957,6 +3984,7 @@ export default function App() {
                 setPaperInfoOpen((open) => !open);
                 setNookPromptOpen(false);
                 setPdfViewerTip(false);
+                setSignInOffer(false);
               }}
               aria-expanded={paperInfoOpen}
               aria-haspopup="dialog"
@@ -4021,7 +4049,23 @@ export default function App() {
                 </div>
               </div>
             )}
-            {pdfViewerTip && nookStep === 'idle' && !paperInfoOpen && (
+            {signInOffer && nookStep === 'idle' && !nookPromptOpen && !paperInfoOpen && (
+              <div className="paper-info-pop nook-ask sign-in-offer" role="dialog" aria-labelledby="sign-in-offer-title" data-tauri-drag-region="false">
+                <button type="button" className="dismiss-button card-x" onClick={() => setSignInOffer(false)} aria-label="Close" title="Close">
+                  ×
+                </button>
+                <strong id="sign-in-offer-title">Sign in to Papol</strong>
+                <p>
+                  Sign in to keep this paper in your nook and write your own notes, ink and clips on it.
+                  You can read it without an account.
+                </p>
+                <div className="nook-ask-actions">
+                  <button type="button" onClick={() => setSignInOffer(false)}>Not now</button>
+                  <button type="button" className="primary" onClick={signInFromOffer}>Sign in</button>
+                </div>
+              </div>
+            )}
+            {pdfViewerTip && nookStep === 'idle' && !paperInfoOpen && !signInOffer && (
               <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="pdf-viewer-tip-title">
                 <strong id="pdf-viewer-tip-title">Use Papol as your default PDF viewer?</strong>
                 <span className="pdf-viewer-tip-actions">

@@ -25,8 +25,8 @@ runtime-generated lands in the repository.
 What it covers:
 
 - a **rich** link opens for a visitor with no account, names the user whose
-  reading it is, carries their annotations, keeps the whole tool bar, and offers the
-  paper;
+  reading it is, carries their annotations, keeps the whole tool bar, offers the
+  paper, and invites them to sign in in a card that "Not now" puts away;
 - a **lean** link opens the same way, names nobody, and carries none of the
   marks;
 - a signed-in user presses **Add to nook**, the copy lands on the shared
