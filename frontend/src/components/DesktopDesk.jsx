@@ -413,8 +413,8 @@ export function DesktopBrowser({
               type="button"
               className="desktop-toolbar-button"
               onClick={() => setComposer('folder')}
-              title="Add a folder from an agent"
-              aria-label="Add a folder from an agent"
+              title="Add a folder"
+              aria-label="Add a folder"
             >
               <Glyph name="folder" />
             </button>

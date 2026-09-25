@@ -7,7 +7,6 @@ import {
   uploadPaper,
 } from '../../../shared/api/papers.js';
 import appLimits from '../../../shared/appLimits.js';
-import { appPath } from '../../../shared/appUrls.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { savedFile } from '../uploadReview.js';
@@ -47,7 +46,6 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
   const [newShelfName, setNewShelfName] = useState('');
   const [availableTags, setAvailableTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [copied, setCopied] = useState(null);
   const [dragging, setDragging] = useState(false);
   const rowsRef = useRef(rows);
   const stop = useRef(new AbortController());
@@ -160,31 +158,6 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
     if (!folder) void open(filesInFolder(incomingFolder.entry));
   }, [incomingFolder]);
 
-  const copy = async (text, target) => {
-    let ok = true;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      ok = false;
-    }
-    setCopied({ target, ok });
-    window.setTimeout(() => setCopied(null), 1800);
-  };
-  // The page the instructions point to, for an agent that cannot open
-  // it: read from this app's own copy, which the desktop bundle carries
-  // too, so it is the same text and needs no network.
-  const copyFullFormat = async () => {
-    try {
-      const response = await fetch(appPath('/agent-folder.txt'));
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await copy(await response.text(), 'full');
-    } catch {
-      setCopied({ target: 'full', ok: false });
-      window.setTimeout(() => setCopied(null), 1800);
-    }
-  };
-  const copyLabel = (target, label) => (copied?.target === target ? (copied.ok ? 'Copied!' : 'Copy failed') : label);
-
   const add = async () => {
     setSaving(true);
     setError(null);
@@ -250,23 +223,12 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
     };
     return (
       <div className="panel folder-import">
-        <h3>Add a folder from an agent</h3>
+        <h3>Add a folder</h3>
         <p className="folder-import-lede">
-          Ask your agent to gather the PDFs of a review into one folder, then drop the folder here.
-          You choose the shelf and the tags when it arrives.
+          Ask your agent to gather the PDFs of a literature review into one folder, then drop the folder here.
+          You choose the shelf and the tags when they arrive. You may use the prompt below.
         </p>
-        <div className="folder-import-instructions">
-          <pre>{agentInstructions()}</pre>
-          <div className="folder-import-copy">
-            <button type="button" className="primary" onClick={() => copy(agentInstructions(), 'short')}>
-              {copyLabel('short', 'Copy instructions for your agent')}
-            </button>
-            <button type="button" className="link-button" onClick={copyFullFormat}>
-              {copyLabel('full', 'Copy the full format')}
-            </button>
-          </div>
-          <p className="hint">For an agent that cannot open web pages, paste the full format instead.</p>
-        </div>
+        <pre className="folder-import-instructions">{agentInstructions()}</pre>
         <div
           className={`dropzone folder-dropzone${dragging ? ' dragging' : ''}`}
           onDragOver={(event) => { event.preventDefault(); setDragging(true); }}

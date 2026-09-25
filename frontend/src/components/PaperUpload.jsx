@@ -472,7 +472,7 @@ export default function PaperUpload({
       </div>
       {onAddFolder && !isLoading && (
         <button type="button" className="link-button add-folder-link" onClick={onAddFolder}>
-          Add a folder from an agent…
+          Add a folder
         </button>
       )}
       {error && <div className="error" role="alert">{error}</div>}
