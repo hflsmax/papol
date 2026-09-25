@@ -62,6 +62,9 @@ export default function PapersPage({
   // A folder from an agent, being brought in (FolderImport), in place of
   // the one-paper upload.
   const [addingFolder, setAddingFolder] = useState(false);
+  // What the upload box handed over to it: a folder dropped on it, or
+  // several PDFs dropped or chosen together; null when only opened.
+  const [folderRequest, setFolderRequest] = useState(null);
 
   const load = () => {
     // Boards are secondary here: if that list fails, the papers still show.
@@ -110,16 +113,19 @@ export default function PapersPage({
       {currentUser && addingFolder && (
         <FolderImport
           currentUser={currentUser}
-          incomingFolder={incomingPaperFolder}
+          incomingFolder={incomingPaperFolder ?? folderRequest}
           onIncomingFolderHandled={onIncomingPaperFolderHandled}
           onReportableError={onReportableError}
           onAdded={load}
-          onClose={() => { setAddingFolder(false); load(); }}
+          onClose={() => { setAddingFolder(false); setFolderRequest(null); load(); }}
         />
       )}
       {currentUser && !addingFolder && (
         <PaperUpload
-          onAddFolder={() => setAddingFolder(true)}
+          onAddFolder={(incoming) => {
+            setFolderRequest(incoming && { uuid: globalThis.crypto.randomUUID(), ...incoming });
+            setAddingFolder(true);
+          }}
           onReportableError={onReportableError}
           onPaperCreated={(paper) => {
             if (paper?.sha256 != null) onSelectPaper(paper.sha256);

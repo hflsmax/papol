@@ -40627,6 +40627,16 @@ function parseXml(xml, options) {
 
 // ../../cloudflare/src/papers/identifiers.ts
 var ARXIV_ID = /(?:arXiv\s*:\s*|arxiv\s*\.\s*org\s*\/\s*abs\s*\/\s*)((?:\d{4}\s*\.\s*\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\s*\/\s*\d{7})(?:v\d+)?)/i;
+var DOI = /10\.\d{4,9}\/[^\s\])>"]+/gi;
+function extractDoi(text2) {
+  let fallback = null;
+  for (const match of text2.matchAll(DOI)) {
+    const candidate = match[0].replace(/[.,;:]+$/, "");
+    fallback = fallback ?? candidate;
+    if (/\d/.test(candidate.split("/", 2)[1] ?? "")) return candidate;
+  }
+  return fallback;
+}
 function extractArxivId(text2) {
   const match = ARXIV_ID.exec(text2);
   return match ? match[1].replace(/\s+/g, "") : null;
@@ -40671,8 +40681,8 @@ function parse(xml) {
 var SMALL_WORDS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via", "with", "without", "yet"]);
 function normalizeTitle(title) {
   if (!title) return title;
-  const letters = title.replace(/[^A-Za-z]/g, "");
-  if (!letters || letters !== letters.toUpperCase()) return title;
+  const letters2 = title.replace(/[^A-Za-z]/g, "");
+  if (!letters2 || letters2 !== letters2.toUpperCase()) return title;
   const parts = title.match(/[A-Za-z]+|[^A-Za-z]+/g) ?? [];
   const wordIndexes = parts.map((p2, i2) => /^[A-Za-z]+$/.test(p2) ? i2 : -1).filter((i2) => i2 >= 0);
   const first = wordIndexes[0], last = wordIndexes[wordIndexes.length - 1];
@@ -41072,7 +41082,7 @@ function lineOf(runs, page) {
       chars.push({ run: index, at: at2 });
     }
   });
-  const letters = body.filter((r2) => new RegExp("\\p{L}", "u").test(r2.text));
+  const letters2 = body.filter((r2) => new RegExp("\\p{L}", "u").test(r2.text));
   return {
     page,
     index: 0,
@@ -41085,7 +41095,7 @@ function lineOf(runs, page) {
     bottom: most(runs.map((r2) => r2.baseline + r2.size * 0.22)),
     baseline,
     size,
-    bold: letters.length > 0 && letters.every((r2) => r2.bold),
+    bold: letters2.length > 0 && letters2.every((r2) => r2.bold),
     column: "",
     furniture: false
   };
@@ -41702,6 +41712,129 @@ var CITE_LABEL = rule({
   pattern: /\[(?<list>[A-Z][A-Za-z0-9+.'’-]{1,24}(?:\s*,\s*[A-Z][A-Za-z0-9+.'’-]{1,24})*)\]/,
   matches: ["[Knu84]", "[Knu84, GHV95]"],
   rejects: ["[12]", "[a, b]"]
+});
+var HEADER_TITLE = rule({
+  id: "header.title",
+  stage: "header",
+  summary: "The title is the largest text in the top two thirds of the first page, larger than the body, with the lines set in that size directly under it.",
+  why: "Every publisher sets the title as the page's largest words; a CHORUS or arXiv cover line above it is set smaller."
+});
+var HEADER_NOT_TITLE = rule({
+  id: "header.not-title",
+  stage: "header",
+  summary: "A banner, a notice or an identifier line is never the title, however large it is set.",
+  why: 'Accepted manuscripts open with "This is the accepted manuscript\u2026", journals with "ARTICLE" or "Open access", and some set these large.',
+  pattern: /^\s*(?:this is (?:the|an) |accepted manuscript|research article|article$|articles?\s*\||letter$|review article|open access|original (?:research|article)|check for updates|arxiv:|doi:?\s|https?:\/\/|www\.|received\b|published\b|copyright|©|proceedings of|journal of|vol(?:ume|\.)\s*\d|contents lists)/i,
+  matches: ["This is the accepted manuscript made available via CHORUS.", "ARTICLE", "Check for updates", "arXiv:2411.15100v2 [cs.CL] 22 Nov 2024", "https://doi.org/10.1038/s41586-021-03623-y"],
+  rejects: ["Mechanical computing", "Articulated origami", "Letters from the field"]
+});
+var HEADER_SUBTITLE = rule({
+  id: "header.subtitle",
+  stage: "header",
+  summary: "A line set smaller than the title, directly under it, that is neither names nor an affiliation nor prose, is its subtitle.",
+  why: "ACM sets a paper's subtitle on its own line under the title, in a smaller size; Crossref has the two joined by a colon."
+});
+var HEADER_RUNNING_TITLE = rule({
+  id: "header.running-title",
+  stage: "header",
+  summary: "Where the first page has no title in text, the running head of the next pages that is not a page number, a journal or the names is the title.",
+  why: "A scanned paper (Lamport's Byzantine Generals) has its title as a picture but the journal's running head in text."
+});
+var HEADER_MASTHEAD = rule({
+  id: "header.masthead",
+  stage: "header",
+  summary: `An Elsevier masthead \u2014 "Contents lists available at ScienceDirect" over the journal's name over "journal homepage" \u2014 names the journal, and nothing in it is the title.`,
+  why: "Elsevier sets the journal's name larger than the paper's title.",
+  pattern: /contents lists available at|journal homepage\s*:/i,
+  matches: ["Contents lists available at ScienceDirect", "journal homepage: www.elsevier.com/locate/cag"],
+  rejects: ["Computers & Graphics"]
+});
+var HEADER_CITE_THIS = rule({
+  id: "header.cite-this",
+  stage: "header",
+  summary: `A cover sheet's "To cite this article:" line names the authors and the year, before the title's own page.`,
+  why: `IOP Publishing puts a cover sheet with other papers' names in "You may also like" before the paper; its citation line is the one to trust.`,
+  pattern: /to cite this article\s*:\s*(?<authors>.+?)\s+(?<year>(?:19|20)\d\d)\b/i,
+  matches: ["To cite this article: David H Wolpert and Jan Korbel 2026 J. Phys. Complex. 7 015001"],
+  rejects: ["View the article online for updates and enhancements."]
+});
+var HEADER_AUTHORS = rule({
+  id: "header.authors",
+  stage: "header",
+  summary: 'The authors are the names in the lines under the title, before the abstract: separated by commas, "and", "&", affiliation marks or a wide gap, each two to five capitalized words or initials.',
+  why: 'ACM sets one "NAME, Affiliation" per line, Nature a comma list with superscript affiliations, ML papers names apart with only their marks between.'
+});
+var HEADER_AFFILIATION = rule({
+  id: "header.affiliation",
+  stage: "header",
+  summary: "A part of an author line that names an institution, a place or an address is an affiliation, not a person.",
+  why: "Affiliations share the author lines, split by the same commas as the names.",
+  pattern: /\b(?:univ(?:ersit[a-zé]+|\.)|institut[a-z]*|inst\.|department|dept\b|school|college|laborator[a-z]+|lab|labs|cent(?:er|re)|academy|hospital|faculty|research|corporation|inc|ltd|gmbh|technolog[a-z]+|sciences?|engineering|polytechni[a-z]+|eth|epfl|mit|csail|cnrs|inria|max planck|microsoft|google|deepmind|meta|nvidia|amazon|ibm|intel|apple|sri international|usa|u\.s\.a|united (?:states|kingdom)|uk|china|japan|germany|france|canada|korea|italy|spain|switzerland|netherlands|australia|singapore|israel|india|sweden|denmark|austria|belgium|email|e-mail)\b|@/i,
+  matches: ["Yale University", "USA", "Department of Mechanical Engineering", "Max Planck Institute for Software Systems", "SRI International", "Carnegie Mellon University", "MIT CSAIL"],
+  rejects: ["Yuting Wang", "Hiromi Yasuda", "Philip R. Buskohl", "Marshall Pease"]
+});
+var HEADER_ABSTRACT = rule({
+  id: "header.abstract",
+  stage: "header",
+  summary: "The author block ends at the abstract: its heading, or a line of running prose.",
+  why: "Below the names come affiliations, then the abstract; nothing in or after the abstract is an author.",
+  pattern: /^\s*(?:abstract|a b s t r a c t|a r t i c l e|summary|introduction|keywords|key words|index terms|ccs concepts|categories and subject descriptors|general terms|additional key words|1\.?\s+introduction)\b/i,
+  matches: ["ABSTRACT", "Abstract\u2014We present", "1 INTRODUCTION", "CCS Concepts: \u2022 Software", "a r t i c l e i n f o", "Additional Key Words and Phrases: Interactive consistency"],
+  rejects: ["Abstracting away the stack", "Arthur Azevedo de Amorim"]
+});
+var HEADER_JOURNAL_LINE = rule({
+  id: "header.journal-line",
+  stage: "header",
+  summary: `A running line that gives a journal's name, then its year or volume \u2014 "Nature Communications | (2024)15:3510", "Nature | Vol 598" \u2014 names the journal and its year.`,
+  why: "Nature's journals print the citation of the paper in every page's footer or header.",
+  pattern: /^\s*(?<journal>[A-Z][A-Za-z&.' ]{2,60}?)\s*\|\s*(?:\((?<year>(?:19|20)\d\d)\)\s*\d|vol(?:ume)?\b)/i,
+  matches: ["Nature Communications | (2024)15:3510", "NATURE COMMUNICATIONS | (2019) 10:882 | https://doi.org/10.1038/s41467-019-08678-0", "Nature | Vol 598 | 7 October 2021", "Nature Computational Science | Volume 4 | August 2024 | 567\u2013573"],
+  rejects: ["Article | Open access", "Received: 9 July 2023"]
+});
+var HEADER_JOURNAL_VOLUME = rule({
+  id: "header.journal-volume",
+  stage: "header",
+  summary: "A running head in capitals that gives a journal's name, its volume, the page and the year in parentheses names the journal and its year.",
+  why: 'APS heads every page "PHYSICAL REVIEW E 100, 063001 (2019)".',
+  pattern: /^\s*(?<journal>[A-Z][A-Z .&:]{5,60}?)\s+\d{1,4},\s*\d+\s*\((?<year>(?:19|20)\d\d)\)/,
+  matches: ["PHYSICAL REVIEW E 100, 063001 (2019)", "PHYSICAL REVIEW LETTERS 122, 155501 (2019)"],
+  rejects: ["Phys. Rev. Lett. 122, 155501 \u2014 Published 19 April 2019"]
+});
+var HEADER_PROCEEDINGS = rule({
+  id: "header.proceedings",
+  stage: "header",
+  summary: `The proceedings an ACM reference paragraph on the first page names \u2014 "In Proceedings of the \u2026 (CHI '23)" \u2014 are the paper's venue.`,
+  why: "ACM conference papers print how to cite them on their first page; the venue there is the name Crossref keeps.",
+  pattern: /\bIn (?<venue>Proceedings of the .{10,180}?)\s*\((?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d\)/,
+  matches: ["2023. All-in-One Print. In Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems (CHI '23), April 23\u201328, 2023"],
+  rejects: ["Proceedings of the ACM on Programming Languages"]
+});
+var HEADER_JOURNAL_ABBREVIATION = rule({
+  id: "header.journal-abbreviation",
+  stage: "header",
+  summary: `A journal's abbreviation printed in a first page's citation line ("Proc. ACM Program. Lang.", "Phys. Rev. Lett.", "PNAS") stands for the journal's name.`,
+  why: "ACM, APS and PNAS print only the abbreviation; the name is what Crossref and the form keep.",
+  pattern: /\b(?<abbr>Proc\. ACM Program\. Lang\.|ACM Trans\. Graph\.|Phys\. Rev\. Lett\.|Phys\. Rev\. [A-Z]\b|PNAS\b|Proc\. Natl\. Acad\. Sci\.)/,
+  matches: ["Proc. ACM Program. Lang., Vol. 3, No. POPL, Article 62. Publication date: January 2019.", "Phys. Rev. Lett. 122, 155501 \u2014 Published 19 April 2019", "PNAS 2025 Vol. 122 No. 24"],
+  rejects: ["Proceedings of the ACM on Programming Languages"]
+});
+var HEADER_YEAR_LATE = rule({
+  id: "header.year-late",
+  stage: "header",
+  summary: 'Where no date of publication is printed, the year of a "YYYY, Vol." line or, last, of acceptance.',
+  why: 'SAGE heads its first page "2025, Vol. 36(18-19)"; Nature Communications gives only received and accepted dates on it.',
+  pattern: /(?:^|\n)\s*(?<vol>(?:19|20)\d\d),\s*Vol\.|accepted\W{0,3}(?:\d{1,2}\s+)?(?:[A-Z][a-z]+\.?\s+)?(?:\d{1,2},?\s+)?(?<accepted>(?:19|20)\d\d)\b/i,
+  matches: ["2025, Vol. 36(18-19) 1266\u20131268", "Accepted: 16 March 2026", "Accepted 8 April 2024"],
+  rejects: ["Received: 9 July 2023"]
+});
+var HEADER_YEAR = rule({
+  id: "header.year",
+  stage: "header",
+  summary: "The year is the one a publication date, a copyright or a published-online line on the first page gives; an arXiv number's own year where there is none.",
+  why: 'ACM prints "Publication date: January 2019", Nature "Published online: 6 October 2021", APS "\u2014 Published 19 April 2019", most a \xA9 line.',
+  pattern: /(?:publication date|published(?: online)?|available online|©|copyright|\(c\)|Ó the author\(s\))\W{0,3}(?:[A-Za-z]+\.?\s+)?(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?(?:[A-Z][a-z]+\.?,?\s+)?(?:\d{1,2},?\s+)?(?<year>(?:19|20)\d\d)\b/i,
+  matches: ["Publication date: January 2019.", "Published online: 6 October 2021", "Phys. Rev. Lett. 122, 155501 \u2014 Published 19 April 2019", "\xA9 2023 Copyright held by the owner/author(s).", "Copyright \xA9 2022 ACM", "\xD3 The Author(s) 2025"],
+  rejects: ["Received: 12 May 2020", "Vol 598 | 7 October 2021"]
 });
 
 // src/rules/trace.ts
@@ -42660,8 +42793,8 @@ function findSections(layout2, skip, floats, trace) {
       if (line.furniture || skip.has(line)) continue;
       const match = SECTION_HEADING.pattern.exec(line.text);
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
-      const letters = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
-      const set = letters(line.runs.filter((r2) => r2.bold)) > letters(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      const letters2 = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
+      const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf3(number))) continue;
@@ -42872,12 +43005,18 @@ function offsetsOf(text2, width, font) {
   }
   return offsets;
 }
-async function readPdf(bytes) {
+async function readPdf(bytes, { pages: limit } = {}) {
   const { OPS } = await getResolvedPDFJS();
   const proxy = await getDocumentProxy(new Uint8Array(bytes));
   const pages = [];
+  let info2 = { title: "", author: "" };
   try {
-    for (let number = 1; number <= proxy.numPages; number += 1) {
+    try {
+      const meta = (await proxy.getMetadata()).info;
+      info2 = { title: typeof meta?.Title === "string" ? meta.Title.trim() : "", author: typeof meta?.Author === "string" ? meta.Author.trim() : "" };
+    } catch {
+    }
+    for (let number = 1; number <= Math.min(proxy.numPages, limit ?? Infinity); number += 1) {
       const page = await proxy.getPage(number);
       const [left, bottom, right, top] = page.view;
       const content = await page.getTextContent();
@@ -42916,13 +43055,14 @@ async function readPdf(bytes) {
           italic: ITALIC.test(font)
         });
       }
-      pages.push({ number, width: right - left, height: top - bottom, runs, drawn });
+      const text2 = content.items.map((item) => "str" in item ? item.str : "").join(" ");
+      pages.push({ number, width: right - left, height: top - bottom, runs, drawn, text: text2 });
       page.cleanup();
     }
   } finally {
     await proxy.destroy?.();
   }
-  return { pages };
+  return { pages, info: info2 };
 }
 
 // src/rules/analyze.ts
@@ -42972,6 +43112,250 @@ async function analyzeWithRules(bytes) {
   };
 }
 
+// src/rules/header.ts
+var PAGES = 3;
+var LATEST_YEAR2 = (/* @__PURE__ */ new Date()).getUTCFullYear() + 1;
+async function headerWithRules(bytes) {
+  const doc = await readPdf(bytes, { pages: PAGES });
+  const trace = new Trace();
+  const laid = layout(doc);
+  const first = laid.pages[0];
+  const text2 = doc.pages.map((p2) => p2.text).join("\n");
+  const arxiv = extractArxivId(text2);
+  const doi = (extractDoi(doc.pages[0]?.text ?? "") ?? extractDoi(text2))?.toLowerCase() ?? null;
+  const empty = { title: null, authors: [], journal: null, year: null, doi, arxiv_id: arxiv };
+  if (!first) return { header: empty, trace };
+  let lines = inRows(first.lines.filter((l2) => !l2.furniture));
+  let journal = null;
+  const homepage = lines.find((l2) => HEADER_MASTHEAD.pattern.test(l2.text) && /homepage/i.test(l2.text));
+  if (homepage) {
+    const masthead = lines.filter((l2) => l2.bottom <= homepage.top && !HEADER_MASTHEAD.pattern.test(l2.text) && letters(l2.text) >= 3);
+    const name = masthead.sort((a2, b2) => b2.size - a2.size)[0];
+    if (name) {
+      journal = clean(name);
+      trace.add(HEADER_MASTHEAD.id, 1, journal, []);
+    }
+    lines = lines.filter((l2) => l2.top > homepage.top);
+  }
+  const titleLines = titleOf(lines, laid.bodySize, first.height);
+  let title = titleLines.length ? titleLines.map(clean).reduce(joinLine) : null;
+  let after = titleLines[titleLines.length - 1];
+  if (title) {
+    trace.add(HEADER_TITLE.id, 1, title, []);
+    const next = lines.find((l2) => l2.top > after.top);
+    if (next && isSubtitle(next, after, laid.bodySize)) {
+      title = `${title.replace(/[:.]$/, "")}: ${clean(next)}`;
+      trace.add(HEADER_SUBTITLE.id, 1, clean(next), []);
+      after = next;
+    }
+  } else {
+    title = runningTitle(laid.pages.slice(1), trace) ?? (plausibleInfoTitle(doc.info.title) ? doc.info.title : null);
+  }
+  const below = after ? lines.filter((l2) => l2.top > after.top) : lines;
+  const cited = HEADER_CITE_THIS.pattern.exec(lines.map((l2) => l2.text).join(" "));
+  let authors;
+  if (cited) {
+    authors = cited.groups.authors.split(/\s*(?:,|\band\b|&)\s*/).map((p2) => nameOf(p2)).filter((n2) => !!n2);
+    trace.add(HEADER_CITE_THIS.id, 1, cited[0], []);
+  } else authors = authorsOf(below, trace);
+  const pageOne = first.lines.map((l2) => l2.text).join("\n");
+  let lineYear = null;
+  for (const line of laid.pages.flatMap((p2) => p2.lines)) {
+    const rule2 = [HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME].find((r2) => r2.pattern.test(line.text));
+    if (!rule2) continue;
+    const found = rule2.pattern.exec(line.text);
+    const name = found.groups.journal.trim();
+    journal ??= name === name.toUpperCase() ? name.toLowerCase().replace(new RegExp("(^|\\s)\\p{L}", "gu"), (c2) => c2.toUpperCase()) : name;
+    lineYear ??= found.groups.year ? Number(found.groups.year) : null;
+    trace.add(rule2.id, 1, found[0], []);
+    if (lineYear) break;
+  }
+  const venue = HEADER_PROCEEDINGS.pattern.exec((doc.pages[0]?.text ?? "").replace(new RegExp("(\\p{L})- (\\p{Ll})", "gu"), "$1$2").replace(/\s+/g, " "));
+  if (!journal && venue) {
+    journal = venue.groups.venue;
+    trace.add(HEADER_PROCEEDINGS.id, 1, venue[0], []);
+  }
+  const abbreviated = HEADER_JOURNAL_ABBREVIATION.pattern.exec(pageOne)?.groups.abbr;
+  if (!journal && abbreviated) {
+    journal = JOURNALS[abbreviated] ?? (abbreviated.startsWith("Phys. Rev. ") ? `Physical Review ${abbreviated.slice(-1)}` : null);
+    trace.add(HEADER_JOURNAL_ABBREVIATION.id, 1, abbreviated, []);
+  }
+  const year = cited ? Number(cited.groups.year) : yearOf(pageOne, lineYear, arxiv, trace);
+  return { header: { title: normalizeTitle(title), authors, journal, year, doi, arxiv_id: arxiv }, trace };
+}
+var JOURNALS = {
+  "Proc. ACM Program. Lang.": "Proceedings of the ACM on Programming Languages",
+  "ACM Trans. Graph.": "ACM Transactions on Graphics",
+  "Phys. Rev. Lett.": "Physical Review Letters",
+  "PNAS": "Proceedings of the National Academy of Sciences",
+  "Proc. Natl. Acad. Sci.": "Proceedings of the National Academy of Sciences"
+};
+var letters = (s2) => (s2.match(new RegExp("\\p{L}", "gu")) ?? []).length;
+function clean(line) {
+  let out = "";
+  let prev = null;
+  for (const run of line.runs) {
+    if (run.sup || run.sub) continue;
+    const smallCaps = prev && Math.abs(prev.size - run.size) > 0.1 * line.size;
+    if (prev && run.x - (prev.x + prev.width) > (smallCaps ? 0.15 : 0.05) * line.size) out += " ";
+    out += run.text;
+    prev = run;
+  }
+  return out.replace(/\s+/g, " ").trim().replace(/\s*[*∗†‡§¶]+$/u, "");
+}
+var joinLine = (out, text2) => new RegExp("\\p{L}-$", "u").test(out) ? out.slice(0, -1) + text2 : `${out} ${text2}`;
+function allNames(line) {
+  const parts = splitAuthorLine(line);
+  const names = parts.filter((p2) => nameOf(p2)).length;
+  return names > 0 && parts.length > 1 && parts.every((p2) => nameOf(p2) || HEADER_AFFILIATION.pattern.test(p2));
+}
+function mostlyNames(line) {
+  const parts = splitAuthorLine(line).filter((p2) => new RegExp("\\p{L}{2}", "u").test(p2));
+  return parts.length > 0 && parts.filter((p2) => nameOf(p2)).length * 2 >= parts.length;
+}
+function inRows(lines) {
+  const sorted = [...lines].sort((a2, b2) => a2.top - b2.top);
+  const out = [];
+  let row = [];
+  for (const line of sorted) {
+    if (row.length && line.top - row[0].top > 0.6 * Math.min(line.size, row[0].size)) {
+      out.push(...row.sort((a2, b2) => a2.x0 - b2.x0));
+      row = [];
+    }
+    row.push(line);
+  }
+  return [...out, ...row.sort((a2, b2) => a2.x0 - b2.x0)];
+}
+function titleOf(lines, body, height) {
+  const underNames = (l2) => {
+    const above = lines[lines.indexOf(l2) - 1];
+    return !!above && allNames(above) && Math.abs(above.size - l2.size) < 0.05 * l2.size;
+  };
+  const candidates = lines.filter((l2) => l2.top < height * 0.7 && letters(l2.text) >= 3 && !HEADER_NOT_TITLE.pattern.test(l2.text) && !allNames(l2) && !underNames(l2));
+  const largest = Math.max(0, ...candidates.map((l2) => l2.size));
+  if (largest < body * 1.1) return [];
+  const same = (l2) => Math.abs(l2.size - largest) <= 0.05 * largest;
+  const start = candidates.find(same);
+  const block = [start];
+  for (const line of candidates) {
+    if (line.top <= start.top || !same(line)) continue;
+    if (line.top - block[block.length - 1].top > 2.2 * largest) break;
+    block.push(line);
+  }
+  return block;
+}
+function isSubtitle(line, title, body) {
+  const words = clean(line).split(" ");
+  return line.top - title.top <= 1.8 * title.size && line.size < title.size * 0.95 && line.size >= body * 0.95 && letters(line.text) >= 8 && !new RegExp("^\\p{Ll}", "u").test(words[0]) && (words.length >= 6 || words.some((w2) => new RegExp("^\\p{Ll}", "u").test(w2))) && !mostlyNames(line) && !HEADER_AFFILIATION.pattern.test(line.text) && !HEADER_NOT_TITLE.pattern.test(line.text) && !HEADER_ABSTRACT.pattern.test(line.text) && !isProse(line);
+}
+function runningTitle(pages, trace) {
+  for (const page of pages) {
+    for (const line of page.lines) {
+      if (!line.furniture || line.top > page.height * 0.12) continue;
+      const text2 = clean(line).replace(/^\s*\d+\s*[•·|]?\s*|\s*[•·|]?\s*\d+\s*$/g, "").trim();
+      if (letters(text2) < 8 || /\d|et al|\bvol\b|journal|transactions|proceedings|letters|\|/i.test(text2) || allNames(line)) continue;
+      trace.add(HEADER_RUNNING_TITLE.id, page.lines.indexOf(line), text2, []);
+      return text2;
+    }
+  }
+  return null;
+}
+function plausibleInfoTitle(title) {
+  return letters(title) >= 8 && /\s/.test(title) && !/\.(?:dvi|pdf|docx?|tex|indd)\b|microsoft word|untitled|^(?:title|paper|manuscript)$/i.test(title);
+}
+var PARTICLES = /* @__PURE__ */ new Set(["van", "von", "der", "den", "de", "del", "della", "di", "da", "dos", "du", "la", "le", "ter", "zu", "y", "bin", "al"]);
+function nameOf(part) {
+  const cleaned = part.replace(/[*∗†‡§¶✉✝#]+/gu, " ").replace(/\s+/g, " ").trim().replace(/^(?:and|&)\s+/i, "");
+  if (!cleaned || HEADER_AFFILIATION.pattern.test(cleaned) || /\d/.test(cleaned)) return null;
+  const words = cleaned.split(" ");
+  if (words.length < 2 || words.length > 5) return null;
+  if (words.some((w2) => new RegExp("^\\p{Lu}{2,}$", "u").test(w2)) && words.some((w2) => new RegExp("\\p{Ll}", "u").test(w2))) return null;
+  const ok = words.every((w2) => PARTICLES.has(w2.toLowerCase()) || new RegExp("^\\p{Lu}[\\p{L}'\u2019.-]*$", "u").test(w2) || new RegExp("^(?:\\p{Lu}\\.){1,3}-?(?:\\p{Lu}\\.)?$", "u").test(w2));
+  if (!ok || !words.some((w2) => letters(w2) >= 2 && !/\.$/.test(w2))) return null;
+  const plain = cleaned.replace(/[^\p{L}]/gu, "");
+  return plain === plain.toUpperCase() ? words.map((w2) => new RegExp("^(?:\\p{Lu}\\.)+$", "u").test(w2) ? w2 : w2.toLowerCase().replace(new RegExp("(^|[-'\u2019])\\p{L}", "gu"), (m2) => m2.toUpperCase())).join(" ") : cleaned;
+}
+var ACCENTS = { "\xB4": "\u0301", "`": "\u0300", "\u02C6": "\u0302", "\u02DC": "\u0303", "\xA8": "\u0308", "\u02D8": "\u0306", "\u02C7": "\u030C", "\u02DA": "\u030A", "\u02DD": "\u030B" };
+var VOWEL = /[aeiouyAEIOUY]/;
+function foldAccents(text2) {
+  let out = text2.replace(new RegExp("([stcSTC])\\s?,\\s?(?=\\p{Ll})", "gu"), (_2, c2) => `${c2}\u0326`).replace(/([cC])¸/g, "$1\u0327");
+  out = out.replace(new RegExp("(\\p{L})?\\s?([\xB4`\u02C6\u02DC\xA8\u02D8\u02C7\u02DA\u02DD])\\s?(\\p{L})?", "gu"), (m2, before, accent, after) => {
+    const mark = ACCENTS[accent];
+    if (after && VOWEL.test(after) && !(before && VOWEL.test(before))) return `${before ?? ""}${after}${mark}`;
+    if (before) return `${before}${mark}${after ?? ""}`;
+    if (after) return `${after}${mark}`;
+    return m2;
+  });
+  return out.normalize("NFC");
+}
+function splitAuthorLine(line) {
+  let text2 = "";
+  line.runs.forEach((run, i2) => {
+    if (i2 > 0) {
+      const prev = line.runs[i2 - 1];
+      const gap = run.x - (prev.x + prev.width);
+      text2 += run.sup || run.sub || prev.sup || prev.sub || gap > 1.2 * line.size ? " , " : gap > 0.15 * line.size ? " " : "";
+    }
+    text2 += run.sup || run.sub ? "" : run.text;
+  });
+  return foldAccents(text2).split(/\s*(?:,|;|\band\b|&|\s·\s|\s•\s)\s*/u).map((p2) => p2.trim()).filter(Boolean);
+}
+function isProse(line) {
+  const words = line.text.split(/\s+/).filter((w2) => new RegExp("\\p{L}", "u").test(w2));
+  if (words.length < 10) return false;
+  const lower = words.filter((w2) => new RegExp("^\\p{Ll}", "u").test(w2) && !PARTICLES.has(w2) && w2 !== "and").length;
+  return lower / words.length > 0.4;
+}
+function authorsOf(lines, trace) {
+  const names = [];
+  let looked = 0;
+  for (const line of lines) {
+    if (HEADER_ABSTRACT.pattern.test(line.text)) {
+      trace.add(HEADER_ABSTRACT.id, 1, line.text, []);
+      break;
+    }
+    if (isProse(line)) {
+      if (names.length) break;
+      continue;
+    }
+    if (++looked > 40) break;
+    const opening = splitAuthorLine(line).find((p2) => new RegExp("\\p{L}{2}", "u").test(p2));
+    if (opening && !nameOf(opening) && !HEADER_AFFILIATION.pattern.test(opening) && opening.split(" ").length >= 3) continue;
+    let named = false;
+    for (const part of splitAuthorLine(line)) {
+      if (HEADER_AFFILIATION.pattern.test(part)) break;
+      const name = nameOf(part);
+      if (!name) {
+        if (named) break;
+        continue;
+      }
+      named = true;
+      if (!names.includes(name)) {
+        names.push(name);
+        trace.add(HEADER_AUTHORS.id, 1, name, []);
+      }
+    }
+  }
+  return names;
+}
+function yearOf(text2, lineYear, arxiv, trace) {
+  const plausible = (y2) => y2 !== null && y2 >= 1900 && y2 <= LATEST_YEAR2;
+  const published = HEADER_YEAR.pattern.exec(text2);
+  if (published && plausible(Number(published.groups.year))) {
+    trace.add(HEADER_YEAR.id, 1, published[0], []);
+    return Number(published.groups.year);
+  }
+  if (plausible(lineYear)) return lineYear;
+  const late = HEADER_YEAR_LATE.pattern.exec(text2);
+  const lateYear = late ? Number(late.groups.vol ?? late.groups.accepted) : null;
+  if (plausible(lateYear)) {
+    trace.add(HEADER_YEAR_LATE.id, 1, late[0], []);
+    return lateYear;
+  }
+  const yymm = arxiv?.match(/^(\d{2})(\d{2})\./);
+  return yymm ? 2e3 + Number(yymm[1]) : null;
+}
+
 // src/service.ts
 var Refusal = class extends Error {
   constructor(status, message) {
@@ -43005,6 +43389,14 @@ async function analyzeByRules(bytes) {
   if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
   try {
     return (await analyzeWithRules(bytes)).analysis;
+  } catch (error) {
+    throw new Refusal(422, `The PDF could not be read: ${error.message}`);
+  }
+}
+async function headerByRules(bytes) {
+  if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
+  try {
+    return (await headerWithRules(bytes)).header;
   } catch (error) {
     throw new Refusal(422, `The PDF could not be read: ${error.message}`);
   }
@@ -43099,10 +43491,11 @@ async function paperOf(request, options) {
 async function answer(grobid, request, options) {
   const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
-  if (path !== "/analyze" && path !== "/analyze-rules" && path !== "/header") throw new Refusal(404, "No such endpoint");
+  if (!["/analyze", "/analyze-rules", "/header", "/header-rules"].includes(path)) throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
   if (path === "/analyze-rules") return [200, await analyzeByRules(bytes)];
+  if (path === "/header-rules") return [200, await headerByRules(bytes)];
   return [200, path === "/analyze" ? await analyze(grobid, bytes) : await header(grobid, bytes)];
 }
 function createServer(grobid, log = console.log, options = {}) {

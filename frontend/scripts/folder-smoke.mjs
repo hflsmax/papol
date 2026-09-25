@@ -83,7 +83,10 @@ function folderFixture(server) {
         ]);
         createRoot(document.getElementById('test-root')).render(React.createElement(FolderImport, {
           currentUser: {uuid: 'u-1'},
-          incomingFolder: {uuid: 'drop-1', entry},
+          // ?loose: two PDFs dropped together, with no folder around them.
+          incomingFolder: location.search.includes('loose')
+            ? {uuid: 'drop-2', files: [pdf('attention.pdf'), pdf('mine.pdf', '\\n')]}
+            : {uuid: 'drop-1', entry},
           onClose: () => { window.closed = true; },
           onAdded: () => { window.added = true; },
           onReportableError: (error, area) => { window.reported = area + ': ' + (error?.message || error); },
@@ -161,7 +164,14 @@ try {
   assert.equal(await browser.evaluate('return window.added === true && !window.reported;'), true);
   listed = await rows();
   assert.equal(listed[0].status, 'Added');
-  console.log('folder: the manifest orders and annotates the review, the nook\'s own PDF is skipped unsent, missing and PDF-less works are listed, and the user\'s shelf and tag file the batch');
+  // PDFs dropped together come through the same review, unnamed, with
+  // the agent's prompt offered, folded, since there is no manifest.
+  await browser.navigate(`http://127.0.0.1:${port}/__folder_test?loose`);
+  await browser.waitFor("document.body.innerText.includes('Already in your nook')", { what: 'the loose PDFs\' review' });
+  assert.equal(await browser.evaluate('return document.querySelector(".folder-import h3").textContent;'), 'Papers to add');
+  assert.equal(await browser.evaluate('return document.querySelectorAll(".folder-row").length;'), 2);
+  assert.equal(await browser.evaluate('return !!document.querySelector("details.folder-agent-hint:not([open]) pre");'), true);
+  console.log('folder: the manifest orders and annotates the review, the nook\'s own PDF is skipped unsent, missing and PDF-less works are listed, the user\'s shelf and tag file the batch, and loose PDFs come through the same review with the prompt offered');
 } catch (error) {
   await browser.capture('folder-smoke');
   throw error;

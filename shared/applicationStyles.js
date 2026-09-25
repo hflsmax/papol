@@ -950,14 +950,17 @@ button.full-width {
 .upload-section.compact .dropzone p { margin: 0; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.35; }
 .upload-section.compact .error { position: absolute; z-index: 10; width: min(360px, 100%); margin-top: 6px; }
 
-/* A folder from an agent (FolderImport): the instructions to hand over,
-   then the folder's review, one quiet row per paper. */
-.upload-section > .add-folder-link { display: block; margin: -12px auto 20px; font-size: var(--fs-sm); }
+/* A folder from an agent (FolderImport): the prompt to hand over, then
+   the folder's review, one quiet row per paper. */
+.dropzone .add-folder { white-space: nowrap; }
+.dropzone .add-folder-link { font-family: inherit; line-height: inherit; vertical-align: baseline; }
+.folder-agent-hint { margin: 10px 0 0; font-size: var(--fs-sm); color: var(--ink-soft); }
+.folder-agent-hint summary { cursor: pointer; }
+.folder-agent-hint .folder-import-instructions { margin: 8px 0 0; }
 .folder-import h3 { margin: 0; }
 .folder-import-lede { margin: 8px 0 14px; color: var(--ink-soft); }
-.folder-import-instructions { margin-bottom: 16px; }
-.folder-import-instructions pre {
-  margin: 0 0 10px;
+.folder-import-instructions {
+  margin: 0 0 16px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -966,8 +969,6 @@ button.full-width {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.folder-import-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.folder-import-instructions .hint { margin: 6px 0 0; color: var(--ink-faint); font-size: var(--fs-sm); }
 .folder-rows { list-style: none; margin: 14px 0; padding: 0; border-top: 1px solid var(--line); }
 .folder-row {
   display: grid;
@@ -4501,7 +4502,15 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-link-placeholder > span:first-child { color: var(--accent); font-size: 24px; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img,
-.board-canvas-card.bilibili img { height: auto; max-height: none; object-fit: initial; background: transparent; }
+.board-canvas-card.bilibili img { aspect-ratio: 16 / 9; height: auto; max-height: none; object-fit: cover; background: transparent; }
+/* A link card is one size whatever it links to: the picture in the same
+   16:9 frame as the placeholder (a page from its top), the title in two
+   lines' room. */
+.board-canvas-card.webpage img { object-position: top; }
+.board-canvas-card:is(.webpage, .youtube, .bilibili) .board-youtube-description {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+  box-sizing: content-box; height: 2lh;
+}
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
 .board-canvas-file { display: flex; align-items: center; gap: 10px; width: auto; margin: 0; padding: 16px 14px; overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
 .board-canvas-file > span:first-child { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--accent-soft); }

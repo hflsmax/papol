@@ -614,7 +614,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       const { x, y } = freeSpot(boardPointFromClient(
         bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
         bounds, viewRef.current, { x: 150, y: 100 },
-      ), isVideo ? DEFAULT_CARD_WIDTH : 480);
+      ));
       const loadingUuid = `${Date.now()}-${Math.random()}`;
       const loadingItem = { uuid: loadingUuid, x, y, label: isVideo ? 'Loading video frame…' : 'Capturing webpage…' };
       urlLoadingRef.current = [...urlLoadingRef.current, loadingItem];

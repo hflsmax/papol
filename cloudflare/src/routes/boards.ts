@@ -406,7 +406,7 @@ export function boardRoutes(router: Router) {
     const given = validate.checking().string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
     const url = publicWebUrl(given);
     const hostname = new URL(url).hostname;
-    const item = newItem(board, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)!, width: 480 });
+    const item = newItem(board, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
     const job = enqueue(env.DB, WEBPAGE, { item_uuid: item.uuid, url }, { userUuid: user.uuid });
     await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, user.uuid, true), touched(env, board), job.statement]);
     await wake(env, [job.uuid]);
