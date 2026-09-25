@@ -101,7 +101,12 @@ try {
   check('the paper is offered', s.buttons.includes('Add to nook'),
     JSON.stringify(s.buttons.slice(0, 12)));
   check('they are invited to sign in', s.signInOffer);
-  check('and can say "Not now"', await clickText('Not now'));
+  // The card's own "Not now": on a Mac the handoff bar offers one too.
+  check('and can say "Not now"', await browser.evaluate(`
+    const hit = document.querySelector('.sign-in-offer .nook-ask-actions button:not(.primary)');
+    if (!hit) return false;
+    hit.click();
+    return true;`));
   check('which puts the invitation away', !(await snapshot()).signInOffer);
 
   console.log('\n== The same visitor follows a lean link ==');
