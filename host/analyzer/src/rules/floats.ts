@@ -132,6 +132,13 @@ function proseOn(page: Page, type: Type): Set<Line> {
   for (const l of candidates) {
     if (full.some((f) => f.baseline < l.baseline && stepped(f, l) && Math.abs(f.x0 - l.x0) <= l.size)) prose.add(l);
     if (full.some((f) => f.baseline > l.baseline && stepped(f, l) && Math.abs(f.x1 - l.x1) <= 1 && l.x0 > f.x0)) prose.add(l);
+    // And the last line of a paragraph carried over from the column
+    // before, opening its column: no text line above it in the column (a
+    // title or an author list across both is not the column's), set at the
+    // column's edge, ending a sentence.
+    const inColumn = (o: Line) => o.x0 >= l.x0 - 1 && o.x1 <= l.x0 + type.measure + l.size;
+    if (/[.?!:]\s*$/.test(l.text) && !candidates.some((o) => o.baseline < l.baseline && across(rectOf(o), rectOf(l)) && inColumn(o))
+      && (full.some((f) => f.baseline > l.baseline && Math.abs(f.x0 - l.x0) <= 1) || type.columns.some((c) => Math.abs(c.x0 - l.x0) <= 1.5))) prose.add(l);
   }
   // And a paragraph in any font: three lines or more, each a line's
   // spacing under the last, sharing both edges — an abstract, a sidebar's
@@ -207,8 +214,11 @@ function captionParagraph(first: Line, page: Page, captions: Set<Line>, type: Ty
     for (;;) {
       const prev = lines[lines.length - 1];
       // A rule drawn between two lines ends the paragraph (an algorithm's
-      // caption, and the algorithm under its rule).
-      const ruled = (l: Line) => page.drawn.some((d) => d.h < 1.5 && d.y >= prev.baseline && d.y <= l.top && d.x < l.x1 && d.x + d.w > l.x0);
+      // caption, and the algorithm under its rule) — a rule, at least half
+      // the paragraph's width, not a legend's swatch drawn in the text
+      // ("with standard Eggbox (red line)").
+      const ruled = (l: Line) => page.drawn.some((d) => d.h < 1.5 && d.y >= prev.baseline && d.y <= l.top && d.x < l.x1 && d.x + d.w > l.x0
+        && d.w >= 0.5 * (span.x1 - span.x0));
       const next = page.lines.filter((l) => !l.furniture && !captions.has(l) && !lines.includes(l) && sameSize(l.size, first.size)
         && l.baseline > prev.baseline + 0.5 * first.size && l.baseline - prev.baseline <= 1.6 * first.size && across(rectOf(l), span) && !ruled(l));
       if (!next.length) return lines;
