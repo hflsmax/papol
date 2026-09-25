@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "mention" | "bibliography" | "entry" | "field" | "citation";
+export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "mention" | "bibliography" | "entry" | "field" | "citation" | "header";
 
 export interface Rule {
   id: string;
@@ -436,4 +436,117 @@ export const CITE_LABEL = rule({
   pattern: /\[(?<list>[A-Z][A-Za-z0-9+.'’-]{1,24}(?:\s*,\s*[A-Z][A-Za-z0-9+.'’-]{1,24})*)\]/,
   matches: ["[Knu84]", "[Knu84, GHV95]"],
   rejects: ["[12]", "[a, b]"],
+});
+
+// ---------------------------------------------------------------- header
+// The title block on a paper's first page: what the upload form fills in
+// when no index knows the paper (src/rules/header.ts).
+
+export const HEADER_TITLE = rule({
+  id: "header.title", stage: "header",
+  summary: "The title is the largest text in the top two thirds of the first page, larger than the body, with the lines set in that size directly under it.",
+  why: "Every publisher sets the title as the page's largest words; a CHORUS or arXiv cover line above it is set smaller.",
+});
+export const HEADER_NOT_TITLE = rule({
+  id: "header.not-title", stage: "header",
+  summary: "A banner, a notice or an identifier line is never the title, however large it is set.",
+  why: "Accepted manuscripts open with \"This is the accepted manuscript…\", journals with \"ARTICLE\" or \"Open access\", and some set these large.",
+  pattern: /^\s*(?:this is (?:the|an) |accepted manuscript|research article|article$|articles?\s*\||letter$|review article|open access|original (?:research|article)|check for updates|arxiv:|doi:?\s|https?:\/\/|www\.|received\b|published\b|copyright|©|proceedings of|journal of|vol(?:ume|\.)\s*\d|contents lists)/i,
+  matches: ["This is the accepted manuscript made available via CHORUS.", "ARTICLE", "Check for updates", "arXiv:2411.15100v2 [cs.CL] 22 Nov 2024", "https://doi.org/10.1038/s41586-021-03623-y"],
+  rejects: ["Mechanical computing", "Articulated origami", "Letters from the field"],
+});
+export const HEADER_SUBTITLE = rule({
+  id: "header.subtitle", stage: "header",
+  summary: "A line set smaller than the title, directly under it, that is neither names nor an affiliation nor prose, is its subtitle.",
+  why: "ACM sets a paper's subtitle on its own line under the title, in a smaller size; Crossref has the two joined by a colon.",
+});
+export const HEADER_RUNNING_TITLE = rule({
+  id: "header.running-title", stage: "header",
+  summary: "Where the first page has no title in text, the running head of the next pages that is not a page number, a journal or the names is the title.",
+  why: "A scanned paper (Lamport's Byzantine Generals) has its title as a picture but the journal's running head in text.",
+});
+export const HEADER_MASTHEAD = rule({
+  id: "header.masthead", stage: "header",
+  summary: "An Elsevier masthead — \"Contents lists available at ScienceDirect\" over the journal's name over \"journal homepage\" — names the journal, and nothing in it is the title.",
+  why: "Elsevier sets the journal's name larger than the paper's title.",
+  pattern: /contents lists available at|journal homepage\s*:/i,
+  matches: ["Contents lists available at ScienceDirect", "journal homepage: www.elsevier.com/locate/cag"],
+  rejects: ["Computers & Graphics"],
+});
+export const HEADER_CITE_THIS = rule({
+  id: "header.cite-this", stage: "header",
+  summary: "A cover sheet's \"To cite this article:\" line names the authors and the year, before the title's own page.",
+  why: "IOP Publishing puts a cover sheet with other papers' names in \"You may also like\" before the paper; its citation line is the one to trust.",
+  pattern: /to cite this article\s*:\s*(?<authors>.+?)\s+(?<year>(?:19|20)\d\d)\b/i,
+  matches: ["To cite this article: David H Wolpert and Jan Korbel 2026 J. Phys. Complex. 7 015001"],
+  rejects: ["View the article online for updates and enhancements."],
+});
+export const HEADER_AUTHORS = rule({
+  id: "header.authors", stage: "header",
+  summary: "The authors are the names in the lines under the title, before the abstract: separated by commas, \"and\", \"&\", affiliation marks or a wide gap, each two to five capitalized words or initials.",
+  why: "ACM sets one \"NAME, Affiliation\" per line, Nature a comma list with superscript affiliations, ML papers names apart with only their marks between.",
+});
+export const HEADER_AFFILIATION = rule({
+  id: "header.affiliation", stage: "header",
+  summary: "A part of an author line that names an institution, a place or an address is an affiliation, not a person.",
+  why: "Affiliations share the author lines, split by the same commas as the names.",
+  pattern: /\b(?:univ(?:ersit[a-zé]+|\.)|institut[a-z]*|inst\.|department|dept\b|school|college|laborator[a-z]+|lab|labs|cent(?:er|re)|academy|hospital|faculty|research|corporation|inc|ltd|gmbh|technolog[a-z]+|sciences?|engineering|polytechni[a-z]+|eth|epfl|mit|csail|cnrs|inria|max planck|microsoft|google|deepmind|meta|nvidia|amazon|ibm|intel|apple|sri international|usa|u\.s\.a|united (?:states|kingdom)|uk|china|japan|germany|france|canada|korea|italy|spain|switzerland|netherlands|australia|singapore|israel|india|sweden|denmark|austria|belgium|email|e-mail)\b|@/i,
+  matches: ["Yale University", "USA", "Department of Mechanical Engineering", "Max Planck Institute for Software Systems", "SRI International", "Carnegie Mellon University", "MIT CSAIL"],
+  rejects: ["Yuting Wang", "Hiromi Yasuda", "Philip R. Buskohl", "Marshall Pease"],
+});
+export const HEADER_ABSTRACT = rule({
+  id: "header.abstract", stage: "header",
+  summary: "The author block ends at the abstract: its heading, or a line of running prose.",
+  why: "Below the names come affiliations, then the abstract; nothing in or after the abstract is an author.",
+  pattern: /^\s*(?:abstract|a b s t r a c t|a r t i c l e|summary|introduction|keywords|key words|index terms|ccs concepts|categories and subject descriptors|general terms|additional key words|1\.?\s+introduction)\b/i,
+  matches: ["ABSTRACT", "Abstract—We present", "1 INTRODUCTION", "CCS Concepts: • Software", "a r t i c l e i n f o", "Additional Key Words and Phrases: Interactive consistency"],
+  rejects: ["Abstracting away the stack", "Arthur Azevedo de Amorim"],
+});
+export const HEADER_JOURNAL_LINE = rule({
+  id: "header.journal-line", stage: "header",
+  summary: "A running line that gives a journal's name, then its year or volume — \"Nature Communications | (2024)15:3510\", \"Nature | Vol 598\" — names the journal and its year.",
+  why: "Nature's journals print the citation of the paper in every page's footer or header.",
+  pattern: /^\s*(?<journal>[A-Z][A-Za-z&.' ]{2,60}?)\s*\|\s*(?:\((?<year>(?:19|20)\d\d)\)\s*\d|vol(?:ume)?\b)/i,
+  matches: ["Nature Communications | (2024)15:3510", "NATURE COMMUNICATIONS | (2019) 10:882 | https://doi.org/10.1038/s41467-019-08678-0", "Nature | Vol 598 | 7 October 2021", "Nature Computational Science | Volume 4 | August 2024 | 567–573"],
+  rejects: ["Article | Open access", "Received: 9 July 2023"],
+});
+export const HEADER_JOURNAL_VOLUME = rule({
+  id: "header.journal-volume", stage: "header",
+  summary: "A running head in capitals that gives a journal's name, its volume, the page and the year in parentheses names the journal and its year.",
+  why: "APS heads every page \"PHYSICAL REVIEW E 100, 063001 (2019)\".",
+  pattern: /^\s*(?<journal>[A-Z][A-Z .&:]{5,60}?)\s+\d{1,4},\s*\d+\s*\((?<year>(?:19|20)\d\d)\)/,
+  matches: ["PHYSICAL REVIEW E 100, 063001 (2019)", "PHYSICAL REVIEW LETTERS 122, 155501 (2019)"],
+  rejects: ["Phys. Rev. Lett. 122, 155501 — Published 19 April 2019"],
+});
+export const HEADER_PROCEEDINGS = rule({
+  id: "header.proceedings", stage: "header",
+  summary: "The proceedings an ACM reference paragraph on the first page names — \"In Proceedings of the … (CHI '23)\" — are the paper's venue.",
+  why: "ACM conference papers print how to cite them on their first page; the venue there is the name Crossref keeps.",
+  pattern: /\bIn (?<venue>Proceedings of the .{10,180}?)\s*\((?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d\)/,
+  matches: ["2023. All-in-One Print. In Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems (CHI '23), April 23–28, 2023"],
+  rejects: ["Proceedings of the ACM on Programming Languages"],
+});
+export const HEADER_JOURNAL_ABBREVIATION = rule({
+  id: "header.journal-abbreviation", stage: "header",
+  summary: "A journal's abbreviation printed in a first page's citation line (\"Proc. ACM Program. Lang.\", \"Phys. Rev. Lett.\", \"PNAS\") stands for the journal's name.",
+  why: "ACM, APS and PNAS print only the abbreviation; the name is what Crossref and the form keep.",
+  pattern: /\b(?<abbr>Proc\. ACM Program\. Lang\.|ACM Trans\. Graph\.|Phys\. Rev\. Lett\.|Phys\. Rev\. [A-Z]\b|PNAS\b|Proc\. Natl\. Acad\. Sci\.)/,
+  matches: ["Proc. ACM Program. Lang., Vol. 3, No. POPL, Article 62. Publication date: January 2019.", "Phys. Rev. Lett. 122, 155501 — Published 19 April 2019", "PNAS 2025 Vol. 122 No. 24"],
+  rejects: ["Proceedings of the ACM on Programming Languages"],
+});
+export const HEADER_YEAR_LATE = rule({
+  id: "header.year-late", stage: "header",
+  summary: "Where no date of publication is printed, the year of a \"YYYY, Vol.\" line or, last, of acceptance.",
+  why: "SAGE heads its first page \"2025, Vol. 36(18-19)\"; Nature Communications gives only received and accepted dates on it.",
+  pattern: /(?:^|\n)\s*(?<vol>(?:19|20)\d\d),\s*Vol\.|accepted\W{0,3}(?:\d{1,2}\s+)?(?:[A-Z][a-z]+\.?\s+)?(?:\d{1,2},?\s+)?(?<accepted>(?:19|20)\d\d)\b/i,
+  matches: ["2025, Vol. 36(18-19) 1266–1268", "Accepted: 16 March 2026", "Accepted 8 April 2024"],
+  rejects: ["Received: 9 July 2023"],
+});
+export const HEADER_YEAR = rule({
+  id: "header.year", stage: "header",
+  summary: "The year is the one a publication date, a copyright or a published-online line on the first page gives; an arXiv number's own year where there is none.",
+  why: "ACM prints \"Publication date: January 2019\", Nature \"Published online: 6 October 2021\", APS \"— Published 19 April 2019\", most a © line.",
+  pattern: /(?:publication date|published(?: online)?|available online|©|copyright|\(c\)|Ó the author\(s\))\W{0,3}(?:[A-Za-z]+\.?\s+)?(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?(?:[A-Z][a-z]+\.?,?\s+)?(?:\d{1,2},?\s+)?(?<year>(?:19|20)\d\d)\b/i,
+  matches: ["Publication date: January 2019.", "Published online: 6 October 2021", "Phys. Rev. Lett. 122, 155501 — Published 19 April 2019", "© 2023 Copyright held by the owner/author(s).", "Copyright © 2022 ACM", "Ó The Author(s) 2025"],
+  rejects: ["Received: 12 May 2020", "Vol 598 | 7 October 2021"],
 });

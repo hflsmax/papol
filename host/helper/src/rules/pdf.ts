@@ -41,10 +41,16 @@ export interface Page {
   height: number;
   runs: Run[];
   drawn: Drawn[];
+  // Every item's text, rotated ones too, joined as the browser joins them
+  // to look for an identifier (shared/identifiers.js): arXiv prints its
+  // number up the margin.
+  text: string;
 }
 
 export interface Doc {
   pages: Page[];
+  // The PDF's own Info dictionary, where its maker filled it in.
+  info: { title: string; author: string };
 }
 
 // Bold, as fonts name it: "Bold", "Semibold", "Medi" (Nimbus), "cmbx"
@@ -151,13 +157,20 @@ export function offsetsOf(text: string, width: number, font: Map<string, number>
   return offsets;
 }
 
-export async function readPdf(bytes: Uint8Array): Promise<Doc> {
+// `pages`, when given, reads only that many from the front: a title block
+// is on the first.
+export async function readPdf(bytes: Uint8Array, { pages: limit }: { pages?: number } = {}): Promise<Doc> {
   const { OPS } = await getResolvedPDFJS();
   // pdf.js takes ownership of the buffer it is given.
   const proxy = await getDocumentProxy(new Uint8Array(bytes));
   const pages: Page[] = [];
+  let info = { title: "", author: "" };
   try {
-    for (let number = 1; number <= proxy.numPages; number += 1) {
+    try {
+      const meta = (await proxy.getMetadata()).info as { Title?: unknown; Author?: unknown };
+      info = { title: typeof meta?.Title === "string" ? meta.Title.trim() : "", author: typeof meta?.Author === "string" ? meta.Author.trim() : "" };
+    } catch { /* a PDF with no readable Info dictionary has none */ }
+    for (let number = 1; number <= Math.min(proxy.numPages, limit ?? Infinity); number += 1) {
       const page = await proxy.getPage(number);
       const [left, bottom, right, top] = page.view;
       const content = await page.getTextContent();
@@ -197,11 +210,12 @@ export async function readPdf(bytes: Uint8Array): Promise<Doc> {
           italic: ITALIC.test(font),
         });
       }
-      pages.push({ number, width: right - left, height: top - bottom, runs, drawn });
+      const text = (content.items as TextItem[]).map((item) => ("str" in item ? item.str : "")).join(" ");
+      pages.push({ number, width: right - left, height: top - bottom, runs, drawn, text });
       page.cleanup();
     }
   } finally {
     await (proxy as unknown as { destroy?: () => Promise<void> }).destroy?.();
   }
-  return { pages };
+  return { pages, info };
 }

@@ -134,6 +134,31 @@ describe("what a PDF says about itself", () => {
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
   });
 
+  it("finds the work a title block with no identifier names, by its title, as GROBID's Crossref lookup did", async () => {
+    const account = await register();
+    const ticket = await (await upload(account, "ion.pdf", "%PDF-1.4 no identifier printed")).json<any>();
+    const searched: string[] = [];
+    apis({
+      "grobid.test": () => titleBlock({ title: "Metamaterial Mechanisms", authors: ["Alexandra Ion", "Patrick Baudisch"], year: 2016 }),
+      "api.crossref.org": (url) => { searched.push(url.searchParams.get("query.bibliographic") ?? ""); return Response.json({ message: { items: [crossrefWork.message] } }); },
+    });
+    await woken(ticket.job);
+    expect(searched).toEqual([expect.stringContaining("Metamaterial Mechanisms")]);
+    expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result)
+      .toMatchObject({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms", journal: "Proceedings of UIST '16", year: 2016 });
+
+    // A different work by a like title is not taken: the title block stays.
+    const other = await (await upload(account, "other.pdf", "%PDF-1.4 another unprinted")).json<any>();
+    apis({
+      "grobid.test": () => titleBlock({ title: "Graph Attention Networks", authors: ["P. Velickovic"], year: 2018 }),
+      "api.crossref.org": () => Response.json({ message: { items: [crossrefWork.message] } }),
+      "api.openalex.org": () => Response.json({ results: [] }),
+    });
+    await woken(other.job);
+    expect((await ok("GET", `/api/jobs/${other.job}`, { headers: account.headers })).result)
+      .toMatchObject({ doi: null, title: "Graph Attention Networks", year: 2018 });
+  });
+
   it("asks the registry that holds a DOI, and OpenAlex only when CrossRef itself cannot answer", async () => {
     // Who was asked, in order, for one lookup.
     const route = (answers: Record<string, () => Response>) => {
