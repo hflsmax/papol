@@ -952,7 +952,11 @@ button.full-width {
 
 /* A folder from an agent (FolderImport): the prompt to hand over, then
    the folder's review, one quiet row per paper. */
-.upload-section > .add-folder-link { display: block; margin: -12px auto 20px; font-size: var(--fs-sm); }
+.dropzone .add-folder { white-space: nowrap; }
+.dropzone .add-folder-link { font-family: inherit; line-height: inherit; vertical-align: baseline; }
+.folder-agent-hint { margin: 10px 0 0; font-size: var(--fs-sm); color: var(--ink-soft); }
+.folder-agent-hint summary { cursor: pointer; }
+.folder-agent-hint .folder-import-instructions { margin: 8px 0 0; }
 .folder-import h3 { margin: 0; }
 .folder-import-lede { margin: 8px 0 14px; color: var(--ink-soft); }
 .folder-import-instructions {

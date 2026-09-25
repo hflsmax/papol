@@ -126,6 +126,9 @@ export function DesktopBrowser({
   const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'folder' | 'board'
+  // What the paper composer's upload box handed to the folder's: a folder
+  // or several PDFs dropped or chosen there.
+  const [folderRequest, setFolderRequest] = useState(null);
   const [draggingSha256, setDraggingSha256] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
@@ -299,7 +302,10 @@ export function DesktopBrowser({
             }}
             incomingFile={incomingPaperFile}
             onIncomingFileHandled={onIncomingPaperFileHandled}
-            onAddFolder={() => setComposer('folder')}
+            onAddFolder={(incoming) => {
+              setFolderRequest(incoming && { uuid: globalThis.crypto.randomUUID(), ...incoming });
+              setComposer('folder');
+            }}
           />
         </div>
       </div>
@@ -310,12 +316,13 @@ export function DesktopBrowser({
         <div className="desktop-content">
           <FolderImport
             currentUser={currentUser}
-            incomingFolder={incomingPaperFolder}
+            incomingFolder={incomingPaperFolder ?? folderRequest}
             onIncomingFolderHandled={onIncomingPaperFolderHandled}
             onReportableError={onReportableError}
             onAdded={reload}
             onClose={() => {
               setComposer(null);
+              setFolderRequest(null);
               reload();
             }}
           />
