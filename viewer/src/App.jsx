@@ -3936,8 +3936,8 @@ export default function App() {
                 the one thing a lean link is meant not to do. What is left
                 is the paper, which the bar is already showing. */}
             {sharedReading && (
-              <span className="shared-reading" title="A reading someone shared with you">
-                {userName ? `${userName}’s reading` : 'A shared reading'}
+              <span className="shared-reading" title="Annotations someone shared with you">
+                {userName ? `Showing ${userName}’s annotations` : 'Showing shared annotations'}
               </span>
             )}
             <button
