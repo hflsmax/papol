@@ -9,7 +9,7 @@ Each directory holds:
 
 - `letter.md`: the letter as it reads, with its screenshots from `img/`.
   GitHub renders it in the pull request.
-- `img/`: the screenshots, cropped to what each paragraph is about.
+- `img/`: a GIF of each feature in use (`scripts/feature-letter/record.mjs`).
 
 Sending is the owner's. How a letter is drafted is in
 `.claude/skills/feature-letter/SKILL.md`.

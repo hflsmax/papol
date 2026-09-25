@@ -11,24 +11,24 @@ faster. Here are this week's new features, the most useful first.
 
 ## 1. Intelligent link navigation
 
-In an ordinary PDF reader, clicking "Figure 4" takes you to its page, and you
+In an ordinary PDF reader, clicking "Figure 7" takes you to its page, and you
 scroll and zoom to find the figure. In Papol, the figure appears centred and
 zoomed to fill your window, even in a two-column paper. A section link opens
 at its heading, in its column, at a size you can read, and tables, footnotes
 and algorithms open the same way. To return to where you were reading, click
 the **Back to page** button at the bottom or press `[`.
 
-![Following a link to Fig. 4: the figure fills the window, with "Back to page 20" at the bottom](img/figure-link.png)
+![In a two-column paper, clicking "Figure 7" brings the figure to the middle of the window, zoomed to fill it; Back to page 7 returns to the paragraph](img/link-navigation.gif)
 
 ## 2. Reverse citation
 
-To see how a paper uses one source, you normally search for "[18]" and hope
-you catch every mention. In Papol, click **[18]** and a card tells you
-"Cited 4 times in this paper"; ↑ and ↓ take you to each place while the card
+To see how a paper uses one source, you normally search for "[47]" and hope
+you catch every mention. In Papol, click **[47]** and a card tells you
+"Cited 7 times in this paper"; ↑ and ↓ take you to each place while the card
 stays put. Press Esc or click away to stay where you are, or press `[` to
 return to where you started.
 
-![A citation card exploring the third of four places a work is cited, on page 7](img/citation-card.png)
+![Clicking [47] opens its card, "Cited 7 times in this paper"; the arrows step through each place, from page 3 to page 8](img/reverse-citation.gif)
 
 ## 3. Folder Drop
 
@@ -40,7 +40,7 @@ each with its reason saved as a private note on your copy; papers you
 already have are skipped, and ones it couldn't get are listed for you to
 find. Choose a shelf and tags, and the whole review is in your library.
 
-![Reviewing the agent's folder "Transformers review": one new paper with its note, one missing, one behind a paywall, one already in the nook](img/folder-review.png)
+![The folder "Transformers review" dropped on the upload box: one new paper with the agent's note, one behind a paywall, one already in the nook, then Add 1 paper](img/folder-drop.gif)
 
 ## 4. Tiny links
 
@@ -59,7 +59,7 @@ See how much of your week went to reading. **My activity** on your profile
 shows your reading time by day, week or month, and for each paper. Only you
 can see it.
 
-![My activity: 7 h 46 min reading 6 papers this week](img/activity.png)
+![My activity by week, by month, paper by paper, and for one day](img/reading-log.gif)
 
 ---
 

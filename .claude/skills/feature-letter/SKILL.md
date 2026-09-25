@@ -49,10 +49,30 @@ test names like `A. Sharer` or `6c221b` suffixes in a prominent place,
 "Before/After (this PR)" labels, or a half-drawn page; prefer a crop that
 shows the one thing the paragraph is about.
 
-## 4. Missing pictures
+## 4. GIFs
 
-For a component the frontend smokes already render, photograph it with
-the application's styles and a pretend server — no account needed:
+Each feature gets a short GIF of it in use, recorded with:
+
+```sh
+node scripts/feature-letter/record.mjs "$CLAUDE_JOB_DIR/tmp/letter/gifs" [scene ...]
+```
+
+A scene in `scripts/feature-letter/scenes.mjs` is a page, what to get
+ready off camera, and what the reader does on camera, played with a drawn
+pointer, real mouse and key events, and a folder the pointer can carry.
+Reading scenes use a real paper on papol.io by its hash, a lean link that
+needs no account. Pick one that shows the feature at its best (the
+first letter used Kinergy, two columns), and check that each card it
+opens resolved to the right work. Frontend scenes use a fixture page
+with a pretend server from `frontend/scripts/fixtures/` (`folderPage.mjs`
+with `?styled&flow&letter`, `activityPage.mjs`). The recorder presets
+what a returning reader has dismissed (the first-link tip, the Mac
+offers) and scenes close the sign-in offer. Sample each GIF into a
+contact sheet (`ffmpeg -i x.gif -vf "fps=1/1.6,scale=480:-1,tile=4x3"
+-frames:v 1 x.png`) and look at it before using it.
+
+For a still, a component the frontend smokes already render can be
+photographed with the application's styles and a pretend server:
 
 ```sh
 cd frontend && npm run shots:letter -- "$CLAUDE_JOB_DIR/tmp/letter/new" [upload-box folder-review]

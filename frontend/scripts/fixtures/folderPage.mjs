@@ -9,8 +9,9 @@ import { createServer } from 'vite';
 // the server by a fetch that holds every upload at once and answers for
 // the job that reads it. No account is needed. folder-smoke.mjs checks
 // the review through it; letter-shots.mjs photographs it, with ?styled
-// (the application's styles, in the Library's frame) and ?box (the upload
-// box a folder is dropped on, in place of the review).
+// (the application's styles, in the Library's frame), ?box (the upload
+// box a folder is dropped on, in place of the review) and ?flow (the box,
+// then the review once window.dropFolder() is called).
 const fixturePath = fileURLToPath(new URL('./attention.pdf', import.meta.url));
 const fixtureBytes = readFileSync(fixturePath);
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -73,7 +74,14 @@ function folderFixture(server) {
         import {applicationStyles} from '${sharedStyles}';
         const bytes = new Uint8Array(await (await window.realFetch('/__fixture.pdf')).arrayBuffer());
         const pdf = (name, extra) => new File(extra ? [bytes, extra] : [bytes], name, {type: 'application/pdf'});
-        const manifest = new File([JSON.stringify({papol: 1, papers: [
+        // ?letter: a review as an agent would really write it, for the
+        // letter's pictures; the smoke's own rows stay as its checks expect.
+        const letter = location.search.includes('letter');
+        const manifest = new File([JSON.stringify({papol: 1, papers: letter ? [
+          {file: 'attention.pdf', title: 'Attention Is All You Need', note: 'Introduces the Transformer. Start here: every later paper in this review builds on it.'},
+          {doi: '10.1145/3530811', title: 'Efficient Transformers: A Survey', note: 'Maps the ways to make attention cheaper on long inputs.'},
+          {file: 'language-models.pdf', title: 'Language Models are Unsupervised Multitask Learners', note: 'GPT-2: scaling a decoder-only Transformer.'},
+        ] : [
           {file: 'attention.pdf', note: 'Where transformers start.', title: 'Manifest title', tags: ['ignored']},
           {file: 'gone.pdf'},
           {doi: '10.1000/paywalled', title: 'Behind a paywall'},
@@ -84,26 +92,33 @@ function folderFixture(server) {
           return {readEntries: (ok) => { ok(read ? [] : children); read = true; }};
         }});
         const entry = folder('Transformers review', [
-          fileEntry(pdf('attention.pdf')), fileEntry(pdf('mine.pdf', '\\n')), fileEntry(manifest),
+          fileEntry(pdf('attention.pdf')), fileEntry(pdf(letter ? 'language-models.pdf' : 'mine.pdf', '\\n')), fileEntry(manifest),
           fileEntry(new File(['x'], '.DS_Store')),
         ]);
         const styled = location.search.includes('styled');
-        const box = location.search.includes('box');
-        const frame = (child) => !styled ? child : React.createElement('div', {style: {maxWidth: 960, margin: '24px auto', padding: '0 24px'}},
-          React.createElement('style', null, applicationStyles),
-          React.createElement('div', {className: box ? 'library-page' : 'library-page upload-review-mode'}, child));
-        createRoot(document.getElementById('test-root')).render(frame(box ? React.createElement(PaperUpload, {
-          onAddFolder: () => {}, onReportableError: () => {}, onPaperCreated: () => {}, onReviewChange: () => {},
-        }) : React.createElement(FolderImport, {
-          currentUser: {uuid: 'u-1'},
-          // ?loose: two PDFs dropped together, with no folder around them.
-          incomingFolder: location.search.includes('loose')
-            ? {uuid: 'drop-2', files: [pdf('attention.pdf'), pdf('mine.pdf', '\\n')]}
-            : {uuid: 'drop-1', entry},
-          onClose: () => { window.closed = true; },
-          onAdded: () => { window.added = true; },
-          onReportableError: (error, area) => { window.reported = area + ': ' + (error?.message || error); },
-        })));
+        // ?flow: the box first, and the review in its place once
+        // window.dropFolder() is called, as the Library swaps them.
+        const flow = location.search.includes('flow');
+        const Page = () => {
+          const [dropped, setDropped] = React.useState(!flow && !location.search.includes('box'));
+          React.useEffect(() => { window.dropFolder = () => setDropped(true); }, []);
+          const child = !dropped ? React.createElement(PaperUpload, {
+            onAddFolder: () => {}, onReportableError: () => {}, onPaperCreated: () => {}, onReviewChange: () => {},
+          }) : React.createElement(FolderImport, {
+            currentUser: {uuid: 'u-1'},
+            // ?loose: two PDFs dropped together, with no folder around them.
+            incomingFolder: location.search.includes('loose')
+              ? {uuid: 'drop-2', files: [pdf('attention.pdf'), pdf('mine.pdf', '\\n')]}
+              : {uuid: 'drop-1', entry},
+            onClose: () => { window.closed = true; },
+            onAdded: () => { window.added = true; },
+            onReportableError: (error, area) => { window.reported = area + ': ' + (error?.message || error); },
+          });
+          return !styled ? child : React.createElement('div', {style: {maxWidth: 960, margin: '24px auto', padding: '0 24px'}},
+            React.createElement('style', null, applicationStyles),
+            React.createElement('div', {className: dropped ? 'library-page upload-review-mode' : 'library-page'}, child));
+        };
+        createRoot(document.getElementById('test-root')).render(React.createElement(Page));
       </script>`;
     res.setHeader('Content-Type', 'text/html');
     res.end(await server.transformIndexHtml('/__folder_test', html));
