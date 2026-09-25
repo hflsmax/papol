@@ -89,7 +89,9 @@ Before the pull request, have a subagent critique the draft as a
 demanding copy editor. Give it these rules and the verified facts, and ask
 it for each vague referent (an "elsewhere" that names nothing), abstract
 verb, piece of filler or marketing, and benefit buried past the first
-sentence. Then revise. Check version numbers against `gh release list`, not
+sentence. Give each revision the owner asks for to a writing subagent too,
+with the rules, the verified facts and the phrasings already rejected.
+Never apologise for how Papol used to be, and never compare with it. Check version numbers against `gh release list`, not
 memory.
 
 Add a row to the README's table. Then open a pull request with the

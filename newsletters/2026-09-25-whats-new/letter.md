@@ -4,10 +4,11 @@
 
 Hello,
 
-This week Papol moved to the cloud. It now runs at papol.io on a global
-network, so pages and PDFs load quickly wherever you read, and your papers,
-notes and boards came along unchanged. Here are six new features, the most
-useful first.
+This week Papol moved to Cloudflare's global cloud, the infrastructure large
+sites run on, at papol.io. Your PDFs are served from Cloudflare's network,
+and every connection is encrypted. Your whole library is backed up
+continuously and can be restored to any minute of the past 30 days. Here are
+six new features, the most useful first.
 
 ## 1. Intelligent link navigation
 
