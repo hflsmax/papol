@@ -43,7 +43,7 @@ identifier of its own, the notes column gives it.
 | --- | --- | --- |
 | **Activity** | The time a user spends with a paper open in the viewer (**reading**) or one of their own boards open (**board**), while its window is in front of them and has been used in the last three minutes. Theirs alone: nobody else sees any of it. | `activity`, `shared/activity.js`, `POST`/`GET /api/activity`, `ActivityPanel.jsx` on the profile page. Not synchronized: the desktop sends it as the browser does. |
 | **Span** | One stretch of activity: a kind, the paper's sha256 or board's uuid, when it started and ended, and the seconds in it that counted. At most half an hour. | Named by the window that saw it and sent again as it grows; the server keeps the longest. Kept in the browser's **outbox** (`papol.activity.span.*`) until sent. |
-| **Effort** | A user's total reading of one paper, shown on its author line in their own nook: a clock and the time, which opens the paper's time — its last twelve weeks and latest days. | `effort` on the nook's paper entries, null for anyone but the nook's user; `GET /api/activity/<kind>/<subject>`; `EffortPop.jsx`. Boards carry none on the nook. |
+| **Effort** | A user's total reading of one paper, shown on its author line in their own nook: a clock and the time on a pill tinted by its **effort level**, one of five at fixed marks (under 30 min, 30 min–2 h, 2–5 h, 5–10 h, 10 h or more). It opens the paper's time — the level's key, its last twelve weeks and latest days. | `effort` on the nook's paper entries, null for anyone but the nook's user; `GET /api/activity/<kind>/<subject>`; `EffortPop.jsx`; `effortLevel()`, `EFFORT_MARKS`. Boards carry none on the nook. |
 
 ## 3. Annotations
 

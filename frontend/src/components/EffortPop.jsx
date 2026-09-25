@@ -4,8 +4,26 @@ import { useDismiss } from '../../../shared/useDismiss.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
 import {
-  clockTime, dayName, daysOf, formatDuration, lastWhen, recentWeeks, shadeOf,
+  clockTime, dayName, daysOf, EFFORT_MARKS, effortLevel, effortRange, formatDuration, lastWhen,
+  recentWeeks, shadeOf,
 } from '../activityView';
+
+const LEVELS = EFFORT_MARKS.length;
+
+// The five levels in a row, this paper's ringed: the key to the colour
+// its line in the nook wears.
+function LevelKey({ level }) {
+  return (
+    <div className="effort-levels">
+      <span className="effort-levels-scale" aria-hidden="true">
+        {Array.from({ length: LEVELS }, (_, i) => (
+          <i key={i} className={`effort-level-${i + 1}${i + 1 === level ? ' is-current' : ''}`} title={effortRange(i + 1)} />
+        ))}
+      </span>
+      <span>Level {level} of {LEVELS} · {effortRange(level)}</span>
+    </div>
+  );
+}
 
 const WEEKS = 12;
 const DAYS_LISTED = 5;
@@ -40,6 +58,7 @@ function EffortDetail({ subject, onClose }) {
         <button type="button" className="effort-pop-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="effort-pop-total">{formatDuration(data.seconds)}</p>
+      <LevelKey level={effortLevel(data.seconds)} />
       {since && <p className="effort-pop-note">Since {since}, last {lastWhen(data.last_at)}</p>}
 
       <div
@@ -83,12 +102,13 @@ export default function Effort({ effort, subject }) {
   const anchor = useRef(null);
   useDismiss(open, anchor, () => setOpen(false));
   if (!(effort?.seconds > 0)) return null;
-  const said = `Read for ${formatDuration(effort.seconds)}, last ${lastWhen(effort.last_at)}`;
+  const level = effortLevel(effort.seconds);
+  const said = `Read for ${formatDuration(effort.seconds)}, last ${lastWhen(effort.last_at)}. Effort level ${level} of ${LEVELS}, ${effortRange(level)}`;
   return (
     <span className="nook-effort-anchor" ref={anchor}>
       <button
         type="button"
-        className="nook-effort"
+        className={`nook-effort effort-level-${level}`}
         title={`${said}. Only you see this.`}
         aria-label={`${said}. Show the time spent`}
         aria-expanded={open}

@@ -256,3 +256,24 @@ export function dailyBySubject(spans, days) {
   });
   return { rows, most };
 }
+
+// A paper's effort on the nook, as one of five levels of the whole time
+// spent on it, at fixed marks, so a level means the same on every paper
+// and in every nook: under 30 min, to 2 h, to 5 h, to 10 h, and beyond.
+export const EFFORT_MARKS = [0, 30 * 60, 2 * HOUR_S, 5 * HOUR_S, 10 * HOUR_S];
+
+export function effortLevel(seconds) {
+  if (!(seconds > 0)) return 0;
+  let level = 0;
+  for (const mark of EFFORT_MARKS) if (seconds >= mark) level++;
+  return level;
+}
+
+// What a level spans, in words: "under 30 min", "2–5 h", "10 h or more".
+export function effortRange(level) {
+  const hours = (s) => (s < HOUR_S ? `${s / 60} min` : `${s / HOUR_S} h`);
+  if (level <= 1) return `under ${hours(EFFORT_MARKS[1])}`;
+  if (level >= EFFORT_MARKS.length) return `${hours(EFFORT_MARKS.at(-1))} or more`;
+  const from = EFFORT_MARKS[level - 1], to = EFFORT_MARKS[level];
+  return from < HOUR_S ? `${hours(from)}–${hours(to)}` : `${from / HOUR_S}–${to / HOUR_S} h`;
+}

@@ -133,3 +133,10 @@ test('a period paper by paper: its own days, and each paper\'s seconds on each',
   assert.equal(rows.has('reading:q'), false);
   assert.equal(most, 3600);
 });
+
+test('a paper\'s effort falls in one of five fixed levels', async () => {
+  const { effortLevel, effortRange } = await import('./activityView.js');
+  const h = 3600;
+  assert.deepEqual([0, 60, 30 * 60, 2 * h, 3 * h, 5 * h, 12 * h].map(effortLevel), [0, 1, 2, 3, 3, 4, 5]);
+  assert.deepEqual([1, 2, 3, 4, 5].map(effortRange), ['under 30 min', '30 min–2 h', '2–5 h', '5–10 h', '10 h or more']);
+});

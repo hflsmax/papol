@@ -66,7 +66,10 @@ every pair, colour-blind eyes included. The four papers with most time in
 the period wear them, each keeping the hue its digest points to where it
 can; the rest share `--activity-other`, and a board is hatched in
 `--activity-board`. `--activity-heat-1`…`5` is one hue light to dark for
-how much time a day held; steps 4 and 5 carry `--ink-inverse` text. None
+how much: the time a day held on the month's calendar, and a paper's
+**effort level** on the nook (`.effort-level-N`, at fixed marks of 30 min,
+2 h, 5 h and 10 h, so a level means the same on every paper); steps 4 and
+5 carry `--ink-inverse` text. None
 is ever used for a state.
 
 ## Type

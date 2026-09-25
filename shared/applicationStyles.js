@@ -3515,10 +3515,12 @@ h4 .state-pill {
   .activity-subject-bar { display: none; }
 }
 
-/* A paper's effort on its user's own nook: a clock and the time at the end
-   of its author line, in the faint UI face, upright among the italic meta.
-   It is a measure, not a goal, so it is a number and never a bar. It is a
-   button, quiet until touched, and opens the paper's time (EffortPop). */
+/* A paper's effort on its user's own nook: a small pill at the end of its
+   author line, the clock and the time on a tint of its level — five fixed
+   steps of the one-hue activity ramp, light to dark, so a glance down the
+   nook reads which papers took the most. The level is a measure, not a
+   goal, so it is a colour and a number and never a bar. It is a button,
+   and opens the paper's time (EffortPop), which carries the key. */
 .nook-effort-anchor { position: relative; display: inline-flex; }
 
 .nook-effort {
@@ -3526,23 +3528,42 @@ h4 .state-pill {
   align-items: center;
   gap: 3px;
   min-height: 0;
-  margin: 0 0 0 -4px;
-  padding: 1px 4px;
+  margin: 0;
+  padding: 1px 7px 1px 5px;
   border: 0;
-  border-radius: var(--radius);
-  background: none;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
   box-shadow: none;
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-style: normal;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-faint);
+  color: var(--ink);
   white-space: nowrap;
   cursor: pointer;
 }
 
 .nook-effort:hover,
-.nook-effort[aria-expanded='true'] { background: var(--paper); color: var(--ink-soft); }
+.nook-effort[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--accent); }
+
+.effort-level-1 { background: var(--activity-heat-1); color: var(--ink); }
+.effort-level-2 { background: var(--activity-heat-2); color: var(--ink); }
+.effort-level-3 { background: var(--activity-heat-3); color: var(--ink); }
+.effort-level-4 { background: var(--activity-heat-4); color: var(--ink-inverse); }
+.effort-level-5 { background: var(--activity-heat-5); color: var(--ink-inverse); }
+
+.effort-levels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.effort-levels-scale { display: inline-flex; gap: 2px; }
+.effort-levels-scale i { width: 14px; height: 10px; border-radius: 2px; }
+.effort-levels-scale i.is-current { box-shadow: 0 0 0 1.5px var(--card), 0 0 0 3px var(--ink); }
 
 .nook-effort svg {
   width: 11px;
