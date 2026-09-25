@@ -4222,31 +4222,42 @@ a.button:hover {
 
 /* ---------- About ---------- */
 
-/* A page of prose panels: a kicker naming each section and a paragraph or
-   two beneath it, set like the organize items on the home page so the two
-   pages read as one site. The prose is the only thing on the page, so a
-   line is held to a readable measure whatever the window's width. */
-/* One story, read at the tagline's pace rather than a list's: the
-   hero's measure and leading, the first paragraph a shade larger and
-   darker, the rest following at a paragraph's distance. */
+/* One piece of prose in one typeface, the page's serif, at two sizes:
+   the title and the paragraphs, all in the same ink. No kicker, no small
+   capitals, no larger first paragraph, and a line held to a readable
+   measure whatever the window's width. */
+.about-story {
+  padding: 36px 40px 40px;
+  font-family: var(--font-serif);
+  color: var(--ink);
+}
+
+.about-story h1 {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.about-story h1 + p { margin-top: 18px; }
+
 .about-story p {
-  color: var(--ink-soft);
+  margin: 0;
+  max-width: 62ch;
   font-size: var(--fs-base);
   line-height: 1.7;
-  max-width: 58ch;
 }
 
 .about-story p + p { margin-top: 14px; }
 
-.about-story .about-lede {
-  color: var(--ink);
-  font-size: calc(var(--fs-base) * 1.1);
-  margin-top: 6px;
-}
-
 .about-story a {
   color: var(--accent);
   text-underline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .about-story { padding: 24px 20px 28px; }
 }
 
 /* ---------- Seminar flow diagram ---------- */

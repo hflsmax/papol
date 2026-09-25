@@ -1,30 +1,26 @@
 import React from 'react';
 
-// The author's page: who made Papol, what it grew from, and what it is for.
+// The author's page: who makes Papol and what shaped it. One typeface,
+// the title and two paragraphs (styles under "About").
 export default function AboutPage() {
   return (
     <div className="about-page">
-      <section className="panel about-story" aria-labelledby="about-title">
-        <h6 className="kicker" id="about-title">About Papol</h6>
-        <p className="about-lede">
+      <article className="panel about-story" aria-labelledby="about-title">
+        <h1 id="about-title">About Papol</h1>
+        <p>
           Papol is a hobby project of{' '}
-          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">me</a>,
-          a computer science researcher, built from the best of what I have
-          used for reading papers.
+          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">mine</a>.
+          I am a computer science researcher, and I built it around the two things
+          I liked best when reading papers. The first is the citation popups of
+          Google Scholar&rsquo;s browser button, which show you what a reference is
+          without leaving the page. The second is the infinite canvas of Allume,
+          formerly Muse, which gives your thinking room to spread out.
         </p>
         <p>
-          Two things shaped it most. The citation popups of Google Scholar&rsquo;s
-          browser button, which show you what a reference is without leaving the
-          page you are reading. And the infinite board of Allume, formerly Muse,
-          which gives thinking the room to spread out.
+          In Papol, all the tools share one ecosystem, so ideas flow between them
+          effortlessly.
         </p>
-        <p>
-          In Papol these are not separate tools. Reading, references, notes,
-          boards and seminars are one connected place, so that an idea found in
-          one paper can travel to the next. Papol is an ecosystem where ideas
-          flow.
-        </p>
-      </section>
+      </article>
     </div>
   );
 }
