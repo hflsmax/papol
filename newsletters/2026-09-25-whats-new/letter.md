@@ -4,11 +4,10 @@
 
 Hello,
 
-This week Papol moved to Cloudflare's global cloud, the infrastructure large
-sites run on, at papol.io. Your PDFs are served from Cloudflare's network,
-and every connection is encrypted. Your whole library is backed up
-continuously and can be restored to any minute of the past 30 days. Here are
-six new features, the most useful first.
+This week Papol moved to Cloudflare's global cloud, and it now has its own
+domain, papol.io. Your data and your visits to Papol are now backed by
+Cloudflare's security and reliability, and you should notice Papol responding
+faster. Here are this week's new features, the most useful first.
 
 ## 1. Intelligent link navigation
 
