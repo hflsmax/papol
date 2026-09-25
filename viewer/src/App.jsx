@@ -40,6 +40,7 @@ import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
 import { readNamedReference, stillToLookUp } from './references';
+import { fitsFloat, floatScroll, floatZoom } from './floatView.js';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -763,6 +764,9 @@ export default function App() {
   const linkHistory = useRef({ back: [], forward: [] });
   const [, renderLinkHistory] = useState(0);
   const restoringView = useRef(null);
+  // A float a link zoomed to, centred once the pages are laid out at the
+  // new zoom (the layout effect on `scale`).
+  const centringFloat = useRef(null);
   const [referenceError, setReferenceError] = useState(null);
   const scrollerRef = useRef(null);
   // Do not mount off-screen pages. A full PdfPage carries drawing, text,
@@ -1614,13 +1618,30 @@ export default function App() {
     }
   };
 
+  // Scroll so a float sits in the middle of the window, across and down,
+  // measured from the pages as they are laid out now (floatView.js).
+  const centreFloat = (page, float) => {
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
+    if (!scroller || !pageEl) return;
+    const pageBox = pageEl.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    const at = floatScroll(float, {
+      left: scroller.scrollLeft + pageBox.left - box.left,
+      top: scroller.scrollTop + pageBox.top - box.top,
+      width: pageBox.width,
+      height: pageBox.height,
+    }, { width: scroller.clientWidth, height: scroller.clientHeight }, { width: scroller.scrollWidth, height: scroller.scrollHeight });
+    scroller.scrollTo({ ...at, behavior: 'auto' });
+  };
+
   // A link in the PDF: "see Section 3.2", "Figure 4". The destination is a
-  // fraction down a page, so it survives any zoom. A link to a figure or a
-  // table carries the float's box: the whole float is brought into view, a
-  // little below the middle of the window so the eye lands on it rather
-  // than above it, and across as well when the page is wider than the
-  // window — a phone, or a column zoomed into.
-  const followLink = ({ page, y, box: float = null }) => {
+  // fraction down a page, so it survives any zoom. A link to a figure, a
+  // table or a box carries the float's box: the viewer zooms until the
+  // whole float fills the window and puts it in the middle, across as well
+  // as down (floatView.js). A footnote carries a box too, but only a line
+  // or two: it is brought into view at the zoom the reader chose.
+  const followLink = ({ page, y, kind = null, box: float = null }) => {
     // A link can be activated while text remains selected in the PDF. Once
     // the document jumps, that old highlight no longer describes the place
     // the user is looking at and its paint action should not follow them.
@@ -1634,6 +1655,29 @@ export default function App() {
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     const pageTop = from + pageBox.top - box.top;
+    if (float && fitsFloat(kind)) {
+      const style = getComputedStyle(scroller);
+      const target = floatZoom(float, {
+        width: Number(pageEl.dataset.pageWidth),
+        height: Number(pageEl.dataset.pageHeight),
+      }, {
+        width: scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        height: scroller.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      }, { min: MIN_SCALE, max: MAX_SCALE });
+      if (target != null) {
+        // The reader's zoom is now the link's: a window resize does not
+        // fit the page back over it, and the way back restores the old one.
+        chosenZoom.current = true;
+        if (target !== scale) {
+          centringFloat.current = { page, float };
+          setScale(target);
+        } else {
+          centreFloat(page, float);
+        }
+        rememberJump(viewBeforeJump);
+        return;
+      }
+    }
     let top, left = scroller.scrollLeft;
     if (float) {
       const floatTop = pageTop + float.y * pageBox.height;
@@ -1660,18 +1704,22 @@ export default function App() {
     // somewhere; a link to what is already on screen has not lost anyone.
     // A quarter of the window is enough to have lost it, though — the
     // paragraph being read rarely survives that much movement.
-    if (Math.abs(top - from) > box.height * 0.25) {
-      linkHistory.current.back.push(viewBeforeJump);
-      linkHistory.current.forward = [];
-      renderLinkHistory((version) => version + 1);
-      // The lesson on getting back belongs to the first time there is
-      // somewhere to get back to, beside the pill that does it.
-      // Where storage is unavailable the lesson cannot be remembered, but it
-      // is still useful for this visit.
-      if (!isFeatureStateSet(LINK_NAVIGATION_TIP)) {
-        setFeatureState(LINK_NAVIGATION_TIP, true);
-        setLearnLinkNavigation(true);
-      }
+    if (Math.abs(top - from) > box.height * 0.25) rememberJump(viewBeforeJump);
+  };
+
+  // A jump the way back returns from. A fitted float always counts: even
+  // on screen already, the zoom has changed under the reader.
+  const rememberJump = (view) => {
+    linkHistory.current.back.push(view);
+    linkHistory.current.forward = [];
+    renderLinkHistory((version) => version + 1);
+    // The lesson on getting back belongs to the first time there is
+    // somewhere to get back to, beside the pill that does it.
+    // Where storage is unavailable the lesson cannot be remembered, but it
+    // is still useful for this visit.
+    if (!isFeatureStateSet(LINK_NAVIGATION_TIP)) {
+      setFeatureState(LINK_NAVIGATION_TIP, true);
+      setLearnLinkNavigation(true);
     }
   };
 
@@ -2725,10 +2773,16 @@ export default function App() {
 
   useLayoutEffect(() => {
     const restore = restoringView.current;
+    const centring = centringFloat.current;
     const f = focus.current;
     const el = scrollerRef.current;
     restoringView.current = null;
+    centringFloat.current = null;
     focus.current = null;
+    if (centring) {
+      centreFloat(centring.page, centring.float);
+      return;
+    }
     if (restore && el) {
       el.scrollTo({ top: restore.top, left: restore.left, behavior: 'auto' });
       return;

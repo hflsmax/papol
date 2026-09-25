@@ -93,7 +93,7 @@ test('turns an analyzed figure reference into a link to the float it names', asy
   assert.deepEqual(overlays.links, [{
     kind: 'figure', label: '2a',
     x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-    spot: { page: 3, y: 0.55, box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
+    spot: { page: 3, y: 0.55, kind: 'figure', box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
   }]);
 });
 
