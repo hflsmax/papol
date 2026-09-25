@@ -1,17 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bilibiliVideo, canPreview, metaContent, videoLink, videoPreview, youtubeId } from '../../shared/videos.js';
-
-test("a page's title is read whole, quotes and entities and all", () => {
-  const page = (attributes) => `<head><meta property="og:title" ${attributes}/></head>`;
-  assert.equal(metaContent(page(`content="Don't Stop_哔哩哔哩_bilibili"`), 'og:title'), "Don't Stop_哔哩哔哩_bilibili");
-  assert.equal(metaContent(page(`content='A "quoted" word'`), 'og:title'), 'A "quoted" word');
-  assert.equal(metaContent(page('content="Tom &amp; Jerry &#39;99 &#x27;22 &#34;x&#34; &apos;y&apos; &hearts;"'), 'og:title'),
-    `Tom & Jerry '99 '22 "x" 'y' &hearts;`);
-  assert.equal(metaContent('<meta content="first" property="og:title">', 'og:title'), 'first');
-  assert.equal(metaContent('<meta property="og:title">', 'og:title'), null);
-  assert.equal(metaContent('<meta property="og:image" content="x.jpg">', 'og:title'), null);
-});
+import { bilibiliVideo, canPreview, videoLink, videoPreview, youtubeId } from '../../shared/videos.js';
 
 test('a YouTube video is named by the id its link carries, however the link is written', () => {
   assert.equal(youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s'), 'dQw4w9WgXcQ');
@@ -37,34 +26,17 @@ test('a Bilibili video is named by its BV id or av number, and a short link by w
   assert.equal(videoLink('https://example.com/'), null);
 });
 
-// YouTube as the page sees it: the oEmbed answer, then the thumbnail.
-function youtube({ thumbnail = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', status = 200 } = {}) {
+test("a YouTube video's title and picture are the Cloudflare Worker's to read, and the page asks nothing of YouTube", async () => {
   const asked = [];
-  const fetch = async (url, options) => {
-    asked.push([String(url), options]);
-    if (String(url).startsWith('https://www.youtube.com/oembed')) {
-      return new Response(JSON.stringify({ title: '  Never Gonna  ', thumbnail_url: thumbnail }), { status });
-    }
-    return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } });
-  };
-  return { fetch, asked };
-}
-
-test("a YouTube video's title and thumbnail come from YouTube, as the page fetches them", async () => {
-  const { fetch, asked } = youtube();
-  const preview = await videoPreview('https://youtu.be/dQw4w9WgXcQ', { fetch });
-  assert.equal(preview.id, 'dQw4w9WgXcQ');
-  assert.equal(preview.title, 'Never Gonna');
-  assert.equal(preview.image.type, 'image/jpeg');
-  assert.equal(preview.image.size, 3);
-  assert.match(asked[0][0], /oembed\?url=https%3A%2F%2Fwww\.youtube\.com%2Fwatch%3Fv%3DdQw4w9WgXcQ&format=json$/);
-  assert.equal(asked[1][0], 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
-  assert.equal(asked[1][1].referrerPolicy, 'no-referrer');
-});
-
-test('a thumbnail from anywhere but YouTube, or a refusal, is no preview', async () => {
-  await assert.rejects(videoPreview('https://youtu.be/dQw4w9WgXcQ', youtube({ thumbnail: 'https://evil.example/x.jpg' })), /no thumbnail/);
-  await assert.rejects(videoPreview('https://youtu.be/dQw4w9WgXcQ', youtube({ status: 404 })), /YouTube answered 404/);
+  const answer = { id: 'dQw4w9WgXcQ', title: 'Never Gonna', sha256: 'a'.repeat(64) };
+  const preview = await videoPreview('https://youtu.be/dQw4w9WgXcQ', {
+    ask: async (url) => { asked.push(url); return answer; },
+    fetch: async () => { throw new Error('the page asked the network'); },
+  });
+  assert.deepEqual(preview, answer);
+  assert.deepEqual(asked, ['https://youtu.be/dQw4w9WgXcQ']);
+  await assert.rejects(videoPreview('https://youtu.be/dQw4w9WgXcQ', { ask: async () => { throw new Error('YouTube answered 404 for this video'); } }),
+    /YouTube answered 404/);
 });
 
 test("the web makes a Bilibili card as its link: only the Mac can ask Bilibili", async () => {
