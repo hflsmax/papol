@@ -5,7 +5,7 @@ import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import NoteCard from './NoteCard';
 import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
-import { pageOverlays } from './references';
+import { citationHolds, pageOverlays } from './references';
 import { STRIP_RATIO } from './ink';
 import { resizeClipFrame } from './clipResize';
 import { anchorSpotAtPage } from './anchorDrag';
@@ -1992,7 +1992,7 @@ function PdfPage({
         }
         const x = (e.clientX - box.left) / box.width;
         const y = (e.clientY - box.top) / box.height;
-        const cite = citations.findIndex((c) => boxHolds(c, x, y));
+        const cite = citations.findIndex((c) => citationHolds(c, x, y));
         setHoveredCitation(cite);
         // Where a box is both a citation and a link, the card wins.
         setHoveredLink(cite >= 0 ? -1 : links.findIndex((link) => boxHolds(link, x, y)));
@@ -2019,7 +2019,7 @@ function PdfPage({
         if (!box?.width || !box.height) return;
         const x = (e.clientX - box.left) / box.width;
         const y = (e.clientY - box.top) / box.height;
-        const index = citations.findIndex((c) => boxHolds(c, x, y));
+        const index = citations.findIndex((c) => citationHolds(c, x, y));
         if (index < 0) {
           const link = links.find((l) => boxHolds(l, x, y));
           if (!link) return;
@@ -2028,7 +2028,12 @@ function PdfPage({
           return;
         }
         const cite = citations[index];
-        const anchor = holderRef.current.querySelector(`[data-citation-index="${index}"]`);
+        // The card opens beside the piece clicked, where a citation is
+        // broken over a line.
+        const piece = Math.max(0, (cite.boxes || []).findIndex((b) => boxHolds(b, x, y)));
+        const anchor = holderRef.current.querySelector(
+          `[data-citation-index="${index}"][data-citation-piece="${piece}"]`
+        ) || holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
         onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids, cite.label || null);
       }}
@@ -2283,36 +2288,55 @@ function PdfPage({
             to the reference it names, not to the words beneath it. The
             layer itself lets everything else through. */}
         <div className="cite-layer">
-          {citations.map((cite, i) => (
-            <button
-              key={`${cite.referenceUuid}-${i}`}
-              type="button"
-              data-citation-index={i}
-              data-reference-uuid={cite.referenceUuid}
-              className={`cite${i === hoveredCitation ? ' hovered' : ''}${
-                (cite.referenceUuids || [cite.referenceUuid]).includes(openReferenceUuid) ? ' open' : ''}${
-                cite.exact ? '' : ' guessed'
-              }`}
-              style={{
-                left: `${cite.x * 100}%`,
-                top: `${cite.y * 100}%`,
-                width: `${cite.w * 100}%`,
-                height: `${cite.h * 100}%`,
-              }}
-              title={cite.exact ? 'What is this?' : 'What is this? (matched by number)'}
-              aria-label={`Open reference ${cite.label || ''}`.trim()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenReference(
-                  cite.referenceUuid,
-                  e.currentTarget,
-                  cite.reference || null,
-                  cite.referenceUuids,
-                  cite.label || null
-                );
-              }}
-            />
-          ))}
+          {citations.map((cite, i) => {
+            const className = `cite${i === hoveredCitation ? ' hovered' : ''}${
+              (cite.referenceUuids || [cite.referenceUuid]).includes(openReferenceUuid) ? ' open' : ''}${
+              cite.exact ? '' : ' guessed'
+            }`;
+            const place = (box) => ({
+              left: `${box.x * 100}%`,
+              top: `${box.y * 100}%`,
+              width: `${box.w * 100}%`,
+              height: `${box.h * 100}%`,
+            });
+            // One button for one citation, however many lines it is printed
+            // across; the later pieces only show where the rest of it is.
+            const [first, ...rest] = cite.boxes || [cite];
+            return (
+              <span key={`${cite.referenceUuid}-${i}`} className="cite-group">
+                <button
+                  type="button"
+                  data-citation-index={i}
+                  data-citation-piece={0}
+                  data-reference-uuid={cite.referenceUuid}
+                  className={className}
+                  style={place(first)}
+                  title={cite.exact ? 'What is this?' : 'What is this? (matched by number)'}
+                  aria-label={`Open reference ${cite.label || ''}`.trim()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenReference(
+                      cite.referenceUuid,
+                      e.currentTarget,
+                      cite.reference || null,
+                      cite.referenceUuids,
+                      cite.label || null
+                    );
+                  }}
+                />
+                {rest.map((box, j) => (
+                  <span
+                    key={j}
+                    data-citation-index={i}
+                    data-citation-piece={j + 1}
+                    className={className}
+                    style={place(box)}
+                    aria-hidden="true"
+                  />
+                ))}
+              </span>
+            );
+          })}
         </div>
         <div className="pin-layer">
           {notes.map((note) => (

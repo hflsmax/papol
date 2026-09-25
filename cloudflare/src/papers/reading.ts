@@ -22,12 +22,17 @@ export interface Reference {
 
 export interface Box { page: number; x: number; y: number; w: number; h: number }
 
-export interface Citation extends Box {
-  key: string; // the reference it points at
+// One marker in the text, whole: every work it names and every piece of
+// the page it is printed on. "[3–5]" names three works in one box;
+// "Matsuda et al. 2007" broken over a line is one work in two boxes. Either
+// way it is one thing to point at, and it arrives as one.
+export interface Citation {
+  keys: string[]; // the references it points at, in the order printed
   label: string; // what is printed, e.g. "[13]"
   // True when the analyzer found the marker but could not say which entry
   // it meant, and Papol read the number instead: a guess.
   inferred: boolean;
+  boxes: Box[]; // one a printed line, in reading order
 }
 
 // A figure, table or box, where a link to it lands: its caption.
@@ -44,6 +49,11 @@ export interface DocumentLink extends Box {
 }
 
 export interface Analysis { references: Reference[]; citations: Citation[]; floats: Float[]; links: DocumentLink[] }
+
+// The format of the analysis above, which a Worker asks POST /analyze for
+// and the analyzer states in its answer. Format 2 is citations as whole
+// markers; an analyzer that states no format predates it.
+export const ANALYSIS_FORMAT = 2;
 
 export interface HeaderMetadata {
   title: string | null;

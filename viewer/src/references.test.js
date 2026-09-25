@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { destinationHeight } from './sections.js';
 
 import {
-  columnsOnPage, consolidateCitations, destinationNumber,
+  citationHolds, columnsOnPage, consolidateCitations, destinationNumber,
   pageOverlays, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
 
-test('consolidates analyzer rows for one continuous citation range', () => {
+test("consolidates a publisher's link to each number of a range into one citation", () => {
   const citations = Array.from({ length: 19 }, (_, index) => ({
     referenceUuid: 700 + index,
     label: `[${7 + index}]`,
@@ -152,11 +152,11 @@ function natureLinks() {
 test("an analyzed marker wins over the publisher's link to its first number", async () => {
   const page = natureLinks();
   const doc = { getPage: async () => page };
-  const cite = (uuid, x, w, label) => ({ reference_uuid: uuid, label, page: 1, x, y: 0.18, w, h: 0.02, inferred: false });
-  const range = ['r66', 'r67', 'r68', 'r69', 'r70', 'r71', 'r72', 'r73'].map((uuid) => cite(uuid, 0.1, 0.05, '66–73'));
-  const list = ['r76', 'r77'].map((uuid) => cite(uuid, 0.4, 0.04, '76,77'));
+  const cite = (uuids, x, w, label) => ({ reference_uuids: uuids, label, inferred: false, boxes: [{ page: 1, x, y: 0.18, w, h: 0.02 }] });
+  const range = cite(['r66', 'r67', 'r68', 'r69', 'r70', 'r71', 'r72', 'r73'], 0.1, 0.05, '66–73');
+  const list = cite(['r76', 'r77'], 0.4, 0.04, '76,77');
 
-  const overlays = await pageOverlays(doc, 1, { references: [], citations: [...range, ...list], links: [] });
+  const overlays = await pageOverlays(doc, 1, { references: [], citations: [range, list], links: [] });
 
   const labels = overlays.citations.map((c) => [c.label, c.referenceUuids?.length ?? 1]);
   assert.deepEqual(labels.slice(0, 2), [['66–73', 8], ['76,77', 2]]);
@@ -280,7 +280,7 @@ test("prefers the analyzer's labelled marker over where a link points", async ()
   };
   // The analyzer read this very marker and knows it says "[20]".
   const citations = [
-    { reference_uuid: 'r19', label: '[20]', page: 1, x: 0.30, y: 0.54, w: 0.04, h: 0.02, inferred: false },
+    { reference_uuids: ['r19'], label: '[20]', inferred: false, boxes: [{ page: 1, x: 0.30, y: 0.54, w: 0.04, h: 0.02 }] },
   ];
 
   const overlays = await pageOverlays(doc, 1, { references, citations, links: [] });
@@ -391,4 +391,96 @@ test('a marker citing several works has the rest looked up with the one shown', 
   // Shown: 119. Already resolved: 120. Being asked for: 122. A PDF-only link has no row.
   assert.deepEqual(stillToLookUp(['r119', 'r120', 'r121', 'r122', 'pdf:cite.x'], 'r119', known, underWay), ['r121']);
   assert.deepEqual(stillToLookUp(['r76', 'r77'], 'r76', new Map(), new Set()), ['r77']);
+});
+
+// The analyzer's citations are markers, whole. These are from a real
+// two-column paper: "Matsuda et al. | 2007" and "Rendel and Ostermann |
+// 2010" each break over a line, and each is one citation with two boxes.
+const line = (page, x, y, w) => ({ page, x, y, w, h: 0.0141 });
+const marker = (uuids, label, ...boxes) => ({ reference_uuids: uuids, label, inferred: false, boxes });
+const noLinks = { getPage: async () => ({ getAnnotations: async () => [], getViewport: () => ({ width: 100, height: 100 }) }) };
+
+test("a marker broken over a line is one citation: one target, a box for each line", async () => {
+  const analysis = {
+    references: [],
+    citations: [marker(['matsuda2007'], 'Matsuda et al. 2007', line(2, 0.7914, 0.137, 0.1175), line(2, 0.0943, 0.1536, 0.0381))],
+    links: [],
+  };
+
+  const { citations } = await pageOverlays(noLinks, 2, analysis);
+
+  assert.equal(citations.length, 1);
+  const [citation] = citations;
+  assert.deepEqual(citation.referenceUuids, ['matsuda2007']);
+  assert.deepEqual(citation.boxes, [
+    { x: 0.7914, y: 0.137, w: 0.1175, h: 0.0141 },
+    { x: 0.0943, y: 0.1536, w: 0.0381, h: 0.0141 },
+  ]);
+  // Its button is on the first piece, not a rectangle around both lines.
+  assert.deepEqual([citation.x, citation.y, citation.w, citation.h], [0.7914, 0.137, 0.1175, 0.0141]);
+  assert.ok(citationHolds(citation, 0.85, 0.144), 'the end of the first line');
+  assert.ok(citationHolds(citation, 0.11, 0.16), 'the start of the next');
+  assert.ok(!citationHolds(citation, 0.5, 0.144), 'the words before it on the first line');
+  assert.ok(!citationHolds(citation, 0.5, 0.16), 'the words after it on the next');
+});
+
+test('citations are drawn as the analyzer found them, never joined or split by where they sit', async () => {
+  const analysis = {
+    references: [],
+    citations: [
+      // "… Rendel and Ostermann | 2010; Wang et al. 2013": the second marker
+      // starts on the line where the first one ends.
+      marker(['rendel2010'], 'Rendel and Ostermann 2010', line(24, 0.8092, 0.2864, 0.0965), line(24, 0.0943, 0.303, 0.1418)),
+      marker(['wang2013'], 'Wang et al. 2013', line(24, 0.2464, 0.303, 0.1438)),
+      // "[1][2]": two markers whose boxes touch, each its own.
+      marker(['r1'], '[1]', line(24, 0.5, 0.5, 0.02)),
+      marker(['r2'], '[2]', line(24, 0.52, 0.5, 0.02)),
+    ],
+    links: [],
+  };
+
+  const { citations } = await pageOverlays(noLinks, 24, analysis);
+
+  assert.deepEqual(citations.map((c) => [c.label, c.referenceUuids, c.boxes.length]), [
+    ['Rendel and Ostermann 2010', ['rendel2010'], 2],
+    ['Wang et al. 2013', ['wang2013'], 1],
+    ['[1]', ['r1'], 1],
+    ['[2]', ['r2'], 1],
+  ]);
+});
+
+test('a marker broken over a page shows its piece on each page, both opening the same works', async () => {
+  const analysis = {
+    references: [],
+    citations: [marker(['a', 'b'], '[3, 4]', line(4, 0.85, 0.95, 0.05), line(5, 0.1, 0.08, 0.03))],
+    links: [],
+  };
+
+  const [left, right] = await Promise.all([4, 5].map((page) => pageOverlays(noLinks, page, analysis)));
+
+  assert.deepEqual(left.citations.map((c) => [c.referenceUuids, c.boxes]), [[['a', 'b'], [{ x: 0.85, y: 0.95, w: 0.05, h: 0.0141 }]]]);
+  assert.deepEqual(right.citations.map((c) => [c.referenceUuids, c.boxes]), [[['a', 'b'], [{ x: 0.1, y: 0.08, w: 0.03, h: 0.0141 }]]]);
+  assert.deepEqual((await pageOverlays(noLinks, 6, analysis)).citations, []);
+});
+
+test("a PDF's link on the second line of a marker is that marker, not a second button", async () => {
+  // hyperref links only the "2007" that starts the second line.
+  const page = {
+    getViewport: () => ({
+      width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0],
+      convertToViewportPoint: (x, y) => [x, 100 - y],
+    }),
+    getAnnotations: async () => [{ subtype: 'Link', dest: 'cite.matsuda2007', rect: [10, 83.5, 13, 84.5] }],
+    getTextContent: async () => ({ items: [] }),
+  };
+  const analysis = {
+    references: [{ uuid: 'matsuda2007', index: 38, page: 30, y: 0.4 }],
+    citations: [marker(['matsuda2007'], 'Matsuda et al. 2007', line(2, 0.7914, 0.137, 0.1175), line(2, 0.0943, 0.1536, 0.0381))],
+    links: [],
+  };
+
+  const { citations } = await pageOverlays({ getPage: async () => page }, 2, analysis);
+
+  assert.equal(citations.length, 1);
+  assert.equal(citations[0].boxes.length, 2);
 });

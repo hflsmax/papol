@@ -97,7 +97,7 @@ for (const file of files) {
   const sha = result.sha, a = result.analysis;
   const bibPages = [...new Set(a.references.map((r) => r.page))].sort((x, y) => x - y);
   const busy = new Map();
-  for (const c of a.citations) if (!bibPages.includes(c.page)) busy.set(c.page, (busy.get(c.page) ?? 0) + 1);
+  for (const c of a.citations) for (const { page } of c.boxes) if (!bibPages.includes(page)) busy.set(page, (busy.get(page) ?? 0) + 1);
   for (const l of a.links) busy.set(l.page, (busy.get(l.page) ?? 0) + 1);
   const body = [...busy].sort((x, y) => y[1] - x[1]).slice(0, 4).map(([p]) => p).sort((x, y) => x - y);
   if (!body.length) body.push(1, 2);

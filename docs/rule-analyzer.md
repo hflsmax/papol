@@ -63,10 +63,20 @@ the Worker should not spend.
 - `citations.ts` — citation markers: bracketed or parenthesized numbers,
   superscripts, author–year (grouped and narrative), alpha labels. Every way
   is tried, and the paper's way is the one that names the most different
-  entries.
+  entries. A marker is answered whole, as one citation: every entry it
+  names, in print order, and a box for each line it is printed on — so
+  "[3–5]" is one citation of three entries, and "Matsuda et al. 2007"
+  broken over a line is one citation with two boxes.
 - `analyze.ts` — the whole, answering `Analysis` and a trace.
 - `header.ts` — the title block, for the upload form (`POST /header`,
   `HeaderMetadata`): below.
+
+`POST /analyze?format=2` is that shape (`ANALYSIS_FORMAT` in
+`cloudflare/src/papers/reading.ts`), and the answer says `format: 2`. Asked
+for no format, the analyzer flattens each citation to a row a work a box,
+for a Worker deployed before format 2; that goes once no such Worker is
+left. A Worker that gets an answer without the format stores nothing and
+leaves the paper pending, to be read again.
 
 In the viewer (`viewer/src/references.js`), the analyzer's citations and
 links come first; a PDF's own links fill in only where the analyzer found

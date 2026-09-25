@@ -61,8 +61,10 @@ const COLUMN_GUTTER = 0.02;
 const EXPECTED_DROP = 0.007;
 
 /**
- * Citation boxes for one page, in fractions of the page from its
- * top-left corner: [{ referenceUuid, label, x, y, w, h, exact }].
+ * Citations on one page: [{ referenceUuid, referenceUuids, label, x, y, w,
+ * h, boxes, exact }]. `boxes` are where it is printed on this page, one a
+ * line, in fractions of the page from its top-left corner; `x`, `y`, `w`,
+ * `h` are the first of them, where its button sits.
  *
  * `analysis` is what the backend returned; `doc` and `pageNumber` are the
  * open PDF. Returns the analyzer's boxes when the PDF offers nothing
@@ -74,18 +76,23 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   );
 
   // Read before the annotations, which are matched against these: an
-  // analyzed citation names the entry its marker means.
-  const analyzed = (analysis?.citations || [])
-    .filter((c) => c.page === pageNumber)
-    .map((c) => ({
-      referenceUuid: c.reference_uuid,
+  // analyzed citation names the entries its marker means. It is one marker
+  // whole, as the analyzer found it — every work it names, every line it
+  // is printed on — so it is taken as it comes: the pieces on this page.
+  const analyzed = (analysis?.citations || []).flatMap((c) => {
+    const boxes = c.boxes
+      .filter((box) => box.page === pageNumber)
+      .map(({ x, y, w, h }) => ({ x, y, w, h }));
+    if (!boxes.length) return [];
+    return [{
+      referenceUuid: c.reference_uuids[0],
+      referenceUuids: c.reference_uuids,
       label: c.label,
-      x: c.x,
-      y: c.y,
-      w: c.w,
-      h: c.h,
+      ...boxes[0],
+      boxes,
       exact: !c.inferred,
-    }));
+    }];
+  });
 
   let annotated = { citations: [], links: [] };
   try {
@@ -95,7 +102,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
     annotated = { citations: [], links: [] };
   }
 
-  const fromAnalyzer = consolidateCitations(analyzed);
+  const fromAnalyzer = analyzed;
 
   // A link names the float it goes to; the float is where it lands, as a
   // box the viewer brings into view. A section is where it begins: its
@@ -119,9 +126,9 @@ export async function pageOverlays(doc, pageNumber, analysis) {
     });
 
   // A single PDF link is sometimes emitted as several adjacent annotation
-  // rectangles (one per text run). Treat those fragments the same way as
-  // analyzer rows so the printed citation is one clickable target rather
-  // than a row of tiny, independent buttons.
+  // rectangles (one per text run). Those fragments are put back together so
+  // the printed citation is one clickable target rather than a row of tiny,
+  // independent buttons.
   // The analyzer's reading comes first: it knows a whole marker ("66–73",
   // "76,77", "Fig. 3b") where a publisher links only its first number. The
   // PDF's own links fill in where the analyzer found nothing.
@@ -169,11 +176,12 @@ async function textLinks(doc, pageNumber) {
 }
 
 /**
- * The analyzer represents a marker which cites several works as one citation row
- * per work. For a printed range, most of those rows can have the very same
- * box (the collapsed middle numbers have no glyphs of their own), while the
- * range endpoints occupy touching boxes. Turn that physical marker back into
- * one target and retain every referenced work for the card's range controls.
+ * A PDF's own links say nothing of which marker they belong to: one link
+ * can arrive as several annotation rectangles, and a publisher can link each
+ * number of a range on its own. Those that touch on one line are taken for
+ * one printed marker, and every work they lead to is kept for the card's
+ * range controls. (The analyzer's citations need none of this: each already
+ * is one marker, whole.)
  */
 export function consolidateCitations(citations) {
   const ordered = [...citations].sort((a, b) => a.y - b.y || a.x - b.x);
@@ -207,8 +215,17 @@ export function consolidateCitations(citations) {
     }
   }
 
-  return groups;
+  return groups.map((group) => ({ ...group, boxes: [{ x: group.x, y: group.y, w: group.w, h: group.h }] }));
 }
+
+/** Whether a point, as fractions of the page, falls on any printed piece of a citation. */
+export function citationHolds(citation, x, y) {
+  return piecesOf(citation).some((box) => (
+    x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
+  ));
+}
+
+const piecesOf = (box) => box.boxes || [box];
 
 function multiply(a, b) {
   return [
@@ -221,12 +238,16 @@ function multiply(a, b) {
   ];
 }
 
+// Whether two boxes share any area. A citation printed over two lines
+// counts by its pieces, never by a rectangle around both.
 function overlaps(a, b) {
-  const left = Math.max(a.x, b.x);
-  const top = Math.max(a.y, b.y);
-  const right = Math.min(a.x + a.w, b.x + b.w);
-  const bottom = Math.min(a.y + a.h, b.y + b.h);
-  return right > left && bottom > top;
+  return piecesOf(a).some((p) => piecesOf(b).some((q) => {
+    const left = Math.max(p.x, q.x);
+    const top = Math.max(p.y, q.y);
+    const right = Math.min(p.x + p.w, q.x + q.w);
+    const bottom = Math.min(p.y + p.h, q.y + q.h);
+    return right > left && bottom > top;
+  }));
 }
 
 /**

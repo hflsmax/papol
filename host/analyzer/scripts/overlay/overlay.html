@@ -72,14 +72,9 @@
       const d = box(div, { x: 0.02, y: r.y, w: 0.0, h: 0.012 }, W, H, "entry");
       tag(d, String(r.index + 1));
     }
-    const seen = new Map();
-    for (const c of a.citations) if (c.page === n) {
-      const k = `${c.x},${c.y},${c.w},${c.h}`;
-      seen.set(k, [...(seen.get(k) || []), entryNo.get(c.key)]);
-    }
-    for (const [k, nos] of seen) {
-      const [x, y, w, h] = k.split(",").map(Number);
-      const d = box(div, { x, y, w, h }, W, H, "cite");
+    for (const c of a.citations) for (const b of c.boxes) if (b.page === n) {
+      const nos = c.keys.map((k) => entryNo.get(k));
+      const d = box(div, b, W, H, "cite");
       tag(d, nos.length > 3 ? `${nos[0]}…${nos[nos.length - 1]}` : nos.join(","));
     }
     for (const l of a.links) if (l.page === n) box(div, l, W, H, "link");

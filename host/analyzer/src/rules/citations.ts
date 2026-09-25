@@ -16,12 +16,7 @@ import {
   CITE_AUTHOR_YEAR_GROUP, CITE_AUTHOR_YEAR_NARRATIVE, CITE_BRACKET, CITE_LABEL, CITE_PAREN, CITE_SUPERSCRIPT, NOT_A_NAME,
 } from "./registry";
 import type { Trace } from "./trace";
-
-export interface CitationOut extends Box {
-  key: string;
-  label: string;
-  inferred: boolean;
-}
+import type { Citation } from "../../../../cloudflare/src/papers/reading";
 
 interface Hit { rule: string; entries: Entry[]; label: string; boxes: Box[]; page: number }
 
@@ -244,7 +239,7 @@ function labelHits(flows: Flow[], entries: Entry[], size: (p: number) => [number
 
 // ------------------------------------------------------------- the whole
 
-export function findCitations(layout: Layout, flows: Flow[], bibliography: Bibliography, trace: Trace): CitationOut[] {
+export function findCitations(layout: Layout, flows: Flow[], bibliography: Bibliography, trace: Trace): Citation[] {
   if (!bibliography.entries.length) return [];
   const size = (page: number): [number, number] => [layout.pages[page - 1].width, layout.pages[page - 1].height];
   const ways: Hit[][] = [];
@@ -263,10 +258,9 @@ export function findCitations(layout: Layout, flows: Flow[], bibliography: Bibli
   const breadth = (hits: Hit[]) => new Set(hits.flatMap((h) => h.entries.map((e) => e.key))).size;
   const best = ways.reduce((a, b) => (breadth(b) > breadth(a) || (breadth(b) === breadth(a) && b.length > a.length) ? b : a), [] as Hit[]);
   const kept = best.length >= LEAST_HITS ? best : [];
-  const out: CitationOut[] = [];
-  for (const hit of kept) {
+  // A hit is one marker, and so one citation: all it names, all it covers.
+  return kept.map((hit) => {
     trace.add(hit.rule, hit.page, `${hit.label} → ${hit.entries.map((e) => e.key).join(",")}`, hit.boxes);
-    for (const entry of hit.entries) for (const box of hit.boxes) out.push({ key: entry.key, label: hit.label, inferred: false, ...box });
-  }
-  return out;
+    return { keys: hit.entries.map((e) => e.key), label: hit.label, inferred: false, boxes: hit.boxes };
+  });
 }

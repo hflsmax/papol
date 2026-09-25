@@ -41038,12 +41038,10 @@ function findCitations(layout2, flows, bibliography, trace) {
   const breadth = (hits) => new Set(hits.flatMap((h2) => h2.entries.map((e2) => e2.key))).size;
   const best = ways.reduce((a2, b2) => breadth(b2) > breadth(a2) || breadth(b2) === breadth(a2) && b2.length > a2.length ? b2 : a2, []);
   const kept = best.length >= LEAST_HITS ? best : [];
-  const out = [];
-  for (const hit of kept) {
+  return kept.map((hit) => {
     trace.add(hit.rule, hit.page, `${hit.label} \u2192 ${hit.entries.map((e2) => e2.key).join(",")}`, hit.boxes);
-    for (const entry of hit.entries) for (const box of hit.boxes) out.push({ key: entry.key, label: hit.label, inferred: false, ...box });
-  }
-  return out;
+    return { keys: hit.entries.map((e2) => e2.key), label: hit.label, inferred: false, boxes: hit.boxes };
+  });
 }
 
 // src/rules/cited.ts
@@ -42072,7 +42070,7 @@ async function analyzeWithRules(bytes) {
   const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout2, trace), ...findSectionMentions(flow, sections, layout2, trace)]);
   const citations = findCitations(layout2, flows, bibliography, trace);
   const notes = findFootnotes(layout2, trace);
-  links.push(...findFootnoteMarkers(layout2, notes, citations, trace));
+  links.push(...findFootnoteMarkers(layout2, notes, citations.flatMap((c2) => c2.boxes), trace));
   const analysis = {
     references: bibliography.entries.map((e2) => ({
       key: e2.key,
@@ -42107,6 +42105,7 @@ async function analyzeWithRules(bytes) {
 }
 
 // ../../cloudflare/src/papers/reading.ts
+var ANALYSIS_FORMAT = 2;
 var SMALL_WORDS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via", "with", "without", "yet"]);
 function normalizeTitle(title) {
   if (!title) return title;
@@ -42483,13 +42482,21 @@ async function paperOf(request, options) {
   }
   return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
 }
+function flattened({ references, citations, floats, links }) {
+  const rows = citations.flatMap(({ keys, label, inferred, boxes }) => keys.flatMap((key) => boxes.map((box) => ({ key, label, inferred, ...box }))));
+  return { references, citations: rows, floats, links };
+}
 async function answer(request, options) {
-  const path = (request.url ?? "/").split("?")[0];
+  const url = new URL(request.url ?? "/", "http://analyzer");
+  const path = url.pathname;
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
   if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
-  return [200, path === "/analyze" ? await analyze(bytes) : await header(bytes)];
+  if (path === "/header") return [200, await header(bytes)];
+  const analysis = await analyze(bytes);
+  if (url.searchParams.get("format") === String(ANALYSIS_FORMAT)) return [200, { format: ANALYSIS_FORMAT, ...analysis }];
+  return [200, flattened(analysis)];
 }
 function createServer(log = console.log, options = {}) {
   const settled = {

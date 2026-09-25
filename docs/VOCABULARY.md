@@ -61,7 +61,7 @@ paper, and is private until that user shares a reading.
 | **Clip** | A movable view of one rectangle of the page. The rectangle it shows is its **frame**. | `kind = 'clip'`; `ClipRect` is the source rectangle, `ClipFrame` where it sits. |
 | **Reading** | One user's annotations on one paper, taken together. The unit a rich sharable carries. | Named, not copied: reword a note and everyone holding the link sees the rewording. |
 | **PDF-space fraction** | A coordinate as a fraction of the page with origin bottom-left and y up, as PDF measures. The convention of anchors, ink points and clip rectangles. | `Anchor`, `InkPoint`, `ClipRect`. |
-| **Screen-space fraction** | A coordinate as a fraction of the page with origin top-left and y down. The convention of citation boxes, link boxes and backlink bands. | `CitationOut`, `DocumentLinkOut`, `references.js`. A `y` that crosses between the two conventions changes name when it changes convention. |
+| **Screen-space fraction** | A coordinate as a fraction of the page with origin top-left and y down. The convention of citation boxes, link boxes and backlink bands. | `Citation`, `DocumentLinkOut`, `references.js`. A `y` that crosses between the two conventions changes name when it changes convention. |
 | **Page units** | PDF points from the top-left, inside the viewer's text-layer geometry. Neither fraction. | `PdfPage.jsx`. |
 
 All annotation geometry is fractions of the page, so zoom, DPI and screen
@@ -75,7 +75,7 @@ What the PDF itself says.
 | --- | --- | --- |
 | **Analyzer** | The optional service that reads a PDF's bibliography and links. | Where it is not running, everything else works and citations are not clickable. |
 | **Reference** | One work cited by a paper, as printed. | `ReferenceOut`. `raw` is the line exactly as the author printed it: what a search matches, and what is shown when nothing matches. |
-| **Citation** | One in-text marker — the "[12]" a user clicks — and its box, a screen-space fraction. | `CitationOut`. "[3, 5]" is two citations, because each leads somewhere different. `inferred` marks one matched only by reading its number: a guess, shown as one. |
+| **Citation** | One in-text marker — the "[12]" a user clicks — whole: every work it names, and its boxes, one for each line it is printed on, as screen-space fractions. | `Citation` in `cloudflare/src/papers/reading.ts`; `paper_citations` and `paper_citation_works`. "[3, 5]" is one citation of two works, whose card steps between them; "Matsuda et al. 2007" broken over a line is one citation with two boxes. `inferred` marks one matched only by reading its number: a guess, shown as one. |
 | **Link** | An analyzed cross-reference to another position in the same PDF — "see Section 3.2", "Figure 4". | `DocumentLinkOut`. Following one offers **← Back to where you were**, the **return pill** (`ReturnPill.jsx`). |
 | **Job** | Work the server took on and finishes after answering: reading an upload, the reference pass over a paper, a card's picture, an email. A request queues it; the **worker** runs it; the client polls it. | `jobs`, `services/jobs.py`, `worker.py`, `GET /api/jobs/<uuid>` (`JobOut`: `queued`, `running`, `done`, `failed`). A paper's pass is also visible as `papers.references_status`. |
 | **Resolution** | What the bibliographic lookup added to a reference. | `resolved_status` is null until the reference is first opened, then `ok` or `bibliography` (the lookup found nothing and the printed line stands). Kept once filled. |

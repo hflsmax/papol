@@ -33,7 +33,7 @@ export async function analyzeWithRules(bytes: Uint8Array): Promise<RulesResult> 
   const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout, trace), ...findSectionMentions(flow, sections, layout, trace)]);
   const citations = findCitations(layout, flows, bibliography, trace);
   const notes = findFootnotes(layout, trace);
-  links.push(...findFootnoteMarkers(layout, notes, citations, trace));
+  links.push(...findFootnoteMarkers(layout, notes, citations.flatMap((c) => c.boxes), trace));
   const analysis: Analysis = {
     references: bibliography.entries.map((e) => ({
       key: e.key, index: e.index, raw: e.raw, title: e.title, authors: e.authors, year: e.year,

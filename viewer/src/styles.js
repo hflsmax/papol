@@ -1419,6 +1419,9 @@ ${compatibilityStyles}
    user is near it: the PDF already shows "[12]", and a box around every
    one of them would be a rash across the paper. */
 .cite-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+/* A citation's pieces, where it breaks over a line: placed by the layer,
+   lit together. */
+.cite-group { display: contents; }
 
 .cite {
   position: absolute;
@@ -1435,7 +1438,8 @@ ${compatibilityStyles}
    drawn over the page, so an opaque wash — however light — would hide the
    very "[12]" the user is pointing at. */
 .cite.hovered,
-.cite:focus-visible, .cite:hover:not(:disabled) {
+.cite:focus-visible, .cite:hover:not(:disabled),
+.cite-group:has(.cite:focus-visible) > .cite {
   background: rgba(43, 74, 111, 0.14);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
   outline: none;
