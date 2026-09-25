@@ -162,6 +162,12 @@ papers in, and I decide where they go.
 - **US-7.10** Reading a paper's bibliography happens once per **paper** and is kept, so only the first user of a PDF waits. Looking up a particular reference happens the first time someone opens it, and is kept too.
 - **US-7.11** As a user, the paper's **other links work too**: "see Section 3.2" and "Figure 4" scroll me there, and a URL opens in a new tab. Following a cross-reference offers **← Back to where you were**, because a jump that loses my place is worse than no link at all.
 - **US-7.12** The analyzer is optional. Where it is not running, everything else in Papol works and citations are simply not clickable.
+- **US-7.36** As a user reading a citation's card, I am told **how often this paper cites that work** — *Cited 4 times in this paper*, or *Cited only here* — and I can step to the **previous and next place** it is cited, without closing the card. Knowing what [12] is, the next question is what else the authors say about it, and the answer is scattered across the paper.
+- **US-7.37** Each step brings the next marker to where the last one was: the page moves, **the card stays put** under my pointer, and the marker it now belongs to is lit. The card says where I am — *2 of 4 · page 7* — and the sentence around the marker is on screen, because that sentence is what I came for.
+- **US-7.38** **Stepping never loses my place.** The first step leaves *Back to page 3* on the return pill (US-7.11), and [ takes me there; further steps move along the same outing rather than piling up a pill's worth of history each. Closing the card leaves me where I stepped to.
+- **US-7.39** The steps run in **reading order** — down one column and on to the next — and past the last place they come round to the first, as a search does. The count says where I am, so coming round is never a surprise.
+- **US-7.40** A marker that cites several works ("[3–5]") steps through the places that cite **the work the card is showing**; choosing another work in its range changes which places those are. A place where the work is cited alongside others ("[2, 7, 9]") counts as a place it is cited, and one matched only by counting its number is marked as the guess it is (US-7.9).
+- **US-7.41** Where the analyzer has not read the paper but the PDF links its markers, the places are the markers that link to the same entry. Where neither can say, the card says nothing about other places rather than a wrong count.
 
 ## 7c. Sharing a reading
 
