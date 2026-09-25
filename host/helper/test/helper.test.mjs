@@ -134,6 +134,38 @@ function writtenPdf(lines) {
   return new TextEncoder().encode(pdf);
 }
 
+describe("POST /header-rules", () => {
+  it("reads the title block by rules, without GROBID: the largest line, the names under it, the printed DOI and date", async () => {
+    const calls = [];
+    const pdf = writtenPdf([
+      [60, 740, "Metamaterial Mechanisms", 20],
+      [60, 712, "Alexandra Ion, Johannes Frohnhofen and Patrick Baudisch", 11],
+      [60, 698, "Hasso Plattner Institute, Potsdam, Germany", 9],
+      [60, 660, "Abstract", 11],
+      [60, 645, "Metamaterials are designed to exhibit unusual behavior, which we turn into mechanisms."],
+      [60, 120, "Published online: 16 October 2016. https://doi.org/10.1145/2984511.2984540", 8],
+    ]);
+    await serving(seen(calls), async (post, lines) => {
+      const { status, body } = await post("/header-rules", pdf);
+      assert.equal(status, 200);
+      assert.deepEqual(calls, [], "GROBID is never asked");
+      assert.deepEqual(body, {
+        title: "Metamaterial Mechanisms", authors: ["Alexandra Ion", "Johannes Frohnhofen", "Patrick Baudisch"],
+        journal: null, year: 2016, doi: "10.1145/2984511.2984540", arxiv_id: null,
+      });
+      assert.match(lines[0], /^\S+ POST \/header-rules 200 \d+B \d+ms$/);
+    });
+  });
+
+  it("refuses a body that is not a PDF", async () => {
+    await serving(seen([]), async (post) => {
+      const { status, body } = await post("/header-rules", "just some text");
+      assert.equal(status, 400);
+      assert.deepEqual(body, { detail: "The body is not a PDF" });
+    });
+  });
+});
+
 describe("POST /analyze-rules", () => {
   it("reads the references, citations and figure links by rules, without GROBID", async () => {
     const calls = [];

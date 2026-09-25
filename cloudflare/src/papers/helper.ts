@@ -63,7 +63,8 @@ export function analyze(env: Env, filePath: string): Promise<Analysis> {
   return post<Analysis>(env, env.ANALYZER === "rules" ? "/analyze-rules" : "/analyze", filePath);
 }
 
-// The title block, with the identifiers GROBID found or CrossRef gave it.
+// The title block, with the identifiers GROBID found or CrossRef gave it;
+// by rules, the identifiers printed on the first pages only.
 export function header(env: Env, filePath: string): Promise<HeaderMetadata> {
-  return post<HeaderMetadata>(env, "/header", filePath);
+  return post<HeaderMetadata>(env, env.ANALYZER === "rules" ? "/header-rules" : "/header", filePath);
 }

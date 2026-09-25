@@ -11,8 +11,9 @@ papers are set, and answers in exactly GROBID's shape (`Analysis` in
 
 It runs in the helper on the GROBID host (`POST /helper/analyze-rules`),
 not in the Worker: reading a PDF is CPU the Worker should not spend. The
-Worker calls it where `ANALYZER = "rules"` — dev only, for now
-(`cloudflare/wrangler.toml`); production still asks GROBID.
+Worker calls it where `ANALYZER = "rules"` — production and dev
+(`cloudflare/wrangler.toml`); GROBID is still asked for `/header`, and
+for `/analyze` where the var is unset.
 
 ## How it reads
 
@@ -66,6 +67,8 @@ Worker calls it where `ANALYZER = "rules"` — dev only, for now
   is tried, and the paper's way is the one that names the most different
   entries.
 - `analyze.ts` — the whole, answering `Analysis` and a trace.
+- `header.ts` — the title block, for the upload form (`POST
+  /helper/header-rules`, `HeaderMetadata`): below.
 
 In the viewer (`viewer/src/references.js`), the analyzer's citations and
 links come first; a PDF's own links fill in only where the analyzer found
@@ -110,6 +113,57 @@ tail of a list); every paper with a numbered bibliography cites 95–100% of
 its entries; author–year papers 82–100%; figure mentions GROBID dropped
 ("Figure 10" in the paper that started this) are linked.
 
-Known gaps: title-block extraction for the upload form still uses GROBID
-(`/header`); a caption set as part of an image, or a float with no caption,
+Known gaps: a caption set as part of an image, or a float with no caption,
 is not found; unusual citation wording ("Plate 3") is not recognized.
+
+## The title block
+
+Written 2026-09-25. The upload form asks the helper for a paper's title,
+authors, journal, year, DOI and arXiv id when the browser read no
+identifier off the first pages, or one no index knows
+(`cloudflare/src/papers/extract.ts`). GROBID's header model answered that
+(`/header`); `header.ts` reads it by rules (`/header-rules`), where
+`ANALYZER = "rules"`, from the first three pages:
+
+- the title is the first page's largest text in its top two thirds, with
+  the lines of that size under it and an ACM subtitle; not a banner, a
+  notice, a line of names or an Elsevier masthead; a scanned title is the
+  running head of the next pages;
+- the authors are the names under it before the abstract, split at commas,
+  "and", affiliation marks and wide gaps, an affiliation ending its line;
+  TeX's detached accents are put back on their letters; an IOP cover
+  sheet's "To cite this article" line is taken instead;
+- the year is a printed publication date or ©, a journal line's year, a
+  "YYYY, Vol." line or the acceptance, and last an arXiv number's;
+- the journal is an Elsevier masthead, a Nature or APS running line, an ACM
+  reference paragraph's proceedings, or a known abbreviation;
+- the DOI and arXiv id are found as the browser finds them
+  (`shared/identifiers.js`).
+
+It reads only the PDF: nothing is asked of any index. GROBID's header also
+asked Crossref for a DOI the page does not print (`consolidateHeader`);
+the rules do not, by the owner's decision — a paper that prints no
+identifier keeps what its title block says. (Over the 48 papers,
+Crossref's lookup had found one such DOI.)
+
+Judged against the papers' rows in production, which are mostly what
+Crossref says (`truth.json`, exported from D1), beside GROBID's answers
+(`grobid-header.tsv`, one `/header` answer per paper):
+
+    cd host/helper
+    node scripts/run-script.mjs header .corpus/pdf [sha-prefix]     # ✓/✗ per field, rules then GROBID
+    VERBOSE=1 node scripts/run-script.mjs header .corpus/pdf        # with every answer
+
+To fetch them: `npx wrangler d1 execute papol --remote --json --command
+"SELECT sha256, doi, title, authors, journal, year FROM papers WHERE
+deleted_at IS NULL"` (authors parsed from JSON), each PDF from
+`https://files.papol.io/uploads/<sha256>.pdf`, and GROBID's answer by
+posting `{"url": …}` to the helper's `/header` on the host.
+
+On 2026-09-25, over all 48 papers (a field counted where the row has it):
+title 47/48 (GROBID 46), authors 44/47 (45), year 32/33 (32), DOI 37/37
+(33), journal 21/30 (22 — GROBID's journal is Crossref's, looked up). The
+misses: a book's title page; an author the draft lists and the published
+paper does not; a name Crossref itself has garbled; an arXiv copy's year
+beside the published one's. The journal matters least: it is kept only
+when no index knows the paper.

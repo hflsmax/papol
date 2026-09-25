@@ -7,6 +7,7 @@
 import { parseHeader, parseTei, type Analysis, type HeaderMetadata } from "../../../cloudflare/src/papers/tei";
 import { GrobidError, type Grobid } from "./grobid";
 import { analyzeWithRules } from "./rules/analyze";
+import { headerWithRules } from "./rules/header";
 
 export type { Analysis, HeaderMetadata };
 
@@ -49,6 +50,17 @@ export async function analyzeByRules(bytes: Uint8Array): Promise<Analysis> {
   if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
   try {
     return (await analyzeWithRules(bytes)).analysis;
+  } catch (error) {
+    throw new Refusal(422, `The PDF could not be read: ${(error as Error).message}`);
+  }
+}
+
+// The title block read by rules, without GROBID (src/rules/header.ts):
+// what the page prints, with no Crossref lookup behind it.
+export async function headerByRules(bytes: Uint8Array): Promise<HeaderMetadata> {
+  if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
+  try {
+    return (await headerWithRules(bytes)).header;
   } catch (error) {
     throw new Refusal(422, `The PDF could not be read: ${(error as Error).message}`);
   }

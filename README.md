@@ -37,6 +37,7 @@ cd cloudflare && npm ci --legacy-peer-deps && npx wrangler dev
 ```
 
 Its suite is `npm test` there, in the Workers runtime against a local
-database; each app's is `npm test` in its directory. `./deploy.sh prod`
-deploys to https://papol.io, and `deploy.sh`'s header lists the rest. How
+database; each app's is `npm test` in its directory. Main deploys
+itself to dev.papol.io; `./deploy.sh prod` runs the same workflow for
+https://papol.io, and `deploy.sh`'s header lists the rest. How
 the system came to be shaped this way is in `docs/cloud-migration.md`.

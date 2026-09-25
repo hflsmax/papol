@@ -19,8 +19,7 @@ interface Secrets {
   GROBID_AUTH?: string;
   // How the helper reads a paper's references: "rules" for the rule-based
   // analyzer (host/helper/src/rules/), anything else for GROBID. A var,
-  // not a secret: set for dev in wrangler.toml while the rules are tried
-  // there before production.
+  // not a secret: "rules" for production and dev in wrangler.toml.
   ANALYZER?: string;
   // An R2 API token for the files bucket, with which the Worker signs the
   // URL a client PUTs a file to directly (src/files.ts). Unset, the

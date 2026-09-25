@@ -11,6 +11,9 @@
 //   POST /helper/header   application/pdf → { title, authors, journal, year, doi, arxiv_id }
 //   POST /helper/analyze  application/pdf → { references, citations, links }
 //
+// and the same under /helper/header-rules and /helper/analyze-rules, which
+// a Worker with ANALYZER = "rules" (wrangler.toml, production's vars) asks.
+//
 // A local Worker has no bucket domain, so it sends the bytes themselves
 // (helper.ts, `sent`); the stand-in takes only that, and a body that is
 // not a PDF is refused as the real one refuses it. What it answers for a
@@ -63,7 +66,7 @@ async function answer(request, response) {
     return reply(response, 200, { planned: plan.sha256 });
   }
   if (request.method === 'GET' && path === '/helper/health') return reply(response, 200, { ok: true });
-  if (path !== '/helper/header' && path !== '/helper/analyze') return reply(response, 404, { detail: 'No such endpoint' });
+  if (!['/helper/header', '/helper/analyze', '/helper/header-rules', '/helper/analyze-rules'].includes(path)) return reply(response, 404, { detail: 'No such endpoint' });
 
   const bytes = await body(request);
   const type = String(request.headers['content-type'] || '').split(';')[0].trim();
@@ -81,7 +84,7 @@ async function answer(request, response) {
 
   const plan = plans.get(sha256);
   if (plan?.status) return reply(response, plan.status, { detail: plan.detail || 'GROBID failed' });
-  if (path === '/helper/analyze') return reply(response, 200, { references: [], citations: [], links: [] });
+  if (path.startsWith('/helper/analyze')) return reply(response, 200, { references: [], citations: [], links: [] });
   return reply(response, 200, { ...NOTHING_READ, ...(plan?.header || {}) });
 }
 
