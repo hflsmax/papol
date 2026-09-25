@@ -69,7 +69,8 @@ share-e2e CDP driver, `scripts/share-e2e/cdp.mjs`, as the UI PRs do.
 
 Succinct, and about how the feature makes reading and research easier:
 what the reader can do now and how to try it (where to click, which key).
-Each feature gets two to four sentences and at most one picture. Open with
+Each feature gets one short paragraph (two to four sentences, no lists)
+and at most one picture. Open with
 the problem the reader knows from other tools, then show what happens in
 Papol, told from the reader's side, so it feels intelligent, even magic.
 Never explain how it works: no analyzer, reading, parsing, indexes or
