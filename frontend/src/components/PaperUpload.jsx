@@ -12,7 +12,7 @@ import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
-import { droppedFolder } from '../agentFolder.js';
+import { droppedFolder, severalPdfs } from '../agentFolder.js';
 import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
 
 // The upload is a bar in the drop zone (docs/waiting.md), over the hash
@@ -78,14 +78,27 @@ export default function PaperUpload({
     setIsDragging(false);
   };
 
+  // A folder, or several PDFs, go to the batch's review (FolderImport)
+  // where there is one to go to; where there is not, a folder is left to
+  // the window (App.jsx), which opens one.
   const handleDrop = (e) => {
     setIsDragging(false);
-    // A folder is the window's to take (App.jsx): it opens a folder's
-    // review, not this form.
-    if (droppedFolder(e.dataTransfer)) return;
+    const folder = droppedFolder(e.dataTransfer);
+    if (folder && !onAddFolder) return;
     e.preventDefault();
+    if (folder) {
+      onAddFolder({ entry: folder });
+      return;
+    }
+    const several = severalPdfs(e.dataTransfer.files);
+    if (several.length && onAddFolder) {
+      onAddFolder({ files: several });
+      return;
+    }
     const file = e.dataTransfer.files[0];
-    if (isPdfFile(file)) {
+    if (e.dataTransfer.files.length > 1) {
+      setError('Import one PDF at a time.');
+    } else if (isPdfFile(file)) {
       handleFile(file);
     } else {
       setError('Papol’s library only supports PDF files.');
@@ -93,10 +106,14 @@ export default function PaperUpload({
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+    const chosen = Array.from(e.target.files || []);
+    const file = chosen[0];
     // Let the same file be selected again after a failed import.
     e.target.value = '';
-    if (file) {
+    const several = severalPdfs(chosen);
+    if (several.length && onAddFolder) {
+      onAddFolder({ files: several });
+    } else if (file) {
       handleFile(file);
     }
   };
@@ -459,22 +476,33 @@ export default function PaperUpload({
           ref={fileInputRef}
           onChange={handleFileSelect}
           accept=".pdf"
+          multiple={Boolean(onAddFolder)}
           style={{ display: 'none' }}
         />
         {isLoading ? (
           <UploadWait progress={uploadProgress} />
         ) : (
           <>
-            <p>Drop a PDF here or click to upload</p>
+            <p>
+              {onAddFolder ? 'Drop PDFs or a folder here, or click to upload' : 'Drop a PDF here or click to upload'}
+              {onAddFolder && <>
+                {' '}
+                <span className="add-folder">
+                  ·{' '}
+                  <button
+                    type="button"
+                    className="link-button add-folder-link"
+                    onClick={(event) => { event.stopPropagation(); onAddFolder(null); }}
+                  >
+                    Add a folder
+                  </button>
+                </span>
+              </>}
+            </p>
             {!compact && <p className="hint">DOI will be extracted automatically</p>}
           </>
         )}
       </div>
-      {onAddFolder && !isLoading && (
-        <button type="button" className="link-button add-folder-link" onClick={onAddFolder}>
-          Add a folder from an agent…
-        </button>
-      )}
       {error && <div className="error" role="alert">{error}</div>}
     </div>
   );

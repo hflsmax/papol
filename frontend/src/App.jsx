@@ -47,7 +47,7 @@ import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
-import { droppedFolder } from './agentFolder.js';
+import { droppedFolder, severalPdfs } from './agentFolder.js';
 import {
   nativeCompatibilityVerdict, openDroppedPdf, recordDiagnosticEvent,
   setNativeAccount, subscribeNativeData, subscribeShowPaperRequests, subscribeSignInRequests,
@@ -125,7 +125,7 @@ function DeskFileDropFeedback({ state, message, opensViewer = false }) {
         <div className="desk-file-drop-card">
           <strong>{state === 'reject'
             ? 'PDF files only'
-            : opensViewer ? 'Drop PDF to open' : 'Drop a PDF or a folder to import'}</strong>
+            : opensViewer ? 'Drop PDF to open' : 'Drop PDFs or a folder to import'}</strong>
           <span>{state === 'reject'
             ? 'Papol’s Desk only supports PDF files.'
             : opensViewer
@@ -271,8 +271,21 @@ export default function App({ startupUser = null, startupError = null }) {
         return;
       }
       const files = Array.from(event.dataTransfer.files || []);
+      // Several PDFs are a batch: the folder's review takes them, as it
+      // takes a folder with no manifest.
+      const several = severalPdfs(files);
+      if (several.length) {
+        if (openInViewer) {
+          showNotice('Sign in to add several papers at once.');
+          return;
+        }
+        setDeskDropNotice(null);
+        setIncomingPaperFolder({ uuid: globalThis.crypto.randomUUID(), files: several });
+        navigate('/library');
+        return;
+      }
       if (files.length !== 1) {
-        showNotice('Import one PDF at a time.');
+        showNotice(files.length ? 'Papol’s Desk only supports PDF files.' : 'Drop a PDF to import.');
         return;
       }
       if (!isPdfFile(files[0])) {

@@ -4,8 +4,8 @@ import test from 'node:test';
 
 import {
   MANIFEST_NAME, agentInstructions, droppedFolder, filesFromPicker, filesInFolder, folderPath,
-  folderRows, identifierFor, importSummary, parseManifest, rowAddable, rowMetadata, rowStatus,
-  rowTitle,
+  folderRows, identifierFor, importSummary, looseFiles, parseManifest, rowAddable, rowMetadata, rowStatus,
+  rowTitle, severalPdfs,
 } from './agentFolder.js';
 
 const pdf = (path, size = 1000) => ({ path, file: { name: path.split('/').pop(), type: 'application/pdf', size } });
@@ -177,4 +177,15 @@ test('the instructions point the agent at the format, and the format says what t
   assert.equal(error, undefined);
   assert.deepEqual(Object.keys(example.papers[0]).sort(), ['arxiv', 'doi', 'file', 'note', 'title']);
   assert.ok(papers[0].file && papers[0].doi && papers[0].arxiv_id && papers[0].title && papers[0].note);
+});
+
+test('several PDFs dropped together are a batch; one is the one-paper upload\'s', () => {
+  const pdfFile = (name) => ({ name, type: 'application/pdf' });
+  assert.deepEqual(severalPdfs([pdfFile('a.pdf')]), []);
+  assert.deepEqual(severalPdfs([pdfFile('a.pdf'), pdfFile('b.pdf'), { name: 'n.txt', type: 'text/plain' }]).map((f) => f.name), ['a.pdf', 'b.pdf']);
+  assert.deepEqual(severalPdfs([{ name: 'n.txt' }, { name: 'm.txt' }]), []);
+  const loose = looseFiles([pdfFile('a.pdf'), pdfFile('b.pdf')]);
+  assert.equal(loose.name, '');
+  assert.deepEqual(folderRows(loose.files.map(({ path }) => ({ path, file: { size: 1, type: 'application/pdf' } })), null)
+    .map((row) => [row.path, row.problem]), [['a.pdf', null], ['b.pdf', null]]);
 });

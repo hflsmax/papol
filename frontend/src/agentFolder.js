@@ -175,6 +175,24 @@ export function filesFromPicker(fileList) {
   return { name, files };
 }
 
+// PDFs dropped or chosen together, with no folder around them: read as a
+// folder with no name and no manifest, so they come in through the same
+// review. `name` is '' — there is no folder to name the batch after.
+export function looseFiles(files) {
+  return {
+    name: '',
+    files: Array.from(files || []).slice(0, FOLDER_FILE_LIMIT).map((file) => ({ path: file.name, file })),
+  };
+}
+
+// What a drop or a pick of several files carries into the review: the
+// PDFs among them, when there is more than one file. One file is the
+// one-paper upload's.
+export function severalPdfs(files) {
+  const all = Array.from(files || []);
+  return all.length > 1 ? all.filter(isPdfFile) : [];
+}
+
 // ---------------------------------------------------------------- the review
 
 // The rows the review opens on, from the folder's files and its manifest

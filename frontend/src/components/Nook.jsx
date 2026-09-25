@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { getNook } from '../../../shared/api/people.js';
 import PaperUpload from './PaperUpload';
+import FolderImport from './FolderImport';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
@@ -19,6 +20,9 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
+  // A folder, or several PDFs, being brought in (FolderImport) in place
+  // of the upload box: `{}` when only opened, else what was handed over.
+  const [folderRequest, setFolderRequest] = useState(null);
   const [managingShelves, setManagingShelves] = useState(false);
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [section, setSection] = useState(() => initialSection || storedSection(userUuid));
@@ -92,15 +96,29 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
                 <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
                 <span>New board</span>
               </button>
-              <PaperUpload
-                onReportableError={onReportableError}
-                compact
-                onPaperCreated={(paper) => {
-                  if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
-                  else loadNook();
-                }}
-                onReviewChange={setReviewingUpload}
-              />
+              {folderRequest ? (
+                <FolderImport
+                  currentUser={nook.user}
+                  incomingFolder={folderRequest.uuid ? folderRequest : null}
+                  onReportableError={onReportableError}
+                  onAdded={loadNook}
+                  onClose={() => { setFolderRequest(null); setReviewingUpload(false); loadNook(); }}
+                />
+              ) : (
+                <PaperUpload
+                  onReportableError={onReportableError}
+                  compact
+                  onAddFolder={(incoming) => {
+                    setFolderRequest(incoming ? { uuid: globalThis.crypto.randomUUID(), ...incoming } : {});
+                    setReviewingUpload(true);
+                  }}
+                  onPaperCreated={(paper) => {
+                    if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
+                    else loadNook();
+                  }}
+                  onReviewChange={setReviewingUpload}
+                />
+              )}
             </div>
           )}
         </div>
