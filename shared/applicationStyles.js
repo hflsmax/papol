@@ -1235,8 +1235,7 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 }
 .paper-list li.nook-board-row { min-height: 66px; isolation: isolate; }
 .paper-list li.nook-board-row::before { content: ''; position: absolute; z-index: -1; inset: 0 0 0 18px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Ccircle cx='2' cy='2' r='1.05' fill='%237e8794' fill-opacity='.42'/%3E%3C/svg%3E"); background-repeat: repeat; pointer-events: none; }
-.board-item-row { display: flex; flex-wrap: wrap; align-items: center; }
-.board-item-row .nook-effort { flex-basis: 100%; }
+.board-item-row { display: flex; align-items: center; }
 .nook-board-title { font: inherit; letter-spacing: inherit; line-height: inherit; }
 .nook-inline-board-create { margin-bottom: 18px; font-family: var(--font-ui); }
 .board-create-heading { margin-bottom: 16px; }
@@ -3411,28 +3410,34 @@ h4 .state-pill {
   .activity-subject-bar { display: none; }
 }
 
-/* A paper's or board's effort on its user's own nook, under its title. */
+/* A paper's or board's effort on its user's own nook: a clock and the
+   time at the end of a line the row already has (a paper's authors, a
+   board's name), in the faint UI face, upright among the italic meta. It
+   is a measure, not a goal, so it is a number and never a bar. */
 .nook-effort {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 4px 0 0;
+  gap: 3px;
+  margin-left: var(--space-2);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-faint);
+  white-space: nowrap;
+  vertical-align: baseline;
 }
 
-.nook-effort-bar {
-  display: inline-block;
-  flex: none;
-  width: 48px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--paper-sunken);
-  overflow: hidden;
+.nook-effort svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
 }
 
-.nook-effort-bar i { display: block; height: 100%; border-radius: 2px; }
+.paper-title-row .nook-effort { margin-left: 0; }
 
 .local-setting-row {
   display: grid;

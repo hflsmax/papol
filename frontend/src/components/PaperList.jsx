@@ -11,19 +11,17 @@ import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 import { contextMenuHandler } from '../../../shared/contextMenu';
 import { formatDuration, lastWhen } from '../activityView';
 
-// How long its user has spent on a paper or board, under its title, with
-// a short bar against the most any one thing in the nook has taken. Only
-// the nook's own user is sent it.
-function Effort({ effort, kind, most }) {
+// How long its user has spent on a paper or board: a faint clock and the
+// time, riding a line the row already has, with the whole of it said to a
+// hover and a screen reader. Only the nook's own user is sent it.
+function Effort({ effort, kind }) {
   if (!(effort?.seconds > 0)) return null;
-  const verb = kind === 'reading' ? 'Read for' : 'Worked on for';
+  const said = `${kind === 'reading' ? 'Read for' : 'Worked on for'} ${formatDuration(effort.seconds)}, last ${lastWhen(effort.last_at)}`;
   return (
-    <p className="nook-effort" title="Time spent with it open and in use. Only you see this.">
-      <span className="nook-effort-bar" aria-hidden="true">
-        <i className={`activity-${kind}`} style={{ width: `${Math.max(6, (effort.seconds / most) * 100)}%` }} />
-      </span>
-      {verb} {formatDuration(effort.seconds)}, last {lastWhen(effort.last_at)}
-    </p>
+    <span className="nook-effort" title={`${said}. Only you see this.`} aria-label={said} role="img">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.75" /><path d="M6 3.4V6l1.8 1.2" /></svg>
+      {formatDuration(effort.seconds)}
+    </span>
   );
 }
 
@@ -84,8 +82,6 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
     ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: seminarRank(paper) })),
     ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
   ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
-
-  const mostEffort = Math.max(0, ...papers.map((p) => p.effort?.seconds ?? 0), ...boards.map((b) => b.effort?.seconds ?? 0));
 
   const activeShelf = shelves.find((shelf) => shelf.uuid === selectedShelf);
   const activeTag = tags.find((tag) => tag.uuid === selectedTag);
@@ -230,7 +226,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   </span>}
                   {toggleWarning?.uuid === pickerUuid && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
                 </span>}
-                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/board/${board.uuid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4></div><Effort effort={board.effort} kind="board" most={mostEffort} /></div>
+                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/board/${board.uuid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4><Effort effort={board.effort} kind="board" /></div></div>
               </li>;
             }
             const paper = entry.value;
@@ -312,9 +308,9 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   {formatAuthors(paper.authors)}
                   {paper.year && ` (${paper.year})`}
                   {paper.journal && ` - ${paper.journal}`}
+                  <Effort effort={paper.effort} kind="reading" />
                 </p>
                 <RatingSummary paper={paper} compact />
-                <Effort effort={paper.effort} kind="reading" most={mostEffort} />
               </div>
               {/* The users are the row's right-hand feature: who else
                   has this paper is the reason to look at a nook. Out of
