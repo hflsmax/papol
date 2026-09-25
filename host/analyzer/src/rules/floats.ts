@@ -394,14 +394,31 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
   const boundText = bounding && ground.bounds.find((l) => l.top === bounding.y0 && l.x0 === bounding.x0)?.text;
   explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}${bounding ? ` by ${boundText ? JSON.stringify(boundText.slice(0, 40)) : show(bounding)}` : ""}, ${pieces.length} pieces`);
   for (const p of pieces) explain?.(`    ${p.text ? `text "${p.text.text.slice(0, 30)}"` : p.image ? "image" : "drawn"} ${show(p)}`);
+  // A scanned page is one picture with its text laid over it: a drawing's
+  // strokes are in the picture, where nothing here sees them, and only its
+  // labels are pieces. The float is the whole band (float.scanned).
+  const page = ground.page;
+  if (pieces.length && page.drawn.some((d) => d.image && d.w * d.h >= 0.8 * page.width * page.height)) {
+    const margins = marginsOf(page, ground.type);
+    const fill: Rect = side === "above"
+      ? { x0: x.x0, y0: Math.max(limit, margins.y0), x1: x.x1, y1: caption.y1 }
+      : { x0: x.x0, y0: caption.y0, x1: x.x1, y1: Math.min(limit, margins.y1) };
+    explain?.(`  scanned: the band ${show(fill)}`);
+    return { rect: union([caption, fill]), pieces };
+  }
   return { rect: pieces.length ? union([caption, ...pieces]) : caption, pieces };
 }
 
-function frameAround(caption: Rect, ground: Ground): Rect | null {
+function frameAround(caption: Rect, ground: Ground, kind: string): Rect | null {
   const size = (r: Rect) => (r.x1 - r.x0) * (r.y1 - r.y0);
+  // A figure's or a table's frame does not run over the text around it: a
+  // fill or a clip reaching into wrapped text is no frame. (A box's frame
+  // holds its own running text.)
+  const prose = kind === "box" ? [] : ground.bounds.filter((l) => !(l.top >= caption.y0 - 1 && l.bottom <= caption.y1 + 1));
+  const holdsText = (g: Rect) => prose.some((l) => gapBetween(rectOf(l), g).xs > 2 * l.size && gapBetween(rectOf(l), g).ys > 0);
   const frames = ground.page.drawn.map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h, image: d.image }))
     .filter((g) => !g.image && size(g) < 0.8 * ground.page.width * ground.page.height && g.x0 <= caption.x0 + 1 && g.x1 >= caption.x1 - 1
-      && g.y0 <= caption.y0 + 1 && g.y1 >= caption.y1 - 1 && size(g) >= 4 * size(caption));
+      && g.y0 <= caption.y0 + 1 && g.y1 >= caption.y1 - 1 && size(g) >= 4 * size(caption) && !holdsText(g));
   return frames.sort((a, b) => size(a) - size(b))[0] ?? null;
 }
 
@@ -444,7 +461,7 @@ function extentOf(kind: string, paragraph: Line[], ground: Ground, claimed: Rect
   if (paragraph.length > 1) trace.add(FLOAT_CAPTION_PARAGRAPH.id, ground.page.number, paragraph[0].text.slice(0, 60), []);
   // A box is drawn as fills of one width stacked against each other — a
   // tinted title band and the panel under it: the frame is all of them.
-  const frame = frameAround(caption, ground);
+  const frame = frameAround(caption, ground, kind);
   if (frame) {
     let framed: Rect = frame;
     const fills = ground.page.drawn.filter((d) => !d.image && d.w * d.h < 0.8 * ground.page.width * ground.page.height)

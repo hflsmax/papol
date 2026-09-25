@@ -27,8 +27,10 @@ async function serving(run, options = {}) {
 // A one-page PDF written here, line by line in Helvetica at 10pt: enough
 // for the rules to find a caption, a mention of it, citations and a
 // bibliography of three entries (fewer is not taken for a bibliography).
+// A string instead of a line is drawing operators, put in as they are.
 function writtenPdf(lines) {
-  const content = lines.map(([x, y, text, size = 10]) => `BT /F1 ${size} Tf ${x} ${y} Td (${text.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
+  const content = lines.map((line) => (typeof line === "string" ? line
+    : `BT /F1 ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -120,6 +122,43 @@ describe("POST /analyze", () => {
       const notes = body.floats.filter((f) => f.kind === "footnote");
       assert.deepEqual(notes.map((f) => [f.label, f.page]), [["1", 1]]);
       assert.deepEqual(body.links.filter((l) => l.float === notes[0].key).map((l) => [l.label, l.page]), [["1", 1]]);
+    });
+  });
+
+  it("does not take a mention wrapped onto a line's start for a caption (caption.not-wrapped)", async () => {
+    // "…as shown in / Fig. 2. Most passes…": the paragraph runs on into the
+    // line. Fig. 2 is the real caption further down, under its drawing.
+    const pdf = writtenPdf([
+      [60, 740, "The lemmas that preserve the stack across the passes are shown in"],
+      [60, 728, "Fig. 2. Most passes keep the stack structure at every point of the run."],
+      [60, 716, "For these passes the injection is a list of ones."],
+      "0 0 0 RG 1 w 100 400 m 300 560 l S 100 560 m 300 400 l S",
+      [60, 380, "Fig. 2: The stack injections of the passes."],
+    ]);
+    await serving(async (post) => {
+      const { body } = await post("/analyze", pdf);
+      const figure = body.floats.find((f) => f.kind === "figure" && f.label === "2");
+      assert.ok(figure, "Fig. 2 is found");
+      // Its caption is at 800 − 380 = 420 from the top, and its drawing over it.
+      assert.ok(figure.y > 0.25 && figure.y + figure.h > 0.52, `Fig. 2 is the drawing and its caption, not the paragraph: ${JSON.stringify(figure)}`);
+    });
+  });
+
+  it("keeps a caption whole past a legend's swatch drawn in its text", async () => {
+    // A short line drawn between the caption's lines ("(red line)") is a
+    // swatch, not the rule under an algorithm's caption.
+    const pdf = writtenPdf([
+      "0 0 0 RG 1 w 150 460 m 250 540 l S",
+      [60, 420, "Figure 1: The pattern with the standard fold (red line) and the"],
+      "1 0 0 RG 1 w 200 414 m 220 414 l S",
+      [60, 408, "variant (blue line) as particular cases of the family."],
+      [60, 300, "Figure 1 shows the pattern. Its folds are set by one parameter only."],
+    ]);
+    await serving(async (post) => {
+      const { body } = await post("/analyze", pdf);
+      const figure = body.floats.find((f) => f.kind === "figure" && f.label === "1");
+      // The caption's second line sits at 800 − 408 = 392 from the top.
+      assert.ok(figure && figure.y + figure.h >= 395 / 800, `Figure 1 keeps its second caption line: ${JSON.stringify(figure)}`);
     });
   });
 
