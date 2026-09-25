@@ -8,10 +8,11 @@ import {
 } from '../../../shared/api/papers.js';
 import appLimits from '../../../shared/appLimits.js';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
+import { isPdfFile } from '../../../shared/fileDrop.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { savedFile } from '../uploadReview.js';
 import {
-  MANIFEST_NAME, agentInstructions, droppedFolder, filesFromPicker, filesInFolder, folderRows,
+  MANIFEST_NAME, agentInstructions, droppedFolder, filesFromPicker, filesInFolder, folderRows, looseFiles,
   identifierFor, importSummary, parseManifest, rowAddable, rowMetadata, rowStatus,
   rowTitle,
 } from '../agentFolder.js';
@@ -124,7 +125,7 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
       const planned = folderRows(files, manifest?.papers ? manifest : null)
         .map((row) => ({ ...row, state: row.problem ? null : 'waiting', include: !row.problem }));
       if (!planned.length) {
-        setError(`There are no PDFs in “${name}”.`);
+        setError(name ? `There are no PDFs in “${name}”.` : 'There are no PDFs among these files.');
         return;
       }
       setShelves(shelfList);
@@ -132,7 +133,7 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
       setNewShelfName(name.slice(0, appLimits.text.shelf_name));
       setAvailableTags(tags);
       setSelectedTags([]);
-      setFolder({ name, manifestError: manifest?.error || null });
+      setFolder({ name, manifestError: manifest?.error || null, manifest: Boolean(manifest?.papers) });
       setRows(planned);
 
       const context = {
@@ -155,7 +156,10 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
     if (!incomingFolder || handledIncoming.current === incomingFolder.uuid) return;
     handledIncoming.current = incomingFolder.uuid;
     onIncomingFolderHandled();
-    if (!folder) void open(filesInFolder(incomingFolder.entry));
+    if (folder) return;
+    void open(incomingFolder.entry
+      ? filesInFolder(incomingFolder.entry)
+      : Promise.resolve(looseFiles(incomingFolder.files)));
   }, [incomingFolder]);
 
   const add = async () => {
@@ -218,8 +222,10 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
       event.preventDefault();
       setDragging(false);
       const entry = droppedFolder(event.dataTransfer);
+      const pdfs = Array.from(event.dataTransfer.files || []).filter(isPdfFile);
       if (entry) void open(filesInFolder(entry));
-      else setError('Drop a folder here, not a file.');
+      else if (pdfs.length) void open(Promise.resolve(looseFiles(pdfs)));
+      else setError('Drop a folder, or PDFs, here.');
     };
     return (
       <div className="panel folder-import">
@@ -267,8 +273,18 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
   return (
     <div className="panel folder-import">
       <div className="paper-metadata-heading">
-        <h3>{done ? `Added from “${folder.name}”` : `Papers in “${folder.name}”`}</h3>
+        <h3>{folder.name
+          ? (done ? `Added from “${folder.name}”` : `Papers in “${folder.name}”`)
+          : (done ? 'Added' : 'Papers to add')}</h3>
       </div>
+      {!folder.manifest && !done && (
+        // No manifest: likely PDFs gathered by hand. Where an agent could
+        // have gathered them, with a note on each, say how — once, folded.
+        <details className="folder-agent-hint">
+          <summary>From an agent? Ask it for a folder instead, with a note on why each paper is there.</summary>
+          <pre className="folder-import-instructions">{agentInstructions()}</pre>
+        </details>
+      )}
       {folder.manifestError && (
         <p className="metadata-reading" role="status">{folder.manifestError} Every PDF in the folder is listed instead.</p>
       )}
