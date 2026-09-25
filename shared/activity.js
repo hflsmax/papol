@@ -1,8 +1,12 @@
 // The time a user spends with a paper or a board, recorded where it is
-// spent: in the viewer with a paper open, on one of their boards. Time
-// counts while the window is in front of them and they have touched it —
-// a scroll, a key, the pointer — in the last few minutes; a paper left
-// open behind another window, or on a desk nobody is at, adds nothing.
+// spent: in the viewer with a paper open, on one of their boards. There is
+// one rule. Time runs from one use of the paper to the next — a scroll, a
+// key, the pointer, or bringing its window back to the front — and a pause
+// between two uses counts if it is no longer than GAP_MS, whether the
+// reader sat still over a page or went off to another tab to look
+// something up. A longer pause, or one spent on another paper or board in
+// Papol (which counted it already), ends the stretch at the last use.
+// Nothing after the last use counts unless the reader comes back.
 //
 // A stretch of that time is a span. The window that sees it names it and
 // keeps it in this browser's storage until Papol has it, sending it again
@@ -16,7 +20,7 @@ import { currentCredential } from './credentials.js';
 import { sendActivity } from './api/activity.js';
 
 const {
-  idle_ms: IDLE_MS, tick_ms: TICK_MS, span_max_ms: SPAN_MAX_MS, flush_ms: FLUSH_MS, away_grace_ms: AWAY_GRACE_MS,
+  gap_ms: GAP_MS, tick_ms: TICK_MS, span_max_ms: SPAN_MAX_MS, flush_ms: FLUSH_MS,
   spans_per_request: SPANS_PER_REQUEST, span_age_days_max: SPAN_AGE_DAYS_MAX,
 } = limits.activity;
 
@@ -24,6 +28,7 @@ const PREFIX = 'papol.activity.span.';
 // Which Papol window last counted time, and when: a window coming back
 // from time away asks it whether the time away went to another paper.
 const LAST_COUNTED = 'papol.activity.lastCounted';
+const ANNOUNCE_MS = 5000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A span still marked open that has not grown for this long belongs to a
 // window that is gone: it is finished, whatever it says.
@@ -38,93 +43,57 @@ export function accountMark(credential) {
   return hash.toString(36);
 }
 
-// The clock. `tick(present)` is called every few seconds with whether the
-// window is in front of the user, `touch()` on every input; it opens a
-// span on the first tick that counts, adds the time since the last tick
-// to it on each that follows, and ends it when the user stops using it.
-//
-// Reading is not only looking at the paper: a reader goes off to another
-// tab or app to look something up and comes back. So leaving does not end
-// the span. It is held open from the moment the window was left, and a
-// return within AWAY_GRACE_MS carries it on with the time away counted as
-// reading it — unless that time went to another paper or board in Papol,
-// which counted it already (`elsewhere(since)` says so), in which case the
-// span ends where it was left and a new one begins. Not coming back in
-// time ends it where it was left, and the time away is not counted.
-//
-// A gap in the ticks while the window was in front — the computer asleep,
-// the timers held back — is not time away that was seen to begin, and is
-// never counted. A span is cut at SPAN_MAX_MS and the next carries on from
-// where it stopped, so no span is so long that laying it out on a day's
-// hours needs to guess.
+// The rule, as a clock. `use()` is called on each use of the paper while
+// its window is in front; `persist()` every few seconds writes the span if
+// it grew, and `end()` closes it. A use within GAP_MS of the last carries
+// the span on to it, unless `elsewhere(since)` says another paper counted
+// time since; any other use begins a new span there. A span is cut at
+// SPAN_MAX_MS and the next carries on from where it stopped, so no span is
+// so long that laying it out on a day's hours needs to guess.
 export function activityTracker({
   kind, subject, account, save, now = Date.now, newId = () => crypto.randomUUID(),
   announce = () => {}, elsewhere = () => false,
 }) {
-  let lastInput = now();
   let span = null;
-  // When the window was left, while a span waits for it to come back.
-  let leftAt = null;
+  let dirty = false;
 
   const record = () => ({
     uuid: span.uuid, kind, subject, account, open: span.open,
     started_at: new Date(span.startMs).toISOString(),
     ended_at: new Date(span.lastMs).toISOString(),
-    seconds: Math.round(span.ms / 1000),
+    seconds: Math.round((span.lastMs - span.startMs) / 1000),
   });
+  const persist = () => {
+    if (span && dirty && span.lastMs > span.startMs) save(record());
+    dirty = false;
+  };
   const end = () => {
-    leftAt = null;
     if (!span) return;
     span.open = false;
-    if (span.ms > 0) save(record());
+    dirty = true;
+    persist();
     span = null;
   };
-  const grow = (at) => {
-    span.ms += at - span.lastMs;
-    span.lastMs = at;
-    if (span.ms > 0) save(record());
-  };
+  const begin = (at) => { span = { uuid: newId(), startMs: at, lastMs: at, open: true }; };
 
   return {
-    touch() { lastInput = now(); },
-    tick(present) {
+    use() {
       const at = now();
-      if (!present) {
-        if (!span) return;
-        if (leftAt == null) {
-          // Just left: what ran up to now counts, if the ticks were keeping up.
-          if (at - span.lastMs <= 2 * TICK_MS) grow(at);
-          leftAt = span.lastMs;
-        } else if (at - leftAt > AWAY_GRACE_MS) {
+      if (span && at - span.lastMs <= GAP_MS && !elsewhere(span.lastMs)) {
+        if (at - span.startMs > SPAN_MAX_MS) {
+          const from = span.lastMs;
           end();
+          begin(from);
         }
-        return;
-      }
-      if (leftAt != null) {
-        // Back. Coming back is using it.
-        lastInput = at;
-        const bridged = at - leftAt <= AWAY_GRACE_MS && !elsewhere(leftAt);
-        leftAt = null;
-        if (bridged) {
-          if (at - span.startMs >= SPAN_MAX_MS) {
-            const from = span.lastMs;
-            end();
-            span = { uuid: newId(), startMs: from, lastMs: from, ms: 0, open: true };
-          }
-          grow(at);
-          announce(at);
-          return;
-        }
+        span.lastMs = at;
+      } else {
         end();
+        begin(at);
       }
-      if (at - lastInput >= IDLE_MS) { end(); return; }
-      if (span && at - span.lastMs > 2 * TICK_MS) end();
-      let from = at;
-      if (span && at - span.startMs >= SPAN_MAX_MS) { from = span.lastMs; end(); }
-      if (!span) span = { uuid: newId(), startMs: from, lastMs: from, ms: 0, open: true };
-      grow(at);
+      dirty = true;
       announce(at);
     },
+    persist,
     end,
   };
 }
@@ -204,9 +173,12 @@ export function recordActivity({ kind, subject }) {
   const account = accountMark(credential);
   const outbox = activityOutbox(storage);
   const windowId = crypto.randomUUID();
-  // Written at most every few seconds by whichever window is counting, so
-  // the key stays cheap however many windows are open.
+  // Which window last used its paper, and when: at most every few seconds,
+  // so the key stays cheap however busy the pointer is.
+  let announced = 0;
   const announce = (at) => {
+    if (at - announced < ANNOUNCE_MS) return;
+    announced = at;
     try { storage.setItem(LAST_COUNTED, JSON.stringify({ window: windowId, at })); }
     catch { /* only a hint */ }
   };
@@ -225,33 +197,33 @@ export function recordActivity({ kind, subject }) {
     sending = true;
     outbox.flush(account, sendActivity).catch(() => {}).finally(() => { sending = false; });
   };
-  const touch = () => tracker.touch();
-  const tick = () => tracker.tick(present());
+  // Input reaches a window that is not in front too — the pointer passing
+  // over it — so a use is only what happens while it is.
+  const use = () => { if (present()) tracker.use(); };
   const onVisibility = () => {
-    tick();
-    if (document.visibilityState === 'hidden') flush();
+    use();
+    if (document.visibilityState === 'hidden') { tracker.persist(); flush(); }
   };
 
-  for (const name of INPUTS) window.addEventListener(name, touch, { passive: true, capture: true });
-  document.addEventListener('scroll', touch, { passive: true, capture: true });
+  for (const name of INPUTS) window.addEventListener(name, use, { passive: true, capture: true });
+  document.addEventListener('scroll', use, { passive: true, capture: true });
   document.addEventListener('visibilitychange', onVisibility);
-  window.addEventListener('focus', tick);
-  window.addEventListener('blur', tick);
+  window.addEventListener('focus', use);
   window.addEventListener('pagehide', onVisibility);
-  const ticking = setInterval(tick, TICK_MS);
+  const persisting = setInterval(() => tracker.persist(), TICK_MS);
   const flushing = setInterval(flush, FLUSH_MS);
+  // Opening the paper is using it.
+  use();
   flush();
 
   return () => {
-    clearInterval(ticking);
+    clearInterval(persisting);
     clearInterval(flushing);
-    for (const name of INPUTS) window.removeEventListener(name, touch, { capture: true });
-    document.removeEventListener('scroll', touch, { capture: true });
+    for (const name of INPUTS) window.removeEventListener(name, use, { capture: true });
+    document.removeEventListener('scroll', use, { capture: true });
     document.removeEventListener('visibilitychange', onVisibility);
-    window.removeEventListener('focus', tick);
-    window.removeEventListener('blur', tick);
+    window.removeEventListener('focus', use);
     window.removeEventListener('pagehide', onVisibility);
-    tick();
     tracker.end();
     flush();
   };

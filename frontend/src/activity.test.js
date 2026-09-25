@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { accountMark, activityOutbox, activityTracker } from '../../shared/activity.js';
 import limits from '../../shared/appLimits.js';
 
-const { tick_ms: TICK, idle_ms: IDLE, span_max_ms: SPAN_MAX, away_grace_ms: GRACE } = limits.activity;
+const { gap_ms: GAP, span_max_ms: SPAN_MAX } = limits.activity;
 const START = Date.parse('2026-09-25T09:00:00Z');
+const MIN = 60_000;
 
 function memoryStorage() {
   const stored = new Map();
@@ -21,135 +22,88 @@ function memoryStorage() {
   };
 }
 
-function clock() {
-  let at = START;
-  return { now: () => at, advance: (ms) => { at += ms; } };
-}
-
 function tracked({ elsewhere = () => false } = {}) {
-  const time = clock();
+  let at = START;
   const saved = new Map();
   let n = 0;
   const tracker = activityTracker({
     kind: 'reading', subject: 'a'.repeat(64), account: 'acct',
-    save: (span) => saved.set(span.uuid, span), now: time.now, newId: () => `span-${++n}`,
+    save: (span) => saved.set(span.uuid, span), now: () => at, newId: () => `span-${++n}`,
     elsewhere: (since) => elsewhere(since),
   });
-  // Ticks at the tracker's own pace, touching as it goes when asked.
-  const run = (ms, { present = true, touching = true } = {}) => {
-    for (let t = 0; t < ms; t += TICK) {
-      time.advance(TICK);
-      if (touching) tracker.touch();
-      tracker.tick(present);
-    }
+  // Uses of the paper every `every` ms for `ms`, then a pause of `pause`.
+  const read = (ms, every = 20_000) => {
+    tracker.use();
+    for (let t = every; t <= ms; t += every) { at += every; tracker.use(); }
   };
-  return { tracker, saved, time, run, spans: () => [...saved.values()] };
+  const pause = (ms) => { at += ms; };
+  const seconds = () => { tracker.end(); return [...saved.values()].map((s) => s.seconds); };
+  return { tracker, saved, read, pause, seconds };
 }
 
-test('time counts while the window is in front and in use', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(5 * 60_000);
-  tracker.end();
-  const [span] = spans();
-  assert.equal(spans().length, 1);
-  assert.equal(span.seconds, 300);
+test('time runs from one use of the paper to the next', () => {
+  const { read, seconds, saved } = tracked();
+  read(5 * MIN);
+  assert.deepEqual(seconds(), [300]);
+  const [span] = saved.values();
   assert.equal(span.open, false);
   assert.equal(span.started_at, new Date(START).toISOString());
 });
 
-test('a window left for longer than the grace stops counting where it was left', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(60_000);
-  run(GRACE + 60_000, { present: false });
-  run(60_000);
-  // Leaving is seen at the next tick here, and the time up to it counts;
-  // in the browser, blur ticks at the moment of leaving. A new span begins
-  // at the first tick back.
-  assert.deepEqual(spans().map((s) => s.seconds), [75, 45]);
-  assert.equal(spans()[0].open, false);
-
-  const idle = tracked();
-  idle.tracker.tick(true);
-  idle.run(60_000);
-  idle.run(10 * 60_000, { touching: false });
-  // What was touched a minute in counts until it has been idle for IDLE.
-  assert.equal(idle.spans()[0].seconds, (60_000 + IDLE - TICK) / 1000);
-  assert.equal(idle.spans()[0].open, false);
-});
-
-test('going off to another tab and coming back within the grace is reading the paper', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(5 * 60_000);
-  // Looking something up, three times over, for a few minutes each.
-  for (const away of [2, 6, 4]) {
-    run(away * 60_000, { present: false });
-    run(3 * 60_000);
+test('a pause no longer than the gap counts, whatever filled it', () => {
+  // Sitting still over a page, or off in another tab looking something up:
+  // to the rule they are one thing, a pause between two uses.
+  const { read, pause, seconds } = tracked();
+  read(5 * MIN);
+  for (const minutes of [2, 7, 4]) {
+    pause(minutes * MIN);
+    read(3 * MIN);
   }
-  tracker.end();
-  const all = spans();
-  assert.equal(all.length, 1);
-  assert.equal(all[0].seconds, (5 + 2 + 3 + 6 + 3 + 4 + 3) * 60);
+  assert.deepEqual(seconds(), [(5 + 2 + 3 + 7 + 3 + 4 + 3) * 60]);
 });
 
-test('time away that went to another paper in Papol is that paper\'s, not this one\'s', () => {
+test('a longer pause ends the stretch at the last use, and is not counted', () => {
+  const { read, pause, seconds } = tracked();
+  read(5 * MIN);
+  pause(GAP + MIN);
+  read(2 * MIN);
+  assert.deepEqual(seconds(), [300, 120]);
+});
+
+test('nothing after the last use counts unless the reader comes back', () => {
+  const { read, pause, seconds } = tracked();
+  read(MIN);
+  pause(GAP - MIN);
+  assert.deepEqual(seconds(), [60]);
+});
+
+test('a pause spent on another paper in Papol is that paper\'s, not this one\'s', () => {
+  // Another window's use is the last one until this window's own next use
+  // takes its place, as the mark in storage does.
   let other = false;
-  const { tracker, run, spans } = tracked({ elsewhere: () => other });
-  tracker.tick(true);
-  run(5 * 60_000);
-  run(60_000, { present: false });
+  const { read, pause, seconds } = tracked({ elsewhere: () => { const was = other; other = false; return was; } });
+  read(5 * MIN);
+  pause(MIN);
   other = true;
-  run(3 * 60_000, { present: false });
-  run(2 * 60_000);
-  tracker.end();
-  assert.deepEqual(spans().map((s) => s.seconds), [315, 105]);
-});
-
-test('coming back after the idle limit, within the grace, still counts', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(60_000);
-  run(IDLE + 60_000, { present: false });
-  run(30_000, { touching: false });
-  tracker.end();
-  assert.deepEqual(spans().map((s) => s.seconds), [(60_000 + IDLE + 60_000 + 30_000) / 1000]);
-});
-
-test('a span bridged past its length is cut, and the next carries on', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(SPAN_MAX - 60_000);
-  run(5 * 60_000, { present: false });
-  run(60_000);
-  tracker.end();
-  const all = spans();
-  assert.equal(all.length, 2);
-  assert.equal(all[1].started_at, all[0].ended_at);
-  assert.equal(all.reduce((sum, s) => sum + s.seconds, 0), (SPAN_MAX - 60_000 + 5 * 60_000 + 60_000) / 1000);
-});
-
-test('a gap in the ticks, as when the computer sleeps, is not counted', () => {
-  const { tracker, time, run, spans } = tracked();
-  tracker.tick(true);
-  run(60_000);
-  time.advance(60 * 60_000);
-  tracker.touch();
-  tracker.tick(true);
-  run(60_000);
-  assert.deepEqual(spans().map((s) => s.seconds), [60, 60]);
+  pause(2 * MIN);
+  read(2 * MIN);
+  assert.deepEqual(seconds(), [300, 120]);
 });
 
 test('a long stretch is cut into spans that carry on from each other', () => {
-  const { tracker, run, spans } = tracked();
-  tracker.tick(true);
-  run(SPAN_MAX * 2 + 60_000);
-  tracker.end();
-  const all = spans();
+  const { read, seconds, saved } = tracked();
+  read(SPAN_MAX * 2 + MIN);
+  const all = seconds();
   assert.equal(all.length, 3);
-  assert.equal(all.reduce((sum, s) => sum + s.seconds, 0), (SPAN_MAX * 2 + 60_000) / 1000);
-  assert.equal(all[1].started_at, all[0].ended_at);
+  assert.equal(all.reduce((sum, s) => sum + s, 0), (SPAN_MAX * 2 + MIN) / 1000);
+  const spans = [...saved.values()];
+  assert.equal(spans[1].started_at, spans[0].ended_at);
+});
+
+test('a single use is no time at all, and saves nothing', () => {
+  const { tracker, seconds } = tracked();
+  tracker.use();
+  assert.deepEqual(seconds(), []);
 });
 
 test('the outbox sends its account\'s spans, and forgets only what is finished', async () => {
