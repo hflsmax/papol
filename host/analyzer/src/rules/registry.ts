@@ -171,6 +171,11 @@ export const FLOAT_SIDE = rule({
   summary: "Once every float has its bands, a figure whose caption has drawings (not lone rules: an equation's fraction bars) level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
   why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page.",
 });
+export const FLOAT_CAPTION_OVERLEAF = rule({
+  id: "float.caption-overleaf", stage: "float",
+  summary: "A figure whose caption heads its page with nothing of its own, where the page before ends in drawings that no caption there took, is those drawings: the float is on the page before, where a link takes the reader.",
+  why: "Nature Communications and Nature Reviews Methods Primers give a large figure a page of its own and set its caption at the top of the next page; the caption alone was the figure's box.",
+});
 export const FLOAT_OTHER_SIDE = rule({
   id: "float.other-side", stage: "float",
   summary: "Once every float on a page has its usual band, one that found nothing there takes what no float took on its other side, up to the next bound.",

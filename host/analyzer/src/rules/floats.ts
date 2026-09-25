@@ -5,7 +5,7 @@ import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -147,11 +147,18 @@ function proseOn(page: Page, type: Type): Set<Line> {
 }
 
 // A heading: bold, at the text's size or above, not running text, and
-// numbered, larger than the text, or with running text starting under it.
+// larger than the text, or with running text starting under it — at once,
+// or, for a numbered one, within a few lines or under the numbered
+// headings stacked beneath it ("3 Method", "3.1 Setup", then text). A
+// numbered bold line with a picture under it is a label in a table of
+// pictures ("1. Instant Translation"), which bounds no float.
 function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
-  return page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text) && (
-    /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/.test(l.text) || l.size > type.bodySize + 1
-    || [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= 2 * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size)));
+  const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
+  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
+  const proseUnder = (l: Line, leadings: number) => [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= leadings * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size);
+  const numberedHeading = (l: Line, depth = 0): boolean => proseUnder(l, 4) || (depth < 3 && candidates.some((h) => h !== l && NUMBERED.test(h.text)
+    && h.baseline > l.baseline && h.baseline - l.baseline <= 3 * type.leading && Math.abs(h.x0 - l.x0) <= 2 * l.size && numberedHeading(h, depth + 1)));
+  return candidates.filter((l) => l.size > type.bodySize + 1 || proseUnder(l, 2) || (NUMBERED.test(l.text) && numberedHeading(l)));
 }
 
 // What is drawn that could belong to a float (float.graphics): not a page
@@ -332,12 +339,17 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
     ...claimed.filter((b) => Math.min(b.x1, x.x1) - Math.max(b.x0, x.x0) > 0),
   ];
   // A table is text and rules: a picture after them is where the next
-  // float begins. (A table that begins with a picture is a table of them.)
+  // float begins. (A table that begins with a picture is a table of them —
+  // or whose first picture starts within two lines of its first text: a
+  // grid of pictures under their labels.)
   if (tableOnly) {
     const ahead = ground.pieces.filter((p) => !taken.has(p) && inside(p) && (side === "below" ? p.y0 > caption.y1 - 1 : p.y1 < caption.y0 + 1))
       .sort((a, b) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1));
-    const first = ahead[0];
-    if (first && !first.text && !first.thin) tableOnly = false;
+    const solid = ahead.filter((p) => !p.thin);
+    const firstPicture = solid.find((p) => !p.text);
+    const firstText = solid.find((p) => p.text);
+    const near = (a: Piece, b: Piece) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1) <= 2 * ground.type.leading;
+    if (firstPicture && (solid[0] === firstPicture || (firstText && near(firstPicture, firstText)))) tableOnly = false;
     else for (const p of ahead) if (!p.text && !p.thin) bounds.push(p);
   }
   const limit = side === "above"
@@ -428,6 +440,9 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
   const floats = new Map<string, Found>();
   const type = typeOf(layout);
   explain?.(`type ${JSON.stringify(type)}`);
+  // The page before, as its floats left it: what a caption heading the next
+  // page may be the caption of (float.caption-overleaf).
+  let before: { page: Page; ground: Ground; claimed: Rect[]; taken: Set<Piece> } | null = null;
   for (const page of layout.pages) {
     // Every caption on the page first: each float stops at the others'.
     const found: { kind: string; number: string; line: Line }[] = [];
@@ -501,15 +516,71 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       }
       extents[i] = { rect, rule: FLOAT_SIDE.id, fixed: false };
     }
+    // A figure whose caption heads its page with nothing of its own, where
+    // the page before ends in drawings no caption there took, is those
+    // drawings: a figure given a page of its own, its caption set overleaf
+    // (float.caption-overleaf). The float is the drawings, on that page —
+    // what a link to it should show.
+    const overleaf: (Rect & { on: Page })[] = [];
+    for (const i of order) {
+      if (extents[i].fixed || found[i].kind !== "figure" || !before) continue;
+      const caption = union(paragraphs[i].map(rectOf));
+      // Heading its page: no text but the running heads, and nothing solid
+      // drawn, above it.
+      const heads = page.lines.some((l) => !l.furniture && l.bottom <= caption.y0 + 1 && !paragraphs[i].includes(l));
+      const drawnAbove = page.drawn.some((d) => d.w >= 1.5 && d.h >= 1.5 && d.y + d.h <= caption.y0 + 1 && d.y + d.h > marginsOf(page, type).y0);
+      if (heads || drawnAbove) continue;
+      // Nothing of its own: at most a rule or a stray line of its caption's
+      // scripts beyond the caption.
+      const own = extents[i].rect;
+      if (caption.y0 - own.y0 > 2 * type.leading || own.y1 - caption.y1 > 2 * type.leading
+        || caption.x0 - own.x0 > type.leading || own.x1 - caption.x1 > type.leading) continue;
+      const prev = before;
+      explain?.(`page ${page.number} ${found[i].kind} ${found[i].number}, overleaf on page ${prev.page.number}`);
+      // A page given to the figure — no caption of its own, no running text
+      // beside or among what it draws (above or under it, the text ending
+      // or resuming) — has all of it: every solid drawing short of a page's
+      // background (a full-page picture is over the half that graphicsOf
+      // leaves out), and the labels among them.
+      const margins = marginsOf(prev.page, type);
+      // (Solid ones: a rule is as often the footer's line as the figure's.)
+      const art = prev.page.drawn.filter((d) => d.w * d.h < 0.9 * prev.page.width * prev.page.height && d.w >= 1.5 && d.h >= 1.5
+        && d.y + d.h > margins.y0 && d.y < margins.y1).map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }));
+      const whole = art.length ? union(art) : null;
+      const within = (r: Rect, w: Rect) => r.x0 >= w.x0 - 1 && r.x1 <= w.x1 + 1 && r.y0 >= w.y0 - 1 && r.y1 <= w.y1 + 1;
+      // Running text, that is (a journal's footer line can read as a
+      // heading), level with the drawings but not inside them.
+      const outside = [...proseOn(prev.page, type)].filter((l) => !whole || (!within(rectOf(l), whole) && gapBetween(rectOf(l), whole).ys > 0));
+      let pieces: Rect[];
+      if (whole && !prev.ground.captions.length && !prev.claimed.length && !outside.length) {
+        pieces = [whole, ...prev.ground.lines.map(rectOf).filter((r) => within(r, whole))];
+        explain?.(`  the whole page: ${show(whole)}`);
+      } else {
+        // Otherwise up from the lowest drawing no float there took — not
+        // from the foot: a journal's footer line can read as text.
+        const loose = prev.ground.pieces.filter((p) => !prev.taken.has(p) && !p.text && !p.thin);
+        if (!loose.length) continue;
+        const lowest = most(loose.map((p) => p.y1)) + 1;
+        const bottom: Rect = { x0: type.text.x0, y0: lowest, x1: type.text.x1, y1: lowest };
+        const grown = band(bottom, [], prev.ground, "above", prev.claimed, prev.taken, false).pieces;
+        if (!grown.some((p) => !p.text && !p.thin)) continue;
+        grown.forEach((p) => prev.taken.add(p));
+        pieces = grown;
+      }
+      overleaf[i] = { ...union(pieces), on: prev.page };
+      extents[i] = { rect: overleaf[i], rule: FLOAT_CAPTION_OVERLEAF.id, fixed: true };
+    }
     found.forEach(({ kind, number, line }, i) => {
       // A little room around it, so an outline drawn at its edge does not
       // run through the outermost letters.
       const { rect: exact, rule: sized } = extents[i];
-      const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(page.width, exact.x1 + PAD), y1: Math.min(page.height, exact.y1 + PAD) };
-      const box = { page: page.number, x: rect.x0 / page.width, y: rect.y0 / page.height, w: (rect.x1 - rect.x0) / page.width, h: (rect.y1 - rect.y0) / page.height };
+      const on = overleaf[i]?.on ?? page;
+      const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(on.width, exact.x1 + PAD), y1: Math.min(on.height, exact.y1 + PAD) };
+      const box = { page: on.number, x: rect.x0 / on.width, y: rect.y0 / on.height, w: (rect.x1 - rect.x0) / on.width, h: (rect.y1 - rect.y0) / on.height };
       floats.set(keyOf(kind, number), { key: `f${floats.size}`, kind, label: number, caption: line, ...box });
-      trace.add(sized, page.number, `${kind} ${number}`, [box]);
+      trace.add(sized, on.number, `${kind} ${number}`, [box]);
     });
+    before = { page, ground, claimed: extents.filter((e, i) => e && !overleaf[i]).map((e) => e.rect), taken };
   }
   return floats;
 }
