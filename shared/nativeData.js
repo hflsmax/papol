@@ -289,7 +289,9 @@ export async function nativeBlobBytes(sha256) {
 // A handed-off document can arrive before its PDF has reached this Mac. Fetch
 // that one content-addressed file directly, instead of making the reader wait
 // for an account-wide synchronization to walk every pending row and blob.
-export async function ensureNativeBlob(sha256, onProgress) {
+// A board file — a YouTube picture the Cloudflare Worker put in the
+// bucket — comes the same way, as `kind: 'board_file'`.
+export async function ensureNativeBlob(sha256, onProgress, { kind = 'paper' } = {}) {
   const token = currentCredential();
   if (!nativeDataActive() || !token) {
     throw new Error('Downloading this PDF requires a signed-in account');
@@ -300,7 +302,7 @@ export async function ensureNativeBlob(sha256, onProgress) {
   });
   try {
     await invoke('blob_ensure', {
-      backendUrl: nativeBackendUrl(), token, sha256, kind: 'paper',
+      backendUrl: nativeBackendUrl(), token, sha256, kind,
     });
   } finally {
     stop();
