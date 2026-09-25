@@ -1,33 +1,34 @@
-// A video link on a board, and the title and thumbnail the app fetches
-// for it itself: YouTube on the web and the desktop, Bilibili on the
-// desktop only.
+// A video link on a board, and its title and picture: YouTube's on the
+// web and the desktop, Bilibili's on the desktop only. Both are read from
+// the video's page by linkpeek, which knows a page's Open Graph, Twitter
+// card and JSON-LD tags, but the pages are asked for in different places.
 //
-// YouTube's oEmbed endpoint and its thumbnail host answer a page on any
-// origin, so this is the page's own fetch there — and the hosts it asks
-// are in shared/externalHosts.js, which the application's content
-// security policy is held to: a host missing from it is refused inside
-// the app as "Load failed".
+// YouTube's is read by the Cloudflare Worker
+// (cloudflare/src/linkPreview.ts), which puts the picture in the bucket
+// and answers its digest.
 //
-// Bilibili's API refuses other origins and bans clients that are not a
-// browser (412); what does answer is its mobile video page, asked with a
-// phone's User-Agent, whose og:title and og:image name the video. No page
-// can ask that way — a browser will not send a User-Agent it is given,
-// and the HTTP plugin builds its headers with the browser's own Headers,
-// which drops it silently — so the application fetches that page itself
-// (desktop/src-tauri/src/videos.rs). The web makes the card as its link,
-// and the Mac fills it in when it next opens the board. Both covers come
-// from hosts that let any origin read them; Bilibili's refuses a foreign
-// Referer, so none is sent.
+// Bilibili answers Cloudflare's network 412, and a page on any origin
+// with a CORS refusal. What does answer is its mobile video page, asked
+// from the Mac with a phone's User-Agent. No page can ask that way — a
+// browser will not send a User-Agent it is given, and the HTTP plugin
+// builds its headers with the browser's own Headers, which drops it
+// silently — so the application fetches that page itself
+// (desktop/src-tauri/src/videos.rs) and linkpeek reads it here. The web
+// makes the card as its link, and the Mac fills it in when it next opens
+// the board. The cover's host lets any origin read it but refuses a
+// foreign Referer, so none is sent; it is in shared/externalHosts.js,
+// which the application's content security policy is held to.
 
 import appLimits from './appLimits.js';
 import { IS_DESKTOP } from './appEnvironment.js';
+import { jsonRequest } from './httpClient.js';
 import { nativeVideoPage } from './nativeData.js';
 
-const { youtube_metadata: METADATA_TIMEOUT_MS, youtube_thumbnail: THUMBNAIL_TIMEOUT_MS } = appLimits.timeouts_ms;
+const COVER_TIMEOUT_MS = appLimits.timeouts_ms.link_preview_image;
 
 // ---------------------------------------------------------------- the link
 
-// The video a YouTube URL names, as the Worker's check reads it
+// The video a YouTube URL names, as the Cloudflare Worker's check reads it
 // (cloudflare/src/videos.ts): an 11-character id, or null.
 export function youtubeId(url) {
   let parsed;
@@ -45,9 +46,10 @@ export function youtubeId(url) {
   return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : null;
 }
 
-// The video a Bilibili URL names: its BV id or av number, as the Worker
-// reads it. A b23.tv short link names one too, but only once followed:
-// `{ short: true }` then, and the id comes with the preview.
+// The video a Bilibili URL names: its BV id or av number, as the
+// Cloudflare Worker reads it. A b23.tv short link names one too, but only
+// once followed: `{ short: true }` then, and the id comes with the
+// preview.
 export function bilibiliVideo(url) {
   let parsed;
   try { parsed = new URL(String(url).trim()); } catch { return null; }
@@ -77,76 +79,53 @@ export function canPreview(link) {
 
 // ------------------------------------------------------------- the preview
 
-// `{ id, title, image }` for a video link: its id (a followed short link's
-// too), its title, and its thumbnail as a JPEG blob. Throws with a
-// sentence when either could not be had. `fetch` is the page's own;
-// `videoPage` is the application fetching a video page as a phone.
-export async function videoPreview(url, { fetch = globalThis.fetch, videoPage = nativeVideoPage } = {}) {
+// A video link's title and picture. Throws with a sentence when they could
+// not be had. The picture is where its card will name it from:
+//   YouTube:  `{ id, title, sha256 }`, the picture in the bucket already,
+//             put there by the Cloudflare Worker (POST /api/video-preview);
+//   Bilibili: `{ id, title, image }`, the cover as a JPEG blob, and the id
+//             a followed short link landed on.
+// `ask` is the Cloudflare Worker; `fetch` is the page's own; `videoPage`
+// is the application fetching a video page as a phone.
+export async function videoPreview(url, { ask = askCloudflareWorker, fetch = globalThis.fetch, videoPage = nativeVideoPage } = {}) {
   const link = videoLink(url);
   if (!link) throw new Error('This is not a video link Papol knows');
-  if (link.kind === 'youtube') return youtubePreview(link.id, { fetch });
+  if (link.kind === 'youtube') return ask(url);
   if (!IS_DESKTOP) throw new Error("Only the Mac app can fetch a Bilibili video's details");
   return bilibiliPreview(url, link.id, { fetch, videoPage });
 }
 
-async function youtubePreview(videoId, { fetch }) {
-  const watch = `https://www.youtube.com/watch?v=${videoId}`;
-  const endpoint = `https://www.youtube.com/oembed?${new URLSearchParams({ url: watch, format: 'json' })}`;
-  const answered = await fetch(endpoint, { signal: AbortSignal.timeout(METADATA_TIMEOUT_MS) });
-  if (!answered.ok) throw new Error(`YouTube answered ${answered.status} for this video`);
-  const metadata = await answered.json();
-  const image = await cover(String(metadata.thumbnail_url ?? ''), /(^|\.)ytimg\.com$/, { fetch });
-  return { id: videoId, title: titleOf(metadata.title), image };
-}
+const askCloudflareWorker = (url) => jsonRequest('/video-preview', 'POST', { url });
 
 async function bilibiliPreview(url, id, { fetch, videoPage }) {
   // The mobile page, which a b23.tv link lands on when a phone asks, and
   // only the application can ask that way (shared/nativeData.js).
   const page = id ? `https://m.bilibili.com/video/${id}` : String(url).trim();
   const { url: landedAt, html } = await videoPage(page);
+  // linkpeek is only for this, and only on the Mac: loaded when asked.
+  const { parseHTML } = await import('linkpeek');
+  const read = parseHTML(html, landedAt || page);
   const landed = bilibiliVideo(landedAt || page);
-  const title = metaContent(html, 'og:title')?.replace(/_哔哩哔哩_bilibili$/, '');
-  const picture = metaContent(html, 'og:image');
-  if (!title && !picture) throw new Error('Bilibili gave no details for this video');
-  if (!picture || /\/transparent\.png(@|$)/.test(picture)) throw new Error('This Bilibili video has no cover');
+  if (!read.image || /\/transparent\.png(@|$)/.test(read.image)) throw new Error('This Bilibili video has no cover');
   // `…/cover.jpg@1200w_630h` is a resized copy; the cover itself is the part before the @.
-  const image = await cover(picture.split('@')[0].replace(/^\/\//, 'https://'), /(^|\.)hdslb\.com$/, { fetch });
-  return { id: landed?.id ?? id, title: titleOf(title), image };
-}
+  const image = await cover(read.image.split('@')[0]);
+  return { id: landed?.id ?? id, title: titleOf(read.title?.replace(/_哔哩哔哩_bilibili$/, '')), image };
 
-// A cover, from the host it must come from, without a Referer.
-async function cover(location, host, { fetch }) {
-  let parsed = null;
-  try { parsed = new URL(location); } catch { /* checked below */ }
-  if (!parsed || parsed.protocol !== 'https:' || !host.test(parsed.hostname.toLowerCase())) {
-    throw new Error('The video has no thumbnail Papol can show');
+  // The cover, from Bilibili's picture host, without a Referer.
+  async function cover(location) {
+    let parsed = null;
+    try { parsed = new URL(location); } catch { /* checked below */ }
+    if (!parsed || parsed.protocol !== 'https:' || !/(^|\.)hdslb\.com$/.test(parsed.hostname.toLowerCase())) {
+      throw new Error('The video has no cover Papol can show');
+    }
+    const picture = await fetch(parsed.href, { referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(COVER_TIMEOUT_MS) });
+    if (!picture.ok) throw new Error(`The video's cover answered ${picture.status}`);
+    const bytes = await picture.arrayBuffer();
+    if (!bytes.byteLength) throw new Error("The video's cover was empty");
+    return new Blob([bytes], { type: 'image/jpeg' });
   }
-  const picture = await fetch(parsed.href, { referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(THUMBNAIL_TIMEOUT_MS) });
-  if (!picture.ok) throw new Error(`The video's thumbnail answered ${picture.status}`);
-  const bytes = await picture.arrayBuffer();
-  if (!bytes.byteLength) throw new Error("The video's thumbnail was empty");
-  return new Blob([bytes], { type: 'image/jpeg' });
 }
 
 function titleOf(value) {
   return String(value || '').trim().slice(0, appLimits.text.board_content) || null;
-}
-
-// A <meta property="…" content="…"> value, decoded.
-// The value runs to the quote it opened with, so "Don't Stop" is whole.
-export function metaContent(html, property) {
-  const tag = new RegExp(`<meta[^>]+property=["']${property}["'][^>]*>`, 'i').exec(html)?.[0];
-  const value = tag && /\scontent=(["'])(.*?)\1/is.exec(tag)?.[2];
-  if (!value) return null;
-  return decodeEntities(value);
-}
-
-const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-
-function decodeEntities(text) {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name) => {
-    if (name[0] !== '#') return NAMED_ENTITIES[name.toLowerCase()] ?? entity;
-    const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-    return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
-  });
 }

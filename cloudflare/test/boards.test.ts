@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import worker from "../src/index";
 import { capturers, privateHost } from "../src/jobs/capture";
+import { outbound } from "../src/linkPreview";
 import type { Wakeup } from "../src/jobs/run";
 import { call, count, mutation, ok, paperWithCopy, pushed, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
 const original = { ...capturers };
-afterEach(() => Object.assign(capturers, original));
+const originalOutbound = { ...outbound };
+afterEach(() => { Object.assign(capturers, original); Object.assign(outbound, originalOutbound); });
 
 async function woken(...uuids: string[]) {
   const batch = createMessageBatch<Wakeup>("papol-jobs", uuids.map((id) => ({ id: uuid(), timestamp: new Date(), body: { job: id }, attempts: 1 })));
@@ -367,6 +369,84 @@ describe("link cards", () => {
     expect(await row("SELECT file_path, mime_type FROM board_items WHERE uuid = ?", page)).toEqual({ file_path: `blobs/${digest}`, mime_type: "image/jpeg" });
     expect(await row("SELECT file_path FROM board_items WHERE uuid = ?", bare)).toEqual({ file_path: null });
     expect(await count("jobs")).toBe(0);
+  });
+});
+
+// The web as the Cloudflare Worker's preview reads it: each URL answered
+// from a table, and every URL asked for kept, in order.
+function theWeb(pages: Record<string, () => Response>) {
+  const asked: string[] = [];
+  outbound.fetch = async (input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : String(input);
+    asked.push(url);
+    const page = pages[url];
+    if (!page) throw new Error(`Nothing answers ${url}`);
+    return page();
+  };
+  return asked;
+}
+
+const html = (head: string) => () => new Response(`<html><head>${head}</head><body></body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
+const jpeg = (bytes: string) => () => new Response(bytes, { headers: { "content-type": "image/jpeg" } });
+
+describe("video previews", () => {
+  it("reads a YouTube video's title and picture from its page and puts the picture in the bucket", async () => {
+    const account = await register();
+    const asked = theWeb({
+      "https://youtu.be/dQw4w9WgXcQ": () => new Response(null, { status: 303, headers: { location: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&feature=youtu.be" } }),
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ&feature=youtu.be": html(
+        '<meta property="og:title" content="Tom &amp; Jerry&#39;s  "><meta property="og:image" content="https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg">'),
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg": jpeg("jpg dQw4w9WgXcQ"),
+    });
+    const preview = await ok("POST", "/api/video-preview", { headers: account.headers, json: { url: "https://youtu.be/dQw4w9WgXcQ" } });
+    const digest = await sha256("jpg dQw4w9WgXcQ");
+    expect(preview).toEqual({ id: "dQw4w9WgXcQ", title: "Tom & Jerry's", sha256: digest });
+    expect(asked).toEqual(["https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ&feature=youtu.be", "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"]);
+    const object = await env.FILES.get(`board_uploads/blobs/${digest}`);
+    expect(await object?.text()).toBe("jpg dQw4w9WgXcQ");
+    expect(object?.httpMetadata?.contentType).toBe("image/jpeg");
+    // And the card names it, as it names a picture the app put there.
+    const board = await ok("POST", "/api/boards", { headers: account.headers, json: { name: "Links" } });
+    expect(await ok("POST", `/api/boards/${board.uuid}/video`, { headers: account.headers, json: { url: "https://youtu.be/dQw4w9WgXcQ", title: preview.title, sha256: preview.sha256, x: 0, y: 0 } }))
+      .toMatchObject({ kind: "youtube", content: "Tom & Jerry's", sha256: digest, original_filename: "youtube-dQw4w9WgXcQ.jpg" });
+  });
+
+  it("says why there is no preview, and keeps nothing", async () => {
+    const account = await register();
+    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const refused = async (pages: Record<string, () => Response>, detail: string | RegExp) => {
+      const asked = theWeb(pages);
+      const response = await call("POST", "/api/video-preview", { headers: account.headers, json: { url } });
+      expect(response.status, detail.toString()).toBe(502);
+      expect((await response.json<any>()).detail).toMatch(detail);
+      return asked;
+    };
+    await refused({ [url]: () => new Response("gone", { status: 404, headers: { "content-type": "text/html" } }) }, "YouTube answered 404 for this video");
+    await refused({ [url]: html('<meta property="og:title" content="No picture">') }, "YouTube gave no picture for this video");
+    await refused({}, /^YouTube could not be reached/);
+    const withPicture = (picture: string, answer: () => Response) => ({ [url]: html(`<meta property="og:image" content="${picture}">`), [picture]: answer });
+    await refused(withPicture("https://i.ytimg.com/a.jpg", () => new Response("", { status: 404 })), "The video's picture answered 404");
+    await refused(withPicture("https://i.ytimg.com/a.png", () => new Response("png", { headers: { "content-type": "image/png" } })), "The video's picture is not a JPEG");
+    await refused(withPicture("https://i.ytimg.com/a.jpg", () => new Response("", { headers: { "content-type": "image/jpeg" } })), "The video's picture was empty");
+    // A picture on a machine's own network is never asked for.
+    const asked = await refused(withPicture("http://169.254.169.254/latest.jpg", jpeg("secret")), "YouTube named a picture Papol cannot fetch");
+    expect(asked).toEqual([url]);
+    expect((await env.FILES.list({ prefix: "board_uploads/" })).objects).toEqual([]);
+  });
+
+  it("previews only a YouTube link, and only for someone signed in", async () => {
+    const account = await register();
+    const asked = theWeb({});
+    expect((await call("POST", "/api/video-preview", { headers: account.headers, json: { url: "https://example.test/watch" } })).status).toBe(422);
+    // Bilibili refuses Cloudflare's network: the Mac asks it instead.
+    for (const url of ["https://www.bilibili.com/video/BV11kev6cEhk", "https://b23.tv/AbC123"]) {
+      const response = await call("POST", "/api/video-preview", { headers: account.headers, json: { url } });
+      expect(response.status, url).toBe(422);
+      expect((await response.json<any>()).detail).toBe("Only the Papol Mac app can fetch a Bilibili video's details");
+    }
+    expect((await call("POST", "/api/video-preview", { headers: account.headers, json: {} })).status).toBe(422);
+    expect((await call("POST", "/api/video-preview", { json: { url: "https://youtu.be/dQw4w9WgXcQ" } })).status).toBe(401);
+    expect(asked).toEqual([]);
   });
 });
 

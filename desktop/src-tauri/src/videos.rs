@@ -7,7 +7,9 @@
 //! can ask that way: `User-Agent` is a forbidden header for a browser,
 //! and the plugin builds its headers with the browser's own `Headers`,
 //! which drops it without a word. The application has no such rule, so
-//! the asking happens here, and `shared/videos.js` reads what comes back.
+//! the asking happens here, and linkpeek reads what comes back
+//! (`shared/videos.js`). Bilibili refuses Cloudflare's network, so the
+//! Cloudflare Worker cannot ask in its place.
 //!
 //! Only the sites whose video pages Papol reads are fetched, over https,
 //! and only their text: this is not a general way out of the page's
@@ -48,12 +50,12 @@ pub async fn page(url: &str) -> Result<VideoPage, String> {
     let parsed =
         tauri::Url::parse(url.trim()).map_err(|_| "That is not a video link".to_string())?;
     if !video_site(&parsed) {
-        return Err("Papol reads video pages from YouTube and Bilibili only".into());
+        return Err("Papol reads video pages from Bilibili only".into());
     }
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(limits::value(
             "timeouts_ms",
-            "youtube_metadata",
+            "link_preview",
         )))
         .build()
         .map_err(|error| format!("The video page could not be asked for: {error}"))?;

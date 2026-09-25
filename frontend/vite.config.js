@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react()],
   // shared/ sits outside the root and names its packages bare; these are
   // resolved from this app, where they are installed.
-  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes', 'linkpeek'] },
   build: {
     rolldownOptions: {
       output: {
