@@ -60,8 +60,10 @@ export const isFloatLabel = (title) => FLOAT_LABEL.test(collapseSpace(title));
 // account for 34 of 1071 entries, in 24 of 42 papers. The rest of the same
 // publishers' end matter (Funding, Conflict of interest, Ethics
 // declarations, Reporting summary…) is left out until a paper here is seen
-// to carry it. Whole titles only, so "Funding models for open science"
-// would still be a section. References are not here: a bibliography is
+// to carry it. Nature's "Online content" — a stock paragraph pointing at
+// the website — joined the list when a paper here was seen to print it.
+// Whole titles only, so "Funding models for open science" would still be
+// a section. References are not here: a bibliography is
 // somewhere people go.
 const END_MATTER = new Set([
   'acknowledgment', 'acknowledgments', 'acknowledgement', 'acknowledgements',
@@ -70,6 +72,7 @@ const END_MATTER = new Set([
   'additional information', 'further information',
   'data availability', 'data availability statement',
   'publishers note',
+  'online content',
 ]);
 
 const noticeName = (title) => collapseSpace(
