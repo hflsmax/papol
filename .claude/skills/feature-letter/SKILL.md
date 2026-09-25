@@ -90,9 +90,9 @@ share-e2e CDP driver, `scripts/share-e2e/cdp.mjs`, as the UI PRs do.
 Succinct, and about how the feature makes reading and research easier:
 what the reader can do now and how to try it (where to click, which key).
 Each feature gets one short paragraph (two to four sentences, no lists)
-and at most one picture. Open with
-the problem the reader knows from other tools, then show what happens in
-Papol, told from the reader's side, so it feels intelligent, even magic.
+and at most one picture. Always say things forward: what Papol lets the
+reader do, told from their side, so it feels intelligent, even magic.
+Never backward, with no pain first ("you still upload… and lose…").
 Never explain how it works: no analyzer, reading, parsing, indexes or
 publishers. Say what the reader sees, not how Papol gets there. Leave out
 the smaller fixes around each feature too. Sign it from the team,

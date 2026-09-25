@@ -28,8 +28,8 @@ stays put.
 
 ## 3. Folder Drop
 
-When an AI agent gathers papers for a literature review, you still upload
-its PDFs one at a time and lose why it picked each one. Click **Add a
+Bring a literature review your AI agent gathers into Papol in one go: every
+PDF, with the agent's reason for picking each one. Click **Add a
 folder**, give your agent the one-line prompt Papol shows you, and drop the
 folder it fills onto any upload box.
 
