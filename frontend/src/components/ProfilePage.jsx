@@ -13,6 +13,7 @@ import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import MacHandoffSettings from './MacHandoffSettings.jsx';
+import ActivityPanel from './ActivityPanel.jsx';
 import {
   getLocalSyncPreference,
   setLocalSyncPreference,
@@ -398,6 +399,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
   return (
     <div className="profile-page">
+      <ActivityPanel />
       <div className="panel">
         <div className="panel-head-row">
           <h2 className="panel-title">Account</h2>

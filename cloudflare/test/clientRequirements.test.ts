@@ -77,7 +77,7 @@ describe("client requirements", () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'd1_%' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' ORDER BY name",
     ).all<{ name: string }>();
     expect(results.map((row) => row.name)).toEqual([
-      "_server_change_log", "_server_clients", "admin_message_deliveries", "admin_messages",
+      "_server_change_log", "_server_clients", "activity", "admin_message_deliveries", "admin_messages",
       "annotations", "applied_mutations", "auth_tokens", "board_groups", "board_items", "boards",
       "copies", "copy_tags", "error_logs", "feedback", "jobs", "notifications", "paper_citations",
       "paper_floats", "paper_links", "paper_references", "papers", "room_availabilities", "room_messages",
