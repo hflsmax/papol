@@ -548,8 +548,15 @@ function PdfPage({
   onEraseAnimal,
   searchMatches,
   activeSearchId,
+  citationOccurrence = null,
+  citationStart = null,
+  onOccurrenceShown,
 }) {
   const holderRef = useRef(null);
+  const occurrenceRef = useRef(null);
+  useLayoutEffect(() => {
+    if (citationOccurrence && occurrenceRef.current) onOccurrenceShown?.(occurrenceRef.current);
+  }, [citationOccurrence]);
   const textHostRef = useRef(null);
   const textTaskRef = useRef(null);
   const [size, setSize] = useState(() => ({
@@ -2035,7 +2042,7 @@ function PdfPage({
           `[data-citation-index="${index}"][data-citation-piece="${piece}"]`
         ) || holderRef.current.querySelector(`[data-citation-index="${index}"]`);
         if (!anchor) return;
-        onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids, cite.label || null);
+        onOpenReference(cite.referenceUuid, anchor, cite.reference || null, cite.referenceUuids, cite.label || null, placeOf(cite, pageNumber));
       }}
       data-page={pageNumber}
       data-page-width={size.width || undefined}
@@ -2320,7 +2327,8 @@ function PdfPage({
                       e.currentTarget,
                       cite.reference || null,
                       cite.referenceUuids,
-                      cite.label || null
+                      cite.label || null,
+                      placeOf(cite, pageNumber)
                     );
                   }}
                 />
@@ -2337,6 +2345,22 @@ function PdfPage({
               </span>
             );
           })}
+          {/* Where a card stepping through the places a work is cited has
+              got to, and where it began. Drawn from the analysis, so they
+              are here as soon as the page is, whether or not its own
+              citations have been worked out yet. */}
+          {citationStart?.map((box, j) => (
+            <span key={`start-${j}`} className="cite-start" style={boxStyle(box)} aria-hidden="true" />
+          ))}
+          {citationOccurrence?.boxes.map((box, j) => (
+            <span
+              key={`${citationOccurrence.key}-${j}`}
+              ref={j === 0 ? occurrenceRef : undefined}
+              className="cite-occurrence"
+              style={boxStyle(box)}
+              aria-hidden="true"
+            />
+          ))}
         </div>
         <div className="pin-layer">
           {notes.map((note) => (
@@ -2417,3 +2441,13 @@ function samePageProps(previous, next) {
 }
 
 export default React.memo(PdfPage, samePageProps);
+
+// A citation as a place in the paper: the page, and where it is printed there.
+function placeOf(cite, page) {
+  return {
+    page,
+    boxes: (cite.boxes || [cite]).map(({ x, y, w, h }) => ({ x, y, w, h })),
+    label: cite.label || null,
+    exact: cite.exact,
+  };
+}

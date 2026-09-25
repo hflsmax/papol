@@ -126,6 +126,25 @@ const figureAnalysis = {
   links: [{ float_uuid: FLOAT, label: '2', page: 1, x: 0.2, y: 0.08, w: 0.05, h: 0.02 }],
 };
 
+// A third: four pages citing the one work on pages 1, 3 and 4, for stepping
+// through the places it is cited from its card.
+const citedPdf = smokePdf([1, 2, 3, 4].map((n) => `BT /F1 12 Tf 72 720 Td (Page ${n} of the cited paper.) Tj ET`));
+const CITED_SHA256 = createHash('sha256').update(citedPdf).digest('hex');
+const CITED_SHARE = 'Gg55Hh66Jj';
+const citedShared = {
+  ...shared,
+  uuid: CITED_SHARE,
+  paper: { ...shared.paper, title: 'The Citing Paper', file_path: 'cited.pdf', sha256: CITED_SHA256 },
+};
+const PLACES = [{ page: 1, y: 0.2 }, { page: 3, y: 0.3 }, { page: 4, y: 0.4 }];
+const citedAnalysis = {
+  ...analysis,
+  paper_sha256: CITED_SHA256,
+  citations: PLACES.map(({ page, y }) => ({
+    reference_uuids: [REFERENCE], label: '[1]', inferred: false, boxes: [{ page, x: 0.2, y, w: 0.08, h: 0.02 }],
+  })),
+};
+
 const json = (body) => ({ type: 'application/json', body: JSON.stringify(body) });
 
 // Wait for a citation marker, click it, and wait for the card to show the
@@ -136,6 +155,7 @@ const probe = `<script>
   (() => {
     if (new URLSearchParams(location.search).get('smoke') === 'inner') return;
     if (new URLSearchParams(location.search).get('share') === '${FIGURE_SHARE}') return followFigure();
+    if (new URLSearchParams(location.search).get('share') === '${CITED_SHARE}') return explorePlaces();
     let clicked = false;
     const ready = () => {
       if (document.querySelector('.render-error')) {
@@ -184,6 +204,97 @@ const probe = `<script>
     // sits nearer a page's edge than half the window, the page scrolled as
     // far as it goes that way. This figure is: its right edge is a tenth of
     // the page from the page's.
+    // Step through the places the paper cites the work, from its card.
+    // Each step is a stage that waits for what it expects; the first one to
+    // time out names itself, so a failure says where it broke.
+    function explorePlaces() {
+      const $ = (selector) => document.querySelector(selector);
+      const pages = () => $('.pages');
+      const text = (selector) => $(selector)?.textContent || '';
+      const press = (key, code = key) => document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key, code, bubbles: true }),
+      );
+      const step = (direction) => $('.ref-places-nav button:' + (direction > 0 ? 'last-child' : 'first-child')).click();
+      const openFirst = () => $('.pdf-page[data-page="1"] .cite')?.click();
+      const near = (a, b) => Math.abs(a - b) < 3;
+      const pill = () => text('.link-return');
+      // A step's card is shown once its marker is drawn; the next step waits for it.
+      const shown = () => $('.ref-card') && $('.ref-card').style.visibility !== 'hidden';
+      let start = null;
+      let card = null;
+      let stayed = null;
+      const stages = [
+        ['open', openFirst, () => text('.ref-places-what') === 'Cited 3 times in this paper'],
+        // Round and back to where it began went nowhere: no way back offered.
+        ['round', () => { start = pages().scrollTop; step(1); }, () => text('.ref-places-what').includes('2 of 3') && shown()],
+        ['round-back', () => step(-1), () => text('.ref-places-what').includes('1 of 3 · page 1') && near(pages().scrollTop, start) && shown()],
+        ['round-close', () => press('Escape'), () => !$('.ref-card') && !$('.viewer-body.exploring') && !pill()],
+        // Down: the next marker comes to the card, and the card stays put.
+        ['reopen', openFirst, () => $('.ref-card') && text('.ref-places-what').startsWith('Cited')],
+        ['down', () => {
+          start = pages().scrollTop;
+          const r = $('.ref-card').getBoundingClientRect();
+          card = { top: r.top, left: r.left };
+          step(1);
+        }, () => {
+          const r = $('.ref-card')?.getBoundingClientRect();
+          return text('.ref-places-what') === 'Exploring 2 of 3 · page 3'
+            && $('.pdf-page[data-page="3"] .cite-occurrence')
+            && $('.ref-card').style.visibility !== 'hidden'
+            && near(r.top, card.top) && near(r.left, card.left)
+            && $('.viewer-body.exploring')
+            && pill().includes('Back to page 1')
+            // The strip teaches [; no lesson may sit over the step buttons.
+            && !$('.learn-papol');
+        }],
+        ['down-again', () => step(1), () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
+        ['wrap', () => step(1), () => text('.ref-places-what') === 'Exploring 1 of 3 · page 1' && shown()],
+        ['to-page-3', () => step(1), () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3' && shown()],
+        // While exploring, ↓ and ↑ step as the buttons do.
+        ['arrow-down', () => press('ArrowDown'), () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
+        ['arrow-up', () => press('ArrowUp'), () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3' && shown()],
+        // Esc stays where the exploration got to; [ goes back, ] returns.
+        ['escape', () => { stayed = pages().scrollTop; press('Escape'); },
+          () => !$('.ref-card') && !$('.viewer-body.exploring') && near(pages().scrollTop, stayed) && pill().includes('page 1')],
+        ['back', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
+        ['forward', () => press(']', 'BracketRight'), () => near(pages().scrollTop, stayed)],
+        ['home', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
+        // Up from the first comes round to the last; a press on the page
+        // puts the card away and stays there too.
+        ['up', () => { openFirst(); setTimeout(() => step(-1), 100); }, () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
+        ['click-away', () => {
+          stayed = pages().scrollTop;
+          $('.pdf-page[data-page="4"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        }, () => !$('.ref-card') && !$('.viewer-body.exploring') && near(pages().scrollTop, stayed) && pill().includes('page 1')],
+        ['back-again', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
+      ];
+      let stage = 0;
+      let acted = false;
+      let since = Date.now();
+      const run = () => {
+        const [name, act, done] = stages[stage];
+        // A stage that clicks the marker waits for page 1 to draw it.
+        if (!acted && (!['open', 'reopen', 'up'].includes(name) || $('.pdf-page[data-page="1"] .cite'))) {
+          act();
+          acted = true;
+        }
+        if (acted && done()) {
+          stage += 1;
+          acted = false;
+          since = Date.now();
+          if (stage === stages.length) {
+            fetch('/__papol_smoke_ready?page=viewer-places', { method: 'POST' });
+            return;
+          }
+        } else if (Date.now() - since > 8000) {
+          fetch('/__papol_smoke_ready?page=places-stuck-at-' + name, { method: 'POST' });
+          return;
+        }
+        setTimeout(run, 50);
+      };
+      run();
+    }
+
     function followFigure() {
       let clicked = false;
       let last = 'no-link';
@@ -279,6 +390,7 @@ await runSmoke(
   [
     { path: `/papol/viewer/?share=${SHARE}`, page: 'viewer-citation' },
     { path: `/papol/viewer/?share=${FIGURE_SHARE}`, page: 'viewer-float' },
+    { path: `/papol/viewer/?share=${CITED_SHARE}`, page: 'viewer-places' },
     { path: '/papol/viewer/__layout', page: 'viewer-layout' },
   ],
   async (url) => {
@@ -288,6 +400,9 @@ await runSmoke(
     }
     if (pathname === `/papol/api/shared/${SHARE}`) return json(shared);
     if (pathname === `/papol/api/shared/${FIGURE_SHARE}`) return json(figureShared);
+    if (pathname === `/papol/api/shared/${CITED_SHARE}`) return json(citedShared);
+    if (pathname === `/papol/api/viewer-references/${CITED_SHA256}`) return json(citedAnalysis);
+    if (pathname === '/papol/uploads/cited.pdf') return { type: 'application/pdf', body: citedPdf };
     if (pathname === `/papol/api/viewer-references/${FIGURE_SHA256}`) return json(figureAnalysis);
     if (pathname === '/papol/uploads/figure.pdf') return { type: 'application/pdf', body: figurePdf };
     if (pathname === `/papol/api/viewer-references/${PDF_SHA256}`) return json(analysis);
@@ -310,6 +425,7 @@ await runSmoke(
 console.log(
   'Viewer browser smoke: a citation marker opened its reference card, search '
   + 'found and highlighted a phrase, a figure link zoomed the figure to fill '
-  + 'the window in its middle, and '
+  + 'the window in its middle, a card stepped through the places its work '
+  + 'is cited and every way out stayed with [ to go back, and '
   + 'the layout held from 320px to 1920px.',
 );

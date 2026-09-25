@@ -40,7 +40,7 @@ import { hydrateCredential } from '../../shared/credentials.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
-import { readNamedReference, stillToLookUp } from './references';
+import { citationOccurrences, placeAmong, readNamedReference, stillToLookUp } from './references';
 import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
@@ -762,6 +762,10 @@ export default function App() {
   // The reference whose card is open, and the marker it was opened from —
   // the card is placed beside that box.
   const [openCite, setOpenCite] = useState(null);
+  // Stepping through the places a work is cited, from its card: where the
+  // reader was when they took the first step, and the marker they had
+  // clicked. Null when they have not stepped.
+  const [exploring, setExploring] = useState(null);
   const [reference, setReference] = useState(null);
   // Where the user was before a link took them somewhere. Following a
   // cross-reference is only useful if coming back is exact. The scroll
@@ -1556,10 +1560,24 @@ export default function App() {
   // Opening a citation. What is already known is shown at once — the raw
   // reference always, and the looked-up work if anyone has opened this
   // reference before — and the lookup fills the rest in.
-  const openReference = (referenceUuid, anchor, inlineReference = null, referenceUuids = null, label = null) => {
+  const openReference = (referenceUuid, anchor, inlineReference = null, referenceUuids = null, label = null, place = null) => {
     const known = referencesByUuid.get(referenceUuid) || inlineReference || null;
     const ids = referenceUuids?.length ? referenceUuids : [referenceUuid];
-    setOpenCite({ referenceUuid, referenceUuids: ids, index: Math.max(0, ids.indexOf(referenceUuid)), anchor, label });
+    // Every place the paper cites the work, from the analysis. A citation
+    // read off the PDF before the analysis came has no uuid in it to count.
+    const among = place && !String(referenceUuid).startsWith('pdf:')
+      ? placeAmong(citationOccurrences(analysis, referenceUuid), place)
+      : null;
+    setOpenCite({
+      referenceUuid,
+      referenceUuids: ids,
+      index: Math.max(0, ids.indexOf(referenceUuid)),
+      anchor,
+      label,
+      place,
+      places: among?.places ?? null,
+      at: among?.at ?? 0,
+    });
     setReference(known);
     setReferenceError(null);
     // A PDF-native `cite.*` destination is recognizable before server-side
@@ -1737,15 +1755,17 @@ export default function App() {
 
   // A jump the way back returns from. A fitted float always counts: even
   // on screen already, the zoom has changed under the reader.
-  const rememberJump = (view) => {
+  const rememberJump = (view, { teach = true } = {}) => {
     linkHistory.current.back.push(view);
     linkHistory.current.forward = [];
     renderLinkHistory((version) => version + 1);
     // The lesson on getting back belongs to the first time there is
     // somewhere to get back to, beside the pill that does it.
     // Where storage is unavailable the lesson cannot be remembered, but it
-    // is still useful for this visit.
-    if (!isFeatureStateSet(LINK_NAVIGATION_TIP)) {
+    // is still useful for this visit. A step through the places a work is
+    // cited teaches [ on its own card, and the lesson would sit over the
+    // buttons the reader is stepping with.
+    if (teach && !isFeatureStateSet(LINK_NAVIGATION_TIP)) {
       setFeatureState(LINK_NAVIGATION_TIP, true);
       setLearnLinkNavigation(true);
     }
@@ -1785,6 +1805,12 @@ export default function App() {
     const from = direction === 'back' ? history.back : history.forward;
     const to = direction === 'back' ? history.forward : history.back;
     if (from.length === 0) return;
+    if (exploring) {
+      setExploring(null);
+      setOpenCite(null);
+      setReference(null);
+      setReferenceError(null);
+    }
     const here = currentView();
     const destination = from.pop();
     if (here) to.push(here);
@@ -1810,7 +1836,74 @@ export default function App() {
     setFeatureState(RETURN_PILL_HIDDEN, false);
   };
 
+  // A marker clicked on the page. Another citation is somewhere the reader
+  // chose to read, so an exploration ends where it is.
+  const openCitation = (...args) => {
+    endExploration();
+    openReference(...args);
+  };
+
+  // A step to the previous or next place the paper cites the work. The next
+  // marker is brought to where this one is, so the card stays put and the
+  // button just pressed is under the pointer again. The first step is the
+  // whole exploration's one entry in the paper's history: [ goes back to
+  // where the reader was, however many steps they take.
+  const stepOccurrence = (direction) => {
+    const cite = openCite;
+    const scroller = scrollerRef.current;
+    if (!cite?.places || cite.places.length < 2 || !cite.anchor || !scroller) return;
+    const at = (cite.at + direction + cite.places.length) % cite.places.length;
+    const place = cite.places[at];
+    const pageEl = scroller.querySelector(`[data-page="${place.page}"]`);
+    if (!pageEl) return;
+    if (!exploring) {
+      const startView = currentView();
+      if (startView) rememberJump(startView, { teach: false });
+      setExploring({ startView, startPlace: cite.place });
+    }
+    const box = scroller.getBoundingClientRect();
+    const from = cite.anchor?.isConnected ? cite.anchor.getBoundingClientRect() : null;
+    const pageBox = pageEl.getBoundingClientRect();
+    const target = place.boxes[0];
+    const top = pageBox.top + target.y * pageBox.height;
+    const left = pageBox.left + target.x * pageBox.width;
+    // Across as well only when the page is wider than the window; otherwise
+    // the card keeps its place across by itself (ReferenceCard).
+    const wide = scroller.scrollWidth > scroller.clientWidth + 1;
+    scroller.scrollTo({
+      top: scroller.scrollTop + top - (from ? from.top : box.top + box.height * 0.4),
+      left: scroller.scrollLeft + (wide ? left - (from ? from.left : box.left + box.width / 2) : 0),
+      // At once: the card is placed against the marker as soon as it is
+      // drawn, which a smooth scroll would still be carrying along.
+      behavior: 'auto',
+    });
+    // The card waits, hidden, for the page to draw the marker it goes to.
+    setOpenCite({ ...cite, place, at, anchor: null });
+  };
+
+  // The page has drawn the marker a step went to: the card hangs off it.
+  const occurrenceShown = useEvent((el) => {
+    setOpenCite((cite) => (cite && !cite.anchor ? { ...cite, anchor: el } : cite));
+  });
+
+  // However an exploration ends, the reader stays where it has got to; [ is
+  // the way back. One that ends where it began went nowhere, and takes its
+  // entry out of the history again.
+  const endExploration = () => {
+    if (!exploring) return;
+    const back = linkHistory.current.back;
+    const here = currentView();
+    const start = exploring.startView;
+    if (here && start && back[back.length - 1] === start && here.scale === start.scale
+      && Math.abs(here.top - start.top) < 2 && Math.abs(here.left - start.left) < 2) {
+      back.pop();
+      renderLinkHistory((version) => version + 1);
+    }
+    setExploring(null);
+  };
+
   const closeReference = () => {
+    endExploration();
     setOpenCite(null);
     setReference(null);
     setReferenceError(null);
@@ -1834,14 +1927,24 @@ export default function App() {
   };
 
   // The card closes on Escape, like every other transient thing here.
+  // While exploring, ↑ and ↓ step as the card's buttons do; before the
+  // first step they scroll the page as ever.
   useEffect(() => {
     if (!openCite) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') closeReference();
+      if (e.key === 'Escape') {
+        closeReference();
+        return;
+      }
+      if (exploring && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
+        && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isEditingTarget(e.target)) {
+        e.preventDefault();
+        stepOccurrence(e.key === 'ArrowDown' ? 1 : -1);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openCite]);
+  }, [openCite, exploring]);
 
   // Open at the width of the viewer, and stay fitted through actual window
   // resizes until the user picks a zoom.
@@ -3541,7 +3644,7 @@ export default function App() {
     setFeedbackContent('');
   };
 
-  const pageOpenReference = useEvent(openReference);
+  const pageOpenReference = useEvent(openCitation);
   const pageFollowLink = useEvent(followLink);
   const pageSelectNote = useEvent(pointAtNote);
   const pageRenameNote = useEvent((uuid, name) => renameNote(uuid, name, true));
@@ -3630,7 +3733,16 @@ export default function App() {
       ? formatProgressDetail({ loaded: pdfProgress.loaded, total: pdfProgress.total })
       : formatBytes(pdfProgress.loaded))
     : null;
-  const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page) || null;
+  const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page)
+    || openCite?.place?.page || null;
+  // The marker an exploration has got to, drawn by its page; the key makes
+  // a step to another marker on the same page light it afresh.
+  const occurrencePlace = exploring && openCite?.place ? openCite.place : null;
+  const citationOccurrence = useMemo(
+    () => (occurrencePlace ? { boxes: occurrencePlace.boxes, key: `place-${openCite.at}` } : null),
+    [occurrencePlace, openCite?.at],
+  );
+  const startPlace = exploring?.startPlace ?? null;
 
   // The way out is a place, not a step backwards. Each source names where
   // its document lives in Papol — a nook paper's own page, the front door
@@ -4257,7 +4369,7 @@ export default function App() {
       )}
 
 
-      <div className="viewer-body">
+      <div className={`viewer-body${exploring ? ' exploring' : ''}`}>
         <ReturnPill
           returnView={returnView}
           onwardView={onwardView}
@@ -4403,6 +4515,9 @@ export default function App() {
               activeSearchId={searchResults[activeSearchResult]?.page === n
                 ? searchResults[activeSearchResult].id
                 : null}
+              citationOccurrence={occurrencePlace?.page === n ? citationOccurrence : null}
+              citationStart={startPlace?.page === n ? startPlace.boxes : null}
+              onOccurrenceShown={occurrenceShown}
               /></Suspense>}
             </React.Fragment>
           ))}
@@ -4420,16 +4535,27 @@ export default function App() {
                 openCite.anchor,
                 null,
                 openCite.referenceUuids,
-                openCite.label
+                openCite.label,
+                openCite.place
               ) : null}
               onNext={openCite.index < openCite.referenceUuids.length - 1 ? () => openReference(
                 openCite.referenceUuids[openCite.index + 1],
                 openCite.anchor,
                 null,
                 openCite.referenceUuids,
-                openCite.label
+                openCite.label,
+                openCite.place
               ) : null}
               onReportProblem={reportCitationProblem}
+              places={openCite.places ? {
+                count: openCite.places.length,
+                at: openCite.at,
+                page: openCite.place.page,
+                exact: openCite.place.exact,
+              } : null}
+              exploring={!!exploring}
+              onPreviousPlace={() => stepOccurrence(-1)}
+              onNextPlace={() => stepOccurrence(1)}
             />
           )}
           {selectionPaint && !neverAnnotatable && (

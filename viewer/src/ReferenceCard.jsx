@@ -20,8 +20,16 @@ const MARGIN = 12;
 export default function ReferenceCard({
   anchor, reference, error, requiresNook = false, onClose,
   position = 0, count = 1, onPrevious, onNext, onReportProblem,
+  places = null, exploring = false, onPreviousPlace, onNextPlace,
 }) {
   const cardRef = useRef(null);
+  // Where the card last sat across the window. While the reader steps
+  // through the places a work is cited, each marker is brought to where the
+  // last one was, so the card keeps its height by itself; it keeps this too,
+  // or a marker in the other column would carry it — and the button under
+  // the pointer — half a page sideways.
+  const heldLeft = useRef(null);
+  const holding = exploring;
   const [showAll, setShowAll] = useState(false);
 
   // Placed after measuring: whether the card fits below the marker depends
@@ -55,9 +63,12 @@ export default function ReferenceCard({
         Math.min(below ? roomBelow : roomAbove, window.innerHeight * 0.62)
       );
       const viewportLeft = Math.min(
-        Math.max(MARGIN, box.left + box.width / 2 - width / 2),
+        Math.max(MARGIN, holding && heldLeft.current != null
+          ? heldLeft.current
+          : box.left + box.width / 2 - width / 2),
         Math.max(MARGIN, window.innerWidth - width - MARGIN)
       );
+      heldLeft.current = viewportLeft;
       const viewportTop = below
         ? box.bottom + MARGIN
         : Math.max(MARGIN, box.top - MARGIN - Math.min(height, cap));
@@ -83,7 +94,7 @@ export default function ReferenceCard({
       window.removeEventListener('resize', place);
       observer.disconnect();
     };
-  }, [anchor, reference, error, requiresNook, showAll]);
+  }, [anchor, reference, error, requiresNook, showAll, holding]);
 
   // A press anywhere else puts the card away; Escape is the viewer's
   // central keyboard business.
@@ -116,6 +127,34 @@ export default function ReferenceCard({
   const linksRow = (!looking && work)
     || (!requiresNook && !waiting && !work && status !== 'pdf_text' && raw);
 
+  // Where else the paper cites this work, and the way through them. From
+  // the first step it is an exploration, and says so, and where it has got
+  // to; the return pill says the way back.
+  const placesRow = places && (
+    <div className={`ref-places${holding ? ' exploring' : ''}`}>
+      <div className="ref-places-row">
+        <span className="ref-places-what" aria-live="polite">
+          {holding ? (
+            <>
+              <strong>Exploring</strong>
+              {` ${places.at + 1} of ${places.count} · page ${places.page}${places.exact ? '' : ' · guessed'}`}
+            </>
+          ) : places.count === 1 ? 'Cited only here' : `Cited ${places.count} times in this paper`}
+        </span>
+        {places.count > 1 && (
+          <nav className="ref-places-nav" aria-label="Places this paper cites it">
+            <button type="button" onClick={onPreviousPlace} aria-label="Previous place it is cited" title={`Previous place it is cited${holding ? ' (↑)' : ''}`}>
+              ↑
+            </button>
+            <button type="button" onClick={onNextPlace} aria-label="Next place it is cited" title={`Next place it is cited${holding ? ' (↓)' : ''}`}>
+              ↓
+            </button>
+          </nav>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div
       ref={cardRef}
@@ -125,6 +164,7 @@ export default function ReferenceCard({
         left: 0,
         top: 0,
         transform: 'translate3d(-9999px, 0, 0)',
+        visibility: anchor ? undefined : 'hidden',
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -268,6 +308,8 @@ export default function ReferenceCard({
 
       {/* Without a row of links, the report stands on its own. */}
       {report && !linksRow && <div className="ref-report">{report}</div>}
+
+      {placesRow}
     </div>
   );
 }

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { destinationHeight } from './sections.js';
 
 import {
-  citationHolds, columnsOnPage, consolidateCitations, destinationNumber,
-  pageOverlays, readNamedReference, referenceAt, stillToLookUp,
+  citationHolds, citationOccurrences, columnsOnPage, consolidateCitations, destinationNumber,
+  pageOverlays, placeAmong, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
 
 test("consolidates a publisher's link to each number of a range into one citation", () => {
@@ -483,4 +483,41 @@ test("a PDF's link on the second line of a marker is that marker, not a second b
 
   assert.equal(citations.length, 1);
   assert.equal(citations[0].boxes.length, 2);
+});
+
+test('the places a work is cited are its markers, in the order the analysis read them', () => {
+  const box = (page, x, y) => ({ page, x, y, w: 0.02, h: 0.01 });
+  const analysis = {
+    citations: [
+      // Read in columns: the foot of the left one before the top of the right.
+      { reference_uuids: ['a'], label: '[1]', inferred: false, boxes: [box(2, 0.1, 0.9)] },
+      { reference_uuids: ['b'], label: '[2]', inferred: false, boxes: [box(2, 0.1, 0.5)] },
+      { reference_uuids: ['b', 'a', 'c'], label: '[2, 1, 3]', inferred: true, boxes: [box(2, 0.6, 0.1)] },
+      // Broken over a line, and over a page: the place is where it begins.
+      { reference_uuids: ['a'], label: 'Vaswani et al. 2017', inferred: false, boxes: [box(3, 0.8, 0.95), box(4, 0.1, 0.05)] },
+    ],
+  };
+  assert.deepEqual(citationOccurrences(analysis, 'a'), [
+    { page: 2, boxes: [{ x: 0.1, y: 0.9, w: 0.02, h: 0.01 }], label: '[1]', exact: true },
+    { page: 2, boxes: [{ x: 0.6, y: 0.1, w: 0.02, h: 0.01 }], label: '[2, 1, 3]', exact: false },
+    { page: 3, boxes: [{ x: 0.8, y: 0.95, w: 0.02, h: 0.01 }], label: 'Vaswani et al. 2017', exact: true },
+  ]);
+  assert.deepEqual(citationOccurrences(analysis, 'c').map((place) => place.label), ['[2, 1, 3]']);
+  assert.deepEqual(citationOccurrences(analysis, 'z'), []);
+  assert.deepEqual(citationOccurrences(null, 'a'), []);
+});
+
+test('the marker clicked is found among the places, and put in at its page when the analysis missed it', () => {
+  const place = (page, y) => ({ page, boxes: [{ x: 0.1, y, w: 0.02, h: 0.01 }], label: '[1]', exact: true });
+  const places = [place(1, 0.2), place(3, 0.4), place(5, 0.1)];
+  // The PDF's link box is a little wider than the analyzer's.
+  const clicked = { page: 3, boxes: [{ x: 0.095, y: 0.398, w: 0.03, h: 0.012 }], label: null, exact: true };
+  assert.deepEqual(placeAmong(places, clicked), { places, at: 1 });
+
+  const missed = { ...clicked, page: 4 };
+  const found = placeAmong(places, missed);
+  assert.equal(found.at, 2);
+  assert.deepEqual(found.places, [places[0], places[1], missed, places[2]]);
+  assert.equal(placeAmong(places, { ...clicked, page: 9 }).at, 3);
+  assert.deepEqual(placeAmong([], clicked), { places: [clicked], at: 0 });
 });

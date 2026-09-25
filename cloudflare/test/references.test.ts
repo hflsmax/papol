@@ -262,6 +262,32 @@ describe("the viewer's references", () => {
     expect(await count("paper_citation_works")).toBe(3);
   });
 
+  it("serve the markers in the order the analyzer read them, down one column and then the next", async () => {
+    const ada = await register();
+    await kept(ada);
+    const at = (x: number, y: number) => ({ page: 1, x, y, w: 0.02, h: 0.014 });
+    // Read in columns: the foot of the left column comes before the top of
+    // the right one, though it sits lower on the page.
+    hosts({ "analyzer.test": () => jsonResponse({
+      ...ANALYSIS,
+      citations: [
+        { keys: ["b0"], label: "[1]", inferred: false, boxes: [at(0.1, 0.2)] },
+        { keys: ["b0"], label: "[1]", inferred: false, boxes: [at(0.1, 0.9)] },
+        { keys: ["b0"], label: "[1]", inferred: false, boxes: [at(0.6, 0.1)] },
+      ],
+    }) });
+    await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper' AND status <> 'done'"))!.uuid as string);
+    const ready = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    expect(ready.citations.map((c: Json) => [c.boxes[0].x, c.boxes[0].y])).toEqual([[0.1, 0.2], [0.1, 0.9], [0.6, 0.1]]);
+    expect(ready.citations[0]).not.toHaveProperty("ordinal");
+
+    // A reading from before ordinals were kept is served in page order.
+    await exec("UPDATE paper_citations SET ordinal = NULL");
+    const older = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
+    expect(older.citations.map((c: Json) => [c.boxes[0].x, c.boxes[0].y])).toEqual([[0.6, 0.1], [0.1, 0.2], [0.1, 0.9]]);
+  });
+
   it("fail a reading whose links name a float it does not have", async () => {
     const ada = await register();
     await kept(ada);

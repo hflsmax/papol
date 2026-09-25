@@ -651,3 +651,40 @@ export function stillToLookUp(ids, shown, known, underWay) {
     && !known.get(id)?.resolved_status
     && !underWay.has(id));
 }
+
+/**
+ * The places the paper cites one work, in reading order: [{ page, boxes,
+ * label, exact }], one a marker, its boxes those printed on the page it
+ * begins on. The analysis covers the whole paper, where the page overlays
+ * cover only the pages near the view, so it can answer for page 19 while
+ * the reader is on page 3. Its citations come in the order the analyzer
+ * read them, which is the order to step through them in.
+ */
+export function citationOccurrences(analysis, referenceUuid) {
+  return (analysis?.citations || [])
+    .filter((c) => c.reference_uuids?.includes(referenceUuid) && c.boxes?.length)
+    .map((c) => {
+      const { page } = c.boxes[0];
+      return {
+        page,
+        boxes: c.boxes.filter((box) => box.page === page).map(({ x, y, w, h }) => ({ x, y, w, h })),
+        label: c.label ?? null,
+        exact: !c.inferred,
+      };
+    });
+}
+
+/**
+ * Where the marker the reader clicked is among `places`: { places, at }.
+ * A marker the page found that the analysis did not (a PDF's own link, a
+ * number read off the text) is put in at its page, so the count is never
+ * short by the one being read.
+ */
+export function placeAmong(places, clicked) {
+  const at = places.findIndex((place) => place.page === clicked.page && overlaps(place, clicked));
+  if (at >= 0) return { places, at };
+  const after = places.findIndex((place) => place.page > clicked.page
+    || (place.page === clicked.page && place.boxes[0].y > clicked.boxes[0].y));
+  const index = after < 0 ? places.length : after;
+  return { places: [...places.slice(0, index), clicked, ...places.slice(index)], at: index };
+}
