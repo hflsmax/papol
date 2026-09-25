@@ -349,11 +349,18 @@ and built in `src-tauri/src/lib.rs`, so handlers can be attached to it:
 
 ## macOS release
 
-The final macOS build must run on macOS. The repository release workflow builds
-an Apple Silicon binary, signs and notarizes it, and attaches its DMG to a
-GitHub release when a tag matching `macos-v*` is pushed.
+The final macOS build must run on macOS. A release is the Papol macOS workflow
+(`.github/workflows/desktop-macos.yml`) run by hand with `release` set, which
+`./deploy.sh macos release [patch|minor|major|X.Y.Z] [--dry-run]` asks for. It
+runs the gate on main, stamps the version after the latest `macos-v*` tag into
+its own checkout (`scripts/release-version.mjs`), builds an Apple Silicon
+binary, signs and notarizes it, and only then tags the commit and attaches the
+DMG to a GitHub release. No version is committed: the tags say which release
+came last, and the versions in `package.json` and `src-tauri/tauri.conf.json`
+only name what a local build calls itself.
 
-Configure these GitHub Actions secrets first:
+The workflow needs these GitHub Actions secrets; `./deploy.sh macos
+credentials` sets them from the local credential file and certificate:
 
 - `APPLE_CERTIFICATE`: base64-encoded Developer ID Application `.p12`
 - `APPLE_CERTIFICATE_PASSWORD`: password for that `.p12`
@@ -362,12 +369,9 @@ Configure these GitHub Actions secrets first:
 - `APPLE_PASSWORD`: app-specific password for that Apple Account
 - `APPLE_TEAM_ID`: Apple Developer team identifier
 
-Then update the version in both `package.json` and `src-tauri/tauri.conf.json`,
-commit it, and push a matching tag, for example `macos-v0.1.0`.
-
 A local `npm run build` uses an ad-hoc macOS signature so its DMG is internally
-consistent. Tagged workflow builds replace that with the configured Developer
-ID signature and notarization.
+consistent. Release builds replace that with the configured Developer ID
+signature and notarization.
 
 Capabilities live in `src-tauri/capabilities/`, rather than being embedded in
 the Desk configuration. The permanent Desk window cannot invoke the close

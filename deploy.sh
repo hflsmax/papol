@@ -2,7 +2,7 @@
 # Papol's deployment, all of it.
 #
 #   ./deploy.sh dev            the Worker and the three apps here, live-reloading
-#   ./deploy.sh prod           run the worker workflow for production, then open its links
+#   ./deploy.sh prod           run the worker workflow for production and follow it
 #   ./deploy.sh host           update the NixOS host: the analyzer and its tunnel
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8787)
@@ -11,9 +11,16 @@
 #                  [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
 #   ./deploy.sh macos credentials
-#                  print the local signing/notarization values for GitHub
-#   ./deploy.sh macos release [patch|minor|major|VERSION]
-#                  bump, open a pull request that merges itself, then tag
+#                  set the local signing/notarization values as GitHub secrets
+#   ./deploy.sh macos release [patch|minor|major|VERSION] [--dry-run]
+#                  run the Papol macOS workflow's release and follow it
+#
+# What can happen on GitHub happens there: production and the macOS release
+# are workflows (.github/workflows/worker.yml, desktop-macos.yml), and these
+# commands only ask for a run and follow it, so they need gh and nothing of
+# this checkout. What stays here is what is this machine's by nature: the
+# development servers, a local app build, the signing identity in this
+# keychain, and the host, which only this network reaches.
 #
 # Production is the Cloudflare Worker in cloudflare/, at https://papol.io:
 # the API, the jobs, and the three built apps served as its static assets,
@@ -65,7 +72,7 @@ confirm() {
 }
 
 usage() {
-  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -135,6 +142,31 @@ ensure_site() {
 
 wrangler() {
   (cd "$DEV_DIR/cloudflare" && with_tools npx wrangler "$@")
+}
+
+# --- GitHub -----------------------------------------------------------------
+
+# Run a workflow on main and follow it to the end. gh does not say which run
+# it started, so the newest dispatch of that workflow since asking is it.
+# Prints the run's id; everything else goes to stderr.
+run_workflow() {
+  local workflow="$1" started run
+  shift
+  command -v gh >/dev/null 2>&1 || die "gh is required to run $workflow"
+  started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  (cd "$DEV_DIR" && gh workflow run "$workflow" --ref main "$@") >&2
+  for _ in $(seq 30); do
+    run=$(cd "$DEV_DIR" && gh run list --workflow "$workflow" --event workflow_dispatch \
+      --limit 5 --json databaseId,createdAt \
+      --jq "[.[] | select(.createdAt >= \"$started\")][0].databaseId // empty")
+    [ -n "$run" ] && break
+    sleep 2
+  done
+  [ -n "$run" ] || die "the $workflow run did not appear; look in the Actions tab"
+  note "$(cd "$DEV_DIR" && gh run view "$run" --json url --jq .url)" >&2
+  (cd "$DEV_DIR" && gh run watch "$run" --exit-status --interval 30 >/dev/null) \
+    || die "the $workflow run failed: gh run view $run --log-failed"
+  printf '%s\n' "$run"
 }
 
 # --- macOS desktop ----------------------------------------------------------
@@ -282,178 +314,55 @@ macos_credentials() {
     *) die "could not verify a Developer ID Application identity in $certificate_file" ;;
   esac
   load_macos_notarization
-  printf 'APPLE_CERTIFICATE='
-  base64 < "$certificate_file" | tr -d '\n'
-  printf '\n'
-  printf 'APPLE_CERTIFICATE_PASSWORD=%s\n' "$certificate_password"
-  printf 'APPLE_SIGNING_IDENTITY=%s\n' "$APPLE_SIGNING_IDENTITY"
-  printf 'APPLE_ID=%s\n' "${APPLE_ID:-}"
-  printf 'APPLE_PASSWORD=%s\n' "${APPLE_PASSWORD:-}"
-  printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID:-}"
+  command -v gh >/dev/null 2>&1 || die "gh is required to set the repository's secrets"
+  confirm "Set the six Apple signing secrets on $(cd "$DEV_DIR" && gh repo view --json nameWithOwner --jq .nameWithOwner)"
+  # Each value goes in on stdin, so none of them is ever an argument that
+  # another process could read.
+  base64 < "$certificate_file" | tr -d '\n' | github_secret APPLE_CERTIFICATE
+  printf '%s' "$certificate_password" | github_secret APPLE_CERTIFICATE_PASSWORD
+  printf '%s' "$APPLE_SIGNING_IDENTITY" | github_secret APPLE_SIGNING_IDENTITY
+  printf '%s' "${APPLE_ID:-}" | github_secret APPLE_ID
+  printf '%s' "${APPLE_PASSWORD:-}" | github_secret APPLE_PASSWORD
+  printf '%s' "${APPLE_TEAM_ID:-}" | github_secret APPLE_TEAM_ID
+  say "The release workflow signs and notarizes with them from its next run"
 }
 
+github_secret() {
+  (cd "$DEV_DIR" && gh secret set "$1") >/dev/null || die "could not set $1"
+  note "set $1"
+}
+
+# A release is the Papol macOS workflow's: it runs the gate on main, works
+# out the version after the latest macos-v* tag, stamps it into the build,
+# builds and notarizes the DMG, and only then tags the commit and publishes.
+# Nothing here touches this checkout, and nothing is committed.
 macos_release() {
-  local requested="${1:-patch}" current version tag branch pr
-  local desktop_package="$DEV_DIR/desktop/package.json"
-  local desktop_lock="$DEV_DIR/desktop/package-lock.json"
-  local tauri_config="$DEV_DIR/desktop/src-tauri/tauri.conf.json"
-  # The crate carries the version the running application reports about
-  # itself, so it moves with the rest. Its lock file holds the same number
-  # and must move too, or every --locked build stops.
-  local cargo_manifest="$DEV_DIR/desktop/src-tauri/Cargo.toml"
-  local cargo_lock="$DEV_DIR/desktop/src-tauri/Cargo.lock"
-  local -a version_files=(
-    "desktop/package.json"
-    "desktop/package-lock.json"
-    "desktop/src-tauri/tauri.conf.json"
-    "desktop/src-tauri/Cargo.toml"
-    "desktop/src-tauri/Cargo.lock"
-  )
-
-  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, or X.Y.Z"
-  command -v gh >/dev/null 2>&1 || die "gh is required to open the release pull request"
-  command -v node >/dev/null 2>&1 || die "node is required to prepare a macOS release"
-  [ "$(git -C "$DEV_DIR" branch --show-current)" = main ] \
-    || die "macos releases must be cut from the main branch"
-  git -C "$DEV_DIR" diff --cached --quiet \
-    || die "stage or unstage existing changes before cutting a release"
-  git -C "$DEV_DIR" diff --quiet -- "${version_files[@]}" \
-    || die "desktop version files have uncommitted changes"
-  # main is protected: nothing reaches it except through a pull request
-  # whose checks pass. So the bump travels on a branch of its own, and it
-  # starts from exactly what origin has, or a local-only commit would ride
-  # along into the release.
-  git -C "$DEV_DIR" fetch --quiet origin main
-  [ "$(git -C "$DEV_DIR" rev-parse HEAD)" = "$(git -C "$DEV_DIR" rev-parse origin/main)" ] \
-    || die "main is not at origin/main; pull, or drop local-only commits, before cutting a release"
-
-  current=$(node -p "require('$desktop_package').version")
-  if [[ ! $current =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    die "desktop version is not a stable semantic version: $current"
-  fi
-  case "$requested" in
-    patch) version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))" ;;
-    minor) version="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0" ;;
-    major) version="$((BASH_REMATCH[1] + 1)).0.0" ;;
-    *)
-      [[ $requested =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-        || die "release version must be patch, minor, major, or X.Y.Z"
-      version=$requested
-      ;;
-  esac
-  [ "$version" != "$current" ] || die "desktop is already version $version"
-
-  # A release only ever moves forwards.
-  node - "$version" "$current" <<'NODE' || die "release version refused"
-const [version, current] = process.argv.slice(2);
-const parts = (text) => text.split('.').map(Number);
-const compare = (left, right) => {
-  const [a, b] = [parts(left), parts(right)];
-  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] - b[i];
-  return 0;
-};
-if (compare(version, current) < 0) {
-  console.error(`deploy: ${version} is older than the current ${current}; a release moves forwards`);
-  process.exit(1);
-}
-NODE
-
-  tag="macos-v$version"
-  branch="release/$tag"
-  if git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    die "tag $tag already exists locally"
-  fi
-  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
-    die "tag $tag already exists on origin"
-  fi
-  if git -C "$DEV_DIR" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
-    || git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/heads/$branch" >/dev/null 2>&1; then
-    die "branch $branch already exists; an earlier release of $version is unfinished"
-  fi
-
-  node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" \
-    "$cargo_manifest" "$cargo_lock" <<'NODE'
-const [version, packageFile, lockFile, tauriFile, cargoFile, cargoLockFile] =
-  process.argv.slice(2);
-const replace = (file, pattern) => {
-  const source = require('node:fs').readFileSync(file, 'utf8');
-  let count = 0;
-  const updated = source.replace(pattern, (...parts) => {
-    count += 1;
-    return `${parts[1]}${version}${parts[2]}`;
-  });
-  if (count !== 1) throw new Error(`expected one version field in ${file}, found ${count}`);
-  require('node:fs').writeFileSync(file, updated);
-};
-replace(packageFile, /^(  "version": ")[^"]+(",)$/m);
-replace(lockFile, /^(  "version": ")[^"]+(",)$/m);
-replace(lockFile, /^(      "version": ")[^"]+(",)$/m);
-replace(tauriFile, /^(  "version": ")[^"]+(",)$/m);
-// Only the crate's own [package] version sits at the start of a line; every
-// dependency states its version indented or inline.
-replace(cargoFile, /^(version = ")[^"]+(")$/m);
-replace(cargoLockFile, /^(name = "papol-desktop"\nversion = ")[^"]+(")$/m);
-NODE
-
-  # A terminal makes diff open the pager even when it has nothing to say.
-  git -C "$DEV_DIR" --no-pager diff --check
-  git -C "$DEV_DIR" switch --quiet --create "$branch"
-  git -C "$DEV_DIR" add -- "${version_files[@]}"
-  git -C "$DEV_DIR" commit --quiet -m "Release Papol macOS v$version"
-  git -C "$DEV_DIR" push --quiet --set-upstream origin "$branch"
-  pr=$(cd "$DEV_DIR" && gh pr create --base main --head "$branch" \
-    --title "Release Papol macOS v$version" \
-    --body "Version bump only. The pull request merges itself once the checks pass; deploy.sh then tags the merge commit $tag, and that tag builds, notarizes and publishes the DMG.")
-  (cd "$DEV_DIR" && gh pr merge --auto --merge "$pr" >/dev/null)
-  git -C "$DEV_DIR" switch --quiet main
-  say "Opened $pr"
-
-  # Wait for it to merge, then tag the merge commit.
-  local state status sha failed
-  note "Waiting for the checks; the pull request merges itself when they pass."
-  while :; do
-    read -r state status sha failed < <(cd "$DEV_DIR" && gh pr view "$pr" \
-      --json state,mergeStateStatus,mergeCommit,statusCheckRollup \
-      --jq '[.state, .mergeStateStatus, (.mergeCommit.oid // "-"),
-             ([.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "CANCELLED") | .name] | join(",") | if . == "" then "-" else . end)]
-            | join(" ")')
-    case "$state" in
-      MERGED) break ;;
-      CLOSED) die "$pr was closed without merging" ;;
+  local request="patch" dry_run=false run version
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run) dry_run=true ;;
+      patch|minor|major) request="$1" ;;
+      *)
+        [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+          || die "release version must be patch, minor, major, or X.Y.Z"
+        request="$1"
+        ;;
     esac
-    [ "$failed" = "-" ] || die "checks failed on $pr: $failed"
-    # main is required to be merged in before a branch lands; when main
-    # moves under an open release, bring the branch up and let the checks
-    # run again on the result.
-    if [ "$status" = BEHIND ]; then
-      note "main moved; bringing $branch up to date"
-      (cd "$DEV_DIR" && gh pr update-branch "$pr" >/dev/null)
-    fi
-    sleep 30
+    shift
   done
 
-  git -C "$DEV_DIR" fetch --quiet origin main
-  [ "$sha" != "-" ] || die "GitHub reports no merge commit for $pr"
-  git -C "$DEV_DIR" merge-base --is-ancestor "$sha" origin/main \
-    || die "merge commit $sha of $pr is not on origin/main"
-  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
-    say "Papol macOS v$version is already tagged on origin"
-    return
+  say "Releasing Papol macOS ($request) from origin/main$([ "$dry_run" = true ] && printf ', dry run')"
+  note "the gate, the build and notarization take about half an hour"
+  run=$(run_workflow desktop-macos.yml -f release="$request" -f dry_run="$dry_run")
+  version=$(cd "$DEV_DIR" && gh run view "$run" --log 2>/dev/null \
+    | sed -n 's/.*this one is \([0-9][0-9.]*\).*/\1/p' | head -1)
+  if [ "$dry_run" = true ]; then
+    say "Built and notarized ${version:+v$version }without publishing"
+    note "the DMG is the run's artifact: gh run download $run -n dmg"
+  else
+    say "Released Papol macOS ${version:+v$version}"
+    note "https://github.com/hflsmax/papol/releases/tag/macos-v$version"
   fi
-  git -C "$DEV_DIR" rev-parse -q --verify "refs/tags/$tag" >/dev/null \
-    || git -C "$DEV_DIR" tag -a "$tag" -m "Papol macOS v$version" "$sha"
-  git -C "$DEV_DIR" push origin "$tag"
-  git -C "$DEV_DIR" push --quiet origin --delete "$branch" 2>/dev/null || true
-  git -C "$DEV_DIR" branch --quiet -D "$branch" 2>/dev/null || true
-  if [ "$(git -C "$DEV_DIR" branch --show-current)" = main ]; then
-    git -C "$DEV_DIR" merge --quiet --ff-only origin/main
-  fi
-  say "Tagged Papol macOS v$version"
-  # The gate is CI's, not this script's: the tag runs the suites, the
-  # browser smokes and the native lints on a macOS runner, and the DMG
-  # is built, notarized and published only if they pass.
-  note "CI is now testing the tag; the release publishes only if the gate passes:"
-  note "https://github.com/hflsmax/papol/actions/workflows/desktop-macos.yml"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -905,22 +814,23 @@ Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--no-check] [--skip-notarize]
   ./deploy.sh macos credentials
-  ./deploy.sh macos release [patch|minor|major|VERSION]
+  ./deploy.sh macos release [patch|minor|major|VERSION] [--dry-run]
 
 `prod` creates an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 .env.macos-notarization file supplies Developer ID and notarization credentials.
-Tagged GitHub releases also sign and notarize. Add --skip-notarize to retain
+GitHub releases always sign and notarize. Add --skip-notarize to retain
 the configured signing mode without submitting the build to Apple's
 notarization service.
-`credentials` lists the GitHub Actions secrets needed for a signed and
-notarized release, checks for a local Developer ID identity, and prints the
-values in the local credential file for copying to GitHub.
-`release` increments the desktop patch version by default (or accepts a minor,
-major, or explicit stable version), commits only its version files on a branch,
-opens a pull request that merges itself once the checks pass, waits for that,
-and pushes the matching `macos-v*` tag at the merge commit to trigger the
-GitHub release build.
+`credentials` checks the local Developer ID identity and sets it, with the
+notarization values from the local credential file, as the repository's
+GitHub Actions secrets for signed and notarized releases.
+`release` runs the Papol macOS workflow's release on main and follows it: the
+gate, then the version after the latest `macos-v*` tag (patch by default, or
+minor, major, or an explicit stable version) stamped into the build, a signed
+and notarized DMG, and only then the tag and the published release. Nothing is
+committed. --dry-run stops before the tag and leaves the DMG as the run's
+artifact.
 MSG
       ;;
     *) die "unknown macos target: $1 (try dev, prod, credentials, or release)" ;;
@@ -1017,11 +927,10 @@ run_dev() {
 # --- production -------------------------------------------------------------
 
 # Production is the worker workflow's to deploy, from origin/main: it runs
-# the Worker's suite, applies D1's migrations, deploys, and smoke-tests
-# production read-only. This asks for that run, follows it, and then opens
-# production's links, which the workflow does not.
+# the Worker's suite, applies D1's migrations, deploys, smoke-tests
+# production read-only, and opens its links in a browser. This asks for
+# that run and follows it.
 deploy_prod() {
-  local started run
   [ $# -eq 0 ] || die "prod takes no options"
   command -v gh >/dev/null 2>&1 || die "gh is required to run the production deploy"
 
@@ -1032,38 +941,8 @@ deploy_prod() {
     || note "note: HEAD has commits origin/main does not; they are not deployed"
   confirm "Deploy origin/main to production"
 
-  started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  (cd "$DEV_DIR" && gh workflow run worker.yml --ref main -f environment=production)
-  # gh does not say which run it started; the newest dispatch since is it.
-  for _ in $(seq 30); do
-    run=$(cd "$DEV_DIR" && gh run list --workflow worker.yml --event workflow_dispatch \
-      --limit 5 --json databaseId,createdAt \
-      --jq "[.[] | select(.createdAt >= \"$started\")][0].databaseId // empty")
-    [ -n "$run" ] && break
-    sleep 2
-  done
-  [ -n "$run" ] || die "the production run did not appear; look in the Actions tab"
-  (cd "$DEV_DIR" && gh run watch "$run" --exit-status --interval 15 >/dev/null) \
-    || die "the production deploy failed: gh run view $run --log-failed"
-  say "Deployed"
-
-  link_check
-}
-
-# Deployed is not the same as working. The site answers 200 for every path
-# it has never heard of, so open the real links in a browser and see which
-# page each one rendered.
-link_check() {
-  local status=0
-  say "Opening production's links"
-  with_tools bash "$DEV_DIR/health/links.sh" "https://papol.io" || status=$?
-  [ "$status" -eq 0 ] && return 0
-  # 2 is the check failing to stand up — no browser, or the application never
-  # loading at all. That says nothing about this revision's routing, so it is
-  # reported and stepped over rather than being blamed on the deployment.
-  [ "$status" -eq 2 ] && { note "the link check could not run; open a paper link by hand"; return 0; }
-  die "production is serving pages, but some of its links no longer open what
-    they name. Deploy the previous revision to put it back."
+  run_workflow worker.yml -f environment=production >/dev/null
+  say "Deployed, and every link opened the page it names"
 }
 
 # The NixOS host: the analyzer and the tunnel that carries the Worker to it, as
