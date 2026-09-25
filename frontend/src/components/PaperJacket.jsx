@@ -42,10 +42,6 @@ export default function PaperJacket({
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [toggleWarning, setToggleWarning] = useState(null);
-  // Set when Read is pressed on a paper the user has not taken yet. Up
-  // here with the rest: there are early returns below, and a hook after
-  // one of those is a hook that sometimes does not run.
-  const [readHint, setReadHint] = useState(false);
   const [editingThought, setEditingThought] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
   const [editingSummary, setEditingSummary] = useState(false);
@@ -455,7 +451,7 @@ export default function PaperJacket({
     }
   };
   const paperContextMenu = contextMenuHandler(() => [
-    hasEntry && viewerHref() && { label: 'Read', onSelect: openViewer },
+    currentUser && viewerHref() && { label: 'Read', onSelect: openViewer },
     paper.file_path && { label: 'Download PDF', onSelect: () => {
       if (localPdf) {
         saveLocalPdf();
@@ -675,9 +671,13 @@ export default function PaperJacket({
           </div>
 
           <div className="paper-actions" onContextMenu={paperContextMenu}>
-            {hasEntry && viewerHref() && (
+            {/* Reading does not wait for the paper to be taken: the viewer
+                opens one that is not yet theirs as a lean link, and asks
+                for it only when they reach for a note or the ink. Until
+                it is theirs, adding it is the step that carries the weight. */}
+            {currentUser && viewerHref() && (
               <a
-                className="button primary"
+                className={hasEntry ? 'button primary' : 'button'}
                 href={viewerHref()}
                 data-document
                 onClick={(event) => {
@@ -722,22 +722,6 @@ export default function PaperJacket({
                   </div>
                 )}
               </div>
-            )}
-            {/* Reading is offered before the paper is taken, because it is
-                what a user came here to do. Pressing it says what has to
-                happen first — and only that. The reason a paper is read
-                from your own copy is not what someone wants at the moment
-                they are told they cannot read it yet. */}
-            {currentUser && !hasEntry && (
-              <span className="hint-anchor">
-                <button onClick={() => setReadHint(true)}>Read</button>
-                {readHint && (
-                  <HintPop
-                    text="Add this paper to your nook first."
-                    onClose={() => setReadHint(false)}
-                  />
-                )}
-              </span>
             )}
             {/* Leaves with a copy of the PDF, saved under the paper's title
                 (Papol macOS puts it in Downloads). A copy hosted elsewhere
