@@ -40722,8 +40722,9 @@ function identifiers(bibl) {
 }
 var MARKER_NUMBER = /[[(]\s*(\d{1,3})/;
 var EQUATION_NUMBER = /^\(\s*\d{1,3}\s*\)$/;
-var CROSS_REFERENCE_KIND = /\b(box|fig(?:ure)?|table)\s*$/i;
-var TARGET_HEADING = /^\s*(box|fig(?:ure)?|table)\s*([\w.-]+)/i;
+var CROSS_REFERENCE_KIND = /\b(box|fig(?:ure)?s?|tables?)\.?\s*$/i;
+var TARGET_HEADING = /^\s*[a-z]?(box|fig(?:ure)?|table)\.?\s*(\w+(?:[.-]\w+)*)/i;
+var CAPTION_AFTER_LABEL = /^\s*\|/;
 var FIGURE_PREFIX_EMS = 3;
 var EARLIEST_YEAR = 1500;
 var LATEST_YEAR = 2100;
@@ -40791,6 +40792,27 @@ function precedingText(root) {
   visit(root);
   return prefixes;
 }
+function followingText(root) {
+  const suffixes = /* @__PURE__ */ new Map();
+  let waiting = [];
+  const visit = (element) => {
+    for (const child of element.children) {
+      if (child instanceof XmlText) {
+        if (!child.text.trim()) continue;
+        for (const e2 of waiting) suffixes.set(e2, child.text.slice(0, 40));
+        waiting = [];
+      } else if (isElement(child)) {
+        visit(child);
+        waiting.push(child);
+      }
+    }
+  };
+  visit(root);
+  return suffixes;
+}
+function withoutPanel(label) {
+  return label.replace(/(?<=\d)[a-z]+$/i, "");
+}
 function parseTei(xml) {
   const root = parse(xml);
   const pages = /* @__PURE__ */ new Map();
@@ -40833,21 +40855,37 @@ function parseTei(xml) {
     if (!id || !found.length) continue;
     const heading = [children(figure, "head")[0], children(figure, "label")[0]].map(text).filter(Boolean).join(" ");
     const match = heading.match(TARGET_HEADING);
-    const float = { key: id, kind: match ? linkKind(match[1]) : "figure", label: match?.[2] ?? "", ...found[0] };
+    const label = text(children(figure, "label")[0] ?? null) || match?.[2] || "";
+    const float = { key: id, kind: match ? linkKind(match[1]) : "figure", label, ...found[0] };
     floats.push(float);
     byId2.set(id, float);
     if (match) named.set(`${float.kind}
 ${float.label.toLowerCase()}`, float);
   }
   const prefixes = precedingText(root);
-  const links = [];
-  for (const marker of descendants(root, "ref")) {
-    if (marker.attributes.type !== "figure") continue;
-    const label = text(marker) ?? "";
+  const crossReferences = [...descendants(root, "ref")].filter((r2) => r2.attributes.type === "figure").map((marker) => {
     const kindMatch = (prefixes.get(marker) ?? "").match(CROSS_REFERENCE_KIND);
-    const kind = kindMatch ? linkKind(kindMatch[1]) : "figure";
-    const target = named.get(`${kind}
-${label.toLowerCase()}`) ?? byId2.get((marker.attributes.target ?? "").replace(/^#/, ""));
+    return { marker, label: text(marker) ?? "", kind: kindMatch ? linkKind(kindMatch[1]) : "figure" };
+  });
+  const floatNamed = (kind, label) => named.get(`${kind}
+${label.toLowerCase()}`) ?? named.get(`${kind}
+${withoutPanel(label).toLowerCase()}`);
+  const suffixes = followingText(root);
+  const captions = /* @__PURE__ */ new Set();
+  for (const { marker, label, kind } of crossReferences) {
+    if (!label || floatNamed(kind, label) || !CAPTION_AFTER_LABEL.test(suffixes.get(marker) ?? "")) continue;
+    const found = boxes(marker.attributes.coords, pages);
+    if (!found.length) continue;
+    const float = { key: `caption_${floats.length}`, kind, label, ...found[0] };
+    floats.push(float);
+    named.set(`${kind}
+${label.toLowerCase()}`, float);
+    captions.add(marker);
+  }
+  const links = [];
+  for (const { marker, label, kind } of crossReferences) {
+    if (captions.has(marker)) continue;
+    const target = floatNamed(kind, label) ?? byId2.get((marker.attributes.target ?? "").replace(/^#/, ""));
     if (!target) continue;
     for (const box of boxes(marker.attributes.coords, pages)) {
       const [pageWidth, pageHeight] = pages.get(box.page);
