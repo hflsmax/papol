@@ -485,6 +485,10 @@ export default function App() {
     return byPage;
   }, [wantedSelection]);
   const [paper, setPaper] = useState(null);
+  // The file itself, at its own address, in a tab of its own: from there the
+  // browser reads, saves or prints it. Not for a file opened from disk, nor in
+  // Papol for Mac.
+  const ownPdfHref = !source?.openedFile && !(DESKTOP && MAC) ? pdfHref(paper) : null;
   const [doc, setDoc] = useState(null);
   // Page 1 is already read to choose the initial zoom. Its unscaled size is
   // also a reliable shell for the rest of a normally uniform document, so
@@ -4193,8 +4197,15 @@ export default function App() {
                       Download app
                     </a>
                   )}
-                  {paperInfo?.pdf_url && (
-                    <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
+                  {/* One PDF link: Papol's own copy of these bytes when it
+                      is offered, else the publisher's. */}
+                  {(ownPdfHref || paperInfo?.pdf_url) && (
+                    <a
+                      className="ref-link"
+                      href={ownPdfHref || paperInfo.pdf_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >PDF</a>
                   )}
                   {(paperInfo?.url || paper.doi) && (
                     <a
@@ -4203,16 +4214,6 @@ export default function App() {
                       target="_blank"
                       rel="noreferrer"
                     >{paperInfo?.doi || paper.doi ? 'DOI' : 'Page'}</a>
-                  )}
-                  {/* The file itself, at its own address, in a tab of its
-                      own: from there the browser reads, saves or prints it. */}
-                  {!source?.openedFile && !(DESKTOP && MAC) && (
-                    <a
-                      className="ref-link"
-                      href={pdfHref(paper)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >PDF</a>
                   )}
                 </div>
                 </div>
