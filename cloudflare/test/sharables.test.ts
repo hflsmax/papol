@@ -1,6 +1,6 @@
 // A sharable hands one user's reading of one paper to anyone with the
 // link — and hands over nothing else in that user's nook.
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { call, count, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";
@@ -98,9 +98,13 @@ describe("a link's address", () => {
   it("is a short code nobody could count their way to, and the table refuses a second of", async () => {
     const rich = await share(ada), lean = await share(ada, false);
     for (const link of [rich, lean]) {
-      expect(link.uuid).toMatch(/^[0-9a-hjkmnp-tv-z]{12}$/);
+      expect(link.uuid).toMatch(/^[0-9A-Za-z]{10}$/);
     }
     expect(rich.uuid).not.toBe(lean.uuid);
+    // Case is part of the code: the same letters in another case are
+    // another code, which names no link.
+    const swapped = [...rich.uuid].map((c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase())).join("");
+    if (swapped !== rich.uuid) expect((await call("GET", `/api/shared/${swapped}`)).status).toBe(404);
     // Taken is taken: the key is the code.
     await expect(exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'lean', NULL, ?, ?)", rich.uuid, OTHER, new Date().toISOString())).rejects.toThrow(/UNIQUE/);
   });
@@ -121,13 +125,27 @@ describe("a link's address", () => {
     expect((await followed("not-a-code")).status).toBe(404);
   });
 
-  it("keeps the links handed out before there were codes", async () => {
-    const old = uuid();
-    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'rich', ?, ?, ?)", old, ada.uuid, SHARED, new Date().toISOString());
-    expect(((await (await call("GET", `/api/shared/${old}`)).json()) as Json).kind).toBe("rich");
-    expect((await followed(old)).location).toBe(`https://papol.test/viewer/?share=${old}`);
-    // Asking again finds the link that is out rather than minting a code.
-    expect((await share(ada)).uuid).toBe(old);
+  it("replaces every link made before there were codes", async () => {
+    // A UUID from before short links, and twelve lower-case characters from
+    // their first day on another paper, taken through the migration that
+    // drops them.
+    const old = uuid(), oldLean = "k3m9x2p7q4ab", at = new Date().toISOString();
+    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'rich', ?, ?, ?)", old, ada.uuid, SHARED, at);
+    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'lean', NULL, ?, ?)", oldLean, OTHER, at);
+    const current = await share(ada, false);
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0006_"))!;
+    for (const query of migration.queries) await exec(query);
+    // A link that already has a code is left as it is.
+    expect(await count("sharables")).toBe(1);
+    expect((await call("GET", `/api/shared/${current.uuid}`)).status).toBe(200);
+
+    // The old names name nothing, and the paper page no longer shows one.
+    expect((await call("GET", `/api/shared/${old}`)).status).toBe(404);
+    expect((await followed(old)).status).toBe(404);
+    expect((await followed(oldLean)).status).toBe(404);
+    expect((await ok("GET", `/api/papers/${name(SHARED)}`, { headers: ada.headers })).sharable_uuid).toBeNull();
+    // Sharing again hands out a code.
+    expect((await share(ada)).uuid).toMatch(/^[0-9A-Za-z]{10}$/);
   });
 });
 

@@ -29,11 +29,11 @@ import {
  */
 export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
-  const share = (params.get('share') || '').toLowerCase();
+  // A code's case is part of it, so it is read exactly as written.
+  const share = params.get('share') || '';
   // A link is the whole permission, so it is answered before anything else
-  // and without a hash: the sharable says which PDF it opens. A short code,
-  // or the UUID a link was given before there were codes.
-  if (/^[0-9a-z]{12}$/.test(share) || /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
+  // and without a hash: the sharable says which PDF it opens.
+  if (/^[0-9A-Za-z]{10}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));

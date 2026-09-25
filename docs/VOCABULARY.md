@@ -92,7 +92,7 @@ first user of a PDF waits.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The code in the link is the whole of the permission. | `sharables`, `shared/api/sharables.js`. Handed out as `papol.io/s/<code>`: twelve random characters of `0-9a-z` without `i l o u`, drawn fresh and kept unique by the table's primary key. Links made before codes keep their UUIDs, in the same column. |
+| **Sharable** | A link that opens a PDF in the viewer for whoever holds it, signed in or not. The code in the link is the whole of the permission. | `sharables`, `shared/api/sharables.js`. Handed out as `papol.io/s/<code>`: ten random characters of `0-9A-Za-z`, case-sensitive, drawn fresh and kept unique by the table's primary key. Links named any other way before (UUIDs, and twelve lower-case characters) were given one in their place by migration 0006; the old URLs no longer open. |
 | **Rich** | A sharable carrying one user's **reading**. Belongs to them, shown on their paper's jacket, theirs to revoke. | `Paper.sharable_uuid` is the viewer's own rich link. |
 | **Lean** | A sharable carrying the PDF alone. One per paper, belongs to nobody, names no user. | Never shown on a paper's jacket and never counted against its maker. The paper's own viewer URL, `/viewer/?pdf=<sha256>`, is a lean link too — its bytes are public under that digest — and a lean short link leads there. |
 | **Demote** | To turn a rich link lean, permanently, when the user takes the paper out of their nook or drops their annotations. Putting the paper back never re-exposes annotations to anyone still holding the link. | `POST /api/sharables/<uuid>/lean`. |
