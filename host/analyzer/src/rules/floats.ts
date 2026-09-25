@@ -319,6 +319,14 @@ function acrossOf(caption: Rect, own: Line[], ground: Ground): { x0: number; x1:
     const middle = r.x0 >= caption.x1 ? (caption.x1 + r.x0) / 2 : (r.x1 + caption.x0) / 2;
     if (r.x0 >= caption.x1) x1 = Math.min(x1, middle); else x0 = Math.max(x0, middle);
   }
+  // Text level with the caption, in its column, is text wrapped around the
+  // float: the float is on the caption's side of it (a table set in the
+  // right half of a one-column page).
+  const wrapped = [...ground.bounds, ...ground.lines].filter((l) => !own.includes(l) && gapBetween(rectOf(l), caption).ys > 0
+    && l.text.length >= 20 && l.size >= type.bodySize - 0.5 && l.x0 >= x0 - 1 && l.x1 <= x1 + 1);
+  const left = wrapped.filter((l) => l.x1 <= caption.x0 + 1), right = wrapped.filter((l) => l.x0 >= caption.x1 - 1);
+  if (left.length) x0 = Math.max(x0, most(left.map((l) => l.x1)) + 1);
+  if (right.length) x1 = Math.min(x1, least(right.map((l) => l.x0)) - 1);
   return { x0, x1 };
 }
 
@@ -345,6 +353,10 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
   if (tableOnly) {
     const ahead = ground.pieces.filter((p) => !taken.has(p) && inside(p) && (side === "below" ? p.y0 > caption.y1 - 1 : p.y1 < caption.y0 + 1))
       .sort((a, b) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1));
+    // A fill with lines of the table inside it is its cells' shading, not
+    // a picture: the table's own.
+    const holds = (p: Piece) => ground.lines.filter((l) => l.x0 >= p.x0 - 1 && l.x1 <= p.x1 + 1 && l.top >= p.y0 - 1 && l.bottom <= p.y1 + 1).length >= 2;
+    for (const p of ahead) if (!p.text && !p.thin && !p.image && holds(p)) p.thin = true;
     const solid = ahead.filter((p) => !p.thin);
     const firstPicture = solid.find((p) => !p.text);
     const firstText = solid.find((p) => p.text);
@@ -358,7 +370,9 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
   const starts = (r: Rect) => side === "above" ? r.y0 >= limit - 1 && r.y0 < caption.y1 : r.y1 <= limit + 1 && r.y0 > caption.y0;
   const pieces = ground.pieces.filter((p) => !taken.has(p) && starts(p) && inside(p) && (!tableOnly || p.text || p.thin)
     && !claimed.some((c) => (gapBetween(c, p).xs > 0 && gapBetween(c, p).ys > 0) || (p.x0 >= c.x0 - 1 && p.x1 <= c.x1 + 1 && p.y0 >= c.y0 - 1 && p.y1 <= c.y1 + 1)));
-  explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}, ${pieces.length} pieces`);
+  const bounding = bounds.find((b) => Math.abs((side === "above" ? b.y1 : b.y0) - limit) < 0.5);
+  const boundText = bounding && ground.bounds.find((l) => l.top === bounding.y0 && l.x0 === bounding.x0)?.text;
+  explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}${bounding ? ` by ${boundText ? JSON.stringify(boundText.slice(0, 40)) : show(bounding)}` : ""}, ${pieces.length} pieces`);
   for (const p of pieces) explain?.(`    ${p.text ? `text "${p.text.text.slice(0, 30)}"` : p.image ? "image" : "drawn"} ${show(p)}`);
   return { rect: pieces.length ? union([caption, ...pieces]) : caption, pieces };
 }
