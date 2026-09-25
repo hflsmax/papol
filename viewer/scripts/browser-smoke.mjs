@@ -45,7 +45,7 @@ function smokePdf() {
 const pdfBytes = smokePdf();
 const PDF_SHA256 = createHash('sha256').update(pdfBytes).digest('hex');
 
-const SHARE = 'aa11bb22-cc33-4d44-8e55-ff6677889900';
+const SHARE = 'Aa11Bb22Cc';
 const REFERENCE = '11112222-3333-4444-8555-666677778888';
 const reference = {
   uuid: REFERENCE,
