@@ -1,6 +1,6 @@
 // A sharable hands one user's reading of one paper to anyone with the
 // link — and hands over nothing else in that user's nook.
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { call, count, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";
@@ -121,13 +121,36 @@ describe("a link's address", () => {
     expect((await followed("not-a-code")).status).toBe(404);
   });
 
-  it("keeps the links handed out before there were codes", async () => {
-    const old = uuid();
-    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'rich', ?, ?, ?)", old, ada.uuid, SHARED, new Date().toISOString());
-    expect(((await (await call("GET", `/api/shared/${old}`)).json()) as Json).kind).toBe("rich");
-    expect((await followed(old)).location).toBe(`https://papol.test/viewer/?share=${old}`);
-    // Asking again finds the link that is out rather than minting a code.
-    expect((await share(ada)).uuid).toBe(old);
+  it("gives the links handed out before there were codes a code, and keeps following their UUIDs", async () => {
+    // Written as a link was before codes, then taken through the migration
+    // that gives it one — its own statements, run on this row.
+    const old = uuid(), oldLean = uuid(), at = new Date().toISOString();
+    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'rich', ?, ?, ?)", old, ada.uuid, SHARED, at);
+    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'lean', NULL, ?, ?)", oldLean, SHARED, at);
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0006_"))!;
+    for (const query of migration.queries.filter((q) => q.trimStart().startsWith("UPDATE"))) await exec(query);
+    // Run twice, as a retried deploy would: nothing moves the second time.
+    const coded = await row<{ uuid: string; legacy_uuid: string }>("SELECT uuid, legacy_uuid FROM sharables WHERE legacy_uuid = ?", old);
+    for (const query of migration.queries.filter((q) => q.trimStart().startsWith("UPDATE"))) await exec(query);
+    expect((await row<{ uuid: string }>("SELECT uuid FROM sharables WHERE legacy_uuid = ?", old))!.uuid).toBe(coded!.uuid);
+    const code = coded!.uuid;
+    expect(code).toMatch(/^[0-9a-hjkmnp-tv-z]{12}$/);
+    const leanCode = (await row<{ uuid: string }>("SELECT uuid FROM sharables WHERE legacy_uuid = ?", oldLean))!.uuid;
+    expect(leanCode).toMatch(/^[0-9a-hjkmnp-tv-z]{12}$/);
+    expect(leanCode).not.toBe(code);
+
+    // What is handed out now is the code: on the paper page, and asked again.
+    expect((await share(ada)).uuid).toBe(code);
+    expect((await share(ada, false)).uuid).toBe(leanCode);
+    expect((await ok("GET", `/api/papers/${name(SHARED)}`, { headers: ada.headers })).sharable_uuid).toBe(code);
+    // Whoever holds the old link still gets there, and lands on the short one.
+    expect(((await (await call("GET", `/api/shared/${old}`)).json()) as Json)).toMatchObject({ uuid: code, kind: "rich" });
+    expect((await followed(old)).location).toBe(`https://papol.test/viewer/?share=${code}`);
+    expect((await followed(oldLean)).location).toBe(`https://papol.test/viewer/?pdf=${SHARED}`);
+    expect((await followed(code)).location).toBe(`https://papol.test/viewer/?share=${code}`);
+    // Its maker may still take it back by either name.
+    expect((await call("DELETE", `/api/sharables/${old}`, { headers: ada.headers })).status).toBe(204);
+    expect((await call("GET", `/api/shared/${code}`)).status).toBe(404);
   });
 });
 

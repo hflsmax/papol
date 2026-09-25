@@ -36,16 +36,22 @@ export const RICH = "rich";
 export const LEAN = "lean";
 
 export interface Sharable extends Row {
-  // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET since
-  // short links, a UUID before them. Old links keep working under their
-  // UUIDs, so the column and the wire keep the name.
+  // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET. The
+  // column and the wire keep the name they had when it held a UUID.
   uuid: string;
+  // The UUID a link was handed out under before codes (migration 0006):
+  // still followed, never handed out again.
+  legacy_uuid?: string | null;
   kind: string;
   user_uuid: string | null;
   paper_sha256: string;
   created_at: string;
   revoked_at: string | null;
 }
+
+// A link as a URL names it: by its code, or by the UUID it was handed out
+// under before there were codes. Two binds, both the name.
+export const NAMED = "(uuid = ? OR legacy_uuid = ?)";
 
 export function sharableOut(sharable: Sharable) {
   return { uuid: sharable.uuid, kind: sharable.kind, paper_sha256: sharable.paper_sha256, created_at: sharable.created_at };
@@ -60,7 +66,7 @@ export function sharableOut(sharable: Sharable) {
 // is common to both.
 export async function openSharable(db: D1Database, uuid: string | null | undefined): Promise<Sharable | null> {
   if (!uuid) return null;
-  const sharable = await one<Sharable>(db, "SELECT * FROM sharables WHERE uuid = ? AND revoked_at IS NULL", uuid);
+  const sharable = await one<Sharable>(db, `SELECT * FROM sharables WHERE ${NAMED} AND revoked_at IS NULL`, uuid, uuid);
   if (!sharable) return null;
   if (sharable.kind === RICH) {
     // A user who closed their account left their nook behind as a
@@ -147,7 +153,8 @@ export async function shareReading(db: D1Database, user: User, paperSha256: stri
 export async function sharableTarget(db: D1Database, code: string): Promise<string> {
   const sharable = await openSharable(db, code);
   if (sharable?.kind === LEAN) return `/viewer/?pdf=${sharable.paper_sha256}`;
-  return `/viewer/?share=${encodeURIComponent(code)}`;
+  // By its code, whatever it was followed by: an old link comes out short.
+  return `/viewer/?share=${encodeURIComponent(sharable?.uuid ?? code)}`;
 }
 
 // What is left of a reading once the annotations are gone: the paper,
