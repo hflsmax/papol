@@ -20,7 +20,6 @@ import { JobError } from "../jobs/queue";
 import { byDoi, Unavailable, type Summary } from "./bibliography";
 import * as helper from "./helper";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
-import { resolve } from "./resolve";
 import type { HeaderMetadata } from "./tei";
 
 export { arxivDoi, extractArxivId, extractDoi };
@@ -60,20 +59,6 @@ async function titleBlock(env: Env, fileName: string): Promise<HeaderMetadata | 
   }
 }
 
-// The work a title block names, found as a printed reference is: searched
-// by its title, authors and year, and taken only if the title matches.
-// Null when nothing convincing was found or nobody could be asked.
-async function byTitle(env: Env, header: HeaderMetadata): Promise<Summary | null> {
-  const raw = [header.authors.join(", "), header.title, header.year].filter(Boolean).join(". ");
-  try {
-    const outcome = await resolve(env, { raw, title: header.title, year: header.year, authors: JSON.stringify(header.authors), journal: header.journal });
-    return outcome.status === "ok" && outcome.summary.doi ? outcome.summary : null;
-  } catch (error) {
-    console.warn(`The title search failed: ${(error as Error).message}`);
-    return null;
-  }
-}
-
 export interface Extracted {
   doi: string | null;
   title: string;
@@ -103,12 +88,6 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
     header = await titleBlock(env, upload.fileName);
     printed = lookupDoi(header) ?? given;
     known = printed && printed !== given ? await byDoi(env, printed) : null;
-    // Nothing printed to look up: the work its title names, as a
-    // reference is resolved — which GROBID's header did with Crossref.
-    if (!printed && header?.title) {
-      known = await byTitle(env, header);
-      printed = known?.doi ?? null;
-    }
   }
   // Known to no index: the form shows the identifier as the browser read
   // it off the page, before what GROBID made of the title block.

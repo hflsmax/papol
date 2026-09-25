@@ -139,10 +139,11 @@ identifier off the first pages, or one no index knows
 - the DOI and arXiv id are found as the browser finds them
   (`shared/identifiers.js`).
 
-GROBID also asked Crossref for a DOI the page does not print
-(`consolidateHeader`). The Worker does that itself now: a title block with
-a title and no identifier is looked up as a printed reference is
-(`resolve.ts`: Crossref, then OpenAlex, taken only on a matching title).
+It reads only the PDF: nothing is asked of any index. GROBID's header also
+asked Crossref for a DOI the page does not print (`consolidateHeader`);
+the rules do not, by the owner's decision — a paper that prints no
+identifier keeps what its title block says. (Over the 48 papers,
+Crossref's lookup had found one such DOI.)
 
 Judged against the papers' rows in production, which are mostly what
 Crossref says (`truth.json`, exported from D1), beside GROBID's answers
