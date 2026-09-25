@@ -214,7 +214,7 @@ describe("link cards", () => {
     const response = await call("POST", `/api/boards/${board.uuid}/webpage`, { headers: account.headers, json: { url: "https://example.test/article", x: 10, y: 20 } });
     expect(response.status, await response.clone().text()).toBe(202);
     const queued = await response.json<any>();
-    expect(queued.item).toMatchObject({ kind: "webpage", content: "example.test", file_path: null, width: 480 });
+    expect(queued.item).toMatchObject({ kind: "webpage", content: "example.test", file_path: null, width: 300 });
     expect((await ok("GET", `/api/jobs/${queued.job}`, { headers: account.headers })).status).toBe("queued");
 
     capturers.webpage = async () => ({ image: new TextEncoder().encode("a png"), title: " No free lunch in search\n and optimization - Wikipedia " });

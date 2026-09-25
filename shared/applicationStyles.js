@@ -4503,7 +4503,15 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-link-placeholder-note { max-width: 80%; color: var(--ink-faint); font-size: var(--fs-xs); text-align: center; }
 .board-canvas-card.webpage img,
 .board-canvas-card.youtube img,
-.board-canvas-card.bilibili img { height: auto; max-height: none; object-fit: initial; background: transparent; }
+.board-canvas-card.bilibili img { aspect-ratio: 16 / 9; height: auto; max-height: none; object-fit: cover; background: transparent; }
+/* A link card is one size whatever it links to: the picture in the same
+   16:9 frame as the placeholder (a page from its top), the title in two
+   lines' room. */
+.board-canvas-card.webpage img { object-position: top; }
+.board-canvas-card:is(.webpage, .youtube, .bilibili) .board-youtube-description {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+  box-sizing: content-box; height: 2lh;
+}
 .board-canvas-card p { margin: 0; padding: 14px; white-space: pre-wrap; user-select: text; cursor: text; }
 .board-canvas-file { display: flex; align-items: center; gap: 10px; width: auto; margin: 0; padding: 16px 14px; overflow-wrap: anywhere; text-align: left; color: var(--accent); background: var(--card); font: var(--fs-sm) var(--font-ui); }
 .board-canvas-file > span:first-child { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--accent-soft); }
