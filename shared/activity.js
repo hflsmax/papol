@@ -1,11 +1,10 @@
-// The time a user spends with a paper or a board, recorded where it is
-// spent: in the viewer with a paper open, on one of their boards. There is
-// one rule. Time runs from one use of the paper to the next — a scroll, a
+// The time a user spends reading a paper, recorded where it is spent: in
+// the viewer. There is one rule. Time runs from one use of the paper to the next — a scroll, a
 // key, the pointer, or bringing its window back to the front — and a pause
 // between two uses counts if it is no longer than GAP_MS, whether the
 // reader sat still over a page or went off to another tab to look
-// something up. A longer pause, or one spent on another paper or board in
-// Papol (which counted it already), ends the stretch at the last use.
+// something up. A longer pause, or one spent on another paper in Papol
+// (which counted it already), ends the stretch at the last use.
 // Nothing after the last use counts unless the reader comes back.
 //
 // A stretch of that time is a span. The window that sees it names it and
@@ -163,10 +162,10 @@ export async function flushActivity() {
 
 const INPUTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'];
 
-// Record the time spent here on `subject`, a paper's sha256 (kind
-// 'reading') or a board's uuid (kind 'board'), until the returned function
-// is called. Only a signed-in user's time is recorded.
-export function recordActivity({ kind, subject }) {
+// Record the time spent reading the paper `sha256` here, until the
+// returned function is called. Only a signed-in user's time is recorded.
+export function recordActivity(sha256) {
+  const kind = 'reading', subject = sha256;
   const credential = currentCredential();
   const storage = storageOrNull();
   if (!credential || !subject || !storage || typeof document === 'undefined') return () => {};

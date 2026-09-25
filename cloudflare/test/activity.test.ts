@@ -1,4 +1,4 @@
-// Activity: spans of time with a paper or a board, sent as they grow,
+// Activity: spans of time reading a paper, sent as they grow,
 // read back by their user alone, and summed on their own nook.
 import { describe, expect, it } from "vitest";
 
@@ -34,15 +34,14 @@ describe("recording activity", () => {
     expect(await rows("SELECT kind, subject, seconds, ended_at FROM activity")).toEqual([{ kind: "reading", subject: PAPER, seconds: 540, ended_at: grown.ended_at }]);
   });
 
-  it("lets go of what cannot be true, a paper Papol lacks, and a board that is someone else's", async () => {
-    const ada = await register(), grace = await register();
+  it("lets go of what cannot be true, a paper Papol lacks, and a board's time", async () => {
+    const ada = await register();
     await paperWithCopy(ada, PAPER, "Held");
     const own = await ok("POST", "/api/boards", { headers: ada.headers, json: { name: "Mine" } });
-    const theirs = await ok("POST", "/api/boards", { headers: grace.headers, json: { name: "Grace's" } });
     const answer = await send(ada, [
       span("reading", PAPER, 10 * MINUTE, MINUTE),
+      // Still in an outbox from when boards were recorded.
       span("board", own.uuid, 10 * MINUTE, MINUTE),
-      span("board", theirs.uuid, 10 * MINUTE, MINUTE),
       span("reading", "b".repeat(64), 10 * MINUTE, MINUTE),
       span("reading", PAPER, 10 * MINUTE, MINUTE, 600),
       span("reading", PAPER, -10 * MINUTE, MINUTE),
@@ -52,7 +51,7 @@ describe("recording activity", () => {
       { ...span("reading", PAPER, 10 * MINUTE, MINUTE), uuid: "not-a-uuid" },
       "nonsense",
     ]);
-    expect(answer).toEqual({ recorded: 2, skipped: 9 });
+    expect(answer).toEqual({ recorded: 1, skipped: 9 });
     expect((await call("POST", "/api/activity", { headers: ada.headers, json: { spans: "all of them" } })).status).toBe(400);
     expect((await call("POST", "/api/activity", { json: { spans: [] } })).status).toBe(401);
   });
@@ -69,20 +68,18 @@ describe("recording activity", () => {
 });
 
 describe("reading activity back", () => {
-  it("answers the spans that touch the range, with what each paper and board is called", async () => {
+  it("answers the spans that touch the range, with what each paper is called", async () => {
     const ada = await register();
     await paperWithCopy(ada, PAPER, "Read closely", { shelfUuid: await defaultShelf(ada) });
-    const board = await ok("POST", "/api/boards", { headers: ada.headers, json: { name: "Ideas" } });
     await send(ada, [
       span("reading", PAPER, 5 * 60 * MINUTE, 10 * MINUTE),
       span("reading", PAPER, 65 * MINUTE, 10 * MINUTE),
-      span("board", board.uuid, 30 * MINUTE, 20 * MINUTE),
+      span("reading", PAPER, 30 * MINUTE, 20 * MINUTE),
     ]);
     // The last hour, which the second span runs into.
     const hour = await range(ada, 60 * MINUTE);
-    expect(hour.spans.map((s: any) => [s.kind, s.seconds])).toEqual([["reading", 600], ["board", 1200]]);
+    expect(hour.spans.map((s: any) => [s.subject, s.seconds])).toEqual([[PAPER, 600], [PAPER, 1200]]);
     expect(hour.papers).toEqual({ [PAPER]: { title: "Read closely", in_nook: true } });
-    expect(hour.boards).toEqual({ [board.uuid]: { name: "Ideas", deleted: false } });
     expect(Date.parse(hour.first_at)).toBeLessThan(Date.now() - 4 * 60 * MINUTE);
     expect((await call("GET", "/api/activity?from=2026-01-01T00:00:00Z&to=2026-06-01T00:00:00Z", { headers: ada.headers })).status).toBe(400);
     expect((await call("GET", "/api/activity?from=later&to=sooner", { headers: ada.headers })).status).toBe(400);
@@ -93,9 +90,8 @@ describe("effort on the nook", () => {
   it("is shown on each paper to its user, and to nobody else", async () => {
     const ada = await register(), grace = await register();
     await paperWithCopy(ada, PAPER, "Read closely", { shelfUuid: await defaultShelf(ada) });
-    const board = await ok("POST", "/api/boards", { headers: ada.headers, json: { name: "Ideas" } });
     const later = span("reading", PAPER, 30 * MINUTE, 10 * MINUTE);
-    await send(ada, [span("reading", PAPER, 3 * 60 * MINUTE, 20 * MINUTE), later, span("board", board.uuid, 60 * MINUTE, 5 * MINUTE)]);
+    await send(ada, [span("reading", PAPER, 3 * 60 * MINUTE, 20 * MINUTE), later]);
     // Grace reading the same paper adds nothing to Ada's.
     await send(grace, [span("reading", PAPER, 30 * MINUTE, 10 * MINUTE)]);
 
@@ -114,13 +110,12 @@ describe("one paper's effort", () => {
     const recent = span("reading", PAPER, 30 * MINUTE, 10 * MINUTE);
     await send(ada, [old, recent]);
     await send(grace, [span("reading", PAPER, 30 * MINUTE, 5 * MINUTE)]);
-    const mine = await ok("GET", `/api/activity/reading/${PAPER}`, { headers: ada.headers });
-    expect(mine).toMatchObject({ kind: "reading", subject: PAPER, seconds: 1800, first_at: old.started_at, last_at: recent.ended_at });
+    const mine = await ok("GET", `/api/activity/paper/${PAPER}`, { headers: ada.headers });
+    expect(mine).toMatchObject({ sha256: PAPER, seconds: 1800, first_at: old.started_at, last_at: recent.ended_at });
     expect(mine.spans.map((s: any) => s.seconds)).toEqual([1200, 600]);
-    const none = await ok("GET", `/api/activity/reading/${"c".repeat(64)}`, { headers: ada.headers });
+    const none = await ok("GET", `/api/activity/paper/${"c".repeat(64)}`, { headers: ada.headers });
     expect(none).toMatchObject({ seconds: 0, first_at: null, spans: [] });
-    expect((await call("GET", `/api/activity/walking/${PAPER}`, { headers: ada.headers })).status).toBe(404);
-    expect((await call("GET", "/api/activity/board/not-a-uuid", { headers: ada.headers })).status).toBe(404);
+    expect((await call("GET", "/api/activity/paper/not-a-digest", { headers: ada.headers })).status).toBe(404);
   });
 });
 

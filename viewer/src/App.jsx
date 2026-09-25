@@ -644,7 +644,7 @@ export default function App() {
   // opened from disk is not announced to Papol, so it counts only once it
   // is a nook paper.
   const activitySubject = source?.openedFile && !nookCopy ? null : (paper?.sha256 ?? null);
-  useEffect(() => recordActivity({ kind: 'reading', subject: activitySubject }), [activitySubject]);
+  useEffect(() => recordActivity(activitySubject), [activitySubject]);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked over a file opened from disk while another app is the system's PDF
   // viewer, until answered here or in the Desk window this launch.
