@@ -114,7 +114,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
         h: link.h,
         spot: float.kind === 'section'
           ? { page: float.page, y: float.y }
-          : { page: float.page, y: float.y, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
+          : { page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
       };
     });
 
