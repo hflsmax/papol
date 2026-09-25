@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getSubjectActivity } from '../../../shared/api/activity.js';
+import { getPaperActivity } from '../../../shared/api/activity.js';
 import { useDismiss } from '../../../shared/useDismiss.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
@@ -37,7 +37,7 @@ function EffortDetail({ subject, onClose }) {
 
   useEffect(() => {
     let active = true;
-    getSubjectActivity('reading', subject)
+    getPaperActivity(subject)
       .then((answer) => { if (active) setData(answer); })
       .catch((failure) => { if (active) setError(failure.message || 'Could not load the time spent.'); });
     return () => { active = false; };

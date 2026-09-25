@@ -4,7 +4,6 @@
 // server keeps instants, and the reader's day is the one they lived.
 
 export const VIEWS = ['day', 'week', 'month'];
-export const KINDS = ['reading', 'board'];
 
 const HOUR_S = 3600;
 
@@ -68,27 +67,22 @@ export function secondsWithin(span, from, to) {
   return hi > lo ? span.seconds * (hi - lo) / (ended - started) : 0;
 }
 
-// Seconds by kind in [from, to), and the total.
-export function totalsWithin(spans, from, to) {
-  const totals = { reading: 0, board: 0, all: 0 };
-  for (const span of spans) {
-    const seconds = secondsWithin(span, from, to);
-    totals[span.kind] += seconds;
-    totals.all += seconds;
-  }
-  return totals;
+// The seconds read in [from, to).
+export function secondsIn(spans, from, to) {
+  let seconds = 0;
+  for (const span of spans) seconds += secondsWithin(span, from, to);
+  return seconds;
 }
 
-// Each paper and board with time in [from, to), most time first.
-export function subjectsWithin(spans, from, to) {
+// Each paper read in [from, to), with its seconds, most time first.
+export function papersWithin(spans, from, to) {
   const found = new Map();
   for (const span of spans) {
     const seconds = secondsWithin(span, from, to);
     if (seconds <= 0) continue;
-    const key = `${span.kind}:${span.subject}`;
-    const entry = found.get(key) ?? { kind: span.kind, subject: span.subject, seconds: 0 };
+    const entry = found.get(span.subject) ?? { subject: span.subject, seconds: 0 };
     entry.seconds += seconds;
-    found.set(key, entry);
+    found.set(span.subject, entry);
   }
   return [...found.values()].sort((a, b) => b.seconds - a.seconds || a.subject.localeCompare(b.subject));
 }
@@ -106,7 +100,7 @@ export function blocksOfDay(spans, day) {
     if (ended < +from || started >= +to) continue;
     const lo = Math.max(started, +from), hi = Math.min(ended, +to);
     blocks.push({
-      kind: span.kind, subject: span.subject, started: new Date(lo), ended: new Date(hi),
+      subject: span.subject, started: new Date(lo), ended: new Date(hi),
       left: (lo - from) / length, width: (hi - lo) / length, seconds: secondsWithin(span, from, to),
     });
   }
@@ -161,12 +155,11 @@ export function clockTime(date, locale) {
 }
 
 // Which colour each paper wears in a period's timelines: the four that
-// took the most time get one of four hues, the rest share "other papers",
-// and boards are drawn apart (hatched) whatever they are. Four, because
-// blocks of any two papers may sit side by side, and four is as many hues
-// as stay distinct from every other one, for colour-blind eyes too. A
-// paper keeps the hue its digest points to unless a paper with more time
-// already has it, so it tends to wear the same colour week to week.
+// took the most time get one of four hues, and the rest share "other". Four,
+// because blocks of any two papers may sit side by side, and four is as
+// many hues as stay distinct from every other one, for colour-blind eyes
+// too. A paper keeps the hue its digest points to unless a paper with more
+// time already has it, so it tends to wear the same colour week to week.
 export const PAPER_HUES = 4;
 
 function hueOf(subject) {
@@ -175,19 +168,17 @@ function hueOf(subject) {
   return hash % PAPER_HUES;
 }
 
-// `subjects` most time first, as subjectsWithin gives them. Answers a
-// map from `kind:subject` to 'paper-1'…'paper-4', 'other' or 'board'.
-export function coloursFor(subjects) {
+// `papers` most time first, as papersWithin gives them. Answers a map from
+// a paper's sha256 to 'paper-1'…'paper-4' or 'other'.
+export function coloursFor(papers) {
   const colours = new Map();
   const taken = new Set();
-  for (const { kind, subject } of subjects) {
-    const key = `${kind}:${subject}`;
-    if (kind === 'board') { colours.set(key, 'board'); continue; }
-    if (taken.size === PAPER_HUES) { colours.set(key, 'other'); continue; }
+  for (const { subject } of papers) {
+    if (taken.size === PAPER_HUES) { colours.set(subject, 'other'); continue; }
     let hue = hueOf(subject);
     while (taken.has(hue)) hue = (hue + 1) % PAPER_HUES;
     taken.add(hue);
-    colours.set(key, `paper-${hue + 1}`);
+    colours.set(subject, `paper-${hue + 1}`);
   }
   return colours;
 }
@@ -217,7 +208,7 @@ export function recentWeeks(spans, weeks, now = new Date()) {
   const today = midnight(now);
   return Array.from({ length: weeks * 7 }, (_, i) => {
     const day = addDays(start, i);
-    return { day, seconds: day > today ? null : totalsWithin(spans, day, addDays(day, 1)).all };
+    return { day, seconds: day > today ? null : secondsIn(spans, day, addDays(day, 1)) };
   });
 }
 
@@ -237,7 +228,7 @@ export function ownDays(period) {
   return period.days.filter((day) => day >= period.start && day < period.end);
 }
 
-// Each paper's and board's seconds on each of `days`, by `kind:subject`,
+// Each paper's seconds on each of `days`, by its sha256,
 // and the most any one of them held on any one day: the scale every row of
 // the paper-by-paper view shares.
 export function dailyBySubject(spans, days) {
@@ -248,7 +239,7 @@ export function dailyBySubject(spans, days) {
     for (const span of spans) {
       const seconds = secondsWithin(span, day, next);
       if (seconds <= 0) continue;
-      const key = `${span.kind}:${span.subject}`;
+      const key = span.subject;
       const row = rows.get(key) ?? rows.set(key, new Array(days.length).fill(0)).get(key);
       row[i] += seconds;
       most = Math.max(most, row[i]);

@@ -34,7 +34,6 @@ import { hasCardPreview } from './cardPreview.js';
 import { fillPictures } from './pictureRound.js';
 import { browserDate, lastEdited as formatLastEdit } from '../../shared/lastEdited.js';
 import { localViewerBacklink } from './sourceLink.js';
-import { recordActivity } from '../../shared/activity.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareUuid = (a, b) => String(a).localeCompare(String(b));
@@ -263,9 +262,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     });
   };
   const load = () => getBoard(boardUuid).then(setBoard).catch((err) => setError(err.message));
-  // Time on a board of one's own counts toward its user's activity.
-  const activitySubject = board?.can_edit ? boardUuid : null;
-  useEffect(() => recordActivity({ kind: 'board', subject: activitySubject }), [activitySubject]);
   useEffect(() => subscribeNativeData((change) => {
     setImageRevision((current) => current + 1);
     if (!change?.scope || change.scope === 'boards') load();
