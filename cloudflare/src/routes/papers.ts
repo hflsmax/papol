@@ -11,7 +11,7 @@ import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, 
 import { KIND as EXTRACT, indexedMetadata, knownVersion, reextractedMetadata, type Identifier } from "../papers/extract";
 import { Unavailable } from "../papers/bibliography";
 import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
-import { viewerPaper } from "../papers/sharables";
+import { keptPaper, paperReading, viewerPaper } from "../papers/sharables";
 import { FIELD_VISIBILITY, NEW_COPY_VISIBILITY } from "../papers/visibility";
 import { paperKey, UPLOADS, uploadUrl } from "../files";
 import { writePaper, writeSynced } from "../sync/write";
@@ -318,8 +318,15 @@ export function paperRoutes(router: Router) {
   // user who keeps it. A shared reading is opened by /api/shared instead.
   router.on("GET", "/api/viewer/:digest", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
-    const paper = await viewerPaper(env.DB, params.digest, user, null);
+    const paper = await keptPaper(env.DB, params.digest, user);
     return json(await paperDetail(env,paper, user));
+  });
+
+  // The same URL for anyone who does not keep the paper: the digest is a
+  // lean link, so it opens the paper alone, as a shared one would.
+  // Deliberately unauthenticated, as /api/shared is.
+  router.on("GET", "/api/viewer/:digest/lean", async ({ env, params }) => {
+    return json(paperReading(env, await viewerPaper(env.DB, params.digest, null)));
   });
 
   // A stored file by its key: a paper's PDF under its digest, an avatar

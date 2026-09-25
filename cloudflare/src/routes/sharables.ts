@@ -5,7 +5,7 @@ import { currentUser, type User } from "../auth";
 import { one } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { copyOf, keepPaper, paperOr404 } from "../papers/detail";
-import { LEAN, liveReadingLink, openSharable, revoke, RICH, shareReading, sharableOut, sharedReading, stripToThePaper, type Sharable } from "../papers/sharables";
+import { isShareCode, LEAN, liveReadingLink, openSharable, revoke, RICH, shareReading, sharableOut, sharableTarget, sharedReading, stripToThePaper, type Sharable } from "../papers/sharables";
 
 async function ownSharable(env: Env, uuid: string, user: User): Promise<Sharable> {
   const sharable = await one<Sharable>(env.DB, "SELECT * FROM sharables WHERE uuid = ? AND user_uuid = ? AND revoked_at IS NULL", uuid, user.uuid);
@@ -58,6 +58,14 @@ export function sharableRoutes(router: Router) {
     if (!sharable) refuse(404, "Sharable not found");
     await revoke(env.DB, sharable);
     return new Response(null, { status: 204 });
+  });
+
+  // The link itself: papol.io/s/<code>, short enough to paste anywhere,
+  // sent on to the viewer. Not cached, since where it leads changes when
+  // the link is revoked or loses its annotations.
+  router.on("GET", "/s/:code", async ({ env, params, url }) => {
+    if (!isShareCode(params.code)) refuse(404, "This link does not exist");
+    return new Response(null, { status: 302, headers: { location: new URL(await sharableTarget(env.DB, params.code), url.origin).toString(), "cache-control": "no-store" } });
   });
 
   // The reading a link opens. Deliberately unauthenticated: the whole

@@ -276,10 +276,13 @@ describe("the viewer's references", () => {
     } });
     const query = `?paper_sha256=${PDF}`;
 
-    expect((await call("GET", `/api/viewer-references/${PDF}${query}`)).status).toBe(401);
-    expect((await call("GET", `/api/viewer-references/${PDF}${query}`, { headers: grace.headers })).status).toBe(403);
     const first = await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers });
     expect(first).toMatchObject({ paper_sha256: PDF, status: "pending", references: [] });
+    // The digest is a lean link: whoever holds it reads what the file
+    // cites, kept or not, signed in or not.
+    expect((await ok("GET", `/api/viewer-references/${PDF}${query}`)).paper_sha256).toBe(PDF);
+    expect((await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: grace.headers })).paper_sha256).toBe(PDF);
+    expect((await call("GET", `/api/viewer-references/${"9".repeat(64)}`)).status).toBe(404);
     // Asked twice at once, one pass.
     await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers });
     const jobs = (await row("SELECT uuid, status FROM jobs WHERE kind = 'analyze_paper'"))!;
@@ -361,7 +364,7 @@ describe("the viewer's references", () => {
     // An entry the indexes do not know keeps its printed words.
     const card = await ok("GET", `/api/viewer-references/item/${references[1].uuid}`, { headers: ada.headers });
     expect(card).toMatchObject({ resolved_status: "bibliography", resolution: { title: "Knuth D. The art of computer programming", source: "bibliography" } });
-    expect((await call("GET", `/api/viewer-references/item/${references[0].uuid}`)).status).toBe(401);
+    expect((await ok("GET", `/api/viewer-references/item/${references[0].uuid}`)).uuid).toBe(references[0].uuid);
     expect((await call("GET", "/api/viewer-references/item/no-such-reference", { headers: ada.headers })).status).toBe(404);
 
     const link = await ok("POST", `/api/papers/${PDF.slice(0, 32)}/sharable`, { headers: ada.headers, json: { include_annotations: true } });
@@ -399,6 +402,10 @@ describe("the viewer's references", () => {
     expect(await ok("GET", `/api/viewer/${PDF}/info`, { headers: ada.headers })).toMatchObject({ title: "KinetiX", year: 2024, citations: 3, doi: "10.1/kinetix" });
     hosts({ "api.openalex.org": () => jsonResponse({}, 404), "api.crossref.org": () => crossrefItems() });
     expect(await ok("GET", `/api/viewer/${PDF}/info`, { headers: ada.headers })).toMatchObject({ title: "KinetiX", authors: ["A. Author"], venue: "SIGGRAPH", url: "https://doi.org/10.1/kinetix" });
-    expect((await call("GET", `/api/viewer/${PDF}/info`)).status).toBe(401);
+    // What a paper is is public, as the paper itself is to whoever holds
+    // its digest. Resolving a citation anew spends work, and is the keeper's.
+    expect((await ok("GET", `/api/viewer/${PDF}/info`)).title).toBe("KinetiX");
+    expect((await call("POST", `/api/viewer-references/${PDF}/preview`, { json: { key: "1", raw: "Some reference." } })).status).toBe(401);
+    expect((await call("POST", `/api/viewer-references/${PDF}/preview`, { headers: (await register("grace@example.test")).headers, json: { key: "1", raw: "Some reference." } })).status).toBe(403);
   });
 });

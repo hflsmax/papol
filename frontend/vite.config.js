@@ -44,6 +44,10 @@ export default defineConfig({
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
       },
+      // A short link is answered by the Worker, which sends it on to the viewer.
+      '/s/': {
+        target: 'http://127.0.0.1:8787',
+      },
     },
   },
 })

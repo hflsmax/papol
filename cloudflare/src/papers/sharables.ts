@@ -19,9 +19,14 @@
 // the user has now. Take the paper out of the nook and the reading a rich
 // link named no longer exists, so the link becomes lean instead of dying:
 // the paper is what remains of it. Revoking is what closes a link.
+//
+// A PDF's digest is a lean link already: its bytes sit in a public bucket
+// under that name, so whoever holds the digest holds the paper. The viewer
+// URL that names one opens the paper alone for anyone, and a lean sharable
+// is only a shorter way of writing it.
 
 import { type User } from "../auth";
-import { all, newUuid, now, one, type Row } from "../db";
+import { all, now, one, type Row } from "../db";
 import { refuse } from "../http";
 import { userPublic } from "../routes/boards";
 import { uploadUrl } from "../files";
@@ -31,6 +36,9 @@ export const RICH = "rich";
 export const LEAN = "lean";
 
 export interface Sharable extends Row {
+  // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET since
+  // short links, a UUID before them. Old links keep working under their
+  // UUIDs, so the column and the wire keep the name.
   uuid: string;
   kind: string;
   user_uuid: string | null;
@@ -85,19 +93,61 @@ function livePaperLink(db: D1Database, paperSha256: string): Promise<Sharable | 
     paperSha256);
 }
 
+// A code is the whole of the permission to a reading, so it is drawn at
+// random rather than counted out: a counter would let anyone walk every
+// link there is. Sixty bits keep guessing one hopeless even with a
+// great many links out, and the alphabet is lower case and leaves out i,
+// l, o and u, so a code survives being read aloud, retyped, or lowercased
+// by whatever carries it. Thirty-two letters, so five random bits pick one
+// with no bias.
+export const CODE_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
+export const SHARE_CODE_LENGTH = 12;
+
+export function newShareCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(SHARE_CODE_LENGTH));
+  return Array.from(bytes, (byte) => CODE_ALPHABET[byte & 31]).join("");
+}
+
+// What may name a link in a URL: a code, or the UUID of one made before them.
+export function isShareCode(value: string | null | undefined): value is string {
+  return !!value && (/^[0-9a-z]{12}$/.test(value) || /^[0-9a-f-]{36}$/.test(value));
+}
+
 // The link this ask calls for, made if there is not one already. Asking
 // twice gives the same link back rather than a second one — a user asking
 // again means "where is the link", not "give me another" — but what
 // "already" means differs with the kind: a reading is theirs, the paper's
 // link is anyone's. A revoked link is not resurrected: the next ask mints
-// a new UUID and the old link stays dead.
+// a new code and the old link stays dead.
+//
+// The table is what remembers which codes are taken, and its primary key
+// is what refuses a second one: a code is drawn and inserted, and only if
+// the insert collides is another drawn. At sixty bits that is a formality,
+// but it is the insert that decides, not a look beforehand that another
+// request could overtake.
 export async function shareReading(db: D1Database, user: User, paperSha256: string, kind: string): Promise<Sharable> {
   const existing = kind === RICH ? await liveReadingLink(db, user.uuid, paperSha256) : await livePaperLink(db, paperSha256);
   if (existing) return existing;
-  const sharable: Sharable = { uuid: newUuid(), kind, user_uuid: kind === RICH ? user.uuid : null, paper_sha256: paperSha256, created_at: now(), revoked_at: null };
-  await db.prepare("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)")
-    .bind(sharable.uuid, sharable.kind, sharable.user_uuid, sharable.paper_sha256, sharable.created_at).run();
-  return sharable;
+  for (let attempt = 0; ; attempt++) {
+    const sharable: Sharable = { uuid: newShareCode(), kind, user_uuid: kind === RICH ? user.uuid : null, paper_sha256: paperSha256, created_at: now(), revoked_at: null };
+    try {
+      await db.prepare("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)")
+        .bind(sharable.uuid, sharable.kind, sharable.user_uuid, sharable.paper_sha256, sharable.created_at).run();
+      return sharable;
+    } catch (failure) {
+      if (attempt >= 3 || !/UNIQUE|PRIMARY KEY/i.test(String(failure))) throw failure;
+    }
+  }
+}
+
+// Where a short link sends whoever follows it. A link to the paper alone
+// goes to the paper's own viewer URL, which is open to anyone; a reading
+// goes to the viewer on its code. A link that no longer opens goes there
+// too, so the viewer can say so instead of the site answering 404.
+export async function sharableTarget(db: D1Database, code: string): Promise<string> {
+  const sharable = await openSharable(db, code);
+  if (sharable?.kind === LEAN) return `/viewer/?pdf=${sharable.paper_sha256}`;
+  return `/viewer/?share=${encodeURIComponent(code)}`;
 }
 
 // What is left of a reading once the annotations are gone: the paper,
@@ -136,27 +186,41 @@ export async function sharedReading(env: Env, sharable: Sharable) {
   return {
     uuid: sharable.uuid, kind: sharable.kind, created_at: sharable.created_at,
     user: maker ? userPublic(maker) : null,
-    paper: { doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year, file_path: paper.file_path, file_url: uploadUrl(env, paper.file_path), sha256: paper.sha256 },
+    paper: sharedPaper(env, paper),
     annotations: annotations.map(annotationOut),
   };
 }
 
-// The paper a viewer URL names, if whoever asked may read it. Two ways to
-// be allowed: the user keeps the paper, or they hold a link someone
-// shared. A link names its own paper, so it is the file that has to match
-// the URL rather than the user.
-export async function viewerPaper(db: D1Database, digest: string, user: User | null, share: string | null): Promise<Paper> {
+// The paper a viewer URL names by its digest, as a lean link would open it:
+// the PDF and what is known about it, nobody's annotations, nobody named.
+export function paperReading(env: Env, paper: Paper) {
+  return { uuid: null, kind: LEAN, created_at: null, user: null, paper: sharedPaper(env, paper), annotations: [] };
+}
+
+function sharedPaper(env: Env, paper: Paper) {
+  return { doi: paper.doi, title: paper.title, authors: paper.authors, journal: paper.journal, year: paper.year, file_path: paper.file_path, file_url: uploadUrl(env, paper.file_path), sha256: paper.sha256 };
+}
+
+// The paper a viewer URL names, for anyone. The digest is a lean link in
+// itself, so the paper alone needs no other permission; what a link adds
+// is a reading, and a link names its own paper, so with one it is the
+// file that has to match the URL.
+export async function viewerPaper(db: D1Database, digest: string, share: string | null): Promise<Paper> {
   const wanted = digest.trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(wanted)) refuse(404, "PDF not found");
   if (share) {
     const sharable = await openSharable(db, share);
     if (!sharable) refuse(404, "This reading is no longer shared");
     if (sharable.paper_sha256 !== wanted) refuse(404, "PDF not found");
-    return (await one<Paper>(db, "SELECT * FROM papers WHERE sha256 = ?", wanted)) ?? refuse(404, "PDF not found");
   }
+  return (await one<Paper>(db, "SELECT * FROM papers WHERE sha256 = ?", wanted)) ?? refuse(404, "PDF not found");
+}
+
+// The paper a viewer URL names, for a user who keeps it: what the nook
+// viewer opens, and what may spend work on the user's behalf.
+export async function keptPaper(db: D1Database, digest: string, user: User | null): Promise<Paper> {
   if (!user) refuse(401, "Not authenticated");
-  const paper = await one<Paper>(db, "SELECT * FROM papers WHERE sha256 = ?", wanted);
-  if (!paper) refuse(404, "PDF not found");
+  const paper = await viewerPaper(db, digest, null);
   if (!(await copyOf(db, paper.sha256, user))) refuse(403, "Add this paper to your nook first");
   return paper;
 }

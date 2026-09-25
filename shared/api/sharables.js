@@ -1,4 +1,4 @@
-import { appPath } from '../appUrls.js';
+import { backendPath } from '../appUrls.js';
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
 import { paperName } from '../paperName.js';
@@ -42,12 +42,14 @@ export function readSharable(sharableUuid) {
   return request(`/shared/${sharableUuid}`);
 }
 
-// Where a link leads: the viewer, opened on what the link carries. Absolute,
-// because the only use for it is being given to someone else.
-export function sharableHref(sharableUuid) {
-  const path = appPath(`/viewer/?share=${sharableUuid}`);
+// The link itself: papol.io/s/<code>, which the service sends on to the
+// viewer opened on what the link carries. Absolute, because the only use for
+// it is being given to someone else — and on the service's own address, not
+// this window's, which on the desktop is the app's.
+export function sharableHref(sharableCode) {
+  const path = backendPath(`/s/${sharableCode}`);
   if (typeof window === 'undefined') return path;
-  return `${window.location.origin}${path}`;
+  return new URL(path, window.location.origin).toString();
 }
 
 // Whether the user following this link already keeps the paper. Answered

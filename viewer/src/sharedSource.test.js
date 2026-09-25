@@ -69,6 +69,16 @@ global.fetch = async (url, options = {}) => {
       status: 200, headers: { 'Content-Type': 'application/json' },
     });
   }
+  if (path === `/api/viewer/${HASH}/lean`) {
+    return new Response(JSON.stringify({ ...reading, uuid: null, kind: 'lean', user: null, annotations: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (path === `/api/papers/${HASH.slice(0, 32)}/add-to-nook`) {
+    return new Response(JSON.stringify({ sha256: HASH }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  }
   if (path === `/api/viewer-references/${HASH}`) {
     return new Response(JSON.stringify({ paper_sha256: PAPER, status: 'ready', references: [] }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
@@ -246,5 +256,70 @@ test('a lean link carries the paper and none of the user\u2019s annotations', as
     assert.deepEqual(await source.annotations.list(), []);
   } finally {
     Object.assign(reading, rich);
+  }
+});
+
+// The viewer at another address for the length of one test.
+async function at(href, run) {
+  const previous = global.window.location;
+  global.window.location = new URL(href);
+  try {
+    return await run();
+  } finally {
+    global.window.location = previous;
+  }
+}
+
+const pathsAsked = () => asked.map((call) => new URL(call.url, 'http://127.0.0.1').pathname);
+
+test('a short code opens a link as a UUID did', async () => {
+  await at('http://127.0.0.1/viewer/?share=k3m9x2p7q4ab', async () => {
+    asked.length = 0;
+    const source = resolveSource();
+    assert.equal(source.readOnly, true);
+    await source.load().catch(() => {});
+    assert.deepEqual(pathsAsked(), ['/api/shared/k3m9x2p7q4ab']);
+  });
+  // Neither a code nor a UUID is no link at all.
+  await at('http://127.0.0.1/viewer/?share=nope', () => assert.equal(resolveSource(), null));
+});
+
+test('a paper’s own address opens the paper alone for a visitor, as a lean link', async () => {
+  await at(`http://127.0.0.1/viewer/?pdf=${HASH}`, async () => {
+    asked.length = 0;
+    const source = resolveSource();
+    assert.equal(source.requiresSignIn, false);
+    assert.equal(source.readOnly, true);
+    assert.equal(source.annotationsRequireNook, true);
+    const { doc, notes } = await source.load();
+    assert.equal(doc.sha256, HASH);
+    assert.equal(doc.shared_kind, 'lean');
+    assert.equal(doc.shared_by, null);
+    assert.deepEqual(notes, []);
+    assert.deepEqual(pathsAsked(), [`/api/viewer/${HASH}/lean`]);
+    // What it cites and what it is are read without a link to read them by.
+    assert.equal(source.references, undefined);
+    assert.equal(source.info, undefined);
+    assert.equal(await source.loadNookPaper(), null);
+  });
+});
+
+test('a paper’s own address asks a signed-in user’s nook first, and falls back to the paper alone', async () => {
+  await signedInAs('a-session-token');
+  try {
+    await at(`http://127.0.0.1/viewer/?pdf=${HASH}`, async () => {
+      const source = resolveSource();
+      assert.equal(source.requiresSignIn, true);
+      assert.equal(source.readOnly, undefined);
+      const lean = source.leanFallback();
+      assert.equal(lean.readOnly, true);
+      asked.length = 0;
+      // Adding asks for the paper by its own name: no link stands behind it.
+      const added = await lean.addToNook();
+      assert.deepEqual(pathsAsked(), [`/api/papers/${HASH.slice(0, 32)}/add-to-nook`]);
+      assert.equal(lean.nookHref(added), `/viewer/?pdf=${HASH}`);
+    });
+  } finally {
+    await signedOut();
   }
 });
