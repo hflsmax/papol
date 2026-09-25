@@ -98,12 +98,13 @@ publishers. Say what the reader sees, not how Papol gets there. Leave out
 the smaller fixes around each feature too. Sign it from the team,
 with no marketing adjectives.
 
-The letter is a directory in `newsletters/` (its README has the layout),
-`YYYY-MM-DD-<topic>/` with nothing but the letter and its pictures:
-
-- `letter.md`: the letter as it reads, every screenshot from `img/`
-  beside the paragraph it shows.
-- `img/`: the pictures, scaled to about 1,300–1,600 px wide.
+The letter is `newsletters/YYYY-MM-DD-<topic>/letter.md` (the README has
+the layout), with the `# ` title as the email's subject. Its pictures
+live in the public bucket, not the repository: publish each GIF with
+`scripts/feature-letter/publish.sh <file.gif>`, which puts it at
+`https://files.papol.io/admin/<sha256>.gif` (the admin-only prefix, apart
+from what users upload), and link it by that address beside the paragraph
+it shows. Publishing makes the picture public, so ask the owner first.
 
 Before the pull request, have a subagent critique the draft as a
 demanding copy editor. Give it these rules and the verified facts, and ask
@@ -116,5 +117,7 @@ memory.
 
 Add a row to the README's table. Then open a pull request with the
 directory: the owner reviews the letter there, where GitHub renders
-`letter.md`. Whether and where the letter is published, and when it is
-sent, is the owner's call.
+`letter.md`. Once merged and deployed, the admin page's Email users form
+lists it under Draft: choosing it fills the subject and body, and it goes
+out as a formatted email with a plain-text copy. The owner sends it,
+first with Send a test to me, and decides when it goes to everyone.

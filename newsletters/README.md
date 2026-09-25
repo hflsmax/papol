@@ -7,9 +7,16 @@ approved, not that it was sent.
 
 Each directory holds:
 
-- `letter.md`: the letter as it reads, with its screenshots from `img/`.
-  GitHub renders it in the pull request.
-- `img/`: a GIF of each feature in use (`scripts/feature-letter/record.mjs`).
+- `letter.md`: the letter as it reads, in Markdown. GitHub renders it in the
+  pull request, and the admin page's Email users form offers it as a Draft:
+  choosing it fills the subject (the `# ` title) and the body, which is sent
+  as a formatted email with a plain-text copy.
+
+Its pictures are GIFs of each feature in use (`scripts/feature-letter/record.mjs`),
+kept in the public bucket under `admin/`, apart from what users upload, and
+named by their content hash (`scripts/feature-letter/publish.sh`). The letter
+links them by their `https://files.papol.io/admin/<sha256>.gif` address, so
+the same Markdown shows them on GitHub and in the email.
 
 Sending is the owner's. How a letter is drafted is in
 `.claude/skills/feature-letter/SKILL.md`.
