@@ -110,6 +110,17 @@ tail of a list); every paper with a numbered bibliography cites 95–100% of
 its entries; author–year papers 82–100%; figure mentions GROBID dropped
 ("Figure 10" in the paper that started this) are linked.
 
+On 2026-09-25 the viewer's figure jumps were spot-checked over 140 floats
+on dev: 14 boxes were wrong, all in the rules — a box of the caption alone,
+one cut inside its caption, two floats merged, a wrapped mention taken for
+a caption. Each was fixed at its cause (caption.not-wrapped,
+float.caption-overleaf, float.scanned, and narrower headings, rules, frames
+and list labels); over the 49 papers, 43 boxes changed, each looked at
+drawn (but the scanned paper's, which the overlay cannot draw), and no
+reference, citation or link count moved but the ones the fixes meant to.
+Left: CHI's running head, not furniture on every page, can sit at a
+float's top (2b73920556, Fig. 15).
+
 Known gaps: a caption set as part of an image, or a float with no caption,
 is not found; unusual citation wording ("Plate 3") is not recognized.
 

@@ -74,6 +74,23 @@ async function shoot(sha, pages, name, cols = 2, scale = 1.25) {
   fs.writeFileSync(path.join(outDir, name), Buffer.from(shot.data, "base64"));
 }
 
+// PAGES="<sha prefix>:3,4;<sha prefix>:11" shoots exactly those pages, one
+// sheet each paper, <sha>-p3-4.png, instead of the three chosen sheets.
+if (process.env.PAGES) {
+  for (const item of process.env.PAGES.split(";")) {
+    const [prefix, list] = item.split(":");
+    const file = fs.readdirSync(jsonDir).find((f) => f.startsWith(prefix) && f.endsWith(".json"));
+    if (!file) { console.error("no analysis for", prefix); continue; }
+    const pages = list.split(",").map(Number);
+    await shoot(file.replace(/\.json$/, ""), pages, `${prefix}-p${pages.join("-")}.png`, Math.min(2, pages.length));
+    console.log(prefix, "pages", pages.join(","));
+  }
+  ws.close();
+  chrome.kill("SIGKILL");
+  server.close();
+  process.exit(0);
+}
+
 const files = fs.readdirSync(jsonDir).filter((f) => f.endsWith(".json") && f !== "summary.json" && (!only.length || only.some((o) => f.startsWith(o))));
 for (const file of files) {
   const result = JSON.parse(fs.readFileSync(path.join(jsonDir, file), "utf8"));

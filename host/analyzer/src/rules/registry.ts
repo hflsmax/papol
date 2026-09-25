@@ -120,6 +120,11 @@ export const CAPTION_STYLED = rule({
   matches: ["Fig. 1 (a) Physical prototype", "Figure 2 Kinematics of the"],
   rejects: ["Figure", "Figures 3 and 4"],
 });
+export const CAPTION_NOT_WRAPPED = rule({
+  id: "caption.not-wrapped", stage: "caption",
+  summary: "A line that would begin a caption is not one when the line a leading above it, at its edge and its size, runs on into it without ending a sentence: a mention the paragraph wrapped onto the start of a line.",
+  why: "Geometric Folding Algorithms wraps \"…as indicated in / Table 1.1. Before embarking…\"; taken for Table 1.1's caption, it also hid the real one, since a number's first caption is the float's.",
+});
 // ----------------------------------------------------------------- floats
 // How much of the page a float is: the box a link to it brings into view.
 
@@ -170,6 +175,16 @@ export const FLOAT_SIDE = rule({
   id: "float.side", stage: "float",
   summary: "Once every float has its bands, a figure whose caption has drawings (not lone rules: an equation's fraction bars) level with it — no text between, no other float's — is set beside them: it takes them, and the bands over and under them.",
   why: "Books and some journals (Nature Methods Primers, Science) set a narrow caption beside a figure that spans the rest of the page.",
+});
+export const FLOAT_SCANNED = rule({
+  id: "float.scanned", stage: "float",
+  summary: "On a scanned page — one picture covering it, its text laid over — a float with any pieces in its band is the whole band, across its columns, from the bound (or the page's margin) to its caption.",
+  why: "A scanned drawing's strokes are in the page's picture, where nothing sees them; only its OCR'd labels were pieces, and the box sat inside the drawing (Lamport, Shostak and Pease, Fig. 1).",
+});
+export const FLOAT_CAPTION_OVERLEAF = rule({
+  id: "float.caption-overleaf", stage: "float",
+  summary: "A figure whose caption heads its page with nothing of its own, where the page before ends in drawings that no caption there took, is those drawings: the float is on the page before, where a link takes the reader.",
+  why: "Nature Communications and Nature Reviews Methods Primers give a large figure a page of its own and set its caption at the top of the next page; the caption alone was the figure's box.",
 });
 export const FLOAT_OTHER_SIDE = rule({
   id: "float.other-side", stage: "float",
