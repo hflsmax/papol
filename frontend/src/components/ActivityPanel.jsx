@@ -393,7 +393,8 @@ export default function ActivityPanel() {
       </div>
       <p className="panel-note">
         Only you see this. Time counts while a paper is open in the viewer, or one of your boards is open,
-        with its window in front of you and used in the last three minutes.
+        and you are using it. Going off to another tab or app and coming back within ten minutes counts
+        too, unless you spent the time on another paper in Papol.
       </p>
 
       <div className="activity-period">

@@ -16,11 +16,14 @@ import { currentCredential } from './credentials.js';
 import { sendActivity } from './api/activity.js';
 
 const {
-  idle_ms: IDLE_MS, tick_ms: TICK_MS, span_max_ms: SPAN_MAX_MS, flush_ms: FLUSH_MS,
+  idle_ms: IDLE_MS, tick_ms: TICK_MS, span_max_ms: SPAN_MAX_MS, flush_ms: FLUSH_MS, away_grace_ms: AWAY_GRACE_MS,
   spans_per_request: SPANS_PER_REQUEST, span_age_days_max: SPAN_AGE_DAYS_MAX,
 } = limits.activity;
 
 const PREFIX = 'papol.activity.span.';
+// Which Papol window last counted time, and when: a window coming back
+// from time away asks it whether the time away went to another paper.
+const LAST_COUNTED = 'papol.activity.lastCounted';
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A span still marked open that has not grown for this long belongs to a
 // window that is gone: it is finished, whatever it says.
@@ -38,14 +41,30 @@ export function accountMark(credential) {
 // The clock. `tick(present)` is called every few seconds with whether the
 // window is in front of the user, `touch()` on every input; it opens a
 // span on the first tick that counts, adds the time since the last tick
-// to it on each that follows, and ends it at the first that does not. A
-// gap — the computer asleep, the timers held back — ends it too, rather
-// than being counted. A span is cut at SPAN_MAX_MS and the next carries
-// on from where it stopped, so no span is so long that laying it out on
-// a day's hours needs to guess.
-export function activityTracker({ kind, subject, account, save, now = Date.now, newId = () => crypto.randomUUID() }) {
+// to it on each that follows, and ends it when the user stops using it.
+//
+// Reading is not only looking at the paper: a reader goes off to another
+// tab or app to look something up and comes back. So leaving does not end
+// the span. It is held open from the moment the window was left, and a
+// return within AWAY_GRACE_MS carries it on with the time away counted as
+// reading it — unless that time went to another paper or board in Papol,
+// which counted it already (`elsewhere(since)` says so), in which case the
+// span ends where it was left and a new one begins. Not coming back in
+// time ends it where it was left, and the time away is not counted.
+//
+// A gap in the ticks while the window was in front — the computer asleep,
+// the timers held back — is not time away that was seen to begin, and is
+// never counted. A span is cut at SPAN_MAX_MS and the next carries on from
+// where it stopped, so no span is so long that laying it out on a day's
+// hours needs to guess.
+export function activityTracker({
+  kind, subject, account, save, now = Date.now, newId = () => crypto.randomUUID(),
+  announce = () => {}, elsewhere = () => false,
+}) {
   let lastInput = now();
   let span = null;
+  // When the window was left, while a span waits for it to come back.
+  let leftAt = null;
 
   const record = () => ({
     uuid: span.uuid, kind, subject, account, open: span.open,
@@ -54,24 +73,57 @@ export function activityTracker({ kind, subject, account, save, now = Date.now, 
     seconds: Math.round(span.ms / 1000),
   });
   const end = () => {
+    leftAt = null;
     if (!span) return;
     span.open = false;
     if (span.ms > 0) save(record());
     span = null;
+  };
+  const grow = (at) => {
+    span.ms += at - span.lastMs;
+    span.lastMs = at;
+    if (span.ms > 0) save(record());
   };
 
   return {
     touch() { lastInput = now(); },
     tick(present) {
       const at = now();
-      if (!present || at - lastInput >= IDLE_MS) { end(); return; }
+      if (!present) {
+        if (!span) return;
+        if (leftAt == null) {
+          // Just left: what ran up to now counts, if the ticks were keeping up.
+          if (at - span.lastMs <= 2 * TICK_MS) grow(at);
+          leftAt = span.lastMs;
+        } else if (at - leftAt > AWAY_GRACE_MS) {
+          end();
+        }
+        return;
+      }
+      if (leftAt != null) {
+        // Back. Coming back is using it.
+        lastInput = at;
+        const bridged = at - leftAt <= AWAY_GRACE_MS && !elsewhere(leftAt);
+        leftAt = null;
+        if (bridged) {
+          if (at - span.startMs >= SPAN_MAX_MS) {
+            const from = span.lastMs;
+            end();
+            span = { uuid: newId(), startMs: from, lastMs: from, ms: 0, open: true };
+          }
+          grow(at);
+          announce(at);
+          return;
+        }
+        end();
+      }
+      if (at - lastInput >= IDLE_MS) { end(); return; }
       if (span && at - span.lastMs > 2 * TICK_MS) end();
       let from = at;
       if (span && at - span.startMs >= SPAN_MAX_MS) { from = span.lastMs; end(); }
       if (!span) span = { uuid: newId(), startMs: from, lastMs: from, ms: 0, open: true };
-      span.ms += at - span.lastMs;
-      span.lastMs = at;
-      if (span.ms > 0) save(record());
+      grow(at);
+      announce(at);
     },
     end,
   };
@@ -151,7 +203,20 @@ export function recordActivity({ kind, subject }) {
   if (!credential || !subject || !storage || typeof document === 'undefined') return () => {};
   const account = accountMark(credential);
   const outbox = activityOutbox(storage);
-  const tracker = activityTracker({ kind, subject, account, save: outbox.save });
+  const windowId = crypto.randomUUID();
+  // Written at most every few seconds by whichever window is counting, so
+  // the key stays cheap however many windows are open.
+  const announce = (at) => {
+    try { storage.setItem(LAST_COUNTED, JSON.stringify({ window: windowId, at })); }
+    catch { /* only a hint */ }
+  };
+  const elsewhere = (since) => {
+    try {
+      const last = JSON.parse(storage.getItem(LAST_COUNTED));
+      return Boolean(last && last.window !== windowId && last.at > since);
+    } catch { return false; }
+  };
+  const tracker = activityTracker({ kind, subject, account, save: outbox.save, announce, elsewhere });
   const present = () => document.visibilityState === 'visible' && document.hasFocus();
 
   let sending = false;

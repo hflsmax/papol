@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { accountMark, activityOutbox, activityTracker } from '../../shared/activity.js';
 import limits from '../../shared/appLimits.js';
 
-const { tick_ms: TICK, idle_ms: IDLE, span_max_ms: SPAN_MAX } = limits.activity;
+const { tick_ms: TICK, idle_ms: IDLE, span_max_ms: SPAN_MAX, away_grace_ms: GRACE } = limits.activity;
 const START = Date.parse('2026-09-25T09:00:00Z');
 
 function memoryStorage() {
@@ -26,13 +26,14 @@ function clock() {
   return { now: () => at, advance: (ms) => { at += ms; } };
 }
 
-function tracked() {
+function tracked({ elsewhere = () => false } = {}) {
   const time = clock();
   const saved = new Map();
   let n = 0;
   const tracker = activityTracker({
     kind: 'reading', subject: 'a'.repeat(64), account: 'acct',
     save: (span) => saved.set(span.uuid, span), now: time.now, newId: () => `span-${++n}`,
+    elsewhere: (since) => elsewhere(since),
   });
   // Ticks at the tracker's own pace, touching as it goes when asked.
   const run = (ms, { present = true, touching = true } = {}) => {
@@ -57,13 +58,17 @@ test('time counts while the window is in front and in use', () => {
   assert.equal(span.started_at, new Date(START).toISOString());
 });
 
-test('a window behind another, or left untouched, stops counting', () => {
+test('a window left for longer than the grace stops counting where it was left', () => {
   const { tracker, run, spans } = tracked();
   tracker.tick(true);
   run(60_000);
-  run(10 * 60_000, { present: false });
+  run(GRACE + 60_000, { present: false });
   run(60_000);
-  assert.deepEqual(spans().map((s) => s.seconds), [60, 45]);
+  // Leaving is seen at the next tick here, and the time up to it counts;
+  // in the browser, blur ticks at the moment of leaving. A new span begins
+  // at the first tick back.
+  assert.deepEqual(spans().map((s) => s.seconds), [75, 45]);
+  assert.equal(spans()[0].open, false);
 
   const idle = tracked();
   idle.tracker.tick(true);
@@ -72,6 +77,57 @@ test('a window behind another, or left untouched, stops counting', () => {
   // What was touched a minute in counts until it has been idle for IDLE.
   assert.equal(idle.spans()[0].seconds, (60_000 + IDLE - TICK) / 1000);
   assert.equal(idle.spans()[0].open, false);
+});
+
+test('going off to another tab and coming back within the grace is reading the paper', () => {
+  const { tracker, run, spans } = tracked();
+  tracker.tick(true);
+  run(5 * 60_000);
+  // Looking something up, three times over, for a few minutes each.
+  for (const away of [2, 6, 4]) {
+    run(away * 60_000, { present: false });
+    run(3 * 60_000);
+  }
+  tracker.end();
+  const all = spans();
+  assert.equal(all.length, 1);
+  assert.equal(all[0].seconds, (5 + 2 + 3 + 6 + 3 + 4 + 3) * 60);
+});
+
+test('time away that went to another paper in Papol is that paper\'s, not this one\'s', () => {
+  let other = false;
+  const { tracker, run, spans } = tracked({ elsewhere: () => other });
+  tracker.tick(true);
+  run(5 * 60_000);
+  run(60_000, { present: false });
+  other = true;
+  run(3 * 60_000, { present: false });
+  run(2 * 60_000);
+  tracker.end();
+  assert.deepEqual(spans().map((s) => s.seconds), [315, 105]);
+});
+
+test('coming back after the idle limit, within the grace, still counts', () => {
+  const { tracker, run, spans } = tracked();
+  tracker.tick(true);
+  run(60_000);
+  run(IDLE + 60_000, { present: false });
+  run(30_000, { touching: false });
+  tracker.end();
+  assert.deepEqual(spans().map((s) => s.seconds), [(60_000 + IDLE + 60_000 + 30_000) / 1000]);
+});
+
+test('a span bridged past its length is cut, and the next carries on', () => {
+  const { tracker, run, spans } = tracked();
+  tracker.tick(true);
+  run(SPAN_MAX - 60_000);
+  run(5 * 60_000, { present: false });
+  run(60_000);
+  tracker.end();
+  const all = spans();
+  assert.equal(all.length, 2);
+  assert.equal(all[1].started_at, all[0].ended_at);
+  assert.equal(all.reduce((sum, s) => sum + s.seconds, 0), (SPAN_MAX - 60_000 + 5 * 60_000 + 60_000) / 1000);
 });
 
 test('a gap in the ticks, as when the computer sleeps, is not counted', () => {
