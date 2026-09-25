@@ -224,6 +224,10 @@ ${compatibilityStyles}
 .viewer-bar .navigator-seg.alt { background: var(--line); color: var(--ink-soft); }
 .viewer-bar .navigator-seg.alt.back { background: var(--accent-line); }
 
+/* The end of the paper — the notices it closes on — is set back as the
+   front is, whichever ground its turn in the alternation would give it. */
+.viewer-bar .navigator-seg.end { background: var(--paper-sunken); color: var(--ink-faint); }
+
 /* Hover names the section under the pointer. Nothing marks the section
    being read: the marker already says where the reader is, to the line,
    and a lit segment said the same thing again more loudly and less

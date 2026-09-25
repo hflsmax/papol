@@ -33,6 +33,17 @@ test('the sections stand in the paper\'s order, one level only, each as long as 
   assert.equal(stops[4].appendix, true);
 });
 
+test('the notices a paper closes on are one stop, End, and the last section stops before them', () => {
+  const closed = [
+    { id: 's0', level: 0, number: '1', title: 'Introduction', page: 1, y: 1 },
+    { id: 's1', level: 0, number: '2', title: 'Conclusion', page: 2, y: 1 },
+    { id: 's2', level: 0, title: 'End', end: true, page: 3, y: 0.5 },
+  ];
+  const stops = sectionStops(closed, 5);
+  assert.deepEqual(stops.map(stopName), ['1 Introduction', '2 Conclusion', 'End']);
+  assert.deepEqual(stops.map((stop) => rounded(stop.span)), [1, 1.5, 2.5]);
+});
+
 test('the outline\'s order gives way to the paper\'s', () => {
   const shuffled = [outline[3], outline[0], outline[1]];
   assert.deepEqual(sectionStops(shuffled, 4).map(stopName), ['Start', '1 Introduction', '2 Method', '3 Results']);

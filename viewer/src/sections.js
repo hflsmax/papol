@@ -60,8 +60,10 @@ export const isFloatLabel = (title) => FLOAT_LABEL.test(collapseSpace(title));
 // account for 34 of 1071 entries, in 24 of 42 papers. The rest of the same
 // publishers' end matter (Funding, Conflict of interest, Ethics
 // declarations, Reporting summary…) is left out until a paper here is seen
-// to carry it. Whole titles only, so "Funding models for open science"
-// would still be a section. References are not here: a bibliography is
+// to carry it. Nature's "Online content" — a stock paragraph pointing at
+// the website — joined the list when a paper here was seen to print it.
+// Whole titles only, so "Funding models for open science" would still be
+// a section. References are not here: a bibliography is
 // somewhere people go.
 const END_MATTER = new Set([
   'acknowledgment', 'acknowledgments', 'acknowledgement', 'acknowledgements',
@@ -70,6 +72,7 @@ const END_MATTER = new Set([
   'additional information', 'further information',
   'data availability', 'data availability statement',
   'publishers note',
+  'online content',
 ]);
 
 const noticeName = (title) => collapseSpace(
@@ -83,16 +86,31 @@ export const isEndMatter = (title) => END_MATTER.has(noticeName(title));
  * The sections without the notices, and without anything filed under one.
  * What came before a notice simply runs on through it: the bar is about
  * where to go, and the way to a notice is the end of the section above.
+ *
+ * Except at the end. The notices a paper closes on — and the pages of
+ * figures a journal files after them — are no part of its last section,
+ * and running Conclusion on through them draws it pages longer than it is.
+ * So where the notices run to the end of the paper, one stop called End
+ * stands where the first of them begins: nothing to read, only the place
+ * where the paper's sections stop.
  */
 export function withoutEndMatter(sections) {
+  const top = topLevel(sections);
   const kept = [];
   let under = null;
+  let end = null;
   for (const section of sections || []) {
     const level = section.level ?? 0;
     if (under != null && level > under) continue;
     under = isEndMatter(section.title) ? level : null;
-    if (under == null) kept.push(section);
+    if (under == null) {
+      kept.push(section);
+      end = null;
+    } else if (level === top && !end) {
+      end = section;
+    }
   }
+  if (end) kept.push({ ...end, number: '', title: 'End', end: true, appendix: false });
   return kept;
 }
 
