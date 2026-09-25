@@ -219,7 +219,7 @@ function SyncControl({ onReportableError, onSynced }) {
         aria-label={`Sync now — ${summary}`}
         title={status.offline ? OFFLINE_MODE_MESSAGE : (syncFailureText(status.error) || 'Send and receive changes now')}
       >
-        <span className="desktop-sync-mark" aria-hidden="true">↻</span>
+        <span className={`desktop-sync-mark${status.syncing ? ' spinning' : ''}`} aria-hidden="true">↻</span>
         <span>{status.syncing ? 'Syncing…' : status.offline ? 'Offline — Sync' : 'Sync'}</span>
       </button>
     </section>
