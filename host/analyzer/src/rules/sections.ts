@@ -1,10 +1,11 @@
 // Numbered sections: where each one begins, and the places in the text
 // that point at it ("Section 2.1", "§3"). A section is kept as a float of
-// kind `section` whose box is its heading, so a link to it is stored and
-// followed like a link to a figure (cloudflare/src/papers/reading.ts).
+// kind `section` whose box is its heading's line, as wide as the column it
+// is set in, so a link to it is stored and followed like a link to a
+// figure (cloudflare/src/papers/reading.ts).
 
 import type { DocumentLink } from "../../../../cloudflare/src/papers/reading";
-import type { Found } from "./floats";
+import { typeOf, type Found } from "./floats";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import { MENTION_SECTION, SECTION_HEADING } from "./registry";
 import type { Trace } from "./trace";
@@ -21,6 +22,7 @@ const isContents = (title: string) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\
 // holds lines that are no one's heading (the bibliography's).
 export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<Found>, trace: Trace): Map<string, Found> {
   const sections = new Map<string, Found>();
+  const type = typeOf(layout);
   // Nothing inside a float heads a section: a figure's "70 Hz" label.
   const within = [...floats];
   const inFloat = (line: Line, page: Layout["pages"][number]) => within.some((f) => f.page === page.number
@@ -39,7 +41,13 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf(number))) continue;
-      const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
+      // Across, the box is the column the section begins in — its heading's
+      // column on a page set in two, else the text's width — so a link can
+      // bring that column into view from its top (section.column).
+      const middle = (line.x0 + line.x1) / 2;
+      const column = (page.twoColumn && type.columns.length > 1 && type.columns.find((c) => middle >= c.x0 && middle <= c.x1)) || type.text;
+      const x0 = Math.min(column.x0, line.x0), x1 = Math.max(column.x1, line.x1);
+      const box = { page: page.number, x: x0 / page.width, y: line.top / page.height, w: (x1 - x0) / page.width, h: (line.bottom - line.top) / page.height };
       sections.set(keyOf(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
       trace.add(SECTION_HEADING.id, page.number, line.text.slice(0, 80), [box]);
     }

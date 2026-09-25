@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { fitsFloat, floatScroll, floatZoom } from './floatView.js';
+import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
 
 const LETTER = { width: 612, height: 792 };
 const LIMITS = { min: 0.25, max: 5 };
@@ -52,7 +52,44 @@ test('the scroll stays inside the document', () => {
   assert.equal(narrow.left, 0);
 });
 
-test('a footnote keeps the zoom; everything else a link names is fitted', () => {
+test('a footnote keeps the zoom, a section is read from its heading; everything else a link names is fitted', () => {
   assert.equal(fitsFloat('footnote'), false);
+  assert.equal(fitsFloat('section'), false);
   for (const kind of ['figure', 'table', 'box', 'algorithm', 'listing']) assert.equal(fitsFloat(kind), true);
+});
+
+test("a section's column fills the window's width, no closer than keeps 40% of the page in view", () => {
+  // A two-column paper's right column: 0.41 of a letter page, 251pt.
+  const column = { x: 0.52, y: 0.4, w: 0.41, h: 0.015 };
+  // A phone: the column's width decides.
+  const phone = sectionZoom(column, LETTER, { width: 360, height: 700 }, LIMITS);
+  assert.equal(phone, (360 * 0.94) / (0.41 * 612));
+  // A wide window: filling 1200px with a 251pt column would be text
+  // five times over; the height cap holds 40% of the page in view.
+  const wide = sectionZoom(column, LETTER, { width: 1200, height: 750 }, LIMITS);
+  assert.equal(wide, 750 / (0.4 * 792));
+  assert.ok(wide < (1200 * 0.94) / (0.41 * 612));
+  assert.equal(sectionZoom({ ...column, w: 0 }, LETTER, { width: 1200, height: 750 }, LIMITS), null);
+});
+
+test("a section's heading lands near the window's top, its column in the middle across", () => {
+  // A page zoomed to three windows wide: each column can be centred.
+  const pageAt = { left: 24, top: 5000, width: 3000, height: 3882 };
+  const view = { width: 1000, height: 800 }, content = { width: 3048, height: 80000 };
+  const right = sectionScroll({ x: 0.52, y: 0.4, w: 0.41, h: 0.015 }, pageAt, view, content);
+  assert.ok(Math.abs(right.left - (24 + 0.725 * 3000 - 500)) < 1e-6, String(right.left));
+  // The heading 6% below the window's top.
+  assert.ok(Math.abs(right.top - (5000 + 0.4 * 3882 - 0.06 * 800)) < 1e-6, String(right.top));
+  const left = sectionScroll({ x: 0.09, y: 0.4, w: 0.41, h: 0.015 }, pageAt, view, content);
+  assert.ok(Math.abs(left.left - (24 + 0.295 * 3000 - 500)) < 1e-6, String(left.left));
+});
+
+test("a section's scroll stays inside the document", () => {
+  const pageAt = { left: 24, top: 24, width: 1500, height: 1941 };
+  const view = { width: 1000, height: 800 }, content = { width: 1548, height: 40000 };
+  // The right column's middle is nearer the page's edge than half the
+  // window: as far right as the document goes.
+  assert.equal(sectionScroll({ x: 0.52, y: 0.4, w: 0.41, h: 0.015 }, pageAt, view, content).left, 1548 - 1000);
+  // A heading at the first page's very top cannot scroll above 0.
+  assert.equal(sectionScroll({ x: 0.09, y: 0, w: 0.41, h: 0.015 }, pageAt, view, content).top, 0);
 });

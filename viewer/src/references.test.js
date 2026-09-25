@@ -129,7 +129,7 @@ test('a section link lands on its heading at the top of the window, not centred 
   };
 
   const overlays = await pageOverlays(doc, 1, analysis);
-  assert.deepEqual(overlays.links.map((l) => [l.kind, l.label, l.spot]), [['section', '2.1', { page: 2, y: 0.3 }]]);
+  assert.deepEqual(overlays.links.map((l) => [l.kind, l.label, l.spot]), [['section', '2.1', { page: 2, y: 0.3, kind: 'section', box: { x: 0.09, y: 0.3, w: 0.3, h: 0.015 } }]]);
 });
 
 // A Nature page: the publisher links only the first number of a
