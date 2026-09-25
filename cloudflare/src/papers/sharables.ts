@@ -39,19 +39,12 @@ export interface Sharable extends Row {
   // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET. The
   // column and the wire keep the name they had when it held a UUID.
   uuid: string;
-  // The UUID a link was handed out under before codes (migration 0006):
-  // still followed, never handed out again.
-  legacy_uuid?: string | null;
   kind: string;
   user_uuid: string | null;
   paper_sha256: string;
   created_at: string;
   revoked_at: string | null;
 }
-
-// A link as a URL names it: by its code, or by the UUID it was handed out
-// under before there were codes. Two binds, both the name.
-export const NAMED = "(uuid = ? OR legacy_uuid = ?)";
 
 export function sharableOut(sharable: Sharable) {
   return { uuid: sharable.uuid, kind: sharable.kind, paper_sha256: sharable.paper_sha256, created_at: sharable.created_at };
@@ -66,7 +59,7 @@ export function sharableOut(sharable: Sharable) {
 // is common to both.
 export async function openSharable(db: D1Database, uuid: string | null | undefined): Promise<Sharable | null> {
   if (!uuid) return null;
-  const sharable = await one<Sharable>(db, `SELECT * FROM sharables WHERE ${NAMED} AND revoked_at IS NULL`, uuid, uuid);
+  const sharable = await one<Sharable>(db, "SELECT * FROM sharables WHERE uuid = ? AND revoked_at IS NULL", uuid);
   if (!sharable) return null;
   if (sharable.kind === RICH) {
     // A user who closed their account left their nook behind as a
@@ -101,22 +94,28 @@ function livePaperLink(db: D1Database, paperSha256: string): Promise<Sharable | 
 
 // A code is the whole of the permission to a reading, so it is drawn at
 // random rather than counted out: a counter would let anyone walk every
-// link there is. Sixty bits keep guessing one hopeless even with a
-// great many links out, and the alphabet is lower case and leaves out i,
-// l, o and u, so a code survives being read aloud, retyped, or lowercased
-// by whatever carries it. Thirty-two letters, so five random bits pick one
-// with no bias.
-export const CODE_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
-export const SHARE_CODE_LENGTH = 12;
+// link there is. Ten characters of digits and both cases are sixty bits,
+// which keeps guessing one hopeless even with a great many links out. Case
+// matters, so nothing may fold a code to one case. A random byte picks a
+// character only when it falls below the largest multiple of sixty-two
+// that fits, so no character is likelier than another.
+export const CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+export const SHARE_CODE_LENGTH = 10;
+const FAIR_BYTE = 256 - (256 % CODE_ALPHABET.length);
 
 export function newShareCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(SHARE_CODE_LENGTH));
-  return Array.from(bytes, (byte) => CODE_ALPHABET[byte & 31]).join("");
+  let code = "";
+  while (code.length < SHARE_CODE_LENGTH) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(SHARE_CODE_LENGTH))) {
+      if (byte < FAIR_BYTE && code.length < SHARE_CODE_LENGTH) code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+    }
+  }
+  return code;
 }
 
-// What may name a link in a URL: a code, or the UUID of one made before them.
+// What may name a link in a URL.
 export function isShareCode(value: string | null | undefined): value is string {
-  return !!value && (/^[0-9a-z]{12}$/.test(value) || /^[0-9a-f-]{36}$/.test(value));
+  return !!value && /^[0-9A-Za-z]{10}$/.test(value);
 }
 
 // The link this ask calls for, made if there is not one already. Asking
@@ -153,8 +152,7 @@ export async function shareReading(db: D1Database, user: User, paperSha256: stri
 export async function sharableTarget(db: D1Database, code: string): Promise<string> {
   const sharable = await openSharable(db, code);
   if (sharable?.kind === LEAN) return `/viewer/?pdf=${sharable.paper_sha256}`;
-  // By its code, whatever it was followed by: an old link comes out short.
-  return `/viewer/?share=${encodeURIComponent(sharable?.uuid ?? code)}`;
+  return `/viewer/?share=${encodeURIComponent(code)}`;
 }
 
 // What is left of a reading once the annotations are gone: the paper,

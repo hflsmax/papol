@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const SHARE = '11111111-1111-4111-8111-111111111111';
+const SHARE = 'k3M9x2P7q4';
 const HASH = 'b'.repeat(64);
 const PAPER = '44444444-4444-4444-8444-444444444444';
 
@@ -272,16 +272,16 @@ async function at(href, run) {
 
 const pathsAsked = () => asked.map((call) => new URL(call.url, 'http://127.0.0.1').pathname);
 
-test('a short code opens a link as a UUID did', async () => {
-  await at('http://127.0.0.1/viewer/?share=k3m9x2p7q4ab', async () => {
-    asked.length = 0;
-    const source = resolveSource();
-    assert.equal(source.readOnly, true);
-    await source.load().catch(() => {});
-    assert.deepEqual(pathsAsked(), ['/api/shared/k3m9x2p7q4ab']);
-  });
-  // Neither a code nor a UUID is no link at all.
+test('only a short code names a link', async () => {
+  // Links made before codes were given one; their UUIDs name nothing.
+  await at('http://127.0.0.1/viewer/?share=11111111-1111-4111-8111-111111111111', () => assert.equal(resolveSource(), null));
   await at('http://127.0.0.1/viewer/?share=nope', () => assert.equal(resolveSource(), null));
+  // Read as written: a code's case is part of it.
+  await at(`http://127.0.0.1/viewer/?share=${SHARE}`, async () => {
+    asked.length = 0;
+    await resolveSource().load();
+    assert.deepEqual(pathsAsked(), [`/api/shared/${SHARE}`]);
+  });
 });
 
 test('a paper’s own address opens the paper alone for a visitor, as a lean link', async () => {

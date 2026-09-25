@@ -5,10 +5,10 @@ import { currentUser, type User } from "../auth";
 import { one } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { copyOf, keepPaper, paperOr404 } from "../papers/detail";
-import { isShareCode, LEAN, NAMED, liveReadingLink, openSharable, revoke, RICH, shareReading, sharableOut, sharableTarget, sharedReading, stripToThePaper, type Sharable } from "../papers/sharables";
+import { isShareCode, LEAN, liveReadingLink, openSharable, revoke, RICH, shareReading, sharableOut, sharableTarget, sharedReading, stripToThePaper, type Sharable } from "../papers/sharables";
 
 async function ownSharable(env: Env, uuid: string, user: User): Promise<Sharable> {
-  const sharable = await one<Sharable>(env.DB, `SELECT * FROM sharables WHERE ${NAMED} AND user_uuid = ? AND revoked_at IS NULL`, uuid, uuid, user.uuid);
+  const sharable = await one<Sharable>(env.DB, "SELECT * FROM sharables WHERE uuid = ? AND user_uuid = ? AND revoked_at IS NULL", uuid, user.uuid);
   return sharable ?? refuse(404, "Sharable not found");
 }
 
@@ -54,7 +54,7 @@ export function sharableRoutes(router: Router) {
   // someone's can be taken back, and only by them.
   router.on("DELETE", "/api/sharables/:uuid", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
-    const sharable = await one<Sharable>(env.DB, `SELECT * FROM sharables WHERE ${NAMED} AND user_uuid = ?`, params.uuid, params.uuid, user.uuid);
+    const sharable = await one<Sharable>(env.DB, "SELECT * FROM sharables WHERE uuid = ? AND user_uuid = ?", params.uuid, user.uuid);
     if (!sharable) refuse(404, "Sharable not found");
     await revoke(env.DB, sharable);
     return new Response(null, { status: 204 });
