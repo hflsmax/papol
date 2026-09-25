@@ -192,6 +192,17 @@ describe("what a PDF says about itself", () => {
     expect(openalex).toMatchObject({ title: "Layer Normalization", venue: null, host: "arXiv (Cornell University)", abstract: "Training deep nets", doi: "10.48550/arXiv.1607.06450", source: "openalex" });
   });
 
+  it("takes OpenAlex's raw source name as the venue when no location has a source", () => {
+    const popl = "Proceedings of the 39th annual ACM SIGPLAN-SIGACT symposium on Principles of programming languages";
+    const bare = summarizeOpenalex({ display_name: "Information effects", publication_year: 2012,
+      primary_location: { source: null, raw_source_name: popl }, locations: [{ source: null, raw_source_name: popl }], best_oa_location: null });
+    expect(bare).toMatchObject({ venue: popl, host: null });
+    const both = summarizeOpenalex({ display_name: "The Meaning of Memory Safety", publication_year: 2018,
+      primary_location: { source: { display_name: "HAL", type: "repository" }, raw_source_name: "7th International Conference on Principles of Security and Trust (POST), Apr 2018" },
+      locations: [{ source: null, raw_source_name: "Principles of Security and Trust" }, { source: { display_name: "Lecture Notes in Computer Science", type: "book series" }, raw_source_name: "LNCS" }] });
+    expect(both).toMatchObject({ venue: "Lecture Notes in Computer Science", host: "HAL" });
+  });
+
   it("re-reads a paper's PDF for the edit form, preferring what the file prints over a stale DOI", async () => {
     const account = await register();
     const digest = "4".repeat(64);

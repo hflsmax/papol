@@ -190,16 +190,21 @@ function abstractOf(work: Record<string, any>): string | null {
 const HOSTS = new Set(["repository", "ebook platform"]);
 
 // Where the work was published, and where a copy lives. Only the
-// publisher's location is the venue; a repository is a host.
+// publisher's location is the venue; a repository is a host. OpenAlex
+// leaves many proceedings without a source and keeps the name the
+// publisher gave only as raw_source_name: that is the venue when no
+// location has a source. A repository's raw name is its own citation
+// line, never read.
 function venueOf(work: Record<string, any>): { venue: string | null; host: string | null } {
-  let venue: string | null = null, host: string | null = null;
+  let venue: string | null = null, host: string | null = null, raw: string | null = null;
   for (const location of [work.primary_location, ...(work.locations ?? []), work.best_oa_location]) {
     const source = location?.source;
+    if (!source) raw = raw ?? (location?.raw_source_name?.trim() || null);
     if (!source?.display_name) continue;
     if (HOSTS.has(source.type)) host = host ?? source.display_name;
     else venue = venue ?? source.display_name;
   }
-  return { venue, host };
+  return { venue: venue ?? raw, host };
 }
 
 export function summarizeOpenalex(work: Record<string, any>): Summary {
