@@ -37,6 +37,14 @@ identifier of its own, the notes column gives it.
 | **Folder** | PDFs an agent gathered into one directory, dropped into Papol and brought in after one review of the batch. | `FolderImport.jsx`, `agentFolder.js`. Client-side only: each PDF goes up and is saved as one upload would be. |
 | **Manifest** | The `papol.json` beside a folder's PDFs: for each work its file, identifier, title and the agent's note. It describes papers and never where they go; shelf and tags are the user's, picked in the review. | Format 1, described at `/agent-folder.txt` (`frontend/public/agent-folder.txt`), which the prompt shown for the agent points to. `parseManifest()`. |
 
+### Activity
+
+| Term | Meaning | Notes |
+| --- | --- | --- |
+| **Activity** | The time a user spends with a paper open in the viewer (**reading**) or one of their own boards open (**board**), while its window is in front of them and has been used in the last three minutes. Theirs alone: nobody else sees any of it. | `activity`, `shared/activity.js`, `POST`/`GET /api/activity`, `ActivityPanel.jsx` on the profile page. Not synchronized: the desktop sends it as the browser does. |
+| **Span** | One stretch of activity: a kind, the paper's sha256 or board's uuid, when it started and ended, and the seconds in it that counted. At most half an hour. | Named by the window that saw it and sent again as it grows; the server keeps the longest. Kept in the browser's **outbox** (`papol.activity.span.*`) until sent. |
+| **Effort** | A user's total activity on one paper or board, and when it last was, shown under it on their own nook. | `effort` on the nook's paper and board entries; null for anyone but the nook's user. |
+
 ## 3. Annotations
 
 Everything a user leaves on a PDF. One table, `annotations`, three kinds that

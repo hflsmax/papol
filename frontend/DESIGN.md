@@ -58,6 +58,13 @@ someone has no profile picture (applied via `.avatar-initial.avatar-tint-N`,
 two classes so role colors like the leader's gold still win). They say
 "which person", never "what state".
 
+**Activity colors** are a third axis, used only where time is drawn (the
+activity panel, the effort line on a nook row): `--activity-reading` and
+`--activity-board` say what the time was spent on, a pair checked for
+colour-blind separation against `--card`; `--activity-heat-1`…`5` is one
+hue light to dark for how much time a day held, and steps 4 and 5 carry
+`--ink-inverse` text. Neither is ever used for a state.
+
 ## Type
 
 Three families, by role:
@@ -152,6 +159,14 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   not a particular device model. Test at 320, 560, 760/860, and a wide desktop.
 
 ## Recurring patterns
+
+- **Activity** — time is drawn one way at every scale where "when"
+  matters: a day runs left to right, each span a block where it was and as
+  long as it was (the Day and Week views, one row per day). Where only
+  "how much" matters it is a calendar shaded at fixed marks (15 min, 1 h,
+  2 h, 4 h), so one month compares with another rather than with itself.
+  Every block and day says its content in words to hover, focus and a
+  screen reader; colour is never the only channel. `ActivityPanel.jsx`.
 
 - **Learn lesson** — tutorial videos live on the public Learn page in a
   two-column grid of bordered white cards. Each card contains only a 16:9

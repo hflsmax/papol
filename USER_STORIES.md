@@ -132,6 +132,13 @@ papers in, and I decide where they go.
   did and offers **Undo**, and each is one undo step. New cards land in
   free space instead of on top of what is there. See `docs/tidying.md`.
 
+## 5c. My activity
+
+- **US-5c.1** As a user, the time I spend reading a paper in the viewer, or working on one of my boards, is recorded while its window is in front of me and I have used it in the last three minutes — a paper left open behind other windows adds nothing. Time spent offline, on the Mac or in the browser, arrives when Papol can be reached.
+- **US-5c.2** On my profile page, **My activity** shows that time by **Day** (when I was reading and on which board, hour by hour), **Week** (seven such days, each with its total) and **Month** (a calendar shaded by how much time each day held), with the total, the reading and the board time, and each paper and board the time went to. A day in the week or month opens that day.
+- **US-5c.3** On my own nook, each paper and board says how long I have spent on it and when I last did. Nobody else sees my activity or my effort, on my nook or anywhere.
+- **US-5c.4** My activity is in my data export, and goes when I close my account.
+
 ## 6. Feedback
 
 - **US-6.1** As anyone using Papol — user, visitor, or someone who cannot even sign in — I can report a bug or ask for a feature from a **Feedback** button floating in the bottom-right corner of every page — one box, free text, no form to fill in — without leaving the page I am on. A visitor may leave an email so the admins can reply.

@@ -30,6 +30,7 @@ import {
   recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
+import { recordActivity } from '../../shared/activity.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -638,6 +639,11 @@ export default function App() {
   // one. What turns "add to nook" into "show in nook": the offer should be
   // the one they can still act on.
   const [nookCopy, setNookCopy] = useState(null);
+  // Time with the paper open counts toward the reader's activity. A file
+  // opened from disk is not announced to Papol, so it counts only once it
+  // is a nook paper.
+  const activitySubject = source?.openedFile && !nookCopy ? null : (paper?.sha256 ?? null);
+  useEffect(() => recordActivity({ kind: 'reading', subject: activitySubject }), [activitySubject]);
   const [pdfViewerTip, setPdfViewerTip] = useState(false);
   // Asked over a file opened from disk while another app is the system's PDF
   // viewer, until answered here or in the Desk window this launch.

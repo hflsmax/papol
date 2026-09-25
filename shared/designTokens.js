@@ -51,6 +51,17 @@ export const designTokens = `
   --identity-4: #6b3f5e;
   --identity-5: #4b4f7a;
 
+  /* Activity — what time was spent on (a pair checked for colour-blind
+     separation against --card) and how much of it in a day (one hue, light
+     to dark; steps 4 and 5 carry --ink-inverse text). */
+  --activity-reading: #3a6ea5;
+  --activity-board: #c47a35;
+  --activity-heat-1: #e1e9f3;
+  --activity-heat-2: #bccfe5;
+  --activity-heat-3: #88a9cf;
+  --activity-heat-4: #5580b3;
+  --activity-heat-5: #2b4a6f;
+
   /* Typography */
   --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
