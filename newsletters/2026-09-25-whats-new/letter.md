@@ -30,14 +30,31 @@ the authors use a source without searching for it, and `[` brings you back.
 
 ## 3. Folder Drop
 
-Drop a folder of PDFs, or several at once, on any upload box. Papol reads
-them all and shows one list. Papers already in your nook are skipped. Choose
-a shelf and tags for the whole batch, and your reading list is in.
+An AI agent can survey a field in minutes, but what it hands back is a list
+of links. You still download each paper, upload it, and copy over why the
+agent picked it.
 
-![Reviewing the folder "Transformers review" before adding it](img/folder-review.png)
+Now the agent can hand its review straight to Papol. Click **Add a folder**
+and copy the one-line prompt into your agent. It gathers the PDFs into a
+folder, with a short list saying why each paper matters, and tells you where
+the folder is. Drop that folder on any upload box.
 
-If an AI agent gathered the papers, **Add a folder** gives you a prompt for
-it, and its notes on each paper come in too.
+Papol opens the whole review as one list, in the agent's order:
+
+- Each paper comes with the agent's reason for including it, kept as a
+  private note on your copy.
+- A paper the agent couldn't get, for example one behind a paywall, is
+  listed for you to find yourself.
+- Papers already in your nook are skipped, so the agent can add to the
+  folder and you can drop it again.
+
+Pick one shelf and tags for the batch, and the literature review is in your
+library, ready to read.
+
+![Reviewing the agent's folder "Transformers review": one new paper with its note, one missing, one behind a paywall, one already in the nook](img/folder-review.png)
+
+Gathering papers yourself? Drop a folder, or several PDFs at once, and you
+get the same review.
 
 ## 4. Tiny links
 
