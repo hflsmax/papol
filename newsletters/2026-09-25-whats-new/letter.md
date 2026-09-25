@@ -12,11 +12,10 @@ In most PDF viewers, clicking "Figure 4" drops you somewhere on the right
 page, if the link works at all. You scroll and zoom to find the figure, and
 then scroll back to find where you were.
 
-Papol reads the paper itself, so its figures, tables, sections and footnotes
-become links even where the publisher made none. Each jump lands on the
-content itself, not just the page: the figure is centred and zoomed to fill
-your window, and a section opens at its heading in its own column, at a size
-you can read. **Back to page …** (or `[`) takes you back to where you were.
+In Papol, one click puts the thing you asked for right in front of you. The
+figure sits in the middle of your window, zoomed to fill it. A section opens
+at its heading, in its own column, at a size you can read. A table, a
+footnote or an algorithm arrives the same way. **Back to page …** (or `[`) takes you back to where you were.
 
 ![Following a link to Fig. 4: the figure fills the window, with "Back to page 20" at the bottom](img/figure-link.png)
 

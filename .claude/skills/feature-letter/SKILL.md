@@ -69,8 +69,12 @@ share-e2e CDP driver, `scripts/share-e2e/cdp.mjs`, as the UI PRs do.
 
 Succinct, and about how the feature makes reading and research easier:
 what the reader can do now and how to try it (where to click, which key).
-Each feature gets two to four sentences and at most one picture. Leave
-out how it works and the smaller fixes around it. Sign it from the team,
+Each feature gets two to four sentences and at most one picture. Open with
+the problem the reader knows from other tools, then show what happens in
+Papol, told from the reader's side, so it feels intelligent, even magic.
+Never explain how it works: no analyzer, reading, parsing, indexes or
+publishers. Say what the reader sees, not how Papol gets there. Leave out
+the smaller fixes around each feature too. Sign it from the team,
 with no marketing adjectives.
 
 The letter is a directory in `newsletters/` (its README has the layout),
