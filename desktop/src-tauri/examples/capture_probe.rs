@@ -55,6 +55,18 @@ fn main() {
         STATUS.store(code, Ordering::SeqCst);
         handle.exit(code);
     });
-    app.run_return(|_, _| {});
+    // The capture window is the probe's only window, and destroying it asks
+    // the event loop to end (`ExitRequested` with no code) at the moment the
+    // capture hands back its answer — often before the task above has
+    // written the picture, said so, or set STATUS, so the probe exited 1
+    // with nothing said. Only the task's own `exit` ends the probe.
+    app.run_return(|_, event| {
+        if let tauri::RunEvent::ExitRequested {
+            code: None, api, ..
+        } = event
+        {
+            api.prevent_exit();
+        }
+    });
     std::process::exit(STATUS.load(Ordering::SeqCst));
 }

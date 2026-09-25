@@ -2,7 +2,7 @@
 # Papol's deployment, all of it.
 #
 #   ./deploy.sh dev            the Worker and the three apps here, live-reloading
-#   ./deploy.sh prod           build the apps, assemble the site, deploy the Worker
+#   ./deploy.sh prod           run the worker workflow for production, then open its links
 #   ./deploy.sh host           update the NixOS host: GROBID and its tunnel
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8787)
@@ -14,13 +14,12 @@
 #                  print the local signing/notarization values for GitHub
 #   ./deploy.sh macos release [patch|minor|major|VERSION]
 #                  bump, open a pull request that merges itself, then tag
-#   ./deploy.sh macos release resume
-#                  pick an interrupted release back up after the PR is open
 #
 # Production is the Cloudflare Worker in cloudflare/, at https://papol.io:
 # the API, the jobs, and the three built apps served as its static assets,
-# on D1, R2 and a Queue. `prod` is a `wrangler deploy` from a logged-in
-# wrangler. The one thing that is not on Cloudflare is GROBID, the reference
+# on D1, R2 and a Queue. Main deploys itself to dev.papol.io (the worker
+# workflow, .github/workflows/worker.yml); `prod` asks that workflow for
+# production, which tests, migrates D1 and deploys. The one thing that is not on Cloudflare is GROBID, the reference
 # analyzer, which runs as a container on a NixOS host and reaches the Worker
 # through a tunnel; `host` updates that machine. Development is wrangler's
 # local runtime on this machine, with a D1 and an R2 of its own under
@@ -32,7 +31,7 @@
 #
 # Two things about the files bucket are set once, by hand, not by a deploy:
 # a browser PUTs a paper's PDF to the bucket directly with a URL the Worker
-# signs (cloudflare/src/papers/uploads.ts), so the bucket needs the CORS
+# signs (cloudflare/src/files.ts), so the bucket needs the CORS
 # rules in cloudflare/r2-cors-public.json (the same file allows reads
 # from the bucket's domain),
 #   (cd cloudflare && npx wrangler r2 bucket cors set papol-files --file r2-cors-public.json)
@@ -66,7 +65,7 @@ confirm() {
 }
 
 usage() {
-  sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -310,12 +309,8 @@ macos_release() {
     "desktop/src-tauri/Cargo.lock"
   )
 
-  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, X.Y.Z, or resume"
+  [ $# -le 1 ] || die "macos release accepts one version: patch, minor, major, or X.Y.Z"
   command -v gh >/dev/null 2>&1 || die "gh is required to open the release pull request"
-  if [ "$requested" = resume ]; then
-    macos_release_resume
-    return
-  fi
   command -v node >/dev/null 2>&1 || die "node is required to prepare a macOS release"
   [ "$(git -C "$DEV_DIR" branch --show-current)" = main ] \
     || die "macos releases must be cut from the main branch"
@@ -341,7 +336,7 @@ macos_release() {
     major) version="$((BASH_REMATCH[1] + 1)).0.0" ;;
     *)
       [[ $requested =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-        || die "release version must be patch, minor, major, X.Y.Z, or resume"
+        || die "release version must be patch, minor, major, or X.Y.Z"
       version=$requested
       ;;
   esac
@@ -372,7 +367,7 @@ NODE
   fi
   if git -C "$DEV_DIR" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
     || git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/heads/$branch" >/dev/null 2>&1; then
-    die "branch $branch already exists; ./deploy.sh macos release resume picks up an unfinished release"
+    die "branch $branch already exists; an earlier release of $version is unfinished"
   fi
 
   node - "$version" "$desktop_package" "$desktop_lock" "$tauri_config" \
@@ -411,17 +406,10 @@ NODE
   (cd "$DEV_DIR" && gh pr merge --auto --merge "$pr" >/dev/null)
   git -C "$DEV_DIR" switch --quiet main
   say "Opened $pr"
-  macos_release_finish "$version" "$pr"
-}
 
-# The half of a release that happens after the pull request is up: wait
-# for it to merge, then tag the merge commit. Separate so an interrupted
-# wait can be picked back up with `release resume`.
-macos_release_finish() {
-  local version="$1" pr="$2" tag="macos-v$1" branch="release/macos-v$1"
+  # Wait for it to merge, then tag the merge commit.
   local state status sha failed
   note "Waiting for the checks; the pull request merges itself when they pass."
-  note "Ctrl-C is safe: ./deploy.sh macos release resume picks the wait back up."
   while :; do
     read -r state status sha failed < <(cd "$DEV_DIR" && gh pr view "$pr" \
       --json state,mergeStateStatus,mergeCommit,statusCheckRollup \
@@ -465,23 +453,6 @@ macos_release_finish() {
   # is built, notarized and published only if they pass.
   note "CI is now testing the tag; the release publishes only if the gate passes:"
   note "https://github.com/hflsmax/papol/actions/workflows/desktop-macos.yml"
-}
-
-# Pick up the newest release pull request that is neither closed nor tagged.
-macos_release_resume() {
-  local line pr branch version tag
-  line=$(cd "$DEV_DIR" && gh pr list --state all --limit 30 --json url,headRefName,state \
-    --jq '([.[] | select(.state != "CLOSED") | select(.headRefName | startswith("release/macos-v"))][0] // empty)
-          | "\(.url) \(.headRefName)"')
-  [ -n "$line" ] || die "no release pull request to resume"
-  read -r pr branch <<<"$line"
-  version="${branch#release/macos-v}"
-  tag="macos-v$version"
-  if git -C "$DEV_DIR" ls-remote --exit-code --refs origin "refs/tags/$tag" >/dev/null 2>&1; then
-    die "nothing to resume: $tag is already on origin"
-  fi
-  say "Resuming Papol macOS v$version from $pr"
-  macos_release_finish "$version" "$pr"
 }
 
 # A previous interrupted desktop-dev run can leave one of the Vite children
@@ -568,10 +539,7 @@ prepare_macos() {
     "require('$DEV_DIR/desktop/src-tauri/tauri.conf.json').bundle.macOS.minimumSystemVersion")
   export MACOSX_DEPLOYMENT_TARGET
 
-  if [ ! -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ] \
-     && ! cargo tauri --version >/dev/null 2>&1; then
-    install_node_tree "$DEV_DIR/desktop"
-  fi
+  install_node_tree "$DEV_DIR/desktop"
   install_node_tree "$DEV_DIR/frontend"
   install_node_tree "$DEV_DIR/viewer"
   install_node_tree "$DEV_DIR/board"
@@ -580,6 +548,7 @@ prepare_macos() {
 # The UI suites do not share outputs, and Rust's test/lint pipeline has its own
 # target directory. Run those four lanes together; keeping the Rust commands in
 # one lane avoids making two cargo processes contend for the same build lock.
+# The native lane is the same two scripts desktop-macos.yml runs.
 check_macos() {
   local logs failed=no failed_labels= index
   local -a pids labels
@@ -591,13 +560,8 @@ check_macos() {
   pids+=("$!"); labels+=(viewer)
   (cd "$DEV_DIR/board" && npm test) >"$logs/board" 2>&1 &
   pids+=("$!"); labels+=(board)
-  (
-    cd "$DEV_DIR/desktop"
-    cargo fmt --check --manifest-path src-tauri/Cargo.toml \
-      && cargo test --locked --manifest-path src-tauri/Cargo.toml \
-      && cargo clippy --locked --manifest-path src-tauri/Cargo.toml \
-        --all-targets --all-features -- -D warnings
-  ) >"$logs/native" 2>&1 &
+  (cd "$DEV_DIR/desktop" && npm run test:native && npm run check:native) \
+    >"$logs/native" 2>&1 &
   pids+=("$!"); labels+=(native)
 
   for index in "${!pids[@]}"; do
@@ -708,12 +672,7 @@ macos_dev() {
   note "frontend, viewer, and board use Vite live reload"
   note "Rust changes rebuild and relaunch the native app"
   note "Ctrl-C stops the app and all three Vite servers"
-  if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
-    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
-  else
-    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" \
-      cargo tauri dev --config src-tauri/tauri.dev.conf.json)
-  fi
+  (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run dev)
 }
 
 install_macos_app() {
@@ -855,17 +814,11 @@ macos_prod() {
   if [ "$skip_notarize" = yes ] && [ "${APPLE_SIGNING_IDENTITY:-}" != - ]; then
     note "distribution: Developer ID signed; notarization skipped"
   fi
-  if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
-    (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
-      rm -f "$marker"
-      unmount_macos_build_images || true
-      die "the macOS application build failed"
-    }
-  elif ! (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" cargo tauri build "${args[@]}"); then
+  (cd "$DEV_DIR/desktop" && PAPOL_BACKEND_URL="$backend" npm run build -- "${args[@]}") || {
     rm -f "$marker"
     unmount_macos_build_images || true
     die "the macOS application build failed"
-  fi
+  }
   macos_timing_finish
 
   macos_timing_begin "Resolve build artifacts"
@@ -896,21 +849,13 @@ macos_prod() {
     say "Building Papol disk image"
     local -a bundle_args
     bundle_args=(--bundles app,dmg)
-    if [ -x "$DEV_DIR/desktop/node_modules/.bin/tauri" ]; then
-      (cd "$DEV_DIR/desktop" \
-        && APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
-          ./node_modules/.bin/tauri bundle "${bundle_args[@]}") || {
-        rm -f "$marker"
-        unmount_macos_build_images || true
-        die "the macOS disk image build failed"
-      }
-    elif ! (cd "$DEV_DIR/desktop" \
+    (cd "$DEV_DIR/desktop" \
       && APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
-        cargo tauri bundle "${bundle_args[@]}"); then
+        ./node_modules/.bin/tauri bundle "${bundle_args[@]}") || {
       rm -f "$marker"
       unmount_macos_build_images || true
       die "the macOS disk image build failed"
-    fi
+    }
     dmg=$(find "$bundle_root/dmg" -type f -name '*.dmg' -newer "$marker" -print | head -1)
     [ -n "$dmg" ] || die "the build completed but no new DMG was found"
     app_hash=$(macos_app_fingerprint "$app")
@@ -950,7 +895,7 @@ macos_prod() {
 run_macos() {
   case "${1:-}" in
     dev) shift; macos_dev "$@" ;;
-    prod|build) shift; macos_prod "$@" ;;
+    prod) shift; macos_prod "$@" ;;
     credentials) shift; macos_credentials "$@" ;;
     release) shift; macos_release "$@" ;;
     ""|-h|--help)
@@ -959,9 +904,9 @@ Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--no-check] [--skip-notarize]
   ./deploy.sh macos credentials
-  ./deploy.sh macos release [patch|minor|major|VERSION|resume]
+  ./deploy.sh macos release [patch|minor|major|VERSION]
 
-`prod` and its `build` alias create an application bundle and DMG, install the
+`prod` creates an application bundle and DMG, install the
 app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 .env.macos-notarization file supplies Developer ID and notarization credentials.
 Tagged GitHub releases also sign and notarize. Add --skip-notarize to retain
@@ -974,10 +919,10 @@ values in the local credential file for copying to GitHub.
 major, or explicit stable version), commits only its version files on a branch,
 opens a pull request that merges itself once the checks pass, waits for that,
 and pushes the matching `macos-v*` tag at the merge commit to trigger the
-GitHub release build. `resume` picks the wait back up after an interruption.
+GitHub release build.
 MSG
       ;;
-    *) die "unknown macos target: $1 (try dev, prod, build, credentials, or release)" ;;
+    *) die "unknown macos target: $1 (try dev, prod, credentials, or release)" ;;
   esac
 }
 
@@ -1070,37 +1015,36 @@ run_dev() {
 
 # --- production -------------------------------------------------------------
 
-# The Worker, from this checkout as it stands. wrangler is assumed to be
-# logged in (`npx wrangler login` in cloudflare/); the site is assembled
-# from fresh builds of the three apps and goes up with the code as the
-# Worker's static assets, so one deploy is the whole application.
+# Production is the worker workflow's to deploy, from origin/main: it runs
+# the Worker's suite, applies D1's migrations, deploys, and smoke-tests
+# production read-only. This asks for that run, follows it, and then opens
+# production's links, which the workflow does not.
 deploy_prod() {
+  local started run
   [ $# -eq 0 ] || die "prod takes no options"
+  command -v gh >/dev/null 2>&1 || die "gh is required to run the production deploy"
 
-  say "Deploying to https://papol.io"
-  note "$(git -C "$DEV_DIR" log -1 --oneline)"
-  [ -z "$(git -C "$DEV_DIR" status --porcelain)" ] \
-    || note "note: the working tree has uncommitted changes — they go up too"
-  # Deploying something no remote has is allowed — it is a solo project —
-  # but it should be said out loud, because production is then the only
-  # copy of those commits.
-  if git -C "$DEV_DIR" rev-parse --verify -q origin/main >/dev/null \
-     && ! git -C "$DEV_DIR" merge-base --is-ancestor HEAD origin/main; then
-    note "note: HEAD is not on origin/main — these commits are not pushed anywhere"
-  fi
-  confirm "Deploy this revision to production"
+  git -C "$DEV_DIR" fetch --quiet origin main
+  say "Deploying origin/main to https://papol.io"
+  note "$(git -C "$DEV_DIR" log -1 --oneline origin/main)"
+  git -C "$DEV_DIR" merge-base --is-ancestor HEAD origin/main \
+    || note "note: HEAD has commits origin/main does not; they are not deployed"
+  confirm "Deploy origin/main to production"
 
-  install_trees
-  say "Building the site"
-  with_tools bash "$DEV_DIR/cloudflare/scripts/assemble.sh"
-
-  # The build that was just laid out, opened in a browser: a passing suite
-  # is not a working link, and this is the last look before it goes up.
-  say "Browser smoke test"
-  (cd "$DEV_DIR/frontend" && with_tools npm run smoke:browser)
-
-  say "Deploying the Worker"
-  wrangler deploy
+  started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  (cd "$DEV_DIR" && gh workflow run worker.yml --ref main -f environment=production)
+  # gh does not say which run it started; the newest dispatch since is it.
+  for _ in $(seq 30); do
+    run=$(cd "$DEV_DIR" && gh run list --workflow worker.yml --event workflow_dispatch \
+      --limit 5 --json databaseId,createdAt \
+      --jq "[.[] | select(.createdAt >= \"$started\")][0].databaseId // empty")
+    [ -n "$run" ] && break
+    sleep 2
+  done
+  [ -n "$run" ] || die "the production run did not appear; look in the Actions tab"
+  (cd "$DEV_DIR" && gh run watch "$run" --exit-status --interval 15 >/dev/null) \
+    || die "the production deploy failed: gh run view $run --log-failed"
+  say "Deployed"
 
   link_check
 }
