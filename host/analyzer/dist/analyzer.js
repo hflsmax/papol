@@ -41316,7 +41316,7 @@ function findFloats(layout2, trace) {
         match = CAPTION_STYLED.pattern.exec(line.text);
       }
       if (!match?.groups) continue;
-      const above = page.lines.find((o2) => !o2.furniture && o2 !== line && sameSize(o2.size, line.size) && Math.abs(o2.x0 - line.x0) <= line.size && line.baseline - o2.baseline > 0.5 * line.size && line.baseline - o2.baseline <= 1.6 * line.size && o2.x1 - o2.x0 >= 0.5 * (line.x1 - line.x0));
+      const above = page.lines.find((o2) => !o2.furniture && o2 !== line && sameSize(o2.size, line.size) && o2.x0 >= line.x0 - line.size && o2.x0 <= line.x0 + 2.5 * line.size && line.baseline - o2.baseline > 0.5 * line.size && line.baseline - o2.baseline <= 1.6 * line.size && o2.x1 - o2.x0 >= 0.5 * (line.x1 - line.x0));
       if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern.test(above.text)) {
         trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
         continue;
@@ -41524,6 +41524,7 @@ ${number.toLowerCase()}`;
 var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
 function findSections(layout2, skip, floats, trace) {
   const sections = /* @__PURE__ */ new Map();
+  const type = typeOf(layout2);
   const within = [...floats];
   const inFloat = (line, page) => within.some((f2) => f2.page === page.number && line.x0 / page.width >= f2.x - 1e-3 && line.x1 / page.width <= f2.x + f2.w + 1e-3 && line.top / page.height >= f2.y - 1e-3 && line.bottom / page.height <= f2.y + f2.h + 1e-3);
   for (const page of layout2.pages) {
@@ -41536,7 +41537,10 @@ function findSections(layout2, skip, floats, trace) {
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf3(number))) continue;
-      const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
+      const middle = (line.x0 + line.x1) / 2;
+      const column = page.twoColumn && type.columns.length > 1 && type.columns.find((c2) => middle >= c2.x0 && middle <= c2.x1) || type.text;
+      const x0 = Math.min(column.x0, line.x0), x1 = Math.max(column.x1, line.x1);
+      const box = { page: page.number, x: x0 / page.width, y: line.top / page.height, w: (x1 - x0) / page.width, h: (line.bottom - line.top) / page.height };
       sections.set(keyOf3(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
       trace.add(SECTION_HEADING.id, page.number, line.text.slice(0, 80), [box]);
     }

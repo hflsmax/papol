@@ -517,7 +517,8 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       // indicated in / Table 1.1. Before embarking…") is not a caption: the
       // line above it, a leading up at its edge and its size, runs on into
       // it without ending a sentence (caption.not-wrapped).
-      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && Math.abs(o.x0 - line.x0) <= line.size
+      // (At its edge, or indented as a paragraph's first line is.)
+      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && o.x0 >= line.x0 - line.size && o.x0 <= line.x0 + 2.5 * line.size
         && line.baseline - o.baseline > 0.5 * line.size && line.baseline - o.baseline <= 1.6 * line.size && o.x1 - o.x0 >= 0.5 * (line.x1 - line.x0));
       if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern!.test(above.text)) {
         trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
