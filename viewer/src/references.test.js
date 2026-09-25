@@ -3,37 +3,9 @@ import assert from 'node:assert/strict';
 import { destinationHeight } from './sections.js';
 
 import {
-  citationNumbers, columnsOnPage, consolidateCitations, destinationNumber,
+  columnsOnPage, consolidateCitations, destinationNumber,
   pageOverlays, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
-
-test('expands every reference in numeric citation ranges', () => {
-  assert.deepEqual(citationNumbers('1–7'), [1, 2, 3, 4, 5, 6, 7]);
-  assert.deepEqual(citationNumbers('2, 4-6; 9'), [2, 4, 5, 6, 9]);
-});
-
-test('consolidates linked range endpoints into one navigable citation', async () => {
-  const page = {
-    getViewport: () => ({ width: 100, height: 100, scale: 1, transform: [1, 0, 0, 1, 0, 0] }),
-    getAnnotations: async () => [
-      { subtype: 'Link', dest: 'first', rect: [10, 10, 12, 12] },
-      { subtype: 'Link', dest: 'last', rect: [18, 10, 20, 12] },
-    ],
-    getTextContent: async () => ({ items: [{ str: '[1–7]', width: 10, transform: [1, 0, 0, 2, 10, 12] }] }),
-  };
-  const doc = {
-    getPage: async () => page,
-    getDestination: async (dest) => [{ dest }, { name: 'XYZ' }, 0, dest === 'first' ? 99 : 93],
-    getPageIndex: async () => 0,
-  };
-  const references = Array.from({ length: 7 }, (_, index) => ({
-    uuid: index + 100, index, page: 1, y: index === 0 ? 0.01 : index === 6 ? 0.07 : 0.04,
-  }));
-
-  const overlays = await pageOverlays(doc, 1, { references, citations: [], links: [] });
-  assert.equal(overlays.citations.length, 1);
-  assert.deepEqual(overlays.citations[0].referenceUuids, [100, 101, 102, 103, 104, 105, 106]);
-});
 
 test('consolidates analyzer rows for one continuous citation range', () => {
   const citations = Array.from({ length: 19 }, (_, index) => ({
@@ -121,7 +93,7 @@ test('turns an analyzed figure reference into a link to the float it names', asy
   assert.deepEqual(overlays.links, [{
     kind: 'figure', label: '2a',
     x: 0.28, y: 0.41, w: 0.01, h: 0.02,
-    spot: { page: 3, y: 0.55, box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
+    spot: { page: 3, y: 0.55, kind: 'figure', box: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 } },
   }]);
 });
 

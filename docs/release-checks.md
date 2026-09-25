@@ -83,18 +83,20 @@ board's opens a canvas and requires its cards drawn. They run hermetically —
 each smoke serves its own API from the declared shapes — so they pass or
 fail the same on a laptop and on a runner.
 
-The gate is CI's, and only CI's. `./deploy.sh macos release` bumps the
-version and pushes the tag; it checks nothing, because a gate a script can
-skip on the machine that wants to ship is not a gate. What stands behind it:
+The gate is CI's, and only CI's. `./deploy.sh macos release` only asks the
+Papol macOS workflow for a release and follows it; it checks nothing, because
+a gate a script can skip on the machine that wants to ship is not a gate.
+What stands behind it:
 
 - **every pull request and every push to main** runs all of it twice: on
   ubuntu (`pr.yml`, which also carries the backend suite and the share
   end-to-end drive) and on the macOS runner (`desktop-macos.yml`'s test
   job), so a commit that would fail the release gate is known the moment
   it exists, on the machine family the app ships to;
-- **the tag** runs the macOS gate once more, and the DMG is built,
-  notarized and published only if it passes. A failed gate leaves a tag
-  and no release — nothing shipped; fix main and cut the next version.
+- **the release run** runs the macOS gate once more on the commit it
+  releases, and the DMG is built, notarized, tagged and published only if
+  it passes. A failed gate leaves no tag and no release — nothing shipped;
+  fix main and run the release again.
 
 `./deploy.sh macos prod` additionally smoke-tests the web payload Tauri
 actually bundled (`PAPOL_SMOKE_DIST=desktop/dist`), which is the closest a
