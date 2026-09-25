@@ -224,9 +224,15 @@ export const SECTION_HEADING = rule({
   id: "section.heading", stage: "section",
   summary: "A line that begins with a section number (\"2\", \"2.1\", \"2.1.3\", \"A.1\") and a capitalised title (a word, not a unit's letter; or \"3D …\"), mostly bold or larger than the text (by more than the half point its size is measured to), not inside a float, and not a contents entry (a title ending in its page number), heads that section; the first such line for a number is the section's.",
   why: "Numbered headings are where \"Section 2.1\" sends a reader, and the number is the one thing heading and mention share.",
-  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|\d[A-Za-z])[^]*)$/,
-  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material"],
-  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke"],
+  // The title opens with a capitalised word; or the article "A" and a
+  // capitalised word ("2 A TOUR OF…"), or a lower-case one after a number
+  // closed by a point ("6.2. A program inverter") — not a unit's "A"
+  // ("5 A current"), nor a run of letters ("2 A B C"); or a Greek letter
+  // naming the paper's calculus ("4.1 λQC Kinding"), not a relation.
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
+  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material",
+    "2 A TOUR OF TWO-LEVEL TYPE THEORY", "6.2. A program inverter for a reversible language", "4.1 λQC Kinding System"],
+  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 α = 0.5"],
 });
 export const MENTION_SECTION = rule({
   id: "mention.section", stage: "mention",

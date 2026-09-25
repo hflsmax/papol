@@ -31,7 +31,8 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
   for (const page of layout.pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(line)) continue;
-      const match = SECTION_HEADING.pattern!.exec(line.text);
+      // Normalised, so a mathematical italic "𝜆" reads as the letter "λ".
+      const match = SECTION_HEADING.pattern!.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
       // Mostly bold — the title too, not only a list item's number — or
       // larger than the text by more than the half point the text's size is

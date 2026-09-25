@@ -40087,9 +40087,25 @@ var SECTION_HEADING = rule({
   stage: "section",
   summary: `A line that begins with a section number ("2", "2.1", "2.1.3", "A.1") and a capitalised title (a word, not a unit's letter; or "3D \u2026"), mostly bold or larger than the text (by more than the half point its size is measured to), not inside a float, and not a contents entry (a title ending in its page number), heads that section; the first such line for a number is the section's.`,
   why: 'Numbered headings are where "Section 2.1" sends a reader, and the number is the one thing heading and mention share.',
-  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|\d[A-Za-z])[^]*)$/,
-  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material"],
-  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke"]
+  // The title opens with a capitalised word; or the article "A" and a
+  // capitalised word ("2 A TOUR OF…"), or a lower-case one after a number
+  // closed by a point ("6.2. A program inverter") — not a unit's "A"
+  // ("5 A current"), nor a run of letters ("2 A B C"); or a Greek letter
+  // naming the paper's calculus ("4.1 λQC Kinding"), not a relation.
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
+  matches: [
+    "2.1 Novel Methods",
+    "2 RELATED WORK",
+    "3 X-BRIDGES METHOD",
+    "2.3 3D Printing Manipulation with FDM",
+    "3.2. Results",
+    "A.1 Proof of Lemma 3",
+    "4.3.1 Loose. Using the same material",
+    "2 A TOUR OF TWO-LEVEL TYPE THEORY",
+    "6.2. A program inverter for a reversible language",
+    "4.1 \u03BBQC Kinding System"
+  ],
+  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 \u03B1 = 0.5"]
 });
 var MENTION_SECTION = rule({
   id: "mention.section",
@@ -41530,7 +41546,7 @@ function findSections(layout2, skip, floats, trace) {
   for (const page of layout2.pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(line)) continue;
-      const match = SECTION_HEADING.pattern.exec(line.text);
+      const match = SECTION_HEADING.pattern.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
       const letters2 = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
       const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
@@ -41670,7 +41686,7 @@ async function interopDefault(m2) {
 
 // src/rules/pdf.ts
 var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
-var BOLD_SUFFIX = /[a-z]T?B$|Bd$|-Bd/;
+var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
 var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
 var ITALIC = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
 var multiply = (m2, n2) => [
