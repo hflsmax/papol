@@ -20,12 +20,12 @@ const PICTURE = new RegExp(String.raw`!\[${LABEL}\]\(([^)\s]+)\)`, "g");
 const LINK = new RegExp(String.raw`\[${LABEL}\]\(([^)\s]+)\)`, "g");
 const ONLY_PICTURE = new RegExp(String.raw`^!\[${LABEL}\]\(([^)\s]+)\)$`);
 
-// Plain, as an email a person writes: the mail app's own sans-serif at its
+// Plain, as an email a person writes: Arial at the mail app's
 // usual size, no background or card, headings only bold, links the usual
 // blue, pictures unframed. Just enough to hold a column and a picture.
 const STYLE = {
   body: "margin:0;padding:16px;",
-  sheet: "max-width:640px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;"
+  sheet: "max-width:640px;font-family:Arial,Helvetica,sans-serif;"
     + "font-size:15px;line-height:1.5;color:#222222;",
   h1: "margin:0 0 12px;font-size:20px;line-height:1.3;font-weight:bold;",
   h2: "margin:24px 0 6px;font-size:16px;line-height:1.35;font-weight:bold;",
