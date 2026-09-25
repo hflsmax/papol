@@ -85,6 +85,13 @@ The letter is a directory in `newsletters/` (its README has the layout),
   beside the paragraph it shows.
 - `img/`: the pictures, scaled to about 1,300–1,600 px wide.
 
+Before the pull request, have a subagent critique the draft as a
+demanding copy editor. Give it these rules and the verified facts, and ask
+it for each vague referent (an "elsewhere" that names nothing), abstract
+verb, piece of filler or marketing, and benefit buried past the first
+sentence. Then revise. Check version numbers against `gh release list`, not
+memory.
+
 Add a row to the README's table. Then open a pull request with the
 directory: the owner reviews the letter there, where GitHub renders
 `letter.md`. Whether and where the letter is published, and when it is
