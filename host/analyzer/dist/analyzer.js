@@ -41651,9 +41651,10 @@ function findSections(layout2, skip, floats, trace) {
   const pageOf = (n2) => sections.get(keyOf3(n2)).page;
   const style = (r2) => r2.bold ? "bold" : r2.italic ? "italic" : "roman";
   const styledShare = (l2) => letters2(l2.runs.filter((r2) => r2.bold || r2.italic)) / Math.max(1, letters2(l2.runs));
+  const LEAD = new RegExp("^(?<number>(?:\\d{1,2}|[A-Z](?=\\.\\d))(?:\\.\\d{1,2}){0,3})\\.?\\s+(?<title>\\p{L}.*)$", "u");
   layout2.pages.forEach((page, p2) => {
     for (const line of candidates[p2]) {
-      const match = SECTION_HEADING.pattern.exec(line.text.normalize("NFKC"));
+      const match = LEAD.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
       const number = match.groups.number;
       const parts = number.split(".");
@@ -41788,11 +41789,15 @@ function numbersIn2(list) {
   let previous = null;
   let match;
   while (match = re2.exec(list)) {
-    const number = match[0];
+    let number = match[0];
     const start = match.index, end = start + number.length;
     const between = previous ? list.slice(previous.end, start) : "";
-    if (previous && /^\s*(?:[-–—]|to)\s*$/.test(between) && /^\d+$/.test(previous.number) && /^\d+$/.test(number)) {
-      for (let n2 = Number(previous.number) + 1; n2 < Number(number); n2 += 1) out.push({ number: String(n2), start: previous.start, end });
+    const ranged = previous && /^\s*(?:[-–—]|to)\s*$/.test(between);
+    const prefix = ranged && /^\d+$/.test(number) ? /^(.*\.)\d+$/.exec(previous.number)?.[1] ?? "" : "";
+    if (ranged && /^\d+$/.test(number)) {
+      const from = Number(previous.number.slice(prefix.length));
+      if (Number.isInteger(from)) for (let n2 = from + 1; n2 < Number(number) && n2 - from <= 20; n2 += 1) out.push({ number: `${prefix}${n2}`, start: previous.start, end });
+      number = `${prefix}${number}`;
     }
     out.push({ number, start, end });
     previous = { number, start, end };
@@ -41811,7 +41816,7 @@ function findSectionMentions(flow, sections, layout2, trace) {
       continue;
     }
     const listStart = match.index + match[0].length - groups.list.length;
-    if (/^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
+    if (/^[A-Z]$|^[IVX]+$/.test(groups.list.trim()) && /^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
     numbersIn2(groups.list).forEach((item, index) => {
       const section2 = sections.get(keyOf3(item.number));
       if (!section2) return;
@@ -41912,7 +41917,8 @@ async function interopDefault(m2) {
 var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
 var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
 var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
-var ITALIC = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+var ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+var ITALIC = { test: (name) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
 var multiply = (m2, n2) => [
   m2[0] * n2[0] + m2[2] * n2[1],
   m2[1] * n2[0] + m2[3] * n2[1],

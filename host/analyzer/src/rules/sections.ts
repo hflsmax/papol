@@ -85,9 +85,12 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
   const pageOf = (n: string) => sections.get(keyOf(n))!.page;
   const style = (r: Line["runs"][number]) => (r.bold ? "bold" : r.italic ? "italic" : "roman");
   const styledShare = (l: Line) => letters(l.runs.filter((r) => r.bold || r.italic)) / Math.max(1, letters(l.runs));
+  // (Its title may open with any letter: "4.1.3 new and delete." names
+  // code. The styled lead and the known parent and predecessor guard it.)
+  const LEAD = /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>\p{L}.*)$/u;
   layout.pages.forEach((page, p) => {
     for (const line of candidates[p]) {
-      const match = SECTION_HEADING.pattern!.exec(line.text.normalize("NFKC"));
+      const match = LEAD.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
       const number = match.groups.number;
       const parts = number.split(".");
@@ -237,11 +240,16 @@ function numbersIn(list: string): { number: string; start: number; end: number }
   let previous: { number: string; start: number; end: number } | null = null;
   let match: RegExpExecArray | null;
   while ((match = re.exec(list))) {
-    const number = match[0];
+    let number = match[0];
     const start = match.index, end = start + number.length;
     const between = previous ? list.slice(previous.end, start) : "";
-    if (previous && /^\s*(?:[-–—]|to)\s*$/.test(between) && /^\d+$/.test(previous.number) && /^\d+$/.test(number)) {
-      for (let n = Number(previous.number) + 1; n < Number(number); n += 1) out.push({ number: String(n), start: previous.start, end });
+    const ranged = previous && /^\s*(?:[-–—]|to)\s*$/.test(between);
+    // "C.1-4" runs C.1 to C.4: the range's end takes its start's prefix.
+    const prefix = ranged && /^\d+$/.test(number) ? /^(.*\.)\d+$/.exec(previous!.number)?.[1] ?? "" : "";
+    if (ranged && /^\d+$/.test(number)) {
+      const from = Number(previous!.number.slice(prefix.length));
+      if (Number.isInteger(from)) for (let n = from + 1; n < Number(number) && n - from <= 20; n += 1) out.push({ number: `${prefix}${n}`, start: previous!.start, end });
+      number = `${prefix}${number}`;
     }
     out.push({ number, start, end });
     previous = { number, start, end };
@@ -264,8 +272,9 @@ export function findSectionMentions(flow: Flow, sections: Map<string, Found>, la
       continue;
     }
     const listStart = match.index + match[0].length - groups.list.length;
-    // "Section C: Theory of…" names a journal's section, not this paper's.
-    if (/^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
+    // "Section C: Theory of…" names a journal's section, not this paper's —
+    // a lone letter or numeral before a colon; "in Section 11.1.2:" is ours.
+    if (/^[A-Z]$|^[IVX]+$/.test(groups.list.trim()) && /^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
     numbersIn(groups.list).forEach((item, index) => {
       const section = sections.get(keyOf(item.number));
       if (!section) return;
