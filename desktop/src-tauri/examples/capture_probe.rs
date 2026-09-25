@@ -61,7 +61,10 @@ fn main() {
     // written the picture, said so, or set STATUS, so the probe exited 1
     // with nothing said. Only the task's own `exit` ends the probe.
     app.run_return(|_, event| {
-        if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+        if let tauri::RunEvent::ExitRequested {
+            code: None, api, ..
+        } = event
+        {
             api.prevent_exit();
         }
     });
