@@ -24,7 +24,8 @@ ideas, and the people that shape your thinking.
 Papol is a Cloudflare Worker (`cloudflare/`: the API and the jobs, on D1,
 R2 and a Queue) serving three Vite apps (`frontend/`, `viewer/`, `board/`)
 as its static assets, with a native macOS shell (`desktop/`) around the same
-pages. Every tool comes from `flake.nix`: `direnv allow`, or `nix develop`.
+pages. Every tool is listed in `mise.toml`: `mise install`, then `mise activate`
+in your shell (or `direnv allow`). Google Chrome is the browser the smokes drive.
 
 ```sh
 ./deploy.sh dev                       # the Worker on :8787, the apps live-reloading on :5173

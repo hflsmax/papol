@@ -11,14 +11,19 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 
-// CHROME names the binary. Unset, a Mac's Chrome where there is one, and
-// else the `chromium` the nix shell puts on PATH — which is what CI has,
-// so a smoke run from an app's `npm test` there needs no variable.
+// CHROME names the binary. Unset, the Chrome the machine already has: a
+// Mac's in /Applications, else the first on PATH — `google-chrome` is
+// what GitHub's Ubuntu runners carry, so a smoke run from an app's
+// `npm test` there needs no variable.
 const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const onPath = (name) => (process.env.PATH || '').split(delimiter)
+  .map((directory) => join(directory, name)).find((path) => existsSync(path));
 const CHROME = process.env.CHROME || process.env.CHROMIUM
-  || (existsSync(MAC_CHROME) ? MAC_CHROME : 'chromium');
+  || (existsSync(MAC_CHROME) ? MAC_CHROME : null)
+  || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].map(onPath).find(Boolean)
+  || 'google-chrome';
 
 // Where a failing run leaves what the page looked like (`capture`). CI
 // names a directory of its own and uploads it; locally it is the temp dir.
@@ -115,9 +120,11 @@ export class Browser {
     this.socket.send(JSON.stringify(payload));
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
+      // Unref'd: a command that answered must not hold the process open
+      // for the rest of the 30 s after the script is done.
       setTimeout(() => {
         if (this.pending.delete(id)) reject(new Error(`${method} timed out`));
-      }, 30_000);
+      }, 30_000).unref();
     });
   }
 

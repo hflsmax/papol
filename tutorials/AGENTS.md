@@ -10,8 +10,9 @@ requirements and definition of done as part of the task.
 
 ## Non-negotiable workflow
 
-- Use the repository `flake.nix` through `nix develop`. Do not use
-  `nix-shell`.
+- Use the tools `mise.toml` lists (`mise install`, then a shell with mise
+  activated), and `npm ci --prefix tutorials/runtime` for the recorders'
+  Puppeteer Core.
 - Keep each tutorial's narration, subtitles, voice-generation script,
   recording script, and final video together in its tutorial directory.
 - Make narration describe the visible actions in their exact order.
@@ -83,9 +84,9 @@ requirements and definition of done as part of the task.
 - A `padTo` helper is only a lower bound: it cannot recover time already spent
   on clicks, typing, waits, or cursor movement. Inspect actual frame numbers at
   every narration boundary after adding an interaction.
-- Enter `nix develop` before production and run repository-relative recorder
-  commands from the repository root. The flake provides the browser driver and
-  media tools; do not install recorder dependencies manually.
+- Run repository-relative recorder commands from the repository root, in a
+  shell with mise activated. mise.toml sets NODE_PATH to the recorders' runtime;
+  Google Chrome and FFmpeg come with the machine (`brew install ffmpeg`).
 - Use a natural voice and confirm the final narration is complete, audible, and
   not clipped at either end.
 - Leave audible and visual headroom after the closing phrase. Finishing speech

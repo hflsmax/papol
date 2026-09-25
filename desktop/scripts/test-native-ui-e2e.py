@@ -28,7 +28,7 @@ papol-ui.swift). The service is the Worker on a port of its own, the app is
 the real binary compiled against that port, and the replica is a fresh one
 under a throwaway HOME.
 
-    npm run test:e2e:native-ui          # from desktop/, inside `nix develop`
+    npm run test:e2e:native-ui          # from desktop/, with mise.toml's tools
 
 It needs Accessibility permission for whatever runs it. On a Mac that is
 System Settings → Privacy & Security → Accessibility for the terminal; on

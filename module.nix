@@ -128,7 +128,7 @@ in {
         type = lib.types.package;
         default = pkgs.nodejs_22;
         defaultText = lib.literalExpression "pkgs.nodejs_22";
-        description = "The Node that runs the bundle; the flake's shell builds it with the same major.";
+        description = "The Node that runs the bundle; mise.toml's Node builds it with the same major.";
       };
 
       fileOrigins = lib.mkOption {

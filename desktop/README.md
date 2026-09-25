@@ -211,10 +211,9 @@ the paper the service holds, and the replica underneath has to hold it too.
 It drives the window with `scripts/papol-ui.swift` (below) and needs
 Accessibility permission for whatever runs it. Both take wrangler from
 `cloudflare/node_modules` (`npm ci --legacy-peer-deps` there first) and
-Node from `nix develop`; the scripts themselves want nothing of Python's
+Node from mise (`mise.toml`); the scripts themselves want nothing of Python's
 but the standard library, so the Mac's own `python3` runs them.
-CI runs both on every pull request, in `desktop-macos.yml`'s end-to-end job,
-which grants the runner that permission itself.
+CI runs both on every pull request, in `desktop-macos.yml`'s two end-to-end jobs; the app's job grants the runner that permission itself.
 Dependabot checks the four npm lockfiles, the Rust lockfile, and GitHub Actions
 weekly so Tauri and its surrounding supply chain do not silently age in place.
 To use another backend in that bundle:
