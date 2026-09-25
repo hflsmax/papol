@@ -17,9 +17,9 @@ export default function AboutPage() {
           formerly Muse, which gives your thinking room to spread out.
         </p>
         <p>
-          In Papol, reading, notes and boards are one place, so an idea you find
-          in one paper can travel to the next. If something gets in your way, tell
-          me with the Feedback button on every page.
+          In Papol, all the tools share one ecosystem, so ideas flow between them
+          effortlessly. If something gets in your way, tell me with the Feedback
+          button on every page.
         </p>
       </article>
     </div>
