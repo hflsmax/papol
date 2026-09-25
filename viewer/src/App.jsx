@@ -11,6 +11,7 @@ import { flushSync } from 'react-dom';
 // sets on each one, so its stylesheet is part of the library, not decoration.
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import { documentWorker, pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
+import { downloadPdf } from './pdfDownload.js';
 import {
   pdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
@@ -986,6 +987,7 @@ export default function App() {
     let cancelled = false;
     let task = null;
     let syncingPdf = false;
+    const downloading = new AbortController();
     setPdfProgress(null);
     setPdfSyncing(false);
     markViewerPerformance('pdf-bytes-requested');
@@ -996,10 +998,20 @@ export default function App() {
         setPdfSyncing(true);
         setPdfProgress({ fraction: progress.fraction, loaded: progress.bytes || 0, total: 0 });
       },
-    }).then((input) => {
+    }).then(async (input) => {
       if (!cancelled) {
         if (syncingPdf) setPdfProgress((current) => ({ fraction: 1, loaded: current?.loaded || 0, total: 0 }));
         setPdfSyncing(false);
+      }
+      // A hosted PDF starts downloading now, not once pdf.js has loaded
+      // (pdfDownload.js), so the bar is up while pdf.js is still arriving.
+      if (input?.url && !input.data) {
+        input = {
+          data: await downloadPdf(input.url, {
+            signal: downloading.signal,
+            onProgress: (progress) => { if (!cancelled) setPdfProgress(progress); },
+          }),
+        };
       }
       markViewerPerformance('pdf-bytes-ready', {
         bytes: input?.data?.byteLength ?? null,
@@ -1087,6 +1099,7 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+      downloading.abort();
       task?.destroy();
     };
   }, [pdfPaper]);
