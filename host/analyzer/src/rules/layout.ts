@@ -197,6 +197,13 @@ function joinLabels(lines: Placed[][]): Placed[][] {
       if (j === i || gone.has(j)) return;
       const otherBase = median(other.map((r) => r.baseline));
       if (Math.abs(otherBase - base) > SAME_LINE * size) return;
+      // A label is set at its entry's size, or is a heading's number set
+      // large beside its bold title ("1  Problem Classification"). A number
+      // at another size beside plain text is something else — an
+      // equation's "(11)" at a column's right edge, level with a caption in
+      // the next column.
+      const resized = Math.abs(median(other.map((r) => r.size)) - size) > 0.1 * size;
+      if (resized && !other.filter((r) => /[A-Za-z]/.test(r.text)).every((r) => r.bold)) return;
       const gap = least(other.map((r) => r.x)) - x1;
       if (gap >= 0 && gap <= 6 * size && gap < bestGap) { best = j; bestGap = gap; }
     });
