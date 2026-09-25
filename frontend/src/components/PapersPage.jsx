@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { listLibraryBoards } from '../../../shared/api/boards.js';
 import { listPapers, paperHref } from '../../../shared/api/papers.js';
+import { listUsers } from '../../../shared/api/people.js';
 import ReaderPop from './ReaderPop';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
@@ -54,6 +55,7 @@ export default function PapersPage({
 }) {
   const [papers, setPapers] = useState(null);
   const [boards, setBoards] = useState(null);
+  const [people, setPeople] = useState([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
   const [selectedUser, setSelectedUser] = useState(null);
@@ -67,9 +69,17 @@ export default function PapersPage({
   const [folderRequest, setFolderRequest] = useState(null);
 
   const load = () => {
-    // Boards are secondary here: if that list fails, the papers still show.
-    Promise.all([listPapers(), listLibraryBoards().catch(() => [])])
-      .then(([nextPapers, nextBoards]) => { setPapers(nextPapers); setBoards(nextBoards); })
+    // Boards and people are secondary here: if either list fails, the
+    // papers still show. People are every user, not just those with
+    // something public, so a user with only private papers still has a chip.
+    Promise.all([
+      listPapers(),
+      listLibraryBoards().catch(() => []),
+      currentUser ? listUsers().catch(() => []) : [],
+    ])
+      .then(([nextPapers, nextBoards, nextPeople]) => {
+        setPapers(nextPapers); setBoards(nextBoards); setPeople(nextPeople);
+      })
       .catch((err) => setError(err.message));
   };
 
@@ -94,6 +104,7 @@ export default function PapersPage({
   const users = Array.from(
     new Map(
       [
+        ...people,
         ...papers.flatMap((paper) => paper.users || []).map((entry) => entry.user),
         ...boards.map((board) => board.owner).filter(Boolean),
       ].map((user) => [user.uuid, user])
