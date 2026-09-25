@@ -4,8 +4,9 @@ import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sh
 import { notesIn } from './annotationKinds.js';
 import { appPath } from './base.js';
 import { paperName } from '../../shared/paperName.js';
+import { addToNook as addPaperToNook } from '../../shared/api/papers.js';
 import {
-  getPaperByPdf, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
+  getPaperByPdf, getPaperLink, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
   getSharedReferences, getSharedReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   getToken,
@@ -15,11 +16,13 @@ import {
  * Where this document and its notes come from — decided once, from the URL,
  * so nothing below has to care which it is.
  *
- *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol
+ *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol;
+ *                          for anyone else, the PDF alone, as a lean link
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
- *   ?share=<uuid>          someone's reading of a PDF, handed over by link
+ *   ?share=<code>          someone's reading of a PDF, handed over by link
  *
- * A nook source exposes the annotation interfaces. A file source
+ * A nook source exposes the annotation interfaces, and knows the lean source
+ * to fall back to when the paper turns out not to be this user's. A file source
  * intentionally omits them; if its bytes already belong to a nook paper, the
  * viewer hands the window over to that canonical source. A shared source
  * declares itself read-only: its annotations are someone else's.
@@ -28,12 +31,16 @@ export function resolveSource() {
   const params = new URLSearchParams(window.location.search);
   const share = (params.get('share') || '').toLowerCase();
   // A link is the whole permission, so it is answered before anything else
-  // and without a hash: the sharable says which PDF it opens.
-  if (/^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
+  // and without a hash: the sharable says which PDF it opens. A short code,
+  // or the UUID a link was given before there were codes.
+  if (/^[0-9a-z]{12}$/.test(share) || /^[0-9a-f-]{36}$/.test(share)) return sharedSource(share);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
-  return apiSource(pdf);
+  // The digest is a lean link in itself: a visitor, or a user who does not
+  // keep this PDF, reads the paper alone. Only someone signed in can keep
+  // it, so only they are asked first.
+  return signedIn() ? apiSource(pdf) : paperLinkSource(pdf);
 }
 
 export function nookViewerHref(href = window.location.href) {
@@ -70,6 +77,9 @@ function apiSource(
     // reading these bytes before this source's paper metadata query returns.
     pdfHash,
     requiresSignIn: true,
+    // What this URL opens for someone who turns out not to keep the paper:
+    // the paper alone, as a lean link opens it, rather than a refusal.
+    leanFallback: () => paperLinkSource(pdfHash),
     async load() {
       const loaded = await paper();
       source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
@@ -93,17 +103,63 @@ function apiSource(
   return source;
 }
 
-// Someone else's reading, opened by link. Everything about it is settled by
-// one request: which PDF, whose annotations, and what they say. The interfaces it
-// exposes are the reading half of the ones a nook source exposes — list, and
-// no more — so the parts of the viewer that write have nothing to call.
 // Someone with an account here, however they proved it: a session on the
 // web, a signed-in account on the desktop. A link reads without either.
 export function signedIn() {
   return nativeDataActive() || Boolean(getToken());
 }
 
+// Someone else's reading, opened by link. Everything about it is settled by
+// one request: which PDF, whose annotations, and what they say. The interfaces it
+// exposes are the reading half of the ones a nook source exposes — list, and
+// no more — so the parts of the viewer that write have nothing to call.
 function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
+  return linkSource({
+    load,
+    // Whether this visitor already keeps the paper, so the bar can offer
+    // their own copy instead of a second one. Never asked of someone with
+    // no account: there is no nook to ask about, and the link reads either
+    // way.
+    async loadNookPaper() {
+      if (!signedIn()) return null;
+      try {
+        return await sharedInNook(shareUuid);
+      } catch {
+        // Not knowing is the same as not having it: the offer becomes "add",
+        // and adding says so plainly if the paper is already there.
+        return null;
+      }
+    },
+    addToNook: () => addSharedToNook(shareUuid),
+    // What the PDF cites belongs to the file, so a shared reading carries
+    // its bibliography — read through the link, which is the only
+    // permission whoever is holding it has.
+    references: {
+      list: (pdfHash, paperSha256) => getSharedReferences(shareUuid, pdfHash, paperSha256),
+      open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
+    },
+    info: (reading) => getViewerPaperInfo(reading.paper.sha256, shareUuid),
+  });
+}
+
+// The paper a viewer URL names by its digest, for someone who does not keep
+// it: what a lean link opens, because the digest is one. Nobody's reading,
+// so nothing is attributed; the references and the paper's card need no
+// link to be read, so the viewer's own lookups serve them.
+export function paperLinkSource(pdfHash, load = () => getPaperLink(pdfHash)) {
+  return linkSource({
+    load,
+    // Only a user who does not keep it gets here, or a visitor, who keeps
+    // nothing: there is no copy to offer, only the chance to make one.
+    loadNookPaper: async () => null,
+    addToNook: () => addPaperToNook(pdfHash),
+  });
+}
+
+// What every source opened by link has in common: one request settles the
+// PDF and whose annotations are on it, and the interfaces it exposes are the
+// reading half of a nook source's.
+function linkSource({ load, loadNookPaper, addToNook, references, info }) {
   let readingReady = null;
   const reading = () => {
     if (!readingReady) readingReady = load();
@@ -123,21 +179,8 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // reaching for one asks for the paper to be theirs first, which is the
     // honest price of writing on it.
     annotationsRequireNook: true,
-    // Whether this visitor already keeps the paper, so the bar can offer
-    // their own copy instead of a second one. Never asked of someone with
-    // no account: there is no nook to ask about, and the link reads either
-    // way.
-    async loadNookPaper() {
-      if (!signedIn()) return null;
-      try {
-        return await sharedInNook(shareUuid);
-      } catch {
-        // Not knowing is the same as not having it: the offer becomes "add",
-        // and adding says so plainly if the paper is already there.
-        return null;
-      }
-    },
-    addToNook: () => addSharedToNook(shareUuid),
+    loadNookPaper,
+    addToNook,
     // Their own copy of this PDF, once they have one. The link's own URL
     // would keep showing them the sharer's reading; what they asked for
     // was the paper as theirs, which is the ordinary nook viewer.
@@ -167,17 +210,8 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
           : shared.annotations;
       },
     },
-    // What the PDF cites belongs to the file, so a shared reading carries
-    // its bibliography — read through the link, which is the only
-    // permission whoever is holding it has.
-    references: {
-      list: (pdfHash, paperSha256) => getSharedReferences(shareUuid, pdfHash, paperSha256),
-      open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
-    },
-    async info() {
-      const shared = await reading();
-      return getViewerPaperInfo(shared.paper.sha256, shareUuid);
-    },
+    references,
+    info: info ? async () => info(await reading()) : undefined,
   };
 }
 

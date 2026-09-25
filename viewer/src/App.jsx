@@ -390,7 +390,9 @@ function savedReadingView() {
 }
 
 export default function App() {
-  const source = useMemo(resolveSource, []);
+  // Decided from the URL once, and changed at most once more: a paper URL
+  // for someone who turns out not to keep the paper opens it as a lean link.
+  const [source, setSource] = useState(resolveSource);
   // Someone else's reading, opened by link. Everything on these pages was
   // put there by them: it can be read, followed and searched, and nothing
   // in the viewer may change it.
@@ -902,11 +904,15 @@ export default function App() {
       return undefined;
     }
     if (source.requiresSignIn && !getToken() && !nativeDataActive()) {
-      setError('Sign in to see this paper.');
+      if (source.leanFallback) setSource(source.leanFallback());
+      else setError('Sign in to see this paper.');
       return undefined;
     }
     const loaded = source.load();
     const loadedNotes = source.loadNotes?.();
+    // Not this user's paper, or not a user at all: the URL still names the
+    // PDF, which anyone may read.
+    const notKept = (e) => source.leanFallback && (e?.status === 401 || e?.status === 403);
     loaded
       .then(({ doc: paperDoc, notes: loaded }) => {
         if (cancelled) return;
@@ -914,13 +920,17 @@ export default function App() {
         setNotes(loaded);
         markViewerPerformance('paper-loaded');
       })
-      .catch((e) => { if (!cancelled) setError(e.message); });
+      .catch((e) => {
+        if (cancelled) return;
+        if (notKept(e)) setSource(source.leanFallback());
+        else setError(e.message);
+      });
     if (loadedNotes) {
       Promise.all([loaded, loadedNotes])
         .then(([, found]) => {
           if (!cancelled) setNotes(found);
         })
-        .catch((e) => { if (!cancelled) setError(e.message); });
+        .catch((e) => { if (!cancelled && !notKept(e)) setError(e.message); });
     }
     // Do not delay an opened file while checking its exact-hash nook
     // membership. If it is already there, replace the ephemeral URL with the

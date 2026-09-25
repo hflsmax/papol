@@ -85,6 +85,12 @@ export async function getPaperNotes(paper) {
 
 // A share uuid stands in for a session: the same public metadata, asked for
 // by someone who is holding a link rather than signed in.
+// The paper alone, for someone who does not keep it: the digest in the URL
+// is a lean link, and this reads it as one. No credential is needed.
+export function getPaperLink(hash) {
+  return request(`/viewer/${hash}/lean`);
+}
+
 export function getViewerPaperInfo(hash, share) {
   return request(`/viewer/${hash}/info${share ? `?share=${share}` : ''}`);
 }

@@ -43,9 +43,21 @@ const mutatedTables = () => native.argsOf('data_mutate').flatMap(({ changes }) =
 
 test('a nook source exposes the content hash before its paper query resolves', () => {
   location.search = `?pdf=${HASH}`;
+  native.storage.set('papol.localAccountUuid', ACCOUNT);
+  try {
+    const source = resolveSource();
+    assert.equal(source.pdfHash, HASH);
+    assert.equal(source.openedFile, undefined);
+  } finally {
+    native.storage.delete('papol.localAccountUuid');
+  }
+});
+
+test('signed out, a paper\u2019s address is a lean link and reads nothing local', () => {
+  location.search = `?pdf=${HASH}`;
   const source = resolveSource();
-  assert.equal(source.pdfHash, HASH);
-  assert.equal(source.openedFile, undefined);
+  assert.equal(source.pdfHash, undefined);
+  assert.equal(source.readOnly, true);
 });
 
 test('the nook handoff keeps navigation context and removes file-only identity', () => {
