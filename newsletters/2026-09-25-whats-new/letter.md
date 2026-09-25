@@ -45,9 +45,7 @@ find. Choose a shelf and tags, and the whole review is in your library.
 ## 4. Tiny links
 
 A share link now fits in any message: `papol.io/s/KedS24Oq7W`. The person
-you send it to sees your annotations, labelled as yours. Links made before
-September 25 no longer work; open the paper, choose **Share**, and send the
-new link.
+you send it to sees your annotations, labelled as yours.
 
 ## 5. Papol on your Mac
 
@@ -68,5 +66,4 @@ can see it.
 Something not right? The **Feedback** button on every page reaches us
 directly.
 
-Happy reading,\
 The Papol team
