@@ -234,13 +234,48 @@ export const SECTION_HEADING = rule({
     "2 A TOUR OF TWO-LEVEL TYPE THEORY", "6.2. A program inverter for a reversible language", "4.1 λQC Kinding System"],
   rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 α = 0.5"],
 });
+export const SECTION_SPLIT_NUMBER = rule({
+  id: "section.split-number", stage: "section",
+  summary: "A line that is only a section number is read, as a candidate heading, with the one line level with it on its right — the same size, within four ems, and nothing else on the row.",
+  why: "Books set a heading's number in a tab of its own (\"19.1\" | \"TRISECTION\"), which the layout rightly reads as two lines; neither alone is a heading (Geometric Folding Algorithms: 181 headings).",
+});
+export const SECTION_NOT_RUNNING_HEAD = rule({
+  id: "section.not-running-head", stage: "section",
+  summary: "A candidate heading in the page's top margin, level with a folio, is the running head naming the section the page is in, not a heading.",
+  why: "A right-hand running head names a section too short to recur on three pages, so it is not furniture; taken for the heading, it also took the number from the real one on an earlier page.",
+});
+export const SECTION_HEADING_LEAD = rule({
+  id: "section.heading-styled-lead", stage: "section",
+  summary: "After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic — the whole line (ending within the next two lines), or up to a \".\" or \":\" with the paragraph running on — and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.",
+  why: "Elsevier and ASME set subsections in italic at the text's size (\"2.1. Metamaterials and auxetic materials\"), and run-in headings (\"1.2 Case Study Overview. The …\") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers).",
+});
+export const SECTION_HEADING_STYLE = rule({
+  id: "section.heading-style", stage: "section",
+  summary: "After the other passes, a numbered line — any letter opening its title — heads its section when its number is set in the font and size of at least two headings already found at its depth and continues their numbering; an appendix's lone letter takes the top level's style, comes after the last numbered top-level heading, and runs A, B, C. Inside a float's box only when it fills a gap on both sides of the numbering (or, for a letter, when the box begins at it).",
+  why: "A lower-case title (\"9 user study\"), an appendix letter (\"A Printing Settings…\"), and a heading a figure's band grew over fail the first pass; the paper's own heading style and numbering admit them without admitting list items or panel labels.",
+});
+export const SECTION_ROMAN = rule({
+  id: "section.roman", stage: "section",
+  summary: "A bold or larger line \"I. INTRODUCTION\", \"II. …\" heads a section when such lines run I, II, III … in reading order, three or more, none level with another.",
+  why: "APS and IEEE papers number sections in Roman numerals, which section.heading does not read (20f979c959 had none).",
+});
+export const SECTION_SCANNED = rule({
+  id: "section.scanned", stage: "section",
+  summary: "On a scanned page, a numbered title in capitals alone on its row and narrower than the measure is a heading, in place of the bold-or-larger test.",
+  why: "A scan's text layer has no bold and sizes that wander by half a point; the small-caps headings failed, and two run-in list items measured large were taken instead (Lamport, Shostak and Pease).",
+});
+export const MENTION_CITED = rule({
+  id: "mention.cited", stage: "mention",
+  summary: "A mention of a section, figure or table is no link when it points into a cited work: inside a citation's bracket after the citation and a comma (\"[Annenkov et al. 2019, Section 2.3]\", \"[16, Fig. 1]\", \"Lang (2003, Sec. 9.11)\"), or followed by \"of\"/\"in\" and a citation or the supplementary material (\"Figure 2 of Connelly et al. 2003\").",
+  why: "The mention rules read the word and the number alone, and linked the cited paper's Section 2.3 to this paper's own (38 locators and ~29 figure credits across the corpus).",
+});
 export const MENTION_SECTION = rule({
   id: "mention.section", stage: "mention",
-  summary: "\"Section\", \"Sec.\", \"Sect.\" or \"§\" followed by one or more section numbers (\"Section 2.1\", \"Sections 3 and 4\", \"§§2–4\") mentions each of them.",
+  summary: "\"Section\", \"Sec.\", \"Sect.\", \"§\" or \"Appendix\" followed by one or more section numbers — Arabic, Roman (\"Section II\") or an appendix letter (\"Appendix A.1\") (\"Section 2.1\", \"Sections 3 and 4\", \"§§2–4\") mentions each of them.",
   why: "Papers point the reader to their own sections as often as to their figures; the mention becomes a link to the heading.",
-  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.)|§§?)\s*(?<list>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})*)/,
-  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see §3.1", "Section A.2"],
-  rejects: ["this section", "Section", "the sections below"],
+  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.|Appendix|Appendices|APPENDIX|App\.)|§§?)\s*(?<list>(?:\d{1,2}|[IVX]{1,5}(?![A-Za-z\d])|[A-Z](?![A-Za-z]))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[IVX]{1,5}(?![A-Za-z\d])|[A-Z](?![A-Za-z]))(?:\.\d{1,2}){0,3})*)/,
+  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see §3.1", "Section A.2", "Section II presents", "Sec. VII", "Appendix A", "Appendix B.7"],
+  rejects: ["this section", "Section", "the sections below", "Section In", "the appendix"],
 });
 
 // --------------------------------------------------------------- footnotes

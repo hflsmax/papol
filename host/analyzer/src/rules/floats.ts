@@ -3,9 +3,10 @@
 
 import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
+import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_CITED, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -685,6 +686,12 @@ export function findMentions(flow: Flow, floats: Map<string, Found>, layout: Lay
   let match: RegExpExecArray | null;
   while ((match = re.exec(flow.text))) {
     const groups = match.groups!;
+    // A mention inside a citation, or of a cited work's part, is the cited
+    // paper's, not this one's (mention.cited-locator, mention.cited-of).
+    if (citedAway(flow.text, match.index, match.index + match[0].length)) {
+      trace.add(MENTION_CITED.id, 0, match[0], []);
+      continue;
+    }
     const kind = kindOf(groups.kind);
     const listStart = match.index + match[0].length - groups.list.length;
     // A caption's own label is not a pointer to itself.
