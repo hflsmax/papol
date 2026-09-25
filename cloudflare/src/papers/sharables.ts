@@ -36,9 +36,8 @@ export const RICH = "rich";
 export const LEAN = "lean";
 
 export interface Sharable extends Row {
-  // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET since
-  // short links, a UUID before them. Old links keep working under their
-  // UUIDs, so the column and the wire keep the name.
+  // The link's code: SHARE_CODE_LENGTH characters of CODE_ALPHABET. The
+  // column and the wire keep the name they had when it held a UUID.
   uuid: string;
   kind: string;
   user_uuid: string | null;
@@ -95,22 +94,28 @@ function livePaperLink(db: D1Database, paperSha256: string): Promise<Sharable | 
 
 // A code is the whole of the permission to a reading, so it is drawn at
 // random rather than counted out: a counter would let anyone walk every
-// link there is. Sixty bits keep guessing one hopeless even with a
-// great many links out, and the alphabet is lower case and leaves out i,
-// l, o and u, so a code survives being read aloud, retyped, or lowercased
-// by whatever carries it. Thirty-two letters, so five random bits pick one
-// with no bias.
-export const CODE_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
-export const SHARE_CODE_LENGTH = 12;
+// link there is. Ten characters of digits and both cases are sixty bits,
+// which keeps guessing one hopeless even with a great many links out. Case
+// matters, so nothing may fold a code to one case. A random byte picks a
+// character only when it falls below the largest multiple of sixty-two
+// that fits, so no character is likelier than another.
+export const CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+export const SHARE_CODE_LENGTH = 10;
+const FAIR_BYTE = 256 - (256 % CODE_ALPHABET.length);
 
 export function newShareCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(SHARE_CODE_LENGTH));
-  return Array.from(bytes, (byte) => CODE_ALPHABET[byte & 31]).join("");
+  let code = "";
+  while (code.length < SHARE_CODE_LENGTH) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(SHARE_CODE_LENGTH))) {
+      if (byte < FAIR_BYTE && code.length < SHARE_CODE_LENGTH) code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+    }
+  }
+  return code;
 }
 
-// What may name a link in a URL: a code, or the UUID of one made before them.
+// What may name a link in a URL.
 export function isShareCode(value: string | null | undefined): value is string {
-  return !!value && (/^[0-9a-z]{12}$/.test(value) || /^[0-9a-f-]{36}$/.test(value));
+  return !!value && /^[0-9A-Za-z]{10}$/.test(value);
 }
 
 // The link this ask calls for, made if there is not one already. Asking
