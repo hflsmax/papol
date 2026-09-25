@@ -168,10 +168,10 @@ try {
   check('the card is made at once, as the link', bili?.kind === 'bilibili' && !bili.sha256 && bili.content === BILIBILI,
     JSON.stringify(bili && { kind: bili.kind, content: bili.content, sha256: bili.sha256 }));
   if (bili) {
-    const noted = await browser.waitFor(
-      `document.querySelector(${JSON.stringify(cardSelector(bili.uuid))})?.textContent.includes('Its title and cover come from the Papol Mac app.')`,
+    const drawn = await browser.waitFor(
+      `document.querySelector(${JSON.stringify(cardSelector(bili.uuid))})?.querySelector('.board-link-placeholder')?.textContent.includes('Bilibili video')`,
       { timeout: 10_000, what: 'the Bilibili card drawn' }).catch(() => false);
-    check('it says its title and cover come from the Mac app', noted);
+    check('the canvas draws it as a Bilibili video, with no picture', drawn);
   }
   check('and the web never asked Bilibili', asked.bilibili.length === 0, JSON.stringify(asked.bilibili));
 } catch (error) {

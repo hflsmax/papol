@@ -105,8 +105,8 @@ the link as clipboard text, and follows each card to where it ends:
 - **example.com**: `wrangler dev` runs Browser Rendering on a Chrome of its
   own, downloaded on first use, so the picture is taken — with the YouTube
   link, the checks in these suites that need the network;
-- a **Bilibili** link: the card is the link, says its title and cover come
-  from the Mac app, and nothing asks Bilibili.
+- a **Bilibili** link: the card is the link, drawn as a Bilibili video
+  with no picture, and nothing asks Bilibili.
 
 ## When a check fails
 
