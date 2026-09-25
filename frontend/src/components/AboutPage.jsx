@@ -18,8 +18,7 @@ export default function AboutPage() {
         </p>
         <p>
           In Papol, all the tools share one ecosystem, so ideas flow between them
-          effortlessly. If something gets in your way, tell me with the Feedback
-          button on every page.
+          effortlessly.
         </p>
       </article>
     </div>
