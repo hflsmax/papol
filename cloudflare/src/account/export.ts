@@ -61,9 +61,8 @@ export async function gather(db: D1Database, user: User) {
   const boards = await all<Row>(db, "SELECT * FROM boards WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY created_at, uuid", user.uuid);
   const groups = await all<Row>(db, "SELECT g.* FROM board_groups g JOIN boards b ON b.uuid = g.board_uuid WHERE b.user_uuid = ? AND b.deleted_at IS NULL AND g.deleted_at IS NULL ORDER BY g.created_at, g.uuid", user.uuid);
   const items = await all<Row>(db, "SELECT i.* FROM board_items i JOIN boards b ON b.uuid = i.board_uuid WHERE b.user_uuid = ? AND b.deleted_at IS NULL AND i.deleted_at IS NULL ORDER BY i.created_at, i.uuid", user.uuid);
-  const activity = await all<Row>(db, `SELECT a.kind, a.subject, a.started_at, a.ended_at, a.seconds, p.title AS paper_title, b.name AS board_name
-    FROM activity a LEFT JOIN papers p ON a.kind = 'reading' AND p.sha256 = a.subject LEFT JOIN boards b ON a.kind = 'board' AND b.uuid = a.subject
-    WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
+  const activity = await all<Row>(db, `SELECT a.subject, a.started_at, a.ended_at, a.seconds, p.title
+    FROM activity a LEFT JOIN papers p ON p.sha256 = a.subject WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
 
   const paperOf = (row: Row) => row.sha256 ? paperRef(row) : null;
   return {
@@ -99,10 +98,9 @@ export async function gather(db: D1Database, user: User) {
         mime_type: i.mime_type, source_url: i.source_url, text_align: i.text_align, x: i.x, y: i.y, width: i.width, created: i.created_at,
       })),
     })),
-    // Every stretch of time spent with a paper open or on a board.
+    // Every stretch of time spent reading a paper.
     activity: activity.map((a) => ({
-      kind: a.kind, started: a.started_at, ended: a.ended_at, seconds: a.seconds,
-      ...(a.kind === "reading" ? { paper: { sha256: a.subject, title: a.paper_title ?? null } } : { board: { uuid: a.subject, name: a.board_name ?? null } }),
+      paper: { sha256: a.subject, title: a.title ?? null }, started: a.started_at, ended: a.ended_at, seconds: a.seconds,
     })),
   };
 }
@@ -147,8 +145,8 @@ Everything Papol holds about you, as of {date}.
   notifications.json  What Papol has told you.
   uploads.json        The PDFs you contributed.
   boards.json         Your private boards and the position of every item.
-  activity.json       When you were reading which paper, and working on which
-                      board: each stretch of time, and how much of it counted.
+  activity.json       When you were reading which paper: each stretch of time,
+                      and how much of it counted.
   files.json          Every file that belongs with this export, with the name
                       it takes here and the URL on Papol it is fetched from.
   board-files/        Files and images attached to your boards.

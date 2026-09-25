@@ -3239,30 +3239,14 @@ h4 .state-pill {
 
 .activity-papers-note .activity-more { margin-top: 0; }
 
-.activity-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+/* The period's time, said once above the chart. */
+.activity-total {
   margin: 0 0 var(--space-4);
-}
-
-.activity-tile {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-2) var(--space-3);
-}
-
-.activity-tile dt {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-soft);
   font-size: var(--fs-sm);
+  color: var(--ink-soft);
 }
 
-.activity-tile dd { margin: 2px 0 0; font-size: var(--fs-xl); color: var(--ink); font-variant-numeric: tabular-nums; }
-.activity-tile .activity-short { display: none; }
-.activity-tile .activity-tile-note { font-size: var(--fs-xs); color: var(--ink-faint); }
+.activity-total strong { font-size: var(--fs-xl); font-weight: normal; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 .activity-swatch {
   display: inline-block;
@@ -3277,12 +3261,6 @@ h4 .state-pill {
 .activity-paper-3 { background: var(--activity-paper-3); }
 .activity-paper-4 { background: var(--activity-paper-4); }
 .activity-other { background: var(--activity-other); }
-/* A board is time of another kind, whichever board: hatched, so it never
-   reads as one more paper. */
-.activity-board {
-  background: repeating-linear-gradient(135deg, var(--activity-board) 0 1.5px, var(--paper-sunken) 1.5px 4px);
-  box-shadow: inset 0 0 0 1px var(--activity-board);
-}
 
 /* One paper picked out, by hovering its blocks or its line in the list:
    every other stretch of time steps back. */
@@ -3498,10 +3476,6 @@ h4 .state-pill {
 
 @media (max-width: 560px) {
   .activity-panel .panel-head-row { flex-wrap: wrap; }
-  .activity-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
-  .activity-tile dd { font-size: var(--fs-lg); }
-  .activity-tile .activity-long { display: none; }
-  .activity-tile .activity-short { display: inline; }
   .activity-row { grid-template-columns: 48px minmax(0, 1fr) 40px; gap: 6px; }
   .activity-cell { min-height: 40px; padding: 3px 4px; }
   .activity-cell-total { font-size: var(--fs-2xs); }
