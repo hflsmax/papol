@@ -335,7 +335,8 @@ button:disabled {
 /* Where a surface crashed and the boundary is standing in for it. Sized
    like a page's own notice, not a full-screen event: the crash is the
    surface's, and everything around it is still Papol. */
-.render-error { max-width: 520px; margin: 48px auto; }
+.render-error { max-width: 520px; margin: 48px auto; padding: 24px; }
+@media (max-width: 560px) { .render-error { margin: 32px 16px; } }
 .render-error h2 { margin-top: 0; }
 .render-error-actions { display: flex; gap: 10px; margin-top: 14px; }
 
