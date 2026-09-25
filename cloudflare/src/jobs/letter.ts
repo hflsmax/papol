@@ -1,6 +1,6 @@
 // An announcement as the admin writes it, in Markdown, made into the two
 // forms an email carries: HTML for mail apps that show it (pictures and
-// all), and plain text for the ones that don't. Only what a letter uses:
+// all, set plainly), and plain text for the ones that don't. Only what a letter uses:
 // headings, paragraphs, **bold**, *italics*, `code`, [links](url),
 // ![pictures](url), bullet lists, --- rules and a line ending in \ for a
 // line break. A plain-text announcement is a Markdown one with nothing
@@ -20,19 +20,22 @@ const PICTURE = new RegExp(String.raw`!\[${LABEL}\]\(([^)\s]+)\)`, "g");
 const LINK = new RegExp(String.raw`\[${LABEL}\]\(([^)\s]+)\)`, "g");
 const ONLY_PICTURE = new RegExp(String.raw`^!\[${LABEL}\]\(([^)\s]+)\)$`);
 
+// Plain, as an email a person writes: the mail app's own sans-serif at its
+// usual size, no background or card, headings only bold, links the usual
+// blue, pictures unframed. Just enough to hold a column and a picture.
 const STYLE = {
-  body: "margin:0;padding:24px 16px;background:#f4f5f7;",
-  sheet: "max-width:600px;margin:0 auto;padding:32px 28px;background:#ffffff;border:1px solid #e3e6ea;border-radius:8px;"
-    + "font-family:Georgia,'Iowan Old Style','Times New Roman',serif;font-size:16px;line-height:1.65;color:#1d2129;",
-  h1: "margin:0 0 4px;font-size:26px;line-height:1.25;font-weight:600;",
-  h2: "margin:32px 0 8px;font-size:20px;line-height:1.3;font-weight:600;",
-  h3: "margin:24px 0 6px;font-size:17px;line-height:1.35;font-weight:600;",
-  p: "margin:0 0 14px;",
-  img: "display:block;width:100%;max-width:100%;height:auto;margin:4px 0 18px;border:1px solid #e3e6ea;border-radius:6px;",
-  a: "color:#2c4a6e;",
-  code: "font-family:Menlo,Consolas,monospace;font-size:14px;background:#f1f3f5;padding:1px 4px;border-radius:3px;",
-  hr: "border:0;border-top:1px solid #e3e6ea;margin:28px 0;",
-  ul: "margin:0 0 14px;padding-left:22px;",
+  body: "margin:0;padding:16px;",
+  sheet: "max-width:640px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;"
+    + "font-size:15px;line-height:1.5;color:#222222;",
+  h1: "margin:0 0 12px;font-size:20px;line-height:1.3;font-weight:bold;",
+  h2: "margin:24px 0 6px;font-size:16px;line-height:1.35;font-weight:bold;",
+  h3: "margin:20px 0 4px;font-size:15px;line-height:1.4;font-weight:bold;",
+  p: "margin:0 0 12px;",
+  img: "display:block;max-width:100%;height:auto;margin:4px 0 16px;",
+  a: "color:#1a5fb4;",
+  code: "font-family:Menlo,Consolas,monospace;font-size:14px;",
+  hr: "border:0;border-top:1px solid #dddddd;margin:20px 0;",
+  ul: "margin:0 0 12px;padding-left:22px;",
 };
 
 // Inline marks within one block of text, escaped first.
