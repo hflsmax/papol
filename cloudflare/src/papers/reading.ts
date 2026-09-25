@@ -50,11 +50,6 @@ export interface DocumentLink extends Box {
 
 export interface Analysis { references: Reference[]; citations: Citation[]; floats: Float[]; links: DocumentLink[] }
 
-// The format of the analysis above, which a Worker asks POST /analyze for
-// and the analyzer states in its answer. Format 2 is citations as whole
-// markers; an analyzer that states no format predates it.
-export const ANALYSIS_FORMAT = 2;
-
 export interface HeaderMetadata {
   title: string | null;
   authors: string[];

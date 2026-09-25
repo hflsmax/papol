@@ -71,13 +71,6 @@ the Worker should not spend.
 - `header.ts` — the title block, for the upload form (`POST /header`,
   `HeaderMetadata`): below.
 
-`POST /analyze?format=2` is that shape (`ANALYSIS_FORMAT` in
-`cloudflare/src/papers/reading.ts`), and the answer says `format: 2`. Asked
-for no format, the analyzer flattens each citation to a row a work a box,
-for a Worker deployed before format 2; that goes once no such Worker is
-left. A Worker that gets an answer without the format stores nothing and
-leaves the paper pending, to be read again.
-
 In the viewer (`viewer/src/references.js`), the analyzer's citations and
 links come first; a PDF's own links fill in only where the analyzer found
 nothing. Publishers often link only part of a marker — Nature the "66" of

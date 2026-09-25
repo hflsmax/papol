@@ -16,7 +16,7 @@ import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
 import * as analyzer from "./analyzer";
-import { ANALYSIS_FORMAT, type Analysis, type Box } from "./reading";
+import { type Box } from "./reading";
 import { extractArxivId } from "./identifiers";
 import { resolve, type Printed } from "./resolve";
 
@@ -101,19 +101,6 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
     await finishStatement(env, paperSha256, "failed", detail).run();
     throw new JobError(detail);
   }
-  // An analyzer older than this Worker reads citations as rows that cannot
-  // be told apart into markers. That is the service's age, not the paper's
-  // fault: nothing is stored and the paper stays pending, so it is read
-  // again once the pass goes stale (ANALYSIS_STALE_MS) — by then, one hopes,
-  // on an analyzer brought up to date (./deploy.sh host).
-  if (analysis.format !== ANALYSIS_FORMAT) {
-    throw new JobError(`The analyzer answered format ${analysis.format ?? 1}; this Worker stores format ${ANALYSIS_FORMAT}`);
-  }
-  await store(env, paperSha256, analysis);
-  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
-}
-
-async function store(env: Env, paperSha256: string, analysis: Analysis): Promise<void> {
   // A re-analysis replaces what was there. Resolutions are lost with it,
   // which is honest: they were attached to references read a different way.
   const statements = [
@@ -159,6 +146,7 @@ async function store(env: Env, paperSha256: string, analysis: Analysis): Promise
   }
   statements.push(finishStatement(env, paperSha256, "ready", null));
   await env.DB.batch(statements);
+  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
 }
 
 // ----------------------------------------------------------- the answers

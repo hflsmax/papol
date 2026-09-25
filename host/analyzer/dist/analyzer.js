@@ -42105,7 +42105,6 @@ async function analyzeWithRules(bytes) {
 }
 
 // ../../cloudflare/src/papers/reading.ts
-var ANALYSIS_FORMAT = 2;
 var SMALL_WORDS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via", "with", "without", "yet"]);
 function normalizeTitle(title) {
   if (!title) return title;
@@ -42482,21 +42481,13 @@ async function paperOf(request, options) {
   }
   return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
 }
-function flattened({ references, citations, floats, links }) {
-  const rows = citations.flatMap(({ keys, label, inferred, boxes }) => keys.flatMap((key) => boxes.map((box) => ({ key, label, inferred, ...box }))));
-  return { references, citations: rows, floats, links };
-}
 async function answer(request, options) {
-  const url = new URL(request.url ?? "/", "http://analyzer");
-  const path = url.pathname;
+  const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
   if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
-  if (path === "/header") return [200, await header(bytes)];
-  const analysis = await analyze(bytes);
-  if (url.searchParams.get("format") === String(ANALYSIS_FORMAT)) return [200, { format: ANALYSIS_FORMAT, ...analysis }];
-  return [200, flattened(analysis)];
+  return [200, path === "/analyze" ? await analyze(bytes) : await header(bytes)];
 }
 function createServer(log = console.log, options = {}) {
   const settled = {
