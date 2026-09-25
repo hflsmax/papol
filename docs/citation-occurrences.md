@@ -98,7 +98,11 @@ takes:
   to where they had got to.
 - If the exploration ends on the view it started from (stepped all the way
   round, or scrolled home by hand), the entry is taken off again: nothing
-  moved. The same "did it actually go anywhere" test `followLink` uses.
+  moved.
+- The first step does not bring up the Learn Papol lesson on the pill
+  (`LINK_NAVIGATION_TIP`), which a followed link does: the strip already
+  says what `[` does, and the lesson would sit over the ↑ ↓ the reader is
+  stepping with.
 
 ### How it ends
 
@@ -119,61 +123,59 @@ simply re-anchored to the next marker it would jump away from the pointer
 each step, and ↓ would never be under the cursor twice. Instead:
 
 1. Take the current marker's position in the viewport.
-2. Scroll the pages so the next marker lands at that same viewport position
-   (same `top`; `left` too when the page is wider than the window).
-3. Re-anchor the card to the new marker. Because the marker is where the old
-   one was, `place()` computes the same spot and the card does not move.
+2. Scroll the pages at once so the next marker lands at that same position
+   (down; across too only when the page is wider than the window). Not
+   smoothly: the card is placed against the marker as soon as the marker is
+   drawn, and a smooth scroll would still be carrying it along.
+3. The card waits, hidden, for the page to draw the marker (below), and
+   hangs off it. Being where the old one was, it gets the same height; and
+   while exploring the card keeps its place across as well, so a marker in
+   the other column does not carry it half a page sideways.
 
 Only when the scroller cannot go far enough (the first lines of page 1, the
 foot of the last page) does the marker land elsewhere, and the card then
-follows it as it does today. A step within the same screen does not scroll at
-all. A short jump scrolls smoothly and a far one is instant, as in
-`followLink` (`far` there), so the eye does not ride through ten pages.
+follows it up or down as it does today.
 
-The marker stepped to is lit with the cite layer's existing `open` state,
-plus one pulse so the eye finds it.
+The marker stepped to is drawn by its page from the analysis — a
+`.cite-occurrence` span, lit as an open citation is, with one pulse (none
+under reduced motion). It exists as soon as the page does, whether or not the
+page has worked out its own citation buttons yet, and it is what the card
+hangs off.
 
 ## Which places, in what order
 
 `citationOccurrences(analysis, referenceUuid)` in `viewer/src/references.js`,
-a pure function with its own tests, returns
-`[{ page, x, y, w, h, label, exact }]` in reading order. It is built from
-`analysis.citations`, which the viewer holds for the whole paper. The page
-overlays can't be used: `PdfPage` only works them out for pages near the view
-(the `near` effect), so they cannot answer for page 19 while the reader is on
-page 3.
+a pure function with its own tests, returns `[{ page, boxes, label, exact }]`
+in reading order: one a marker, its boxes those on the page it begins on. It
+is built from `analysis.citations`, which the viewer holds for the whole
+paper. The page overlays can't be used: `PdfPage` only works them out for
+pages near the view (the `near` effect), so they cannot answer for page 19
+while the reader is on page 3.
 
-1. Every citation row with this `reference_uuid`. A marker set across a line
-   break is several rows of one marker (grouped by `ordinal`, below). A
-   grouped marker like "[2, 7, 9]" has a row per work, so it is found for
-   each of them without special handling.
-2. **The marker the reader clicked** is found in the list by page and
-   overlap (the `overlaps` test `pageOverlays` uses), which gives the `2` in
-   `2 of 4`. The page overlays can add markers the analyzer missed (recovered
-   from the text, or a PDF link); if the clicked one is such a marker it is
-   inserted at its page, so the count is never short by the one being read.
+- A citation is one marker whole (migration 0009): the works it names and
+  every line it is printed on. So a marker broken over a line is one place,
+  and "[2, 7, 9]" is a place for each of the works it names.
+- **The marker the reader clicked** is found among them by page and overlap
+  (`placeAmong`, with the `overlaps` test `pageOverlays` uses), which gives
+  the `2` in `2 of 4`. The page overlays can add markers the analyzer missed
+  (a PDF's own link, a number read off the text); if the clicked one is such
+  a marker it is put in at its page, so the count is never short by the one
+  being read.
 
-### Reading order needs one server change
+### Reading order: one server change
 
-The Worker returns citations `ORDER BY page, y, x, uuid`
-(`cloudflare/src/papers/references.ts`). On a two-column page that
-interleaves the columns: the top of the right column comes before the foot
-of the left. GROBID emits markers in document order, and `tei.ts` walks them
-in that order, so the fix is to keep it:
+The analyzer finds markers in reading order — it walks the text flows, and
+each page's lines, in the order they are read — but the Worker sorted them
+by `page, y, x`, which on a two-column page puts the top of the right column
+before the foot of the left. So:
 
-- `paper_citations.ordinal INTEGER` — the marker's index in the TEI walk,
-  shared by every box of one marker. New migration; nullable, so existing rows
-  are valid.
-- Insert it in `references.ts`; select `ORDER BY page, ordinal, y, x, uuid`.
-  A paper's rows either all have an ordinal or none do, so a paper analyzed
-  before the migration keeps today's order. No re-analysis is forced; a paper
-  read again later gets the ordering.
-- `CitationOut` gains `ordinal` (optional). The wire contract only grows.
-
-Until a paper has ordinals, the viewer orders by page, then column, then
-`y`: a box whose centre is left of the page's middle is column one when the
-page has markers on both sides of it. Good enough for older analyses, and
-unused once `ordinal` is there.
+- `paper_citations.ordinal INTEGER` (migration 0010): the marker's place in
+  the analyzer's list. Nullable, so rows already read stay valid.
+- `references.ts` stores it and serves citations in that order. A paper read
+  before the migration has none and is served in page order, as before; a
+  paper read again gets its ordinals. No re-analysis is forced.
+- The wire shape is unchanged: the order is the contract, and `ordinal`
+  itself is not sent.
 
 ## Wrapping (US-7.40)
 
@@ -193,16 +195,12 @@ exploration and its starting point: Back still goes home.
 
 | Piece | Change |
 |---|---|
-| `viewer/src/references.js` | `citationOccurrences()` and its tests |
-| `viewer/src/App.jsx` | `openCite` gains `occurrences` and `at`; an `exploring` state holding `{ startView, startBox }`; `stepOccurrence(±1)` (scroll-to-same-spot, anchor swap; on the first step it sets `exploring` and pushes `startView` onto `linkHistory`); `closeReference` and `moveThroughLinks` end the exploration, and take the entry off again when the view is still `startView`; the `.pages` scroller gets an `exploring` class for the frame |
-| `viewer/src/PdfPage.jsx` | after a step the target page may not have worked out its overlays yet, so `PdfPage` takes `occurrenceBox` and draws a plain positioned span there (`.cite-occurrence`), which exists as soon as the page element does; the card anchors to it and the pulse plays on it. `startBox` draws the `cite start` outline the same way |
-| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip with its `[` line, `onPreviousOccurrence` / `onNextOccurrence`; closing is unchanged |
-| `cloudflare/…` | `ordinal` column, insert, `ORDER BY`; migration |
-
-The scroll arithmetic is `followLink`'s: a fraction down a page is a pixel
-position once the page's box is known, at any zoom. Reuse its conversion
-rather than a second one. Returning uses `currentView()` / `restoreView()`,
-which already carry scale.
+| `viewer/src/references.js` | `citationOccurrences()`, `placeAmong()`, and their tests |
+| `viewer/src/App.jsx` | `openCite` gains `place`, `places` and `at`; an `exploring` state `{ startView, startPlace }`; `stepOccurrence(±1)` (the scroll, the hidden card until the marker is drawn, and on the first step `rememberJump(startView, { teach: false })`); `endExploration()` from `closeReference` and from a click on another citation (`openCitation`), taking the entry off again when the view is still `startView`; `moveThroughLinks` puts the card away during an exploration; `.viewer-body.exploring` for the frame |
+| `viewer/src/PdfPage.jsx` | a clicked citation reports its place; `citationOccurrence` draws the lit `.cite-occurrence` and reports it to the card (`onOccurrenceShown`); `citationStart` draws the `.cite-start` outline |
+| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip with its `[` line; its left held while exploring; hidden while it has no marker to hang off |
+| `viewer/src/styles.js` | the row, the strip, the frame, the lit marker and its pulse, the start outline |
+| `cloudflare/` | migration 0010, `ordinal` stored and served in order, and a test |
 
 ## Not doing
 
@@ -219,16 +217,17 @@ which already carry scale.
 
 ## Checks
 
-- Unit: `citationOccurrences` — grouped markers, a marker split over two
-  lines, two-column ordering with and without `ordinal`, the clicked marker
-  missing from the list.
-- Viewer e2e (share-e2e's CDP driver): open a citation cited three times,
-  press ↓ twice; assert the lit marker's page, the card's
-  `getBoundingClientRect()` unchanged between steps, the frame present, and
-  one `linkHistory` entry. Esc, ×, and a press on the page each close the
-  card and keep `scrollTop`; `[` then restores the starting view and scale,
-  and `]` the stayed one. `[` mid-exploration does the same and closes the
-  card. Stepping all the way round and closing leaves `linkHistory` empty.
-  ↓ from the last wraps to the first.
-- It is a UI change: the PR carries screenshots and a short recording
-  (orphan `citation-occurrences-screenshots` branch).
+- Unit (`viewer/src/references.test.js`): the places are the markers in the
+  analysis's order, a grouped marker counts for each work, a marker over a
+  line and a page is one place where it begins; the clicked marker is found
+  among them, or put in at its page.
+- Worker (`cloudflare/test/references.test.ts`): markers read in columns are
+  served in the analyzer's order; without ordinals, in page order.
+- Browser (`viewer/scripts/browser-smoke.mjs`, hermetic): a work cited on
+  pages 1, 3 and 4. Stepping round and back and closing leaves no way back;
+  ↓ keeps the card where it was, lights the marker on page 3, frames the
+  pages, offers *Back to page 1*, and shows no lesson; steps wrap both ways;
+  Esc and a press on the page each keep the view; `[` restores the start and
+  `]` the place stayed at.
+- Screenshots on a real paper (attention.pdf with the analyzer's reading) are
+  on the PR.

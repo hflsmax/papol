@@ -120,13 +120,13 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   }
   // A marker is kept with the works of it that are in the list; one that
   // names none of them leads nowhere and is not kept.
-  for (const cite of analysis.citations) {
+  for (const [ordinal, cite] of analysis.citations.entries()) {
     const referenceUuids = cite.keys.map((key) => uuids.get(key)).filter((uuid): uuid is string => Boolean(uuid));
     if (!referenceUuids.length || !cite.boxes.length) continue;
     const citationUuid = newUuid();
     const boxes: Box[] = cite.boxes.map(({ page, x, y, w, h }) => ({ page, x, y, w, h }));
-    statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, label, inferred, boxes) VALUES (?, ?, ?, ?, ?)",
-      citationUuid, paperSha256, cite.label, cite.inferred ? 1 : 0, JSON.stringify(boxes)));
+    statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, label, inferred, boxes, ordinal) VALUES (?, ?, ?, ?, ?, ?)",
+      citationUuid, paperSha256, cite.label, cite.inferred ? 1 : 0, JSON.stringify(boxes), ordinal));
     referenceUuids.forEach((referenceUuid, position) => statements.push(statement(env.DB,
       "INSERT INTO paper_citation_works (uuid, citation_uuid, position, reference_uuid) VALUES (?, ?, ?, ?)",
       newUuid(), citationUuid, position, referenceUuid)));
@@ -217,9 +217,15 @@ export async function paperReferences(env: Env, paper: Paper) {
     paper_sha256: paper.sha256, status: "ready", detail: null,
     references: references.map((r) => referenceOut(r, known.get(r.uuid) ?? null)),
     citations: citations
-      .map((c) => ({ reference_uuids: worksOf.get(String(c.uuid)) ?? [], label: c.label ?? null, inferred: Boolean(c.inferred), boxes: JSON.parse(String(c.boxes)) as Box[] }))
+      .map((c) => ({ ordinal: c.ordinal as number | null, reference_uuids: worksOf.get(String(c.uuid)) ?? [], label: c.label ?? null, inferred: Boolean(c.inferred), boxes: JSON.parse(String(c.boxes)) as Box[] }))
       .filter((c) => c.reference_uuids.length && c.boxes.length)
-      .sort((a, b) => a.boxes[0].page - b.boxes[0].page || a.boxes[0].y - b.boxes[0].y || a.boxes[0].x - b.boxes[0].x),
+      // In reading order, as the analyzer found them: the order the viewer
+      // steps through the places a work is cited. A paper read before
+      // ordinals were kept has none, and is served in page order.
+      .sort((a, b) => (a.ordinal != null && b.ordinal != null
+        ? a.ordinal - b.ordinal
+        : a.boxes[0].page - b.boxes[0].page || a.boxes[0].y - b.boxes[0].y || a.boxes[0].x - b.boxes[0].x))
+      .map(({ ordinal: _ordinal, ...citation }) => citation),
     floats: floats.map((f) => ({ uuid: f.uuid, kind: f.kind, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
     links: links.map((l) => ({ float_uuid: l.float_uuid, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h })),
   };

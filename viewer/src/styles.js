@@ -1457,6 +1457,43 @@ ${compatibilityStyles}
   border-bottom: 1px dotted var(--accent);
 }
 
+/* Where stepping through the places a work is cited has got to: lit as an
+   open citation is, with one pulse so the eye finds it on the page. */
+.cite-occurrence {
+  position: absolute;
+  border-radius: 2px;
+  pointer-events: none;
+  background: rgba(43, 74, 111, 0.16);
+  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.16), inset 0 -2px 0 var(--accent);
+  animation: cite-occurrence-pulse 0.7s ease-out 1;
+}
+@keyframes cite-occurrence-pulse {
+  from { box-shadow: 0 0 0 9px rgba(43, 74, 111, 0.28), inset 0 -2px 0 var(--accent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cite-occurrence { animation: none; }
+}
+
+/* And where it began, for a reader who scrolls back by hand. */
+.cite-start {
+  position: absolute;
+  border-radius: 2px;
+  pointer-events: none;
+  outline: 1.5px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* The pages framed while an exploration lasts: the one sign of it that is
+   in view wherever the card has got to, and gone the moment it ends. */
+.viewer-body.exploring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+}
+
 .ref-card {
   position: absolute;
   z-index: 20;
@@ -1599,6 +1636,51 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 .ref-report-button.link-button { font-size: var(--fs-sm); color: var(--ink-faint); }
 .ref-report-button.link-button:hover { color: var(--accent); }
 .ref-links .ref-report-button { margin-left: auto; align-self: center; }
+
+/* Where else the paper cites the work. At the foot, apart from the range
+   nav in the header: that one is which work, this one is where. */
+.ref-places {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+}
+.ref-places-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.ref-places-what { flex: 1; }
+.ref-places-what strong { color: var(--accent); font-weight: 600; }
+.ref-places-nav { display: flex; gap: 6px; }
+.ref-places-nav button {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+.ref-places-nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* An exploration: the row becomes a strip, tinted to the card's edges. */
+.ref-places.exploring {
+  margin: 10px -16px -12px;
+  padding: 8px 16px 10px;
+  border-top-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ref-places-back { margin: 4px 0 0; color: var(--ink-soft); }
+.ref-places-back kbd {
+  min-width: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink-faint);
+  font: 600 var(--fs-xs) var(--font-ui);
+  line-height: 1.35;
+  text-align: center;
+}
 
 .ref-raw {
   margin: 0;
