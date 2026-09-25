@@ -12,3 +12,9 @@ export function getActivity(from, to) {
   const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
   return request(`/activity?${query}`);
 }
+
+// One paper's or board's effort: its total, when it began and last was,
+// and its spans of the last weeks.
+export function getSubjectActivity(kind, subject) {
+  return request(`/activity/${kind}/${subject}`);
+}

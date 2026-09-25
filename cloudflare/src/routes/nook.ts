@@ -86,8 +86,8 @@ export function nookRoutes(router: Router) {
     };
     const tags = hidePrivate ? [] : await all<{ uuid: string; name: string }>(env.DB,
       "SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)", user.uuid);
-    // The time spent on each paper and board is its user's alone: how long
-    // someone spends on a paper says nothing a shelf was asked to show.
+    // The time spent on each paper is its user's alone: how long someone
+    // spends on a paper says nothing a shelf was asked to show.
     const effort = hidePrivate ? null : await effortBySubject(env.DB, user.uuid);
     const effortOf = (key: string) => effort?.get(key) ?? null;
     const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
@@ -95,7 +95,7 @@ export function nookRoutes(router: Router) {
     return json({
       user: userPublic(user),
       papers: entries.map((p) => ({ ...p, effort: effortOf(`reading:${p.sha256}`) })),
-      boards: outBoards.map((b) => ({ ...b, effort: effortOf(`board:${b.uuid}`) })),
+      boards: outBoards,
       stats, tags,
       shelves: await Promise.all(shelves.map((s) => shelfOut(env, s))),
     });

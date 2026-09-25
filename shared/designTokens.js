@@ -51,11 +51,17 @@ export const designTokens = `
   --identity-4: #6b3f5e;
   --identity-5: #4b4f7a;
 
-  /* Activity — what time was spent on (a pair checked for colour-blind
-     separation against --card) and how much of it in a day (one hue, light
-     to dark; steps 4 and 5 carry --ink-inverse text). */
-  --activity-reading: #3a6ea5;
-  --activity-board: #c47a35;
+  /* Activity — which paper a stretch of time went to: four hues that stay
+     distinct from one another, every pair, for colour-blind eyes too; the
+     papers past four share --activity-other, and boards are hatched in
+     --activity-board. How much time a day held is one hue, light to dark;
+     heat steps 4 and 5 carry --ink-inverse text. */
+  --activity-paper-1: #2a78d6;
+  --activity-paper-2: #eb6834;
+  --activity-paper-3: #1baf7a;
+  --activity-paper-4: #4a3aa7;
+  --activity-other: #b4becb;
+  --activity-board: #66717f;
   --activity-heat-1: #e1e9f3;
   --activity-heat-2: #bccfe5;
   --activity-heat-3: #88a9cf;

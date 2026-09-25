@@ -90,7 +90,7 @@ describe("reading activity back", () => {
 });
 
 describe("effort on the nook", () => {
-  it("is shown on each paper and board to their user, and to nobody else", async () => {
+  it("is shown on each paper to its user, and to nobody else", async () => {
     const ada = await register(), grace = await register();
     await paperWithCopy(ada, PAPER, "Read closely", { shelfUuid: await defaultShelf(ada) });
     const board = await ok("POST", "/api/boards", { headers: ada.headers, json: { name: "Ideas" } });
@@ -101,10 +101,26 @@ describe("effort on the nook", () => {
 
     const own = await ok("GET", `/api/users/${ada.uuid}/nook`, { headers: ada.headers });
     expect(own.papers[0].effort).toEqual({ seconds: 1800, last_at: later.ended_at });
-    expect(own.boards[0].effort).toMatchObject({ seconds: 300 });
     const theirs = await ok("GET", `/api/users/${ada.uuid}/nook`, { headers: grace.headers });
     expect(theirs.papers[0].effort).toBeNull();
-    expect(theirs.boards[0].effort).toBeNull();
+  });
+});
+
+describe("one paper's effort", () => {
+  it("sums every span ever, and answers the recent ones, for its own user only", async () => {
+    const ada = await register(), grace = await register();
+    await paperWithCopy(ada, PAPER, "Read closely");
+    const old = span("reading", PAPER, 50 * 24 * 60 * MINUTE, 20 * MINUTE);
+    const recent = span("reading", PAPER, 30 * MINUTE, 10 * MINUTE);
+    await send(ada, [old, recent]);
+    await send(grace, [span("reading", PAPER, 30 * MINUTE, 5 * MINUTE)]);
+    const mine = await ok("GET", `/api/activity/reading/${PAPER}`, { headers: ada.headers });
+    expect(mine).toMatchObject({ kind: "reading", subject: PAPER, seconds: 1800, first_at: old.started_at, last_at: recent.ended_at });
+    expect(mine.spans.map((s: any) => s.seconds)).toEqual([1200, 600]);
+    const none = await ok("GET", `/api/activity/reading/${"c".repeat(64)}`, { headers: ada.headers });
+    expect(none).toMatchObject({ seconds: 0, first_at: null, spans: [] });
+    expect((await call("GET", `/api/activity/walking/${PAPER}`, { headers: ada.headers })).status).toBe(404);
+    expect((await call("GET", "/api/activity/board/not-a-uuid", { headers: ada.headers })).status).toBe(404);
   });
 });
 

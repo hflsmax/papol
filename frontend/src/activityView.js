@@ -159,3 +159,74 @@ export function lastWhen(iso, now = new Date(), locale) {
 export function clockTime(date, locale) {
   return date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
 }
+
+// Which colour each paper wears in a period's timelines: the four that
+// took the most time get one of four hues, the rest share "other papers",
+// and boards are drawn apart (hatched) whatever they are. Four, because
+// blocks of any two papers may sit side by side, and four is as many hues
+// as stay distinct from every other one, for colour-blind eyes too. A
+// paper keeps the hue its digest points to unless a paper with more time
+// already has it, so it tends to wear the same colour week to week.
+export const PAPER_HUES = 4;
+
+function hueOf(subject) {
+  let hash = 0;
+  for (let i = 0; i < subject.length; i++) hash = (hash * 31 + subject.charCodeAt(i)) >>> 0;
+  return hash % PAPER_HUES;
+}
+
+// `subjects` most time first, as subjectsWithin gives them. Answers a
+// map from `kind:subject` to 'paper-1'…'paper-4', 'other' or 'board'.
+export function coloursFor(subjects) {
+  const colours = new Map();
+  const taken = new Set();
+  for (const { kind, subject } of subjects) {
+    const key = `${kind}:${subject}`;
+    if (kind === 'board') { colours.set(key, 'board'); continue; }
+    if (taken.size === PAPER_HUES) { colours.set(key, 'other'); continue; }
+    let hue = hueOf(subject);
+    while (taken.has(hue)) hue = (hue + 1) % PAPER_HUES;
+    taken.add(hue);
+    colours.set(key, `paper-${hue + 1}`);
+  }
+  return colours;
+}
+
+// A paper's own recent days, newest first: when the day's first span
+// began and its last ended, and the time in between that counted. A span
+// belongs to the day it began.
+export function daysOf(spans) {
+  const byDay = new Map();
+  for (const span of spans) {
+    const started = new Date(span.started_at), ended = new Date(span.ended_at);
+    const day = midnight(started);
+    const entry = byDay.get(+day) ?? { day, first: started, last: ended, seconds: 0 };
+    if (started < entry.first) entry.first = started;
+    if (ended > entry.last) entry.last = ended;
+    entry.seconds += span.seconds;
+    byDay.set(+day, entry);
+  }
+  return [...byDay.values()].sort((a, b) => b.day - a.day);
+}
+
+// The last `weeks` whole weeks to today, Monday first, as the columns of
+// a small calendar: each day with the seconds it held, or null for a day
+// still to come.
+export function recentWeeks(spans, weeks, now = new Date()) {
+  const start = addDays(mondayOf(now), -7 * (weeks - 1));
+  const today = midnight(now);
+  return Array.from({ length: weeks * 7 }, (_, i) => {
+    const day = addDays(start, i);
+    return { day, seconds: day > today ? null : totalsWithin(spans, day, addDays(day, 1)).all };
+  });
+}
+
+// A day as the nearest words for it: "Today", "Yesterday", the weekday
+// within the week, else its date.
+export function dayName(day, now = new Date(), locale) {
+  const days = Math.round((midnight(now) - midnight(day)) / 86_400_000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days > 1 && days < 7) return day.toLocaleDateString(locale, { weekday: 'long' });
+  return day.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+}

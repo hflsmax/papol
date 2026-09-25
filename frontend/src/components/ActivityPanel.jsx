@@ -5,7 +5,7 @@ import { paperHref } from '../../../shared/api/papers.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
 import {
-  blocksOfDay, clockTime, formatDuration, formatDurationShort, KINDS, periodLabel, periodOf,
+  blocksOfDay, clockTime, coloursFor, formatDuration, formatDurationShort, KINDS, periodLabel, periodOf,
   shadeOf, SHADE_MARKS, stepPeriod, subjectsWithin, totalsWithin, VIEWS,
 } from '../activityView';
 
@@ -65,7 +65,8 @@ function Gridlines() {
 
 // One day across the width of its track: a block for each span, where it
 // was, as long as it was. Each is a link to what the time was spent on.
-function Track({ blocks, data, onTip, lane = null, now = null, label }) {
+// `paint` is the period's colours and which paper, if any, is picked out.
+function Track({ blocks, data, paint, onTip, lane = null, now = null, label }) {
   return (
     <div className="activity-track" role="group" aria-label={label}>
       <Gridlines />
@@ -73,20 +74,22 @@ function Track({ blocks, data, onTip, lane = null, now = null, label }) {
       {blocks.filter((b) => lane == null || b.kind === lane).map((block, i) => {
         const subject = subjectOf(data, block.kind, block.subject);
         const when = `${clockTime(block.started)}–${clockTime(block.ended)}`;
-        const tip = { title: subject.name, lines: [`${KIND_LABELS[block.kind]} · ${when}`, formatDuration(block.seconds)] };
+        const key = `${block.kind}:${block.subject}`;
+        const tip = { title: subject.name, lines: [`${block.kind === 'board' ? 'Board' : 'Reading'} · ${when}`, formatDuration(block.seconds)] };
+        const faded = paint.focus != null && paint.focus !== key;
         const Tag = subject.href ? 'a' : 'span';
         return (
           <Tag
             key={i}
             href={subject.href || undefined}
             tabIndex={subject.href ? undefined : 0}
-            className={`activity-block activity-${block.kind}`}
+            className={`activity-block activity-${paint.colours.get(key) ?? 'other'}${faded ? ' is-faded' : ''}`}
             style={{ left: `${block.left * 100}%`, width: `${block.width * 100}%` }}
             aria-label={`${subject.name}, ${when}, ${formatDuration(block.seconds)}`}
-            onMouseEnter={(event) => onTip(event, tip)}
-            onFocus={(event) => onTip(event, tip)}
-            onMouseLeave={() => onTip(null)}
-            onBlur={() => onTip(null)}
+            onMouseEnter={(event) => { onTip(event, tip); paint.pick(key); }}
+            onFocus={(event) => { onTip(event, tip); paint.pick(key); }}
+            onMouseLeave={() => { onTip(null); paint.pick(null); }}
+            onBlur={() => { onTip(null); paint.pick(null); }}
           />
         );
       })}
@@ -94,7 +97,7 @@ function Track({ blocks, data, onTip, lane = null, now = null, label }) {
   );
 }
 
-function DayChart({ period, spans, data, onTip }) {
+function DayChart({ period, spans, data, paint, onTip }) {
   const blocks = blocksOfDay(spans, period.start);
   const totals = totalsWithin(spans, period.start, period.end);
   const at = Date.now();
@@ -104,7 +107,7 @@ function DayChart({ period, spans, data, onTip }) {
       {KINDS.map((kind) => (
         <div key={kind} className="activity-row">
           <span className="activity-row-label">{KIND_LABELS[kind]}</span>
-          <Track blocks={blocks} lane={kind} data={data} onTip={onTip} now={now} label={`${KIND_LABELS[kind]} through the day`} />
+          <Track blocks={blocks} lane={kind} data={data} paint={paint} onTip={onTip} now={now} label={`${KIND_LABELS[kind]} through the day`} />
           <span className="activity-row-total">{totals[kind] > 0 ? formatDurationShort(totals[kind]) : ''}</span>
         </div>
       ))}
@@ -117,7 +120,7 @@ function DayChart({ period, spans, data, onTip }) {
   );
 }
 
-function WeekChart({ period, spans, data, onTip, onOpenDay }) {
+function WeekChart({ period, spans, data, paint, onTip, onOpenDay }) {
   const today = new Date().toDateString();
   return (
     <div className="activity-chart activity-week">
@@ -131,7 +134,7 @@ function WeekChart({ period, spans, data, onTip, onOpenDay }) {
               aria-label={`Open ${day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`}>
               {name}
             </button>
-            <Track blocks={blocksOfDay(spans, day)} data={data} onTip={onTip} label={name} />
+            <Track blocks={blocksOfDay(spans, day)} data={data} paint={paint} onTip={onTip} label={name} />
             <span className="activity-row-total">{total > 0 ? formatDurationShort(total) : ''}</span>
           </div>
         );
@@ -194,7 +197,10 @@ function MonthChart({ period, spans, onTip, onOpenDay }) {
 
 // Where the time in the period went: each paper and board, most first,
 // with a bar against the one that took the most.
-function Subjects({ subjects, data }) {
+// Where the time in the period went: each paper and board, most first,
+// in the colour its blocks wear, so the list is also the key to them.
+// Hovering or focusing a line picks its time out on the chart above.
+function Subjects({ subjects, data, paint }) {
   const [all, setAll] = useState(false);
   if (!subjects.length) return null;
   const most = subjects[0].seconds;
@@ -205,12 +211,22 @@ function Subjects({ subjects, data }) {
       <ol>
         {shown.map((entry) => {
           const subject = subjectOf(data, entry.kind, entry.subject);
+          const key = `${entry.kind}:${entry.subject}`;
+          const colour = paint.colours.get(key) ?? 'other';
+          const faded = paint.focus != null && paint.focus !== key;
           return (
-            <li key={`${entry.kind}:${entry.subject}`}>
-              <span className={`activity-swatch activity-${entry.kind}`} aria-label={KIND_LABELS[entry.kind]} role="img" />
+            <li
+              key={key}
+              className={faded ? 'is-faded' : undefined}
+              onMouseEnter={() => paint.pick(key)}
+              onMouseLeave={() => paint.pick(null)}
+              onFocus={() => paint.pick(key)}
+              onBlur={() => paint.pick(null)}
+            >
+              <span className={`activity-swatch activity-${colour}`} aria-label={entry.kind === 'board' ? 'Board' : 'Paper'} role="img" />
               {subject.href ? <a href={subject.href}>{subject.name}</a> : <span className="activity-subject-gone">{subject.name}</span>}
               <span className="activity-subject-bar" aria-hidden="true">
-                <i className={`activity-${entry.kind}`} style={{ width: `${Math.max(2, (entry.seconds / most) * 100)}%` }} />
+                <i className={`activity-${colour}`} style={{ width: `${Math.max(2, (entry.seconds / most) * 100)}%` }} />
               </span>
               <span className="activity-subject-time">{formatDuration(entry.seconds)}</span>
             </li>
@@ -232,12 +248,14 @@ export default function ActivityPanel() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [tip, setTip] = useState(null);
+  const [focus, setFocus] = useState(null);
   const chartRef = useRef(null);
   const period = useMemo(() => periodOf(view, anchor), [view, anchor]);
 
   useEffect(() => {
     let active = true;
     setError(null);
+    setFocus(null);
     flushActivity()
       .then(() => getActivity(period.from, period.to))
       .then((answer) => { if (active) setData({ ...answer, key: +period.from }); })
@@ -248,6 +266,7 @@ export default function ActivityPanel() {
   const choose = (next) => {
     setView(next);
     setTip(null);
+    setFocus(null);
     try { localStorage.setItem(VIEW_KEY, next); } catch { /* only remembered */ }
   };
   const openDay = (day) => { setAnchor(day); choose('day'); };
@@ -265,6 +284,7 @@ export default function ActivityPanel() {
   const spans = loaded ? data.spans : [];
   const totals = totalsWithin(spans, period.start, period.end);
   const subjects = loaded ? subjectsWithin(spans, period.start, period.end) : [];
+  const paint = { colours: coloursFor(subjects), focus, pick: setFocus };
   const papers = subjects.filter((s) => s.kind === 'reading').length, boards = subjects.length - papers;
   const counted = [papers && `${papers} ${papers === 1 ? 'paper' : 'papers'}`, boards && `${boards} ${boards === 1 ? 'board' : 'boards'}`].filter(Boolean).join(' and ');
 
@@ -304,15 +324,15 @@ export default function ActivityPanel() {
             </div>
             {KINDS.map((kind) => (
               <div key={kind} className="activity-tile">
-                <dt><span className={`activity-swatch activity-${kind}`} aria-hidden="true" />{KIND_LABELS[kind]}</dt>
+                <dt>{kind === 'board' && <span className="activity-swatch activity-board" aria-hidden="true" />}{KIND_LABELS[kind]}</dt>
                 <dd><Amount seconds={totals[kind]} /></dd>
               </div>
             ))}
           </dl>
 
           <div className="activity-figure" ref={chartRef} onMouseLeave={() => setTip(null)}>
-            {view === 'day' && <DayChart period={period} spans={spans} data={data} onTip={showTip} />}
-            {view === 'week' && <WeekChart period={period} spans={spans} data={data} onTip={showTip} onOpenDay={openDay} />}
+            {view === 'day' && <DayChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} />}
+            {view === 'week' && <WeekChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
             {view === 'month' && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
             {tip && (
               <div className="activity-tip" aria-hidden="true" style={{ left: tip.x, top: tip.y }}>
@@ -323,7 +343,7 @@ export default function ActivityPanel() {
           </div>
 
           {totals.all > 0
-            ? <Subjects key={+period.from + view} subjects={subjects} data={data} />
+            ? <Subjects key={+period.from + view} subjects={subjects} data={data} paint={paint} />
             : (
               <p className="activity-empty">
                 {first

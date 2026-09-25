@@ -133,4 +133,22 @@ export function activityRoutes(router: Router) {
     const first = await one<{ at: string | null }>(env.DB, "SELECT min(started_at) AS at FROM activity WHERE user_uuid = ?", user.uuid);
     return json({ spans, papers, boards, first_at: first?.at ?? null });
   });
+
+  // One paper's or board's effort, for the window its line on the nook
+  // opens: every second ever spent on it, when that began and last was,
+  // and the spans of the last weeks the window draws.
+  router.on("GET", "/api/activity/:kind/:subject", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const kind = params.kind as Kind, subject = params.subject.toLowerCase();
+    if (!ACTIVITY_KINDS.includes(kind) || !(kind === "reading" ? DIGEST : UUID).test(subject)) refuse(404, "Not found");
+    const total = await one<{ seconds: number | null; first_at: string | null; last_at: string | null }>(env.DB,
+      "SELECT sum(seconds) AS seconds, min(started_at) AS first_at, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? AND kind = ? AND subject = ?",
+      user.uuid, kind, subject);
+    const since = new Date(Date.now() - limits.activity.recent_days * DAY_MS).toISOString();
+    const spans = await all<Span>(env.DB,
+      `SELECT started_at, ended_at, seconds FROM activity
+       WHERE user_uuid = ? AND kind = ? AND subject = ? AND ended_at > ? ORDER BY started_at, uuid`,
+      user.uuid, kind, subject, since);
+    return json({ kind, subject, seconds: total?.seconds ?? 0, first_at: total?.first_at ?? null, last_at: total?.last_at ?? null, spans });
+  });
 }

@@ -113,7 +113,8 @@
     "flush_ms": 60000,
     "spans_per_request": 200,
     "span_age_days_max": 60,
-    "range_days_max": 62
+    "range_days_max": 62,
+    "recent_days": 91
   },
   "timeouts_ms": {
     "desktop_auth": 10000,

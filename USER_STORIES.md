@@ -135,8 +135,8 @@ papers in, and I decide where they go.
 ## 5c. My activity
 
 - **US-5c.1** As a user, the time I spend reading a paper in the viewer, or working on one of my boards, is recorded while its window is in front of me and I have used it in the last three minutes — a paper left open behind other windows adds nothing. Time spent offline, on the Mac or in the browser, arrives when Papol can be reached.
-- **US-5c.2** On my profile page, **My activity** shows that time by **Day** (when I was reading and on which board, hour by hour), **Week** (seven such days, each with its total) and **Month** (a calendar shaded by how much time each day held), with the total, the reading and the board time, and each paper and board the time went to. A day in the week or month opens that day.
-- **US-5c.3** On my own nook, each paper and board says, in small type on a line it already has, how long I have spent on it; a hover says when I last did. Nobody else sees my activity or my effort, on my nook or anywhere.
+- **US-5c.2** On my profile page, **My activity** shows that time by **Day** (when I was reading which paper, and on which board, hour by hour, each paper in a colour of its own), **Week** (seven such days, each with its total) and **Month** (a calendar shaded by how much time each day held), with the total, the reading and the board time, and each paper and board the time went to. A day in the week or month opens that day.
+- **US-5c.3** On my own nook, each paper says, in small type on its author line, how long I have spent reading it. Pressing it opens that paper's time: the total and since when, its last twelve weeks as a small calendar, and my latest days with it. Nobody else sees my activity or my effort, on my nook or anywhere.
 - **US-5c.4** My activity is in my data export, and goes when I close my account.
 
 ## 6. Feedback

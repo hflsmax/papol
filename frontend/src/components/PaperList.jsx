@@ -9,21 +9,7 @@ import HintPop from './HintPop';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 import { contextMenuHandler } from '../../../shared/contextMenu';
-import { formatDuration, lastWhen } from '../activityView';
-
-// How long its user has spent on a paper or board: a faint clock and the
-// time, riding a line the row already has, with the whole of it said to a
-// hover and a screen reader. Only the nook's own user is sent it.
-function Effort({ effort, kind }) {
-  if (!(effort?.seconds > 0)) return null;
-  const said = `${kind === 'reading' ? 'Read for' : 'Worked on for'} ${formatDuration(effort.seconds)}, last ${lastWhen(effort.last_at)}`;
-  return (
-    <span className="nook-effort" title={`${said}. Only you see this.`} aria-label={said} role="img">
-      <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.75" /><path d="M6 3.4V6l1.8 1.2" /></svg>
-      {formatDuration(effort.seconds)}
-    </span>
-  );
-}
+import Effort from './EffortPop';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
@@ -226,7 +212,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   </span>}
                   {toggleWarning?.uuid === pickerUuid && <HintPop text={toggleWarning.text} onClose={() => setToggleWarning(null)} />}
                 </span>}
-                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/board/${board.uuid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4><Effort effort={board.effort} kind="board" /></div></div>
+                <div className="paper-item board-item-row"><div className="paper-title-row"><h4><a className="paper-title-link nook-board-title" href={appPath(`/board/${board.uuid}`)} onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}>{board.name}</a></h4></div></div>
               </li>;
             }
             const paper = entry.value;
@@ -304,11 +290,13 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                   </span>
                 )}
                 </div>
-                <p className="paper-meta">
-                  {formatAuthors(paper.authors)}
-                  {paper.year && ` (${paper.year})`}
-                  {paper.journal && ` - ${paper.journal}`}
-                  <Effort effort={paper.effort} kind="reading" />
+                <p className="paper-meta paper-meta-row">
+                  <span>
+                    {formatAuthors(paper.authors)}
+                    {paper.year && ` (${paper.year})`}
+                    {paper.journal && ` - ${paper.journal}`}
+                  </span>
+                  <Effort effort={paper.effort} subject={paper.sha256} />
                 </p>
                 <RatingSummary paper={paper} compact />
               </div>

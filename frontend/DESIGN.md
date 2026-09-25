@@ -59,11 +59,15 @@ two classes so role colors like the leader's gold still win). They say
 "which person", never "what state".
 
 **Activity colors** are a third axis, used only where time is drawn (the
-activity panel, the effort line on a nook row): `--activity-reading` and
-`--activity-board` say what the time was spent on, a pair checked for
-colour-blind separation against `--card`; `--activity-heat-1`…`5` is one
-hue light to dark for how much time a day held, and steps 4 and 5 carry
-`--ink-inverse` text. Neither is ever used for a state.
+activity panel, a paper's time on the nook): `--activity-paper-1`…`4` say
+which paper a stretch of time went to. Four, because blocks of any two
+papers may sit side by side, and four is as many hues as stay apart for
+every pair, colour-blind eyes included. The four papers with most time in
+the period wear them, each keeping the hue its digest points to where it
+can; the rest share `--activity-other`, and a board is hatched in
+`--activity-board`. `--activity-heat-1`…`5` is one hue light to dark for
+how much time a day held; steps 4 and 5 carry `--ink-inverse` text. None
+is ever used for a state.
 
 ## Type
 
@@ -165,6 +169,8 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   long as it was (the Day and Week views, one row per day). Where only
   "how much" matters it is a calendar shaded at fixed marks (15 min, 1 h,
   2 h, 4 h), so one month compares with another rather than with itself.
+  Blocks wear their paper's colour, the list of where the time went is
+  their key, and hovering a paper in either picks out all its time.
   Every block and day says its content in words to hover, focus and a
   screen reader; colour is never the only channel. `ActivityPanel.jsx`.
 

@@ -3189,8 +3189,24 @@ h4 .state-pill {
   border-radius: 2px;
 }
 
-.activity-reading { background: var(--activity-reading); }
-.activity-board { background: var(--activity-board); }
+.activity-paper-1 { background: var(--activity-paper-1); }
+.activity-paper-2 { background: var(--activity-paper-2); }
+.activity-paper-3 { background: var(--activity-paper-3); }
+.activity-paper-4 { background: var(--activity-paper-4); }
+.activity-other { background: var(--activity-other); }
+/* A board is time of another kind, whichever board: hatched, so it never
+   reads as one more paper. */
+.activity-board {
+  background: repeating-linear-gradient(135deg, var(--activity-board) 0 1.5px, var(--paper-sunken) 1.5px 4px);
+  box-shadow: inset 0 0 0 1px var(--activity-board);
+}
+
+/* One paper picked out, by hovering its blocks or its line in the list:
+   every other stretch of time steps back. */
+.activity-block,
+.activity-subjects li { transition: opacity var(--motion-fast) var(--ease-out); }
+.activity-block.is-faded,
+.activity-subjects li.is-faded { opacity: 0.2; }
 
 .activity-figure { position: relative; }
 
@@ -3262,7 +3278,7 @@ h4 .state-pill {
   bottom: 0;
   min-width: 3px;
   border-radius: 3px 3px 0 0;
-  box-shadow: 1px 0 0 var(--card), -1px 0 0 var(--card);
+  outline: 1px solid var(--card);
 }
 
 .activity-block:hover,
@@ -3410,23 +3426,34 @@ h4 .state-pill {
   .activity-subject-bar { display: none; }
 }
 
-/* A paper's or board's effort on its user's own nook: a clock and the
-   time at the end of a line the row already has (a paper's authors, a
-   board's name), in the faint UI face, upright among the italic meta. It
-   is a measure, not a goal, so it is a number and never a bar. */
+/* A paper's effort on its user's own nook: a clock and the time at the end
+   of its author line, in the faint UI face, upright among the italic meta.
+   It is a measure, not a goal, so it is a number and never a bar. It is a
+   button, quiet until touched, and opens the paper's time (EffortPop). */
+.nook-effort-anchor { position: relative; display: inline-flex; }
+
 .nook-effort {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  margin-left: var(--space-2);
+  min-height: 0;
+  margin: 0 0 0 -4px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-style: normal;
   font-variant-numeric: tabular-nums;
   color: var(--ink-faint);
   white-space: nowrap;
-  vertical-align: baseline;
+  cursor: pointer;
 }
+
+.nook-effort:hover,
+.nook-effort[aria-expanded='true'] { background: var(--paper); color: var(--ink-soft); }
 
 .nook-effort svg {
   width: 11px;
@@ -3437,7 +3464,90 @@ h4 .state-pill {
   stroke-linecap: round;
 }
 
-.paper-title-row .nook-effort { margin-left: 0; }
+.effort-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -4px;
+  z-index: 40;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-3) var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.effort-pop .kicker { margin: 0; font-size: var(--fs-xs); font-variant: small-caps; letter-spacing: 0.04em; color: var(--ink-soft); }
+.effort-pop-head { display: flex; align-items: center; justify-content: space-between; }
+
+.effort-pop-close {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  color: var(--ink-faint);
+}
+
+.effort-pop-close:hover { color: var(--ink); background: var(--paper); }
+.effort-pop-total { margin: 2px 0 0; font-size: var(--fs-xl); color: var(--ink); font-variant-numeric: tabular-nums; }
+.effort-pop-note { margin: 2px 0 0; font-size: var(--fs-xs); color: var(--ink-faint); }
+
+/* Twelve weeks as twelve columns, Monday at the top: the month view's
+   shading, at a size that fits in the hand. */
+.effort-weeks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-columns: 12px;
+  gap: 3px;
+  margin-top: var(--space-3);
+}
+
+.effort-weeks i { border-radius: 2px; }
+.effort-weeks .activity-shade-0 { background: var(--paper-sunken); }
+.effort-weeks i.is-future { background: none; }
+
+.effort-pop .effort-pop-days-title { margin-top: var(--space-3); }
+.effort-pop-days { list-style: none; margin: var(--space-1) 0 0; padding: 0; }
+
+.effort-pop-days li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: var(--space-3);
+  white-space: nowrap;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.effort-pop-when { color: var(--ink-faint); }
+.effort-pop-when { overflow: hidden; text-overflow: ellipsis; }
+.effort-pop-time { text-align: right; color: var(--ink); }
+.effort-pop-link { display: inline-block; margin-top: var(--space-3); font-size: var(--fs-sm); }
+
+
+/* The author line as two items, the prose and the effort, centred on each
+   other: on the baseline, the smaller upright face rode low beside the
+   serif italic. It wraps under the authors when they fill the line. */
+.paper-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+}
+
+
 
 .local-setting-row {
   display: grid;

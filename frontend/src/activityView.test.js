@@ -79,3 +79,38 @@ test('durations read as a person would say them', () => {
   assert.equal(lastWhen(local(2026, 9, 22, 9).toISOString(), now, 'en-GB'), 'on Tuesday');
   assert.equal(lastWhen(local(2026, 8, 2, 9).toISOString(), now, 'en-GB'), 'on 2 Aug');
 });
+
+test('the four papers with most time get a hue each, the rest share one, boards stand apart', async () => {
+  const { coloursFor } = await import('./activityView.js');
+  const subjects = ['a', 'b', 'c', 'd', 'e'].map((s, i) => ({ kind: 'reading', subject: s.repeat(64), seconds: 100 - i }));
+  const colours = coloursFor([...subjects, { kind: 'board', subject: 'x', seconds: 1 }]);
+  const hues = subjects.slice(0, 4).map((s) => colours.get(`reading:${s.subject}`));
+  assert.equal(new Set(hues).size, 4);
+  assert.ok(hues.every((h) => /^paper-[1-4]$/.test(h)));
+  assert.equal(colours.get(`reading:${'e'.repeat(64)}`), 'other');
+  assert.equal(colours.get('board:x'), 'board');
+  // A paper alone in a week wears the hue it wears beside others, unless
+  // a paper with more time took it.
+  const alone = coloursFor([subjects[2]]).get(`reading:${'c'.repeat(64)}`);
+  const withOthers = coloursFor(subjects.slice(2)).get(`reading:${'c'.repeat(64)}`);
+  assert.equal(alone, withOthers);
+});
+
+test('a paper\'s days, newest first, and the weeks behind today', async () => {
+  const { daysOf, recentWeeks, dayName } = await import('./activityView.js');
+  const spans = [
+    span('reading', 'p', local(2026, 9, 23, 9), 30),
+    span('reading', 'p', local(2026, 9, 23, 14), 20),
+    span('reading', 'p', local(2026, 9, 25, 10), 10),
+  ];
+  const days = daysOf(spans);
+  assert.deepEqual(days.map((d) => [d.day.getDate(), d.seconds]), [[25, 600], [23, 3000]]);
+  assert.deepEqual([days[1].first, days[1].last], [local(2026, 9, 23, 9), local(2026, 9, 23, 14, 20)]);
+  const weeks = recentWeeks(spans, 2, local(2026, 9, 25, 12));
+  assert.equal(weeks.length, 14);
+  assert.deepEqual(weeks[0].day, local(2026, 9, 14));
+  assert.equal(weeks.find((d) => d.day.getDate() === 23).seconds, 3000);
+  assert.equal(weeks.at(-1).seconds, null);
+  const now = local(2026, 9, 25, 12);
+  assert.deepEqual([local(2026, 9, 25), local(2026, 9, 24), local(2026, 9, 22)].map((d) => dayName(d, now, 'en-GB')), ['Today', 'Yesterday', 'Tuesday']);
+});
