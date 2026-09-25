@@ -950,14 +950,13 @@ button.full-width {
 .upload-section.compact .dropzone p { margin: 0; font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.35; }
 .upload-section.compact .error { position: absolute; z-index: 10; width: min(360px, 100%); margin-top: 6px; }
 
-/* A folder from an agent (FolderImport): the instructions to hand over,
-   then the folder's review, one quiet row per paper. */
+/* A folder from an agent (FolderImport): the prompt to hand over, then
+   the folder's review, one quiet row per paper. */
 .upload-section > .add-folder-link { display: block; margin: -12px auto 20px; font-size: var(--fs-sm); }
 .folder-import h3 { margin: 0; }
 .folder-import-lede { margin: 8px 0 14px; color: var(--ink-soft); }
-.folder-import-instructions { margin-bottom: 16px; }
-.folder-import-instructions pre {
-  margin: 0 0 10px;
+.folder-import-instructions {
+  margin: 0 0 16px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -966,8 +965,6 @@ button.full-width {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.folder-import-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.folder-import-instructions .hint { margin: 6px 0 0; color: var(--ink-faint); font-size: var(--fs-sm); }
 .folder-rows { list-style: none; margin: 14px 0; padding: 0; border-top: 1px solid var(--line); }
 .folder-row {
   display: grid;
