@@ -39,7 +39,8 @@ At rest, before any step:
 *Cited only here* is worth saying: it tells the reader the work is mentioned
 in passing, which is itself an answer.
 
-Buttons only; there are no key bindings for stepping.
+At rest the arrow keys scroll the page as ever; once exploring, ↑ and ↓ step
+(below).
 
 A card opens on an analyzed paper, so the places come from the analysis and
 nothing else. (A `pdf:` card — a hyperref marker clicked in the moment before
@@ -63,7 +64,6 @@ following any link in the paper.
 │   │ …                                            │                   │
 │   │ ┌──────────────────────────────────────────┐ │                   │
 │   │ │ Exploring  2 of 4 · page 7          ↑  ↓ │ │  ← accent strip  │
-│   │ │ [ goes back to page 3                    │ │                   │
 │   │ └──────────────────────────────────────────┘ │                   │
 │   └──────────────────────────────────────────────┘                   │
 └──────────────────────────────────────────────────────────────────────┘
@@ -72,10 +72,15 @@ following any link in the paper.
 What marks it:
 
 - **The foot row turns into a strip** in `--accent` tint: *Exploring*, the
-  position `2 of 4 · page 7`, the steps, and a second line saying how to get
-  back — `[` as a keycap, *goes back to page 3*. The way home is stated, not
-  implied. A place matched only by its number adds `· guessed`, as the
-  marker is drawn dashed (`cite guessed`).
+  position `2 of 4 · page 7`, and the steps. A place matched only by its
+  number adds `· guessed`, as the marker is drawn dashed (`cite guessed`).
+  The way back is the return pill's, below, not a line on the card.
+- **↑ and ↓ on the keyboard step** as the card's buttons do, for as long as
+  the exploration lasts (not in a text field, not with a modifier). Before
+  the first step they scroll the page, as they always have: it takes a
+  deliberate press of a button to start exploring. A step waits for the last
+  one's marker to be drawn, so a key held down cannot place the card against
+  a marker that is not there yet.
 - **The pages get a thin `--accent` inset frame** around the scroller while
   the exploration lasts — the "you are in a mode" cue a screen share uses,
   visible wherever the card has scrolled to. It goes when the exploration
@@ -100,9 +105,8 @@ takes:
   round, or scrolled home by hand), the entry is taken off again: nothing
   moved.
 - The first step does not bring up the Learn Papol lesson on the pill
-  (`LINK_NAVIGATION_TIP`), which a followed link does: the strip already
-  says what `[` does, and the lesson would sit over the ↑ ↓ the reader is
-  stepping with.
+  (`LINK_NAVIGATION_TIP`), which a followed link does: it would sit over
+  the ↑ ↓ the reader is stepping with, and the pill itself shows `[`.
 
 ### How it ends
 
@@ -114,7 +118,7 @@ takes:
 | Scrolling or zooming by hand | Allowed; the exploration continues. |
 
 There is no *Stay here* and no Back button on the card: staying is what every
-exit does, and going back is the viewer's one way back, which the strip names.
+exit does, and going back is the viewer's one way back, the return pill.
 
 ## Stepping: the marker comes to the card
 
@@ -204,8 +208,9 @@ exploration and its starting point: Back still goes home.
 
 ## Not doing
 
-- **Key bindings for stepping.** Buttons only; Esc is the one key, and it
-  already means "put the transient thing away".
+- **Keys for stepping before the exploration starts.** At rest the arrows
+  belong to the page; they step only once the reader has pressed ↑ or ↓ on
+  the card.
 - **A list of every place with its sentence**, in the card or a side panel.
   It answers the same question at a glance, but it needs the sentence text
   for every marker, and it makes the card a panel. Stepping shows the real
@@ -227,6 +232,7 @@ exploration and its starting point: Back still goes home.
   pages 1, 3 and 4. Stepping round and back and closing leaves no way back;
   ↓ keeps the card where it was, lights the marker on page 3, frames the
   pages, offers *Back to page 1*, and shows no lesson; steps wrap both ways;
+  the ↓ and ↑ keys step while exploring;
   Esc and a press on the page each keep the view; `[` restores the start and
   `]` the place stayed at.
 - Screenshots on a real paper (attention.pdf with the analyzer's reading) are

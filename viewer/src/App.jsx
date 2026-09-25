@@ -1851,7 +1851,7 @@ export default function App() {
   const stepOccurrence = (direction) => {
     const cite = openCite;
     const scroller = scrollerRef.current;
-    if (!cite?.places || cite.places.length < 2 || !scroller) return;
+    if (!cite?.places || cite.places.length < 2 || !cite.anchor || !scroller) return;
     const at = (cite.at + direction + cite.places.length) % cite.places.length;
     const place = cite.places[at];
     const pageEl = scroller.querySelector(`[data-page="${place.page}"]`);
@@ -1927,14 +1927,24 @@ export default function App() {
   };
 
   // The card closes on Escape, like every other transient thing here.
+  // While exploring, ↑ and ↓ step as the card's buttons do; before the
+  // first step they scroll the page as ever.
   useEffect(() => {
     if (!openCite) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') closeReference();
+      if (e.key === 'Escape') {
+        closeReference();
+        return;
+      }
+      if (exploring && (e.key === 'ArrowUp' || e.key === 'ArrowDown')
+        && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isEditingTarget(e.target)) {
+        e.preventDefault();
+        stepOccurrence(e.key === 'ArrowDown' ? 1 : -1);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openCite]);
+  }, [openCite, exploring]);
 
   // Open at the width of the viewer, and stay fitted through actual window
   // resizes until the user picks a zoom.
@@ -4543,7 +4553,7 @@ export default function App() {
                 page: openCite.place.page,
                 exact: openCite.place.exact,
               } : null}
-              exploringFrom={exploring ? (exploring.startView?.page ?? 0) : null}
+              exploring={!!exploring}
               onPreviousPlace={() => stepOccurrence(-1)}
               onNextPlace={() => stepOccurrence(1)}
             />

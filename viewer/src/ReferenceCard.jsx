@@ -20,7 +20,7 @@ const MARGIN = 12;
 export default function ReferenceCard({
   anchor, reference, error, requiresNook = false, onClose,
   position = 0, count = 1, onPrevious, onNext, onReportProblem,
-  places = null, exploringFrom = null, onPreviousPlace, onNextPlace,
+  places = null, exploring = false, onPreviousPlace, onNextPlace,
 }) {
   const cardRef = useRef(null);
   // Where the card last sat across the window. While the reader steps
@@ -29,7 +29,7 @@ export default function ReferenceCard({
   // or a marker in the other column would carry it — and the button under
   // the pointer — half a page sideways.
   const heldLeft = useRef(null);
-  const holding = exploringFrom != null;
+  const holding = exploring;
   const [showAll, setShowAll] = useState(false);
 
   // Placed after measuring: whether the card fits below the marker depends
@@ -128,8 +128,8 @@ export default function ReferenceCard({
     || (!requiresNook && !waiting && !work && status !== 'pdf_text' && raw);
 
   // Where else the paper cites this work, and the way through them. From
-  // the first step it is an exploration, and says so: where it has got to,
-  // and that [ goes back to where it began.
+  // the first step it is an exploration, and says so, and where it has got
+  // to; the return pill says the way back.
   const placesRow = places && (
     <div className={`ref-places${holding ? ' exploring' : ''}`}>
       <div className="ref-places-row">
@@ -143,20 +143,15 @@ export default function ReferenceCard({
         </span>
         {places.count > 1 && (
           <nav className="ref-places-nav" aria-label="Places this paper cites it">
-            <button type="button" onClick={onPreviousPlace} aria-label="Previous place it is cited" title="Previous place it is cited">
+            <button type="button" onClick={onPreviousPlace} aria-label="Previous place it is cited" title={`Previous place it is cited${holding ? ' (↑)' : ''}`}>
               ↑
             </button>
-            <button type="button" onClick={onNextPlace} aria-label="Next place it is cited" title="Next place it is cited">
+            <button type="button" onClick={onNextPlace} aria-label="Next place it is cited" title={`Next place it is cited${holding ? ' (↓)' : ''}`}>
               ↓
             </button>
           </nav>
         )}
       </div>
-      {holding && (
-        <p className="ref-places-back">
-          <kbd>[</kbd> goes back to {exploringFrom ? `page ${exploringFrom}` : 'where you were'}
-        </p>
-      )}
     </div>
   );
 

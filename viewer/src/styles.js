@@ -1668,19 +1668,6 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   border-top-color: var(--accent);
   background: var(--accent-soft);
 }
-.ref-places-back { margin: 4px 0 0; color: var(--ink-soft); }
-.ref-places-back kbd {
-  min-width: 16px;
-  padding: 0 4px;
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  background: var(--paper);
-  color: var(--ink-faint);
-  font: 600 var(--fs-xs) var(--font-ui);
-  line-height: 1.35;
-  text-align: center;
-}
 
 .ref-raw {
   margin: 0;

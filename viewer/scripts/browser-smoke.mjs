@@ -218,14 +218,16 @@ const probe = `<script>
       const openFirst = () => $('.pdf-page[data-page="1"] .cite')?.click();
       const near = (a, b) => Math.abs(a - b) < 3;
       const pill = () => text('.link-return');
+      // A step's card is shown once its marker is drawn; the next step waits for it.
+      const shown = () => $('.ref-card') && $('.ref-card').style.visibility !== 'hidden';
       let start = null;
       let card = null;
       let stayed = null;
       const stages = [
         ['open', openFirst, () => text('.ref-places-what') === 'Cited 3 times in this paper'],
         // Round and back to where it began went nowhere: no way back offered.
-        ['round', () => { start = pages().scrollTop; step(1); }, () => text('.ref-places-what').includes('2 of 3')],
-        ['round-back', () => step(-1), () => text('.ref-places-what').includes('1 of 3 · page 1') && near(pages().scrollTop, start)],
+        ['round', () => { start = pages().scrollTop; step(1); }, () => text('.ref-places-what').includes('2 of 3') && shown()],
+        ['round-back', () => step(-1), () => text('.ref-places-what').includes('1 of 3 · page 1') && near(pages().scrollTop, start) && shown()],
         ['round-close', () => press('Escape'), () => !$('.ref-card') && !$('.viewer-body.exploring') && !pill()],
         // Down: the next marker comes to the card, and the card stays put.
         ['reopen', openFirst, () => $('.ref-card') && text('.ref-places-what').startsWith('Cited')],
@@ -241,14 +243,16 @@ const probe = `<script>
             && $('.ref-card').style.visibility !== 'hidden'
             && near(r.top, card.top) && near(r.left, card.left)
             && $('.viewer-body.exploring')
-            && text('.ref-places-back').includes('goes back to page 1')
             && pill().includes('Back to page 1')
             // The strip teaches [; no lesson may sit over the step buttons.
             && !$('.learn-papol');
         }],
-        ['down-again', () => step(1), () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4'],
-        ['wrap', () => step(1), () => text('.ref-places-what') === 'Exploring 1 of 3 · page 1'],
-        ['to-page-3', () => step(1), () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3'],
+        ['down-again', () => step(1), () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
+        ['wrap', () => step(1), () => text('.ref-places-what') === 'Exploring 1 of 3 · page 1' && shown()],
+        ['to-page-3', () => step(1), () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3' && shown()],
+        // While exploring, ↓ and ↑ step as the buttons do.
+        ['arrow-down', () => press('ArrowDown'), () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
+        ['arrow-up', () => press('ArrowUp'), () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3' && shown()],
         // Esc stays where the exploration got to; [ goes back, ] returns.
         ['escape', () => { stayed = pages().scrollTop; press('Escape'); },
           () => !$('.ref-card') && !$('.viewer-body.exploring') && near(pages().scrollTop, stayed) && pill().includes('page 1')],
@@ -257,7 +261,7 @@ const probe = `<script>
         ['home', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
         // Up from the first comes round to the last; a press on the page
         // puts the card away and stays there too.
-        ['up', () => { openFirst(); setTimeout(() => step(-1), 100); }, () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4'],
+        ['up', () => { openFirst(); setTimeout(() => step(-1), 100); }, () => text('.ref-places-what') === 'Exploring 3 of 3 · page 4' && shown()],
         ['click-away', () => {
           stayed = pages().scrollTop;
           $('.pdf-page[data-page="4"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
