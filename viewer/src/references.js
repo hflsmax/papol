@@ -101,7 +101,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   // box the viewer brings into view. A section is where it begins: its
   // heading goes to the top of the window, as a PDF's own link would take it.
   const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
-  const analyzedLinks = (analysis?.links || [])
+  let analyzedLinks = (analysis?.links || [])
     .filter((link) => link.page === pageNumber && floats.has(link.float_uuid))
     .map((link) => {
       const float = floats.get(link.float_uuid);
@@ -117,6 +117,12 @@ export async function pageOverlays(doc, pageNumber, analysis) {
           : { page: float.page, y: float.y, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
       };
     });
+
+  try {
+    analyzedLinks = await fitMentionsToText(doc, pageNumber, analyzedLinks);
+  } catch {
+    // Without the page's text the analyzer's own boxes still point there.
+  }
 
   // A single PDF link is sometimes emitted as several adjacent annotation
   // rectangles (one per text run). Treat those fragments the same way as
@@ -174,6 +180,98 @@ function itemBox(item, viewport, start, end) {
     w: Math.max(3, fullWidth * ((end - start) / item.str.length)) / viewport.width,
     h: height / viewport.height,
   };
+}
+
+// The words that name what a mention's label numbers: "Fig. 2g",
+// "Figure 2", "Table 1", "Box 3", "Section 2.1".
+const MENTION_PREFIX = /(?:\b(?:fig(?:ure)?s?|tables?|box(?:es)?|sec(?:tion)?s?)\.?|§)\s*$/iu;
+
+// Widths of a text item's characters where the browser can measure them:
+// a line's letters are not all one width, and a box over a few of them in
+// the middle of it would drift. In the PDF's own font once pdf.js has
+// loaded it for drawing the page, which it names after the item's font;
+// until then in the family pdf.js says it resembles.
+function textMeasure(styles) {
+  const canvas = globalThis.OffscreenCanvas
+    ? new OffscreenCanvas(1, 1)
+    : globalThis.document?.createElement?.('canvas');
+  const context = canvas?.getContext?.('2d');
+  return (item, start, end) => {
+    if (!context) return end - start;
+    context.font = `100px "${item.fontName}", ${styles[item.fontName]?.fontFamily || 'sans-serif'}`;
+    return context.measureText(item.str.slice(start, end)).width;
+  };
+}
+
+// Where a character of a text item begins, as a fraction of the page's
+// width, with the item's width shared out as `measure` says.
+function characterX(item, viewport, offset, measure) {
+  const transform = multiply(viewport.transform, item.transform);
+  const whole = measure(item, 0, item.str.length);
+  const share = whole > 0 ? measure(item, 0, offset) / whole : offset / item.str.length;
+  return (transform[4] + item.width * viewport.scale * share) / viewport.width;
+}
+
+/**
+ * The analyzer knows a figure mention's label exactly — "2g" — but not the
+ * words before it: it widens the box a guessed three ems to the left, which
+ * is "Figure ", nearly twice "Fig. ", and in "Figs. 2a and 3a" covers "and"
+ * before "3a". The page's text says where the mention begins. The label's
+ * right edge, which the analyzer measured, stays where it is.
+ */
+async function fitMentionsToText(doc, pageNumber, links) {
+  if (!links.length) return links;
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  const content = await page.getTextContent();
+  const items = content.items || [];
+  const { text, from } = runningText(items);
+  const measure = textMeasure(content.styles || {});
+  const lower = text.toLowerCase();
+
+  return links.map((link) => {
+    const label = String(link.label || '').trim().toLowerCase();
+    if (!label) return link;
+    const right = link.x + link.w;
+    const middle = link.y + link.h / 2;
+    // The printed label nearest where the analyzer saw it end.
+    let best = null;
+    for (let at = lower.indexOf(label); at >= 0; at = lower.indexOf(label, at + 1)) {
+      const last = from[at + label.length - 1];
+      const item = last && items[last.itemIndex];
+      if (!Array.isArray(item?.transform)) continue;
+      const line = itemBox(item, viewport, 0, item.str.length);
+      if (middle < line.y || middle > line.y + line.h) continue;
+      const miss = Math.abs(characterX(item, viewport, last.offset + 1, measure) - right);
+      if (miss <= line.h * 3 * viewport.height / viewport.width && (!best || miss < best.miss)) {
+        best = { at, last, item, miss };
+      }
+    }
+    if (!best) return link;
+
+    const prefix = text.slice(Math.max(0, best.at - 40), best.at).match(MENTION_PREFIX);
+    // Only what is on the label's line: "Fig." ending the line above is
+    // not under this box.
+    let first = null;
+    for (let i = best.at - (prefix?.[0].length ?? 0); i < best.at + label.length && !first; i += 1) {
+      const at = from[i];
+      const item = at && items[at.itemIndex];
+      if (!Array.isArray(item?.transform) || /\s/u.test(item.str[at.offset])) continue;
+      const line = itemBox(item, viewport, 0, item.str.length);
+      if (middle >= line.y && middle <= line.y + line.h) first = at;
+    }
+    if (!first) return link;
+
+    // Measured back from the analyzer's right edge where the mention is all
+    // in one item, so that nothing earlier on the line can put it out.
+    const { item, last } = best;
+    const left = first.itemIndex === last.itemIndex
+      ? right - (measure(item, first.offset, last.offset + 1) / Math.max(1e-9, measure(item, 0, item.str.length)))
+        * item.width * viewport.scale / viewport.width
+      : characterX(items[first.itemIndex], viewport, first.offset, measure);
+    if (!(left < right)) return link;
+    return { ...link, x: left, w: right - left };
+  });
 }
 
 /** Addresses printed on a page, as links: a box for each line one covers. */

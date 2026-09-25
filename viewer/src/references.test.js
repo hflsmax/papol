@@ -125,6 +125,66 @@ test('turns an analyzed figure reference into a link to the float it names', asy
   }]);
 });
 
+// A page 100 units square whose text is 2 units tall and 1 unit a
+// character, so that a character's place is its offset from the item's x.
+function pageOfText(items) {
+  return {
+    getViewport: () => ({ width: 100, height: 100, scale: 1, transform: [1, 0, 0, -1, 0, 100] }),
+    getAnnotations: async () => [],
+    getTextContent: async () => ({
+      items: items.map(([str, x, baseline, hasEOL = false]) => ({
+        str, hasEOL, width: str.length, transform: [2, 0, 0, 2, x, baseline], fontName: 'f1',
+      })),
+      styles: {},
+    }),
+  };
+}
+
+// The analyzer's box for a label ending at `right` on the line whose
+// baseline is 20: the label, and three ems to its left.
+function analyzedMention(label, right) {
+  const left = right - label.length / 100;
+  return {
+    references: [],
+    citations: [],
+    floats: [{ uuid: 'f-2', kind: 'figure', label: '2', page: 3, x: 0.1, y: 0.1, w: 0.8, h: 0.3 }],
+    links: [{ float_uuid: 'f-2', label, page: 1, x: left - 0.06, y: 0.78, w: right - left + 0.06, h: 0.02 }],
+  };
+}
+
+const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
+
+test('a figure mention covers "Fig." and not the words before it', async () => {
+  const page = pageOfText([['masses (see Fig. 2g for', 10, 20]]);
+  const overlays = await pageOverlays({ getPage: async () => page }, 1, analyzedMention('2g', 0.29));
+
+  const [link] = overlays.links;
+  near(link.x, 0.22); // "F", not the "e " of "see" three ems back
+  near(link.x + link.w, 0.29);
+});
+
+test('a label with no word before it is covered alone', async () => {
+  const page = pageOfText([['Figs. 2a and 3a show', 10, 20]]);
+  const overlays = await pageOverlays({ getPage: async () => page }, 1, analyzedMention('3a', 0.25));
+
+  near(overlays.links[0].x, 0.23);
+});
+
+test('"Fig." ending the line above is not under the label\'s box', async () => {
+  const page = pageOfText([['as in Fig.', 60, 10, true], ['2g for', 10, 20]]);
+  const overlays = await pageOverlays({ getPage: async () => page }, 1, analyzedMention('2g', 0.12));
+
+  near(overlays.links[0].x, 0.10);
+});
+
+test("a mention the page's text does not show keeps the analyzer's box", async () => {
+  const page = pageOfText([['nothing here', 10, 20]]);
+  const analysis = analyzedMention('2g', 0.29);
+  const overlays = await pageOverlays({ getPage: async () => page }, 1, analysis);
+
+  near(overlays.links[0].x, analysis.links[0].x);
+});
+
 test('recognizes Springer Nature superscript reference destinations without analysis', async () => {
   const dest = 'springernature_natcomputsci_673.indd:\uFEFF12.\uFEFF\tBertoldi, K. et al. Flexible mechanical metamaterials.:65';
   const page = {
