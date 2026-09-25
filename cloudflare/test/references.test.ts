@@ -129,8 +129,7 @@ describe("resolving a reference", () => {
 
 // What the host's analyzer answers for the paper: two entries, the first
 // cited once on page 1.
-const ANALYSIS: Analysis & { format: number } = {
-  format: 2,
+const ANALYSIS: Analysis = {
   references: [
     { key: "b0", index: 0, raw: "Vaswani et al. Attention Is All You Need. 2017.", title: "Attention Is All You Need", authors: [], year: 2017, journal: null, doi: null, arxiv_id: null, page: 1, y: 700 / 800 },
     { key: "b1", index: 1, raw: "Knuth D. The art of computer programming.", title: null, authors: [], year: null, journal: null, doi: null, arxiv_id: null, page: 1, y: 712 / 800 },
@@ -152,14 +151,14 @@ describe("what the analyzer is sent", () => {
     const hosted = { ...env, FILES_URL: "https://files.test/" as string } as Env;
     const sent: Array<[string, string, string]> = [];
     hosts({ "analyzer.test": (url, init) => {
-      sent.push([url.pathname + url.search, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
+      sent.push([url.pathname, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
       return jsonResponse(url.pathname.endsWith("/analyze") ? ANALYSIS : { title: "T", authors: [], journal: null, year: null, doi: null, arxiv_id: null });
     } });
     await analyzer.analyze(hosted, `${OTHER}.pdf`);
     await analyzer.header(hosted, `${OTHER}.pdf`);
     const address = JSON.stringify({ url: `https://files.test/uploads/${OTHER}.pdf` });
     expect(sent).toEqual([
-      ["/analyze?format=2", "application/json", address],
+      ["/analyze", "application/json", address],
       ["/header", "application/json", address],
     ]);
   });
@@ -213,7 +212,7 @@ describe("the viewer's references", () => {
     const ada = await register();
     await kept(ada);
     const analysis = {
-      format: 2, references: [], citations: [],
+      references: [], citations: [],
       floats: [{ key: "f0", kind: "figure", label: "2", page: 3, x: 0.1, y: 0.2, w: 0.4, h: 0.3 }],
       links: [{ float: "f0", label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }],
     };
@@ -263,32 +262,10 @@ describe("the viewer's references", () => {
     expect(await count("paper_citation_works")).toBe(3);
   });
 
-  it("store nothing from an analyzer that predates whole markers, and leave the paper to be read again", async () => {
-    const ada = await register();
-    await kept(ada);
-    // An analyzer not yet brought up to date ignores ?format=2 and answers
-    // as it always did: a row a work a box, and no format.
-    const { format: _, ...unformatted } = ANALYSIS;
-    hosts({ "analyzer.test": () => jsonResponse({
-      ...unformatted,
-      citations: [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 0.1, y: 0.1, w: 0.02, h: 0.01 }],
-    }) });
-    await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
-    await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
-
-    expect((await row("SELECT status, error FROM jobs WHERE kind = 'analyze_paper'"))).toEqual({
-      status: "failed", error: "The analyzer answered format 1; this Worker stores format 2",
-    });
-    // Not the paper's failure: it is still pending, and nothing was written.
-    expect((await row("SELECT references_status FROM papers WHERE sha256 = ?", PDF))!.references_status).toBe("pending");
-    expect(await count("paper_references")).toBe(0);
-    expect(await count("paper_citations")).toBe(0);
-  });
-
   it("fail a reading whose links name a float it does not have", async () => {
     const ada = await register();
     await kept(ada);
-    hosts({ "analyzer.test": () => jsonResponse({ format: 2, references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
+    hosts({ "analyzer.test": () => jsonResponse({ references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     expect(await count("paper_links")).toBe(0);

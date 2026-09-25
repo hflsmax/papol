@@ -94,10 +94,9 @@ describe("POST /analyze", () => {
       [60, 250, "[3] Robert Kovacs. 2018. Trussformer. In Proc. CHI."],
     ]);
     await serving(async (post, lines) => {
-      const { status, body } = await post("/analyze?format=2", pdf);
+      const { status, body } = await post("/analyze", pdf);
       assert.equal(status, 200);
-      assert.deepEqual(Object.keys(body), ["format", "references", "citations", "floats", "links"]);
-      assert.equal(body.format, 2);
+      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
       assert.deepEqual(body.references.map((r) => [r.key, r.year, r.title]), [
         ["b0", 2016, "Metamaterial Mechanisms"], ["b1", 2017, "Digital Mechanical Metamaterials"], ["b2", 2018, "Trussformer"],
       ]);
@@ -107,7 +106,7 @@ describe("POST /analyze", () => {
       ]);
       assert.deepEqual(body.floats.map((f) => [f.key, f.kind, f.label, f.page]), [["f0", "figure", "1", 1]]);
       assert.deepEqual(body.links.map((l) => [l.float, l.label, l.page]), [["f0", "1", 1]]);
-      assert.match(lines[0], /^\S+ POST \/analyze\?format=2 200 \d+B \d+ms$/);
+      assert.match(lines[0], /^\S+ POST \/analyze 200 \d+B \d+ms$/);
     });
   });
 
@@ -125,7 +124,7 @@ describe("POST /analyze", () => {
 
   it("answers a marker broken over a line as one citation, a box for each line", async () => {
     await serving(async (post) => {
-      const { body } = await post("/analyze?format=2", WRAPPED);
+      const { body } = await post("/analyze", WRAPPED);
       const wrapped = body.citations.filter((c) => c.label === "[1, 2]");
       assert.equal(wrapped.length, 1);
       assert.deepEqual(wrapped[0].keys, ["b0", "b1"]);
@@ -136,17 +135,6 @@ describe("POST /analyze", () => {
       assert.ok([end, start].every((box) => box.page === 1));
       // And "[3]", after it on the second line, is a citation of its own.
       assert.deepEqual(body.citations.filter((c) => c.label === "[3]").map((c) => [c.keys, c.boxes.length]), [[["b2"], 1]]);
-    });
-  });
-
-  it("flattens citations to a row a work a box for a Worker that asks for no format", async () => {
-    await serving(async (post) => {
-      const { body } = await post("/analyze", WRAPPED);
-      assert.deepEqual(Object.keys(body), ["references", "citations", "floats", "links"]);
-      assert.deepEqual(body.citations.map((c) => [c.key, c.label]), [
-        ["b0", "[1]"], ["b1", "[2]"], ["b0", "[1, 2]"], ["b0", "[1, 2]"], ["b1", "[1, 2]"], ["b1", "[1, 2]"], ["b2", "[3]"],
-      ]);
-      assert.ok(body.citations.every((c) => typeof c.page === "number" && typeof c.x === "number" && !("boxes" in c)));
     });
   });
 
@@ -260,9 +248,9 @@ describe("a paper named by its address", () => {
   it("fetches the paper from the bucket and reads it, the Worker sending no bytes", async () => {
     await bucket(async (origin, asked) => {
       await serving(async (post) => {
-        const analyzed = await post("/analyze?format=2", named(`${origin}/uploads/${DIGEST}.pdf`), json);
+        const analyzed = await post("/analyze", named(`${origin}/uploads/${DIGEST}.pdf`), json);
         assert.equal(analyzed.status, 200);
-        assert.deepEqual(Object.keys(analyzed.body), ["format", "references", "citations", "floats", "links"]);
+        assert.deepEqual(Object.keys(analyzed.body), ["references", "citations", "floats", "links"]);
         const header = await post("/header", named(`${origin}/uploads/${DIGEST}.pdf`), json);
         assert.equal(header.body.title, "Metamaterial Mechanisms");
       }, { fileOrigins: [origin] });
