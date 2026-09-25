@@ -145,6 +145,12 @@ const citedAnalysis = {
   })),
 };
 
+// A link its sharer took back: the Worker's 404, which the viewer must say
+// in place of a PDF. Every hook the viewer calls has to stand above the
+// return that says it, or React throws and the boundary's panel stands
+// there instead — which is how a revoked link once read as a crash.
+const REVOKED_SHARE = 'Kk77Mm88Nn';
+
 const json = (body) => ({ type: 'application/json', body: JSON.stringify(body) });
 
 // Wait for a citation marker, click it, and wait for the card to show the
@@ -156,6 +162,7 @@ const probe = `<script>
     if (new URLSearchParams(location.search).get('smoke') === 'inner') return;
     if (new URLSearchParams(location.search).get('share') === '${FIGURE_SHARE}') return followFigure();
     if (new URLSearchParams(location.search).get('share') === '${CITED_SHARE}') return explorePlaces();
+    if (new URLSearchParams(location.search).get('share') === '${REVOKED_SHARE}') return sayTakenBack();
     let clicked = false;
     const ready = () => {
       if (document.querySelector('.render-error')) {
@@ -300,6 +307,23 @@ const probe = `<script>
       run();
     }
 
+    function sayTakenBack() {
+      const started = Date.now();
+      const check = () => {
+        const notice = document.querySelector('.viewer-notice h1');
+        if (notice && notice.textContent.includes('no longer shared')) {
+          fetch('/__papol_smoke_ready?page=viewer-taken-back', { method: 'POST' });
+          return;
+        }
+        if (document.querySelector('.render-error') || Date.now() - started > 15000) {
+          fetch('/__papol_smoke_ready?page=' + (document.querySelector('.render-error') ? 'taken-back-crashed' : 'taken-back-silent'), { method: 'POST' });
+          return;
+        }
+        setTimeout(check, 50);
+      };
+      check();
+    }
+
     function followFigure() {
       let clicked = false;
       let last = 'no-link';
@@ -396,6 +420,7 @@ await runSmoke(
     { path: `/papol/viewer/?share=${SHARE}`, page: 'viewer-citation' },
     { path: `/papol/viewer/?share=${FIGURE_SHARE}`, page: 'viewer-float' },
     { path: `/papol/viewer/?share=${CITED_SHARE}`, page: 'viewer-places' },
+    { path: `/papol/viewer/?share=${REVOKED_SHARE}`, page: 'viewer-taken-back' },
     { path: '/papol/viewer/__layout', page: 'viewer-layout' },
   ],
   async (url) => {
@@ -406,6 +431,9 @@ await runSmoke(
     if (pathname === `/papol/api/shared/${SHARE}`) return json(shared);
     if (pathname === `/papol/api/shared/${FIGURE_SHARE}`) return json(figureShared);
     if (pathname === `/papol/api/shared/${CITED_SHARE}`) return json(citedShared);
+    if (pathname === `/papol/api/shared/${REVOKED_SHARE}`) {
+      return { status: 404, ...json({ detail: 'This reading is no longer shared' }) };
+    }
     if (pathname === `/papol/api/viewer-references/${CITED_SHA256}`) return json(citedAnalysis);
     if (pathname === '/papol/uploads/cited.pdf') return { type: 'application/pdf', body: citedPdf };
     if (pathname === `/papol/api/viewer-references/${FIGURE_SHA256}`) return json(figureAnalysis);
@@ -431,6 +459,7 @@ console.log(
   'Viewer browser smoke: a citation marker opened its reference card, search '
   + 'found and highlighted a phrase, a figure link zoomed the figure to fill '
   + 'the window in its middle, a card stepped through the places its work '
-  + 'is cited and every way out stayed with [ to go back, and '
+  + 'is cited and every way out stayed with [ to go back, a link taken back '
+  + 'said so, and '
   + 'the layout held from 320px to 1920px.',
 );

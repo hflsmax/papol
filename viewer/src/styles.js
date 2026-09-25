@@ -53,7 +53,12 @@ ${macHandoffStyles}
 
 ${compatibilityStyles}
 
-.shell { max-width: 640px; margin: 80px auto; padding: 0 20px; }
+.shell { max-width: 480px; margin: 18vh auto 80px; padding: 0 16px; }
+/* Why there is nothing to read. The title is the reason itself. */
+.viewer-notice { padding: 28px 28px 24px; }
+.viewer-notice h1 { margin: 0; font-size: var(--fs-xl); line-height: 1.3; }
+.viewer-notice p { margin: var(--space-2) 0 0; color: var(--ink-soft); }
+.viewer-notice .error-actions { margin-top: var(--space-4); }
 /* Something failed while reading: said plainly, without taking the page
    away. */
 .error-bar {

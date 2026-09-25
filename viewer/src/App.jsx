@@ -3684,29 +3684,53 @@ export default function App() {
     window.location.assign(appPath(`/signin?next=${encodeURIComponent(current)}`));
   };
 
+  // The marker an exploration has got to, drawn by its page; the key makes
+  // a step to another marker on the same page light it afresh.
+  const occurrencePlace = exploring && openCite?.place ? openCite.place : null;
+  const citationOccurrence = useMemo(
+    () => (occurrencePlace ? { boxes: occurrencePlace.boxes, key: `place-${openCite.at}` } : null),
+    [occurrencePlace, openCite?.at],
+  );
+
+  // Every hook stands above this return: a viewer that fails before its
+  // PDF arrives renders fewer of them, and React takes that for a crash.
+  // Nothing to read, and the reason why: a card of its own in the middle
+  // of the window, not an alarm. Most of these are no fault of the reader
+  // — a link its sharer took back, a paper that asks for an account — so
+  // the reason is the title and the way on is the button.
   if (error && !doc) {
+    const needsSignIn = /sign in to see this paper|sign in to view this paper/i.test(error);
+    const linkTakenBack = /no longer shared/i.test(error);
     return (
       <>
         <CompatibilityGate />
         <div className="shell">
-          <div className="error" role="alert">{error}</div>
-          {/sign in to see this paper|sign in to view this paper/i.test(error) && (
-            <div className="error-actions">
-              <button type="button" className="primary" onClick={signInForPaper}>
-                Sign in
-              </button>
-            </div>
-          )}
-          {!DOCUMENT_WINDOW && <p className="hint">
-            <a
-              href={source?.homeHref || appPath('/')}
-              onClick={(event) => {
-                if (closeDesktopDocumentWindow()) event.preventDefault();
-              }}
-            >
-              Back to Papol
-            </a>
-          </p>}
+          <div className="card-surface viewer-notice" role="alert">
+            <h1>{error}</h1>
+            {linkTakenBack && (
+              <p>Whoever sent you this link has stopped sharing it. Ask them for a new one.</p>
+            )}
+            {(needsSignIn || !DOCUMENT_WINDOW) && (
+              <div className="error-actions">
+                {needsSignIn && (
+                  <button type="button" className="primary" onClick={signInForPaper}>
+                    Sign in
+                  </button>
+                )}
+                {!DOCUMENT_WINDOW && (
+                  <button
+                    type="button"
+                    className={needsSignIn ? undefined : 'primary'}
+                    onClick={() => {
+                      if (!closeDesktopDocumentWindow()) window.location.assign(source?.homeHref || appPath('/'));
+                    }}
+                  >
+                    Back to Papol
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </>
     );
@@ -3735,13 +3759,6 @@ export default function App() {
     : null;
   const openReferencePage = Number(openCite?.anchor?.closest?.('.pdf-page')?.dataset.page)
     || openCite?.place?.page || null;
-  // The marker an exploration has got to, drawn by its page; the key makes
-  // a step to another marker on the same page light it afresh.
-  const occurrencePlace = exploring && openCite?.place ? openCite.place : null;
-  const citationOccurrence = useMemo(
-    () => (occurrencePlace ? { boxes: occurrencePlace.boxes, key: `place-${openCite.at}` } : null),
-    [occurrencePlace, openCite?.at],
-  );
   const startPlace = exploring?.startPlace ?? null;
 
   // The way out is a place, not a step backwards. Each source names where
