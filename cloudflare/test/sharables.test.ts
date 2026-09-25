@@ -1,5 +1,6 @@
 // A sharable hands one user's reading of one paper to anyone with the
 // link — and hands over nothing else in that user's nook.
+import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { call, count, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";
@@ -84,6 +85,61 @@ describe("the paper's own link", () => {
     // Not theirs to revoke either.
     expect((await call("DELETE", `/api/sharables/${lean.uuid}`, { headers: ada.headers })).status).toBe(404);
     expect((await opened(lean)).status).toBe(200);
+  });
+});
+
+describe("a link's address", () => {
+  // Where papol.io/s/<code> sends whoever follows it, as the browser is told.
+  async function followed(code: string) {
+    const response = await SELF.fetch(`https://papol.test/s/${code}`, { redirect: "manual" });
+    return { status: response.status, location: response.headers.get("location") };
+  }
+
+  it("is a short code nobody could count their way to, and the table refuses a second of", async () => {
+    const rich = await share(ada), lean = await share(ada, false);
+    for (const link of [rich, lean]) {
+      expect(link.uuid).toMatch(/^[0-9a-hjkmnp-tv-z]{12}$/);
+    }
+    expect(rich.uuid).not.toBe(lean.uuid);
+    // Taken is taken: the key is the code.
+    await expect(exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'lean', NULL, ?, ?)", rich.uuid, OTHER, new Date().toISOString())).rejects.toThrow(/UNIQUE/);
+  });
+
+  it("sends a reading to the viewer on its code, and the paper alone to the paper's own address", async () => {
+    const rich = await share(ada), lean = await share(ada, false);
+    expect(await followed(rich.uuid)).toEqual({ status: 302, location: `https://papol.test/viewer/?share=${rich.uuid}` });
+    expect(await followed(lean.uuid)).toEqual({ status: 302, location: `https://papol.test/viewer/?pdf=${SHARED}` });
+    // A reading that lost its annotations is the paper alone, and goes where the paper goes.
+    await ok("POST", `/api/sharables/${rich.uuid}/lean`, { headers: ada.headers });
+    expect((await followed(rich.uuid)).location).toBe(`https://papol.test/viewer/?pdf=${SHARED}`);
+  });
+
+  it("still leads somewhere once taken back, so the viewer can say so, and nowhere for what was never a code", async () => {
+    const rich = await share(ada);
+    await ok("DELETE", `/api/sharables/${rich.uuid}`, { headers: ada.headers });
+    expect((await followed(rich.uuid)).location).toBe(`https://papol.test/viewer/?share=${rich.uuid}`);
+    expect((await followed("not-a-code")).status).toBe(404);
+  });
+
+  it("keeps the links handed out before there were codes", async () => {
+    const old = uuid();
+    await exec("INSERT INTO sharables (uuid, kind, user_uuid, paper_sha256, created_at) VALUES (?, 'rich', ?, ?, ?)", old, ada.uuid, SHARED, new Date().toISOString());
+    expect(((await (await call("GET", `/api/shared/${old}`)).json()) as Json).kind).toBe("rich");
+    expect((await followed(old)).location).toBe(`https://papol.test/viewer/?share=${old}`);
+    // Asking again finds the link that is out rather than minting a code.
+    expect((await share(ada)).uuid).toBe(old);
+  });
+});
+
+describe("a paper's own viewer address", () => {
+  it("opens the paper alone for anyone, as a lean link does", async () => {
+    const lean = await ok("GET", `/api/viewer/${SHARED}/lean`);
+    expect(lean).toMatchObject({ kind: "lean", user: null, annotations: [], paper: { sha256: SHARED, title: "On sharing a reading" } });
+    expect(lean.paper).not.toHaveProperty("uuid");
+    // Signed in or not, kept or not: nobody's annotations come with it.
+    expect((await ok("GET", `/api/viewer/${SHARED}/lean`, { headers: ada.headers })).annotations).toEqual([]);
+    expect((await call("GET", `/api/viewer/${"9".repeat(64)}/lean`)).status).toBe(404);
+    expect((await call("GET", `/api/viewer/not-a-digest/lean`)).status).toBe(404);
   });
 });
 

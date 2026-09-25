@@ -31,19 +31,9 @@ export const EXTERNAL_HOSTS = [
     why: "a paper's PDF and a board's pictures, read from the bucket's own domain",
   },
   {
-    host: 'https://www.youtube.com',
-    by: 'page',
-    why: "a video card's title, from YouTube's oEmbed (shared/videos.js)",
-  },
-  {
-    host: 'https://*.ytimg.com',
-    by: 'page',
-    why: "a YouTube video's thumbnail, from the host oEmbed names",
-  },
-  {
     host: 'https://*.hdslb.com',
     by: 'page',
-    why: "a Bilibili video's cover, from the host its page names",
+    why: "a Bilibili video's cover, from the host its page names (shared/videos.js)",
   },
   {
     host: 'https://papol.io',

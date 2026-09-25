@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react()],
   // shared/ sits outside the root and names its packages bare; these are
   // resolved from this app, where they are installed.
-  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes', 'linkpeek'] },
   build: {
     rolldownOptions: {
       output: {
@@ -43,6 +43,10 @@ export default defineConfig({
       '/uploads': {
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
+      },
+      // A short link is answered by the Worker, which sends it on to the viewer.
+      '/s/': {
+        target: 'http://127.0.0.1:8787',
       },
     },
   },

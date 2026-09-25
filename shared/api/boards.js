@@ -1,5 +1,5 @@
 import {
-  boardView, discardNativeBlob, nativeBlobImport, nativeBlobUrl, nativeCaptureWebpage, nativeDataActive,
+  boardView, discardNativeBlob, ensureNativeBlob, nativeBlobImport, nativeBlobUrl, nativeCaptureWebpage, nativeDataActive,
   nativeRepository, newUuid,
 } from '../nativeData.js';
 import { boardSourceDigests } from '../boardPapers.js';
@@ -198,17 +198,17 @@ export function updateBoardItem(uuid, data) {
   return jsonRequest(`/board-items/${uuid}`, 'PUT', data);
 }
 
-// A video card — YouTube or Bilibili — with the title and thumbnail the
-// app fetches itself (shared/videos.js), and nothing left for the server
-// to do. The thumbnail is the card's file: in the nook's store on the
-// desktop, which sync puts in the bucket before the card, or in the
-// bucket at once on the web. When the video's site cannot be reached the
-// card is made as the link alone, and the promise rejects with it on the
-// error, as a page card whose capture failed does. Where nothing can be
-// tried — offline on the desktop, or a Bilibili link on the web, whose
-// details only the Mac can fetch — nothing is wrong: the card is the
-// link, and `fillVideoCard` fetches the rest when a board that can is
-// open.
+// A video card — YouTube or Bilibili — with its title and thumbnail
+// (shared/videos.js), and nothing left for the server to do. The
+// thumbnail is the card's file: in the nook's store on the desktop, which
+// sync puts in the bucket before the card, or in the bucket already on the
+// web, where the Cloudflare Worker put it. When the video's site cannot
+// be reached the card is made as the link alone, and the promise rejects
+// with it on the error, as a page card whose capture failed does. Where
+// nothing can be tried — offline on the desktop, or a Bilibili link on
+// the web, whose details only the Mac can fetch — nothing is wrong: the
+// card is the link, and `fillVideoCard` fetches the rest when a board
+// that can is open.
 export async function addBoardVideo(uuid, url, x, y) {
   const link = videoLink(url);
   if (!link) throw new Error('Paste a YouTube or Bilibili video link');
@@ -237,43 +237,52 @@ export function videoCardUnfilled(item) {
   return link?.kind === item.kind && canPreview(link);
 }
 
-// Give such a card what it was made without, fetched by the app as when a
-// card is made: the thumbnail as its file, and the title as its text
-// while that is still the bare link, so a description written since
-// stands. Answers the card, or null when there is nothing to do or no way
-// to do it now (offline on the desktop). Rejects when the video's site
-// could not be reached; the caller tries again another time.
+// Give such a card what it was made without, asked for as when a card is
+// made: the thumbnail as its file, and the title as its text while that
+// is still the bare link, so a description written since stands. Answers
+// the card, or null when there is nothing to do or no way to do it now
+// (offline on the desktop). Rejects when the video's site could not be
+// reached; the caller tries again another time.
 export async function fillVideoCard(item) {
   if (!videoCardUnfilled(item)) return null;
   if (nativeDataActive() && inOfflineMode()) return null;
   const preview = await videoPreview(item.source_url);
-  const name = thumbnailName(item.kind, preview.id);
   const bare = !item.content || item.content === item.source_url;
   if (nativeDataActive()) {
-    const blob = await nativeBlobImport(preview.image);
-    try {
-      const receipt = await nativeRepository.transact([{
-        table: 'board_items', uuid: item.uuid, operation: 'upsert',
-        values: {
-          sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg',
-          ...(bare && preview.title ? { content: preview.title } : {}),
-        },
-      }]);
-      return receipt.rows[0];
-    } catch (error) {
-      await discardNativeBlob(blob.sha256).catch(() => {});
-      throw error;
-    }
+    const picture = await nativePicture(item.kind, preview);
+    return writeNativeCard(picture, {
+      uuid: item.uuid, values: { ...picture.values, ...(bare && preview.title ? { content: preview.title } : {}) },
+    });
   }
-  const stored = await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' });
-  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: stored.sha256, title: preview.title });
+  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: preview.sha256, title: preview.title });
 }
 
 const thumbnailName = (kind, id) => `${kind}-${id || 'video'}.jpg`;
 
+// A video's picture in the nook's store, as its card records it: a
+// YouTube picture brought from the bucket by its digest, a Bilibili cover
+// the Mac fetched put in as it is.
+async function nativePicture(kind, preview) {
+  const sha256 = preview.sha256
+    ? (await ensureNativeBlob(preview.sha256, undefined, { kind: 'board_file' }), preview.sha256)
+    : (await nativeBlobImport(preview.image)).sha256;
+  return { sha256, values: { sha256, original_filename: thumbnailName(kind, preview.id), mime_type: 'image/jpeg' } };
+}
+
+// The card written in the nook, and the picture let go if it could not be.
+async function writeNativeCard(picture, { uuid, values }) {
+  try {
+    const receipt = await nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values }]);
+    return receipt.rows[0];
+  } catch (error) {
+    if (picture) await discardNativeBlob(picture.sha256).catch(() => {});
+    throw error;
+  }
+}
+
 // Whether a page card is waiting for its picture where this surface can
 // take it: on the Mac, which takes it itself (nativeCaptureWebpage); the
-// web's picture is the Worker's job, queued when the card is made.
+// web's picture is the Cloudflare Worker's job, queued when the card is made.
 export function pageCardUnfilled(item) {
   return item?.kind === 'webpage' && !item.sha256 && !item.file_path && Boolean(item.source_url) && nativeDataActive();
 }
@@ -318,27 +327,17 @@ const pageHost = (url) => {
 const pageCaptureName = (url) => `webpage-${(pageHost(url) || 'page').slice(0, 80)}.jpg`;
 
 async function makeVideoCard(uuid, url, link, x, y, preview) {
-  const name = thumbnailName(link.kind, preview?.id ?? link.id);
   if (nativeDataActive()) {
-    const blob = preview ? await nativeBlobImport(preview.image) : null;
-    try {
-      const receipt = await nativeRepository.transact([{
-        table: 'board_items', uuid: newUuid(), operation: 'upsert',
-        values: {
-          board_uuid: uuid, kind: link.kind, content: preview?.title || url, source_url: url, x, y,
-          ...(blob ? { sha256: blob.sha256, original_filename: name, mime_type: 'image/jpeg' } : {}),
-        },
-      }]);
-      return receipt.rows[0];
-    } catch (error) {
-      if (blob) await discardNativeBlob(blob.sha256).catch(() => {});
-      throw error;
-    }
+    const picture = preview ? await nativePicture(link.kind, preview) : null;
+    return writeNativeCard(picture, {
+      uuid: newUuid(),
+      values: { board_uuid: uuid, kind: link.kind, content: preview?.title || url, source_url: url, x, y, ...picture?.values },
+    });
   }
-  // The thumbnail into the bucket (shared/api/files.js), then the card that names it.
-  const stored = preview ? await storeFile('board_file', preview.image, { name, mime: 'image/jpeg' }) : null;
+  // The thumbnail is in the bucket already (POST /api/video-preview):
+  // the card names it.
   return jsonRequest(`/boards/${uuid}/video`, 'POST', {
-    url, x, y, ...(stored ? { sha256: stored.sha256, title: preview.title } : {}),
+    url, x, y, ...(preview ? { sha256: preview.sha256, title: preview.title } : {}),
   });
 }
 
@@ -359,12 +358,13 @@ async function captured(queuing) {
   return item;
 }
 
-// A page card. On the web the Worker renders the page and the card waits
-// for its job (`captured`). On the Mac the app takes the picture itself
-// (nativeCaptureWebpage) and makes the card with it; offline the card is
-// the link, and `fillPageCard` takes the picture when a board is next open
-// online; a page that could not be captured is the link too, and the
-// promise rejects with the card on the error, as on the web.
+// A page card. On the web the Cloudflare Worker renders the page and the
+// card waits for its job (`captured`). On the Mac the app takes the
+// picture itself (nativeCaptureWebpage) and makes the card with it;
+// offline the card is the link, and `fillPageCard` takes the picture when
+// a board is next open online; a page that could not be captured is the
+// link too, and the promise rejects with the card on the error, as on the
+// web.
 export async function addBoardWebpage(uuid, url, x, y) {
   if (!nativeDataActive()) return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
   const parsed = new URL(url);

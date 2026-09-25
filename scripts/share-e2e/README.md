@@ -1,13 +1,13 @@
 # The real pages, end to end
 
-Three suites drive Chrome through the pages the Worker serves: sharing
+Three suites drive Chrome through the pages the Cloudflare Worker serves: sharing
 (`run.mjs`, below), uploading a paper (`upload.mjs`) and pasting links onto
 a board (`board.mjs`). They share a DevTools driver (`cdp.mjs`) and the
 Worker's API as a script calls it (`papol.mjs`).
 
 ## Sharing
 
-The Worker suite states what a link means; the viewer's own tests state what
+The Cloudflare Worker suite states what a link means; the viewer's own tests state what
 its source layer answers. Neither watches a user follow one. This does: it
 drives Chrome through the real pages and asserts on what rendered.
 
@@ -25,8 +25,8 @@ runtime-generated lands in the repository.
 What it covers:
 
 - a **rich** link opens for a visitor with no account, names the user whose
-  reading it is, carries their annotations, keeps the whole tool bar, and offers the
-  paper;
+  reading it is, carries their annotations, keeps the whole tool bar, offers the
+  paper, and invites them to sign in in a card that "Not now" puts away;
 - a **lean** link opens the same way, names nobody, and carries none of the
   marks;
 - a signed-in user presses **Add to nook**, the copy lands on the shared
@@ -49,15 +49,15 @@ half-built page, and the negative assertions — names nobody, carries no marks
 — then pass for the wrong reason, which is worse than failing. The check waits
 for the paper's name to reach `document.title`.
 
-**No password is typed.** The token comes from the Worker's own API and is
-stored the way the application stores it. Chrome runs headless unless
+**No password is typed.** The token comes from the Cloudflare Worker's own
+API and is stored the way the application stores it. Chrome runs headless unless
 `PAPOL_E2E_HEADED=1`, and `CHROME` names the binary if it is not in the usual
 place.
 
 `PAPOL_BASE` is where the pages are. Against `./deploy.sh dev` that is the
 frontend's Vite server, `http://127.0.0.1:5173`, the default, which proxies
 the viewer and the API behind it. CI (`.github/workflows/pr.yml`) assembles
-the site and points it at the Worker itself.
+the site and points it at the Cloudflare Worker itself.
 
 Seed and run from the same shell, or name the fixture explicitly with
 `PAPOL_E2E_FIXTURE`: the default path lives in `TMPDIR`, and a shell that sets
@@ -77,9 +77,9 @@ come back done by `cron:sweep`.
 The helper is `fake-helper.mjs`, a stand-in answering in the real one's
 shapes (host/helper/src/server.ts). The suite tells it per PDF digest what to
 say: nothing read, so the filename's title stands; a title block, whose title,
-authors, journal and year must reach the form; or a 500, which the Worker
+authors, journal and year must reach the form; or a 500, which the Cloudflare Worker
 treats as nothing read (extract.ts) — the form keeps the filename's title and
-says nothing, which the suite holds it to. It needs the Worker started with:
+says nothing, which the suite holds it to. It needs the Cloudflare Worker started with:
 
 ```sh
 node scripts/share-e2e/fake-helper.mjs &
@@ -95,20 +95,21 @@ No PDF here carries a DOI or an arXiv id, so nothing is asked of CrossRef.
 `board.mjs` pastes four links onto a fresh board, as a paste event carrying
 the link as clipboard text, and follows each card to where it ends:
 
-- a **YouTube** link, with YouTube's oEmbed answer and thumbnail served from
-  the suite through the DevTools Fetch domain: the card carries the title,
-  and the canvas draws the picture;
+- a **YouTube** link, whose page the Cloudflare Worker reads with
+  linkpeek: the card carries the real title, the canvas draws the picture,
+  and the page itself asks YouTube nothing (so this needs the network, as
+  example.com does);
 - a page under **`.invalid`**, which never resolves: "Capturing webpage…" at
   once, the card on the board with the request, then the capture failing and
   the board saying why, the card left as the link;
 - **example.com**: `wrangler dev` runs Browser Rendering on a Chrome of its
-  own, downloaded on first use, so the picture is taken — the one check in
-  these suites that needs the network;
-- a **Bilibili** link: the card is the link, says its title and cover come
-  from the Mac app, and nothing asks Bilibili.
+  own, downloaded on first use, so the picture is taken — with the YouTube
+  link, the checks in these suites that need the network;
+- a **Bilibili** link: the card is the link, drawn as a Bilibili video
+  with no picture, and nothing asks Bilibili.
 
 ## When a check fails
 
 Each suite keeps the page as the failing check left it — the document and a
 screenshot — under `PAPOL_E2E_ARTIFACTS` (the temp dir by default). CI keeps
-them as the `e2e-pages` artifact of a red run, beside the Worker's log.
+them as the `e2e-pages` artifact of a red run, beside the Cloudflare Worker's log.

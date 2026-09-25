@@ -642,6 +642,9 @@ ${compatibilityStyles}
 .nook-ask strong { font-size: var(--fs-md); }
 .nook-ask p { color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.45; }
 .nook-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* The offer a link opens with can be closed from its corner as well as
+   declined, so its title keeps clear of the ×. */
+.sign-in-offer strong { padding-right: 22px; }
 /* The wait under the button while the paper is added (docs/waiting.md). */
 .nook-adding { padding: 12px 14px; }
 .learn-papol.pdf-viewer-tip { left: auto; right: 0; }

@@ -10,7 +10,7 @@ export default defineConfig(({ command }) => ({
   // the same React runtime as the board in production builds.
   // shared/ sits outside the root and names its packages bare; these are
   // resolved from this app, where they are installed.
-  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes', 'linkpeek'] },
   server: {
     fs: { allow: ['..'] },
     proxy: { '/api': 'http://127.0.0.1:8787', '/uploads': 'http://127.0.0.1:8787' },
