@@ -82,20 +82,36 @@ What marks the mode:
   it vanishes the moment the exploration ends, which is what makes the end
   felt.
 - **The return pill is hidden** while exploring, if it was showing, and comes
-  back unchanged afterwards. The exploration is not a jump, so it never
-  appears on the pill and never lands in `linkHistory`.
+  back afterwards. The steps are not jumps, so none of them lands in
+  `linkHistory`; only how the exploration ends can put anything there
+  (below).
 - **The marker the reader started from** keeps an outline (`cite start`), so
   a reader who scrolls back by hand sees where home is.
 
-How it ends — only on purpose:
+How it ends:
 
 | Action | Result |
 |---|---|
 | **Esc**, *Back to page 3*, or the card's × | The view returns to exactly where it was when the first step was taken (scroll and zoom, via `restoreView`). The card is back on the clicked marker, the strip back to the resting row. A second Esc closes the card, as today. |
-| **Stay here** | The exploration ends where the reader is. The card stays on the current marker, the frame goes, nothing is added to history. |
+| **Stay here** | The exploration ends where the reader is. The card stays on the current marker, the frame goes, and the start goes into history (below). |
+| A press elsewhere on the page (click away) | Stay here, and the card closes, as a press elsewhere closes it today (`useDismiss`). The press is aimed at what is on screen; going back would move the page from under it. |
 | Clicking another citation | Stay here, then that citation's card opens. The reader chose to read there. |
-| A press elsewhere on the page | Nothing. `useDismiss` is off while exploring, so a stray click never ends the trip on page 7 with no way back. |
 | Scrolling or zooming by hand | Allowed; the exploration continues and Back still returns to the start. |
+
+### Ending away from home is one move
+
+Going back leaves no trace: nothing was moved. Every other ending leaves the
+reader somewhere else, and that is a move like following a link, so it is
+recorded as one:
+
+- `startView` (the view when the first step was taken) is pushed onto
+  `linkHistory.back` and `forward` is cleared — what `followLink` does.
+- The return pill shows *Back to page 3*; `[` returns there and `]` comes
+  back to where the reader stayed, through the existing `moveThroughLinks`.
+- One entry, however many steps were taken: the steps between are not
+  history. And none at all when the exploration ends on the view it started
+  from (the reader stepped round to the clicked marker, or scrolled home by
+  hand) — the same "did it actually go anywhere" test `followLink` uses.
 
 While exploring, the × is titled *Back to page 3*, because closing a
 temporary thing means putting things back.
@@ -182,9 +198,9 @@ exploration and its starting point: Back still goes home.
 | Piece | Change |
 |---|---|
 | `viewer/src/references.js` | `citationOccurrences()` and its tests |
-| `viewer/src/App.jsx` | `openCite` gains `occurrences` and `at`; an `exploring` state holding `{ startView, startAnchor, startReferenceUuid }`; `stepOccurrence(±1)` (scroll-to-same-spot, anchor swap, starts the exploration on the first step); `endExploration('back' \| 'stay')`; the card's Escape effect calls `endExploration('back')` when exploring, else closes as today; the return pill is not rendered while exploring; the `.pages` scroller gets an `exploring` class for the frame |
+| `viewer/src/App.jsx` | `openCite` gains `occurrences` and `at`; an `exploring` state holding `{ startView, startAnchor, startReferenceUuid }`; `stepOccurrence(±1)` (scroll-to-same-spot, anchor swap, starts the exploration on the first step); `endExploration('back' \| 'stay')`, where `stay` pushes `startView` onto `linkHistory` unless the view is still there; the card's Escape effect calls `endExploration('back')` when exploring, else closes as today; the return pill is not rendered while exploring; the `.pages` scroller gets an `exploring` class for the frame |
 | `viewer/src/PdfPage.jsx` | after a step the target page may not have worked out its overlays yet, so `PdfPage` takes `occurrenceBox` and draws a plain positioned span there (`.cite-occurrence`), which exists as soon as the page element does; the card anchors to it and the pulse plays on it. `startBox` draws the `cite start` outline the same way |
-| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip, `onPreviousOccurrence` / `onNextOccurrence` / `onBack` / `onStay`; `useDismiss` disabled and the × rewired to `onBack` while exploring |
+| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip, `onPreviousOccurrence` / `onNextOccurrence` / `onBack` / `onStay`; a press elsewhere (`useDismiss`) calls `onStay` then closes while exploring, and the × is rewired to `onBack` |
 | `cloudflare/…` | `ordinal` column, insert, `ORDER BY`; migration |
 
 The scroll arithmetic is `followLink`'s: a fraction down a page is a pixel
@@ -215,8 +231,9 @@ which already carry scale.
   `getBoundingClientRect()` unchanged between steps, the frame present and the
   return pill absent. Esc restores the starting `scrollTop` and scale, puts
   the card back on the clicked marker, removes the frame, and leaves
-  `linkHistory` empty. Stay here keeps the view and removes the frame. A press
-  on the page mid-exploration does not close the card. ↓ from the last wraps
-  to the first.
+  `linkHistory` empty. Stay here, and separately a press on the page, keep
+  the view, remove the frame and leave one `linkHistory` entry however many
+  steps were taken; `[` then restores the starting view and `]` the stayed
+  one. ↓ from the last wraps to the first.
 - It is a UI change: the PR carries screenshots and a short recording
   (orphan `citation-occurrences-screenshots` branch).
