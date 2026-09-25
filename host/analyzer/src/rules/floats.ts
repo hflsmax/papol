@@ -5,7 +5,7 @@ import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -449,9 +449,14 @@ function extentOf(kind: string, paragraph: Line[], ground: Ground, claimed: Rect
     let framed: Rect = frame;
     const fills = ground.page.drawn.filter((d) => !d.image && d.w * d.h < 0.8 * ground.page.width * ground.page.height)
       .map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }));
+    // (Not a fill that holds another float's caption: that is the next box,
+    // stacked under this one.)
+    const others = ground.captions.filter((c) => c !== paragraph).flat();
+    const holdsOther = (f: Rect) => others.some((l) => l.x0 >= f.x0 - 1 && l.x1 <= f.x1 + 1 && l.top >= f.y0 - 1 && l.bottom <= f.y1 + 1);
     for (let grew = true; grew;) {
       grew = false;
       for (const f of fills) {
+        if (holdsOther(f)) continue;
         const stacked = Math.abs(f.x0 - framed.x0) <= 2 && Math.abs(f.x1 - framed.x1) <= 2 && f.y0 <= framed.y1 + ground.type.leading && f.y1 >= framed.y0 - ground.type.leading;
         if (stacked && (f.y0 < framed.y0 || f.y1 > framed.y1)) { framed = union([framed, f]); grew = true; }
       }
@@ -491,6 +496,16 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
         match = CAPTION_STYLED.pattern!.exec(line.text);
       }
       if (!match?.groups) continue;
+      // A mention a paragraph wrapped onto the start of a line ("…as
+      // indicated in / Table 1.1. Before embarking…") is not a caption: the
+      // line above it, a leading up at its edge and its size, runs on into
+      // it without ending a sentence (caption.not-wrapped).
+      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && Math.abs(o.x0 - line.x0) <= line.size
+        && line.baseline - o.baseline > 0.5 * line.size && line.baseline - o.baseline <= 1.6 * line.size && o.x1 - o.x0 >= 0.5 * (line.x1 - line.x0));
+      if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern!.test(above.text)) {
+        trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
+        continue;
+      }
       const kind = kindOf(match.groups.kind);
       const number = match.groups.number;
       const key = keyOf(kind, number);

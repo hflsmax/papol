@@ -120,6 +120,11 @@ export const CAPTION_STYLED = rule({
   matches: ["Fig. 1 (a) Physical prototype", "Figure 2 Kinematics of the"],
   rejects: ["Figure", "Figures 3 and 4"],
 });
+export const CAPTION_NOT_WRAPPED = rule({
+  id: "caption.not-wrapped", stage: "caption",
+  summary: "A line that would begin a caption is not one when the line a leading above it, at its edge and its size, runs on into it without ending a sentence: a mention the paragraph wrapped onto the start of a line.",
+  why: "Geometric Folding Algorithms wraps \"…as indicated in / Table 1.1. Before embarking…\"; taken for Table 1.1's caption, it also hid the real one, since a number's first caption is the float's.",
+});
 // ----------------------------------------------------------------- floats
 // How much of the page a float is: the box a link to it brings into view.
 
