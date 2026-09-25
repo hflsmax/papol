@@ -11,8 +11,9 @@ papers are set, and answers in exactly GROBID's shape (`Analysis` in
 
 It runs in the helper on the GROBID host (`POST /helper/analyze-rules`),
 not in the Worker: reading a PDF is CPU the Worker should not spend. The
-Worker calls it where `ANALYZER = "rules"` — dev only, for now
-(`cloudflare/wrangler.toml`); production still asks GROBID.
+Worker calls it where `ANALYZER = "rules"` — production and dev
+(`cloudflare/wrangler.toml`); GROBID is still asked for `/header`, and
+for `/analyze` where the var is unset.
 
 ## How it reads
 
