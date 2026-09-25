@@ -296,7 +296,7 @@ try {
     await browser.waitFor('document.querySelector("input[type=file]")');
     // A reading that failed leaves the form on the filename's title and
     // says so, quietly: a paper that could not be read is not a fault to
-    // report. (Against a real Worker, a helper that is down is not this:
+    // report. (Against a real Worker, an analyzer that is down is not this:
     // the job still answers, with the filename — scripts/share-e2e/upload.mjs.)
     await browser.evaluate('window.readingFails = true; return true;');
     await choose();

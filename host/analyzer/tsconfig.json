@@ -8,11 +8,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "baseUrl": ".",
-    "paths": {
-      "@rgrove/parse-xml": ["node_modules/@rgrove/parse-xml"]
-    }
+    "isolatedModules": true
   },
   "include": ["src"]
 }

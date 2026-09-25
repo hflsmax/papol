@@ -1,9 +1,9 @@
 // Numbered sections: where each one begins, and the places in the text
 // that point at it ("Section 2.1", "§3"). A section is kept as a float of
 // kind `section` whose box is its heading, so a link to it is stored and
-// followed like a link to a figure (cloudflare/src/papers/tei.ts).
+// followed like a link to a figure (cloudflare/src/papers/reading.ts).
 
-import type { DocumentLink } from "../../../../cloudflare/src/papers/tei";
+import type { DocumentLink } from "../../../../cloudflare/src/papers/reading";
 import type { Found } from "./floats";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import { MENTION_SECTION, SECTION_HEADING } from "./registry";

@@ -1,9 +1,9 @@
-// A paper's bibliography: read once through GROBID as a job, kept on the
-// paper, and each reference looked up only when a user opens it.
+// A paper's bibliography: read once by the host's analyzer as a job, kept
+// on the paper, and each reference looked up only when a user opens it.
 //
 // A request never waits for the pass. Opening a paper nobody has opened
-// before marks it `pending` and queues `analyze_paper`; the job reads the
-// PDF through GROBID and writes the references, citation markers and
+// before marks it `pending` and queues `analyze_paper`; the job has the
+// analyzer read the PDF and writes the references, citation markers and
 // document links back; the viewer asks again until the paper says
 // `ready`. The job's key is the paper, so two viewers opening one paper
 // queue one pass.
@@ -15,7 +15,7 @@ import { enqueue, JobError, wake } from "../jobs/queue";
 import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
-import * as helper from "./helper";
+import * as analyzer from "./analyzer";
 import { extractArxivId } from "./identifiers";
 import { resolve, type Printed } from "./resolve";
 
@@ -46,7 +46,7 @@ export interface Reference extends Row, Printed {
 
 // ------------------------------------------------------------- the pass
 
-// Whether this paper wants a pass now. Never for a failure — a PDF GROBID
+// Whether this paper wants a pass now. Never for a failure — a PDF the analyzer
 // could not read will not read differently on the next open.
 function mayStart(paper: Paper): boolean {
   if (paper.references_status === null || paper.references_status === undefined) return true;
@@ -77,7 +77,7 @@ function finishStatement(env: Env, paperSha256: string, status: string, detail: 
   return statement(env.DB, "UPDATE papers SET references_status = ?, references_error = ?, references_at = ? WHERE sha256 = ?", status, detail, now(), paperSha256);
 }
 
-// The job: read one paper's references through GROBID and store them.
+// The job: have the analyzer read one paper's references, and store them.
 // Any failure is recorded on the paper rather than left as a job that
 // failed somewhere, so a PDF that cannot be analyzed says so to the
 // viewer instead of being asked about forever.
@@ -85,7 +85,7 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   const paperSha256 = String(payload.paper_sha256);
   const paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ?", paperSha256);
   if (!paper) throw new JobError("The paper is gone");
-  // Only whether the PDF is there: the helper reads it from the bucket.
+  // Only whether the PDF is there: the analyzer reads it from the bucket.
   const object = paper.file_path ? await env.FILES.head(`${UPLOADS}${paper.file_path}`) : null;
   if (!object) {
     await finishStatement(env, paperSha256, "failed", "The PDF for this paper is missing").run();
@@ -93,10 +93,10 @@ export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
   }
   let analysis;
   try {
-    analysis = await helper.analyze(env, paper.file_path);
+    analysis = await analyzer.analyze(env, paper.file_path);
   } catch (error) {
     const detail = String((error as Error).message ?? error).slice(0, limits.text.analysis_error);
-    console.warn(`The helper failed on paper ${paperSha256}: ${detail}`);
+    console.warn(`The analyzer failed on paper ${paperSha256}: ${detail}`);
     await finishStatement(env, paperSha256, "failed", detail).run();
     throw new JobError(detail);
   }
@@ -189,8 +189,8 @@ export async function papolPapersFor(db: D1Database, references: Reference[]): P
 // service that read them.
 export async function paperReferences(env: Env, paper: Paper) {
   const stored = paper.references_status === "ready";
-  if (!helper.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], floats: [], links: [] };
-  if (helper.configured(env)) await requestAnalysis(env, paper);
+  if (!analyzer.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], floats: [], links: [] };
+  if (analyzer.configured(env)) await requestAnalysis(env, paper);
   if (paper.references_status !== "ready") {
     return { paper_sha256: paper.sha256, status: paper.references_status || "pending", detail: paper.references_error ?? null, references: [], citations: [], floats: [], links: [] };
   }
@@ -245,7 +245,7 @@ function urlTitle(url: string | null): string | null {
   return null;
 }
 
-// A useful, honest card when the citation is not an indexed paper. GROBID
+// A useful, honest card when the citation is not an indexed paper. The analyzer
 // has already read the bibliography, so an unavailable index must not
 // turn that local evidence into a broken popup.
 export function bibliographyCard(reference: Reference) {

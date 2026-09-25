@@ -43,6 +43,6 @@ updates:
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
   - package-ecosystem: npm
-    directory: /host/helper
+    directory: /host/analyzer
     schedule: { interval: weekly }
     open-pull-requests-limit: 5

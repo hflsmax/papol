@@ -1,9 +1,9 @@
 // Footnotes: each note at the foot of a page, and the superscript marks in
 // the text that point at it. A note is kept as a float of kind `footnote`
 // whose box is the note, so a link to it is stored and followed like a link
-// to a figure (cloudflare/src/papers/tei.ts).
+// to a figure (cloudflare/src/papers/reading.ts).
 
-import type { Box, DocumentLink } from "../../../../cloudflare/src/papers/tei";
+import type { Box, DocumentLink } from "../../../../cloudflare/src/papers/reading";
 import type { Found } from "./floats";
 import type { Layout, Line, Placed } from "./layout";
 import { FOOTNOTE_MARKER, FOOTNOTE_NOTE } from "./registry";

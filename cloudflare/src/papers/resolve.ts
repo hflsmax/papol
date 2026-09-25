@@ -70,7 +70,7 @@ export type Outcome = { status: "ok"; summary: Summary } | { status: "miss" | "e
 export async function resolve(env: Env, reference: Printed): Promise<Outcome> {
   const context = contextOf(reference);
   let lookupFailed = false;
-  // Identifiers GROBID read, first: a DOI or an arXiv number is the work.
+  // Identifiers the reference prints, first: a DOI or an arXiv number is the work.
   for (const [identifier, lookup] of [[reference.doi, openalexByDoi], [reference.arxiv_id || extractArxivId(reference.raw ?? ""), openalexByArxiv]] as const) {
     if (!identifier) continue;
     try {

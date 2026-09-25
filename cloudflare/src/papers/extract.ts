@@ -10,24 +10,24 @@
 // before the upload is queued (shared/identifiers.js) and sends it
 // along. With one, the job asks the indexes about it — network, of which
 // a Worker has plenty — and never fetches the PDF. Without one, or when
-// no index knows it, the PDF is read on the host, by the helper beside
-// GROBID (host/helper/): the title block, and with it the DOI or arXiv
-// id the paper prints or CrossRef knows it by. With no helper, or one
-// that is down, the form gets the filename.
+// no index knows it, the PDF is read on the host, by the analyzer
+// (host/analyzer/): the title block, by rules, and with it the DOI or arXiv
+// id the paper prints. With no analyzer, or one that is down, the form gets
+// the filename.
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { byDoi, Unavailable, type Summary } from "./bibliography";
-import * as helper from "./helper";
+import * as analyzer from "./analyzer";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
-import type { HeaderMetadata } from "./tei";
+import type { HeaderMetadata } from "./reading";
 
 export { arxivDoi, extractArxivId, extractDoi };
 
 export const KIND = "extract_metadata";
 
 // A DOI or an arXiv id, as the browser read it off the first pages or the
-// helper read it off the title block.
+// analyzer read it off the title block.
 export interface Identifier {
   doi?: string | null;
   arxiv_id?: string | null;
@@ -47,14 +47,14 @@ export function lookupDoi(identifier: Identifier | null | undefined): string | n
   return identifier.arxiv_id ? arxivDoi(identifier.arxiv_id) : identifier.doi || null;
 }
 
-// The title block, read on the host. Null where there is no helper or it
+// The title block, read on the host. Null where there is no analyzer or it
 // could not read the file: nothing printed to go on.
 async function titleBlock(env: Env, fileName: string): Promise<HeaderMetadata | null> {
-  if (!helper.configured(env)) return null;
+  if (!analyzer.configured(env)) return null;
   try {
-    return await helper.header(env, fileName);
+    return await analyzer.header(env, fileName);
   } catch (error) {
-    console.warn(`The helper could not read the header of ${fileName}: ${(error as Error).message}`);
+    console.warn(`The analyzer could not read the header of ${fileName}: ${(error as Error).message}`);
     return null;
   }
 }
@@ -90,7 +90,7 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
     known = printed && printed !== given ? await byDoi(env, printed) : null;
   }
   // Known to no index: the form shows the identifier as the browser read
-  // it off the page, before what GROBID made of the title block.
+  // it off the page, before what the analyzer read in the title block.
   metadata.doi = given ?? printed;
   if (known) {
     Object.assign(metadata, knownFields(known, printed!, metadata.title));
