@@ -4116,8 +4116,8 @@ export default function App() {
                 </button>
                 <strong id="sign-in-offer-title">Sign in to Papol</strong>
                 <p>
-                  Sign in to keep this paper in your nook and write your own notes, ink and clips on it.
-                  You can read it without an account.
+                  You can read the paper without an account. Sign in to enjoy the full functionality of Papol,
+                  including annotating the paper and keeping your annotations in your account.
                 </p>
                 <div className="nook-ask-actions">
                   <button type="button" onClick={() => setSignInOffer(false)}>Not now</button>
@@ -4198,9 +4198,6 @@ export default function App() {
                     <a className="ref-link" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" title="Download Papol for Mac">
                       Download app
                     </a>
-                  )}
-                  {paperInfo?.pdf_url && (
-                    <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
                   )}
                   {(paperInfo?.url || paper.doi) && (
                     <a

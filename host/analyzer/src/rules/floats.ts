@@ -5,7 +5,7 @@ import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -124,7 +124,10 @@ function proseOn(page: Page, type: Type): Set<Line> {
   const edges = (a: Line, b: Line) => Math.abs(a.x0 - b.x0) <= 1 && Math.abs(a.x1 - b.x1) <= 1 && a.x1 - a.x0 >= type.measure / 2
     && a.text.length !== b.text.length;
   // Full: within an indent (two ems) of the measure — justified text fills it.
-  const full = candidates.filter((l) => candidates.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= type.measure - 2 * l.size || edges(o, l))));
+  // The line a leading from it shows it is in a paragraph whatever it is
+  // set in (a line of code words, under a line of text).
+  const texty = page.lines.filter((l) => !l.furniture && sameSize(l.size, type.bodySize) && !hasCellGap(l));
+  const full = candidates.filter((l) => texty.some((o) => o !== l && stepped(o, l) && (l.x1 - l.x0 >= type.measure - 2 * l.size || edges(o, l))));
   const prose = new Set(full);
   // The short last line of a paragraph (its left edge shared with the
   // line above), and the indented first (its right edge shared with the
@@ -132,6 +135,13 @@ function proseOn(page: Page, type: Type): Set<Line> {
   for (const l of candidates) {
     if (full.some((f) => f.baseline < l.baseline && stepped(f, l) && Math.abs(f.x0 - l.x0) <= l.size)) prose.add(l);
     if (full.some((f) => f.baseline > l.baseline && stepped(f, l) && Math.abs(f.x1 - l.x1) <= 1 && l.x0 > f.x0)) prose.add(l);
+    // And the last line of a paragraph carried over from the column
+    // before, opening its column: no text line above it in the column (a
+    // title or an author list across both is not the column's), set at the
+    // column's edge, ending a sentence.
+    const inColumn = (o: Line) => o.x0 >= l.x0 - 1 && o.x1 <= l.x0 + type.measure + l.size;
+    if (/[.?!:]\s*$/.test(l.text) && !candidates.some((o) => o.baseline < l.baseline && across(rectOf(o), rectOf(l)) && inColumn(o))
+      && (full.some((f) => f.baseline > l.baseline && Math.abs(f.x0 - l.x0) <= 1) || type.columns.some((c) => Math.abs(c.x0 - l.x0) <= 1.5))) prose.add(l);
   }
   // And a paragraph in any font: three lines or more, each a line's
   // spacing under the last, sharing both edges — an abstract, a sidebar's
@@ -143,15 +153,29 @@ function proseOn(page: Page, type: Type): Set<Line> {
     for (let n = next(l); n && run.length < 3; n = next(n)) run.push(n);
     if (run.length >= 3) run.forEach((r) => prose.add(r));
   }
+  // But not the text of a ruled table's cells, however it is set: a line
+  // with a vertical rule close on its left, and another on its right (as
+  // far off as a cell's short last line leaves it).
+  const vertical = page.drawn.filter((d) => d.w < 1.5 && d.h >= 1);
+  const ruledBeside = (l: Line, side: "left" | "right") => vertical.some((d) => d.y < l.bottom && d.y + d.h > l.top
+    && (side === "left" ? d.x <= l.x0 && l.x0 - d.x <= 1.5 * l.size : d.x >= l.x1));
+  for (const l of [...prose]) if (ruledBeside(l, "left") && ruledBeside(l, "right")) prose.delete(l);
   return prose;
 }
 
 // A heading: bold, at the text's size or above, not running text, and
-// numbered, larger than the text, or with running text starting under it.
+// larger than the text, or with running text starting under it — at once,
+// or, for a numbered one, within a few lines or under the numbered
+// headings stacked beneath it ("3 Method", "3.1 Setup", then text). A
+// numbered bold line with a picture under it is a label in a table of
+// pictures ("1. Instant Translation"), which bounds no float.
 function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
-  return page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text) && (
-    /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/.test(l.text) || l.size > type.bodySize + 1
-    || [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= 2 * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size)));
+  const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
+  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
+  const proseUnder = (l: Line, leadings: number) => [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= leadings * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size);
+  const numberedHeading = (l: Line, depth = 0): boolean => proseUnder(l, 4) || (depth < 3 && candidates.some((h) => h !== l && NUMBERED.test(h.text)
+    && h.baseline > l.baseline && h.baseline - l.baseline <= 3 * type.leading && Math.abs(h.x0 - l.x0) <= 2 * l.size && numberedHeading(h, depth + 1)));
+  return candidates.filter((l) => l.size > type.bodySize + 1 || proseUnder(l, 2) || (NUMBERED.test(l.text) && numberedHeading(l)));
 }
 
 // What is drawn that could belong to a float (float.graphics): not a page
@@ -200,8 +224,11 @@ function captionParagraph(first: Line, page: Page, captions: Set<Line>, type: Ty
     for (;;) {
       const prev = lines[lines.length - 1];
       // A rule drawn between two lines ends the paragraph (an algorithm's
-      // caption, and the algorithm under its rule).
-      const ruled = (l: Line) => page.drawn.some((d) => d.h < 1.5 && d.y >= prev.baseline && d.y <= l.top && d.x < l.x1 && d.x + d.w > l.x0);
+      // caption, and the algorithm under its rule) — a rule, at least half
+      // the paragraph's width, not a legend's swatch drawn in the text
+      // ("with standard Eggbox (red line)").
+      const ruled = (l: Line) => page.drawn.some((d) => d.h < 1.5 && d.y >= prev.baseline && d.y <= l.top && d.x < l.x1 && d.x + d.w > l.x0
+        && d.w >= 0.5 * (span.x1 - span.x0));
       const next = page.lines.filter((l) => !l.furniture && !captions.has(l) && !lines.includes(l) && sameSize(l.size, first.size)
         && l.baseline > prev.baseline + 0.5 * first.size && l.baseline - prev.baseline <= 1.6 * first.size && across(rectOf(l), span) && !ruled(l));
       if (!next.length) return lines;
@@ -312,6 +339,14 @@ function acrossOf(caption: Rect, own: Line[], ground: Ground): { x0: number; x1:
     const middle = r.x0 >= caption.x1 ? (caption.x1 + r.x0) / 2 : (r.x1 + caption.x0) / 2;
     if (r.x0 >= caption.x1) x1 = Math.min(x1, middle); else x0 = Math.max(x0, middle);
   }
+  // Text level with the caption, in its column, is text wrapped around the
+  // float: the float is on the caption's side of it (a table set in the
+  // right half of a one-column page).
+  const wrapped = [...ground.bounds, ...ground.lines].filter((l) => !own.includes(l) && gapBetween(rectOf(l), caption).ys > 0
+    && l.text.length >= 20 && l.size >= type.bodySize - 0.5 && l.x0 >= x0 - 1 && l.x1 <= x1 + 1);
+  const left = wrapped.filter((l) => l.x1 <= caption.x0 + 1), right = wrapped.filter((l) => l.x0 >= caption.x1 - 1);
+  if (left.length) x0 = Math.max(x0, most(left.map((l) => l.x1)) + 1);
+  if (right.length) x1 = Math.min(x1, least(right.map((l) => l.x0)) - 1);
   return { x0, x1 };
 }
 
@@ -332,12 +367,21 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
     ...claimed.filter((b) => Math.min(b.x1, x.x1) - Math.max(b.x0, x.x0) > 0),
   ];
   // A table is text and rules: a picture after them is where the next
-  // float begins. (A table that begins with a picture is a table of them.)
+  // float begins. (A table that begins with a picture is a table of them —
+  // or whose first picture starts within two lines of its first text: a
+  // grid of pictures under their labels.)
   if (tableOnly) {
     const ahead = ground.pieces.filter((p) => !taken.has(p) && inside(p) && (side === "below" ? p.y0 > caption.y1 - 1 : p.y1 < caption.y0 + 1))
       .sort((a, b) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1));
-    const first = ahead[0];
-    if (first && !first.text && !first.thin) tableOnly = false;
+    // A fill with lines of the table inside it is its cells' shading, not
+    // a picture: the table's own.
+    const holds = (p: Piece) => ground.lines.filter((l) => l.x0 >= p.x0 - 1 && l.x1 <= p.x1 + 1 && l.top >= p.y0 - 1 && l.bottom <= p.y1 + 1).length >= 2;
+    for (const p of ahead) if (!p.text && !p.thin && !p.image && holds(p)) p.thin = true;
+    const solid = ahead.filter((p) => !p.thin);
+    const firstPicture = solid.find((p) => !p.text);
+    const firstText = solid.find((p) => p.text);
+    const near = (a: Piece, b: Piece) => (side === "below" ? a.y0 - b.y0 : b.y1 - a.y1) <= 2 * ground.type.leading;
+    if (firstPicture && (solid[0] === firstPicture || (firstText && near(firstPicture, firstText)))) tableOnly = false;
     else for (const p of ahead) if (!p.text && !p.thin) bounds.push(p);
   }
   const limit = side === "above"
@@ -346,16 +390,35 @@ function band(caption: Rect, own: Line[], ground: Ground, side: "above" | "below
   const starts = (r: Rect) => side === "above" ? r.y0 >= limit - 1 && r.y0 < caption.y1 : r.y1 <= limit + 1 && r.y0 > caption.y0;
   const pieces = ground.pieces.filter((p) => !taken.has(p) && starts(p) && inside(p) && (!tableOnly || p.text || p.thin)
     && !claimed.some((c) => (gapBetween(c, p).xs > 0 && gapBetween(c, p).ys > 0) || (p.x0 >= c.x0 - 1 && p.x1 <= c.x1 + 1 && p.y0 >= c.y0 - 1 && p.y1 <= c.y1 + 1)));
-  explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}, ${pieces.length} pieces`);
+  const bounding = bounds.find((b) => Math.abs((side === "above" ? b.y1 : b.y0) - limit) < 0.5);
+  const boundText = bounding && ground.bounds.find((l) => l.top === bounding.y0 && l.x0 === bounding.x0)?.text;
+  explain?.(`  ${side}: across ${Math.round(x.x0)}-${Math.round(x.x1)}, bound at ${Math.round(limit)}${bounding ? ` by ${boundText ? JSON.stringify(boundText.slice(0, 40)) : show(bounding)}` : ""}, ${pieces.length} pieces`);
   for (const p of pieces) explain?.(`    ${p.text ? `text "${p.text.text.slice(0, 30)}"` : p.image ? "image" : "drawn"} ${show(p)}`);
+  // A scanned page is one picture with its text laid over it: a drawing's
+  // strokes are in the picture, where nothing here sees them, and only its
+  // labels are pieces. The float is the whole band (float.scanned).
+  const page = ground.page;
+  if (pieces.length && page.drawn.some((d) => d.image && d.w * d.h >= 0.8 * page.width * page.height)) {
+    const margins = marginsOf(page, ground.type);
+    const fill: Rect = side === "above"
+      ? { x0: x.x0, y0: Math.max(limit, margins.y0), x1: x.x1, y1: caption.y1 }
+      : { x0: x.x0, y0: caption.y0, x1: x.x1, y1: Math.min(limit, margins.y1) };
+    explain?.(`  scanned: the band ${show(fill)}`);
+    return { rect: union([caption, fill]), pieces };
+  }
   return { rect: pieces.length ? union([caption, ...pieces]) : caption, pieces };
 }
 
-function frameAround(caption: Rect, ground: Ground): Rect | null {
+function frameAround(caption: Rect, ground: Ground, kind: string): Rect | null {
   const size = (r: Rect) => (r.x1 - r.x0) * (r.y1 - r.y0);
+  // A figure's or a table's frame does not run over the text around it: a
+  // fill or a clip reaching into wrapped text is no frame. (A box's frame
+  // holds its own running text.)
+  const prose = kind === "box" ? [] : ground.bounds.filter((l) => !(l.top >= caption.y0 - 1 && l.bottom <= caption.y1 + 1));
+  const holdsText = (g: Rect) => prose.some((l) => gapBetween(rectOf(l), g).xs > 2 * l.size && gapBetween(rectOf(l), g).ys > 0);
   const frames = ground.page.drawn.map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h, image: d.image }))
     .filter((g) => !g.image && size(g) < 0.8 * ground.page.width * ground.page.height && g.x0 <= caption.x0 + 1 && g.x1 >= caption.x1 - 1
-      && g.y0 <= caption.y0 + 1 && g.y1 >= caption.y1 - 1 && size(g) >= 4 * size(caption));
+      && g.y0 <= caption.y0 + 1 && g.y1 >= caption.y1 - 1 && size(g) >= 4 * size(caption) && !holdsText(g));
   return frames.sort((a, b) => size(a) - size(b))[0] ?? null;
 }
 
@@ -398,14 +461,19 @@ function extentOf(kind: string, paragraph: Line[], ground: Ground, claimed: Rect
   if (paragraph.length > 1) trace.add(FLOAT_CAPTION_PARAGRAPH.id, ground.page.number, paragraph[0].text.slice(0, 60), []);
   // A box is drawn as fills of one width stacked against each other — a
   // tinted title band and the panel under it: the frame is all of them.
-  const frame = frameAround(caption, ground);
+  const frame = frameAround(caption, ground, kind);
   if (frame) {
     let framed: Rect = frame;
     const fills = ground.page.drawn.filter((d) => !d.image && d.w * d.h < 0.8 * ground.page.width * ground.page.height)
       .map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }));
+    // (Not a fill that holds another float's caption: that is the next box,
+    // stacked under this one.)
+    const others = ground.captions.filter((c) => c !== paragraph).flat();
+    const holdsOther = (f: Rect) => others.some((l) => l.x0 >= f.x0 - 1 && l.x1 <= f.x1 + 1 && l.top >= f.y0 - 1 && l.bottom <= f.y1 + 1);
     for (let grew = true; grew;) {
       grew = false;
       for (const f of fills) {
+        if (holdsOther(f)) continue;
         const stacked = Math.abs(f.x0 - framed.x0) <= 2 && Math.abs(f.x1 - framed.x1) <= 2 && f.y0 <= framed.y1 + ground.type.leading && f.y1 >= framed.y0 - ground.type.leading;
         if (stacked && (f.y0 < framed.y0 || f.y1 > framed.y1)) { framed = union([framed, f]); grew = true; }
       }
@@ -428,6 +496,9 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
   const floats = new Map<string, Found>();
   const type = typeOf(layout);
   explain?.(`type ${JSON.stringify(type)}`);
+  // The page before, as its floats left it: what a caption heading the next
+  // page may be the caption of (float.caption-overleaf).
+  let before: { page: Page; ground: Ground; claimed: Rect[]; taken: Set<Piece> } | null = null;
   for (const page of layout.pages) {
     // Every caption on the page first: each float stops at the others'.
     const found: { kind: string; number: string; line: Line }[] = [];
@@ -442,6 +513,16 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
         match = CAPTION_STYLED.pattern!.exec(line.text);
       }
       if (!match?.groups) continue;
+      // A mention a paragraph wrapped onto the start of a line ("…as
+      // indicated in / Table 1.1. Before embarking…") is not a caption: the
+      // line above it, a leading up at its edge and its size, runs on into
+      // it without ending a sentence (caption.not-wrapped).
+      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && Math.abs(o.x0 - line.x0) <= line.size
+        && line.baseline - o.baseline > 0.5 * line.size && line.baseline - o.baseline <= 1.6 * line.size && o.x1 - o.x0 >= 0.5 * (line.x1 - line.x0));
+      if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern!.test(above.text)) {
+        trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
+        continue;
+      }
       const kind = kindOf(match.groups.kind);
       const number = match.groups.number;
       const key = keyOf(kind, number);
@@ -501,15 +582,71 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       }
       extents[i] = { rect, rule: FLOAT_SIDE.id, fixed: false };
     }
+    // A figure whose caption heads its page with nothing of its own, where
+    // the page before ends in drawings no caption there took, is those
+    // drawings: a figure given a page of its own, its caption set overleaf
+    // (float.caption-overleaf). The float is the drawings, on that page —
+    // what a link to it should show.
+    const overleaf: (Rect & { on: Page })[] = [];
+    for (const i of order) {
+      if (extents[i].fixed || found[i].kind !== "figure" || !before) continue;
+      const caption = union(paragraphs[i].map(rectOf));
+      // Heading its page: no text but the running heads, and nothing solid
+      // drawn, above it.
+      const heads = page.lines.some((l) => !l.furniture && l.bottom <= caption.y0 + 1 && !paragraphs[i].includes(l));
+      const drawnAbove = page.drawn.some((d) => d.w >= 1.5 && d.h >= 1.5 && d.y + d.h <= caption.y0 + 1 && d.y + d.h > marginsOf(page, type).y0);
+      if (heads || drawnAbove) continue;
+      // Nothing of its own: at most a rule or a stray line of its caption's
+      // scripts beyond the caption.
+      const own = extents[i].rect;
+      if (caption.y0 - own.y0 > 2 * type.leading || own.y1 - caption.y1 > 2 * type.leading
+        || caption.x0 - own.x0 > type.leading || own.x1 - caption.x1 > type.leading) continue;
+      const prev = before;
+      explain?.(`page ${page.number} ${found[i].kind} ${found[i].number}, overleaf on page ${prev.page.number}`);
+      // A page given to the figure — no caption of its own, no running text
+      // beside or among what it draws (above or under it, the text ending
+      // or resuming) — has all of it: every solid drawing short of a page's
+      // background (a full-page picture is over the half that graphicsOf
+      // leaves out), and the labels among them.
+      const margins = marginsOf(prev.page, type);
+      // (Solid ones: a rule is as often the footer's line as the figure's.)
+      const art = prev.page.drawn.filter((d) => d.w * d.h < 0.9 * prev.page.width * prev.page.height && d.w >= 1.5 && d.h >= 1.5
+        && d.y + d.h > margins.y0 && d.y < margins.y1).map((d) => ({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }));
+      const whole = art.length ? union(art) : null;
+      const within = (r: Rect, w: Rect) => r.x0 >= w.x0 - 1 && r.x1 <= w.x1 + 1 && r.y0 >= w.y0 - 1 && r.y1 <= w.y1 + 1;
+      // Running text, that is (a journal's footer line can read as a
+      // heading), level with the drawings but not inside them.
+      const outside = [...proseOn(prev.page, type)].filter((l) => !whole || (!within(rectOf(l), whole) && gapBetween(rectOf(l), whole).ys > 0));
+      let pieces: Rect[];
+      if (whole && !prev.ground.captions.length && !prev.claimed.length && !outside.length) {
+        pieces = [whole, ...prev.ground.lines.map(rectOf).filter((r) => within(r, whole))];
+        explain?.(`  the whole page: ${show(whole)}`);
+      } else {
+        // Otherwise up from the lowest drawing no float there took — not
+        // from the foot: a journal's footer line can read as text.
+        const loose = prev.ground.pieces.filter((p) => !prev.taken.has(p) && !p.text && !p.thin);
+        if (!loose.length) continue;
+        const lowest = most(loose.map((p) => p.y1)) + 1;
+        const bottom: Rect = { x0: type.text.x0, y0: lowest, x1: type.text.x1, y1: lowest };
+        const grown = band(bottom, [], prev.ground, "above", prev.claimed, prev.taken, false).pieces;
+        if (!grown.some((p) => !p.text && !p.thin)) continue;
+        grown.forEach((p) => prev.taken.add(p));
+        pieces = grown;
+      }
+      overleaf[i] = { ...union(pieces), on: prev.page };
+      extents[i] = { rect: overleaf[i], rule: FLOAT_CAPTION_OVERLEAF.id, fixed: true };
+    }
     found.forEach(({ kind, number, line }, i) => {
       // A little room around it, so an outline drawn at its edge does not
       // run through the outermost letters.
       const { rect: exact, rule: sized } = extents[i];
-      const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(page.width, exact.x1 + PAD), y1: Math.min(page.height, exact.y1 + PAD) };
-      const box = { page: page.number, x: rect.x0 / page.width, y: rect.y0 / page.height, w: (rect.x1 - rect.x0) / page.width, h: (rect.y1 - rect.y0) / page.height };
+      const on = overleaf[i]?.on ?? page;
+      const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(on.width, exact.x1 + PAD), y1: Math.min(on.height, exact.y1 + PAD) };
+      const box = { page: on.number, x: rect.x0 / on.width, y: rect.y0 / on.height, w: (rect.x1 - rect.x0) / on.width, h: (rect.y1 - rect.y0) / on.height };
       floats.set(keyOf(kind, number), { key: `f${floats.size}`, kind, label: number, caption: line, ...box });
-      trace.add(sized, page.number, `${kind} ${number}`, [box]);
+      trace.add(sized, on.number, `${kind} ${number}`, [box]);
     });
+    before = { page, ground, claimed: extents.filter((e, i) => e && !overleaf[i]).map((e) => e.rect), taken };
   }
   return floats;
 }
