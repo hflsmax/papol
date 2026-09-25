@@ -12,7 +12,6 @@ import { downloadMyData } from '../myData.js';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
-import MacHandoffSettings from './MacHandoffSettings.jsx';
 import ActivityPanel from './ActivityPanel.jsx';
 import {
   getLocalSyncPreference,
@@ -399,7 +398,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
 
   return (
     <div className="profile-page">
-      <ActivityPanel />
       <div className="panel">
         <div className="panel-head-row">
           <h2 className="panel-title">Account</h2>
@@ -561,9 +559,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
         )}
       </div>
 
-      {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
+      <ActivityPanel />
 
-      <MacHandoffSettings />
+      {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
 
       {/* Notes you cannot leave with are not really yours. */}
       <div className="panel">

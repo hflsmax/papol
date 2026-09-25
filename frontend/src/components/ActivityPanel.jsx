@@ -3,14 +3,12 @@ import { getActivity } from '../../../shared/api/activity.js';
 import { flushActivity } from '../../../shared/activity.js';
 import { paperHref } from '../../../shared/api/papers.js';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { appPath } from '../base';
 import {
-  blocksOfDay, clockTime, coloursFor, dailyBySubject, formatDuration, ownDays, formatDurationShort, KINDS, periodLabel, periodOf,
-  shadeOf, SHADE_MARKS, stepPeriod, subjectsWithin, totalsWithin, VIEWS,
+  blocksOfDay, clockTime, coloursFor, dailyBySubject, formatDuration, formatDurationShort, ownDays, papersWithin,
+  periodLabel, periodOf, secondsIn, shadeOf, SHADE_MARKS, stepPeriod, VIEWS,
 } from '../activityView';
 
 const VIEW_LABELS = { day: 'Day', week: 'Week', month: 'Month' };
-const KIND_LABELS = { reading: 'Reading', board: 'Boards' };
 const STEP_NAMES = { day: 'day', week: 'week', month: 'month' };
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const LISTED = 8;
@@ -33,25 +31,9 @@ function hourLabel(hour) {
   return new Date(2000, 0, 1, hour % 24).toLocaleTimeString(undefined, { hour: 'numeric' });
 }
 
-function subjectOf(data, kind, subject) {
-  if (kind === 'reading') {
-    const paper = data.papers[subject];
-    return { name: paper?.title || 'A paper no longer in Papol', href: paper ? paperHref({ sha256: subject }) : null };
-  }
-  const board = data.boards[subject];
-  if (!board) return { name: 'A board no longer in Papol', href: null };
-  return { name: board.deleted ? `${board.name} (deleted)` : board.name, href: board.deleted ? null : appPath(`/board/${subject}`) };
-}
-
-// A tile's amount, said in full, or in its short form where the tile is
-// too narrow for the full one (the stylesheet shows one of the two).
-function Amount({ seconds }) {
-  return (
-    <>
-      <span className="activity-long">{formatDuration(seconds)}</span>
-      <span className="activity-short" aria-hidden="true">{formatDurationShort(seconds)}</span>
-    </>
-  );
+function paperOf(data, sha256) {
+  const paper = data.papers[sha256];
+  return { name: paper?.title || 'A paper no longer in Papol', href: paper ? paperHref({ sha256 }) : null };
 }
 
 // The hours of a day under a timeline, and the faint lines they stand for.
@@ -72,18 +54,19 @@ function Gridlines() {
 }
 
 // One day across the width of its track: a block for each span, where it
-// was, as long as it was. Each is a link to what the time was spent on.
-// `paint` is the period's colours and which paper, if any, is picked out.
-function Track({ blocks, data, paint, onTip, lane = null, now = null, label }) {
+// was, as long as it was, in its paper's colour. Each is a link to the
+// paper. `paint` is the period's colours and which paper, if any, is
+// picked out.
+function Track({ blocks, data, paint, onTip, now = null, label }) {
   return (
     <div className="activity-track" role="group" aria-label={label}>
       <Gridlines />
       {now != null && <i className="activity-now" style={{ left: `${now * 100}%` }} aria-hidden="true" />}
-      {blocks.filter((b) => lane == null || b.kind === lane).map((block, i) => {
-        const subject = subjectOf(data, block.kind, block.subject);
+      {blocks.map((block, i) => {
+        const subject = paperOf(data, block.subject);
         const when = `${clockTime(block.started)}–${clockTime(block.ended)}`;
-        const key = `${block.kind}:${block.subject}`;
-        const tip = { title: subject.name, lines: [`${block.kind === 'board' ? 'Board' : 'Reading'} · ${when}`, formatDuration(block.seconds)] };
+        const key = block.subject;
+        const tip = { title: subject.name, lines: [when, formatDuration(block.seconds)] };
         const faded = paint.focus != null && paint.focus !== key;
         const Tag = subject.href ? 'a' : 'span';
         return (
@@ -106,19 +89,17 @@ function Track({ blocks, data, paint, onTip, lane = null, now = null, label }) {
 }
 
 function DayChart({ period, spans, data, paint, onTip }) {
-  const blocks = blocksOfDay(spans, period.start);
-  const totals = totalsWithin(spans, period.start, period.end);
+  const seconds = secondsIn(spans, period.start, period.end);
   const at = Date.now();
   const now = at >= +period.start && at < +period.end ? (at - period.start) / (period.end - period.start) : null;
+  const name = period.start.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
   return (
     <div className="activity-chart activity-day">
-      {KINDS.map((kind) => (
-        <div key={kind} className="activity-row">
-          <span className="activity-row-label">{KIND_LABELS[kind]}</span>
-          <Track blocks={blocks} lane={kind} data={data} paint={paint} onTip={onTip} now={now} label={`${KIND_LABELS[kind]} through the day`} />
-          <span className="activity-row-total">{totals[kind] > 0 ? formatDurationShort(totals[kind]) : ''}</span>
-        </div>
-      ))}
+      <div className="activity-row">
+        <span className="activity-row-label">{name}</span>
+        <Track blocks={blocksOfDay(spans, period.start)} data={data} paint={paint} onTip={onTip} now={now} label="Reading through the day" />
+        <span className="activity-row-total">{seconds > 0 ? formatDurationShort(seconds) : ''}</span>
+      </div>
       <div className="activity-row activity-axis-row">
         <span />
         <HourAxis />
@@ -134,7 +115,7 @@ function WeekChart({ period, spans, data, paint, onTip, onOpenDay }) {
     <div className="activity-chart activity-week">
       {period.days.map((day) => {
         const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-        const total = totalsWithin(spans, day, next).all;
+        const total = secondsIn(spans, day, next);
         const name = day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
         return (
           <div key={+day} className={day.toDateString() === today ? 'activity-row is-today' : 'activity-row'}>
@@ -165,21 +146,19 @@ function MonthChart({ period, spans, onTip, onOpenDay }) {
         {weekdays.map((name, i) => <span key={i} className="activity-weekday" aria-hidden="true">{name}</span>)}
         {period.days.map((day) => {
           const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-          const totals = totalsWithin(spans, day, next);
+          const seconds = secondsIn(spans, day, next);
           const outside = day < period.start || day >= period.end;
           const long = day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-          const tip = { title: long, lines: totals.all > 0
-            ? [`${formatDuration(totals.all)} in all`, ...KINDS.filter((k) => totals[k] > 0).map((k) => `${KIND_LABELS[k]} · ${formatDuration(totals[k])}`)]
-            : ['Nothing recorded'] };
+          const tip = { title: long, lines: [seconds > 0 ? formatDuration(seconds) : 'Nothing read'] };
           return (
             <button
               key={+day}
               type="button"
               className={[
-                'activity-cell', `activity-shade-${shadeOf(totals.all)}`,
+                'activity-cell', `activity-shade-${shadeOf(seconds)}`,
                 outside ? 'is-outside' : '', day.toDateString() === today ? 'is-today' : '',
               ].filter(Boolean).join(' ')}
-              aria-label={`${long}: ${totals.all > 0 ? formatDuration(totals.all) : 'nothing recorded'}`}
+              aria-label={`${long}: ${seconds > 0 ? formatDuration(seconds) : 'nothing read'}`}
               onClick={() => onOpenDay(day)}
               onMouseEnter={(event) => onTip(event, tip)}
               onFocus={(event) => onTip(event, tip)}
@@ -187,7 +166,7 @@ function MonthChart({ period, spans, onTip, onOpenDay }) {
               onBlur={() => onTip(null)}
             >
               <span className="activity-cell-day">{day.getDate()}</span>
-              {totals.all > 0 && <span className="activity-cell-total">{formatDurationShort(totals.all)}</span>}
+              {seconds > 0 && <span className="activity-cell-total">{formatDurationShort(seconds)}</span>}
             </button>
           );
         })}
@@ -203,15 +182,14 @@ function MonthChart({ period, spans, onTip, onOpenDay }) {
   );
 }
 
-// A week or a month paper by paper: a row to each paper and board, most
-// time first, and in each a column to each day, all on one scale, so a
+// A week or a month paper by paper: a row to each paper, most time first, and in each a column to each day, all on one scale, so a
 // paper's days read along its row and two papers compare down the page.
 // A column opens its day.
-function PaperRows({ period, spans, subjects, data, paint, onTip, onOpenDay }) {
+function PaperRows({ period, spans, papers, data, paint, onTip, onOpenDay }) {
   const [all, setAll] = useState(false);
   const days = ownDays(period);
   const { rows, most } = dailyBySubject(spans, days);
-  const shown = all ? subjects : subjects.slice(0, LISTED);
+  const shown = all ? papers : papers.slice(0, LISTED);
   const week = period.view === 'week';
   const dayLabel = (day) => (week
     ? day.toLocaleDateString(undefined, { weekday: 'short' })
@@ -226,8 +204,8 @@ function PaperRows({ period, spans, subjects, data, paint, onTip, onOpenDay }) {
         <span />
       </div>
       {shown.map((entry) => {
-        const key = `${entry.kind}:${entry.subject}`;
-        const subject = subjectOf(data, entry.kind, entry.subject);
+        const key = entry.subject;
+        const subject = paperOf(data, key);
         const colour = paint.colours.get(key) ?? 'other';
         const faded = paint.focus != null && paint.focus !== key;
         const row = rows.get(key) ?? [];
@@ -270,9 +248,9 @@ function PaperRows({ period, spans, subjects, data, paint, onTip, onOpenDay }) {
       })}
       <p className="activity-papers-note">
         One scale for every row: the tallest column is {formatDuration(most)} in a day.
-        {subjects.length > LISTED && (
+        {papers.length > LISTED && (
           <button type="button" className="activity-more" onClick={() => setAll(!all)}>
-            {all ? 'Show fewer' : `Show all ${subjects.length}`}
+            {all ? 'Show fewer' : `Show all ${papers.length}`}
           </button>
         )}
       </p>
@@ -280,23 +258,21 @@ function PaperRows({ period, spans, subjects, data, paint, onTip, onOpenDay }) {
   );
 }
 
-// Where the time in the period went: each paper and board, most first,
-// with a bar against the one that took the most.
-// Where the time in the period went: each paper and board, most first,
-// in the colour its blocks wear, so the list is also the key to them.
-// Hovering or focusing a line picks its time out on the chart above.
-function Subjects({ subjects, data, paint }) {
+// The papers read in the period, most time first, each in the colour its
+// blocks wear, so the list is also the key to them. Hovering or focusing
+// a line picks its time out on the chart above.
+function Papers({ papers, data, paint }) {
   const [all, setAll] = useState(false);
-  if (!subjects.length) return null;
-  const most = subjects[0].seconds;
-  const shown = all ? subjects : subjects.slice(0, LISTED);
+  if (!papers.length) return null;
+  const most = papers[0].seconds;
+  const shown = all ? papers : papers.slice(0, LISTED);
   return (
     <div className="activity-subjects">
-      <h3 className="kicker">Where the time went</h3>
+      <h3 className="kicker">Papers</h3>
       <ol>
         {shown.map((entry) => {
-          const subject = subjectOf(data, entry.kind, entry.subject);
-          const key = `${entry.kind}:${entry.subject}`;
+          const key = entry.subject;
+          const subject = paperOf(data, key);
           const colour = paint.colours.get(key) ?? 'other';
           const faded = paint.focus != null && paint.focus !== key;
           return (
@@ -308,7 +284,7 @@ function Subjects({ subjects, data, paint }) {
               onFocus={() => paint.pick(key)}
               onBlur={() => paint.pick(null)}
             >
-              <span className={`activity-swatch activity-${colour}`} aria-label={entry.kind === 'board' ? 'Board' : 'Paper'} role="img" />
+              <span className={`activity-swatch activity-${colour}`} aria-hidden="true" />
               {subject.href ? <a href={subject.href}>{subject.name}</a> : <span className="activity-subject-gone">{subject.name}</span>}
               <span className="activity-subject-bar" aria-hidden="true">
                 <i className={`activity-${colour}`} style={{ width: `${Math.max(2, (entry.seconds / most) * 100)}%` }} />
@@ -318,9 +294,9 @@ function Subjects({ subjects, data, paint }) {
           );
         })}
       </ol>
-      {subjects.length > LISTED && (
+      {papers.length > LISTED && (
         <button type="button" className="activity-more" onClick={() => setAll(!all)}>
-          {all ? 'Show fewer' : `Show all ${subjects.length}`}
+          {all ? 'Show fewer' : `Show all ${papers.length}`}
         </button>
       )}
     </div>
@@ -375,11 +351,9 @@ export default function ActivityPanel() {
   const atBeginning = !first || period.start <= first;
   const loaded = data && data.key === +period.from;
   const spans = loaded ? data.spans : [];
-  const totals = totalsWithin(spans, period.start, period.end);
-  const subjects = loaded ? subjectsWithin(spans, period.start, period.end) : [];
-  const paint = { colours: coloursFor(subjects), focus, pick: setFocus };
-  const papers = subjects.filter((s) => s.kind === 'reading').length, boards = subjects.length - papers;
-  const counted = [papers && `${papers} ${papers === 1 ? 'paper' : 'papers'}`, boards && `${boards} ${boards === 1 ? 'board' : 'boards'}`].filter(Boolean).join(' and ');
+  const seconds = secondsIn(spans, period.start, period.end);
+  const papers = loaded ? papersWithin(spans, period.start, period.end) : [];
+  const paint = { colours: coloursFor(papers), focus, pick: setFocus };
 
   return (
     <section className="panel activity-panel" aria-labelledby="activity-title">
@@ -391,11 +365,6 @@ export default function ActivityPanel() {
           ))}
         </div>
       </div>
-      <p className="panel-note">
-        Only you see this. Time runs from one use of a paper or board to the next — a scroll, a key, the
-        pointer — and a pause of up to ten minutes between them counts, whether you sat over a page or
-        looked something up in another tab, unless you spent it on another paper in Papol.
-      </p>
 
       <div className="activity-period">
         <button type="button" className="activity-step" onClick={() => setAnchor(stepPeriod(view, period.start, -1))}
@@ -419,24 +388,16 @@ export default function ActivityPanel() {
       {!error && !loaded && <div className="loading"><Working label="Loading activity…" /></div>}
       {!error && loaded && (
         <>
-          <dl className="activity-tiles">
-            <div className="activity-tile">
-              <dt>In all</dt>
-              <dd><Amount seconds={totals.all} /></dd>
-              <dd className="activity-tile-note">{counted || 'Nothing yet'}</dd>
-            </div>
-            {KINDS.map((kind) => (
-              <div key={kind} className="activity-tile">
-                <dt>{kind === 'board' && <span className="activity-swatch activity-board" aria-hidden="true" />}{KIND_LABELS[kind]}</dt>
-                <dd><Amount seconds={totals[kind]} /></dd>
-              </div>
-            ))}
-          </dl>
+          {seconds > 0 && (
+            <p className="activity-total">
+              <strong>{formatDuration(seconds)}</strong> reading {papers.length} {papers.length === 1 ? 'paper' : 'papers'}
+            </p>
+          )}
 
           <div className="activity-figure" ref={chartRef} onMouseLeave={() => setTip(null)}>
             {view === 'day' && <DayChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} />}
-            {byPaper && totals.all > 0 && (
-              <PaperRows period={period} spans={spans} subjects={subjects} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />
+            {byPaper && seconds > 0 && (
+              <PaperRows period={period} spans={spans} papers={papers} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />
             )}
             {view === 'week' && !byPaper && <WeekChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
             {view === 'month' && !byPaper && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
@@ -448,14 +409,10 @@ export default function ActivityPanel() {
             )}
           </div>
 
-          {totals.all > 0
-            ? !byPaper && <Subjects key={+period.from + view} subjects={subjects} data={data} paint={paint} />
+          {seconds > 0
+            ? !byPaper && <Papers key={+period.from + view} papers={papers} data={data} paint={paint} />
             : (
-              <p className="activity-empty">
-                {first
-                  ? `Nothing recorded this ${STEP_NAMES[view]}.`
-                  : 'Nothing recorded yet. Open a paper or one of your boards, and the time you spend there shows here.'}
-              </p>
+              <p className="activity-empty">Nothing read this {STEP_NAMES[view]}.</p>
             )}
         </>
       )}
