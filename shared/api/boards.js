@@ -382,7 +382,7 @@ export async function addBoardWebpage(uuid, url, x, y) {
     const receipt = await nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: {
-        board_uuid: uuid, kind: 'webpage', content: picture?.title || parsed.hostname, source_url: url, x, y, width: 480,
+        board_uuid: uuid, kind: 'webpage', content: picture?.title || parsed.hostname, source_url: url, x, y,
         ...(picture ? { sha256: picture.sha256, original_filename: pageCaptureName(url), mime_type: 'image/jpeg' } : {}),
       },
     }]);
