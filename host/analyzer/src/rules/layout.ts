@@ -177,14 +177,14 @@ export function buildLines(page: Page): Placed[][] {
     merged.add(i);
   });
   const kept = lines.filter((_, i) => !merged.has(i)).map((l) => l.sort((a, b) => a.x - b.x));
-  return joinLabels(kept);
+  return joinLabels(kept, runs);
 }
 
 // A list's labels are often set in a column of their own: "2" at the left
 // margin and the entry's text a gutter to its right, on one baseline. A
 // line that is only such a label joins the text beside it.
 const LABEL = /^\s*(?:\[?\d{1,4}[.\])]?|[•∙·▪◦–-]|\([a-z0-9]{1,3}\))\s*$/;
-function joinLabels(lines: Placed[][]): Placed[][] {
+function joinLabels(lines: Placed[][], runs: Placed[]): Placed[][] {
   const gone = new Set<number>();
   lines.forEach((label, i) => {
     const text = label.map((r) => r.text).join("");
@@ -200,9 +200,9 @@ function joinLabels(lines: Placed[][]): Placed[][] {
       // A label is set at its entry's size, or is a heading's number set
       // large beside its bold title ("1  Problem Classification"). A number
       // at another size beside plain text is something else — an
-      // equation's "(11)" at a column's right edge, level with a caption in
-      // the next column.
-      const resized = Math.abs(median(other.map((r) => r.size)) - size) > 0.1 * size;
+      // equation's "(11)" at a column's right edge, level with a caption
+      // (set smaller than the text) in the next column.
+      const resized = Math.abs(median(other.map((r) => r.size)) - size) > 0.05 * size;
       if (resized && !other.filter((r) => /[A-Za-z]/.test(r.text)).every((r) => r.bold)) return;
       const gap = least(other.map((r) => r.x)) - x1;
       if (gap >= 0 && gap <= 6 * size && gap < bestGap) { best = j; bestGap = gap; }
