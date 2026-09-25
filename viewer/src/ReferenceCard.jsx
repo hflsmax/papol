@@ -20,7 +20,7 @@ const MARGIN = 12;
 export default function ReferenceCard({
   anchor, reference, error, requiresNook = false, onClose,
   position = 0, count = 1, onPrevious, onNext, onReportProblem,
-  places = null, exploring = false, onPreviousPlace, onNextPlace,
+  places = null, exploring = false, onPreviousPlace, onNextPlace, backTo = null, onBack,
 }) {
   const cardRef = useRef(null);
   // Where the card last sat across the window. While the reader steps
@@ -129,7 +129,11 @@ export default function ReferenceCard({
 
   // Where else the paper cites this work, and the way through them. From
   // the first step it is an exploration, and says so, and where it has got
-  // to; the return pill says the way back.
+  // to; Back ends it where it began, as [ does.
+  //
+  // A press does not take the focus: the reader goes on with ↑ and ↓ on the
+  // keyboard, and a button left focused would light up as the keyboard's.
+  const keepFocus = (e) => e.preventDefault();
   const placesRow = places && (
     <div className={`ref-places${holding ? ' exploring' : ''}`}>
       <div className="ref-places-row">
@@ -143,10 +147,22 @@ export default function ReferenceCard({
         </span>
         {places.count > 1 && (
           <nav className="ref-places-nav" aria-label="Places this paper cites it">
-            <button type="button" onClick={onPreviousPlace} aria-label="Previous place it is cited" title={`Previous place it is cited${holding ? ' (↑)' : ''}`}>
+            {holding && onBack && (
+              <button
+                type="button"
+                className="ref-places-home"
+                onMouseDown={keepFocus}
+                onClick={onBack}
+                title={`Back to ${backTo ? `page ${backTo}` : 'where you were'} ([)`}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.25 5.25 8 10 12.75" /></svg>
+                Back
+              </button>
+            )}
+            <button type="button" onMouseDown={keepFocus} onClick={onPreviousPlace} aria-label="Previous place it is cited" title={`Previous place it is cited${holding ? ' (↑)' : ''}`}>
               ↑
             </button>
-            <button type="button" onClick={onNextPlace} aria-label="Next place it is cited" title={`Next place it is cited${holding ? ' (↓)' : ''}`}>
+            <button type="button" onMouseDown={keepFocus} onClick={onNextPlace} aria-label="Next place it is cited" title={`Next place it is cited${holding ? ' (↓)' : ''}`}>
               ↓
             </button>
           </nav>
