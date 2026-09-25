@@ -69,9 +69,12 @@ export function pageStops(pages) {
   }));
 }
 
-/** What a stop is called: its number and title, or Start for the front. */
+/**
+ * What a stop is called: its number and title, or Start for the front and
+ * End for the notices the paper closes on.
+ */
 export const stopName = (stop) => (
-  stop.front ? stop.title : [stop.number, stop.title].filter(Boolean).join(' ')
+  stop.front || stop.end ? stop.title : [stop.number, stop.title].filter(Boolean).join(' ')
 );
 
 /**

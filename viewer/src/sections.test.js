@@ -324,6 +324,38 @@ test('the notices leave the sections, and take what is filed under them', () => 
   ]);
 });
 
+test('notices that close the paper leave one End where the first of them begins', () => {
+  // Nature, filed under its title: the notices come last, and after them
+  // the pages of figures. Conclusion stops at Online content, not at the
+  // end of the file.
+  const sections = [
+    { level: 0, title: 'Mechanical computing', page: 1, y: 1 },
+    { level: 1, title: 'Challenges and opportunities', page: 5, y: 0.5 },
+    { level: 2, title: 'Conclusion', page: 7, y: 0.6 },
+    { level: 1, title: 'Online content', page: 8, y: 0.4 },
+    { level: 1, title: 'Acknowledgements', page: 9, y: 0.8 },
+    { level: 2, title: 'Funding', page: 9, y: 0.7 },
+  ];
+  const kept = withoutEndMatter(sections);
+  assert.deepEqual(kept.map((section) => section.title), [
+    'Mechanical computing', 'Challenges and opportunities', 'Conclusion', 'End',
+  ]);
+  assert.deepEqual(
+    (({ level, page, y, end, number }) => ({ level, page, y, end, number }))(kept.at(-1)),
+    { level: 1, page: 8, y: 0.4, end: true, number: '' },
+  );
+  // Notices with a section after them are passed through, as before, and a
+  // notice filed below the sections is not where the paper ends.
+  assert.equal(withoutEndMatter([
+    { level: 0, title: 'Discussion' }, { level: 0, title: 'Acknowledgements' },
+    { level: 0, title: 'References' },
+  ]).some((section) => section.end), false);
+  assert.equal(withoutEndMatter([
+    { level: 0, title: 'Introduction' }, { level: 0, title: 'Discussion' },
+    { level: 1, title: 'Acknowledgements' },
+  ]).some((section) => section.end), false);
+});
+
 test('the two ends of a paper are known by name', () => {
   // 29 of the 42 outlined papers here open on this word, and none opens on
   // any other; the list holds nothing that has not been seen.

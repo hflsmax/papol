@@ -140,10 +140,11 @@ export default function SectionStrip({
           <button
             key={stop.id}
             type="button"
-            className={`strip-stop${stop.front ? ' front' : ''}${stop.appendix ? ' back' : ''}`}
+            className={`strip-stop${stop.front || stop.end ? ' front' : ''}${stop.appendix ? ' back' : ''}`}
             aria-current={index === here.stop ? 'location' : undefined}
             aria-label={paged ? `Page ${stop.page}`
               : stop.front ? 'The start of the paper'
+                : stop.end ? `The end of the paper, page ${stop.page}`
                 : `${stopName(stop)}, page ${stop.page}`}
             tabIndex={index === lit ? 0 : -1}
             onClick={() => go(stop)}
