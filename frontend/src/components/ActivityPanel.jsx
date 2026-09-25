@@ -5,7 +5,7 @@ import { paperHref } from '../../../shared/api/papers.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
 import {
-  blocksOfDay, clockTime, coloursFor, formatDuration, formatDurationShort, KINDS, periodLabel, periodOf,
+  blocksOfDay, clockTime, coloursFor, dailyBySubject, formatDuration, ownDays, formatDurationShort, KINDS, periodLabel, periodOf,
   shadeOf, SHADE_MARKS, stepPeriod, subjectsWithin, totalsWithin, VIEWS,
 } from '../activityView';
 
@@ -15,10 +15,18 @@ const STEP_NAMES = { day: 'day', week: 'week', month: 'month' };
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 const LISTED = 8;
 const VIEW_KEY = 'papol.activity.view';
+// A week or month, shown as its total through the days, or paper by paper.
+const SPLIT_KEY = 'papol.activity.split';
+const SPLITS = [['total', 'Total'], ['paper', 'By paper']];
 
 function storedView() {
   try { return VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : 'week'; }
   catch { return 'week'; }
+}
+
+function storedSplit() {
+  try { return localStorage.getItem(SPLIT_KEY) === 'paper' ? 'paper' : 'total'; }
+  catch { return 'total'; }
 }
 
 function hourLabel(hour) {
@@ -195,6 +203,83 @@ function MonthChart({ period, spans, onTip, onOpenDay }) {
   );
 }
 
+// A week or a month paper by paper: a row to each paper and board, most
+// time first, and in each a column to each day, all on one scale, so a
+// paper's days read along its row and two papers compare down the page.
+// A column opens its day.
+function PaperRows({ period, spans, subjects, data, paint, onTip, onOpenDay }) {
+  const [all, setAll] = useState(false);
+  const days = ownDays(period);
+  const { rows, most } = dailyBySubject(spans, days);
+  const shown = all ? subjects : subjects.slice(0, LISTED);
+  const week = period.view === 'week';
+  const dayLabel = (day) => (week
+    ? day.toLocaleDateString(undefined, { weekday: 'short' })
+    : (day.getDate() === 1 || day.getDay() === 1 ? String(day.getDate()) : ''));
+  return (
+    <div className={`activity-chart activity-papers${week ? ' is-week' : ' is-month'}`} style={{ '--activity-days': days.length }}>
+      <div className="activity-paper-row activity-papers-head" aria-hidden="true">
+        <span />
+        <div className="activity-columns">
+          {days.map((day) => <span key={+day}>{dayLabel(day)}</span>)}
+        </div>
+        <span />
+      </div>
+      {shown.map((entry) => {
+        const key = `${entry.kind}:${entry.subject}`;
+        const subject = subjectOf(data, entry.kind, entry.subject);
+        const colour = paint.colours.get(key) ?? 'other';
+        const faded = paint.focus != null && paint.focus !== key;
+        const row = rows.get(key) ?? [];
+        return (
+          <div
+            key={key}
+            className={`activity-paper-row${faded ? ' is-faded' : ''}`}
+            onMouseEnter={() => paint.pick(key)}
+            onMouseLeave={() => paint.pick(null)}
+          >
+            <span className="activity-paper-name">
+              <span className={`activity-swatch activity-${colour}`} aria-hidden="true" />
+              {subject.href ? <a href={subject.href}>{subject.name}</a> : <span className="activity-subject-gone">{subject.name}</span>}
+            </span>
+            <div className="activity-columns" role="group" aria-label={subject.name}>
+              {days.map((day, i) => {
+                const seconds = row[i] ?? 0;
+                const long = day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+                const tip = { title: subject.name, lines: [long, seconds > 0 ? formatDuration(seconds) : 'Nothing'] };
+                return (
+                  <button
+                    key={+day}
+                    type="button"
+                    className="activity-column"
+                    aria-label={`${long}: ${seconds > 0 ? formatDuration(seconds) : 'nothing'}`}
+                    onClick={() => onOpenDay(day)}
+                    onMouseEnter={(event) => onTip(event, tip)}
+                    onFocus={(event) => { onTip(event, tip); paint.pick(key); }}
+                    onMouseLeave={() => onTip(null)}
+                    onBlur={() => { onTip(null); paint.pick(null); }}
+                  >
+                    {seconds > 0 && <i className={`activity-${colour}`} style={{ height: `${Math.max(8, (seconds / most) * 100)}%` }} />}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="activity-row-total">{formatDurationShort(entry.seconds)}</span>
+          </div>
+        );
+      })}
+      <p className="activity-papers-note">
+        One scale for every row: the tallest column is {formatDuration(most)} in a day.
+        {subjects.length > LISTED && (
+          <button type="button" className="activity-more" onClick={() => setAll(!all)}>
+            {all ? 'Show fewer' : `Show all ${subjects.length}`}
+          </button>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // Where the time in the period went: each paper and board, most first,
 // with a bar against the one that took the most.
 // Where the time in the period went: each paper and board, most first,
@@ -249,6 +334,7 @@ export default function ActivityPanel() {
   const [error, setError] = useState(null);
   const [tip, setTip] = useState(null);
   const [focus, setFocus] = useState(null);
+  const [split, setSplit] = useState(storedSplit);
   const chartRef = useRef(null);
   const period = useMemo(() => periodOf(view, anchor), [view, anchor]);
 
@@ -270,6 +356,13 @@ export default function ActivityPanel() {
     try { localStorage.setItem(VIEW_KEY, next); } catch { /* only remembered */ }
   };
   const openDay = (day) => { setAnchor(day); choose('day'); };
+  const chooseSplit = (next) => {
+    setSplit(next);
+    setTip(null);
+    setFocus(null);
+    try { localStorage.setItem(SPLIT_KEY, next); } catch { /* only remembered */ }
+  };
+  const byPaper = split === 'paper' && view !== 'day';
   const showTip = (event, content) => {
     if (!event || !chartRef.current) { setTip(null); return; }
     const box = chartRef.current.getBoundingClientRect(), mark = event.currentTarget.getBoundingClientRect();
@@ -309,7 +402,16 @@ export default function ActivityPanel() {
         <h3 className="activity-period-label" aria-live="polite">{periodLabel(period)}</h3>
         <button type="button" className="activity-step" onClick={() => setAnchor(stepPeriod(view, period.start, 1))}
           disabled={atPresent} aria-label={`Next ${STEP_NAMES[view]}`}>›</button>
-        {!atPresent && <button type="button" className="activity-today" onClick={() => setAnchor(new Date())}>Today</button>}
+        <span className="activity-period-tools">
+          {!atPresent && <button type="button" className="activity-today" onClick={() => setAnchor(new Date())}>Today</button>}
+          {view !== 'day' && (
+            <span className="activity-views activity-split" role="group" aria-label="Show the time">
+              {SPLITS.map(([name, label]) => (
+                <button key={name} type="button" aria-pressed={split === name} onClick={() => chooseSplit(name)}>{label}</button>
+              ))}
+            </span>
+          )}
+        </span>
       </div>
 
       {error && <div className="error" role="alert">{error}</div>}
@@ -332,8 +434,11 @@ export default function ActivityPanel() {
 
           <div className="activity-figure" ref={chartRef} onMouseLeave={() => setTip(null)}>
             {view === 'day' && <DayChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} />}
-            {view === 'week' && <WeekChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
-            {view === 'month' && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
+            {byPaper && totals.all > 0 && (
+              <PaperRows period={period} spans={spans} subjects={subjects} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />
+            )}
+            {view === 'week' && !byPaper && <WeekChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
+            {view === 'month' && !byPaper && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
             {tip && (
               <div className="activity-tip" aria-hidden="true" style={{ left: tip.x, top: tip.y }}>
                 <strong>{tip.title}</strong>
@@ -343,7 +448,7 @@ export default function ActivityPanel() {
           </div>
 
           {totals.all > 0
-            ? <Subjects key={+period.from + view} subjects={subjects} data={data} paint={paint} />
+            ? !byPaper && <Subjects key={+period.from + view} subjects={subjects} data={data} paint={paint} />
             : (
               <p className="activity-empty">
                 {first

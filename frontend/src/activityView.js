@@ -230,3 +230,29 @@ export function dayName(day, now = new Date(), locale) {
   if (days > 1 && days < 7) return day.toLocaleDateString(locale, { weekday: 'long' });
   return day.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
+
+// The days a period is about — a month's own, not the neighbours its
+// calendar shows — for the view of it paper by paper.
+export function ownDays(period) {
+  return period.days.filter((day) => day >= period.start && day < period.end);
+}
+
+// Each paper's and board's seconds on each of `days`, by `kind:subject`,
+// and the most any one of them held on any one day: the scale every row of
+// the paper-by-paper view shares.
+export function dailyBySubject(spans, days) {
+  const rows = new Map();
+  let most = 0;
+  days.forEach((day, i) => {
+    const next = addDays(day, 1);
+    for (const span of spans) {
+      const seconds = secondsWithin(span, day, next);
+      if (seconds <= 0) continue;
+      const key = `${span.kind}:${span.subject}`;
+      const row = rows.get(key) ?? rows.set(key, new Array(days.length).fill(0)).get(key);
+      row[i] += seconds;
+      most = Math.max(most, row[i]);
+    }
+  });
+  return { rows, most };
+}

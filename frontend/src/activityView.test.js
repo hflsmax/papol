@@ -114,3 +114,22 @@ test('a paper\'s days, newest first, and the weeks behind today', async () => {
   const now = local(2026, 9, 25, 12);
   assert.deepEqual([local(2026, 9, 25), local(2026, 9, 24), local(2026, 9, 22)].map((d) => dayName(d, now, 'en-GB')), ['Today', 'Yesterday', 'Tuesday']);
 });
+
+test('a period paper by paper: its own days, and each paper\'s seconds on each', async () => {
+  const { dailyBySubject, ownDays } = await import('./activityView.js');
+  const month = periodOf('month', local(2026, 9, 25));
+  const days = ownDays(month);
+  assert.equal(days.length, 30);
+  assert.deepEqual([days[0], days.at(-1)], [local(2026, 9, 1), local(2026, 9, 30)]);
+  const spans = [
+    span('reading', 'p', local(2026, 9, 2, 9), 30),
+    span('reading', 'p', local(2026, 9, 2, 14), 30),
+    span('board', 'b', local(2026, 9, 3, 9), 10),
+    span('reading', 'q', local(2026, 8, 31, 9), 30),
+  ];
+  const { rows, most } = dailyBySubject(spans, days);
+  assert.equal(rows.get('reading:p')[1], 3600);
+  assert.equal(rows.get('board:b')[2], 600);
+  assert.equal(rows.has('reading:q'), false);
+  assert.equal(most, 3600);
+});

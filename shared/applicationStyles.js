@@ -3154,7 +3154,90 @@ h4 .state-pill {
 }
 
 .activity-step:disabled { opacity: 0.35; cursor: default; }
-.activity-today { margin-left: auto; font-size: var(--fs-sm); padding: var(--space-1) var(--space-3); }
+.activity-today { font-size: var(--fs-sm); padding: var(--space-1) var(--space-3); }
+.activity-period-tools { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* ---------- A week or month paper by paper ----------
+   Small multiples: a row to each paper, a column to each day, one scale.
+   Columns grow from a shared baseline; an empty day is a faint tick on it,
+   so a row still reads as its days. */
+.activity-paper-row {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 48px;
+  align-items: end;
+  gap: var(--space-3);
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.activity-paper-row.is-faded { opacity: 0.2; }
+.activity-papers-head { border-top: 0; padding-bottom: 2px; align-items: center; }
+
+.activity-paper-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  align-self: center;
+}
+
+.activity-paper-name a,
+.activity-paper-name .activity-subject-gone {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--activity-days), minmax(0, 1fr));
+  gap: 2px;
+  height: 36px;
+}
+
+.activity-papers.is-week .activity-columns { gap: var(--space-2); }
+.activity-papers-head .activity-columns { height: auto; }
+
+.activity-papers-head .activity-columns span {
+  font-size: var(--fs-2xs);
+  color: var(--ink-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-papers.is-month .activity-papers-head .activity-columns span { text-align: left; }
+
+.activity-column {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.activity-column:hover { background: var(--paper); }
+.activity-column i { display: block; width: 100%; max-width: 24px; margin: 0 auto; border-radius: 3px 3px 0 0; }
+.activity-paper-row .activity-row-total { align-self: center; }
+
+.activity-papers-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+.activity-papers-note .activity-more { margin-top: 0; }
 
 .activity-tiles {
   display: grid;
@@ -3423,6 +3506,12 @@ h4 .state-pill {
   .activity-cell { min-height: 40px; padding: 3px 4px; }
   .activity-cell-total { font-size: var(--fs-2xs); }
   .activity-subjects li { grid-template-columns: 10px minmax(0, 1fr) max-content; }
+  .activity-period { flex-wrap: wrap; }
+  .activity-period-tools { flex-basis: 100%; margin-left: 0; }
+  .activity-paper-row { grid-template-columns: minmax(0, 1fr) 40px; row-gap: 4px; }
+  .activity-paper-row .activity-paper-name { grid-column: 1 / -1; }
+  .activity-papers-head .activity-columns { grid-column: 1; }
+  .activity-papers-head > span:first-child { display: none; }
   .activity-subject-bar { display: none; }
 }
 

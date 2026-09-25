@@ -170,7 +170,11 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   "how much" matters it is a calendar shaded at fixed marks (15 min, 1 h,
   2 h, 4 h), so one month compares with another rather than with itself.
   Blocks wear their paper's colour, the list of where the time went is
-  their key, and hovering a paper in either picks out all its time.
+  their key, and hovering a paper in either picks out all its time. A week
+  or month can also be read **by paper**: small multiples, a row to each
+  paper, a column to each day, every row on one scale (the note under them
+  says what the tallest column is), so a paper's days read along its row
+  and papers compare down the page.
   Every block and day says its content in words to hover, focus and a
   screen reader; colour is never the only channel. `ActivityPanel.jsx`.
 
