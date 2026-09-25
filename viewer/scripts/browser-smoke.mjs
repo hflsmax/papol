@@ -5,7 +5,7 @@
 // answer, and that is the click Papol exists for.
 //
 // The API is served by this script from the shapes the backend declares, so
-// the check is hermetic: no backend, no GROBID, no network. What it proves
+// the check is hermetic: no backend, no analyzer, no network. What it proves
 // is the viewer's own half — markers drawn from an analysis, a click turned
 // into an item request, the answer rendered — which is the half a release
 // can break silently.

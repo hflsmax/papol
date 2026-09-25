@@ -35,14 +35,11 @@ export default defineConfig(async () => {
           // The suite hands wake-ups to the consumer itself, so a job
           // runs when a test says and not when the runtime delivers.
           bindings: {
-            TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", GROBID_URL: "https://grobid.test",
+            TEST_MIGRATIONS: migrations, QUEUE_DELIVERY: "manual", ANALYZER_URL: "https://analyzer.test",
             // FILES_URL is empty here, whatever production's is: the suite
             // tests the Worker serving a file itself, and hands a bucket
             // address in where a test is about that.
             FILES_URL: "",
-            // GROBID's route unless a test names the rules: the suite reads
-            // a fake GROBID's TEI, not a PDF.
-            ANALYZER: "",
             // Any key signs; the suite reads the signature's shape, never sends it.
             // The bucket is named here because .dev.vars, which the pool reads
             // too, empties it for a local Worker.

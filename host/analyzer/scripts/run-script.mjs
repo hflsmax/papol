@@ -1,4 +1,4 @@
-// Bundles a script under scripts/ as the helper itself is bundled, and runs
+// Bundles a script under scripts/ as the analyzer itself is bundled, and runs
 // it: corpus.ts by default, or the one named first (`lines`, …).
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

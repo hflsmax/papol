@@ -16,7 +16,8 @@
 import { newUuid, now, one, statement, type Row } from "../db";
 
 // A job running longer than this was abandoned by its consumer — nothing
-// here takes longer than a GROBID pass, and that is bounded at five minutes.
+// here takes longer than a reading on the host, and that is bounded at
+// five minutes.
 export const LEASE_MS = 15 * 60 * 1000;
 
 // A job is taken up twice: once, and once more after being abandoned.

@@ -14,9 +14,9 @@ desktop/dist/
 desktop/node_modules/
 cloudflare/node_modules/
 cloudflare/.wrangler/
-host/helper/node_modules/
-# The rule analyzer's corpus: production PDFs, GROBID's answers, the analyzer's own, overlay shots
-host/helper/.corpus/
+host/analyzer/node_modules/
+# The analyzer's corpus: production PDFs, the analyzer's answers, overlay shots
+host/analyzer/.corpus/
 cloudflare/site/
 __pycache__/
 

@@ -1,17 +1,16 @@
 {
-  "name": "papol-helper",
+  "name": "papol-analyzer",
   "private": true,
-  "description": "The host's helper beside GROBID: takes a PDF, runs GROBID, reads its TEI, answers JSON. The Worker on Cloudflare's Free plan forwards bytes and stores rows; the CPU-heavy reading runs here. See docs/cloud-migration.md, phase 5 step 8.",
+  "description": "The host's analyzer: takes a PDF, reads its references, markers, links and title block by rules (src/rules/), answers JSON. The Worker forwards addresses and stores rows; the CPU-heavy reading runs here.",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "check": "node build.mjs && git diff --exit-code -- dist",
-    "start": "node dist/helper.js",
+    "start": "node dist/analyzer.js",
     "test": "node build.mjs && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rgrove/parse-xml": "^5.0.0",
     "unpdf": "^1.8.1"
   },
   "devDependencies": {

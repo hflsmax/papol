@@ -1,5 +1,5 @@
-// The bibliography: GROBID's TEI read into references and markers, the
-// lookup that turns a printed reference into a work, and the viewer's
+// The bibliography: the lookup that turns a printed reference into a
+// work, what the host's analyzer is sent and answers, and the viewer's
 // routes.
 import { createExecutionContext, createMessageBatch, env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
@@ -8,14 +8,13 @@ import worker from "../src/index";
 import type { Wakeup } from "../src/jobs/run";
 import { summarizeOpenalex, type Summary } from "../src/papers/bibliography";
 import { bibliographyCard, paperReferences, type Reference } from "../src/papers/references";
-import * as helper from "../src/papers/helper";
+import * as analyzer from "../src/papers/analyzer";
 import { candidates, merge, resolve, titleMatches } from "../src/papers/resolve";
-import { normalizeTitle, parseHeader, parseTei } from "../src/papers/tei";
+import { normalizeTitle, type Analysis } from "../src/papers/reading";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, uuid, type Account, type Json } from "./helpers";
 
 const PDF = "c".repeat(64);
 const OTHER = "d".repeat(64);
-const TEI = (body: string) => `<TEI xmlns="http://www.tei-c.org/ns/1.0">${body}</TEI>`;
 
 async function woken(...uuids: string[]) {
   const batch = createMessageBatch<Wakeup>("papol-jobs", uuids.map((id) => ({ id: uuid(), timestamp: new Date(), body: { job: id }, attempts: 1 })));
@@ -35,91 +34,13 @@ function hosts(answers: Record<string, (url: URL, init?: RequestInit) => Respons
 }
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-// --------------------------------------------------------------- the TEI
+// ------------------------------------------------------------ the title
 
-describe("GROBID's TEI", () => {
-  it("reads the header, undoing all-caps styling", () => {
-    const header = parseHeader(TEI(`<teiHeader><fileDesc><sourceDesc><biblStruct><analytic>
-      <title level="a" type="main">THE MEANING OF MEMORY SAFETY</title>
-      <author><persName><forename>Arthur</forename><surname>Amorim</surname></persName></author>
-      <author><persName><forename>Benjamin C.</forename><surname>Pierce</surname></persName></author>
-      </analytic><monogr><title level="j">LNCS</title><imprint><date type="published" when="2018-04-06"/></imprint></monogr>
-      </biblStruct></sourceDesc></fileDesc></teiHeader>`));
-    expect(header).toEqual({ title: "The Meaning of Memory Safety", authors: ["Arthur Amorim", "Benjamin C. Pierce"], journal: "LNCS", year: 2018, doi: null, arxiv_id: null });
-    // A consolidated header carries the identifiers CrossRef gave GROBID, bare.
-    const identified = parseHeader(TEI(`<teiHeader><fileDesc><sourceDesc><biblStruct><analytic><title level="a" type="main">Attention Is All You Need</title>
-      <idno type="DOI">https://doi.org/10.5555/3295222.3295349</idno><idno type="arXiv">arXiv:1706.03762v7</idno><idno type="MD5">abc</idno></analytic></biblStruct></sourceDesc></fileDesc></teiHeader>`));
-    expect(identified).toMatchObject({ title: "Attention Is All You Need", doi: "10.5555/3295222.3295349", arxiv_id: "1706.03762v7" });
+describe("a title block's title", () => {
+  it("loses display-only all-caps styling and keeps an acronym and an X-name", () => {
+    expect(normalizeTitle("THE MEANING OF MEMORY SAFETY")).toBe("The Meaning of Memory Safety");
     expect(normalizeTitle("XGRAMMAR: FLEXIBLE AND EFFICIENT STRUCTURED GENERATION FOR LLMS")).toBe("XGrammar: Flexible and Efficient Structured Generation for LLMS");
     expect(normalizeTitle("Attention Is All You Need")).toBe("Attention Is All You Need");
-  });
-
-  it("reads a reference's title, venue, authors, year and identifiers from where GROBID puts them", () => {
-    const { references } = parseTei(TEI(`<text><back><listBibl>
-      <biblStruct xml:id="b7"><analytic><author><persName><forename>M.</forename><surname>Schenk</surname></persName></author></analytic>
-        <monogr><title level="j">Proceedings of the National Academy of Sciences</title><imprint><date when="2013"/></imprint></monogr>
-        <note type="raw_reference">M. Schenk, Proceedings of the National Academy of Sciences 110, 3276 (2013).</note></biblStruct>
-      <biblStruct xml:id="b3"><analytic><title level="a" type="main">Metamaterial Mechanisms</title>
-        <author><persName><forename>Alexandra</forename><surname>Ion</surname></persName></author></analytic>
-        <monogr><title level="m">Proceedings of the 29th Annual Symposium on User Interface Software and Technology</title>
-        <meeting><address><addrLine>Tokyo, Japan</addrLine></address></meeting><imprint><date when="2016"/></imprint></monogr>
-        <idno type="DOI">https://doi.org/10.1145/2984511.2984540</idno>
-        <note type="raw_reference">Ion A. Metamaterial Mechanisms. In: Proc. UIST 2016.</note></biblStruct>
-      <biblStruct xml:id="b4"><analytic><title level="a" type="main">Sim2Real transfer</title></analytic>
-        <monogr><meeting>CoRL 2020<address><addrLine>Cambridge, MA</addrLine></address></meeting><imprint><date when="0190">2016. 190</date></imprint></monogr>
-        <note type="raw_reference">Sim2Real transfer. CoRL 2020. arXiv:2010.00001v2</note></biblStruct>
-      </listBibl></back></text>`));
-    // A journal-only entry: no title, since a venue is not the cited work's title.
-    expect(references[0]).toMatchObject({ key: "b7", index: 0, title: null, journal: "Proceedings of the National Academy of Sciences", authors: ["M. Schenk"], year: 2013 });
-    // A conference paper: its own title, the proceedings as the venue, the DOI bare.
-    expect(references[1]).toMatchObject({ key: "b3", index: 1, title: "Metamaterial Mechanisms", journal: "Proceedings of the 29th Annual Symposium on User Interface Software and Technology", doi: "10.1145/2984511.2984540", year: 2016 });
-    // The meeting's own words, not its address; the date's text over a
-    // misread @when; the arXiv id from the raw string.
-    expect(references[2]).toMatchObject({ key: "b4", journal: "CoRL 2020", year: 2016, arxiv_id: "2010.00001v2" });
-  });
-
-  it("places markers as fractions of the page, infers unresolved numbered ones, and tells equation numbers from citations", () => {
-    const bracketed = parseTei(TEI(`<facsimile><surface n="4" lrx="600" lry="800"/></facsimile><text><body>
-      <p>Inspired by prior work <ref type="bibr" coords="4,100,100,12,10" target="#b0">[1]</ref>
-      and by linkages <ref type="bibr" coords="4,200,100,12,10" target="#b6">[7]</ref>
-      and by others <ref type="bibr" coords="4,300,100,12,10">[2]</ref>.</p>
-      <p>A out-plane = (b 0 , b 1 ) <ref type="bibr" coords="4,552,308,11,8" target="#b6">(7)</ref> where</p>
-      </body><back><listBibl>
-      <biblStruct xml:id="b0" coords="4,60,700,200,10"><note type="raw_reference">Yao L. Pneui.</note></biblStruct>
-      <biblStruct xml:id="b1" coords="4,60,706,200,10"><note type="raw_reference">Second.</note></biblStruct>
-      <biblStruct xml:id="b6" coords="4,60,712,200,10"><note type="raw_reference">Iwafune M. Coded skeleton.</note></biblStruct>
-      </listBibl></back></text>`));
-    expect(bracketed.citations.map((c) => [c.key, c.label, c.inferred])).toEqual([["b0", "[1]", false], ["b6", "[7]", false], ["b1", "[2]", true]]);
-    expect(bracketed.citations[0]).toMatchObject({ page: 4, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 });
-    expect(bracketed.references[0]).toMatchObject({ page: 4, y: 700 / 800 });
-
-    // Science and the journals that follow it really do cite as "(7)".
-    const parenthesized = parseTei(TEI(`<facsimile><surface n="1" lrx="600" lry="800"/></facsimile><text><body>
-      <p>As reported <ref type="bibr" coords="1,100,100,12,10" target="#b0">(1)</ref> and later <ref type="bibr" coords="1,200,100,12,10" target="#b6">(7)</ref>.</p>
-      </body><back><listBibl>
-      <biblStruct xml:id="b0"><note type="raw_reference">Yao L. Pneui.</note></biblStruct>
-      <biblStruct xml:id="b6"><note type="raw_reference">Iwafune M. Coded skeleton.</note></biblStruct>
-      </listBibl></back></text>`));
-    expect(parenthesized.citations.map((c) => c.label)).toEqual(["(1)", "(7)"]);
-  });
-
-  it("links a figure reference to the figure, and a Box to the box rather than the figure of the same number", () => {
-    const figure = parseTei(TEI(`<facsimile><surface n="2" lrx="600" lry="800"/></facsimile>
-      <text><body><p>See Figure <ref type="figure" target="#fig_0" coords="2,120,160,12,10">2</ref>.</p></body>
-      <back><figure xml:id="fig_0" coords="2,100,400,300,20"><head>Figure 2:</head><label>2</label></figure></back></text>`));
-    expect(figure.floats).toEqual([{ key: "fig_0", kind: "figure", label: "2", page: 2, x: 100 / 600, y: 400 / 800, w: 300 / 600, h: 20 / 800 }]);
-    expect(figure.links).toHaveLength(1);
-    expect(figure.links[0]).toMatchObject({ float: "fig_0", label: "2", page: 2 });
-    // Extended left over the "Figure " prefix.
-    expect(figure.links[0].x).toBeLessThan(120 / 600);
-    expect(figure.links[0].x + figure.links[0].w).toBeCloseTo(132 / 600);
-
-    const box = parseTei(TEI(`<facsimile><surface n="1" lrx="600" lry="800"/><surface n="2" lrx="600" lry="800"/></facsimile>
-      <text><body><p>See <hi>BOX </hi><ref type="figure" target="#fig_1" coords="1,300,160,12,10">1</ref>.</p>
-      <figure xml:id="fig_1" coords="1,100,400,300,20"><head>Figure 1</head><label>1</label></figure>
-      <figure xml:id="box_1" coords="2,100,240,300,20"><head>Box 1 | Methods</head><label>1</label></figure></body></text>`));
-    const named = new Map(box.floats.map((f) => [f.key, f]));
-    expect(box.links.map((l) => [named.get(l.float)!.kind, named.get(l.float)!.page])).toEqual([["box", 2]]);
   });
 });
 
@@ -133,7 +54,7 @@ const openalexWork = (title: string, year: number, extra: Record<string, unknown
 const crossrefItems = (...items: Record<string, unknown>[]) => jsonResponse({ message: { items } });
 
 describe("resolving a reference", () => {
-  it("takes an identifier over any search, whether GROBID read it or it sits in the raw string as an arXiv URL", async () => {
+  it("takes an identifier over any search, whether the analyzer read it or it sits in the raw string as an arXiv URL", async () => {
     const calls = hosts({ "api.openalex.org": (url) => {
       const doi = decodeURIComponent(url.pathname.split("doi:")[1]);
       return jsonResponse(doi.includes("arxiv") ? openalexWork("Mistral 7B", 2023, { doi: `https://doi.org/${doi}` }) : openalexWork("Attention Is All You Need", 2017, { doi: `https://doi.org/${doi}` }));
@@ -206,60 +127,45 @@ describe("resolving a reference", () => {
 
 // ----------------------------------------------------------- the routes
 
-// What the host's helper answers for the paper: GROBID's TEI as it reads
-// it, which is this same parser, run there.
-const ANALYSIS = parseTei(TEI(`<facsimile><surface n="1" lrx="600" lry="800"/></facsimile><text><body>
-  <p>Prior work <ref type="bibr" coords="1,100,100,12,10" target="#b0">[1]</ref>.</p></body><back><listBibl>
-  <biblStruct xml:id="b0" coords="1,60,700,200,10"><analytic><title level="a" type="main">Attention Is All You Need</title></analytic>
-    <monogr><imprint><date when="2017"/></imprint></monogr><note type="raw_reference">Vaswani et al. Attention Is All You Need. 2017.</note></biblStruct>
-  <biblStruct xml:id="b1" coords="1,60,712,200,10"><note type="raw_reference">Knuth D. The art of computer programming.</note></biblStruct>
-  </listBibl></back></text>`));
+// What the host's analyzer answers for the paper: two entries, the first
+// cited once on page 1.
+const ANALYSIS: Analysis = {
+  references: [
+    { key: "b0", index: 0, raw: "Vaswani et al. Attention Is All You Need. 2017.", title: "Attention Is All You Need", authors: [], year: 2017, journal: null, doi: null, arxiv_id: null, page: 1, y: 700 / 800 },
+    { key: "b1", index: 1, raw: "Knuth D. The art of computer programming.", title: null, authors: [], year: null, journal: null, doi: null, arxiv_id: null, page: 1, y: 712 / 800 },
+  ],
+  citations: [{ key: "b0", label: "[1]", inferred: false, page: 1, x: 100 / 600, y: 100 / 800, w: 12 / 600, h: 10 / 800 }],
+  floats: [],
+  links: [],
+};
 
 async function kept(user: Account, digest = PDF, title = "KinetiX") {
   await paperWithCopy(user, digest, title, { shelfUuid: await defaultShelf(user) });
   await env.FILES.put(`uploads/${digest}.pdf`, new TextEncoder().encode("%PDF-1.4"));
 }
 
-describe("what the helper is sent", () => {
+describe("what the analyzer is sent", () => {
   it("is the paper's address on the bucket domain, never the bytes, when the bucket has one", async () => {
     // Nothing in this Worker's bucket: with a domain, the Worker reads no
-    // bytes at all, and the helper fetches the file itself.
+    // bytes at all, and the analyzer fetches the file itself.
     const hosted = { ...env, FILES_URL: "https://files.test/" as string } as Env;
     const sent: Array<[string, string, string]> = [];
-    hosts({ "grobid.test": (url, init) => {
+    hosts({ "analyzer.test": (url, init) => {
       sent.push([url.pathname, (init?.headers as Record<string, string>)["content-type"], String(init?.body)]);
       return jsonResponse(url.pathname.endsWith("/analyze") ? ANALYSIS : { title: "T", authors: [], journal: null, year: null, doi: null, arxiv_id: null });
     } });
-    await helper.analyze(hosted, `${OTHER}.pdf`);
-    await helper.header(hosted, `${OTHER}.pdf`);
+    await analyzer.analyze(hosted, `${OTHER}.pdf`);
+    await analyzer.header(hosted, `${OTHER}.pdf`);
     const address = JSON.stringify({ url: `https://files.test/uploads/${OTHER}.pdf` });
     expect(sent).toEqual([
-      ["/helper/analyze", "application/json", address],
-      ["/helper/header", "application/json", address],
+      ["/analyze", "application/json", address],
+      ["/header", "application/json", address],
     ]);
   });
 
-  it("goes to the rule-based analyzer where the environment asks for rules", async () => {
-    const ruled = { ...env, FILES_URL: "https://files.test/" as string, ANALYZER: "rules" } as Env;
-    const paths: string[] = [];
-    hosts({ "grobid.test": (url) => { paths.push(url.pathname); return jsonResponse(ANALYSIS); } });
-    await helper.analyze(ruled, `${OTHER}.pdf`);
-    await helper.analyze({ ...ruled, ANALYZER: undefined } as Env, `${OTHER}.pdf`);
-    expect(paths).toEqual(["/helper/analyze-rules", "/helper/analyze"]);
-  });
-
-  it("reads the title block by rules where the environment asks for rules", async () => {
-    const ruled = { ...env, FILES_URL: "https://files.test/" as string, ANALYZER: "rules" } as Env;
-    const paths: string[] = [];
-    hosts({ "grobid.test": (url) => { paths.push(url.pathname); return jsonResponse({ title: null, authors: [], journal: null, year: null, doi: null, arxiv_id: null }); } });
-    await helper.header(ruled, `${OTHER}.pdf`);
-    await helper.header({ ...ruled, ANALYZER: undefined } as Env, `${OTHER}.pdf`);
-    expect(paths).toEqual(["/helper/header-rules", "/helper/header"]);
-  });
-
   it("is the bytes where the Worker serves its files itself, and a missing PDF is said to be missing", async () => {
-    hosts({ "grobid.test": () => jsonResponse(ANALYSIS) });
-    await expect(helper.analyze(env, `${OTHER}.pdf`)).rejects.toThrow("The PDF for this paper is missing");
+    hosts({ "analyzer.test": () => jsonResponse(ANALYSIS) });
+    await expect(analyzer.analyze(env, `${OTHER}.pdf`)).rejects.toThrow("The PDF for this paper is missing");
   });
 });
 
@@ -267,7 +173,7 @@ describe("the viewer's references", () => {
   it("are read once by a job the first open queues, then served to whoever may read the paper", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await kept(ada);
-    const calls = hosts({ "grobid.test": (_url, init) => {
+    const calls = hosts({ "analyzer.test": (_url, init) => {
       // The bytes, as a PDF, and nothing read here.
       expect(init?.method).toBe("POST");
       expect((init?.headers as Record<string, string>)["content-type"]).toBe("application/pdf");
@@ -289,7 +195,7 @@ describe("the viewer's references", () => {
     expect(await count("jobs", "kind = 'analyze_paper'")).toBe(1);
 
     await woken(jobs.uuid as string);
-    expect(calls).toEqual(["grobid.test/helper/analyze"]);
+    expect(calls).toEqual(["analyzer.test/analyze"]);
     expect((await row("SELECT references_status, references_error FROM papers WHERE sha256 = ?", PDF))).toEqual({ references_status: "ready", references_error: null });
     const ready = await ok("GET", `/api/viewer-references/${PDF}${query}`, { headers: ada.headers });
     expect(ready.status).toBe("ready");
@@ -308,7 +214,7 @@ describe("the viewer's references", () => {
       floats: [{ key: "f0", kind: "figure", label: "2", page: 3, x: 0.1, y: 0.2, w: 0.4, h: 0.3 }],
       links: [{ float: "f0", label: "2a", page: 1, x: 0.5, y: 0.6, w: 0.05, h: 0.01 }],
     };
-    hosts({ "grobid.test": () => jsonResponse(analysis) });
+    hosts({ "analyzer.test": () => jsonResponse(analysis) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     const ready = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
@@ -319,29 +225,29 @@ describe("the viewer's references", () => {
   it("fail a reading whose links name a float it does not have", async () => {
     const ada = await register();
     await kept(ada);
-    hosts({ "grobid.test": () => jsonResponse({ references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
+    hosts({ "analyzer.test": () => jsonResponse({ references: [], citations: [], floats: [], links: [{ float: "f9", label: "1", page: 1, x: 0, y: 0, w: 0.1, h: 0.1 }] }) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     expect(await count("paper_links")).toBe(0);
     expect((await row("SELECT status FROM jobs WHERE kind = 'analyze_paper'"))!.status).toBe("failed");
   });
 
-  it("record a PDF GROBID cannot read on the paper rather than asking forever, and say so when there is no analyzer", async () => {
+  it("record a PDF the analyzer cannot read on the paper rather than asking forever, and say so when there is no analyzer", async () => {
     const ada = await register();
     await kept(ada);
-    // The helper's 502 carries GROBID's reason, which is what the paper records.
-    hosts({ "grobid.test": () => jsonResponse({ detail: "GROBID could not read this PDF (no text extracted)" }, 502) });
+    // The analyzer's 422 carries its reason, which is what the paper records.
+    hosts({ "analyzer.test": () => jsonResponse({ detail: "The PDF could not be read: Invalid PDF structure." }, 422) });
     await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
     await woken((await row("SELECT uuid FROM jobs WHERE kind = 'analyze_paper'"))!.uuid as string);
     const failed = await ok("GET", `/api/viewer-references/${PDF}?paper_sha256=${PDF}`, { headers: ada.headers });
-    expect(failed).toMatchObject({ status: "failed", detail: expect.stringContaining("could not read") });
+    expect(failed).toMatchObject({ status: "failed", detail: "The PDF could not be read: Invalid PDF structure." });
     expect(await count("jobs", "kind = 'analyze_paper'")).toBe(1);
 
     const paper = (await row("SELECT * FROM papers WHERE sha256 = ?", OTHER + ""))!;
     await paperWithCopy(ada, OTHER, "Unread");
     const unread = (await row("SELECT * FROM papers WHERE sha256 = ?", OTHER))!;
     expect(paper).toBeNull();
-    expect((await paperReferences({ ...env, GROBID_URL: "" } as Env, unread as any)).status).toBe("unavailable");
+    expect((await paperReferences({ ...env, ANALYZER_URL: "" } as Env, unread as any)).status).toBe("unavailable");
   });
 
   it("open one reference lazily, keeping what was found, and a link authorizes only the file it opens", async () => {
@@ -349,7 +255,7 @@ describe("the viewer's references", () => {
     await kept(ada);
     await kept(ada, OTHER, "Another");
     hosts({
-      "grobid.test": () => jsonResponse(ANALYSIS),
+      "analyzer.test": () => jsonResponse(ANALYSIS),
       "api.crossref.org": () => crossrefItems({ DOI: "10.1/attention", title: ["Attention Is All You Need"], issued: { "date-parts": [[2017]] }, "container-title": ["NeurIPS"] }),
       "api.openalex.org": () => jsonResponse({}, 404),
     });
@@ -380,7 +286,7 @@ describe("the viewer's references", () => {
     const ada = await register();
     await kept(ada);
     await exec("UPDATE papers SET references_status = 'ready' WHERE sha256 = ?", PDF);
-    // GROBID's own reading: entry 27 is printed as "[27]" and named "b26".
+    // The analyzer's own reading: entry 27 is printed as "[27]" and named "b26".
     for (let index = 0; index < 27; index++) {
       await exec(`INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw) VALUES (?, ?, ?, ?, ?)`, uuid(), PDF, `b${index}`, index, `Entry ${index + 1} as the analyzer read it.`);
     }

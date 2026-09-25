@@ -115,7 +115,6 @@
     "link_preview_image": 10000,
     "media_capture": 30000,
     "bibliography_http": 15000,
-    "grobid_http": 5000,
     "smtp": 20000
   }
 }

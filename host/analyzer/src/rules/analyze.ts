@@ -1,9 +1,9 @@
 // A paper read by rules: its references, the citations that point at
-// them, and the links to its figures, tables, sections and footnotes — the same answer the
-// GROBID pass gives (cloudflare/src/papers/tei.ts), reached without a
-// model. See registry.ts for how the rules are kept.
+// them, and the links to its figures, tables, sections and footnotes, in
+// the shapes the Worker stores (cloudflare/src/papers/reading.ts), with no
+// model in it. See registry.ts for how the rules are kept.
 
-import type { Analysis } from "../../../../cloudflare/src/papers/tei";
+import type { Analysis } from "../../../../cloudflare/src/papers/reading";
 import { findBibliography } from "./bibliography";
 import { findCitations } from "./citations";
 import { findFloats, findMentions } from "./floats";

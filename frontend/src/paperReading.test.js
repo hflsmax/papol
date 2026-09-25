@@ -66,7 +66,7 @@ test('a reading that finishes answers what the PDF says, and the version Papol a
 
 test('a reading that fails is no reading', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  job({ status: 'queued' }, { status: 'failed', detail: 'GROBID could not parse the PDF' });
+  job({ status: 'queued' }, { status: 'failed', detail: 'The PDF could not be read: Invalid PDF structure.' });
   assert.equal(await tickUntilSettled(t, awaitPaperReading({ job: 'reading-job' })), null);
 });
 

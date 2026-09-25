@@ -144,7 +144,7 @@ export async function pageOverlays(doc, pageNumber, analysis) {
       }
     } catch {
       // Selectable text is a fallback, never a reason to lose PDF-native or
-      // GROBID-provided citation markers.
+      // analyzer-provided citation markers.
     }
   }
 
@@ -189,7 +189,7 @@ async function textLinks(doc, pageNumber) {
   ));
 }
 
-/** Numbered markers GROBID omitted, recovered from selectable PDF text. */
+/** Numbered markers the analyzer omitted, recovered from selectable PDF text. */
 async function numberedCitations(doc, pageNumber, references) {
   const page = await doc.getPage(pageNumber);
   const viewport = page.getViewport({ scale: 1 });
@@ -197,8 +197,8 @@ async function numberedCitations(doc, pageNumber, references) {
   const found = [];
   const byNumber = new Map(references.map((ref) => [ref.index + 1, ref]));
   // Require a closing bracket. OCR fragments such as "[9," are too
-  // ambiguous; GROBID can still supply them when its structural model is
-  // confident, but this deliberately conservative fallback cannot.
+  // ambiguous; the analyzer can still supply them when it reads the line
+  // around them, but this deliberately conservative fallback cannot.
   const marker = /\[\s*(\d{1,3}(?:(?:\s*[,;]\s*|\s*[–—-]\s*)\d{1,3})*)\s*\]/g;
 
   for (const item of content.items || []) {
@@ -242,7 +242,7 @@ export function citationNumbers(text) {
 }
 
 /**
- * GROBID represents a marker which cites several works as one citation row
+ * The analyzer represents a marker which cites several works as one citation row
  * per work. For a printed range, most of those rows can have the very same
  * box (the collapsed middle numbers have no glyphs of their own), while the
  * range endpoints occupy touching boxes. Turn that physical marker back into
@@ -570,7 +570,7 @@ export async function readNamedReference(doc, dest) {
     // destination still sits immediately above the first line, so begin at
     // the first printed line below it and stop when another surname-led entry
     // begins. This is deliberately only the PDF-native fallback; analyzed
-    // references continue to use GROBID's structure.
+    // references continue to use the analyzer's structure.
     if (start < 0) start = lines.findIndex((line) => line.y <= targetY + 2);
     if (start < 0) return null;
     column = bandFor(lines[start]);

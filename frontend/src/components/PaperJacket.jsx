@@ -475,7 +475,9 @@ export default function PaperJacket({
 
   return (
     <div className="paper-jacket">
-      {!hideBack && (
+      {/* Editing the details takes over the page, and its Cancel is the
+          way out: a Back beside it would leave with the edit half made. */}
+      {!hideBack && editMode !== 'metadata' && (
         <BackLink className="back-button" href={backHref} onBack={onBack}>&larr; {backLabel}</BackLink>
       )}
 
