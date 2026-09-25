@@ -360,7 +360,8 @@ came last, and the versions in `package.json` and `src-tauri/tauri.conf.json`
 only name what a local build calls itself.
 
 The workflow needs these GitHub Actions secrets; `./deploy.sh macos
-credentials` sets them from the local credential file and certificate:
+credentials` prints them from the local credential file and certificate, and
+with `--set` also sets them on the repository:
 
 - `APPLE_CERTIFICATE`: base64-encoded Developer ID Application `.p12`
 - `APPLE_CERTIFICATE_PASSWORD`: password for that `.p12`

@@ -10,8 +10,9 @@
 #                  [--backend URL] (default: https://papol.io)
 #                  [--no-check] [--skip-notarize]
 #                  loads .env.macos-notarization when present
-#   ./deploy.sh macos credentials
-#                  set the local signing/notarization values as GitHub secrets
+#   ./deploy.sh macos credentials [--set]
+#                  print the local signing/notarization values for GitHub;
+#                  --set also sets them as the repository's secrets
 #   ./deploy.sh macos release [patch|minor|major|VERSION] [--dry-run]
 #                  run the Papol macOS workflow's release and follow it
 #
@@ -72,7 +73,7 @@ confirm() {
 }
 
 usage() {
-  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -293,9 +294,17 @@ load_macos_notarization() {
   fi
 }
 
+# The six values the release workflow signs and notarizes with, read from
+# this checkout's credential file and certificate, printed for GitHub's
+# secrets page; with --set, also set on the repository directly.
 macos_credentials() {
-  local credentials_file certificate_file certificate_password certificate_subject
-  [ $# -eq 0 ] || die "macos credentials does not accept options"
+  local credentials_file certificate_file certificate_password certificate_subject set_secrets=no
+  case "${1:-}" in
+    "") ;;
+    --set) set_secrets=yes ;;
+    *) die "macos credentials accepts only --set" ;;
+  esac
+  [ $# -le 1 ] || die "macos credentials accepts only --set"
   credentials_file="${PAPOL_NOTARIZATION_ENV_FILE:-$DEV_DIR/.env.macos-notarization}"
   certificate_file="${PAPOL_SIGNING_CERTIFICATE:-$DEV_DIR/.credentials/macos/developer-id.p12}"
 
@@ -314,8 +323,18 @@ macos_credentials() {
     *) die "could not verify a Developer ID Application identity in $certificate_file" ;;
   esac
   load_macos_notarization
+  printf 'APPLE_CERTIFICATE='
+  base64 < "$certificate_file" | tr -d '\n'
+  printf '\n'
+  printf 'APPLE_CERTIFICATE_PASSWORD=%s\n' "$certificate_password"
+  printf 'APPLE_SIGNING_IDENTITY=%s\n' "$APPLE_SIGNING_IDENTITY"
+  printf 'APPLE_ID=%s\n' "${APPLE_ID:-}"
+  printf 'APPLE_PASSWORD=%s\n' "${APPLE_PASSWORD:-}"
+  printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID:-}"
+  [ "$set_secrets" = yes ] || return 0
+
   command -v gh >/dev/null 2>&1 || die "gh is required to set the repository's secrets"
-  confirm "Set the six Apple signing secrets on $(cd "$DEV_DIR" && gh repo view --json nameWithOwner --jq .nameWithOwner)"
+  confirm "Set these six as secrets on $(cd "$DEV_DIR" && gh repo view --json nameWithOwner --jq .nameWithOwner)"
   # Each value goes in on stdin, so none of them is ever an argument that
   # another process could read.
   base64 < "$certificate_file" | tr -d '\n' | github_secret APPLE_CERTIFICATE
@@ -813,7 +832,7 @@ run_macos() {
 Usage:
   ./deploy.sh macos dev [--backend URL]
   ./deploy.sh macos prod [--backend URL] [--no-check] [--skip-notarize]
-  ./deploy.sh macos credentials
+  ./deploy.sh macos credentials [--set]
   ./deploy.sh macos release [patch|minor|major|VERSION] [--dry-run]
 
 `prod` creates an application bundle and DMG, install the
@@ -822,9 +841,10 @@ app in /Applications, and launch it. Local builds are ad-hoc signed unless a
 GitHub releases always sign and notarize. Add --skip-notarize to retain
 the configured signing mode without submitting the build to Apple's
 notarization service.
-`credentials` checks the local Developer ID identity and sets it, with the
-notarization values from the local credential file, as the repository's
-GitHub Actions secrets for signed and notarized releases.
+`credentials` checks the local Developer ID identity and prints it, with the
+notarization values from the local credential file, as the GitHub Actions
+secrets a signed and notarized release needs; --set also sets them on the
+repository with gh.
 `release` runs the Papol macOS workflow's release on main and follows it: the
 gate, then the version after the latest `macos-v*` tag (patch by default, or
 minor, major, or an explicit stable version) stamped into the build, a signed
