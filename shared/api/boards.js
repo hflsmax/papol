@@ -203,13 +203,12 @@ export function updateBoardItem(uuid, data) {
 // thumbnail is the card's file: in the nook's store on the desktop, which
 // sync puts in the bucket before the card, or in the bucket already on the
 // web, where the Cloudflare Worker put it. When the video's site cannot
-// be reached the
-// card is made as the link alone, and the promise rejects with it on the
-// error, as a page card whose capture failed does. Where nothing can be
-// tried — offline on the desktop, or a Bilibili link on the web, whose
-// details only the Mac can fetch — nothing is wrong: the card is the
-// link, and `fillVideoCard` fetches the rest when a board that can is
-// open.
+// be reached the card is made as the link alone, and the promise rejects
+// with it on the error, as a page card whose capture failed does. Where
+// nothing can be tried — offline on the desktop, or a Bilibili link on
+// the web, whose details only the Mac can fetch — nothing is wrong: the
+// card is the link, and `fillVideoCard` fetches the rest when a board
+// that can is open.
 export async function addBoardVideo(uuid, url, x, y) {
   const link = videoLink(url);
   if (!link) throw new Error('Paste a YouTube or Bilibili video link');

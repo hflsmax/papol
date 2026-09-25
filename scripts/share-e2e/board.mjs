@@ -8,9 +8,9 @@
 // with linkpeek (cloudflare/src/linkPreview.ts); a web page's picture is a
 // job the Cloudflare Worker runs in Browser Rendering
 // (cloudflare/src/jobs/capture.ts); a Bilibili video's title and cover
-// only the Mac app can fetch, so the web makes the card as the link and
-// says so. board/scripts/browser-smoke.mjs draws cards from a faked API;
-// this pastes, and follows each card to where it ends.
+// only the Mac app can fetch, so the web makes the card as the link.
+// board/scripts/browser-smoke.mjs draws cards from a faked API; this
+// pastes, and follows each card to where it ends.
 //
 // The Cloudflare Worker's own requests cannot be answered from here, so
 // YouTube and example.com are the real ones — the checks here that need
