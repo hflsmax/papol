@@ -100,7 +100,8 @@ test('a desktop page card is made with the picture the Mac took, and the page\'s
   const values = cardValues();
   assert.equal(values.kind, 'webpage');
   assert.equal(values.content, `The page at ${url}`);
-  assert.equal(values.width, 480);
+  // No width of its own: the store's default, as every card has (schema/domain/domain.sql).
+  assert.equal('width' in values, false);
   assert.equal(values.original_filename, 'webpage-flexible.seas.ucla.edu.jpg');
   assert.ok(native.blobs.has(values.sha256));
 });
