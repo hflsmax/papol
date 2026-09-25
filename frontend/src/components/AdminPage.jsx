@@ -18,6 +18,7 @@ import {
 } from '../../../shared/api/admin.js';
 import appLimits from '../../../shared/appLimits.js';
 import { nextSort, sortIndicator, sortRows } from '../adminSort.js';
+import { NEWSLETTER_DRAFTS } from '../newsletterDrafts.js';
 
 // The open accounts a broadcast can go to, for the audience picker.
 function useRecipients(setError) {
@@ -235,6 +236,9 @@ function SentEmailBody({ id }) {
 function EmailPanel() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  // A letter drafted in newsletters/, chosen to start from: it fills the
+  // subject and the body, which stay free to edit.
+  const [draft, setDraft] = useState('');
   const [audience, setAudience] = useState('all');
   const [selected, setSelected] = useState(() => new Set());
   const [sending, setSending] = useState(false);
@@ -297,6 +301,9 @@ function EmailPanel() {
         <p className="panel-note">
           Each recipient gets an email of their own
           {record?.from ? <>, from <code>{record.from}</code></> : null}.
+          Write it in Markdown: <code>**bold**</code>, <code>[a link](https://…)</code>,{' '}
+          <code>![a picture](https://files.papol.io/admin/…)</code>. It arrives as a formatted email,
+          pictures and all, with a plain-text copy for mail apps that show no formatting.
           Send yourself a test copy first.
         </p>
         {!configured && (
@@ -311,6 +318,28 @@ function EmailPanel() {
           selected={selected}
           setSelected={setSelected}
         />
+        {NEWSLETTER_DRAFTS.length > 0 && (
+          <div className="form-group">
+            <label htmlFor="admin-email-draft">Draft</label>
+            <select
+              id="admin-email-draft"
+              value={draft}
+              onChange={(event) => {
+                const chosen = NEWSLETTER_DRAFTS.find((d) => d.name === event.target.value);
+                setDraft(event.target.value);
+                if (chosen) {
+                  setSubject(chosen.subject);
+                  setBody(chosen.body);
+                }
+              }}
+            >
+              <option value="">Start from a blank email</option>
+              {NEWSLETTER_DRAFTS.map((d) => (
+                <option key={d.name} value={d.name}>{d.name}: {d.subject}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="admin-email-subject">Subject</label>
           <input
@@ -330,7 +359,7 @@ function EmailPanel() {
             maxLength={appLimits.text.announcement_body}
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder="Write the email as plain text…"
+            placeholder="Write the email in Markdown…"
           />
         </div>
         {error && <div className="error" role="alert">{error}</div>}

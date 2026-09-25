@@ -209,7 +209,8 @@ describe("mail", () => {
     await queued.statement.run();
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
     expect(calls.map((c) => [c.url, c.body.length])).toEqual([["https://mail.example.test/emails/batch", 100], ["https://mail.example.test/emails/batch", 50]]);
-    expect(calls[0].body[0]).toEqual({ from: "papol@example.test", to: ["reader0@example.test"], subject: "Papol is live", text: "Hello" });
+    expect(calls[0].body[0]).toMatchObject({ from: "papol@example.test", to: ["reader0@example.test"], subject: "Papol is live", text: "Hello" });
+    expect(calls[0].body[0].html).toContain(">Hello</p>");
     expect(await job(queued.uuid)).toMatchObject({ status: "done", result: JSON.stringify({ sent: true, recipients: 150 }) });
   });
 
