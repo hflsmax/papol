@@ -296,6 +296,54 @@ describe("an upload that went straight to the bucket", () => {
     expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "datacite", "helper"]);
   });
 
+  it("asks the indexes about an identifier while the PDF goes up, and an upload that has its reading queues no job", async () => {
+    const account = await register();
+    const lookup = (identifier: unknown) => call("POST", "/api/papers/lookup", { headers: account.headers, json: { identifier, uploaded_name: "some_paper.pdf" } });
+    const asked: string[] = [];
+    apis({
+      "api.crossref.org": (url) => { asked.push(url.pathname); return url.pathname.includes("2984511") ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
+      "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 404 }); },
+      "grobid.test": () => { asked.push("helper"); return titleBlock(); },
+    });
+    // Known: the form's fields, from the index alone; the PDF is not read.
+    const known = await lookup({ doi: "10.1145/2984511.2984540" });
+    expect(known.status).toBe(200);
+    expect(await known.json()).toEqual({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms",
+      authors: JSON.stringify(["Alexandra Ion", "Patrick Baudisch"]), journal: "Proceedings of UIST '16", year: 2016 });
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
+    // Known to none: 404, and the upload's job reads the PDF as ever.
+    expect((await lookup({ doi: "10.9999/nobody-knows" })).status).toBe(404);
+    expect(asked).not.toContain("helper");
+    // Nothing to look up is a bad request, not a paper nobody knows.
+    expect((await lookup({ doi: "not a doi" })).status).toBe(422);
+    expect((await lookup(null)).status).toBe(422);
+    // No index could answer: said as such, so the job is left to try again.
+    apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }), "api.datacite.org": () => new Response("down", { status: 503 }) });
+    expect((await lookup({ doi: "10.1145/2984511.2984540" })).status).toBe(503);
+
+    // The upload that has its reading: no job, and the version Papol holds
+    // of the same work named all the same.
+    await aPaper(A_PAPER, "The Published Version");
+    await exec("UPDATE papers SET doi = '10.1145/2984511.2984540' WHERE sha256 = ?", A_PAPER);
+    const preprint = "%PDF-1.4 the preprint, looked up while it went up";
+    const digest = await sha256(preprint);
+    await env.FILES.put(`uploads/${digest}.pdf`, preprint);
+    const jobsBefore = await count("jobs");
+    const sent = await call("POST", "/api/papers/uploaded", { headers: account.headers,
+      json: { file_path: `${digest}.pdf`, uploaded_name: "preprint.pdf", identifier: { doi: "10.1145/2984511.2984540" }, doi: "10.1145/2984511.2984540" } });
+    expect(sent.status).toBe(200);
+    expect(await sent.json()).toEqual({ job: null, file_path: `${digest}.pdf`, sha256: digest,
+      existing: { sha256: A_PAPER, title: "The Published Version", file_path: `${A_PAPER}.pdf` } });
+    expect(await count("jobs")).toBe(jobsBefore);
+    // Its bytes must still be in: a reading is no stand-in for the file.
+    const missing = await call("POST", "/api/papers/uploaded", { headers: account.headers,
+      json: { file_path: `${"9".repeat(64)}.pdf`, uploaded_name: "preprint.pdf", doi: "10.1145/2984511.2984540" } });
+    expect(missing.status).toBe(404);
+    // A malformed DOI is refused rather than taken for a reading.
+    expect((await call("POST", "/api/papers/uploaded", { headers: account.headers,
+      json: { file_path: `${digest}.pdf`, uploaded_name: "preprint.pdf", doi: "not a doi" } })).status).toBe(422);
+  });
+
   it("names the version Papol already holds of the same work, by its DOI however it is spelt, and never the upload itself", async () => {
     const account = await register();
     // The version Papol holds, its DOI stored as somebody typed it.

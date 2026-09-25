@@ -17,7 +17,7 @@
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
-import { byDoi, Unavailable } from "./bibliography";
+import { byDoi, Unavailable, type Summary } from "./bibliography";
 import * as helper from "./helper";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
 import type { HeaderMetadata } from "./tei";
@@ -93,11 +93,7 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
   // it off the page, before what GROBID made of the title block.
   metadata.doi = given ?? printed;
   if (known) {
-    metadata.doi = known.doi ?? printed;
-    metadata.title = known.title ?? metadata.title;
-    metadata.authors = known.authors.length ? JSON.stringify(known.authors) : null;
-    metadata.journal = known.venue;
-    metadata.year = known.year;
+    Object.assign(metadata, knownFields(known, printed!, metadata.title));
   } else if (header) {
     // No identifier the indexes could answer: the title block as read.
     metadata.title = header.title ?? metadata.title;
@@ -106,6 +102,29 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
     metadata.year = header.year;
   }
   return metadata;
+}
+
+// The form's fields as an index knows the work, `asked` being the DOI it
+// was asked about.
+function knownFields(known: Summary, asked: string, title: string): Omit<Extracted, "file_path"> {
+  return {
+    doi: known.doi ?? asked,
+    title: known.title ?? title,
+    authors: known.authors.length ? JSON.stringify(known.authors) : null,
+    journal: known.venue,
+    year: known.year,
+  };
+}
+
+// What the indexes know of an identifier, as the form's fields. The
+// browser asks as soon as it has read one off the first pages, while the
+// PDF is still going up, so the form has its fields when the bytes are
+// in (routes/papers.ts, /api/papers/lookup). Null when no index knows
+// it; throws Unavailable when none could answer.
+export async function indexedMetadata(env: Env, identifier: Identifier, uploadedName: string): Promise<Omit<Extracted, "file_path"> | null> {
+  const asked = lookupDoi(identifier);
+  const known = asked ? await byDoi(env, asked) : null;
+  return known ? knownFields(known, asked!, titleFromFilename(uploadedName)) : null;
 }
 
 // A paper Papol holds already of the same work: one carrying the DOI the

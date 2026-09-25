@@ -54,11 +54,13 @@ export async function listPapers() {
 //      web, the nook's own store on the desktop.
 //   2. Send: the bytes go to the bucket and the server is told, with the
 //      identifier the caller read off the first pages; it queues the job
-//      that reads the PDF. On the web keeping is sending. On the desktop
-//      sending needs the network and the import does not: offline, or
-//      when the send fails, the paper is kept all the same.
-//   3. Read: the job is waited for, and what it found fills what the
-//      user has not typed.
+//      that reads the PDF. The indexes are asked about that identifier
+//      while the bytes go up, and when they know the paper no job is
+//      queued. On the web keeping is sending. On the desktop sending
+//      needs the network and the import does not: offline, or when the
+//      send fails, the paper is kept all the same.
+//   3. Read: the indexes' answer, or else the job, waited for; what it
+//      found fills what the user has not typed.
 //
 // `uploadPaper` is the first two, `awaitPaperReading` the third. A send
 // that failed is said as such, not as a PDF that could not be read: the
@@ -82,22 +84,59 @@ async function identifierFor(identifier) {
   }
 }
 
+// How long the indexes are waited for once the bytes are in.
+export const LOOKUP_GRACE_MS = 3000;
+
+// What the indexes know of an identifier, asked while the bytes are
+// still going up: the form's fields, or null — none knows it, none could
+// answer, or there was nothing to ask. Null leaves it to the job.
+async function lookUp(identifier, name) {
+  if (!identifier) return null;
+  try {
+    const known = await request('/papers/lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, uploaded_name: name }),
+    });
+    return known && typeof known.title === 'string' && known.doi ? known : null;
+  } catch {
+    return null;
+  }
+}
+
 // Send a PDF: the bytes into the bucket (shared/api/files.js), then the
-// server told they are in, with the identifier read off the file. It
-// answers with the job that reads it: `{ job, file_path, sha256 }`.
-// `onProgress` hears the hash and the PUT as storeFile reports them.
+// server told they are in, with the identifier read off the file. The
+// indexes are asked about that identifier the moment it is read, beside
+// the PUT rather than after it; when they know the paper the send carries
+// their DOI, the server queues nothing, and `reading` is what the job
+// would have answered. Else it answers with the job that reads it:
+// `{ job, file_path, sha256 }`. `onProgress` hears the hash and the PUT
+// as storeFile reports them.
 async function send(file, filename, identifier, onProgress) {
   // The server takes PDFs by their name; an opened file may have none.
   const name = /\.pdf$/i.test(filename || '') ? filename : `${filename || 'paper'}.pdf`;
+  const found = identifierFor(identifier);
+  const looked = found.then((given) => lookUp(given, name));
   const stored = await storeFile('paper', file, { name, mime: 'application/pdf', onProgress });
-  return request('/papers/uploaded', {
+  const given = await found;
+  // Indexes still silent a moment after the bytes are in are left to the
+  // job: the form opens now, and says it is reading, rather than after
+  // every index's timeout in turn.
+  let late;
+  const known = await Promise.race([looked, new Promise((resolve) => { late = setTimeout(() => resolve(null), LOOKUP_GRACE_MS); })]);
+  clearTimeout(late);
+  const sent = await request('/papers/uploaded', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: await identifierFor(identifier) }),
+    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: given, ...(known ? { doi: known.doi } : {}) }),
   });
+  if (!known) return sent;
+  const { existing, ...upload } = sent;
+  return { ...upload, reading: { ...known, file_path: sent.file_path, ...(existing ? { existing } : {}) } };
 }
 
 // Keep a PDF and send it to be read: steps 1 and 2 above. Answers
-// `{ file_path, sha256, job }`, where `job` is the reading to await.
+// `{ file_path, sha256, job }`, where `job` is the reading to await, or
+// `{ file_path, sha256, job: null, reading }` when the indexes knew the
+// paper by the time its bytes were in.
 // On the desktop, where keeping does not depend on sending, a PDF that
 // was not sent answers `job: null` and says why: `offline: true`, or
 // `sendFailure`, the error the send ended in. On the web a failed send
@@ -108,14 +147,15 @@ async function send(file, filename, identifier, onProgress) {
 export async function uploadPaper(file, { name = file?.name, identifier = null, onProgress } = {}) {
   if (!nativeDataActive()) {
     const sent = await send(file, name, identifier, onProgress);
-    return { file_path: sent.file_path, sha256: sent.sha256, job: sent.job };
+    return { file_path: sent.file_path, sha256: sent.sha256, job: sent.job, ...(sent.reading ? { reading: sent.reading } : {}) };
   }
   const blob = await nativeBlobImport(file);
   rememberPendingPaperBlob(blob);
   const kept = { file_path: `${blob.sha256}.pdf`, sha256: blob.sha256, job: null };
   if (inOfflineMode()) return { ...kept, offline: true };
   try {
-    return { ...kept, job: (await send(file, name, identifier, onProgress)).job };
+    const sent = await send(file, name, identifier, onProgress);
+    return { ...kept, job: sent.job, ...(sent.reading ? { reading: sent.reading } : {}) };
   } catch (sendFailure) {
     return { ...kept, sendFailure };
   }
@@ -127,6 +167,8 @@ export async function uploadPaper(file, { name = file?.name, identifier = null, 
 // reading to have: the PDF was not sent, the job failed, or the wait was
 // given up on (after `timeoutMs`) or ended by `signal`.
 export async function awaitPaperReading(uploaded, { signal, timeoutMs = PAPER_READING_TIMEOUT_MS } = {}) {
+  // The indexes answered while the PDF went up: there is nothing to wait for.
+  if (uploaded?.reading) return uploaded.reading;
   if (!uploaded?.job) return null;
   try {
     return await withAbortTimeout((stop) => awaitJob(uploaded.job, { signal: stop }), timeoutMs, { signal });

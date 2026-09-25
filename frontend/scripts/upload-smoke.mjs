@@ -25,6 +25,8 @@ function uploadFixture(server) {
         localStorage.setItem('papol.localAccountUuid', '77777777-7777-4777-8777-777777777777');
         window.failImport = false;
         window.readingDone = false;
+        window.lookupSeen = [];
+        window.jobPolls = 0;
         window.invoked = [];
         window.__TAURI_INTERNALS__ = {invoke: async (command, args) => {
           window.invoked.push(command + (args?.changes ? ':' + args.changes.map((c) => c.table + '=' + String(c.uuid).slice(0, 4)).join('+') : ''));
@@ -61,8 +63,14 @@ function uploadFixture(server) {
             window.uploadSeen.push({step: 'put', method: this.__method, headers: this.__headers, size: body?.size});
             const total = body.size;
             const steps = [0.3, 0.7, 1];
+            window.putDone = false;
+            const heldSince = Date.now();
             const tick = (i) => {
               if (i < steps.length) { this.upload.onprogress?.({loaded: Math.round(total * steps[i]), total, lengthComputable: true}); setTimeout(() => tick(i + 1), 60); return; }
+              // Held open, when the test asks, until the indexes have been
+              // asked: the lookup must not wait for the bytes.
+              if (window.holdPut && !window.lookupSeen.length && Date.now() - heldSince < 20000) { setTimeout(() => tick(i), 20); return; }
+              window.putDone = true;
               Object.defineProperty(this, 'status', {value: 200});
               this.onload?.();
             };
@@ -80,11 +88,22 @@ function uploadFixture(server) {
             return new Response(JSON.stringify({stored:false, file_path:'b'.repeat(64) + '.pdf', url:'https://bucket.test/uploads/' + 'b'.repeat(64) + '.pdf?X-Amz-Signature=sig',
               headers:{'content-type':'application/pdf', 'x-amz-checksum-sha256':'c2ln'}}));
           }
+          if (path.endsWith('/papers/lookup')) {
+            // The indexes, asked about the identifier the page read. They
+            // know the paper only when the test says so.
+            window.lookupSeen.push({body: JSON.parse(options.body), putDone: window.putDone});
+            if (!window.lookupKnows) return new Response(JSON.stringify({detail:'No index knows this identifier'}), {status:404});
+            return new Response(JSON.stringify({doi:'10.48550/arXiv.1706.03762', title:'Looked-up paper', authors:'["Ashish Vaswani"]', journal:null, year:2017}));
+          }
           if (path.endsWith('/uploaded')) {
-            window.uploadSeen.push({step: 'uploaded', body: JSON.parse(options.body)});
+            const body = JSON.parse(options.body);
+            window.uploadSeen.push({step: 'uploaded', body});
+            // A send that has its reading: nothing is queued.
+            if (body.doi) return new Response(JSON.stringify({job:null, file_path:'b'.repeat(64) + '.pdf', sha256:'b'.repeat(64)}));
             return new Response(JSON.stringify({job:'j1', file_path:'b'.repeat(64) + '.pdf', sha256:'b'.repeat(64)}), {status:202});
           }
           if (String(url).includes('/jobs/j1')) {
+            window.jobPolls += 1;
             // A reading that failed: every index the identifier was asked of was down.
             if (window.readingFails) return new Response(JSON.stringify({status:'failed', detail:'Metadata lookup failed', result:null}));
             if (!window.readingDone) return new Response(JSON.stringify({status:'running'}));
@@ -256,6 +275,25 @@ try {
     }
     assert.equal(kept.discarded, false);
     await browser.evaluate('window.knownVersion = false; return true;');
+    // The indexes know the paper: asked while the bytes were still going
+    // up (the PUT is held until they are), their answer is on the form
+    // the moment it opens, and no job is waited for.
+    await browser.evaluate('window.lookupKnows = true; window.holdPut = true; window.lookupSeen = []; window.uploadSeen = []; window.jobPolls = 0; return true;');
+    await choose();
+    await browser.waitFor('document.querySelector("#upload-paper-title")');
+    await browser.waitFor('document.querySelector("#upload-paper-title").value === "Looked-up paper"', { what: 'the looked-up title' });
+    const asked = await browser.evaluate('return window.lookupSeen;');
+    assert.equal(asked.length, 1);
+    assert.deepEqual(asked[0].body, { identifier: { arxiv_id: '1706.03762v7' }, uploaded_name: 'attention.pdf' });
+    assert.equal(asked[0].putDone, false, 'the indexes were asked before the bytes were in');
+    assert.equal(await value('upload-paper-doi'), '10.48550/arXiv.1706.03762');
+    assert.equal(await value('upload-paper-authors'), 'Ashish Vaswani');
+    assert.doesNotMatch(await browser.text(), /Extracting…/);
+    assert.equal(await browser.evaluate('return window.jobPolls;'), 0, 'no job was waited for');
+    const told = (await browser.evaluate('return window.uploadSeen;')).find((step) => step.step === 'uploaded')?.body;
+    assert.equal(told.doi, '10.48550/arXiv.1706.03762');
+    await browser.evaluate('document.querySelector(".form-actions button").click(); window.lookupKnows = false; window.holdPut = false; return true;');
+    await browser.waitFor('document.querySelector("input[type=file]")');
     // A reading that failed leaves the form on the filename's title and
     // says so, quietly: a paper that could not be read is not a fault to
     // report. (Against a real Worker, a helper that is down is not this:
@@ -285,7 +323,7 @@ try {
       await browser.waitFor('!document.querySelector("[role=dialog]")');
       await browser.evaluate('window.failSend = false; return true;');
     }
-    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, a known version is offered and the choice saved, and a reading that failed is said quietly${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
+    console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, a known version is offered and the choice saved, the indexes asked during the upload fill the form without a job, and a reading that failed is said quietly${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
   }
 } catch (error) {
   // The page as the failed assertion left it, for a run that cannot be

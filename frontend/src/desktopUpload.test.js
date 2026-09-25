@@ -5,7 +5,7 @@ import { DEFAULT_SHELF, installNativeHarness, sha256Hex } from '../../shared/tes
 const native = await installNativeHarness();
 const { enterOfflineMode } = await import('../../shared/connectivity.js');
 const {
-  addToNook, awaitPaperReading, createPaper, uploadPaper,
+  addToNook, awaitPaperReading, createPaper, LOOKUP_GRACE_MS, uploadPaper,
 } = await import('../../shared/api/papers.js');
 
 const pdf = (text) => new File([`%PDF-1.4\n${text}\n%%EOF`], `${text}.pdf`, { type: 'application/pdf' });
@@ -13,12 +13,18 @@ const digestOf = async (file) => sha256Hex(new Uint8Array(await file.arrayBuffer
 
 // The server holds the bytes already, so there is no PUT; being told
 // they are in, it queues the reading.
-function serverReadsUploads({ uploaded = null } = {}) {
+// The indexes know no paper unless told one: the upload's job reads it.
+function serverReadsUploads({ uploaded = null, known = null } = {}) {
   native.route('POST /api/files/upload-address', ({ json }) => ({
     json: { stored: true, file_path: `${json().sha256}.pdf` },
   }));
+  native.route('POST /api/papers/lookup', () => (known
+    ? { json: known }
+    : { status: 404, json: { detail: 'No index knows this identifier' } }));
   native.route('POST /api/papers/uploaded', uploaded ?? (({ json }) => ({
-    json: { job: 'reading-job', file_path: json().file_path, sha256: json().file_path.slice(0, 64) },
+    json: json().doi
+      ? { job: null, file_path: json().file_path, sha256: json().file_path.slice(0, 64) }
+      : { job: 'reading-job', file_path: json().file_path, sha256: json().file_path.slice(0, 64) },
   })));
 }
 
@@ -39,6 +45,31 @@ test('a desktop PDF is kept in the nook and sent to be read, as a web upload is'
     command === 'network_fetch' && request.url.endsWith('/papers/uploaded')));
   assert.ok(kept >= 0 && told > kept, 'kept first, then sent');
   assert.deepEqual(native.calls[told][1].json().identifier, { doi: '10.1145/3526113.3545636' });
+});
+
+test('a desktop PDF the indexes know is read by them while it is sent, and no job is waited for', async () => {
+  const known = { doi: '10.1145/3526113.3545636', title: 'Known to the indexes', authors: '["Ada Lovelace"]', journal: 'UIST', year: 2022 };
+  serverReadsUploads({ known });
+  const uploaded = await uploadPaper(pdf('known'), { identifier: { doi: '10.1145/3526113.3545636' } });
+  assert.equal(uploaded.job, null);
+  assert.deepEqual(uploaded.reading, { ...known, file_path: `${uploaded.sha256}.pdf` });
+  assert.deepEqual(await awaitPaperReading(uploaded), uploaded.reading);
+  const told = native.calls.find(([command, request]) => (
+    command === 'network_fetch' && request.url.endsWith('/papers/uploaded')));
+  assert.equal(told[1].json().doi, '10.1145/3526113.3545636');
+});
+
+test('indexes still silent once the bytes are in are left to the job', async () => {
+  serverReadsUploads();
+  native.route('POST /api/papers/lookup', () => new Promise(() => {}));
+  const started = Date.now();
+  const uploaded = await uploadPaper(pdf('slow indexes'), { identifier: { doi: '10.1145/3526113.3545636' } });
+  assert.equal(uploaded.job, 'reading-job');
+  assert.equal(uploaded.reading, undefined);
+  assert.ok(Date.now() - started < LOOKUP_GRACE_MS + 1000, 'the wait is bounded');
+  const told = native.calls.find(([command, request]) => (
+    command === 'network_fetch' && request.url.endsWith('/papers/uploaded')));
+  assert.equal(told[1].json().doi, undefined);
 });
 
 test('a desktop PDF whose send fails is kept, and says why rather than that it could not be read', async () => {

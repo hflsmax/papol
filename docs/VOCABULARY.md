@@ -34,6 +34,8 @@ identifier of its own, the notes column gives it.
 | **Thought** | My one-line take, shown on my chip wherever I appear beside the paper. **Public** unless I make it private. | `copies.thought`, `copies.thought_public`, labelled "My thought". |
 | **Ratings** | Three optional 1–5 dimensions: **My expertise**, **Reading depth**, **Merit**. **Public** unless I make them private, all three together. | Stored on `copies` as `rating_expertise`, `rating_reading`, `rating_liking`, `ratings_public`; labels in `Rating.jsx`. |
 | **Tag** | A user's own label, applied to their copies. | `tags`, joined by `copy_tags`. A copy's tags are private unless `copies.tags_public` says otherwise; the list of a user's tags is theirs alone. |
+| **Folder** | PDFs an agent gathered into one directory, dropped into Papol and brought in after one review of the batch. | `FolderImport.jsx`, `agentFolder.js`. Client-side only: each PDF goes up and is saved as one upload would be. |
+| **Manifest** | The `papol.json` beside a folder's PDFs: for each work its file, identifier, title and the agent's note. It describes papers and never where they go; shelf and tags are the user's, picked in the review. | Format 1, described at `/agent-folder.txt` (`frontend/public/agent-folder.txt`), which the instructions copied for the agent point to. `parseManifest()`. |
 
 ## 3. Annotations
 

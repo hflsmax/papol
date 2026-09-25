@@ -149,22 +149,38 @@ pub fn private_network_rules() -> String {
     serde_json::Value::Array(rules).to_string()
 }
 
+/// A page's picture, and what the page calls itself.
+pub struct Snapshot {
+    pub jpeg: Vec<u8>,
+    pub title: Option<String>,
+}
+
+/// The stored picture, which the caller names on the card, and the page's
+/// title for the card's text.
+#[derive(serde::Serialize)]
+pub struct CapturedPage {
+    #[serde(flatten)]
+    pub blob: data::BlobRecord,
+    pub title: Option<String>,
+}
+
 /// Capture the page at `url` and keep the picture in the nook's store.
-/// Answers the stored file, which the caller names on the card. The
-/// `capture_webpage` command (lib.rs).
+/// The `capture_webpage` command (lib.rs).
 pub async fn capture_into(
     app: &AppHandle,
     store: &data::LocalStore,
     url: &str,
-) -> Result<data::BlobRecord, String> {
+) -> Result<CapturedPage, String> {
     let url = checked_url(url)?;
-    let jpeg = snapshot(app, url).await?;
-    store.import_blob(&jpeg, Some("image/jpeg".into()))
+    let Snapshot { jpeg, title } = snapshot(app, url).await?;
+    let blob = store.import_blob(&jpeg, Some("image/jpeg".into()))?;
+    Ok(CapturedPage { blob, title })
 }
 
-/// The page's picture as JPEG bytes. Public for examples/capture_probe.rs,
-/// which takes one outside the app to see what WebKit draws.
-pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
+/// The page's picture as JPEG bytes, and its title. Public for
+/// examples/capture_probe.rs, which takes one outside the app to see what
+/// WebKit draws.
+pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Snapshot, String> {
     let label = format!("capture-{}", NEXT_CAPTURE.fetch_add(1, Ordering::Relaxed));
     // How the wait ends: the page loaded, or it set off for this machine or
     // its network, which the rules block and this says at once rather than
@@ -240,11 +256,28 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Vec<u8>, String> {
             Ok(Ok(outcome)) => outcome?,
         }
         let showing = quiet(&window).await;
-        if showing.is_some_and(|showing| !showing.worth_a_picture()) {
+        if showing
+            .as_ref()
+            .is_some_and(|showing| !showing.worth_a_picture())
+        {
             return Err("The page showed nothing to make a picture of".to_string());
         }
+        // The title the page gave with its word; a page that never gave
+        // it still has its own on the tab.
+        let title = match showing {
+            Some(showing) => showing.title,
+            None => page_title(&window)
+                .await
+                .filter(|title| !title.starts_with(QUIET_TITLE)),
+        };
+        let title = title
+            .map(|title| title.split_whitespace().collect::<Vec<_>>().join(" "))
+            .filter(|title| !title.is_empty());
         tokio::time::sleep(SETTLE).await;
-        take(&window).await
+        Ok(Snapshot {
+            jpeg: take(&window).await?,
+            title,
+        })
     }
     .await;
     let _ = window.destroy();
@@ -323,7 +356,8 @@ async fn guard(_window: &WebviewWindow) -> Result<(), String> {
 
 /// What a page says it is showing when it has gone quiet: the length of
 /// its text, how many pictures and drawings are in view, and — for a page
-/// that draws with neither — how many different things it paints.
+/// that draws with neither — how many different things it paints — and
+/// what it calls itself.
 #[derive(serde::Deserialize, Default)]
 struct Showing {
     text: usize,
@@ -331,6 +365,8 @@ struct Showing {
     drawings: usize,
     #[serde(default)]
     fills: usize,
+    #[serde(default)]
+    title: Option<String>,
 }
 
 impl Showing {
@@ -581,6 +617,24 @@ mod tests {
         ] {
             assert!(showing.worth_a_picture());
         }
+    }
+
+    /// The page's word carries its title, for the card's text; a page
+    /// that gave none leaves the card to its hostname.
+    #[test]
+    fn the_page_names_itself_in_the_word_it_sends() {
+        use super::Showing;
+        let said: Showing = serde_json::from_str(
+            r#"{"text":900,"pictures":1,"drawings":0,"fills":0,"title":"No free lunch in search and optimization - Wikipedia"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            said.title.as_deref(),
+            Some("No free lunch in search and optimization - Wikipedia")
+        );
+        let untitled: Showing =
+            serde_json::from_str(r#"{"text":900,"pictures":1,"drawings":0}"#).unwrap();
+        assert_eq!(untitled.title, None);
     }
 
     /// The same rule as the page's own `worth`, which decides when to stop

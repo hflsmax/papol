@@ -60,7 +60,7 @@ function pageWith(images, { text = '', drawings = [], paint = [] } = {}) {
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(script, context);
-  return { made, capture: context.papolCapture };
+  return { made, capture: context.papolCapture, document: context.document };
 }
 
 test('a picture the page has loaded and hidden behind its own grey square is shown', () => {
@@ -142,4 +142,17 @@ test('a page with something in it is worth a picture, by text, picture or drawin
     const { capture } = pageWith(images, page);
     assert.equal(capture.worth(capture.showing()), true, what);
   }
+});
+
+test('a page is named by the title it gives to sharing, else by its tab', () => {
+  const named = (title, meta) => {
+    const { capture, document } = pageWith([]);
+    document.title = title;
+    document.querySelector = () => (meta == null ? null : { content: meta });
+    return capture.title();
+  };
+  assert.equal(named('No free lunch in search and optimization - Wikipedia', null), 'No free lunch in search and optimization - Wikipedia');
+  assert.equal(named('Home | Quanta', 'Why  the\n  proof  holds'), 'Why the proof holds');
+  assert.equal(named('  Tab  title ', ''), 'Tab title', 'an empty share title gives way to the tab');
+  assert.equal(named('', null), '');
 });

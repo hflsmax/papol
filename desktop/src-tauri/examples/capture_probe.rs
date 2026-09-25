@@ -38,11 +38,12 @@ fn main() {
         let started = std::time::Instant::now();
         let code = match capture::snapshot(&handle, url).await {
             Ok(picture) => {
-                std::fs::write(&output, &picture).expect("write the picture");
+                std::fs::write(&output, &picture.jpeg).expect("write the picture");
                 println!(
-                    "{} bytes in {:?} -> {output}",
-                    picture.len(),
-                    started.elapsed()
+                    "{} bytes in {:?} -> {output} ({:?})",
+                    picture.jpeg.len(),
+                    started.elapsed(),
+                    picture.title
                 );
                 0
             }
