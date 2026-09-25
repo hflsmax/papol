@@ -10,14 +10,15 @@ export default function AboutPage() {
         <p>
           Papol is a hobby project of{' '}
           <a href="https://mc-pony.com" target="_blank" rel="noreferrer">mine</a>.
-          I am a computer science researcher, and I built it around the two things
-          I liked best when reading papers. The first is the citation popups of
-          Google Scholar&rsquo;s browser button, which show you what a reference is
-          without leaving the page. The second is the infinite canvas of Allume,
-          formerly Muse, which gives your thinking room to spread out.
+          I am a computer science researcher, and I built Papol by bringing together
+          the best features of research tools on the market. From Google
+          Scholar&rsquo;s browser extension, it borrows citation popups: click a
+          reference and a window shows you what it is, without leaving the page.
+          From Allume, formerly Muse, it borrows the infinite canvas, which gives
+          your thinking room to spread out.
         </p>
         <p>
-          In Papol, all the tools share one ecosystem, so ideas flow between them
+          In Papol, all these tools share one ecosystem, so ideas flow between them
           effortlessly.
         </p>
       </article>
