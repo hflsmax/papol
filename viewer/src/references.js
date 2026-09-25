@@ -99,7 +99,8 @@ export async function pageOverlays(doc, pageNumber, analysis) {
 
   // A link names the float it goes to; the float is where it lands, as a
   // box the viewer brings into view. A section is where it begins: its
-  // heading goes to the top of the window, as a PDF's own link would take it.
+  // heading, across its column, goes to the top of the window
+  // (floatView.js, sectionView).
   const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
   const analyzedLinks = (analysis?.links || [])
     .filter((link) => link.page === pageNumber && floats.has(link.float_uuid))
@@ -112,9 +113,8 @@ export async function pageOverlays(doc, pageNumber, analysis) {
         y: link.y,
         w: link.w,
         h: link.h,
-        spot: float.kind === 'section'
-          ? { page: float.page, y: float.y }
-          : { page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
+        // A section's box is its heading across the column it begins in.
+        spot: { page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
       };
     });
 

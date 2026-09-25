@@ -41,7 +41,7 @@ import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
 import { readNamedReference, stillToLookUp } from './references';
-import { fitsFloat, floatScroll, floatZoom } from './floatView.js';
+import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -770,9 +770,9 @@ export default function App() {
   const linkHistory = useRef({ back: [], forward: [] });
   const [, renderLinkHistory] = useState(0);
   const restoringView = useRef(null);
-  // A float a link zoomed to, centred once the pages are laid out at the
+  // A float or section a link zoomed to, placed once the pages are laid out at the
   // new zoom (the layout effect on `scale`).
-  const centringFloat = useRef(null);
+  const placingSpot = useRef(null);
   const [referenceError, setReferenceError] = useState(null);
   const scrollerRef = useRef(null);
   // Do not mount off-screen pages. A full PdfPage carries drawing, text,
@@ -1624,15 +1624,16 @@ export default function App() {
     }
   };
 
-  // Scroll so a float sits in the middle of the window, across and down,
-  // measured from the pages as they are laid out now (floatView.js).
-  const centreFloat = (page, float) => {
+  // Scroll so a float sits in the middle of the window, across and down —
+  // or a section's heading near its top, its column in the middle — measured
+  // from the pages as they are laid out now (floatView.js).
+  const placeSpot = (page, float, place = 'float') => {
     const scroller = scrollerRef.current;
     const pageEl = scroller?.querySelector(`[data-page="${page}"]`);
     if (!scroller || !pageEl) return;
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
-    const at = floatScroll(float, {
+    const at = (place === 'section' ? sectionScroll : floatScroll)(float, {
       left: scroller.scrollLeft + pageBox.left - box.left,
       top: scroller.scrollTop + pageBox.top - box.top,
       width: pageBox.width,
@@ -1661,6 +1662,27 @@ export default function App() {
     const pageBox = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     const pageTop = from + pageBox.top - box.top;
+    if (float && kind === 'section') {
+      const style = getComputedStyle(scroller);
+      const target = sectionZoom(float, {
+        width: Number(pageEl.dataset.pageWidth),
+        height: Number(pageEl.dataset.pageHeight),
+      }, {
+        width: scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        height: scroller.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      }, { min: MIN_SCALE, max: MAX_SCALE });
+      if (target != null) {
+        chosenZoom.current = true;
+        if (target !== scale) {
+          placingSpot.current = { page, box: float, place: 'section' };
+          setScale(target);
+        } else {
+          placeSpot(page, float, 'section');
+        }
+        rememberJump(viewBeforeJump);
+        return;
+      }
+    }
     if (float && fitsFloat(kind)) {
       const style = getComputedStyle(scroller);
       const target = floatZoom(float, {
@@ -1675,10 +1697,10 @@ export default function App() {
         // fit the page back over it, and the way back restores the old one.
         chosenZoom.current = true;
         if (target !== scale) {
-          centringFloat.current = { page, float };
+          placingSpot.current = { page, box: float, place: 'float' };
           setScale(target);
         } else {
-          centreFloat(page, float);
+          placeSpot(page, float);
         }
         rememberJump(viewBeforeJump);
         return;
@@ -2779,14 +2801,14 @@ export default function App() {
 
   useLayoutEffect(() => {
     const restore = restoringView.current;
-    const centring = centringFloat.current;
+    const placing = placingSpot.current;
     const f = focus.current;
     const el = scrollerRef.current;
     restoringView.current = null;
-    centringFloat.current = null;
+    placingSpot.current = null;
     focus.current = null;
-    if (centring) {
-      centreFloat(centring.page, centring.float);
+    if (placing) {
+      placeSpot(placing.page, placing.box, placing.place);
       return;
     }
     if (restore && el) {

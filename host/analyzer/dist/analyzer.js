@@ -40022,7 +40022,7 @@ var FLOAT_FRAME = rule({
 var FLOAT_BAND = rule({
   id: "float.band",
   stage: "float",
-  summary: "A float is everything that starts between its caption and the first bound on its side \u2014 running text or a heading over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized \u2014 across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
+  summary: "A float is everything that starts between its caption and the first bound on its side \u2014 running text or a heading (bold, or a subsection's number with an italic lead run in to its paragraph) over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized \u2014 across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
   why: "Growing a float by what touches it cut figures short wherever their panels, or the figure and its caption, were set further apart than the limit; what a float is bounded by is the text around it."
 });
 var FLOAT_PIECE = rule({
@@ -40087,18 +40087,76 @@ var SECTION_HEADING = rule({
   stage: "section",
   summary: `A line that begins with a section number ("2", "2.1", "2.1.3", "A.1") and a capitalised title (a word, not a unit's letter; or "3D \u2026"), mostly bold or larger than the text (by more than the half point its size is measured to), not inside a float, and not a contents entry (a title ending in its page number), heads that section; the first such line for a number is the section's.`,
   why: 'Numbered headings are where "Section 2.1" sends a reader, and the number is the one thing heading and mention share.',
-  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|\d[A-Za-z])[^]*)$/,
-  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material"],
-  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke"]
+  // The title opens with a capitalised word; or the article "A" and a
+  // capitalised word ("2 A TOUR OF…"), or a lower-case one after a number
+  // closed by a point ("6.2. A program inverter") — not a unit's "A"
+  // ("5 A current"), nor a run of letters ("2 A B C"); or a Greek letter
+  // naming the paper's calculus ("4.1 λQC Kinding"), not a relation.
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
+  matches: [
+    "2.1 Novel Methods",
+    "2 RELATED WORK",
+    "3 X-BRIDGES METHOD",
+    "2.3 3D Printing Manipulation with FDM",
+    "3.2. Results",
+    "A.1 Proof of Lemma 3",
+    "4.3.1 Loose. Using the same material",
+    "2 A TOUR OF TWO-LEVEL TYPE THEORY",
+    "6.2. A program inverter for a reversible language",
+    "4.1 \u03BBQC Kinding System"
+  ],
+  rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 \u03B1 = 0.5"]
+});
+var SECTION_SPLIT_NUMBER = rule({
+  id: "section.split-number",
+  stage: "section",
+  summary: "A line that is only a section number is read, as a candidate heading, with the one line level with it on its right \u2014 the same size, within four ems, and nothing else on the row.",
+  why: `Books set a heading's number in a tab of its own ("19.1" | "TRISECTION"), which the layout rightly reads as two lines; neither alone is a heading (Geometric Folding Algorithms: 181 headings).`
+});
+var SECTION_NOT_RUNNING_HEAD = rule({
+  id: "section.not-running-head",
+  stage: "section",
+  summary: "A candidate heading in the page's top margin, level with a folio, is the running head naming the section the page is in, not a heading.",
+  why: "A right-hand running head names a section too short to recur on three pages, so it is not furniture; taken for the heading, it also took the number from the real one on an earlier page."
+});
+var SECTION_HEADING_LEAD = rule({
+  id: "section.heading-styled-lead",
+  stage: "section",
+  summary: `After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic \u2014 the whole line (ending within the next two lines), or up to its first "." or ":" with the paragraph running on (in the text's style somewhere after, whatever the word straight after the stop is set in) \u2014 and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.`,
+  why: `Elsevier and ASME set subsections in italic at the text's size ("2.1. Metamaterials and auxetic materials"), and run-in headings ("1.2 Case Study Overview. The \u2026") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers). A lead ending on a word the paper italicises anyway ("3.3.3 Previewing Generated Motion. Kinergy provides \u2026", the system's name) ran on past its stop.`
+});
+var SECTION_HEADING_STYLE = rule({
+  id: "section.heading-style",
+  stage: "section",
+  summary: "After the other passes, a numbered line \u2014 any letter opening its title \u2014 heads its section when its number is set in the font and size of at least two headings already found at its depth and continues their numbering; an appendix's lone letter takes the top level's style, comes after the last numbered top-level heading, and runs A, B, C. Inside a float's box only when it fills a gap on both sides of the numbering (or, for a letter, when the box begins at it).",
+  why: `A lower-case title ("9 user study"), an appendix letter ("A Printing Settings\u2026"), and a heading a figure's band grew over fail the first pass; the paper's own heading style and numbering admit them without admitting list items or panel labels.`
+});
+var SECTION_ROMAN = rule({
+  id: "section.roman",
+  stage: "section",
+  summary: 'A bold or larger line "I. INTRODUCTION", "II. \u2026" heads a section when such lines run I, II, III \u2026 in reading order, three or more, none level with another.',
+  why: "APS and IEEE papers number sections in Roman numerals, which section.heading does not read (20f979c959 had none)."
+});
+var SECTION_SCANNED = rule({
+  id: "section.scanned",
+  stage: "section",
+  summary: "On a scanned page, a numbered title in capitals alone on its row and narrower than the measure is a heading, in place of the bold-or-larger test.",
+  why: "A scan's text layer has no bold and sizes that wander by half a point; the small-caps headings failed, and two run-in list items measured large were taken instead (Lamport, Shostak and Pease)."
+});
+var MENTION_CITED = rule({
+  id: "mention.cited",
+  stage: "mention",
+  summary: `A mention of a section, figure or table is no link when it points into a cited work: inside a citation's bracket after the citation and a comma ("[Annenkov et al. 2019, Section 2.3]", "[16, Fig. 1]", "Lang (2003, Sec. 9.11)"), or followed by "of"/"in" and a citation or the supplementary material ("Figure 2 of Connelly et al. 2003").`,
+  why: "The mention rules read the word and the number alone, and linked the cited paper's Section 2.3 to this paper's own (38 locators and ~29 figure credits across the corpus)."
 });
 var MENTION_SECTION = rule({
   id: "mention.section",
   stage: "mention",
-  summary: '"Section", "Sec.", "Sect." or "\xA7" followed by one or more section numbers ("Section 2.1", "Sections 3 and 4", "\xA7\xA72\u20134") mentions each of them.',
+  summary: '"Section", "Sec.", "Sect.", "\xA7" or "Appendix" followed by one or more section numbers \u2014 Arabic, Roman ("Section II") or an appendix letter ("Appendix A.1") ("Section 2.1", "Sections 3 and 4", "\xA7\xA72\u20134") mentions each of them.',
   why: "Papers point the reader to their own sections as often as to their figures; the mention becomes a link to the heading.",
-  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.)|§§?)\s*(?<list>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})*)/,
-  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see \xA73.1", "Section A.2"],
-  rejects: ["this section", "Section", "the sections below"]
+  pattern: /(?<kind>\b(?:Sections?|SECTIONS?|Sects?\.|Secs?\.|Appendix|Appendices|APPENDIX|App\.)|§§?)\s*(?<list>(?:\d{1,2}|[IVX]{1,5}(?![A-Za-z\d])|[A-Z](?![A-Za-z]))(?:\.\d{1,2}){0,3}(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:\d{1,2}|[IVX]{1,5}(?![A-Za-z\d])|[A-Z](?![A-Za-z]))(?:\.\d{1,2}){0,3})*)/,
+  matches: ["(Section 2.1)", "in Section 2.3.", "Sections 3 and 4", "Sec. 4.2", "see \xA73.1", "Section A.2", "Section II presents", "Sec. VII", "Appendix A", "Appendix B.7"],
+  rejects: ["this section", "Section", "the sections below", "Section In", "the appendix"]
 });
 var FOOTNOTE_NOTE = rule({
   id: "footnote.note",
@@ -40988,6 +41046,33 @@ function findCitations(layout2, flows, bibliography, trace) {
   return out;
 }
 
+// src/rules/cited.ts
+var YEAR = /(?:1[89]|20)\d\d[a-z]?/;
+function citedLocator(text, start) {
+  let depth = 0;
+  for (let i2 = start - 1; i2 >= 0 && i2 >= start - 150; i2 -= 1) {
+    const c2 = text[i2];
+    if (c2 === "]" || c2 === ")") depth += 1;
+    else if (c2 === "[" || c2 === "(") {
+      if (depth > 0) {
+        depth -= 1;
+        continue;
+      }
+      const inside = text.slice(i2 + 1, start);
+      const tail = inside.slice(inside.lastIndexOf(";") + 1);
+      const numeric = c2 === "[" && /^\s*\d{1,3}(?:\s*[-–,]\s*\d{1,3})*\s*,\s*(?:see\s+|cf\.\s+)?$/.test(tail);
+      const authorYear = new RegExp(`(?:\\b${YEAR.source}|et al\\.?)\\s*,\\s*(?:see\\s+|cf\\.\\s+)?$`).test(tail);
+      return numeric || authorYear;
+    }
+  }
+  return false;
+}
+var OF = new RegExp(`^\\s*(?:of|in)\\s+(?:\\[|\\((?=[^)]*\\b${YEAR.source})|[A-Z][\\p{L}\u2019'-]+(?:\\s+et al\\.?|\\s+and\\s+[A-Z][\\p{L}\u2019'-]+)?\\s*,?\\s*\\(?${YEAR.source}|the\\s+(?:Supplementary|Supporting|extended version)|SI\\b|ref\\.)`, "u");
+function citedOf(text, end) {
+  return OF.test(text.slice(end, end + 80));
+}
+var citedAway = (text, start, end) => citedLocator(text, start) || citedOf(text, end);
+
 // src/rules/floats.ts
 function kindOf(word) {
   const w2 = word.toLowerCase().replace(/\.$/, "");
@@ -41080,7 +41165,12 @@ function proseOn(page, type) {
 }
 function headingsOn(page, type, prose) {
   const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
-  const candidates = page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && l2.bold && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text));
+  const italicLead = (l2) => {
+    if (!/^\d{1,2}(\.\d{1,2}){1,3}\.?\s/.test(l2.text)) return false;
+    const runs = l2.runs.filter((r2) => !/^[\d.\s]*$/.test(r2.text));
+    return runs[0]?.italic && runs.some((r2, k2) => /[.:]\s*$/.test(r2.text) && runs.slice(0, k2 + 1).every((o2) => o2.italic) && runs.slice(k2 + 1).some((o2) => !o2.italic && !o2.bold));
+  };
+  const candidates = page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && (l2.bold || italicLead(l2)) && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text));
   const proseUnder = (l2, leadings) => [...prose].some((p2) => p2.top > l2.top && p2.baseline - l2.baseline <= leadings * type.leading && Math.abs(p2.x0 - l2.x0) <= 2 * l2.size);
   const numberedHeading = (l2, depth = 0) => proseUnder(l2, 4) || depth < 3 && candidates.some((h2) => h2 !== l2 && NUMBERED.test(h2.text) && h2.baseline > l2.baseline && h2.baseline - l2.baseline <= 3 * type.leading && Math.abs(h2.x0 - l2.x0) <= 2 * l2.size && numberedHeading(h2, depth + 1));
   return candidates.filter((l2) => l2.size > type.bodySize + 1 || proseUnder(l2, 2) || NUMBERED.test(l2.text) && numberedHeading(l2));
@@ -41316,7 +41406,7 @@ function findFloats(layout2, trace) {
         match = CAPTION_STYLED.pattern.exec(line.text);
       }
       if (!match?.groups) continue;
-      const above = page.lines.find((o2) => !o2.furniture && o2 !== line && sameSize(o2.size, line.size) && Math.abs(o2.x0 - line.x0) <= line.size && line.baseline - o2.baseline > 0.5 * line.size && line.baseline - o2.baseline <= 1.6 * line.size && o2.x1 - o2.x0 >= 0.5 * (line.x1 - line.x0));
+      const above = page.lines.find((o2) => !o2.furniture && o2 !== line && sameSize(o2.size, line.size) && o2.x0 >= line.x0 - line.size && o2.x0 <= line.x0 + 2.5 * line.size && line.baseline - o2.baseline > 0.5 * line.size && line.baseline - o2.baseline <= 1.6 * line.size && o2.x1 - o2.x0 >= 0.5 * (line.x1 - line.x0));
       if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern.test(above.text)) {
         trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
         continue;
@@ -41440,6 +41530,10 @@ function findMentions(flow, floats, layout2, trace) {
   let match;
   while (match = re2.exec(flow.text)) {
     const groups = match.groups;
+    if (citedAway(flow.text, match.index, match.index + match[0].length)) {
+      trace.add(MENTION_CITED.id, 0, match[0], []);
+      continue;
+    }
     const kind = kindOf(groups.kind);
     const listStart = match.index + match[0].length - groups.list.length;
     const first = flow.at[match.index];
@@ -41524,36 +41618,192 @@ ${number.toLowerCase()}`;
 var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
 function findSections(layout2, skip, floats, trace) {
   const sections = /* @__PURE__ */ new Map();
+  const type = typeOf(layout2);
   const within = [...floats];
   const inFloat = (line, page) => within.some((f2) => f2.page === page.number && line.x0 / page.width >= f2.x - 1e-3 && line.x1 / page.width <= f2.x + f2.w + 1e-3 && line.top / page.height >= f2.y - 1e-3 && line.bottom / page.height <= f2.y + f2.h + 1e-3);
-  for (const page of layout2.pages) {
-    for (const line of page.lines) {
-      if (line.furniture || skip.has(line)) continue;
-      const match = SECTION_HEADING.pattern.exec(line.text);
+  const letters2 = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
+  const add = (page, line, number, rule2) => {
+    const middle = (line.x0 + line.x1) / 2;
+    const column = page.twoColumn && type.columns.length > 1 && type.columns.find((c2) => middle >= c2.x0 && middle <= c2.x1) || type.text;
+    const x0 = Math.min(column.x0, line.x0), x1 = Math.max(column.x1, line.x1);
+    const box = { page: page.number, x: x0 / page.width, y: line.top / page.height, w: (x1 - x0) / page.width, h: (line.bottom - line.top) / page.height };
+    sections.set(keyOf3(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
+    trace.add(rule2, page.number, line.text.slice(0, 80), [box]);
+  };
+  const scanned = (page) => page.drawn.some((d2) => d2.image && d2.w * d2.h >= 0.8 * page.width * page.height);
+  const scannedHeading = (line, page, title) => {
+    const letter = title.replace(/[^\p{L}]/gu, "");
+    return letter.length >= 3 && letter === letter.toUpperCase() && !title.includes(",") && line.x1 - line.x0 < 0.75 * type.measure && !page.lines.some((o2) => o2 !== line && !o2.furniture && Math.abs(o2.baseline - line.baseline) <= 2);
+  };
+  const candidates = layout2.pages.map((page) => candidatesOn(page, skip, trace));
+  const runningHead = (line, page) => type.margins.y0 > 0 && line.bottom <= type.margins.y0 + 1 && page.lines.some((o2) => o2 !== line && o2.furniture && /^[\divxlc.\s-]+$/i.test(o2.text) && Math.abs(o2.baseline - line.baseline) <= 1.5);
+  layout2.pages.forEach((page, p2) => {
+    for (const line of candidates[p2]) {
+      const match = SECTION_HEADING.pattern.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
-      const letters2 = (runs) => runs.reduce((n2, r2) => n2 + r2.text.replace(/\s/g, "").length, 0);
-      const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      const set = scanned(page) ? scannedHeading(line, page, match.groups.title) : letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf3(number))) continue;
-      const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
-      sections.set(keyOf3(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
-      trace.add(SECTION_HEADING.id, page.number, line.text.slice(0, 80), [box]);
+      if (runningHead(line, page)) {
+        trace.add(SECTION_NOT_RUNNING_HEAD.id, page.number, line.text.slice(0, 80), []);
+        continue;
+      }
+      add(page, line, number, SECTION_HEADING.id);
     }
+  });
+  const known = (n2) => sections.has(keyOf3(n2));
+  const pageOf = (n2) => sections.get(keyOf3(n2)).page;
+  const style = (r2) => r2.bold ? "bold" : r2.italic ? "italic" : "roman";
+  const styledShare = (l2) => letters2(l2.runs.filter((r2) => r2.bold || r2.italic)) / Math.max(1, letters2(l2.runs));
+  const LEAD = new RegExp("^(?<number>(?:\\d{1,2}|[A-Z](?=\\.\\d))(?:\\.\\d{1,2}){0,3})\\.?\\s+(?<title>\\p{L}.*)$", "u");
+  layout2.pages.forEach((page, p2) => {
+    for (const line of candidates[p2]) {
+      const match = LEAD.exec(line.text.normalize("NFKC"));
+      if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
+      const number = match.groups.number;
+      const parts = number.split(".");
+      if (parts.length < 2 || known(number)) continue;
+      const parent = parts.slice(0, -1).join(".");
+      const last = Number(parts[parts.length - 1]);
+      const predecessor = last === 1 ? parent : `${parent}.${last - 1}`;
+      if (!known(parent) || !Number.isFinite(last) || !known(predecessor) || pageOf(predecessor) > page.number) continue;
+      const runs = line.runs.filter((r2) => letters2([r2]) > 0);
+      let i2 = 0;
+      while (i2 < runs.length && /^[\d.\s]*$/.test(runs[i2].text)) i2 += 1;
+      if (i2 >= runs.length) continue;
+      const lead = style(runs[i2]);
+      if (lead === "roman") continue;
+      let j2 = i2;
+      while (j2 < runs.length && style(runs[j2]) === lead) j2 += 1;
+      const leadText = runs.slice(i2, j2).map((r2) => r2.text).join("");
+      const whole = j2 >= runs.length;
+      const stopped = runs.slice(i2, j2 - 1).some((r2) => /[.:]\s*$/.test(r2.text)) && runs.slice(j2).some((r2) => style(r2) === "roman");
+      if (!whole && !(/[.:]\s*$/.test(leadText) || /^\s*[.:]/.test(runs[j2].text) || stopped)) continue;
+      if (whole) {
+        const after = page.lines.slice(page.lines.indexOf(line) + 1).filter((o2) => o2.column === line.column && !o2.furniture).slice(0, 2);
+        if (after.length && !after.some((o2) => styledShare(o2) < 0.5)) continue;
+      }
+      add(page, line, number, SECTION_HEADING_LEAD.id);
+    }
+  });
+  const styleOf = (l2) => `${l2.runs[0]?.font}@${l2.size.toFixed(1)}`;
+  const depthOf = (n2) => /^[A-Z]$/.test(n2) ? 1 : n2.split(".").length;
+  const counted = /* @__PURE__ */ new Map();
+  for (const s2 of sections.values()) {
+    if (/^[A-Z]/.test(s2.label)) continue;
+    const k2 = `${depthOf(s2.label)} ${styleOf(s2.caption)}`;
+    counted.set(k2, (counted.get(k2) ?? 0) + 1);
+  }
+  const headingStyle = (l2, depth) => (counted.get(`${depth} ${styleOf(l2)}`) ?? 0) >= 2;
+  const LOOSE = new RegExp("^(?<number>(?:\\d{1,2}|[A-Z])(?:\\.\\d{1,2}){0,3})\\.?\\s+(?<title>\\p{L}.*)$", "u");
+  const topLevel = () => [...sections.values()].filter((s2) => /^\d+$/.test(s2.label));
+  const lastTop = () => topLevel().reduce((a2, s2) => !a2 || s2.page > a2.page || s2.page === a2.page && s2.y > a2.y ? s2 : a2, null);
+  const nextOf = (n2) => {
+    const parts = n2.split(".").map(Number);
+    const after = [...parts.slice(0, -1), parts[parts.length - 1] + 1].join(".");
+    const parentNext = parts.length > 1 ? [...parts.slice(0, -2), parts[parts.length - 2] + 1].join(".") : null;
+    return [after, parentNext].filter(Boolean);
+  };
+  const floatStartsAt = (line, page) => within.some((f2) => f2.page === page.number && Math.abs(f2.y * page.height - line.top) <= 3);
+  layout2.pages.forEach((page, p2) => {
+    for (const line of candidates[p2]) {
+      const match = LOOSE.exec(line.text.normalize("NFKC"));
+      if (!match?.groups || isContents(match.groups.title) || runningHead(line, page)) continue;
+      const number = match.groups.number;
+      if (known(number)) continue;
+      const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      if (!set || !headingStyle(line, depthOf(number))) continue;
+      const floated = inFloat(line, page);
+      if (/^[A-Z]$/.test(number)) {
+        const top = lastTop();
+        const after = top && (page.number > top.page || page.number === top.page && line.top / page.height > top.y);
+        const inTurn = number === "A" || known(String.fromCharCode(number.charCodeAt(0) - 1));
+        const first = line.runs[0], second = line.runs[1];
+        const gapped = first && first.text.trim() === number && second ? second.x - (first.x + first.width) >= 0.6 * line.size : true;
+        if (!after || !inTurn || !gapped || floated && !floatStartsAt(line, page)) continue;
+      } else {
+        const parts = number.split(".");
+        const last = Number(parts[parts.length - 1]);
+        const parent = parts.slice(0, -1).join(".");
+        const predecessor = parts.length === 1 ? String(last - 1) : last === 1 ? parent : `${parent}.${last - 1}`;
+        const continues = parts.length === 1 && last === 1 || known(predecessor) && pageOf(predecessor) <= page.number && (parts.length === 1 || known(parent));
+        if (!continues) continue;
+        if (floated && !nextOf(number).some(known)) continue;
+      }
+      add(page, line, number, SECTION_HEADING_STYLE.id);
+    }
+  });
+  const roman = (s2) => {
+    const v2 = { I: 1, V: 5, X: 10 };
+    let n2 = 0;
+    for (let i2 = 0; i2 < s2.length; i2 += 1) {
+      const a2 = v2[s2[i2]], b2 = v2[s2[i2 + 1]] ?? 0;
+      n2 += a2 < b2 ? -a2 : a2;
+    }
+    return n2;
+  };
+  const ROMAN = /^(?<number>[IVX]{1,5})\.\s+(?<title>[A-Z][A-Za-z][^,]*)$/;
+  const romans = [];
+  layout2.pages.forEach((page, p2) => {
+    for (const line of candidates[p2]) {
+      const match = ROMAN.exec(line.text.normalize("NFKC"));
+      if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
+      const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      if (set) romans.push({ page, line, number: match.groups.number });
+    }
+  });
+  const levelWithAnother = (c2) => romans.some((o2) => o2 !== c2 && o2.page === c2.page && Math.abs(o2.line.top - c2.line.top) <= 2);
+  const run = [];
+  for (const c2 of romans.filter((c3) => !levelWithAnother(c3))) if (roman(c2.number) === run.length + 1) run.push(c2);
+  if (run.length >= 3) {
+    for (const c2 of run) if (!known(c2.number)) add(c2.page, c2.line, c2.number, SECTION_ROMAN.id);
   }
   return sections;
 }
+function candidatesOn(page, skip, trace) {
+  const lines = page.lines.filter((l2) => !l2.furniture && !skip.has(l2));
+  const used = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const line of lines) {
+    if (used.has(line)) continue;
+    if (/^(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}\.?$/.test(line.text.trim())) {
+      const level = lines.filter((o2) => o2 !== line && Math.abs(o2.baseline - line.baseline) <= 1.5);
+      const title = level.length === 1 ? level[0] : void 0;
+      if (title && Math.abs(title.size - line.size) <= 0.5 && title.x0 > line.x1 && title.x0 - line.x1 <= 4 * line.size) {
+        used.add(title);
+        const joined = {
+          ...title,
+          text: `${line.text.trim()} ${title.text}`,
+          runs: [...line.runs, ...title.runs],
+          x0: line.x0,
+          top: Math.min(line.top, title.top),
+          bottom: Math.max(line.bottom, title.bottom)
+        };
+        trace.add(SECTION_SPLIT_NUMBER.id, page.number, joined.text.slice(0, 80), []);
+        out.push(joined);
+        continue;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
 function numbersIn2(list) {
   const out = [];
-  const re2 = /(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3}/g;
+  const re2 = /(?:\d{1,2}|[IVX]{1,5}(?![A-Za-z\d])|[A-Z](?![A-Za-z]))(?:\.\d{1,2}){0,3}/g;
   let previous = null;
   let match;
   while (match = re2.exec(list)) {
-    const number = match[0];
+    let number = match[0];
     const start = match.index, end = start + number.length;
     const between = previous ? list.slice(previous.end, start) : "";
-    if (previous && /^\s*(?:[-–—]|to)\s*$/.test(between) && /^\d+$/.test(previous.number) && /^\d+$/.test(number)) {
-      for (let n2 = Number(previous.number) + 1; n2 < Number(number); n2 += 1) out.push({ number: String(n2), start: previous.start, end });
+    const ranged = previous && /^\s*(?:[-–—]|to)\s*$/.test(between);
+    const prefix = ranged && /^\d+$/.test(number) ? /^(.*\.)\d+$/.exec(previous.number)?.[1] ?? "" : "";
+    if (ranged && /^\d+$/.test(number)) {
+      const from = Number(previous.number.slice(prefix.length));
+      if (Number.isInteger(from)) for (let n2 = from + 1; n2 < Number(number) && n2 - from <= 20; n2 += 1) out.push({ number: `${prefix}${n2}`, start: previous.start, end });
+      number = `${prefix}${number}`;
     }
     out.push({ number, start, end });
     previous = { number, start, end };
@@ -41567,7 +41817,12 @@ function findSectionMentions(flow, sections, layout2, trace) {
   let match;
   while (match = re2.exec(flow.text)) {
     const groups = match.groups;
+    if (citedAway(flow.text, match.index, match.index + match[0].length)) {
+      trace.add(MENTION_CITED.id, 0, match[0], []);
+      continue;
+    }
     const listStart = match.index + match[0].length - groups.list.length;
+    if (/^[A-Z]$|^[IVX]+$/.test(groups.list.trim()) && /^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
     numbersIn2(groups.list).forEach((item, index) => {
       const section2 = sections.get(keyOf3(item.number));
       if (!section2) return;
@@ -41666,9 +41921,10 @@ async function interopDefault(m2) {
 
 // src/rules/pdf.ts
 var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
-var BOLD_SUFFIX = /[a-z]T?B$|Bd$|-Bd/;
+var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
 var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
-var ITALIC = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+var ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+var ITALIC = { test: (name) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
 var multiply = (m2, n2) => [
   m2[0] * n2[0] + m2[2] * n2[1],
   m2[1] * n2[0] + m2[3] * n2[1],

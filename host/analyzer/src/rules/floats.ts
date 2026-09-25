@@ -3,9 +3,10 @@
 
 import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
+import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_CITED, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
@@ -168,10 +169,18 @@ function proseOn(page: Page, type: Type): Set<Line> {
 // or, for a numbered one, within a few lines or under the numbered
 // headings stacked beneath it ("3 Method", "3.1 Setup", then text). A
 // numbered bold line with a picture under it is a label in a table of
-// pictures ("1. Instant Translation"), which bounds no float.
+// pictures ("1. Instant Translation"), which bounds no float. A run-in
+// heading in italics bounds one too: a subsection's number and an italic
+// lead ending in a stop ("3.2.2 Tensile Strength. To verify…").
 function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
   const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
-  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
+  const italicLead = (l: Line) => {
+    if (!/^\d{1,2}(\.\d{1,2}){1,3}\.?\s/.test(l.text)) return false;
+    const runs = l.runs.filter((r) => !/^[\d.\s]*$/.test(r.text));
+    return runs[0]?.italic && runs.some((r, k) => /[.:]\s*$/.test(r.text) && runs.slice(0, k + 1).every((o) => o.italic)
+      && runs.slice(k + 1).some((o) => !o.italic && !o.bold));
+  };
+  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && (l.bold || italicLead(l)) && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
   const proseUnder = (l: Line, leadings: number) => [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= leadings * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size);
   const numberedHeading = (l: Line, depth = 0): boolean => proseUnder(l, 4) || (depth < 3 && candidates.some((h) => h !== l && NUMBERED.test(h.text)
     && h.baseline > l.baseline && h.baseline - l.baseline <= 3 * type.leading && Math.abs(h.x0 - l.x0) <= 2 * l.size && numberedHeading(h, depth + 1)));
@@ -517,7 +526,8 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       // indicated in / Table 1.1. Before embarking…") is not a caption: the
       // line above it, a leading up at its edge and its size, runs on into
       // it without ending a sentence (caption.not-wrapped).
-      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && Math.abs(o.x0 - line.x0) <= line.size
+      // (At its edge, or indented as a paragraph's first line is.)
+      const above = page.lines.find((o) => !o.furniture && o !== line && sameSize(o.size, line.size) && o.x0 >= line.x0 - line.size && o.x0 <= line.x0 + 2.5 * line.size
         && line.baseline - o.baseline > 0.5 * line.size && line.baseline - o.baseline <= 1.6 * line.size && o.x1 - o.x0 >= 0.5 * (line.x1 - line.x0));
       if (above && /[\p{L}\p{N},;]$/u.test(above.text.trim()) && !CAPTION_LABEL.pattern!.test(above.text)) {
         trace.add(CAPTION_NOT_WRAPPED.id, page.number, line.text.slice(0, 80), []);
@@ -684,6 +694,12 @@ export function findMentions(flow: Flow, floats: Map<string, Found>, layout: Lay
   let match: RegExpExecArray | null;
   while ((match = re.exec(flow.text))) {
     const groups = match.groups!;
+    // A mention inside a citation, or of a cited work's part, is the cited
+    // paper's, not this one's (mention.cited-locator, mention.cited-of).
+    if (citedAway(flow.text, match.index, match.index + match[0].length)) {
+      trace.add(MENTION_CITED.id, 0, match[0], []);
+      continue;
+    }
     const kind = kindOf(groups.kind);
     const listStart = match.index + match[0].length - groups.list.length;
     // A caption's own label is not a pointer to itself.

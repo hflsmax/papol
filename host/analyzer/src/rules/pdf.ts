@@ -55,11 +55,17 @@ export interface Doc {
 
 // Bold, as fonts name it: "Bold", "Semibold", "Medi" (Nimbus), "cmbx"
 // (Computer Modern), and the Libertine and Biolinum convention of a
-// trailing B ("LinBiolinumTB", "LinLibertineTB") or Bd.
+// trailing B ("LinBiolinumTB", "LinLibertineTB"), with the OpenType
+// build's O before it ("LinBiolinumOB") and an italic's I or O after it
+// ("LinLibertineTBI", "LinBiolinumTBO"), or Bd.
 const BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
-const BOLD_SUFFIX = /[a-z]T?B$|Bd$|-Bd/;
+const BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
 const BOLD = { test: (name: string) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
-const ITALIC = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+// Italic, likewise: the words, Computer Modern's cmti, and Libertine's and
+// Biolinum's trailing I, after the build's letters and before an optical
+// size ("LinLibertineTI", "LinLibertineOI", "LinLibertineZI7", "LinBiolinumTI").
+const ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+const ITALIC = { test: (name: string) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
 
 type TextItem = { str: string; transform: number[]; width: number; height: number; fontName: string };
 type FontData = { name?: string; loadedName?: string };
