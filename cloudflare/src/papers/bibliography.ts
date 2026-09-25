@@ -66,6 +66,17 @@ export async function crossrefByDoi(env: Env, doi: string): Promise<Record<strin
   }
 }
 
+// A journal numbers its issues, and a number says only where in the run
+// a work sits. An issue the publisher named instead says which part of
+// the journal it is — the conference whose papers fill it ("POPL" in
+// Proceedings of the ACM on Programming Languages), or a supplement —
+// and that belongs in the venue.
+function withIssue(venue: string | null, issue: unknown): string | null {
+  const named = String(issue ?? "").replace(/_/g, " ").split(/\s+/).join(" ").trim();
+  if (!venue || !/\p{L}/u.test(named)) return venue;
+  return `${venue} (${named})`;
+}
+
 // A CrossRef item as the viewer's popup wants it. Thinner than
 // OpenAlex's: CrossRef often has no abstract.
 export function summarizeCrossref(item: Record<string, any>): Summary {
@@ -83,7 +94,7 @@ export function summarizeCrossref(item: Record<string, any>): Summary {
   const doi: string | null = item.DOI ?? null;
   return {
     title, authors: (item.author ?? []).map((a: any) => unescapeHtml([a.given, a.family].filter(Boolean).join(" "))),
-    year, venue: container, abstract, citations: item["is-referenced-by-count"] ?? null,
+    year, venue: withIssue(container, item.issue), abstract, citations: item["is-referenced-by-count"] ?? null,
     doi, url: doi ? `https://doi.org/${doi}` : null,
     pdf_url: (item.link ?? []).find((l: any) => String(l["content-type"] ?? "").endsWith("pdf"))?.URL ?? null,
     source: "crossref",
@@ -101,7 +112,7 @@ export async function crossrefMatch(env: Env, raw: string): Promise<Record<strin
   if (!query) return [];
   const params = new URLSearchParams({
     "query.bibliographic": query, rows: String(limits.counts.bibliography_results),
-    select: "DOI,title,author,issued,container-title,is-referenced-by-count,abstract,link,score",
+    select: "DOI,title,author,issued,container-title,issue,is-referenced-by-count,abstract,link,score",
   });
   let response: Response;
   try {
@@ -212,7 +223,7 @@ export function summarizeOpenalex(work: Record<string, any>): Summary {
   return {
     title: work.display_name ?? null,
     authors: (work.authorships ?? []).map((a: any) => a.author?.display_name).filter(Boolean),
-    year: work.publication_year ?? null, venue, host, abstract: abstractOf(work),
+    year: work.publication_year ?? null, venue: withIssue(venue, work.biblio?.issue), host, abstract: abstractOf(work),
     citations: work.cited_by_count ?? null,
     doi: String(work.doi ?? "").replace("https://doi.org/", "") || null,
     url: work.doi ?? work.primary_location?.landing_page_url ?? null,
