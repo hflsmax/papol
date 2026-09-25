@@ -14,6 +14,7 @@
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:upload": "node scripts/upload-smoke.mjs",
     "smoke:folder": "node scripts/folder-smoke.mjs",
+    "shots:letter": "node scripts/letter-shots.mjs",
     "test:sync": "node --test --import ./src/browserGlobals.mjs src/connectivity.test.js src/nativeSync.test.js src/nativeBridge.test.js src/replicaShapes.test.js src/desktopUpload.test.js src/desktopCards.test.js src/desktopRooms.test.js",
     "preview": "vite preview"
   },
