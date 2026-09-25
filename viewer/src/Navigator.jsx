@@ -106,6 +106,11 @@ const LEAST_WIDTH = 36;
 const FRONT_WIDTH = 56;
 const BIBLIOGRAPHY_WIDTH = 76;
 
+// End — the notices a paper closes on, and whatever it files after them
+// (see withoutEndMatter) — is narrower still: nobody reads it, it is there
+// so that the last section stops where it does.
+const END_WIDTH = 40;
+
 // The least a subsection may be given of the section it is in. Small: it is
 // only there so two subsections a line apart do not put their ticks on one
 // pixel.
@@ -235,6 +240,7 @@ export default function Navigator({
       front = front && (segment.front || isFrontMatter(segment.title));
       if (!(width > 0)) return null;
       if (front) return FRONT_WIDTH / width;
+      if (segment.end) return END_WIDTH / width;
       if (!segment.front && isBibliography(segment.title)) return BIBLIOGRAPHY_WIDTH / width;
       return null;
     });
@@ -472,7 +478,7 @@ export default function Navigator({
             <button
               key={segment.id}
               type="button"
-              className={`navigator-seg${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}${index % 2 ? ' alt' : ''}`}
+              className={`navigator-seg${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}${segment.end ? ' end' : ''}${index % 2 ? ' alt' : ''}`}
               // Placed, not flowed. Shared out as flexible boxes, every
               // segment's padding and border took its room before the rest
               // was divided, and the heads of the sections drifted off the
@@ -485,8 +491,12 @@ export default function Navigator({
               }}
               data-level={segment.level ?? 0}
               tabIndex={index === 0 ? 0 : -1}
-              data-tip={segment.front ? 'The start of the paper' : `${name} — page ${segment.page}`}
-              aria-label={segment.front ? 'The start of the paper' : `${name}, page ${segment.page}`}
+              data-tip={segment.front ? 'The start of the paper'
+                : segment.end ? `The end of the paper — page ${segment.page}`
+                  : `${name} — page ${segment.page}`}
+              aria-label={segment.front ? 'The start of the paper'
+                : segment.end ? `The end of the paper, page ${segment.page}`
+                  : `${name}, page ${segment.page}`}
               // A pointer's press has already gone to the exact spot under
               // it. What is left to arrive here is the keyboard, which has
               // no spot to point at and so goes to the head of the section.
