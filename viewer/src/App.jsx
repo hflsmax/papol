@@ -4554,6 +4554,8 @@ export default function App() {
                 exact: openCite.place.exact,
               } : null}
               exploring={!!exploring}
+              backTo={exploring?.startView?.page ?? null}
+              onBack={() => moveThroughLinks('back')}
               onPreviousPlace={() => stepOccurrence(-1)}
               onNextPlace={() => stepOccurrence(1)}
             />

@@ -214,7 +214,7 @@ const probe = `<script>
       const press = (key, code = key) => document.body.dispatchEvent(
         new KeyboardEvent('keydown', { key, code, bubbles: true }),
       );
-      const step = (direction) => $('.ref-places-nav button:' + (direction > 0 ? 'last-child' : 'first-child')).click();
+      const step = (direction) => $('.ref-places-nav button[aria-label="' + (direction > 0 ? 'Next' : 'Previous') + ' place it is cited"]').click();
       const openFirst = () => $('.pdf-page[data-page="1"] .cite')?.click();
       const near = (a, b) => Math.abs(a - b) < 3;
       const pill = () => text('.link-return');
@@ -267,6 +267,11 @@ const probe = `<script>
           $('.pdf-page[data-page="4"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         }, () => !$('.ref-card') && !$('.viewer-body.exploring') && near(pages().scrollTop, stayed) && pill().includes('page 1')],
         ['back-again', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
+        // The card's own Back does what [ does: to where it began, card away.
+        ['explore-again', () => { openFirst(); setTimeout(() => step(1), 100); },
+          () => text('.ref-places-what') === 'Exploring 2 of 3 · page 3' && shown() && $('.ref-places-home')],
+        ['card-back', () => $('.ref-places-home').click(),
+          () => !$('.ref-card') && !$('.viewer-body.exploring') && near(pages().scrollTop, start)],
       ];
       let stage = 0;
       let acted = false;
@@ -274,7 +279,7 @@ const probe = `<script>
       const run = () => {
         const [name, act, done] = stages[stage];
         // A stage that clicks the marker waits for page 1 to draw it.
-        if (!acted && (!['open', 'reopen', 'up'].includes(name) || $('.pdf-page[data-page="1"] .cite'))) {
+        if (!acted && (!['open', 'reopen', 'up', 'explore-again'].includes(name) || $('.pdf-page[data-page="1"] .cite'))) {
           act();
           acted = true;
         }

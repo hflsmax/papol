@@ -63,7 +63,7 @@ following any link in the paper.
 │   │ Attention Is All You Need                    │                   │
 │   │ …                                            │                   │
 │   │ ┌──────────────────────────────────────────┐ │                   │
-│   │ │ Exploring  2 of 4 · page 7          ↑  ↓ │ │  ← accent strip  │
+│   │ │ Exploring  2 of 4 · page 7  ‹ Back  ↑  ↓ │ │  ← accent strip  │
 │   │ └──────────────────────────────────────────┘ │                   │
 │   └──────────────────────────────────────────────┘                   │
 └──────────────────────────────────────────────────────────────────────┘
@@ -114,11 +114,17 @@ takes:
 |---|---|
 | **Esc**, the card's ×, or a press elsewhere on the page | The card closes as today, the frame goes, and the view stays where it is. |
 | Clicking another citation | The exploration ends where it is and that citation's card opens. |
-| **`[`** (or the return pill) | Back to `startView`; the card closes and the exploration ends. `]` returns to where the reader had got to. |
+| **Back** on the strip, **`[`**, or the return pill | Back to `startView`; the card closes and the exploration ends. `]` returns to where the reader had got to. Back is `[` itself (`moveThroughLinks('back')`), so the two cannot come apart. |
 | Scrolling or zooming by hand | Allowed; the exploration continues. |
 
-There is no *Stay here* and no Back button on the card: staying is what every
-exit does, and going back is the viewer's one way back, the return pill.
+There is no *Stay here*: staying is what every other exit does. Back is on
+the strip only while exploring; at rest there is nowhere to go back to.
+
+The strip's buttons do not take the focus when pressed with the mouse
+(`mousedown` is prevented). A reader who clicks ↓ and goes on with the
+keyboard's ↓ would otherwise see the clicked button light up with the
+browser's keyboard focus ring, as if it were selected. Tabbing to them still
+focuses them, ring and all.
 
 ## Stepping: the marker comes to the card
 
@@ -202,7 +208,7 @@ exploration and its starting point: Back still goes home.
 | `viewer/src/references.js` | `citationOccurrences()`, `placeAmong()`, and their tests |
 | `viewer/src/App.jsx` | `openCite` gains `place`, `places` and `at`; an `exploring` state `{ startView, startPlace }`; `stepOccurrence(±1)` (the scroll, the hidden card until the marker is drawn, and on the first step `rememberJump(startView, { teach: false })`); `endExploration()` from `closeReference` and from a click on another citation (`openCitation`), taking the entry off again when the view is still `startView`; `moveThroughLinks` puts the card away during an exploration; `.viewer-body.exploring` for the frame |
 | `viewer/src/PdfPage.jsx` | a clicked citation reports its place; `citationOccurrence` draws the lit `.cite-occurrence` and reports it to the card (`onOccurrenceShown`); `citationStart` draws the `.cite-start` outline |
-| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip with its `[` line; its left held while exploring; hidden while it has no marker to hang off |
+| `viewer/src/ReferenceCard.jsx` | the foot row at rest, the exploring strip with Back, ↑ and ↓, none taking the focus from a mouse press; its left held while exploring; hidden while it has no marker to hang off |
 | `viewer/src/styles.js` | the row, the strip, the frame, the lit marker and its pulse, the start outline |
 | `cloudflare/` | migration 0010, `ordinal` stored and served in order, and a test |
 
@@ -232,7 +238,8 @@ exploration and its starting point: Back still goes home.
   pages 1, 3 and 4. Stepping round and back and closing leaves no way back;
   ↓ keeps the card where it was, lights the marker on page 3, frames the
   pages, offers *Back to page 1*, and shows no lesson; steps wrap both ways;
-  the ↓ and ↑ keys step while exploring;
+  the ↓ and ↑ keys step while exploring; the strip's Back returns to the
+  start and puts the card away;
   Esc and a press on the page each keep the view; `[` restores the start and
   `]` the place stayed at.
 - Screenshots on a real paper (attention.pdf with the analyzer's reading) are

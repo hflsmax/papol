@@ -1660,6 +1660,24 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   color: var(--ink);
 }
 .ref-places-nav button:hover { border-color: var(--accent); color: var(--accent); }
+/* Back to where the exploration began: the pill's chevron, and its word. */
+.ref-places-nav .ref-places-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  padding: 0 9px 0 6px;
+  font: inherit;
+}
+.ref-places-home svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* An exploration: the row becomes a strip, tinted to the card's edges. */
 .ref-places.exploring {
