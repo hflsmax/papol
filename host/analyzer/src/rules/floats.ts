@@ -2,7 +2,7 @@
 // the places in the text that point at it.
 
 import { least, most } from "./numbers";
-import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/tei";
+import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
   CAPTION_ALONE, CAPTION_LABEL, CAPTION_STYLED, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_FLOAT,
@@ -10,7 +10,7 @@ import {
 import type { Drawn } from "./pdf";
 import type { Trace } from "./trace";
 
-// A float as found: the analysis's Float (tei.ts) with the caption line it
+// A float as found: the analysis's Float (reading.ts) with the caption line it
 // was found by, which its own label is not a mention of.
 export interface Found extends Float {
   caption: Line;

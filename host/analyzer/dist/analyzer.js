@@ -1,4 +1,4 @@
-// Built by `npm run build` in host/helper from src/ and cloudflare/src/papers/tei.ts. Do not edit.
+// Built by `npm run build` in host/analyzer from src/ and cloudflare/src/papers/reading.ts. Do not edit.
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __esm = (fn2, res) => function __init() {
@@ -1616,7 +1616,7 @@ function compileCharString(e2, t2, n2, r2) {
     t2.add(E.curveTo, [e3, n3, r3, i3, a3, o3]);
   }
   let i2 = [], a2 = 0, o2 = 0, s2 = 0, c2 = null;
-  function parse2(e3) {
+  function parse(e3) {
     let c3 = new DataView(e3.buffer, e3.byteOffset, e3.byteLength), l2 = 0;
     for (; l2 < e3.length; ) {
       let u2 = false, d2 = e3[l2++], f2, p2, m2, h2, g2, _2, v2, y2, b2;
@@ -1650,7 +1650,7 @@ function compileCharString(e2, t2, n2, r2) {
               t3.privateDict?.subrsIndex && (r3 = t3.privateDict.subrsIndex.objects), r3 && (y2 += getSubroutineBias(r3), b2 = r3[y2]);
             } else warn$1(`Invalid fd index for glyph index.`);
           } else b2 = n2.subrs[y2 + n2.subrsBias];
-          b2 && parse2(b2);
+          b2 && parse(b2);
           break;
         case 11:
           return;
@@ -1717,7 +1717,7 @@ function compileCharString(e2, t2, n2, r2) {
           i2.push(c3.getInt16(l2)), l2 += 2;
           break;
         case 29:
-          y2 = i2.pop() + n2.gsubrsBias, b2 = n2.gsubrs[y2], b2 && parse2(b2);
+          y2 = i2.pop() + n2.gsubrsBias, b2 = n2.gsubrs[y2], b2 && parse(b2);
           break;
         case 30:
           for (; i2.length > 0 && (f2 = a2, m2 = o2 + i2.shift(), p2 = f2 + i2.shift(), h2 = m2 + i2.shift(), a2 = p2 + i2.shift(), o2 = h2 + (i2.length === 1 ? i2.shift() : 0), bezierCurveTo(f2, m2, p2, h2, a2, o2), i2.length !== 0); ) f2 = a2 + i2.shift(), m2 = o2, p2 = f2 + i2.shift(), h2 = m2 + i2.shift(), o2 = h2 + i2.shift(), a2 = p2 + (i2.length === 1 ? i2.shift() : 0), bezierCurveTo(f2, m2, p2, h2, a2, o2);
@@ -1733,7 +1733,7 @@ function compileCharString(e2, t2, n2, r2) {
       u2 && (i2.length = 0);
     }
   }
-  parse2(e2);
+  parse(e2);
 }
 function isHexDigit(e2) {
   return e2 >= 48 && e2 <= 57 || e2 >= 65 && e2 <= 70 || e2 >= 97 && e2 <= 102;
@@ -2580,13 +2580,13 @@ function createDefaultAppearance({ fontSize: e2, fontName: t2, fontColor: n2 }) 
 function clearGlobalCaches() {
   clearPatternCaches(), clearPrimitiveCaches(), clearUnicodeCaches(), qe.cleanup();
 }
-function isWhitespace2(e2, t2) {
+function isWhitespace(e2, t2) {
   let n2 = e2[t2];
   return n2 === ` ` || n2 === `
 ` || n2 === `\r` || n2 === `	`;
 }
 function isWhitespaceString(e2) {
-  for (let t2 = 0, n2 = e2.length; t2 < n2; t2++) if (!isWhitespace2(e2, t2)) return false;
+  for (let t2 = 0, n2 = e2.length; t2 < n2; t2++) if (!isWhitespace(e2, t2)) return false;
   return true;
 }
 function fetchDest(e2) {
@@ -3471,7 +3471,7 @@ function calculateSHA256(e2, t2, n2) {
   }
   return new Uint8Array([r2 >> 24 & 255, r2 >> 16 & 255, r2 >> 8 & 255, r2 & 255, i2 >> 24 & 255, i2 >> 16 & 255, i2 >> 8 & 255, i2 & 255, a2 >> 24 & 255, a2 >> 16 & 255, a2 >> 8 & 255, a2 & 255, o2 >> 24 & 255, o2 >> 16 & 255, o2 >> 8 & 255, o2 & 255, s2 >> 24 & 255, s2 >> 16 & 255, s2 >> 8 & 255, s2 & 255, c2 >> 24 & 255, c2 >> 16 & 255, c2 >> 8 & 255, c2 & 255, l2 >> 24 & 255, l2 >> 16 & 255, l2 >> 8 & 255, l2 & 255, u2 >> 24 & 255, u2 >> 16 & 255, u2 >> 8 & 255, u2 & 255]);
 }
-function find2(e2, t2, n2 = 1024, r2 = false) {
+function find(e2, t2, n2 = 1024, r2 = false) {
   let i2 = t2.length, a2 = e2.peekBytes(n2), o2 = a2.length - i2;
   if (o2 <= 0) return false;
   if (r2) {
@@ -4428,7 +4428,7 @@ function normalizeEdgeBoundary(e2, t2, n2) {
 function percentage(e2) {
   return `${(e2 * 100).toFixed(2)}%`;
 }
-var e, t, n, r, i, a, o, s, c, l, u, d, f, p, m, h, g, _, v, y, b, x, S, C, w, T, E, D, O, k, PasswordException$1, UnknownErrorException$1, InvalidPDFException$1, ResponseException$1, FormatError$1, AbortException$1, FeatureTest$1, Util$1, j, ee, makeArr$1, makeMap$1, makeObj$1, M, te, ne, re, ie, N, ae, oe, F, L, RefSet, RefSetCache, BaseStream, se, ce, le, ue, de, fe, MissingDataException, ParserEOFException, XRefEntryException, XRefParseException, pe, me, QCMS, he, ge, _e, ve, ye, be, xe, Se, AlternateCS, PatternCS, IndexedCS, DeviceGrayCS, DeviceRgbCS, DeviceRgbaCS, DeviceCmykCS, CalGrayCS, Ce, LabCS, we, Te, Ee, StringStream, NullStream, ChunkedStream, ChunkedStreamManager, De, Oe, ke, DecodeStream, StreamsSequenceStream, ColorSpaceUtils, JpegError, DNLMarkerError, EOIMarkerError, Ae, je, Me, Ne, Pe, Fe, Ie, Le, JpegImage, Re, ze, NullOptimizer, QueueOptimizer, Be, CheckedOperatorList, Ve, Pattern, BaseShading, RadialAxialShading, He, MeshStreamReader, Ue, We, DummyShading, BinaryCMapStream, BinaryCMapReader, Ascii85Stream, AsciiHexStream, makeBrotliDecode, Ge, BrotliStream, Ke, qe, Jbig2Error, Je, CCITTFaxStream, Ye, Xe, Ze, Qe, $e, FlateStream, et, tt, JpxError, nt, JpxStream, LZWStream, PredictorStream, RunLengthStream, Parser2, rt, Lexer, Linearization, it, at, CMap, IdentityCMap, CMapFactory, CSS_FONT_INFO$1, SYSTEM_FONT_INFO$1, FONT_INFO$1, PATTERN_INFO$1, ot, st, ct, lt, ut, dt, ft, pt, mt, ht, gt, _t, vt, yt, bt, xt, St, Ct, wt, Tt, DataBuilder, Et, Dt, Ot, kt, At, CFFParser, CFF, CFFHeader, CFFStrings, CFFIndex, CFFDict, jt, Mt, Nt, Pt, Ft, CFFCharset, CFFEncoding, CFFFDSelect, CFFOffsetTracker, It, Lt, Rt, zt, Bt, Vt, Ht, Ut, Wt, GlyfTable, Gt, Kt, Contour, qt, Jt, ToUnicodeMap, IdentityToUnicodeMap, CFFFont, Commands, Yt, TrueTypeCompiled, Type2Compiled, FontRendererFactory, Xt, Zt, Qt, $t, Type1CharString, en, Type1Parser, Type1Font, tn, nn, rn, an, fonts_Glyph, Font, ErrorFont, on, sn, cn, ln, un, dn, fn, pn, mn, hn, gn, _n, vn, yn, bn, xn, Sn, Cn, wn, Tn, En, Dn, On, kn, An, jn, Mn, Nn, Pn, Fn, In, Ln, Rn, zn, Bn, Vn, Hn, Un, Wn, Gn, Kn, R, Token, qn, Jn, z, PsNode, PsProgram, PsBlock, PsNumber, PsOperator, PsIf, PsIfElse, PsArgNode, PsConstNode, PsUnaryNode, PsBinaryNode, PsTernaryNode, Yn, Xn, V, Zn, Qn, PsJsCompiler, PSStackBasedInterpreter, H, $n, er, tr, nr, BaseLocalCache, LocalImageCache, LocalColorSpaceCache, LocalFunctionCache, LocalGStateCache, LocalTilingPatternCache, RegionalImageCache, GlobalColorSpaceCache, rr, ir, ar, PDFFunction, or, sr, cr, lr, ur, dr, fr, pr, mr, hr, gr, _r, vr, yr, MurmurHash3_64$1, br, xr, Sr, Cr, wr, Tr, TranslatedFont, StateManager, TextState, EvalState, Er, DefaultAppearanceEvaluator, AppearanceStreamEvaluator, Dr, Or, kr, NameOrNumberTree, NameTree, NumberTree, Ar, jr, Mr, SimpleDOMNode, SimpleXMLParser, MetadataParser, Nr, Pr, StructElementNode, StructElement, StructTreePage, isRef, Fr, Ir, Lr, Rr, zr, Vr, Hr, Ur, Wr, Gr, Kr, qr, U, Jr, Yr, W, Xr, Zr, Qr, $r, ei, ti, ni, ri, ii, ai, oi, si, ci, li, ui, G, di, fi, pi, mi, hi, gi, _i, vi, yi, bi, xi, Si, Ci, wi, Ti, Ei, Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Ri, zi, Bi, Vi, Hi, Wi, Gi, Ki, qi, K, Ji, Yi, Xi, Zi, Qi, $i, ea, q, FontFinder, FontInfo$1, FontSelector, TextMeasure, ta, na, ra, ia, aa, oa, sa, ca, J, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa, Ca, Y, X, XFAAttribute, wa, ContentObject, OptionObject, StringObject, IntegerObject, Option01, Option10, Ta, Z, Ea, Da, Oa, AppearanceFilter, Arc, Area, Assist, Barcode, Bind, BindItems, Bookend, BooleanElement, Border, Break, BreakAfter, BreakBefore, Button, Calculate, Caption, Certificate, Certificates, CheckButton, ChoiceList, Color, Comb, Connect, ContentArea, Corner, DateElement, DateTime, DateTimeEdit, Decimal, DefaultUi, Desc, DigestMethod, DigestMethods, Draw, Edge, Encoding, Encodings, Encrypt, EncryptData, Encryption, EncryptionMethod, EncryptionMethods, Event$1, ExData, ExObject, ExclGroup, Execute, Extras, Field, Fill, Filter, Float, template_Font, Format, Handler, Hyphenation, Image$1, ImageEdit, Integer, Issuers, Items, Keep, KeyUsage, Line, Linear, LockDocument, Manifest, Margin, Mdp, Medium, Message, NumericEdit, Occur, Oid, Oids, Overflow, PageArea, ka, Para, PasswordEdit, template_Pattern, Picture, Proto, Radial, Reason, Reasons, Rectangle, RefElement, Script, SetProperty, SignData, Signature, Signing, Solid, Speak, Stipple, Subform, SubformSet, SubjectDN, SubjectDNs, Submit, Template, Text, TextEdit, Time, TimeStamp, ToolTip, Traversal, Traverse, Ui, Validate, Value, Variables, Aa, ja, Binder, DataHandler, Q, Acrobat, Acrobat7, ADBE_JSConsole, ADBE_JSDebugger, AddSilentPrint, AddViewerPreferences, AdjustData, AdobeExtensionLevel, Agent, AlwaysEmbed, Amd, config_Area, Attributes, AutoSave, Base, BatchOutput, BehaviorOverride, Cache, Change, Common, Compress, CompressLogicalStructure, CompressObjectStream, Compression, Config, Conformance, ContentCopy, Copies, Creator, CurrentPage, Data, Debug, DefaultTypeface, Destination, DocumentAssembly, Driver, DuplexOption, DynamicRender, Embed, config_Encrypt, config_Encryption, EncryptionLevel, Enforce, Equate, EquateRange, Exclude, ExcludeNS, FlipLabel, config_FontInfo, FormFieldFilling, GroupParent, IfEmpty, IncludeXDPContent, IncrementalLoad, IncrementalMerge, Interactive, Jog, LabelPrinter, Layout, Level, Linearized, Locale, LocaleSet, Log, MapElement, MediumInfo, config_Message, Messaging, Mode, ModifyAnnots, MsgId, NameAttr, NeverEmbed, NumberOfCopies, OpenAction, Output, OutputBin, OutputXSL, Overprint, Packets, PageOffset, PageRange, Pagination, PaginationOverride, Part, Pcl, Pdf, Pdfa, Permissions, PickTrayByPDFSize, config_Picture, PlaintextMetadata, Presence, Present, Print, PrintHighQuality, PrintScaling, PrinterName, Producer, Ps, Range$1, Record, Relevant, Rename, RenderPolicy, RunScripts, config_Script, ScriptModel, Severity, SilentPrint, Staple, StartNode, StartPage, SubmitFormat, SubmitUrl, SubsetBelow, SuppressBanner, Tagged, config_Template, Threshold, To, TemplateCache, Trace2, Transform, Type, Uri, config_Validate, ValidateApprovalSignatures, ValidationMessaging, Version, VersionControl, ViewerPreferences, WebClient, Whitespace, Window, Xdc, Xdp, Xsl, Zpl, Ma, Na, ConnectionSet, EffectiveInputPolicy, EffectiveOutputPolicy, Operation, RootElement, SoapAction, SoapAddress, connection_set_Uri, WsdlAddress, WsdlConnection, XmlConnection, XsdConnection, Pa, Fa, datasets_Data, Datasets, Ia, La, CalendarSymbols, CurrencySymbol, CurrencySymbols, DatePattern, DatePatterns, DateTimeSymbols, Day, DayNames, Era, EraNames, locale_set_Locale, locale_set_LocaleSet, Meridiem, MeridiemNames, Month, MonthNames, NumberPattern, NumberPatterns, NumberSymbol, NumberSymbols, TimePattern, TimePatterns, TypeFace, TypeFaces, Ra, za, signature_Signature, Ba, Va, Stylesheet, Ha, Ua, xdp_Xdp, Wa, Ga, Ka, qa, Ja, Ya, Xa, Za, Qa, XhtmlObject, A, B, Body, Br, Html, I, Li, Ol, P, Span, Sub, Sup, Ul, $a, eo, UnknownNamespace, Root, Empty, Builder, to, no, AnnotationFactory, Annotation, AnnotationBorderStyle, MarkupAnnotation, ro, TextWidgetAnnotation, ButtonWidgetAnnotation, ChoiceWidgetAnnotation, SignatureWidgetAnnotation, TextAnnotation, LinkAnnotation, PopupAnnotation, FreeTextAnnotation, LineAnnotation, SquareAnnotation, CircleAnnotation, PolylineAnnotation, PolygonAnnotation, CaretAnnotation, InkAnnotation, HighlightAnnotation, UnderlineAnnotation, SquigglyAnnotation, StrikeOutAnnotation, StampAnnotation, FileAttachmentAnnotation, io, ao, oo, so, DatasetXMLParser, DatasetReader, SingleIntersector, Intersector, Word64, co, lo, DecryptStream, ARCFourCipher, NullCipher, AESBaseCipher, AES128Cipher, AES256Cipher, PDFBase, PDF17, PDF20, CipherTransform, uo, XRef, fo, Page, po, mo, ho, PDFDocument, BasePdfManager, LocalPdfManager, NetworkPdfManager, go, _o, MessageHandler$1, PageData, DocumentData, XRefWrapper, PDFEditor, BasePDFStream$1, BasePDFStreamReader$1, BasePDFStreamRangeReader$1, PDFWorkerStream, PDFWorkerStreamReader, PDFWorkerStreamRangeReader, WorkerTask, WorkerMessageHandler, vo, yo, bo, xo, So, Co, wo, Eo, Do, Oo, $, ko, Ao, jo, Mo, No, Po, Fo, Io, Lo, Ro, zo, Bo, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, Vo, Ho, makeArr, makeMap, makeObj, Uo, Wo, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, Go, Ko, ColorScheme, CSSConstants, qo, Jo, FloatingToolbar, Yo, Xo, IdManager, Zo, CommandManager, Qo, $o, es, ts, Comment, ns, rs, FakeEditor, is, as, os, MurmurHash3_64, ss, AnnotationStorage, PrintAnnotationStorage, cs, ls, us, ds, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, fs, ps, ms, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, isNameProxy, hs, LoopbackPort, gs, _s, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, WebGPU, vs, ys, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, bs, xs, Ss, Cs, CanvasExtraState, ws, Ts, Es, Ds, Os, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, ks, OptionalContentGroup, As, PagesMapper, js, dataObj, PDFObjects, Ms, Ns, PDFDataRangeTransport, PDFDocumentProxy, Fs, Is, WorkerTransport, RenderTask, Ls, Rs, zs, Bs, Vs, ColorConverters, BaseSVGFactory, DOMSVGFactory, Hs, Us, AnnotationElementFactory, Ws, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, Gs, Ks, qs, Outline, Js, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, Ys, DrawingOptions, Xs, InkDrawOutliner, InkDrawOutline, Zs, Qs, ContourDrawOutline, SignatureExtractor, $s, ec, tc, StampEditor, nc, rc, ic;
+var e, t, n, r, i, a, o, s, c, l, u, d, f, p, m, h, g, _, v, y, b, x, S, C, w, T, E, D, O, k, PasswordException$1, UnknownErrorException$1, InvalidPDFException$1, ResponseException$1, FormatError$1, AbortException$1, FeatureTest$1, Util$1, j, ee, makeArr$1, makeMap$1, makeObj$1, M, te, ne, re, ie, N, ae, oe, F, L, RefSet, RefSetCache, BaseStream, se, ce, le, ue, de, fe, MissingDataException, ParserEOFException, XRefEntryException, XRefParseException, pe, me, QCMS, he, ge, _e, ve, ye, be, xe, Se, AlternateCS, PatternCS, IndexedCS, DeviceGrayCS, DeviceRgbCS, DeviceRgbaCS, DeviceCmykCS, CalGrayCS, Ce, LabCS, we, Te, Ee, StringStream, NullStream, ChunkedStream, ChunkedStreamManager, De, Oe, ke, DecodeStream, StreamsSequenceStream, ColorSpaceUtils, JpegError, DNLMarkerError, EOIMarkerError, Ae, je, Me, Ne, Pe, Fe, Ie, Le, JpegImage, Re, ze, NullOptimizer, QueueOptimizer, Be, CheckedOperatorList, Ve, Pattern, BaseShading, RadialAxialShading, He, MeshStreamReader, Ue, We, DummyShading, BinaryCMapStream, BinaryCMapReader, Ascii85Stream, AsciiHexStream, makeBrotliDecode, Ge, BrotliStream, Ke, qe, Jbig2Error, Je, CCITTFaxStream, Ye, Xe, Ze, Qe, $e, FlateStream, et, tt, JpxError, nt, JpxStream, LZWStream, PredictorStream, RunLengthStream, Parser, rt, Lexer, Linearization, it, at, CMap, IdentityCMap, CMapFactory, CSS_FONT_INFO$1, SYSTEM_FONT_INFO$1, FONT_INFO$1, PATTERN_INFO$1, ot, st, ct, lt, ut, dt, ft, pt, mt, ht, gt, _t, vt, yt, bt, xt, St, Ct, wt, Tt, DataBuilder, Et, Dt, Ot, kt, At, CFFParser, CFF, CFFHeader, CFFStrings, CFFIndex, CFFDict, jt, Mt, Nt, Pt, Ft, CFFCharset, CFFEncoding, CFFFDSelect, CFFOffsetTracker, It, Lt, Rt, zt, Bt, Vt, Ht, Ut, Wt, GlyfTable, Gt, Kt, Contour, qt, Jt, ToUnicodeMap, IdentityToUnicodeMap, CFFFont, Commands, Yt, TrueTypeCompiled, Type2Compiled, FontRendererFactory, Xt, Zt, Qt, $t, Type1CharString, en, Type1Parser, Type1Font, tn, nn, rn, an, fonts_Glyph, Font, ErrorFont, on, sn, cn, ln, un, dn, fn, pn, mn, hn, gn, _n, vn, yn, bn, xn, Sn, Cn, wn, Tn, En, Dn, On, kn, An, jn, Mn, Nn, Pn, Fn, In, Ln, Rn, zn, Bn, Vn, Hn, Un, Wn, Gn, Kn, R, Token, qn, Jn, z, PsNode, PsProgram, PsBlock, PsNumber, PsOperator, PsIf, PsIfElse, PsArgNode, PsConstNode, PsUnaryNode, PsBinaryNode, PsTernaryNode, Yn, Xn, V, Zn, Qn, PsJsCompiler, PSStackBasedInterpreter, H, $n, er, tr, nr, BaseLocalCache, LocalImageCache, LocalColorSpaceCache, LocalFunctionCache, LocalGStateCache, LocalTilingPatternCache, RegionalImageCache, GlobalColorSpaceCache, rr, ir, ar, PDFFunction, or, sr, cr, lr, ur, dr, fr, pr, mr, hr, gr, _r, vr, yr, MurmurHash3_64$1, br, xr, Sr, Cr, wr, Tr, TranslatedFont, StateManager, TextState, EvalState, Er, DefaultAppearanceEvaluator, AppearanceStreamEvaluator, Dr, Or, kr, NameOrNumberTree, NameTree, NumberTree, Ar, jr, Mr, SimpleDOMNode, SimpleXMLParser, MetadataParser, Nr, Pr, StructElementNode, StructElement, StructTreePage, isRef, Fr, Ir, Lr, Rr, zr, Vr, Hr, Ur, Wr, Gr, Kr, qr, U, Jr, Yr, W, Xr, Zr, Qr, $r, ei, ti, ni, ri, ii, ai, oi, si, ci, li, ui, G, di, fi, pi, mi, hi, gi, _i, vi, yi, bi, xi, Si, Ci, wi, Ti, Ei, Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Ri, zi, Bi, Vi, Hi, Wi, Gi, Ki, qi, K, Ji, Yi, Xi, Zi, Qi, $i, ea, q, FontFinder, FontInfo$1, FontSelector, TextMeasure, ta, na, ra, ia, aa, oa, sa, ca, J, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa, Ca, Y, X, XFAAttribute, wa, ContentObject, OptionObject, StringObject, IntegerObject, Option01, Option10, Ta, Z, Ea, Da, Oa, AppearanceFilter, Arc, Area, Assist, Barcode, Bind, BindItems, Bookend, BooleanElement, Border, Break, BreakAfter, BreakBefore, Button, Calculate, Caption, Certificate, Certificates, CheckButton, ChoiceList, Color, Comb, Connect, ContentArea, Corner, DateElement, DateTime, DateTimeEdit, Decimal, DefaultUi, Desc, DigestMethod, DigestMethods, Draw, Edge, Encoding, Encodings, Encrypt, EncryptData, Encryption, EncryptionMethod, EncryptionMethods, Event$1, ExData, ExObject, ExclGroup, Execute, Extras, Field, Fill, Filter, Float, template_Font, Format, Handler, Hyphenation, Image$1, ImageEdit, Integer, Issuers, Items, Keep, KeyUsage, Line, Linear, LockDocument, Manifest, Margin, Mdp, Medium, Message, NumericEdit, Occur, Oid, Oids, Overflow, PageArea, ka, Para, PasswordEdit, template_Pattern, Picture, Proto, Radial, Reason, Reasons, Rectangle, RefElement, Script, SetProperty, SignData, Signature, Signing, Solid, Speak, Stipple, Subform, SubformSet, SubjectDN, SubjectDNs, Submit, Template, Text, TextEdit, Time, TimeStamp, ToolTip, Traversal, Traverse, Ui, Validate, Value, Variables, Aa, ja, Binder, DataHandler, Q, Acrobat, Acrobat7, ADBE_JSConsole, ADBE_JSDebugger, AddSilentPrint, AddViewerPreferences, AdjustData, AdobeExtensionLevel, Agent, AlwaysEmbed, Amd, config_Area, Attributes, AutoSave, Base, BatchOutput, BehaviorOverride, Cache, Change, Common, Compress, CompressLogicalStructure, CompressObjectStream, Compression, Config, Conformance, ContentCopy, Copies, Creator, CurrentPage, Data, Debug, DefaultTypeface, Destination, DocumentAssembly, Driver, DuplexOption, DynamicRender, Embed, config_Encrypt, config_Encryption, EncryptionLevel, Enforce, Equate, EquateRange, Exclude, ExcludeNS, FlipLabel, config_FontInfo, FormFieldFilling, GroupParent, IfEmpty, IncludeXDPContent, IncrementalLoad, IncrementalMerge, Interactive, Jog, LabelPrinter, Layout, Level, Linearized, Locale, LocaleSet, Log, MapElement, MediumInfo, config_Message, Messaging, Mode, ModifyAnnots, MsgId, NameAttr, NeverEmbed, NumberOfCopies, OpenAction, Output, OutputBin, OutputXSL, Overprint, Packets, PageOffset, PageRange, Pagination, PaginationOverride, Part, Pcl, Pdf, Pdfa, Permissions, PickTrayByPDFSize, config_Picture, PlaintextMetadata, Presence, Present, Print, PrintHighQuality, PrintScaling, PrinterName, Producer, Ps, Range$1, Record, Relevant, Rename, RenderPolicy, RunScripts, config_Script, ScriptModel, Severity, SilentPrint, Staple, StartNode, StartPage, SubmitFormat, SubmitUrl, SubsetBelow, SuppressBanner, Tagged, config_Template, Threshold, To, TemplateCache, Trace2, Transform, Type, Uri, config_Validate, ValidateApprovalSignatures, ValidationMessaging, Version, VersionControl, ViewerPreferences, WebClient, Whitespace, Window, Xdc, Xdp, Xsl, Zpl, Ma, Na, ConnectionSet, EffectiveInputPolicy, EffectiveOutputPolicy, Operation, RootElement, SoapAction, SoapAddress, connection_set_Uri, WsdlAddress, WsdlConnection, XmlConnection, XsdConnection, Pa, Fa, datasets_Data, Datasets, Ia, La, CalendarSymbols, CurrencySymbol, CurrencySymbols, DatePattern, DatePatterns, DateTimeSymbols, Day, DayNames, Era, EraNames, locale_set_Locale, locale_set_LocaleSet, Meridiem, MeridiemNames, Month, MonthNames, NumberPattern, NumberPatterns, NumberSymbol, NumberSymbols, TimePattern, TimePatterns, TypeFace, TypeFaces, Ra, za, signature_Signature, Ba, Va, Stylesheet, Ha, Ua, xdp_Xdp, Wa, Ga, Ka, qa, Ja, Ya, Xa, Za, Qa, XhtmlObject, A, B, Body, Br, Html, I, Li, Ol, P, Span, Sub, Sup, Ul, $a, eo, UnknownNamespace, Root, Empty, Builder, to, no, AnnotationFactory, Annotation, AnnotationBorderStyle, MarkupAnnotation, ro, TextWidgetAnnotation, ButtonWidgetAnnotation, ChoiceWidgetAnnotation, SignatureWidgetAnnotation, TextAnnotation, LinkAnnotation, PopupAnnotation, FreeTextAnnotation, LineAnnotation, SquareAnnotation, CircleAnnotation, PolylineAnnotation, PolygonAnnotation, CaretAnnotation, InkAnnotation, HighlightAnnotation, UnderlineAnnotation, SquigglyAnnotation, StrikeOutAnnotation, StampAnnotation, FileAttachmentAnnotation, io, ao, oo, so, DatasetXMLParser, DatasetReader, SingleIntersector, Intersector, Word64, co, lo, DecryptStream, ARCFourCipher, NullCipher, AESBaseCipher, AES128Cipher, AES256Cipher, PDFBase, PDF17, PDF20, CipherTransform, uo, XRef, fo, Page, po, mo, ho, PDFDocument, BasePdfManager, LocalPdfManager, NetworkPdfManager, go, _o, MessageHandler$1, PageData, DocumentData, XRefWrapper, PDFEditor, BasePDFStream$1, BasePDFStreamReader$1, BasePDFStreamRangeReader$1, PDFWorkerStream, PDFWorkerStreamReader, PDFWorkerStreamRangeReader, WorkerTask, WorkerMessageHandler, vo, yo, bo, xo, So, Co, wo, Eo, Do, Oo, $, ko, Ao, jo, Mo, No, Po, Fo, Io, Lo, Ro, zo, Bo, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, Vo, Ho, makeArr, makeMap, makeObj, Uo, Wo, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, Go, Ko, ColorScheme, CSSConstants, qo, Jo, FloatingToolbar, Yo, Xo, IdManager, Zo, CommandManager, Qo, $o, es, ts, Comment, ns, rs, FakeEditor, is, as, os, MurmurHash3_64, ss, AnnotationStorage, PrintAnnotationStorage, cs, ls, us, ds, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, fs, ps, ms, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, isNameProxy, hs, LoopbackPort, gs, _s, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, WebGPU, vs, ys, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, bs, xs, Ss, Cs, CanvasExtraState, ws, Ts, Es, Ds, Os, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, ks, OptionalContentGroup, As, PagesMapper, js, dataObj, PDFObjects, Ms, Ns, PDFDataRangeTransport, PDFDocumentProxy, Fs, Is, WorkerTransport, RenderTask, Ls, Rs, zs, Bs, Vs, ColorConverters, BaseSVGFactory, DOMSVGFactory, Hs, Us, AnnotationElementFactory, Ws, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, Gs, Ks, qs, Outline, Js, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightOutline, Ys, DrawingOptions, Xs, InkDrawOutliner, InkDrawOutline, Zs, Qs, ContourDrawOutline, SignatureExtractor, $s, ec, tc, StampEditor, nc, rc, ic;
 var init_pdfjs = __esm({
   "node_modules/unpdf/dist/pdfjs.mjs"() {
     if (polyfillDOMMatrix(), globalThis.FinalizationRegistry === void 0 && (globalThis.FinalizationRegistry = class FinalizationRegistry2 {
@@ -8344,7 +8344,7 @@ var init_pdfjs = __esm({
         this.bufferLength = n2;
       }
     };
-    Parser2 = class {
+    Parser = class {
       constructor({ lexer: e2, xref: t2, allowStreams: n2 = false, recoveryMode: r2 = false }) {
         this.lexer = e2, this.xref = t2, this.allowStreams = n2, this.recoveryMode = r2, this.imageCache = /* @__PURE__ */ Object.create(null), this._imageId = 0, this.refill();
       }
@@ -8928,7 +8928,7 @@ var init_pdfjs = __esm({
           }
           throw Error(`Hint array in the linearization dictionary is invalid.`);
         }
-        let t2 = new Parser2({ lexer: new Lexer(e2), xref: null }), n2 = t2.getObj(), r2 = t2.getObj(), i2 = t2.getObj(), a2 = t2.getObj(), o2, s2;
+        let t2 = new Parser({ lexer: new Lexer(e2), xref: null }), n2 = t2.getObj(), r2 = t2.getObj(), i2 = t2.getObj(), a2 = t2.getObj(), o2, s2;
         if (!(Number.isInteger(n2) && Number.isInteger(r2) && isCmd(i2, `obj`) && a2 instanceof F && typeof (o2 = a2.get(`Linearized`)) == `number` && o2 > 0)) return null;
         if ((s2 = getInt(a2, `L`)) !== e2.length) throw Error(`The "L" parameter in the linearization dictionary does not equal the stream length.`);
         return { length: s2, hints: getHints(a2), objectNumberFirst: getInt(a2, `O`), endFirst: getInt(a2, `E`), numPages: getInt(a2, `N`), mainXRefEntriesOffset: getInt(a2, `T`), pageFirst: a2.has(`P`) ? getInt(a2, `P`, true) : 0 };
@@ -15515,7 +15515,7 @@ var init_pdfjs = __esm({
       }
       static MAX_INVALID_PATH_OPS = 10;
       constructor(e2, t2, n2 = new StateManager()) {
-        this.parser = new Parser2({ lexer: new Lexer(e2, EvaluatorPreprocessor.opMap), xref: t2 }), this.stateManager = n2, this.nonProcessedArgs = [], this._isPathOp = false, this._numInvalidPathOPS = 0;
+        this.parser = new Parser({ lexer: new Lexer(e2, EvaluatorPreprocessor.opMap), xref: t2 }), this.stateManager = n2, this.nonProcessedArgs = [], this._isPathOp = false, this._numInvalidPathOPS = 0;
       }
       get savedStatesDepth() {
         return this.stateManager.stateStack.length;
@@ -15887,14 +15887,14 @@ var init_pdfjs = __esm({
       _parseContent(e2, t2) {
         let n2 = [], r2 = t2;
         function skipWs() {
-          for (; r2 < e2.length && isWhitespace2(e2, r2); ) ++r2;
+          for (; r2 < e2.length && isWhitespace(e2, r2); ) ++r2;
         }
-        for (; r2 < e2.length && !isWhitespace2(e2, r2) && e2[r2] !== `>` && e2[r2] !== `/`; ) ++r2;
+        for (; r2 < e2.length && !isWhitespace(e2, r2) && e2[r2] !== `>` && e2[r2] !== `/`; ) ++r2;
         let i2 = e2.substring(t2, r2);
         for (skipWs(); r2 < e2.length && e2[r2] !== `>` && e2[r2] !== `/` && e2[r2] !== `?`; ) {
           skipWs();
           let t3 = ``, i3 = ``;
-          for (; r2 < e2.length && !isWhitespace2(e2, r2) && e2[r2] !== `=`; ) t3 += e2[r2], ++r2;
+          for (; r2 < e2.length && !isWhitespace(e2, r2) && e2[r2] !== `=`; ) t3 += e2[r2], ++r2;
           if (skipWs(), e2[r2] !== `=`) return null;
           ++r2, skipWs();
           let a2 = e2[r2];
@@ -15908,9 +15908,9 @@ var init_pdfjs = __esm({
       _parseProcessingInstruction(e2, t2) {
         let n2 = t2;
         function skipWs() {
-          for (; n2 < e2.length && isWhitespace2(e2, n2); ) ++n2;
+          for (; n2 < e2.length && isWhitespace(e2, n2); ) ++n2;
         }
-        for (; n2 < e2.length && !isWhitespace2(e2, n2) && e2[n2] !== `>` && e2[n2] !== `?` && e2[n2] !== `/`; ) ++n2;
+        for (; n2 < e2.length && !isWhitespace(e2, n2) && e2[n2] !== `>` && e2[n2] !== `?` && e2[n2] !== `/`; ) ++n2;
         let r2 = e2.substring(t2, n2);
         skipWs();
         let i2 = n2;
@@ -24730,7 +24730,7 @@ var init_pdfjs = __esm({
             let t3 = h3[1] | 0, n3 = h3[2] | 0, r3 = u2 + m3.length, i3, d3 = false;
             if (!this.entries[t3]) d3 = true;
             else if (this.entries[t3].gen === n3) try {
-              new Parser2({ lexer: new Lexer(o2.makeSubStream(r3)) }).getObj(), d3 = true;
+              new Parser({ lexer: new Lexer(o2.makeSubStream(r3)) }).getObj(), d3 = true;
             } catch (e3) {
               e3 instanceof ParserEOFException ? warn$1(`indexObjects -- checking object (${m3}): "${e3}".`) : d3 = true;
             }
@@ -24751,7 +24751,7 @@ var init_pdfjs = __esm({
         let p2 = [], m2 = false;
         for (let e3 of d2) {
           o2.pos = e3;
-          let t3 = new Parser2({ lexer: new Lexer(o2), xref: this, allowStreams: true, recoveryMode: true });
+          let t3 = new Parser({ lexer: new Lexer(o2), xref: this, allowStreams: true, recoveryMode: true });
           if (!isCmd(t3.getObj(), `trailer`)) continue;
           let n3 = t3.getObj();
           n3 instanceof F && (p2.push(n3), n3.has(`Encrypt`) && (m2 = true));
@@ -24803,7 +24803,7 @@ var init_pdfjs = __esm({
               continue;
             }
             n2.add(e3), t2.pos = e3 + t2.start;
-            let r2 = new Parser2({ lexer: new Lexer(t2), xref: this, allowStreams: true }), i2 = r2.getObj(), a2;
+            let r2 = new Parser({ lexer: new Lexer(t2), xref: this, allowStreams: true }), i2 = r2.getObj(), a2;
             if (isCmd(i2, `xref`)) a2 = this.processXRefTable(r2), this.topDict ||= a2, i2 = a2.get(`XRefStm`), Number.isInteger(i2) && !this._xrefStms.has(i2) && (this._xrefStms.add(i2), this.startXRefQueue.push(i2));
             else if (Number.isInteger(i2)) {
               if (!Number.isInteger(r2.getObj()) || !isCmd(r2.getObj(), `obj`) || !((i2 = r2.getObj()) instanceof BaseStream)) throw new FormatError$1(`Invalid XRef stream`);
@@ -24848,7 +24848,7 @@ var init_pdfjs = __esm({
           if (this._generationFallback && t2.gen < r2) return warn$1(a3), this.fetchUncompressed(L.get(i2, t2.gen), t2, n2);
           throw new XRefEntryException(a3);
         }
-        let a2 = new Parser2({ lexer: new Lexer(this.stream.makeSubStream(t2.offset + this.stream.start)), xref: this, allowStreams: true }), o2 = a2.getObj(), s2 = a2.getObj(), c2 = a2.getObj();
+        let a2 = new Parser({ lexer: new Lexer(this.stream.makeSubStream(t2.offset + this.stream.start)), xref: this, allowStreams: true }), o2 = a2.getObj(), s2 = a2.getObj(), c2 = a2.getObj();
         if (o2 !== i2 || s2 !== r2 || !(c2 instanceof ae)) throw new XRefEntryException(`Bad (uncompressed) XRef entry: ${e2}`);
         if (c2.cmd !== `obj`) {
           if (c2.cmd.startsWith(`obj`) && (i2 = parseInt(c2.cmd.substring(3), 10), !Number.isNaN(i2))) return i2;
@@ -24861,7 +24861,7 @@ var init_pdfjs = __esm({
         if (!(i2 instanceof BaseStream)) throw new FormatError$1(`bad ObjStm stream`);
         let a2 = i2.dict.get(`First`), o2 = i2.dict.get(`N`);
         if (!Number.isInteger(a2) || !Number.isInteger(o2)) throw new FormatError$1(`invalid first and n parameters for ObjStm stream`);
-        let s2 = new Parser2({ lexer: new Lexer(i2), xref: this, allowStreams: true }), c2 = Array(o2), l2 = Array(o2);
+        let s2 = new Parser({ lexer: new Lexer(i2), xref: this, allowStreams: true }), c2 = Array(o2), l2 = Array(o2);
         for (let e3 = 0; e3 < o2; ++e3) {
           let t3 = s2.getObj();
           if (!Number.isInteger(t3)) throw new FormatError$1(`invalid object number in the ObjStm stream: ${t3}`);
@@ -24875,7 +24875,7 @@ var init_pdfjs = __esm({
         for (let e3 = 0; e3 < o2; ++e3) {
           let t3 = e3 < o2 - 1 ? l2[e3 + 1] - l2[e3] : void 0;
           if (t3 < 0) throw new FormatError$1(`Invalid offset in the ObjStm stream.`);
-          s2 = new Parser2({ lexer: new Lexer(i2.makeSubStream(u2 + l2[e3], t3, i2.dict)), xref: this, allowStreams: true });
+          s2 = new Parser({ lexer: new Lexer(i2.makeSubStream(u2 + l2[e3], t3, i2.dict)), xref: this, allowStreams: true });
           let n3 = s2.getObj();
           if (d2[e3] = n3, n3 instanceof BaseStream) continue;
           let a3 = c2[e3], f2 = this.entries[a3];
@@ -25206,7 +25206,7 @@ var init_pdfjs = __esm({
       get startXRef() {
         let e2 = this.stream, t2 = 0;
         if (this.linearization) {
-          if (e2.reset(), find2(e2, ho)) {
+          if (e2.reset(), find(e2, ho)) {
             e2.skip(6);
             let n2 = e2.peekByte();
             for (; isWhiteSpace(n2); ) e2.pos++, n2 = e2.peekByte();
@@ -25214,7 +25214,7 @@ var init_pdfjs = __esm({
           }
         } else {
           let n2 = 1024, r2 = mo.length, i2 = false, a2 = e2.end;
-          for (; !i2 && a2 > 0; ) a2 -= n2 - r2, a2 < 0 && (a2 = 0), e2.pos = a2, i2 = find2(e2, mo, n2, true);
+          for (; !i2 && a2 > 0; ) a2 -= n2 - r2, a2 < 0 && (a2 = 0), e2.pos = a2, i2 = find(e2, mo, n2, true);
           if (i2) {
             e2.skip(9);
             let n3;
@@ -25230,7 +25230,7 @@ var init_pdfjs = __esm({
       }
       checkHeader() {
         let e2 = this.stream;
-        if (e2.reset(), !find2(e2, po)) return;
+        if (e2.reset(), !find(e2, po)) return;
         e2.moveStart(), e2.skip(po.length);
         let t2 = ``, n2;
         for (; (n2 = e2.getByte()) > 32 && t2.length < 7; ) t2 += String.fromCharCode(n2);
@@ -39533,1377 +39533,21 @@ import { fileURLToPath } from "node:url";
 // src/files.ts
 import { createHash } from "node:crypto";
 
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/StringScanner.js
-var emptyString = "";
-var surrogatePair = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
-var StringScanner = class {
-  constructor(string) {
-    this.charCount = this.charLength(string, true);
-    this.charIndex = 0;
-    this.length = string.length;
-    this.multiByteMode = this.charCount !== this.length;
-    this.string = string;
-    if (this.multiByteMode) {
-      let charsToBytes = [];
-      for (let byteIndex = 0, charIndex = 0; charIndex < this.charCount; ++charIndex) {
-        charsToBytes[charIndex] = byteIndex;
-        byteIndex += string.codePointAt(byteIndex) > 65535 ? 2 : 1;
-      }
-      this.charsToBytes = charsToBytes;
-    }
-  }
-  /**
-   * Whether the current character index is at the end of the input string.
-   */
-  get isEnd() {
-    return this.charIndex >= this.charCount;
-  }
-  // -- Protected Methods ------------------------------------------------------
-  /**
-   * Returns the number of characters in the given string, which may differ from
-   * the byte length if the string contains multibyte characters.
-   */
-  charLength(string, multiByteSafe = this.multiByteMode) {
-    return multiByteSafe ? string.replace(surrogatePair, "_").length : string.length;
-  }
-  // -- Public Methods ---------------------------------------------------------
-  /**
-   * Advances the scanner by the given number of characters, stopping if the end
-   * of the string is reached.
-   */
-  advance(count = 1) {
-    this.charIndex = Math.min(this.charCount, this.charIndex + count);
-  }
-  /**
-   * Returns the byte index of the given character index in the string. The two
-   * may differ in strings that contain multibyte characters.
-   */
-  charIndexToByteIndex(charIndex = this.charIndex) {
-    return this.multiByteMode ? this.charsToBytes[charIndex] ?? Infinity : charIndex;
-  }
-  /**
-   * Consumes and returns the given number of characters if possible, advancing
-   * the scanner and stopping if the end of the string is reached.
-   *
-   * If no characters could be consumed, an empty string will be returned.
-   */
-  consume(charCount = 1) {
-    let chars = this.peek(charCount);
-    this.advance(charCount);
-    return chars;
-  }
-  /**
-   * Consumes and returns the given number of bytes if possible, advancing the
-   * scanner and stopping if the end of the string is reached.
-   *
-   * It's up to the caller to ensure that the given byte count doesn't split a
-   * multibyte character.
-   *
-   * If no bytes could be consumed, an empty string will be returned.
-   */
-  consumeBytes(byteCount) {
-    let byteIndex = this.charIndexToByteIndex();
-    let result = this.string.slice(byteIndex, byteIndex + byteCount);
-    this.advance(this.charLength(result));
-    return result;
-  }
-  /**
-   * Consumes and returns all characters for which the given function returns
-   * `true`, stopping when `false` is returned or the end of the input is
-   * reached.
-   */
-  consumeMatchFn(fn2) {
-    let { length, multiByteMode, string } = this;
-    let startByteIndex = this.charIndexToByteIndex();
-    let endByteIndex = startByteIndex;
-    if (multiByteMode) {
-      while (endByteIndex < length) {
-        let char = string[endByteIndex];
-        let isSurrogatePair = char >= "\uD800" && char <= "\uDBFF";
-        if (isSurrogatePair) {
-          char += string[endByteIndex + 1];
-        }
-        if (!fn2(char)) {
-          break;
-        }
-        endByteIndex += isSurrogatePair ? 2 : 1;
-      }
-    } else {
-      while (endByteIndex < length && fn2(string[endByteIndex])) {
-        ++endByteIndex;
-      }
-    }
-    return this.consumeBytes(endByteIndex - startByteIndex);
-  }
-  /**
-   * Consumes the given string if it exists at the current character index, and
-   * advances the scanner.
-   *
-   * If the given string doesn't exist at the current character index, an empty
-   * string will be returned and the scanner will not be advanced.
-   */
-  consumeString(stringToConsume) {
-    let { length } = stringToConsume;
-    let byteIndex = this.charIndexToByteIndex();
-    if (stringToConsume === this.string.slice(byteIndex, byteIndex + length)) {
-      this.advance(length === 1 ? 1 : this.charLength(stringToConsume));
-      return stringToConsume;
-    }
-    return emptyString;
-  }
-  /**
-   * Consumes characters until the given global regex is matched, advancing the
-   * scanner up to (but not beyond) the beginning of the match. If the regex
-   * doesn't match, nothing will be consumed.
-   *
-   * Returns the consumed string, or an empty string if nothing was consumed.
-   */
-  consumeUntilMatch(regex) {
-    let matchByteIndex = this.string.slice(this.charIndexToByteIndex()).search(regex);
-    return matchByteIndex > 0 ? this.consumeBytes(matchByteIndex) : emptyString;
-  }
-  /**
-   * Consumes characters until the given string is found, advancing the scanner
-   * up to (but not beyond) that point. If the string is never found, nothing
-   * will be consumed.
-   *
-   * Returns the consumed string, or an empty string if nothing was consumed.
-   */
-  consumeUntilString(searchString) {
-    let byteIndex = this.charIndexToByteIndex();
-    let matchByteIndex = this.string.indexOf(searchString, byteIndex);
-    return matchByteIndex > 0 ? this.consumeBytes(matchByteIndex - byteIndex) : emptyString;
-  }
-  /**
-   * Returns the given number of characters starting at the current character
-   * index, without advancing the scanner and without exceeding the end of the
-   * input string.
-   */
-  peek(count = 1) {
-    let { charIndex, string } = this;
-    return this.multiByteMode ? string.slice(this.charIndexToByteIndex(charIndex), this.charIndexToByteIndex(charIndex + count)) : string.slice(charIndex, charIndex + count);
-  }
-  /**
-   * Resets the scanner position to the given character _index_, or to the start
-   * of the input string if no index is given.
-   *
-   * If _index_ is negative, the scanner position will be moved backward by that
-   * many characters, stopping if the beginning of the string is reached.
-   */
-  reset(index = 0) {
-    this.charIndex = index >= 0 ? Math.min(this.charCount, index) : Math.max(0, this.charIndex + index);
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/syntax.js
-var attValueCharDoubleQuote = /["&<]/;
-var attValueCharSingleQuote = /['&<]/;
-var attValueNormalizedWhitespace = /\r\n|[\n\r\t]/g;
-var endCharData = /<|&|]]>/;
-var predefinedEntities = Object.freeze(Object.assign(/* @__PURE__ */ Object.create(null), {
-  amp: "&",
-  apos: "'",
-  gt: ">",
-  lt: "<",
-  quot: '"'
-}));
-function isNameChar(char) {
-  let cp = char.codePointAt(0);
-  return cp >= 97 && cp <= 122 || cp >= 65 && cp <= 90 || cp >= 48 && cp <= 57 || cp === 45 || cp === 46 || cp === 183 || cp >= 768 && cp <= 879 || cp === 8255 || cp === 8256 || isNameStartChar(char, cp);
-}
-function isNameStartChar(char, cp = char.codePointAt(0)) {
-  return cp >= 97 && cp <= 122 || cp >= 65 && cp <= 90 || cp === 58 || cp === 95 || cp >= 192 && cp <= 214 || cp >= 216 && cp <= 246 || cp >= 248 && cp <= 767 || cp >= 880 && cp <= 893 || cp >= 895 && cp <= 8191 || cp === 8204 || cp === 8205 || cp >= 8304 && cp <= 8591 || cp >= 11264 && cp <= 12271 || cp >= 12289 && cp <= 55295 || cp >= 63744 && cp <= 64975 || cp >= 65008 && cp <= 65533 || cp >= 65536 && cp <= 983039;
-}
-function isReferenceChar(char) {
-  return char === "#" || isNameChar(char);
-}
-function isWhitespace(char) {
-  let cp = char.codePointAt(0);
-  return cp === 32 || cp === 9 || cp === 10 || cp === 13;
-}
-function isXmlCodePoint(cp) {
-  return cp >= 32 && cp <= 55295 || cp === 10 || cp === 9 || cp === 13 || cp >= 57344 && cp <= 65533 || cp >= 65536 && cp <= 1114111;
-}
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlNode.js
-var XmlNode = class _XmlNode {
-  constructor() {
-    this.parent = null;
-    this.start = -1;
-    this.end = -1;
-  }
-  /**
-   * Document that contains this node, or `null` if this node is not associated
-   * with a document.
-   */
-  get document() {
-    return this.parent?.document ?? null;
-  }
-  /**
-   * Whether this node is the root node of the document (also known as the
-   * document element).
-   */
-  get isRootNode() {
-    return this.parent !== null && this.parent === this.document && this.type === _XmlNode.TYPE_ELEMENT;
-  }
-  /**
-   * Whether whitespace should be preserved in the content of this element and
-   * its children.
-   *
-   * This is influenced by the value of the special `xml:space` attribute, and
-   * will be `true` for any node whose `xml:space` attribute is set to
-   * "preserve". If a node has no such attribute, it will inherit the value of
-   * the nearest ancestor that does (if any).
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-white-space
-   */
-  get preserveWhitespace() {
-    return !!this.parent?.preserveWhitespace;
-  }
-  /**
-   * Type of this node.
-   *
-   * The value of this property is a string that matches one of the static
-   * `TYPE_*` properties on the `XmlNode` class (e.g. `TYPE_ELEMENT`,
-   * `TYPE_TEXT`, etc.).
-   *
-   * The `XmlNode` class itself is a base class and doesn't have its own type
-   * name.
-   */
-  get type() {
-    return "";
-  }
-  /**
-   * Returns a JSON-serializable object representing this node, minus properties
-   * that could result in circular references.
-   */
-  toJSON() {
-    let json = {
-      type: this.type
-    };
-    if (this.isRootNode) {
-      json.isRootNode = true;
-    }
-    if (this.preserveWhitespace) {
-      json.preserveWhitespace = true;
-    }
-    if (this.start !== -1) {
-      json.start = this.start;
-      json.end = this.end;
-    }
-    return json;
-  }
-};
-XmlNode.TYPE_CDATA = "cdata";
-XmlNode.TYPE_COMMENT = "comment";
-XmlNode.TYPE_DOCUMENT = "document";
-XmlNode.TYPE_DOCUMENT_TYPE = "doctype";
-XmlNode.TYPE_ELEMENT = "element";
-XmlNode.TYPE_PROCESSING_INSTRUCTION = "pi";
-XmlNode.TYPE_TEXT = "text";
-XmlNode.TYPE_XML_DECLARATION = "xmldecl";
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlText.js
-var XmlText = class extends XmlNode {
-  constructor(text2 = "") {
-    super();
-    this.text = text2;
-  }
-  get type() {
-    return XmlNode.TYPE_TEXT;
-  }
-  toJSON() {
-    return Object.assign(XmlNode.prototype.toJSON.call(this), {
-      text: this.text
-    });
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlCdata.js
-var XmlCdata = class extends XmlText {
-  get type() {
-    return XmlNode.TYPE_CDATA;
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlComment.js
-var XmlComment = class extends XmlNode {
-  constructor(content = "") {
-    super();
-    this.content = content;
-  }
-  get type() {
-    return XmlNode.TYPE_COMMENT;
-  }
-  toJSON() {
-    return Object.assign(XmlNode.prototype.toJSON.call(this), {
-      content: this.content
-    });
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlDeclaration.js
-var XmlDeclaration = class extends XmlNode {
-  constructor(version, encoding, standalone) {
-    super();
-    this.version = version;
-    this.encoding = encoding ?? null;
-    this.standalone = standalone ?? null;
-  }
-  get type() {
-    return XmlNode.TYPE_XML_DECLARATION;
-  }
-  toJSON() {
-    let json = XmlNode.prototype.toJSON.call(this);
-    json.version = this.version;
-    for (let key of ["encoding", "standalone"]) {
-      if (this[key] !== null) {
-        json[key] = this[key];
-      }
-    }
-    return json;
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlElement.js
-var XmlElement = class _XmlElement extends XmlNode {
-  constructor(name, attributes = /* @__PURE__ */ Object.create(null), children2 = []) {
-    super();
-    this.name = name;
-    this.attributes = attributes;
-    this.children = children2;
-  }
-  /**
-   * Whether this element is empty (meaning it has no children).
-   */
-  get isEmpty() {
-    return this.children.length === 0;
-  }
-  get preserveWhitespace() {
-    let node = this;
-    while (node instanceof _XmlElement) {
-      if ("xml:space" in node.attributes) {
-        return node.attributes["xml:space"] === "preserve";
-      }
-      node = node.parent;
-    }
-    return false;
-  }
-  /**
-   * Text content of this element and all its descendants.
-   */
-  get text() {
-    return this.children.map((child) => "text" in child ? child.text : "").join("");
-  }
-  get type() {
-    return XmlNode.TYPE_ELEMENT;
-  }
-  toJSON() {
-    return Object.assign(XmlNode.prototype.toJSON.call(this), {
-      name: this.name,
-      attributes: this.attributes,
-      children: this.children.map((child) => child.toJSON())
-    });
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlDocument.js
-var XmlDocument = class extends XmlNode {
-  constructor(children2 = []) {
-    super();
-    this.children = children2;
-  }
-  get document() {
-    return this;
-  }
-  /**
-   * Root element of this document, or `null` if this document is empty.
-   */
-  get root() {
-    for (let child of this.children) {
-      if (child instanceof XmlElement) {
-        return child;
-      }
-    }
-    return null;
-  }
-  /**
-   * Text content of this document and all its descendants.
-   */
-  get text() {
-    return this.children.map((child) => "text" in child ? child.text : "").join("");
-  }
-  get type() {
-    return XmlNode.TYPE_DOCUMENT;
-  }
-  toJSON() {
-    return Object.assign(XmlNode.prototype.toJSON.call(this), {
-      children: this.children.map((child) => child.toJSON())
-    });
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlDocumentType.js
-var XmlDocumentType = class extends XmlNode {
-  constructor(name, publicId, systemId, internalSubset) {
-    super();
-    this.name = name;
-    this.publicId = publicId ?? null;
-    this.systemId = systemId ?? null;
-    this.internalSubset = internalSubset ?? null;
-  }
-  get type() {
-    return XmlNode.TYPE_DOCUMENT_TYPE;
-  }
-  toJSON() {
-    let json = XmlNode.prototype.toJSON.call(this);
-    json.name = this.name;
-    for (let key of ["publicId", "systemId", "internalSubset"]) {
-      if (this[key] !== null) {
-        json[key] = this[key];
-      }
-    }
-    return json;
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlError.js
-var XmlError = class extends Error {
-  constructor(message, charIndex, xml) {
-    let column = 1;
-    let excerpt = "";
-    let line = 1;
-    for (let i2 = 0; i2 < charIndex; ++i2) {
-      let char = xml[i2];
-      if (char === "\n") {
-        column = 1;
-        excerpt = "";
-        line += 1;
-      } else {
-        column += 1;
-        excerpt += char;
-      }
-    }
-    let eol = xml.indexOf("\n", charIndex);
-    excerpt += eol === -1 ? xml.slice(charIndex) : xml.slice(charIndex, eol);
-    let excerptStart = 0;
-    if (excerpt.length > 50) {
-      if (column < 40) {
-        excerpt = excerpt.slice(0, 50);
-      } else {
-        excerptStart = column - 20;
-        excerpt = excerpt.slice(excerptStart, column + 30);
-      }
-    }
-    super(`${message} (line ${line}, column ${column})
-  ${excerpt}
-` + " ".repeat(column - excerptStart + 1) + "^\n");
-    this.column = column;
-    this.excerpt = excerpt;
-    this.line = line;
-    this.name = "XmlError";
-    this.pos = charIndex;
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/XmlProcessingInstruction.js
-var XmlProcessingInstruction = class extends XmlNode {
-  constructor(name, content = "") {
-    super();
-    this.name = name;
-    this.content = content;
-  }
-  get type() {
-    return XmlNode.TYPE_PROCESSING_INSTRUCTION;
-  }
-  toJSON() {
-    return Object.assign(XmlNode.prototype.toJSON.call(this), {
-      name: this.name,
-      content: this.content
-    });
-  }
-};
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/lib/Parser.js
-var emptyString2 = "";
-var Parser = class {
-  /**
-   * @param xml XML string to parse.
-   * @param options Parser options.
-   */
-  constructor(xml, options = {}) {
-    let doc = this.document = new XmlDocument();
-    this.currentNode = doc;
-    this.options = options;
-    this.scanner = new StringScanner(xml);
-    if (this.options.includeOffsets) {
-      doc.start = 0;
-      doc.end = xml.length;
-    }
-    this.parse();
-  }
-  /**
-   * Adds the given `XmlNode` as a child of `this.currentNode`.
-   */
-  addNode(node, charIndex) {
-    node.parent = this.currentNode;
-    if (this.options.includeOffsets) {
-      node.start = this.scanner.charIndexToByteIndex(charIndex);
-      node.end = this.scanner.charIndexToByteIndex();
-    }
-    this.currentNode.children.push(node);
-    return true;
-  }
-  /**
-   * Adds the given _text_ to the document, either by appending it to a
-   * preceding `XmlText` node (if possible) or by creating a new `XmlText` node.
-   *
-   * When _normalize_ is `true` (the default), line breaks in _text_ are
-   * normalized per section 2.11 of the XML spec. This must be `false` for text
-   * that comes from a character or entity reference, since references aren't
-   * subject to line break normalization.
-   */
-  addText(text2, charIndex, normalize = true) {
-    let { children: children2 } = this.currentNode;
-    let { length } = children2;
-    if (normalize) {
-      text2 = normalizeLineBreaks(text2);
-    }
-    if (length > 0) {
-      let prevNode = children2[length - 1];
-      if (prevNode?.type === XmlNode.TYPE_TEXT) {
-        let textNode = prevNode;
-        textNode.text += text2;
-        if (this.options.includeOffsets) {
-          textNode.end = this.scanner.charIndexToByteIndex();
-        }
-        return true;
-      }
-    }
-    return this.addNode(new XmlText(text2), charIndex);
-  }
-  /**
-   * Consumes element attributes.
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-starttags
-   */
-  consumeAttributes() {
-    let attributes = /* @__PURE__ */ Object.create(null);
-    while (this.consumeWhitespace()) {
-      let attrName = this.consumeName();
-      if (!attrName) {
-        break;
-      }
-      let attrValue = this.consumeEqual() && this.consumeAttributeValue();
-      if (attrValue === false) {
-        throw this.error("Attribute value expected");
-      }
-      if (attrName in attributes) {
-        throw this.error(`Duplicate attribute: ${attrName}`);
-      }
-      if (attrName === "xml:space" && attrValue !== "default" && attrValue !== "preserve") {
-        throw this.error('Value of the `xml:space` attribute must be "default" or "preserve"');
-      }
-      attributes[attrName] = attrValue;
-    }
-    if (this.options.sortAttributes) {
-      let attrNames = Object.keys(attributes).sort();
-      let sortedAttributes = /* @__PURE__ */ Object.create(null);
-      for (let i2 = 0; i2 < attrNames.length; ++i2) {
-        let attrName = attrNames[i2];
-        sortedAttributes[attrName] = attributes[attrName];
-      }
-      attributes = sortedAttributes;
-    }
-    return attributes;
-  }
-  /**
-   * Consumes an `AttValue` (attribute value) if possible.
-   *
-   * @returns
-   *   Contents of the `AttValue` minus quotes, or `false` if nothing was
-   *   consumed. An empty string indicates that an `AttValue` was consumed but
-   *   was empty.
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-AttValue
-   */
-  consumeAttributeValue() {
-    let { scanner } = this;
-    let quote = scanner.peek();
-    if (quote !== '"' && quote !== "'") {
-      return false;
-    }
-    scanner.advance();
-    let chars;
-    let isClosed = false;
-    let value = emptyString2;
-    let regex = quote === '"' ? attValueCharDoubleQuote : attValueCharSingleQuote;
-    matchLoop: while (!scanner.isEnd) {
-      chars = scanner.consumeUntilMatch(regex);
-      if (chars) {
-        this.validateChars(chars);
-        value += chars.replace(attValueNormalizedWhitespace, " ");
-      }
-      switch (scanner.peek()) {
-        case quote:
-          isClosed = true;
-          break matchLoop;
-        case "&":
-          value += this.consumeReference();
-          continue;
-        case "<":
-          throw this.error("Unescaped `<` is not allowed in an attribute value");
-        default:
-          break matchLoop;
-      }
-    }
-    if (!isClosed) {
-      throw this.error("Unclosed attribute");
-    }
-    scanner.advance();
-    return value;
-  }
-  /**
-   * Consumes a CDATA section if possible.
-   *
-   * @returns Whether a CDATA section was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-cdata-sect
-   */
-  consumeCdataSection() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<![CDATA[")) {
-      return false;
-    }
-    let text2 = scanner.consumeUntilString("]]>");
-    this.validateChars(text2);
-    if (!scanner.consumeString("]]>")) {
-      throw this.error("Unclosed CDATA section");
-    }
-    return this.options.preserveCdata ? this.addNode(new XmlCdata(normalizeLineBreaks(text2)), startIndex) : this.addText(text2, startIndex);
-  }
-  /**
-   * Consumes character data if possible.
-   *
-   * @returns Whether character data was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#dt-chardata
-   */
-  consumeCharData() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    let charData = scanner.consumeUntilMatch(endCharData);
-    if (!charData) {
-      return false;
-    }
-    this.validateChars(charData);
-    if (scanner.peek(3) === "]]>") {
-      throw this.error("Element content may not contain the CDATA section close delimiter `]]>`");
-    }
-    return this.addText(charData, startIndex);
-  }
-  /**
-   * Consumes a comment if possible.
-   *
-   * @returns Whether a comment was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Comment
-   */
-  consumeComment() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<!--")) {
-      return false;
-    }
-    let content = scanner.consumeUntilString("--");
-    this.validateChars(content);
-    if (!scanner.consumeString("-->")) {
-      if (scanner.peek(2) === "--") {
-        throw this.error("The string `--` isn't allowed inside a comment");
-      }
-      throw this.error("Unclosed comment");
-    }
-    return this.options.preserveComments ? this.addNode(new XmlComment(normalizeLineBreaks(content)), startIndex) : true;
-  }
-  /**
-   * Consumes a reference in a content context if possible.
-   *
-   * This differs from `consumeReference()` in that a consumed reference will be
-   * added to the document as a text node instead of returned.
-   *
-   * @returns Whether a reference was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#entproc
-   */
-  consumeContentReference() {
-    let startIndex = this.scanner.charIndex;
-    let ref = this.consumeReference();
-    return ref ? this.addText(ref, startIndex, false) : false;
-  }
-  /**
-   * Consumes a doctype declaration if possible.
-   *
-   * This is a loose implementation since doctype declarations are currently
-   * discarded without further parsing.
-   *
-   * @returns Whether a doctype declaration was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#dtd
-   */
-  consumeDoctypeDeclaration() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<!DOCTYPE")) {
-      return false;
-    }
-    let name = this.consumeWhitespace() && this.consumeName();
-    if (!name) {
-      throw this.error("Expected a name");
-    }
-    let publicId;
-    let systemId;
-    if (this.consumeWhitespace()) {
-      if (scanner.consumeString("PUBLIC")) {
-        publicId = this.consumeWhitespace() && this.consumePubidLiteral();
-        if (publicId === false) {
-          throw this.error("Expected a public identifier");
-        }
-        this.consumeWhitespace();
-      }
-      if (publicId !== void 0 || scanner.consumeString("SYSTEM")) {
-        this.consumeWhitespace();
-        systemId = this.consumeSystemLiteral();
-        if (systemId === false) {
-          throw this.error("Expected a system identifier");
-        }
-        this.consumeWhitespace();
-      }
-    }
-    let internalSubset;
-    if (scanner.consumeString("[")) {
-      internalSubset = scanner.consumeUntilMatch(/\][\x20\t\r\n]*>/);
-      if (!scanner.consumeString("]")) {
-        throw this.error("Unclosed internal subset");
-      }
-      this.consumeWhitespace();
-    }
-    if (!scanner.consumeString(">")) {
-      throw this.error("Unclosed doctype declaration");
-    }
-    return this.options.preserveDocumentType ? this.addNode(new XmlDocumentType(name, publicId, systemId, internalSubset), startIndex) : true;
-  }
-  /**
-   * Consumes an element if possible.
-   *
-   * @returns Whether an element was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-element
-   */
-  consumeElement() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<")) {
-      return false;
-    }
-    let name = this.consumeName();
-    if (!name) {
-      scanner.reset(startIndex);
-      return false;
-    }
-    let attributes = this.consumeAttributes();
-    let isEmpty = !!scanner.consumeString("/>");
-    let element = new XmlElement(name, attributes);
-    element.parent = this.currentNode;
-    if (!isEmpty) {
-      if (!scanner.consumeString(">")) {
-        throw this.error(`Unclosed start tag for element \`${name}\``);
-      }
-      this.currentNode = element;
-      do {
-        this.consumeCharData();
-      } while (this.consumeElement() || this.consumeContentReference() || this.consumeCdataSection() || this.consumeProcessingInstruction() || this.consumeComment());
-      let endTagMark = scanner.charIndex;
-      let endTagName;
-      if (!scanner.consumeString("</") || !(endTagName = this.consumeName()) || endTagName !== name) {
-        scanner.reset(endTagMark);
-        throw this.error(`Missing end tag for element ${name}`);
-      }
-      this.consumeWhitespace();
-      if (!scanner.consumeString(">")) {
-        throw this.error(`Unclosed end tag for element ${name}`);
-      }
-      this.currentNode = element.parent;
-    }
-    return this.addNode(element, startIndex);
-  }
-  /**
-   * Consumes an `Eq` production if possible.
-   *
-   * @returns Whether an `Eq` production was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Eq
-   */
-  consumeEqual() {
-    this.consumeWhitespace();
-    if (this.scanner.consumeString("=")) {
-      this.consumeWhitespace();
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Consumes `Misc` content if possible.
-   *
-   * @returns Whether anything was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Misc
-   */
-  consumeMisc() {
-    return this.consumeComment() || this.consumeProcessingInstruction() || this.consumeWhitespace();
-  }
-  /**
-   * Consumes one or more `Name` characters if possible.
-   *
-   * @returns `Name` characters, or an empty string if none were consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Name
-   */
-  consumeName() {
-    return isNameStartChar(this.scanner.peek()) ? this.scanner.consumeMatchFn(isNameChar) : emptyString2;
-  }
-  /**
-   * Consumes a processing instruction if possible.
-   *
-   * @returns Whether a processing instruction was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-pi
-   */
-  consumeProcessingInstruction() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<?")) {
-      return false;
-    }
-    let name = this.consumeName();
-    if (name) {
-      if (name.toLowerCase() === "xml") {
-        scanner.reset(startIndex);
-        throw this.error("XML declaration isn't allowed here");
-      }
-    } else {
-      throw this.error("Invalid processing instruction");
-    }
-    if (!this.consumeWhitespace()) {
-      if (scanner.consumeString("?>")) {
-        return this.addNode(new XmlProcessingInstruction(name), startIndex);
-      }
-      throw this.error("Whitespace is required after a processing instruction name");
-    }
-    let content = scanner.consumeUntilString("?>");
-    this.validateChars(content);
-    if (!scanner.consumeString("?>")) {
-      throw this.error("Unterminated processing instruction");
-    }
-    return this.addNode(new XmlProcessingInstruction(name, normalizeLineBreaks(content)), startIndex);
-  }
-  /**
-   * Consumes a prolog if possible.
-   *
-   * @returns Whether a prolog was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-prolog-dtd
-   */
-  consumeProlog() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    this.consumeXmlDeclaration();
-    while (this.consumeMisc()) {
-    }
-    if (this.consumeDoctypeDeclaration()) {
-      while (this.consumeMisc()) {
-      }
-    }
-    return startIndex < scanner.charIndex;
-  }
-  /**
-   * Consumes a public identifier literal if possible.
-   *
-   * @returns
-   *   Value of the public identifier literal minus quotes, or `false` if
-   *   nothing was consumed. An empty string indicates that a public id literal
-   *   was consumed but was empty.
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-PubidLiteral
-   */
-  consumePubidLiteral() {
-    let startIndex = this.scanner.charIndex;
-    let value = this.consumeSystemLiteral();
-    if (value !== false && !/^[-\x20\r\na-zA-Z0-9'()+,./:=?;!*#@$_%]*$/.test(value)) {
-      this.scanner.reset(startIndex);
-      throw this.error("Invalid character in public identifier");
-    }
-    return value;
-  }
-  /**
-   * Consumes a reference if possible.
-   *
-   * This differs from `consumeContentReference()` in that a consumed reference
-   * will be returned rather than added to the document.
-   *
-   * @returns
-   *   Parsed reference value, or `false` if nothing was consumed (to
-   *   distinguish from a reference that resolves to an empty string).
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Reference
-   */
-  consumeReference() {
-    let { scanner } = this;
-    if (!scanner.consumeString("&")) {
-      return false;
-    }
-    let ref = scanner.consumeMatchFn(isReferenceChar);
-    if (scanner.consume() !== ";") {
-      throw this.error("Unterminated reference (a reference must end with `;`)");
-    }
-    let parsedValue;
-    if (ref[0] === "#") {
-      let codePoint = ref[1] === "x" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
-      if (isNaN(codePoint) || !/^#(?:x[0-9A-Fa-f]+|[0-9]+)$/.test(ref)) {
-        throw this.error("Invalid character reference");
-      }
-      if (!isXmlCodePoint(codePoint)) {
-        throw this.error("Character reference resolves to an invalid character");
-      }
-      parsedValue = String.fromCodePoint(codePoint);
-    } else {
-      parsedValue = predefinedEntities[ref];
-      if (parsedValue === void 0) {
-        let { ignoreUndefinedEntities, resolveUndefinedEntity } = this.options;
-        let wrappedRef = `&${ref};`;
-        if (resolveUndefinedEntity) {
-          let resolvedValue = resolveUndefinedEntity(wrappedRef);
-          if (resolvedValue !== null && resolvedValue !== void 0) {
-            let type = typeof resolvedValue;
-            if (type !== "string") {
-              throw new TypeError(`\`resolveUndefinedEntity()\` must return a string, \`null\`, or \`undefined\`, but returned a value of type ${type}`);
-            }
-            return resolvedValue;
-          }
-        }
-        if (ignoreUndefinedEntities) {
-          return wrappedRef;
-        }
-        scanner.reset(-wrappedRef.length);
-        throw this.error(`Named entity isn't defined: ${wrappedRef}`);
-      }
-    }
-    return parsedValue;
-  }
-  /**
-   * Consumes a `SystemLiteral` if possible.
-   *
-   * A `SystemLiteral` is similar to an attribute value, but allows the
-   * characters `<` and `&` and doesn't replace references.
-   *
-   * @returns
-   *   Value of the `SystemLiteral` minus quotes, or `false` if nothing was
-   *   consumed. An empty string indicates that a `SystemLiteral` was consumed
-   *   but was empty.
-   *
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-SystemLiteral
-   */
-  consumeSystemLiteral() {
-    let { scanner } = this;
-    let quote = scanner.consumeString('"') || scanner.consumeString("'");
-    if (!quote) {
-      return false;
-    }
-    let value = scanner.consumeUntilString(quote);
-    this.validateChars(value);
-    if (!scanner.consumeString(quote)) {
-      throw this.error("Missing end quote");
-    }
-    return value;
-  }
-  /**
-   * Consumes one or more whitespace characters if possible.
-   *
-   * @returns Whether any whitespace characters were consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#white
-   */
-  consumeWhitespace() {
-    return !!this.scanner.consumeMatchFn(isWhitespace);
-  }
-  /**
-   * Consumes an XML declaration if possible.
-   *
-   * @returns Whether an XML declaration was consumed.
-   * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-XMLDecl
-   */
-  consumeXmlDeclaration() {
-    let { scanner } = this;
-    let startIndex = scanner.charIndex;
-    if (!scanner.consumeString("<?xml")) {
-      return false;
-    }
-    if (isNameChar(scanner.peek())) {
-      scanner.reset(startIndex);
-      return false;
-    }
-    if (!this.consumeWhitespace()) {
-      throw this.error("Invalid XML declaration");
-    }
-    let version = !!scanner.consumeString("version") && this.consumeEqual() && this.consumeSystemLiteral();
-    if (version === false) {
-      throw this.error("XML version is missing or invalid");
-    } else if (!/^1\.[0-9]+$/.test(version)) {
-      throw this.error("Invalid character in version number");
-    }
-    let encoding;
-    let standalone;
-    if (this.consumeWhitespace()) {
-      encoding = !!scanner.consumeString("encoding") && this.consumeEqual() && this.consumeSystemLiteral();
-      if (encoding) {
-        if (!/^[A-Za-z][\w.-]*$/.test(encoding)) {
-          throw this.error("Invalid character in encoding name");
-        }
-        this.consumeWhitespace();
-      }
-      standalone = !!scanner.consumeString("standalone") && this.consumeEqual() && this.consumeSystemLiteral();
-      if (standalone) {
-        if (standalone !== "yes" && standalone !== "no") {
-          throw this.error('Only "yes" and "no" are permitted as values of `standalone`');
-        }
-        this.consumeWhitespace();
-      }
-    }
-    if (!scanner.consumeString("?>")) {
-      throw this.error("Invalid or unclosed XML declaration");
-    }
-    return this.options.preserveXmlDeclaration ? this.addNode(new XmlDeclaration(version, encoding || void 0, standalone || void 0), startIndex) : true;
-  }
-  /**
-   * Returns an `XmlError` for the current scanner position.
-   */
-  error(message) {
-    let { scanner } = this;
-    return new XmlError(message, scanner.charIndex, scanner.string);
-  }
-  /**
-   * Parses the XML input.
-   */
-  parse() {
-    this.scanner.consumeString("\uFEFF");
-    this.consumeProlog();
-    if (!this.consumeElement()) {
-      throw this.error("Root element is missing or invalid");
-    }
-    while (this.consumeMisc()) {
-    }
-    if (!this.scanner.isEnd) {
-      throw this.error("Extra content at the end of the document");
-    }
-  }
-  /**
-   * Throws an invalid character error if any character in the given _string_
-   * isn't a valid XML character.
-   */
-  validateChars(string) {
-    let { length } = string;
-    for (let i2 = 0; i2 < length; ++i2) {
-      let cp = string.codePointAt(i2);
-      if (!isXmlCodePoint(cp)) {
-        this.scanner.reset(-([...string].length - i2));
-        throw this.error("Invalid character");
-      }
-      if (cp > 65535) {
-        i2 += 1;
-      }
-    }
-  }
-};
-function normalizeLineBreaks(text2) {
-  let i2 = 0;
-  while ((i2 = text2.indexOf("\r", i2)) !== -1) {
-    text2 = text2[i2 + 1] === "\n" ? text2.slice(0, i2) + text2.slice(i2 + 1) : text2.slice(0, i2) + "\n" + text2.slice(i2 + 1);
-  }
-  return text2;
-}
-
-// ../../cloudflare/node_modules/@rgrove/parse-xml/dist/index.js
-function parseXml(xml, options) {
-  return new Parser(xml, options).document;
-}
-
 // ../../cloudflare/src/papers/identifiers.ts
 var ARXIV_ID = /(?:arXiv\s*:\s*|arxiv\s*\.\s*org\s*\/\s*abs\s*\/\s*)((?:\d{4}\s*\.\s*\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\s*\/\s*\d{7})(?:v\d+)?)/i;
 var DOI = /10\.\d{4,9}\/[^\s\])>"]+/gi;
-function extractDoi(text2) {
+function extractDoi(text) {
   let fallback = null;
-  for (const match of text2.matchAll(DOI)) {
+  for (const match of text.matchAll(DOI)) {
     const candidate = match[0].replace(/[.,;:]+$/, "");
     fallback = fallback ?? candidate;
     if (/\d/.test(candidate.split("/", 2)[1] ?? "")) return candidate;
   }
   return fallback;
 }
-function extractArxivId(text2) {
-  const match = ARXIV_ID.exec(text2);
+function extractArxivId(text) {
+  const match = ARXIV_ID.exec(text);
   return match ? match[1].replace(/\s+/g, "") : null;
-}
-
-// ../../cloudflare/src/papers/tei.ts
-var isElement = (node) => node instanceof XmlElement;
-function* descendants(node, name) {
-  for (const child of node.children) {
-    if (!isElement(child)) continue;
-    if (!name || child.name === name) yield child;
-    yield* descendants(child, name);
-  }
-}
-function children(node, name) {
-  return node ? node.children.filter((c2) => isElement(c2) && c2.name === name) : [];
-}
-function find(node, path) {
-  let current = node;
-  for (const step of path) {
-    current = children(current, step.name).find((c2) => !step.attr || c2.attributes[step.attr[0]] === step.attr[1]) ?? null;
-    if (!current) return null;
-  }
-  return current;
-}
-function text(node) {
-  if (!node) return null;
-  const words = node.text.split(/\s+/).filter(Boolean).join(" ");
-  return words || null;
-}
-function ownText(node) {
-  if (!node) return null;
-  const own = node.children.filter((c2) => c2 instanceof XmlText).map((c2) => c2.text).join("");
-  const words = own.split(/\s+/).filter(Boolean).join(" ");
-  return words || null;
-}
-function parse(xml) {
-  const root = parseXml(xml).root;
-  if (!root) throw new Error("GROBID returned no document");
-  return root;
-}
-var SMALL_WORDS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via", "with", "without", "yet"]);
-function normalizeTitle(title) {
-  if (!title) return title;
-  const letters2 = title.replace(/[^A-Za-z]/g, "");
-  if (!letters2 || letters2 !== letters2.toUpperCase()) return title;
-  const parts = title.match(/[A-Za-z]+|[^A-Za-z]+/g) ?? [];
-  const wordIndexes = parts.map((p2, i2) => /^[A-Za-z]+$/.test(p2) ? i2 : -1).filter((i2) => i2 >= 0);
-  const first = wordIndexes[0], last = wordIndexes[wordIndexes.length - 1];
-  let afterColon = false;
-  parts.forEach((part, index) => {
-    if (!/^[A-Za-z]+$/.test(part)) {
-      if (part.includes(":")) afterColon = true;
-      return;
-    }
-    const lower = part.toLowerCase();
-    if (SMALL_WORDS.has(lower) && index !== first && index !== last && !afterColon) parts[index] = lower;
-    else if (part.length <= 4 && !SMALL_WORDS.has(lower)) parts[index] = part;
-    else if (index === first && part.startsWith("X") && part.length > 5) parts[index] = "X" + lower[1].toUpperCase() + lower.slice(2);
-    else parts[index] = lower[0].toUpperCase() + lower.slice(1);
-    afterColon = false;
-  });
-  return parts.join("");
-}
-function personName(person) {
-  const parts = [...descendants(person)].filter((p2) => p2.name === "forename" || p2.name === "surname").map(text).filter(Boolean);
-  return parts.length ? parts.join(" ") : null;
-}
-function parseHeader(xml) {
-  const root = parse(xml);
-  const bibl = [...descendants(root, "sourceDesc")].map((s2) => children(s2, "biblStruct")[0]).find(Boolean) ?? null;
-  if (!bibl) throw new Error("GROBID returned no bibliographic header");
-  const title = normalizeTitle(text(find(bibl, [{ name: "analytic" }, { name: "title", attr: ["type", "main"] }])));
-  const authors = children(find(bibl, [{ name: "analytic" }]), "author").map((a2) => {
-    const person = children(a2, "persName")[0];
-    return person ? [...person.children].filter((p2) => isElement(p2) && (p2.name === "forename" || p2.name === "surname")).map(text).filter(Boolean).join(" ") : "";
-  }).filter(Boolean);
-  const journal = text(find(bibl, [{ name: "monogr" }, { name: "title", attr: ["level", "j"] }]));
-  const when = find(bibl, [{ name: "monogr" }, { name: "imprint" }, { name: "date" }])?.attributes.when;
-  const year = when && /^\d{4}/.test(when) ? Number(when.slice(0, 4)) : null;
-  const { doi, arxiv } = identifiers(bibl);
-  return { title, authors, journal, year, doi, arxiv_id: arxiv };
-}
-function identifiers(bibl) {
-  let doi = null, arxiv = null;
-  for (const idno of descendants(bibl, "idno")) {
-    const kind = (idno.attributes.type ?? "").toLowerCase(), value = text(idno);
-    if (!value) continue;
-    if (kind === "doi" && !doi) doi = value.toLowerCase().replace(/^https?:\/\/(dx\.)?doi\.org\//, "");
-    else if (kind === "arxiv" && !arxiv) arxiv = value.replace(/^arxiv:\s*/i, "").trim();
-  }
-  return { doi, arxiv };
-}
-var MARKER_NUMBER = /[[(]\s*(\d{1,3})/;
-var EQUATION_NUMBER = /^\(\s*\d{1,3}\s*\)$/;
-var CROSS_REFERENCE_KIND = /\b(box|fig(?:ure)?|table)\s*$/i;
-var TARGET_HEADING = /^\s*(box|fig(?:ure)?|table)\s*([\w.-]+)/i;
-var FIGURE_PREFIX_EMS = 3;
-var EARLIEST_YEAR = 1500;
-var LATEST_YEAR = 2100;
-function boxes(coords, pages) {
-  const out = [];
-  for (const box of (coords ?? "").split(";")) {
-    const parts = box.split(",");
-    if (parts.length !== 5) continue;
-    const [page, x2, y2, w2, h2] = parts.map(Number);
-    if (!Number.isInteger(page) || [x2, y2, w2, h2].some(Number.isNaN)) continue;
-    const [width, height] = pages.get(page) ?? [0, 0];
-    if (!width || !height) continue;
-    out.push({ page, x: x2 / width, y: y2 / height, w: w2 / width, h: h2 / height });
-  }
-  return out;
-}
-function yearIn(...sources) {
-  for (const source of sources) {
-    for (const match of (source ?? "").matchAll(/\d{4}/g)) {
-      const year = Number(match[0]);
-      if (year >= EARLIEST_YEAR && year <= LATEST_YEAR) return year;
-    }
-  }
-  return null;
-}
-function referenceFrom(bibl, key, index, pages) {
-  const raw = text(children(bibl, "note").find((n2) => n2.attributes.type === "raw_reference") ?? null);
-  let title = text(find(bibl, [{ name: "analytic" }, { name: "title", attr: ["level", "a"] }]));
-  let proceedings = text(find(bibl, [{ name: "monogr" }, { name: "title", attr: ["level", "m"] }]));
-  if (!title) {
-    title = proceedings;
-    proceedings = null;
-  }
-  const journal = text(find(bibl, [{ name: "monogr" }, { name: "title", attr: ["level", "j"] }])) || proceedings || ownText(find(bibl, [{ name: "monogr" }, { name: "meeting" }]));
-  const authors = [...descendants(bibl, "persName")].map(personName).filter((n2) => Boolean(n2));
-  const date = find(bibl, [{ name: "monogr" }, { name: "imprint" }, { name: "date" }]) ?? [...descendants(bibl, "date")][0] ?? null;
-  const year = date ? yearIn(date.attributes.when, text(date)) : null;
-  const ids = identifiers(bibl);
-  const doi = ids.doi, arxiv = ids.arxiv ?? extractArxivId(raw ?? "");
-  const first = boxes(bibl.attributes.coords, pages)[0];
-  return { key, index, raw, title, authors, year, journal, doi, arxiv_id: arxiv, page: first?.page ?? null, y: first?.y ?? null };
-}
-function numberedTarget(label, references) {
-  const match = label.match(MARKER_NUMBER);
-  if (!match) return null;
-  const n2 = Number(match[1]);
-  return n2 >= 1 && n2 <= references.length ? references[n2 - 1].key : null;
-}
-function linkKind(value) {
-  const lower = value.toLowerCase();
-  return lower.startsWith("fig") ? "figure" : lower;
-}
-function precedingText(root) {
-  const prefixes = /* @__PURE__ */ new Map();
-  let preceding = "";
-  const visit = (element) => {
-    for (const child of element.children) {
-      if (child instanceof XmlText) preceding = (preceding + child.text).slice(-40);
-      else if (isElement(child)) {
-        prefixes.set(child, preceding);
-        visit(child);
-      }
-    }
-  };
-  visit(root);
-  return prefixes;
-}
-function parseTei(xml) {
-  const root = parse(xml);
-  const pages = /* @__PURE__ */ new Map();
-  for (const surface of descendants(root, "surface")) {
-    const n2 = Number(surface.attributes.n), lrx = Number(surface.attributes.lrx), lry = Number(surface.attributes.lry);
-    if (Number.isInteger(n2) && !Number.isNaN(lrx) && !Number.isNaN(lry)) pages.set(n2, [lrx, lry]);
-  }
-  const references = [];
-  const byKey = /* @__PURE__ */ new Set();
-  for (const bibl of descendants(root, "biblStruct")) {
-    const key = bibl.attributes["xml:id"];
-    if (!key) continue;
-    references.push(referenceFrom(bibl, key, references.length, pages));
-    byKey.add(key);
-  }
-  const markers = [...descendants(root, "ref")].filter((r2) => r2.attributes.type === "bibr");
-  const labels = markers.map((m2) => text(m2) ?? "");
-  const equations = labels.filter((l2) => EQUATION_NUMBER.test(l2)).length;
-  const bracketed = labels.filter((l2) => l2.includes("[") || l2.includes("]")).length;
-  const citesInBrackets = bracketed > equations;
-  const citations = [];
-  markers.forEach((marker, i2) => {
-    const label = labels[i2];
-    if (citesInBrackets && EQUATION_NUMBER.test(label)) return;
-    let target = (marker.attributes.target ?? "").replace(/^#/, "");
-    let inferred = false;
-    if (!byKey.has(target)) {
-      target = numberedTarget(label, references);
-      inferred = target !== null;
-    }
-    if (!target) return;
-    for (const box of boxes(marker.attributes.coords, pages)) citations.push({ key: target, label, inferred, ...box });
-  });
-  const floats = [];
-  const byId2 = /* @__PURE__ */ new Map();
-  const named = /* @__PURE__ */ new Map();
-  for (const figure of descendants(root, "figure")) {
-    const id = figure.attributes["xml:id"];
-    const found = boxes(figure.attributes.coords, pages);
-    if (!id || !found.length) continue;
-    const heading = [children(figure, "head")[0], children(figure, "label")[0]].map(text).filter(Boolean).join(" ");
-    const match = heading.match(TARGET_HEADING);
-    const float = { key: id, kind: match ? linkKind(match[1]) : "figure", label: match?.[2] ?? "", ...found[0] };
-    floats.push(float);
-    byId2.set(id, float);
-    if (match) named.set(`${float.kind}
-${float.label.toLowerCase()}`, float);
-  }
-  const prefixes = precedingText(root);
-  const links = [];
-  for (const marker of descendants(root, "ref")) {
-    if (marker.attributes.type !== "figure") continue;
-    const label = text(marker) ?? "";
-    const kindMatch = (prefixes.get(marker) ?? "").match(CROSS_REFERENCE_KIND);
-    const kind = kindMatch ? linkKind(kindMatch[1]) : "figure";
-    const target = named.get(`${kind}
-${label.toLowerCase()}`) ?? byId2.get((marker.attributes.target ?? "").replace(/^#/, ""));
-    if (!target) continue;
-    for (const box of boxes(marker.attributes.coords, pages)) {
-      const [pageWidth, pageHeight] = pages.get(box.page);
-      const prefix = Math.min(box.x, box.h * pageHeight / pageWidth * FIGURE_PREFIX_EMS);
-      links.push({ float: target.key, label, ...box, x: box.x - prefix, w: box.w + prefix });
-    }
-  }
-  return { references, citations, floats, links };
-}
-
-// src/grobid.ts
-var TIMEOUT_MS = 3e5;
-var GrobidError = class extends Error {
-};
-async function post(base, path, pdf, fields) {
-  const form = new FormData();
-  form.set("input", new Blob([pdf], { type: "application/pdf" }), "paper.pdf");
-  for (const [name, value] of fields) form.append(name, value);
-  let response;
-  try {
-    response = await fetch(`${base.replace(/\/+$/, "")}${path}`, { method: "POST", body: form, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (error) {
-    throw new GrobidError(`GROBID unreachable: ${error.message}`);
-  }
-  if (response.status === 204) throw new GrobidError("GROBID could not read this PDF (no text extracted)");
-  if (response.status !== 200) throw new GrobidError(`GROBID returned ${response.status}`);
-  return response.text();
-}
-function grobidAt(base) {
-  return {
-    fulltext: (pdf) => post(base, "/api/processFulltextDocument", pdf, [
-      // Repeated once per element boxes are wanted for; without it GROBID
-      // returns the structure but not the geometry.
-      ["teiCoordinates", "ref"],
-      ["teiCoordinates", "biblStruct"],
-      ["teiCoordinates", "figure"],
-      ["includeRawCitations", "1"],
-      // Consolidating the citations would have GROBID call CrossRef once
-      // per reference inside this request. Papol looks up later and lazily.
-      ["consolidateCitations", "0"],
-      ["consolidateHeader", "0"]
-    ]),
-    // Consolidated: GROBID asks CrossRef for the paper itself, which is
-    // how a paper that prints no identifier gets its DOI.
-    header: (pdf) => post(base, "/api/processHeaderDocument", pdf, [["consolidateHeader", "1"]])
-  };
 }
 
 // src/rules/numbers.ts
@@ -41037,8 +39681,8 @@ var LABEL = /^\s*(?:\[?\d{1,4}[.\])]?|[•∙·▪◦–-]|\([a-z0-9]{1,3}\))\s*
 function joinLabels(lines) {
   const gone = /* @__PURE__ */ new Set();
   lines.forEach((label, i2) => {
-    const text2 = label.map((r2) => r2.text).join("");
-    if (!LABEL.test(text2)) return;
+    const text = label.map((r2) => r2.text).join("");
+    if (!LABEL.test(text)) return;
     const size = median(label.map((r2) => r2.size));
     const base = median(label.map((r2) => r2.baseline));
     const x1 = most(label.map((r2) => r2.x + r2.width));
@@ -41064,21 +39708,21 @@ function lineOf(runs, page) {
   const body = main.length ? main : runs;
   const size = median(body.map((r2) => r2.size));
   const baseline = median(body.map((r2) => r2.baseline));
-  let text2 = "";
+  let text = "";
   const chars = [];
   runs.forEach((run, index) => {
     if (index > 0) {
       const prev = runs[index - 1];
       const gap = run.x - (prev.x + prev.width);
-      const joined = text2.endsWith(" ") || run.text.startsWith(" ");
+      const joined = text.endsWith(" ") || run.text.startsWith(" ");
       const afterScript = prev.sup || prev.sub;
       if (!joined && gap > WORD_SPACE * size && !(run.sup || run.sub) && !(afterScript && gap < 0.3 * size)) {
-        text2 += " ";
+        text += " ";
         chars.push({ run: -1, at: 0 });
       }
     }
     for (let at2 = 0; at2 < run.text.length; at2 += 1) {
-      text2 += run.text[at2];
+      text += run.text[at2];
       chars.push({ run: index, at: at2 });
     }
   });
@@ -41087,7 +39731,7 @@ function lineOf(runs, page) {
     page,
     index: 0,
     runs,
-    text: text2,
+    text,
     chars,
     x0: least(runs.map((r2) => r2.x)),
     x1: most(runs.map((r2) => r2.x + r2.width)),
@@ -41162,7 +39806,7 @@ function readingOrder(lines, bodySize) {
   for (const l2 of furniture) l2.column = "furniture";
   return { lines: [...out.lines, ...furniture], twoColumn: out.vertical };
 }
-var shape = (text2) => text2.replace(/\d+/g, "#").replace(/\s+/g, " ").trim().toLowerCase();
+var shape = (text) => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim().toLowerCase();
 function markFurniture(pages) {
   const seen = /* @__PURE__ */ new Map();
   const marginal = (line, height) => line.top < height * MARGIN || line.bottom > height * (1 - MARGIN);
@@ -41200,7 +39844,7 @@ function layout(doc) {
   return { pages, bodySize };
 }
 function flowOf(lines) {
-  let text2 = "";
+  let text = "";
   const at2 = [];
   lines.forEach((line, index) => {
     const body = line.text;
@@ -41209,15 +39853,15 @@ function flowOf(lines) {
     const hyphenated = next && /[A-Za-z]-$/.test(body) && /^[a-z]/.test(next.text) && next.page === line.page;
     if (hyphenated) end -= 1;
     for (let i2 = 0; i2 < end; i2 += 1) {
-      text2 += body[i2];
+      text += body[i2];
       at2.push({ line, char: i2 });
     }
     if (next && !hyphenated) {
-      text2 += " ";
+      text += " ";
       at2.push({ line, char: -1 });
     }
   });
-  return { text: text2, at: at2 };
+  return { text, at: at2 };
 }
 var offsetIn = (run, at2) => run.offsets?.[at2] ?? run.width * at2 / Math.max(run.text.length, 1);
 function boxesOf(flow, start, end, pageSize) {
@@ -41840,8 +40484,8 @@ var HEADER_YEAR = rule({
 // src/rules/trace.ts
 var Trace = class {
   items = [];
-  add(rule2, page, text2, boxes2) {
-    this.items.push({ rule: rule2, page, text: text2, boxes: boxes2 });
+  add(rule2, page, text, boxes) {
+    this.items.push({ rule: rule2, page, text, boxes });
   }
   counts() {
     const counts = {};
@@ -41966,15 +40610,15 @@ var surnameOf = (name) => {
   if (words.length >= 2 && /^[\p{Lu}]{1,3}$/u.test(words[words.length - 1]) && new RegExp("\\p{Ll}", "u").test(words[0])) return words[0];
   return words[words.length - 1] ?? name;
 };
-function sentenceEnd(text2) {
+function sentenceEnd(text) {
   const re2 = /[.?!](?=\s|$)/g;
   let m2;
-  while (m2 = re2.exec(text2)) {
-    const before = text2.slice(Math.max(0, m2.index - 3), m2.index);
-    if (new RegExp("(?:^|\\s)\\p{Lu}$", "u").test(before) || /\bal$/.test(before) || /\b(?:vs|Vol|No|pp|Proc|Int|Conf)$/.test(text2.slice(Math.max(0, m2.index - 4), m2.index))) continue;
+  while (m2 = re2.exec(text)) {
+    const before = text.slice(Math.max(0, m2.index - 3), m2.index);
+    if (new RegExp("(?:^|\\s)\\p{Lu}$", "u").test(before) || /\bal$/.test(before) || /\b(?:vs|Vol|No|pp|Proc|Int|Conf)$/.test(text.slice(Math.max(0, m2.index - 4), m2.index))) continue;
     return m2.index;
   }
-  return text2.length;
+  return text.length;
 }
 var cleanTitle = (title) => {
   const t2 = (title ?? "").replace(/\s+/g, " ").replace(/^[\s"“”,.:]+|[\s"“”,.:]+$/g, "").trim();
@@ -42043,7 +40687,7 @@ function parseEntry(raw) {
 }
 function findBibliography(layout2, trace) {
   let found = blocks(layout2, trace);
-  const parse2 = (candidate, into = trace) => {
+  const parse = (candidate, into = trace) => {
     const entries = [];
     const inside = /* @__PURE__ */ new Set();
     let numbering = "none";
@@ -42097,16 +40741,16 @@ function findBibliography(layout2, trace) {
     return { entries, numbering, lines: inside };
   };
   found = found.filter((block) => {
-    const alone = parse2([block], new Trace());
+    const alone = parse([block], new Trace());
     const dated = alone.entries.filter((e2) => e2.year !== null).length;
     const kept = alone.entries.length >= 3 && dated >= 0.5 * alone.entries.length;
     if (!kept && block.heading) trace.add(BIB_QUALITY.id, block.heading.page, `dropped: ${block.heading.text} (${alone.entries.length} entries, ${dated} dated)`, []);
     return kept;
   });
-  let result = parse2(found);
+  let result = parse(found);
   if (result.entries.length < 3) {
     found = trailingList(layout2, trace);
-    const fallback = parse2(found);
+    const fallback = parse(found);
     if (fallback.entries.length > result.entries.length) result = fallback;
   }
   return result;
@@ -42143,9 +40787,9 @@ function bracketHits(flows, byNumber, size) {
     while (m2 = re2.exec(flow.text)) {
       const numbers = numbersOf(m2.groups.list);
       if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
-      const boxes2 = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes2.length) continue;
-      hits.push({ rule: CITE_BRACKET.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes: boxes2, page: boxes2[0].page });
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_BRACKET.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
     }
   }
   return hits;
@@ -42168,9 +40812,9 @@ function parenHits(flows, byNumber, size) {
         const trailing = end.char >= line.text.trimEnd().length - 1;
         if (trailing && before && run && run.x - (before.x + before.width) > 2 * line.size) continue;
       }
-      const boxes2 = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes2.length) continue;
-      hits.push({ rule: CITE_PAREN.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes: boxes2, page: boxes2[0].page });
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_PAREN.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
     }
   }
   return hits;
@@ -42195,8 +40839,8 @@ function superscriptHits(layout2, skip, byNumber) {
       }
       for (const token of tokens) {
         const runs = line.runs.slice(token.start, token.end);
-        const text2 = runs.map((r2) => r2.text).join("").replace(/\s+/g, "");
-        const m2 = CITE_SUPERSCRIPT.pattern.exec(text2);
+        const text = runs.map((r2) => r2.text).join("").replace(/\s+/g, "");
+        const m2 = CITE_SUPERSCRIPT.pattern.exec(text);
         if (!m2) continue;
         const before = line.runs.slice(0, token.start).filter((r2) => !r2.sup && !r2.sub);
         const prev = before[before.length - 1];
@@ -42211,7 +40855,7 @@ function superscriptHits(layout2, skip, byNumber) {
         const x0 = least(runs.map((r2) => r2.x)), x1 = most(runs.map((r2) => r2.x + r2.width));
         const top = least(runs.map((r2) => r2.baseline - r2.size * 0.8)), bottom = most(runs.map((r2) => r2.baseline + r2.size * 0.22));
         const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
-        hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n2) => byNumber.get(n2)), label: text2, boxes: [box], page: page.number });
+        hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n2) => byNumber.get(n2)), label: text, boxes: [box], page: page.number });
       }
     }
   }
@@ -42258,18 +40902,18 @@ function authorYearHits(flows, entries, size) {
       for (const part of inner.split(";")) {
         const partStart = innerStart + offset;
         offset += part.length + 1;
-        const text2 = part.replace(/^\s*(?:(?:see|See|e\.g\.|cf\.|i\.e\.|and|also)[,]?\s+)+/, (s2) => " ".repeat(s2.length));
-        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text2);
+        const text = part.replace(/^\s*(?:(?:see|See|e\.g\.|cf\.|i\.e\.|and|also)[,]?\s+)+/, (s2) => " ".repeat(s2.length));
+        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text);
         if (!parsed?.groups?.years) continue;
         if (parsed.groups.names) names = parsed.groups.names.trim();
         if (!names) continue;
         const found = lookup(entries, names, parsed.groups.years.match(YEAR_ITEM) ?? []);
         if (!found.length) continue;
         const from = partStart + parsed.groups.lead.length, to2 = partStart + parsed[0].length;
-        const boxes2 = boxesOf(flow, from, to2, size);
-        if (!boxes2.length) continue;
+        const boxes = boxesOf(flow, from, to2, size);
+        if (!boxes.length) continue;
         claimed.push([from, to2]);
-        hits.push({ rule: CITE_AUTHOR_YEAR_GROUP.id, entries: found, label: flow.text.slice(from, to2).trim(), boxes: boxes2, page: boxes2[0].page });
+        hits.push({ rule: CITE_AUTHOR_YEAR_GROUP.id, entries: found, label: flow.text.slice(from, to2).trim(), boxes, page: boxes[0].page });
       }
     }
     const narrative = new RegExp(CITE_AUTHOR_YEAR_NARRATIVE.pattern.source, "gu");
@@ -42278,9 +40922,9 @@ function authorYearHits(flows, entries, size) {
       if (claimed.some(([a2, b2]) => from < b2 && to2 > a2)) continue;
       const found = lookup(entries, m2.groups.names, m2.groups.years.match(YEAR_ITEM) ?? []);
       if (!found.length) continue;
-      const boxes2 = boxesOf(flow, from, to2, size);
-      if (!boxes2.length) continue;
-      hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: m2[0], boxes: boxes2, page: boxes2[0].page });
+      const boxes = boxesOf(flow, from, to2, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: m2[0], boxes, page: boxes[0].page });
     }
   }
   return hits;
@@ -42294,9 +40938,9 @@ function labelHits(flows, entries, size) {
     while (m2 = re2.exec(flow.text)) {
       const labels = m2.groups.list.split(/\s*,\s*/);
       if (!labels.every((l2) => byLabel.has(l2))) continue;
-      const boxes2 = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes2.length) continue;
-      hits.push({ rule: CITE_LABEL.id, entries: labels.map((l2) => byLabel.get(l2)), label: m2[0], boxes: boxes2, page: boxes2[0].page });
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_LABEL.id, entries: labels.map((l2) => byLabel.get(l2)), label: m2[0], boxes, page: boxes[0].page });
     }
   }
   return hits;
@@ -42379,15 +41023,15 @@ function typeOf(layout2) {
   }
   const leading = median2(steps) || 1.2 * bodySize;
   const measure = quantile(body.map((l2) => l2.x1 - l2.x0), 0.75);
-  const text2 = { x0: quantile(body.map((l2) => l2.x0), 0.02), x1: quantile(body.map((l2) => l2.x1), 0.98) };
-  const columns = measure < 0.6 * (text2.x1 - text2.x0) ? [{ x0: text2.x0, x1: text2.x0 + measure }, { x0: text2.x1 - measure, x1: text2.x1 }] : [text2];
+  const text = { x0: quantile(body.map((l2) => l2.x0), 0.02), x1: quantile(body.map((l2) => l2.x1), 0.98) };
+  const columns = measure < 0.6 * (text.x1 - text.x0) ? [{ x0: text.x0, x1: text.x0 + measure }, { x0: text.x1 - measure, x1: text.x1 }] : [text];
   const all = layout2.pages.map(headsOf);
   const margins = {
     y0: most(all.flatMap((h2) => h2.heads.map((l2) => l2.bottom))),
     y1: least(all.flatMap((h2) => h2.feet.map((l2) => l2.top)))
   };
   if (margins.y0 === -Infinity) margins.y0 = 0;
-  return { bodySize, font, leading, measure, text: text2, columns, margins };
+  return { bodySize, font, leading, measure, text, columns, margins };
 }
 function proseOn(page, type) {
   const candidates = page.lines.filter((l2) => !l2.furniture && sameSize(l2.size, type.bodySize) && shareIn(l2, type.font) >= 0.5 && !hasCellGap(l2));
@@ -42419,8 +41063,8 @@ function marginsOf(page, type) {
   };
 }
 function headsOf(page) {
-  const text2 = page.lines.filter((l2) => !l2.furniture);
-  const furniture = page.lines.filter((l2) => l2.furniture && !text2.some((t2) => t2.top < l2.bottom && t2.bottom > l2.top));
+  const text = page.lines.filter((l2) => !l2.furniture);
+  const furniture = page.lines.filter((l2) => l2.furniture && !text.some((t2) => t2.top < l2.bottom && t2.bottom > l2.top));
   return { heads: furniture.filter((l2) => l2.bottom < page.height / 2), feet: furniture.filter((l2) => l2.top > page.height / 2) };
 }
 function graphicsOf(page, type, prose) {
@@ -42484,7 +41128,7 @@ function piecesOf(graphics, bounds) {
   const loose = graphics.filter((g2) => bounds.some((b2) => touching(g2, b2)));
   const joinable = graphics.filter((g2) => !loose.includes(g2)).sort((a2, b2) => a2.x0 - b2.x0);
   const parent = joinable.map((_2, i2) => i2);
-  const find3 = (i2) => {
+  const find2 = (i2) => {
     let root = i2;
     while (parent[root] !== root) root = parent[root];
     while (parent[i2] !== root) {
@@ -42496,11 +41140,11 @@ function piecesOf(graphics, bounds) {
   };
   for (let i2 = 0; i2 < joinable.length; i2 += 1) {
     for (let j2 = i2 + 1; j2 < joinable.length && joinable[j2].x0 <= joinable[i2].x1 + 0.5; j2 += 1) {
-      if (touching(joinable[i2], joinable[j2])) parent[find3(i2)] = find3(j2);
+      if (touching(joinable[i2], joinable[j2])) parent[find2(i2)] = find2(j2);
     }
   }
   const groups = /* @__PURE__ */ new Map();
-  joinable.forEach((g2, i2) => groups.set(find3(i2), [...groups.get(find3(i2)) ?? [], g2]));
+  joinable.forEach((g2, i2) => groups.set(find2(i2), [...groups.get(find2(i2)) ?? [], g2]));
   return [
     ...[...groups.values()].map((gs2) => ({ ...union(gs2), image: gs2.some((g2) => g2.image), thin: gs2.every(thin) })),
     ...loose.map((g2) => ({ ...g2, thin: thin(g2) }))
@@ -42713,11 +41357,11 @@ function findMentions(flow, floats, layout2, trace) {
       const float = floats.get(keyOf(kind, item.number));
       if (!float) return;
       const from = index === 0 ? match.index : listStart + item.start;
-      const boxes2 = boxesOf(flow, from, listStart + item.end, size);
-      for (const box of boxes2) {
+      const boxes = boxesOf(flow, from, listStart + item.end, size);
+      for (const box of boxes) {
         links.push({ float: float.key, label: groups.list.slice(item.start, item.end).trim(), ...box });
       }
-      trace.add(MENTION_FLOAT.id, boxes2[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes2);
+      trace.add(MENTION_FLOAT.id, boxes[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes);
     });
   }
   return links;
@@ -42834,9 +41478,9 @@ function findSectionMentions(flow, sections, layout2, trace) {
       const section2 = sections.get(keyOf3(item.number));
       if (!section2) return;
       const from = index === 0 ? match.index : listStart + item.start;
-      const boxes2 = boxesOf(flow, from, listStart + item.end, size);
-      for (const box of boxes2) links.push({ float: section2.key, label: groups.list.slice(item.start, item.end).trim(), ...box });
-      trace.add(MENTION_SECTION.id, boxes2[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes2);
+      const boxes = boxesOf(flow, from, listStart + item.end, size);
+      for (const box of boxes) links.push({ float: section2.key, label: groups.list.slice(item.start, item.end).trim(), ...box });
+      trace.add(MENTION_SECTION.id, boxes[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes);
     });
   }
   return links;
@@ -42989,12 +41633,12 @@ function glyphWidths(ops, OPS) {
   });
   return fonts;
 }
-function offsetsOf(text2, width, font) {
-  if (!font?.size || [...text2].length !== text2.length) return void 0;
+function offsetsOf(text, width, font) {
+  if (!font?.size || [...text].length !== text.length) return void 0;
   let total = 0;
   for (const w2 of font.values()) total += w2;
   const average = total / font.size;
-  const widths = Array.from(text2, (c2) => font.get(c2) ?? (c2 === " " ? 250 : average));
+  const widths = Array.from(text, (c2) => font.get(c2) ?? (c2 === " " ? 250 : average));
   const sum = widths.reduce((s2, w2) => s2 + w2, 0);
   if (!(sum > 0)) return void 0;
   const offsets = [0];
@@ -43055,8 +41699,8 @@ async function readPdf(bytes, { pages: limit } = {}) {
           italic: ITALIC.test(font)
         });
       }
-      const text2 = content.items.map((item) => "str" in item ? item.str : "").join(" ");
-      pages.push({ number, width: right - left, height: top - bottom, runs, drawn, text: text2 });
+      const text = content.items.map((item) => "str" in item ? item.str : "").join(" ");
+      pages.push({ number, width: right - left, height: top - bottom, runs, drawn, text });
       page.cleanup();
     }
   } finally {
@@ -43112,17 +41756,42 @@ async function analyzeWithRules(bytes) {
   };
 }
 
+// ../../cloudflare/src/papers/reading.ts
+var SMALL_WORDS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "nor", "of", "on", "or", "over", "per", "the", "to", "via", "with", "without", "yet"]);
+function normalizeTitle(title) {
+  if (!title) return title;
+  const letters2 = title.replace(/[^A-Za-z]/g, "");
+  if (!letters2 || letters2 !== letters2.toUpperCase()) return title;
+  const parts = title.match(/[A-Za-z]+|[^A-Za-z]+/g) ?? [];
+  const wordIndexes = parts.map((p2, i2) => /^[A-Za-z]+$/.test(p2) ? i2 : -1).filter((i2) => i2 >= 0);
+  const first = wordIndexes[0], last = wordIndexes[wordIndexes.length - 1];
+  let afterColon = false;
+  parts.forEach((part, index) => {
+    if (!/^[A-Za-z]+$/.test(part)) {
+      if (part.includes(":")) afterColon = true;
+      return;
+    }
+    const lower = part.toLowerCase();
+    if (SMALL_WORDS.has(lower) && index !== first && index !== last && !afterColon) parts[index] = lower;
+    else if (part.length <= 4 && !SMALL_WORDS.has(lower)) parts[index] = part;
+    else if (index === first && part.startsWith("X") && part.length > 5) parts[index] = "X" + lower[1].toUpperCase() + lower.slice(2);
+    else parts[index] = lower[0].toUpperCase() + lower.slice(1);
+    afterColon = false;
+  });
+  return parts.join("");
+}
+
 // src/rules/header.ts
 var PAGES = 3;
-var LATEST_YEAR2 = (/* @__PURE__ */ new Date()).getUTCFullYear() + 1;
+var LATEST_YEAR = (/* @__PURE__ */ new Date()).getUTCFullYear() + 1;
 async function headerWithRules(bytes) {
   const doc = await readPdf(bytes, { pages: PAGES });
   const trace = new Trace();
   const laid = layout(doc);
   const first = laid.pages[0];
-  const text2 = doc.pages.map((p2) => p2.text).join("\n");
-  const arxiv = extractArxivId(text2);
-  const doi = (extractDoi(doc.pages[0]?.text ?? "") ?? extractDoi(text2))?.toLowerCase() ?? null;
+  const text = doc.pages.map((p2) => p2.text).join("\n");
+  const arxiv = extractArxivId(text);
+  const doi = (extractDoi(doc.pages[0]?.text ?? "") ?? extractDoi(text))?.toLowerCase() ?? null;
   const empty = { title: null, authors: [], journal: null, year: null, doi, arxiv_id: arxiv };
   if (!first) return { header: empty, trace };
   let lines = inRows(first.lines.filter((l2) => !l2.furniture));
@@ -43203,7 +41872,7 @@ function clean(line) {
   }
   return out.replace(/\s+/g, " ").trim().replace(/\s*[*∗†‡§¶]+$/u, "");
 }
-var joinLine = (out, text2) => new RegExp("\\p{L}-$", "u").test(out) ? out.slice(0, -1) + text2 : `${out} ${text2}`;
+var joinLine = (out, text) => new RegExp("\\p{L}-$", "u").test(out) ? out.slice(0, -1) + text : `${out} ${text}`;
 function allNames(line) {
   const parts = splitAuthorLine(line);
   const names = parts.filter((p2) => nameOf(p2)).length;
@@ -43252,10 +41921,10 @@ function runningTitle(pages, trace) {
   for (const page of pages) {
     for (const line of page.lines) {
       if (!line.furniture || line.top > page.height * 0.12) continue;
-      const text2 = clean(line).replace(/^\s*\d+\s*[•·|]?\s*|\s*[•·|]?\s*\d+\s*$/g, "").trim();
-      if (letters(text2) < 8 || /\d|et al|\bvol\b|journal|transactions|proceedings|letters|\|/i.test(text2) || allNames(line)) continue;
-      trace.add(HEADER_RUNNING_TITLE.id, page.lines.indexOf(line), text2, []);
-      return text2;
+      const text = clean(line).replace(/^\s*\d+\s*[•·|]?\s*|\s*[•·|]?\s*\d+\s*$/g, "").trim();
+      if (letters(text) < 8 || /\d|et al|\bvol\b|journal|transactions|proceedings|letters|\|/i.test(text) || allNames(line)) continue;
+      trace.add(HEADER_RUNNING_TITLE.id, page.lines.indexOf(line), text, []);
+      return text;
     }
   }
   return null;
@@ -43277,8 +41946,8 @@ function nameOf(part) {
 }
 var ACCENTS = { "\xB4": "\u0301", "`": "\u0300", "\u02C6": "\u0302", "\u02DC": "\u0303", "\xA8": "\u0308", "\u02D8": "\u0306", "\u02C7": "\u030C", "\u02DA": "\u030A", "\u02DD": "\u030B" };
 var VOWEL = /[aeiouyAEIOUY]/;
-function foldAccents(text2) {
-  let out = text2.replace(new RegExp("([stcSTC])\\s?,\\s?(?=\\p{Ll})", "gu"), (_2, c2) => `${c2}\u0326`).replace(/([cC])¸/g, "$1\u0327");
+function foldAccents(text) {
+  let out = text.replace(new RegExp("([stcSTC])\\s?,\\s?(?=\\p{Ll})", "gu"), (_2, c2) => `${c2}\u0326`).replace(/([cC])¸/g, "$1\u0327");
   out = out.replace(new RegExp("(\\p{L})?\\s?([\xB4`\u02C6\u02DC\xA8\u02D8\u02C7\u02DA\u02DD])\\s?(\\p{L})?", "gu"), (m2, before, accent, after) => {
     const mark = ACCENTS[accent];
     if (after && VOWEL.test(after) && !(before && VOWEL.test(before))) return `${before ?? ""}${after}${mark}`;
@@ -43289,16 +41958,16 @@ function foldAccents(text2) {
   return out.normalize("NFC");
 }
 function splitAuthorLine(line) {
-  let text2 = "";
+  let text = "";
   line.runs.forEach((run, i2) => {
     if (i2 > 0) {
       const prev = line.runs[i2 - 1];
       const gap = run.x - (prev.x + prev.width);
-      text2 += run.sup || run.sub || prev.sup || prev.sub || gap > 1.2 * line.size ? " , " : gap > 0.15 * line.size ? " " : "";
+      text += run.sup || run.sub || prev.sup || prev.sub || gap > 1.2 * line.size ? " , " : gap > 0.15 * line.size ? " " : "";
     }
-    text2 += run.sup || run.sub ? "" : run.text;
+    text += run.sup || run.sub ? "" : run.text;
   });
-  return foldAccents(text2).split(/\s*(?:,|;|\band\b|&|\s·\s|\s•\s)\s*/u).map((p2) => p2.trim()).filter(Boolean);
+  return foldAccents(text).split(/\s*(?:,|;|\band\b|&|\s·\s|\s•\s)\s*/u).map((p2) => p2.trim()).filter(Boolean);
 }
 function isProse(line) {
   const words = line.text.split(/\s+/).filter((w2) => new RegExp("\\p{L}", "u").test(w2));
@@ -43338,15 +42007,15 @@ function authorsOf(lines, trace) {
   }
   return names;
 }
-function yearOf(text2, lineYear, arxiv, trace) {
-  const plausible = (y2) => y2 !== null && y2 >= 1900 && y2 <= LATEST_YEAR2;
-  const published = HEADER_YEAR.pattern.exec(text2);
+function yearOf(text, lineYear, arxiv, trace) {
+  const plausible = (y2) => y2 !== null && y2 >= 1900 && y2 <= LATEST_YEAR;
+  const published = HEADER_YEAR.pattern.exec(text);
   if (published && plausible(Number(published.groups.year))) {
     trace.add(HEADER_YEAR.id, 1, published[0], []);
     return Number(published.groups.year);
   }
   if (plausible(lineYear)) return lineYear;
-  const late = HEADER_YEAR_LATE.pattern.exec(text2);
+  const late = HEADER_YEAR_LATE.pattern.exec(text);
   const lateYear = late ? Number(late.groups.vol ?? late.groups.accepted) : null;
   if (plausible(lateYear)) {
     trace.add(HEADER_YEAR_LATE.id, 1, late[0], []);
@@ -43367,48 +42036,25 @@ function isPdf(bytes) {
   const head = new TextDecoder("latin1").decode(bytes.subarray(0, 1024));
   return head.includes("%PDF-");
 }
-async function through(bytes, call, read) {
-  if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
-  let tei;
-  try {
-    tei = await call(bytes);
-  } catch (error) {
-    if (error instanceof GrobidError) throw new Refusal(502, error.message);
-    throw error;
-  }
-  try {
-    return read(tei);
-  } catch (error) {
-    throw new Refusal(502, `GROBID's answer could not be read: ${error.message}`);
-  }
-}
-function analyze(grobid, bytes) {
-  return through(bytes, grobid.fulltext, parseTei);
-}
-async function analyzeByRules(bytes) {
+async function reading(bytes, read) {
   if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
   try {
-    return (await analyzeWithRules(bytes)).analysis;
+    return await read(bytes);
   } catch (error) {
     throw new Refusal(422, `The PDF could not be read: ${error.message}`);
   }
 }
-async function headerByRules(bytes) {
-  if (!isPdf(bytes)) throw new Refusal(400, "The body is not a PDF");
-  try {
-    return (await headerWithRules(bytes)).header;
-  } catch (error) {
-    throw new Refusal(422, `The PDF could not be read: ${error.message}`);
-  }
+function analyze(bytes) {
+  return reading(bytes, async (pdf) => (await analyzeWithRules(pdf)).analysis);
 }
-function header(grobid, bytes) {
-  return through(bytes, grobid.header, parseHeader);
+function header(bytes) {
+  return reading(bytes, async (pdf) => (await headerWithRules(pdf)).header);
 }
 
 // src/files.ts
 var DEFAULT_FILE_ORIGINS = ["https://files.papol.io", "https://files-dev.papol.io"];
 var PAPER_PATH = /^\/uploads\/([0-9a-f]{64})\.pdf$/;
-var TIMEOUT_MS2 = 12e4;
+var TIMEOUT_MS = 12e4;
 function fileOriginsFrom(value) {
   const listed = (value ?? "").split(",").map((origin) => origin.trim().replace(/\/+$/, "")).filter(Boolean);
   return listed.length ? listed : DEFAULT_FILE_ORIGINS;
@@ -43421,7 +42067,7 @@ function paperAddress(value, origins) {
   } catch {
     throw new Refusal(400, "The url is not an address");
   }
-  if (!origins.includes(url.origin)) throw new Refusal(400, `The helper does not fetch from ${url.origin}`);
+  if (!origins.includes(url.origin)) throw new Refusal(400, `The analyzer does not fetch from ${url.origin}`);
   const named = PAPER_PATH.exec(url.pathname);
   if (!named || url.search || url.hash) throw new Refusal(400, "The url is not a paper's address");
   return { url, sha256: named[1] };
@@ -43429,7 +42075,7 @@ function paperAddress(value, origins) {
 async function fetchPaper(address, maxBytes, fetchImpl = fetch) {
   let response;
   try {
-    response = await fetchImpl(address.url, { headers: { "user-agent": "papol-helper" }, signal: AbortSignal.timeout(TIMEOUT_MS2) });
+    response = await fetchImpl(address.url, { headers: { "user-agent": "papol-analyzer" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch (error) {
     throw new Refusal(502, `The bucket could not be reached: ${error.message}`);
   }
@@ -43458,7 +42104,6 @@ async function fetchPaper(address, maxBytes, fetchImpl = fetch) {
 var MAX_BODY = 100 * 1024 * 1024;
 var MAX_ADDRESS = 4 * 1024;
 var DEFAULT_PORT = 8072;
-var GROBID = "http://127.0.0.1:8070";
 function readBody(request, maxBytes = MAX_BODY) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -43488,17 +42133,15 @@ async function paperOf(request, options) {
   }
   return fetchPaper(paperAddress(sent?.url, options.fileOrigins), MAX_BODY, options.fetch);
 }
-async function answer(grobid, request, options) {
+async function answer(request, options) {
   const path = (request.url ?? "/").split("?")[0];
   if (request.method === "GET" && path === "/health") return [200, { ok: true }];
-  if (!["/analyze", "/analyze-rules", "/header", "/header-rules"].includes(path)) throw new Refusal(404, "No such endpoint");
+  if (path !== "/analyze" && path !== "/header") throw new Refusal(404, "No such endpoint");
   if (request.method !== "POST") throw new Refusal(405, "POST a PDF here");
   const bytes = await paperOf(request, options);
-  if (path === "/analyze-rules") return [200, await analyzeByRules(bytes)];
-  if (path === "/header-rules") return [200, await headerByRules(bytes)];
-  return [200, path === "/analyze" ? await analyze(grobid, bytes) : await header(grobid, bytes)];
+  return [200, path === "/analyze" ? await analyze(bytes) : await header(bytes)];
 }
-function createServer(grobid, log = console.log, options = {}) {
+function createServer(log = console.log, options = {}) {
   const settled = {
     fileOrigins: options.fileOrigins ?? fileOriginsFrom(void 0),
     fetch: options.fetch ?? fetch
@@ -43507,7 +42150,7 @@ function createServer(grobid, log = console.log, options = {}) {
     const started = Date.now();
     let status, body, detail = "";
     try {
-      [status, body] = await answer(grobid, request, settled);
+      [status, body] = await answer(request, settled);
     } catch (error) {
       status = error instanceof Refusal ? error.status : 500;
       detail = error instanceof Refusal ? error.message : `Unexpected: ${error.message}`;
@@ -43522,17 +42165,16 @@ function createServer(grobid, log = console.log, options = {}) {
 }
 var runAsProgram = process.argv[1] && fs2.realpathSync(process.argv[1]) === fs2.realpathSync(fileURLToPath(import.meta.url));
 if (runAsProgram) {
-  const port = Number(process.env.PAPOL_HELPER_PORT || DEFAULT_PORT);
-  const server = createServer(grobidAt(process.env.PAPOL_GROBID_URL || GROBID), console.log, {
-    fileOrigins: fileOriginsFrom(process.env.PAPOL_HELPER_FILE_ORIGINS)
+  const port = Number(process.env.PAPOL_ANALYZER_PORT || DEFAULT_PORT);
+  const server = createServer(console.log, {
+    fileOrigins: fileOriginsFrom(process.env.PAPOL_ANALYZER_FILE_ORIGINS)
   });
   server.requestTimeout = 3e5;
-  server.listen(port, "127.0.0.1", () => console.log(`papol-helper listening on 127.0.0.1:${port}`));
+  server.listen(port, "127.0.0.1", () => console.log(`papol-analyzer listening on 127.0.0.1:${port}`));
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => server.close(() => process.exit(0)));
 }
 export {
   MAX_BODY,
   createServer,
-  fileOriginsFrom,
-  grobidAt
+  fileOriginsFrom
 };

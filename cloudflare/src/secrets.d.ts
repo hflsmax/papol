@@ -11,16 +11,12 @@ interface Secrets {
   // (src/papers/bibliography.ts).
   PAPOL_CONTACT_EMAIL?: string;
   PAPOL_OPENALEX_KEY?: string;
-  // The GROBID host: its helper (host/helper/, reached under /helper/)
-  // reads a PDF there and answers JSON, behind a Cloudflare tunnel with
-  // nginx asking for one credential, "user:password" (src/papers/helper.ts).
+  // The host's analyzer (host/analyzer/): it reads a
+  // PDF by rules and answers JSON, behind a Cloudflare tunnel with nginx
+  // asking for one credential, "user:password" (src/papers/analyzer.ts).
   // Unset, references are "unavailable" and uploads get the filename.
-  GROBID_URL?: string;
-  GROBID_AUTH?: string;
-  // How the helper reads a paper's references: "rules" for the rule-based
-  // analyzer (host/helper/src/rules/), anything else for GROBID. A var,
-  // not a secret: "rules" for production and dev in wrangler.toml.
-  ANALYZER?: string;
+  ANALYZER_URL?: string;
+  ANALYZER_AUTH?: string;
   // An R2 API token for the files bucket, with which the Worker signs the
   // URL a client PUTs a file to directly (src/files.ts). Unset, the
   // Worker gives its own door as the address instead, which a local

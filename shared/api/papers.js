@@ -64,8 +64,8 @@ export async function listPapers() {
 //
 // `uploadPaper` is the first two, `awaitPaperReading` the third. A send
 // that failed is said as such, not as a PDF that could not be read: the
-// one is a fault worth reporting, the other is only a paper GROBID could
-// make nothing of.
+// one is a fault worth reporting, the other is only a paper the analyzer
+// could make nothing of.
 
 // The longest a reading is waited for. The PDF is on the server once the
 // send answers, and the reading — the printed DOI, the bibliographic

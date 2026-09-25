@@ -37,7 +37,7 @@ test("strokes further apart than touching are pieces of their own, and one cross
 });
 
 test("each figure in \"Fig. 1, Fig. 4\" is its own link, to its own figure (mention.float, 7c348adb9d page 8)", () => {
-  // GROBID missed Fig. 1 in this paper, whose caption reads "Fig. 1 | …",
+  // A model once missed Fig. 1 in this paper, whose caption reads "Fig. 1 | …",
   // and linked only Fig. 4. Box 1 shares the number and must not take it.
   const text = "generate an appropriate computational substrate layer (Fig. 1, Fig. 4). In the";
   const run = { text, x: 40, baseline: 250, width: text.length * 4.5, size: 9, font: "Harding", bold: false, italic: false };

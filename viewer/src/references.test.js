@@ -306,7 +306,7 @@ test("prefers the analyzer's labelled marker over where a link points", async ()
     getDestination: async () => [{}, { name: 'XYZ' }, 0, 82.376],
     getPageIndex: async () => 9,
   };
-  // GROBID read this very marker and knows it says "[20]".
+  // The analyzer read this very marker and knows it says "[20]".
   const citations = [
     { reference_uuid: 'r19', label: '[20]', page: 1, x: 0.30, y: 0.54, w: 0.04, h: 0.02, inferred: false },
   ];

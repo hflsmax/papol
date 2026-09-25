@@ -68,23 +68,23 @@ exactly like a fixture that was never written.
 
 `upload.mjs` chooses PDFs on the library's form and follows each reading to
 its end: the bytes stored, the `extract_metadata` job woken through the
-queue, the PDF sent to the helper beside GROBID with its credential, what it
+queue, the PDF sent to the analyzer with its credential, what it
 read in the form, the saved paper in the library and in the API. Then a job
 whose wake-up was lost — a row written straight into the local D1, no
 message sent — is left queued until the suite fires the cron sweep, and must
 come back done by `cron:sweep`.
 
-The helper is `fake-helper.mjs`, a stand-in answering in the real one's
-shapes (host/helper/src/server.ts). The suite tells it per PDF digest what to
+The analyzer is `fake-analyzer.mjs`, a stand-in answering in the real one's
+shapes (host/analyzer/src/server.ts). The suite tells it per PDF digest what to
 say: nothing read, so the filename's title stands; a title block, whose title,
-authors, journal and year must reach the form; or a 500, which the Cloudflare Worker
+authors, journal and year must reach the form; or a 422, which the Cloudflare Worker
 treats as nothing read (extract.ts) — the form keeps the filename's title and
 says nothing, which the suite holds it to. It needs the Cloudflare Worker started with:
 
 ```sh
-node scripts/share-e2e/fake-helper.mjs &
+node scripts/share-e2e/fake-analyzer.mjs &
 cd cloudflare && npx wrangler dev --test-scheduled \
-  --var GROBID_URL:http://127.0.0.1:8072 --var GROBID_AUTH:papol:e2e
+  --var ANALYZER_URL:http://127.0.0.1:8072 --var ANALYZER_AUTH:papol:e2e
 PAPOL_BASE=http://127.0.0.1:8787 node scripts/share-e2e/upload.mjs
 ```
 

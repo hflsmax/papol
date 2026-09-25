@@ -1,23 +1,21 @@
-# The rule-based analyzer
+# The analyzer
 
-Written 2026-09-23. GROBID reads a paper with a trained model, and gets
-wrong what it was not trained on: it took lines of body text for figure
+Written 2026-09-23. The analyzer reads a paper's references, the citations
+that point at them, the links to its figures and tables, and its title
+block, with hand-written rules about how papers are set, and answers in the
+shapes the Worker stores (`Analysis` and `HeaderMetadata` in
+`cloudflare/src/papers/reading.ts`). It replaced GROBID, whose trained model
+got wrong what it was not trained on: it took lines of body text for figure
 captions (and so dropped the mentions in them), merged two captions into
-one, and pointed "Figure 21" at Figure 2. The rule-based analyzer reads the
-same things — a paper's references, the citations that point at them, and
-the links to its figures and tables — with hand-written rules about how
-papers are set, and answers in exactly GROBID's shape (`Analysis` in
-`cloudflare/src/papers/tei.ts`), so nothing downstream changes.
+one, and pointed "Figure 21" at Figure 2. GROBID was removed on 2026-09-25.
 
-It runs in the helper on the GROBID host (`POST /helper/analyze-rules`),
-not in the Worker: reading a PDF is CPU the Worker should not spend. The
-Worker calls it where `ANALYZER = "rules"` — production and dev
-(`cloudflare/wrangler.toml`); GROBID is still asked for `/header`, and
-for `/analyze` where the var is unset.
+It runs on the NixOS host (`host/analyzer/`, `POST /analyze` and
+`POST /header` at `ANALYZER_URL`), not in the Worker: reading a PDF is CPU
+the Worker should not spend.
 
 ## How it reads
 
-`host/helper/src/rules/`, one layer a file:
+`host/analyzer/src/rules/`, one layer a file:
 
 - `pdf.ts` — the PDF's text as positioned runs, through pdf.js (unpdf):
   each run's box, font size, and whether its font's name says bold or italic.
@@ -67,8 +65,8 @@ for `/analyze` where the var is unset.
   is tried, and the paper's way is the one that names the most different
   entries.
 - `analyze.ts` — the whole, answering `Analysis` and a trace.
-- `header.ts` — the title block, for the upload form (`POST
-  /helper/header-rules`, `HeaderMetadata`): below.
+- `header.ts` — the title block, for the upload form (`POST /header`,
+  `HeaderMetadata`): below.
 
 In the viewer (`viewer/src/references.js`), the analyzer's citations and
 links come first; a PDF's own links fill in only where the analyzer found
@@ -92,12 +90,11 @@ the rule until its examples pass, and rerun the corpus.
 ## The corpus
 
 Every production PDF, read and drawn, is how a change is judged. It lives
-in `host/helper/.corpus/` (not committed): `pdf/` the papers,
-`grobid_*.json` GROBID's stored answers from production, `rules/` the
-analyzer's, `shots/` the drawings.
+in `host/analyzer/.corpus/` (not committed): `pdf/` the papers, `rules/`
+the analyzer's answers, `shots/` the drawings.
 
-    cd host/helper
-    node scripts/run-script.mjs .corpus/pdf .corpus/rules .corpus    # a table beside GROBID's counts
+    cd host/analyzer
+    node scripts/run-script.mjs .corpus/pdf .corpus/rules            # a table: references, citations, links
     CHROME=… node scripts/overlay/render.mjs .corpus/pdf .corpus/rules .corpus/shots [sha…]   # body, floats and bibliography sheets
     node scripts/run-script.mjs lines <pdf> [pages] [grep]           # lines as the analyzer sees them
     node scripts/run-script.mjs bib <pdf> [n]                        # the bibliography as read
@@ -118,12 +115,11 @@ is not found; unusual citation wording ("Plate 3") is not recognized.
 
 ## The title block
 
-Written 2026-09-25. The upload form asks the helper for a paper's title,
+Written 2026-09-25. The upload form asks the analyzer for a paper's title,
 authors, journal, year, DOI and arXiv id when the browser read no
 identifier off the first pages, or one no index knows
-(`cloudflare/src/papers/extract.ts`). GROBID's header model answered that
-(`/header`); `header.ts` reads it by rules (`/header-rules`), where
-`ANALYZER = "rules"`, from the first three pages:
+(`cloudflare/src/papers/extract.ts`). `header.ts` reads them (`/header`)
+from the first three pages:
 
 - the title is the first page's largest text in its top two thirds, with
   the lines of that size under it and an ACM subtitle; not a banner, a
@@ -140,25 +136,22 @@ identifier off the first pages, or one no index knows
 - the DOI and arXiv id are found as the browser finds them
   (`shared/identifiers.js`).
 
-It reads only the PDF: nothing is asked of any index. GROBID's header also
-asked Crossref for a DOI the page does not print (`consolidateHeader`);
-the rules do not, by the owner's decision — a paper that prints no
-identifier keeps what its title block says. (Over the 48 papers,
-Crossref's lookup had found one such DOI.)
+It reads only the PDF: nothing is asked of any index, by the owner's
+decision — a paper that prints no identifier keeps what its title block
+says. (GROBID asked Crossref for such a DOI; over the 48 papers, that had
+found one.)
 
 Judged against the papers' rows in production, which are mostly what
-Crossref says (`truth.json`, exported from D1), beside GROBID's answers
-(`grobid-header.tsv`, one `/header` answer per paper):
+Crossref says (`truth.json`, exported from D1):
 
-    cd host/helper
-    node scripts/run-script.mjs header .corpus/pdf [sha-prefix]     # ✓/✗ per field, rules then GROBID
+    cd host/analyzer
+    node scripts/run-script.mjs header .corpus/pdf [sha-prefix]     # ✓/✗ per field
     VERBOSE=1 node scripts/run-script.mjs header .corpus/pdf        # with every answer
 
 To fetch them: `npx wrangler d1 execute papol --remote --json --command
 "SELECT sha256, doi, title, authors, journal, year FROM papers WHERE
 deleted_at IS NULL"` (authors parsed from JSON), each PDF from
-`https://files.papol.io/uploads/<sha256>.pdf`, and GROBID's answer by
-posting `{"url": …}` to the helper's `/header` on the host.
+`https://files.papol.io/uploads/<sha256>.pdf`.
 
 On 2026-09-25, over all 48 papers (a field counted where the row has it):
 title 47/48 (GROBID 46), authors 44/47 (45), year 32/33 (32), DOI 37/37

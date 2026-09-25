@@ -1,6 +1,6 @@
 // A paper's title block, read by rules: title, authors, year, journal, and
-// the identifiers printed on its first pages — what GROBID's header
-// model answered for the upload form (HeaderMetadata), without GROBID.
+// the identifiers printed on its first pages — what the upload form is
+// filled with (HeaderMetadata).
 //
 // It reads the first page's lines as the analyzer lays them out
 // (layout.ts): the title is the largest text near the top, the authors the
@@ -8,8 +8,8 @@
 // the browser looks for them (shared/identifiers.js), so a paper the
 // browser found nothing on is not read differently here.
 
-import type { HeaderMetadata } from "../../../../cloudflare/src/papers/tei";
-import { normalizeTitle } from "../../../../cloudflare/src/papers/tei";
+import type { HeaderMetadata } from "../../../../cloudflare/src/papers/reading";
+import { normalizeTitle } from "../../../../cloudflare/src/papers/reading";
 import { extractArxivId, extractDoi } from "../../../../cloudflare/src/papers/identifiers";
 import { layout, type Line } from "./layout";
 import { readPdf } from "./pdf";
