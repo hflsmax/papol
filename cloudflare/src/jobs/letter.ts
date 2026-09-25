@@ -13,6 +13,13 @@ const escape = (text: string) =>
 // Only web addresses make links or pictures; anything else stays text.
 const safeUrl = (url: string) => /^https?:\/\//i.test(url.trim());
 
+// The words of a link or picture, which may hold one level of brackets
+// ("Clicking [47] opens its card"), then its address.
+const LABEL = String.raw`((?:[^\[\]]|\[[^\]]*\])*)`;
+const PICTURE = new RegExp(String.raw`!\[${LABEL}\]\(([^)\s]+)\)`, "g");
+const LINK = new RegExp(String.raw`\[${LABEL}\]\(([^)\s]+)\)`, "g");
+const ONLY_PICTURE = new RegExp(String.raw`^!\[${LABEL}\]\(([^)\s]+)\)$`);
+
 const STYLE = {
   body: "margin:0;padding:24px 16px;background:#f4f5f7;",
   sheet: "max-width:600px;margin:0 auto;padding:32px 28px;background:#ffffff;border:1px solid #e3e6ea;border-radius:8px;"
@@ -31,9 +38,9 @@ const STYLE = {
 // Inline marks within one block of text, escaped first.
 function inline(text: string): string {
   let out = escape(text);
-  out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (whole, alt, url) =>
+  out = out.replace(PICTURE, (whole, alt, url) =>
     safeUrl(url) ? `<img src="${url}" alt="${alt}" style="${STYLE.img}">` : whole);
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, label, url) =>
+  out = out.replace(LINK, (whole, label, url) =>
     safeUrl(url) ? `<a href="${url}" style="${STYLE.a}">${label}</a>` : whole);
   out = out.replace(/`([^`]+)`/g, (_, code) => `<code style="${STYLE.code}">${code}</code>`);
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -53,7 +60,7 @@ function blocks(markdown: string): Block[] {
     if (heading && !chunk.includes("\n")) out.push({ kind: "h", level: heading[1].length, text: heading[2] });
     else if (/^(-{3,}|\*{3,})$/.test(chunk)) out.push({ kind: "hr" });
     else if (chunk.split("\n").every((line) => /^[-*]\s+/.test(line))) out.push({ kind: "ul", items: chunk.split("\n").map((line) => line.replace(/^[-*]\s+/, "")) });
-    else if (/^!\[[^\]]*\]\([^)\s]+\)$/.test(chunk)) out.push({ kind: "img", text: chunk });
+    else if (ONLY_PICTURE.test(chunk)) out.push({ kind: "img", text: chunk });
     else out.push({ kind: "p", text: chunk });
   }
   return out;
@@ -81,8 +88,8 @@ export function letterHtml(markdown: string): string {
 export function letterText(markdown: string): string {
   return blocks(markdown).map((block) => {
     const plain = (text: string) => text
-      .replace(/!\[[^\]]*\]\([^)\s]+\)/g, "")
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => (label === url.replace(/^https?:\/\//, "") ? url : `${label} (${url})`))
+      .replace(PICTURE, "")
+      .replace(LINK, (_, label, url) => (label === url.replace(/^https?:\/\//, "") ? url : `${label} (${url})`))
       .replace(/\*\*([^*]+)\*\*/g, "$1")
       .replace(/(^|[^*\w])\*([^*\n]+)\*(?![*\w])/g, "$1$2")
       .replace(/`([^`]+)`/g, "$1")

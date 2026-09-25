@@ -27,6 +27,13 @@ describe("an announcement's Markdown, as an email", () => {
     expect(html).toContain("papol.io</a>. It reads");
   });
 
+  it("takes a picture or link whose words hold brackets, as \"[47]\"", () => {
+    const html = letterHtml("![Clicking [47] opens its card](https://files.papol.io/admin/b.gif)\n\nSee [the [1] note](https://papol.io).");
+    expect(html).toMatch(/<img src="https:\/\/files.papol.io\/admin\/b.gif" alt="Clicking \[47\] opens its card"/);
+    expect(html).toMatch(/<a href="https:\/\/papol.io" style="[^"]+">the \[1\] note<\/a>/);
+    expect(letterText("![Clicking [47] opens](https://x.test/b.gif)\n\nEnd.")).toBe("End.");
+  });
+
   it("escapes what is typed, and links only web addresses", () => {
     const html = letterHtml('<script>alert(1)</script> [x](javascript:alert(1)) ![y](data:image/png;base64,AA) "quoted"');
     expect(html).not.toContain("<script>");
