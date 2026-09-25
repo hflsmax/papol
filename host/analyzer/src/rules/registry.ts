@@ -163,7 +163,7 @@ export const FLOAT_FRAME = rule({
 });
 export const FLOAT_BAND = rule({
   id: "float.band", stage: "float",
-  summary: "A float is everything that starts between its caption and the first bound on its side — running text or a heading over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized — across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
+  summary: "A float is everything that starts between its caption and the first bound on its side — running text or a heading (bold, or a subsection's number with an italic lead run in to its paragraph) over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized — across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
   why: "Growing a float by what touches it cut figures short wherever their panels, or the figure and its caption, were set further apart than the limit; what a float is bounded by is the text around it.",
 });
 export const FLOAT_PIECE = rule({
@@ -246,8 +246,8 @@ export const SECTION_NOT_RUNNING_HEAD = rule({
 });
 export const SECTION_HEADING_LEAD = rule({
   id: "section.heading-styled-lead", stage: "section",
-  summary: "After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic — the whole line (ending within the next two lines), or up to a \".\" or \":\" with the paragraph running on — and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.",
-  why: "Elsevier and ASME set subsections in italic at the text's size (\"2.1. Metamaterials and auxetic materials\"), and run-in headings (\"1.2 Case Study Overview. The …\") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers).",
+  summary: "After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic — the whole line (ending within the next two lines), or up to its first \".\" or \":\" with the paragraph running on (in the text's style somewhere after, whatever the word straight after the stop is set in) — and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.",
+  why: "Elsevier and ASME set subsections in italic at the text's size (\"2.1. Metamaterials and auxetic materials\"), and run-in headings (\"1.2 Case Study Overview. The …\") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers). A lead ending on a word the paper italicises anyway (\"3.3.3 Previewing Generated Motion. Kinergy provides …\", the system's name) ran on past its stop.",
 });
 export const SECTION_HEADING_STYLE = rule({
   id: "section.heading-style", stage: "section",

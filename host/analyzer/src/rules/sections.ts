@@ -101,7 +101,9 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
       if (!known(parent) || !Number.isFinite(last) || !known(predecessor) || pageOf(predecessor) > page.number) continue;
       // The lead: past the number, the first run's style and every run after
       // it in that style — the whole line, or ending in "." or ":" with the
-      // rest in another style.
+      // rest in another style. (It ends at its first stop, whatever comes
+      // next: "Previewing Generated Motion. Kinergy provides" names the
+      // system in italics too.)
       const runs = line.runs.filter((r) => letters([r]) > 0);
       let i = 0;
       while (i < runs.length && /^[\d.\s]*$/.test(runs[i].text)) i += 1;
@@ -112,7 +114,8 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
       while (j < runs.length && style(runs[j]) === lead) j += 1;
       const leadText = runs.slice(i, j).map((r) => r.text).join("");
       const whole = j >= runs.length;
-      if (!whole && !(/[.:]\s*$/.test(leadText) || /^\s*[.:]/.test(runs[j].text))) continue;
+      const stopped = runs.slice(i, j - 1).some((r) => /[.:]\s*$/.test(r.text)) && runs.slice(j).some((r) => style(r) === "roman");
+      if (!whole && !(/[.:]\s*$/.test(leadText) || /^\s*[.:]/.test(runs[j].text) || stopped)) continue;
       // A whole styled line ends within two: not a line of an italic
       // theorem or list, whose next lines are styled too.
       if (whole) {

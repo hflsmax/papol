@@ -40022,7 +40022,7 @@ var FLOAT_FRAME = rule({
 var FLOAT_BAND = rule({
   id: "float.band",
   stage: "float",
-  summary: "A float is everything that starts between its caption and the first bound on its side \u2014 running text or a heading over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized \u2014 across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
+  summary: "A float is everything that starts between its caption and the first bound on its side \u2014 running text or a heading (bold, or a subsection's number with an italic lead run in to its paragraph) over or under the caption itself (beside it, it is text wrapped around the float), another caption, a float already sized \u2014 across the columns the caption is set across (and the caption, where it hangs into the margin), shared halfway with a caption level with it. No distance limits it: a figure can be any height, with any space inside it.",
   why: "Growing a float by what touches it cut figures short wherever their panels, or the figure and its caption, were set further apart than the limit; what a float is bounded by is the text around it."
 });
 var FLOAT_PIECE = rule({
@@ -40122,8 +40122,8 @@ var SECTION_NOT_RUNNING_HEAD = rule({
 var SECTION_HEADING_LEAD = rule({
   id: "section.heading-styled-lead",
   stage: "section",
-  summary: `After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic \u2014 the whole line (ending within the next two lines), or up to a "." or ":" with the paragraph running on \u2014 and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.`,
-  why: `Elsevier and ASME set subsections in italic at the text's size ("2.1. Metamaterials and auxetic materials"), and run-in headings ("1.2 Case Study Overview. The \u2026") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers).`
+  summary: `After section.heading, a subsection line (two numbers or more) set at the text's size heads its section when, past the number, it leads with bold or italic \u2014 the whole line (ending within the next two lines), or up to its first "." or ":" with the paragraph running on (in the text's style somewhere after, whatever the word straight after the stop is set in) \u2014 and its parent and its predecessor (the parent, or the previous sibling) are headings already, no later in the paper.`,
+  why: `Elsevier and ASME set subsections in italic at the text's size ("2.1. Metamaterials and auxetic materials"), and run-in headings ("1.2 Case Study Overview. The \u2026") put the title's style under half the line; both failed the bold-or-larger test (33 sections in three papers). A lead ending on a word the paper italicises anyway ("3.3.3 Previewing Generated Motion. Kinergy provides \u2026", the system's name) ran on past its stop.`
 });
 var SECTION_HEADING_STYLE = rule({
   id: "section.heading-style",
@@ -41165,7 +41165,12 @@ function proseOn(page, type) {
 }
 function headingsOn(page, type, prose) {
   const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
-  const candidates = page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && l2.bold && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text));
+  const italicLead = (l2) => {
+    if (!/^\d{1,2}(\.\d{1,2}){1,3}\.?\s/.test(l2.text)) return false;
+    const runs = l2.runs.filter((r2) => !/^[\d.\s]*$/.test(r2.text));
+    return runs[0]?.italic && runs.some((r2, k2) => /[.:]\s*$/.test(r2.text) && runs.slice(0, k2 + 1).every((o2) => o2.italic) && runs.slice(k2 + 1).some((o2) => !o2.italic && !o2.bold));
+  };
+  const candidates = page.lines.filter((l2) => !l2.furniture && !prose.has(l2) && (l2.bold || italicLead(l2)) && l2.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l2.text));
   const proseUnder = (l2, leadings) => [...prose].some((p2) => p2.top > l2.top && p2.baseline - l2.baseline <= leadings * type.leading && Math.abs(p2.x0 - l2.x0) <= 2 * l2.size);
   const numberedHeading = (l2, depth = 0) => proseUnder(l2, 4) || depth < 3 && candidates.some((h2) => h2 !== l2 && NUMBERED.test(h2.text) && h2.baseline > l2.baseline && h2.baseline - l2.baseline <= 3 * type.leading && Math.abs(h2.x0 - l2.x0) <= 2 * l2.size && numberedHeading(h2, depth + 1));
   return candidates.filter((l2) => l2.size > type.bodySize + 1 || proseUnder(l2, 2) || NUMBERED.test(l2.text) && numberedHeading(l2));
@@ -41673,7 +41678,8 @@ function findSections(layout2, skip, floats, trace) {
       while (j2 < runs.length && style(runs[j2]) === lead) j2 += 1;
       const leadText = runs.slice(i2, j2).map((r2) => r2.text).join("");
       const whole = j2 >= runs.length;
-      if (!whole && !(/[.:]\s*$/.test(leadText) || /^\s*[.:]/.test(runs[j2].text))) continue;
+      const stopped = runs.slice(i2, j2 - 1).some((r2) => /[.:]\s*$/.test(r2.text)) && runs.slice(j2).some((r2) => style(r2) === "roman");
+      if (!whole && !(/[.:]\s*$/.test(leadText) || /^\s*[.:]/.test(runs[j2].text) || stopped)) continue;
       if (whole) {
         const after = page.lines.slice(page.lines.indexOf(line) + 1).filter((o2) => o2.column === line.column && !o2.furniture).slice(0, 2);
         if (after.length && !after.some((o2) => styledShare(o2) < 0.5)) continue;

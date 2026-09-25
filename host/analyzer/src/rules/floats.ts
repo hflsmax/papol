@@ -169,10 +169,18 @@ function proseOn(page: Page, type: Type): Set<Line> {
 // or, for a numbered one, within a few lines or under the numbered
 // headings stacked beneath it ("3 Method", "3.1 Setup", then text). A
 // numbered bold line with a picture under it is a label in a table of
-// pictures ("1. Instant Translation"), which bounds no float.
+// pictures ("1. Instant Translation"), which bounds no float. A run-in
+// heading in italics bounds one too: a subsection's number and an italic
+// lead ending in a stop ("3.2.2 Tensile Strength. To verify…").
 function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
   const NUMBERED = /^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z]\.)\s/;
-  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && l.bold && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
+  const italicLead = (l: Line) => {
+    if (!/^\d{1,2}(\.\d{1,2}){1,3}\.?\s/.test(l.text)) return false;
+    const runs = l.runs.filter((r) => !/^[\d.\s]*$/.test(r.text));
+    return runs[0]?.italic && runs.some((r, k) => /[.:]\s*$/.test(r.text) && runs.slice(0, k + 1).every((o) => o.italic)
+      && runs.slice(k + 1).some((o) => !o.italic && !o.bold));
+  };
+  const candidates = page.lines.filter((l) => !l.furniture && !prose.has(l) && (l.bold || italicLead(l)) && l.size >= type.bodySize - 0.5 && /[A-Za-z]{3}/.test(l.text));
   const proseUnder = (l: Line, leadings: number) => [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= leadings * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size);
   const numberedHeading = (l: Line, depth = 0): boolean => proseUnder(l, 4) || (depth < 3 && candidates.some((h) => h !== l && NUMBERED.test(h.text)
     && h.baseline > l.baseline && h.baseline - l.baseline <= 3 * type.leading && Math.abs(h.x0 - l.x0) <= 2 * l.size && numberedHeading(h, depth + 1)));
