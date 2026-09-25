@@ -4193,9 +4193,6 @@ export default function App() {
                       Download app
                     </a>
                   )}
-                  {paperInfo?.pdf_url && (
-                    <a className="ref-link" href={paperInfo.pdf_url} target="_blank" rel="noreferrer">PDF</a>
-                  )}
                   {(paperInfo?.url || paper.doi) && (
                     <a
                       className="ref-link"
