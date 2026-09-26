@@ -53,6 +53,28 @@ function useDrag() {
   return handlers;
 }
 
+// A sketch of a predicted distance map: residue against residue, darker
+// where two are predicted close, so the diagonal and a few contacts away
+// from it.
+const CONTACTS = [[2, 9], [3, 10], [4, 11], [1, 13], [6, 14], [7, 13]];
+function DistanceMap() {
+  const n = 16;
+  const cells = [];
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      const near = Math.max(0, 1 - Math.abs(i - j) / 3);
+      const contact = CONTACTS.some(([a, b]) => (Math.abs(i - a) + Math.abs(j - b) <= 1) || (Math.abs(i - b) + Math.abs(j - a) <= 1)) ? 0.7 : 0;
+      const shade = Math.max(near, contact);
+      if (shade > 0) cells.push(<rect key={`${i}-${j}`} x={j * 4} y={i * 4} width="4" height="4" opacity={0.15 + 0.85 * shade} />);
+    }
+  }
+  return (
+    <svg className="board-mock-image distances" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      {cells}
+    </svg>
+  );
+}
+
 function Card({ id, drag, grouped = false, className = '', children }) {
   return <div className={`board-mock-card ${className}`} {...drag(id, grouped)}>{children}</div>;
 }
@@ -70,14 +92,12 @@ export default function HomeBoard({ painted, onBack }) {
           <p className="board-mock-group-title">Before AlphaFold 2</p>
           <Card id="file" drag={drag} grouped>
             <Kind>File</Kind>
-            <p className="board-mock-file">Senior 2020.pdf</p>
+            <p className="board-mock-file">AlphaFold 1 (Senior 2020).pdf</p>
           </Card>
           <Card id="image" drag={drag} grouped>
             <Kind>Image</Kind>
-            <svg className="board-mock-image ribbon" viewBox="0 0 120 50" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M6 38 C 14 8, 22 8, 26 26 S 36 44, 42 24 S 52 6, 58 24 S 68 44, 74 26 C 80 10, 90 12, 96 30 S 110 40, 116 14" />
-            </svg>
-            <p>A ribbon sketch of a helix</p>
+            <DistanceMap />
+            <p>AlphaFold 1’s distance map</p>
           </Card>
         </div>
 
@@ -93,7 +113,7 @@ export default function HomeBoard({ painted, onBack }) {
           ))}
           <Card id="thought" drag={drag} className="thought">
             <Kind>Thought</Kind>
-            <p>0.96 Å. Narrower than one carbon atom.</p>
+            <p>0.96 Å error, less than a carbon atom’s width. Next best: 2.8 Å.</p>
           </Card>
           <Card id="video" drag={drag}>
             <Kind>YouTube video</Kind>
@@ -103,7 +123,7 @@ export default function HomeBoard({ painted, onBack }) {
         </div>
 
         <div className="board-mock-collection">
-          <p className="board-mock-group-title">Sources</p>
+          <p className="board-mock-group-title">Data</p>
           <Card id="leavitt" drag={drag} grouped>
             <Kind>Webpage</Kind>
             <div className="board-mock-image page" aria-hidden="true" />
@@ -112,7 +132,7 @@ export default function HomeBoard({ painted, onBack }) {
           <Card id="humason" drag={drag} grouped>
             <Kind>Webpage</Kind>
             <div className="board-mock-image page alt" aria-hidden="true" />
-            <p>Protein Data Bank</p>
+            <p>How a protein structure is solved</p>
           </Card>
         </div>
       </div>
