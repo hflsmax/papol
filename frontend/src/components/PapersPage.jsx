@@ -21,6 +21,8 @@ const avgMerit = (p) => {
 };
 
 
+const SELECTED_USER_KEY = 'papol.librarySelectedUser';
+
 const SORTS = {
   activity: {
     label: 'Seminar activity',
@@ -58,7 +60,11 @@ export default function PapersPage({
   const [people, setPeople] = useState([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('activity');
-  const [selectedUser, setSelectedUser] = useState(null);
+  // The chosen user chip is remembered for the tab, so opening a paper's
+  // jacket and coming back finds the Library still filtered to them.
+  const [selectedUser, setSelectedUser] = useState(
+    () => window.sessionStorage.getItem(SELECTED_USER_KEY)
+  );
   const [error, setError] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
   // A folder from an agent, being brought in (FolderImport), in place of
@@ -84,6 +90,10 @@ export default function PapersPage({
   };
 
   useEffect(load, []);
+  useEffect(() => {
+    if (selectedUser == null) window.sessionStorage.removeItem(SELECTED_USER_KEY);
+    else window.sessionStorage.setItem(SELECTED_USER_KEY, selectedUser);
+  }, [selectedUser]);
   useEffect(() => {
     if (incomingPaperFolder) setAddingFolder(true);
   }, [incomingPaperFolder]);
