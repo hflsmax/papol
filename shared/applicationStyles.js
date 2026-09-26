@@ -4183,6 +4183,7 @@ a.button:hover {
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
+.landing-fact { margin-top: 14px; color: var(--ink-soft); font: var(--fs-lg)/1.5 var(--font-ui); }
 .landing-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; }
 .landing-button {
   display: inline-block;
@@ -4201,13 +4202,13 @@ a.button:hover {
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
 
 .landing-place-section { scroll-margin-top: 16px; }
-.landing .landing-number { margin: 0 0 10px; color: var(--accent); font: 600 var(--fs-xs)/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; }
+.landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 
 /* Something to try, until it has been: a soft ring that breathes. */
 .beckon { animation: beckon 2.2s var(--ease-out) infinite; }
 @keyframes beckon {
-  0% { box-shadow: 0 0 0 0 rgba(22, 104, 220, 0.45); }
-  70%, 100% { box-shadow: 0 0 0 7px rgba(22, 104, 220, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(43, 74, 111, 0.45); }
+  70%, 100% { box-shadow: 0 0 0 8px rgba(43, 74, 111, 0); }
 }
 
 /* The specimen: a viewer window around one page of the paper. */
@@ -4220,18 +4221,20 @@ a.button:hover {
   box-shadow: var(--shadow-md);
 }
 .specimen-toolbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--card);
   font-family: var(--font-ui);
 }
-.specimen-doc-title { overflow: hidden; color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; text-overflow: ellipsis; }
-.specimen-tools { display: inline-flex; gap: 6px; flex: none; }
-.specimen-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; font-size: var(--fs-xs); }
-.specimen-tools button svg { width: 14px; height: 14px; fill: currentColor; }
-.specimen-tools button.active,
-.specimen-tools button.active:hover { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
+.specimen-home { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linejoin: round; }
+.specimen-doc-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; text-overflow: ellipsis; }
+.specimen-tools { display: inline-flex; gap: 4px; flex: none; }
+.specimen-tool { position: relative; display: grid; place-items: center; width: 34px; height: 32px; padding: 0; }
+.specimen-tool svg { width: 16px; height: 16px; fill: currentColor; }
+.specimen-key { position: absolute; right: 3px; bottom: 1px; font: 600 8px/1 var(--font-ui); opacity: 0.7; }
+.specimen-tool.active,
+.specimen-tool.active:hover { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
 
 .specimen-page {
   position: relative;
@@ -4240,17 +4243,17 @@ a.button:hover {
   background: var(--card);
   box-shadow: var(--shadow-sm);
   color: #14161a;
-  font-size: 0.84rem;
+  font-size: var(--fs-md);
   line-height: 1.55;
 }
+.specimen-running-head { display: flex; justify-content: space-between; margin-bottom: 14px; color: var(--ink-faint); font: var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.04em; }
+.specimen-folio { margin-top: 12px; color: var(--ink-faint); font: var(--fs-2xs)/1 var(--font-ui); text-align: right; }
 .specimen-masthead { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); text-align: center; }
-.specimen-kicker { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.specimen-title { max-width: 30ch; margin: 8px auto 0; font-size: var(--fs-xl); font-weight: 600; line-height: 1.25; }
+.specimen-title { max-width: 30ch; margin: 0 auto; font-size: var(--fs-xl); font-weight: 600; line-height: 1.25; }
 .specimen-authors { margin-top: 6px; font-size: var(--fs-sm); }
-.specimen-source { margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-xs) var(--font-serif); }
 .specimen-elision { color: var(--ink-faint); }
 .specimen-page sub { font-size: 0.72em; line-height: 0; }
-.specimen-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: justify; hyphens: auto; }
+.specimen-columns { columns: 2; column-gap: 24px; text-align: justify; hyphens: auto; }
 
 .specimen-sentence { border-radius: 2px; transition: background-color var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out); }
 .specimen-sentence.painted { background: rgba(217, 43, 31, 0.2); box-shadow: 0 0 0 1px rgba(217, 43, 31, 0.08); }
@@ -4260,8 +4263,8 @@ a.button:hover {
 .specimen-sentence:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .specimen-sentence.flash { animation: specimen-flash 1.6s var(--ease-out); }
 @keyframes specimen-flash {
-  0%, 30% { box-shadow: 0 0 0 3px rgba(224, 160, 32, 0.55); background-color: rgba(224, 160, 32, 0.22); }
-  100% { box-shadow: 0 0 0 3px rgba(224, 160, 32, 0); }
+  0%, 30% { box-shadow: 0 0 0 3px var(--gold-line); background-color: var(--gold-soft); }
+  100% { box-shadow: 0 0 0 3px transparent; }
 }
 
 /* Inline controls in the page's text: they read as the text they are. */
@@ -4273,28 +4276,31 @@ a.button:hover {
   border-radius: 2px;
   background: none;
   box-shadow: none;
-  color: #1668dc;
+  color: var(--accent);
   font: inherit;
   line-height: inherit;
   cursor: pointer;
 }
-.specimen-cite { padding: 0 2px; font-size: 0.72em; vertical-align: super; line-height: 1; }
+.specimen-cite:focus-visible,
+.specimen-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.specimen-cite { position: relative; padding: 0 3px; font-size: 0.72em; vertical-align: super; line-height: 1; }
+.specimen-cite::after { content: ''; position: absolute; inset: -8px -6px; }
 .specimen-cite:hover:not(:disabled),
-.specimen-link:hover:not(:disabled) { border: 0; background: rgba(22, 104, 220, 0.1); color: #1668dc; }
+.specimen-link:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .specimen-cite.active,
-.specimen-cite.active:hover { background: #1668dc; color: var(--ink-inverse); }
+.specimen-cite.active:hover { background: var(--accent); color: var(--ink-inverse); }
 .specimen-page.painting .specimen-cite,
 .specimen-page.painting .specimen-link { pointer-events: none; color: inherit; animation: none; }
 
-.specimen-figure { margin: 10px 0 12px; text-align: center; }
-.specimen-figure .fold-plot { width: 100%; max-width: 250px; height: auto; }
-.specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); text-align: left; }
+.specimen-figure { margin: 18px 0 4px; text-align: center; }
+.specimen-figure .fold-plot { width: 100%; max-width: 380px; height: auto; }
+.specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); }
 .plot-grid { fill: none; stroke: var(--line); stroke-width: 0.8; }
 .plot-bar { fill: var(--fill-strong); }
 .plot-bar.own { fill: var(--accent); }
 .plot-ci { fill: none; stroke: var(--ink); stroke-width: 1; }
 .plot-atom { fill: none; stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 3 2; }
-.plot-label { fill: var(--ink-soft); font: 7px var(--font-ui); }
+.plot-label { fill: var(--ink-soft); font: 8px var(--font-ui); }
 .plot-label.end { text-anchor: end; }
 .plot-label.middle { text-anchor: middle; }
 
@@ -4323,6 +4329,7 @@ a.button:hover {
   transition: top var(--motion-base) var(--ease-out), left var(--motion-base) var(--ease-out);
   animation: specimen-rise var(--motion-base) var(--ease-out);
 }
+.specimen-card:focus { outline: none; }
 .specimen-card-works {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin: -4px -4px 8px; padding-bottom: 6px;
@@ -4367,6 +4374,19 @@ a.button:hover {
 @keyframes specimen-fade { from { opacity: 0; } }
 @keyframes specimen-zoom { from { opacity: 0; transform: scale(0.45) translate(30%, 10%); } }
 
+.specimen-landed {
+  justify-self: center;
+  padding: 5px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font: var(--fs-sm) var(--font-ui);
+  text-decoration: none;
+  animation: specimen-rise var(--motion-base) var(--ease-out);
+}
+.specimen-landed:hover { border-color: var(--accent); }
+
 .specimen-backlink {
   justify-self: start;
   padding: 0; border: 0; background: none; box-shadow: none;
@@ -4381,6 +4401,8 @@ a.button:hover {
 .board-mock { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
 .board-mock-bar { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .board-mock-name { font-size: var(--fs-lg); font-weight: 600; }
+.board-mock-bar-end { display: inline-flex; align-items: baseline; gap: 12px; }
+.board-mock-tidy { padding: 2px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-soft); font: var(--fs-xs)/1.5 var(--font-ui); }
 .board-mock-count { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .board-mock-canvas {
   display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: start; gap: 16px;
@@ -4404,25 +4426,30 @@ a.button:hover {
   border-radius: 6px;
   background: var(--card);
   box-shadow: var(--shadow-sm);
-  font-size: var(--fs-sm);
-  line-height: 1.4;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
   cursor: grab;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
+.board-mock-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .board-mock-card[data-lifted] { z-index: 2; box-shadow: var(--shadow-md); }
 .board-mock-card[data-returning] { transition: transform 320ms var(--ease-out); }
 .board-mock-card:active { cursor: grabbing; }
-.board-mock-card.excerpt { border-color: rgba(217, 43, 31, 0.3); animation: board-land 420ms var(--ease-out); }
+.board-mock-card.excerpt { border-left: 3px solid rgba(217, 43, 31, 0.55); animation: board-land 420ms var(--ease-out); }
 @keyframes board-land { from { opacity: 0; transform: translateY(-26px) scale(0.92); } }
 .board-mock-kind { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 .board-mock-file { color: var(--accent); font: var(--fs-xs) var(--font-ui); word-break: break-word; }
 .board-mock-image { display: block; width: 100%; height: 64px; border-radius: 3px; }
 .board-mock-image.video { display: grid; place-items: center; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
 .board-mock-image.distances { width: auto; height: 72px; justify-self: center; background: var(--paper-sunken); }
-.board-mock-image.distances rect { fill: var(--green-ink); }
-.board-mock-image.page { background: linear-gradient(var(--accent) 0 14px, var(--accent-soft) 14px); }
-.board-mock-image.page.alt { background: linear-gradient(var(--identity-3) 0 14px, var(--gold-soft) 14px); }
+.board-mock-image.distances rect { fill: var(--accent); }
+.board-mock-image.thumb { border: 1px solid var(--line); background: var(--card); }
+.thumb-bar, .thumb-picture { fill: var(--fill); }
+.thumb-title { fill: var(--line-strong); }
+.thumb-line { fill: var(--line); }
 
 /* The Library: the paper's jacket, which the visitor can add to. */
 .landing-jacket {
@@ -4432,8 +4459,7 @@ a.button:hover {
   background: var(--card);
   box-shadow: var(--shadow-md);
 }
-.landing-jacket-kicker { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.landing-jacket-title { margin-top: 8px; font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
+.landing-jacket-title { font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
 .landing-jacket-meta { margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-xs); }
 .landing-readers { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); list-style: none; }
 .landing-readers li { display: grid; grid-template-columns: 28px 1fr; align-items: start; gap: 10px; font-size: var(--fs-sm); line-height: 1.4; }
@@ -4461,22 +4487,25 @@ a.button:hover {
 .landing-close { display: grid; justify-items: center; padding: 40px 24px 28px; border-radius: var(--radius-lg); background: var(--accent-soft); text-align: center; }
 .landing-close h2 { color: var(--ink); font-size: var(--fs-hero); font-weight: 600; }
 .landing-close .landing-doors { justify-content: center; margin-top: 20px; }
-.landing-github { display: block; width: 20px; height: 20px; margin-top: 26px; color: var(--ink-faint); }
-.landing-github:hover { color: var(--ink); }
-.landing-github svg { display: block; width: 100%; height: 100%; }
+.landing-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-top: -28px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.landing-footer a { color: inherit; text-decoration: none; }
+.landing-footer a:hover { color: var(--accent); text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .specimen-columns { text-align: left; hyphens: manual; }
+}
 
 @media (max-width: 640px) {
   .landing { gap: 44px; }
   .specimen-page { margin: 10px; padding: 18px 16px 16px; }
-  .specimen-columns,
+  .specimen-columns { columns: 1; }
   .board-mock-canvas { grid-template-columns: 1fr; gap: 12px; }
-  .specimen-doc-title { display: none; }
-  .specimen-tools { margin-left: auto; }
+  .specimen-doc-title { visibility: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .beckon, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
-  .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own { animation: none; }
+  .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own, .specimen-landed { animation: none; }
   .board-mock-card[data-returning] { transition: none; }
 }
 
