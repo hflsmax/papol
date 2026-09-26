@@ -1,106 +1,138 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
-// The landing page's specimen: Hubble's 1929 paper, in excerpts, to be read
-// the way Papol reads, before the visitor has an account. Nothing here
-// talks to a server; it acts out in miniature what the viewer does with a
-// real PDF. Nothing on it is explained either: what can be tried pulses
-// until it has been. What is painted is the landing page's, which lays it
-// on the board below.
+// The landing page's specimen: the opening of the AlphaFold 2 paper, in
+// excerpts, to be read the way Papol reads, before the visitor has an
+// account. Nothing here talks to a server; it acts out in miniature what
+// the viewer does with a real PDF. Nothing on it is explained either: what
+// can be tried pulses until it has been. What is painted is the landing
+// page's, which lays it on the board below.
 //
-// E. Hubble, "A Relation Between Distance and Radial Velocity Among
-// Extra-Galactic Nebulae", PNAS 15 (1929) 168–173. Public domain in the
-// US; the sentences are the paper's own, whole, from the archive.org scan
-// (B-001-001-868).
+// J. Jumper et al., "Highly accurate protein structure prediction with
+// AlphaFold", Nature 596, 583–589 (2021), under CC BY 4.0, which asks for
+// credit, a link to the licence and a note of what was changed: the page
+// shows all three. The sentences are the paper's own, whole, from
+// nature.com; the figure is redrawn from the numbers its text gives.
 
-// The footnotes as printed, and what a lookup makes of those it can place.
+const SOURCE_URL = 'https://doi.org/10.1038/s41586-021-03819-2';
+const LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
+
+// The reference list's entries for the works these sentences cite, as
+// printed, and the parts a card shows.
 const REFERENCES = {
-  1: {
-    printed: 'Mt. Wilson Contr., No. 324; Astroph. J., Chicago, Ill., 64, 1926 (321).',
-    title: 'Extra-galactic nebulae',
-    authors: 'E. Hubble',
-    venue: 'The Astrophysical Journal 64, 1926',
+  10: {
+    printed: 'Senior, A. W. et al. Improved protein structure prediction using potentials from deep learning. Nature 577, 706–710 (2020).',
+    title: 'Improved protein structure prediction using potentials from deep learning',
+    authors: 'Senior, A. W. et al.',
+    venue: 'Nature 577, 706–710 (2020)',
   },
-  2: { printed: 'Harvard Coll. Obs. Circ., 294, 1926.' },
-  3: { printed: 'Mon. Not. R. Astr. Soc., 85, 1925 (865–894).' },
-  4: {
-    printed: 'These Proceedings, 15, 1929 (167).',
-    title: 'The Large Radial Velocity of N. G. C. 7619',
-    authors: 'M. L. Humason',
-    venue: 'Proceedings of the National Academy of Sciences 15, 1929',
+  11: {
+    printed: 'Wang, S., Sun, S., Li, Z., Zhang, R. & Xu, J. Accurate de novo prediction of protein contact map by ultra-deep learning model. PLOS Comput. Biol. 13, e1005324 (2017).',
+    title: 'Accurate de novo prediction of protein contact map by ultra-deep learning model',
+    authors: 'Wang, S., Sun, S., Li, Z., Zhang, R. & Xu, J.',
+    venue: 'PLOS Comput. Biol. 13, e1005324 (2017)',
+  },
+  12: {
+    printed: 'Zheng, W. et al. Deep-learning contact-map guided protein structure prediction in CASP13. Proteins 87, 1149–1164 (2019).',
+    title: 'Deep-learning contact-map guided protein structure prediction in CASP13',
+    authors: 'Zheng, W. et al.',
+    venue: 'Proteins 87, 1149–1164 (2019)',
+  },
+  13: {
+    printed: 'Abriata, L. A., Tamò, G. E. & Dal Peraro, M. A further leap of improvement in tertiary structure prediction in CASP13 prompts new routes for future assessments. Proteins 87, 1100–1112 (2019).',
+    title: 'A further leap of improvement in tertiary structure prediction in CASP13 prompts new routes for future assessments',
+    authors: 'Abriata, L. A., Tamò, G. E. & Dal Peraro, M.',
+    venue: 'Proteins 87, 1100–1112 (2019)',
+  },
+  14: {
+    printed: 'Pearce, R. & Zhang, Y. Deep learning techniques have significantly impacted protein structure prediction and protein design. Curr. Opin. Struct. Biol. 68, 194–207 (2021).',
+    title: 'Deep learning techniques have significantly impacted protein structure prediction and protein design',
+    authors: 'Pearce, R. & Zhang, Y.',
+    venue: 'Curr. Opin. Struct. Biol. 68, 194–207 (2021)',
   },
 };
 
-// The page, sentence by sentence, each with the printed page it is on. A
-// sentence is a list of pieces: text, a footnote ({ cite }) or the words
-// that lead to the figure ({ figure }).
+// The page, sentence by sentence. A sentence is a list of pieces: text, a
+// citation ({ cites, label }: one marker, which may name several works) or
+// the words that lead to the figure ({ figure }). An elision marks where
+// the paper's own sentences were left out.
 const COLUMNS = [
   [
-    { id: 's1', page: 168, parts: ['The present paper is a re-examination of the question, based on only those nebular distances which are believed to be fairly reliable.'] },
-    { id: 's2', page: 168, parts: ['A study of these nebulae, together with those in which any stars at all can be recognized, indicates the probability of an approximately uniform upper limit to the absolute luminosity of stars, in the late-type spirals and irregular nebulae at least, of the order of M (photographic) = −6.3.', { cite: 1 }] },
-    { id: 's3', page: 169, parts: ['Finally, the nebulae themselves appear to be of a definite order of absolute luminosity, exhibiting a range of four or five magnitudes about an average value M (visual) = −15.2.', { cite: 1 }] },
-    { id: 's4', page: 170, parts: ['The data in the table indicate a linear correlation between distances and velocities, whether the latter are used directly or corrected for solar motion, according to the older solutions.'] },
-    { id: 's5', page: 171, parts: ['Solutions of this sort have been published by Lundmark,', { cite: 3 }, ' who replaced the old K by k + lr + mr².'] },
+    { id: 's1', parts: ['Proteins are essential to life, and understanding their structure can facilitate a mechanistic understanding of their function.'] },
+    { elision: true },
+    { id: 's2', parts: ['Structural coverage is bottlenecked by the months to years of painstaking effort required to determine a single protein structure.'] },
+    { elision: true },
+    { id: 's3', parts: ['Despite recent progress', { cites: [10, 11, 12, 13, 14], label: '10–14' }, ', existing methods fall far short of atomic accuracy, especially when no homologous structure is available.'] },
+    { id: 's4', parts: ['Here we provide the first computational method that can regularly predict protein structures with atomic accuracy even in cases in which no similar structure is known.'] },
   ],
   [
-    { id: 's6', page: 171, parts: ['In order to exhibit the results in a graphical form, the solar motion has been eliminated from the observed velocities and the remainders, the distance terms plus the residuals, have been ', { figure: 'plotted against the distances' }, '.'] },
+    { id: 's5', parts: ['The neural network AlphaFold that we developed was entered into the CASP14 assessment (May–July 2020; entered under the team name ‘AlphaFold2’ and a completely different model from our CASP13 AlphaFold system', { cites: [10], label: '10' }, ').'] },
+    { id: 's6', parts: ['In CASP14, AlphaFold structures were vastly more accurate than competing methods.'] },
+    { id: 's7', parts: ['AlphaFold structures had a median backbone accuracy of 0.96 Å r.m.s.d.', { sub: '95' }, ' (Cα root-mean-square deviation at 95% residue coverage) (95% confidence interval = 0.85–1.16 Å) whereas the next best performing method had a median backbone accuracy of 2.8 Å r.m.s.d.', { sub: '95' }, ' (95% confidence interval = 2.7–4.0 Å) (measured on CASP domains; see ', { figure: 'Fig. 1a' }, ' for backbone accuracy and Supplementary Fig. 14 for all-atom accuracy).'] },
     { figureBlock: true },
-    { id: 's7', page: 173, parts: ['The results establish a roughly linear relation between velocities and distances among nebulae for which velocities have been previously published, and the relation appears to dominate the distribution of velocities.'] },
-    { id: 's8', page: 173, parts: ['The first definite result,', { cite: 4 }, ' v = +3779 km./sec. for N. G. C. 7619, is thoroughly consistent with the present conclusions.'] },
+    { id: 's8', parts: ['As a comparison point for this accuracy, the width of a carbon atom is approximately 1.4 Å.'] },
   ],
 ];
 
 const BLOCKS = COLUMNS.flat().filter((block) => block.id);
-const SUPERSCRIPT = { 1: '¹', 2: '²', 3: '³', 4: '⁴' };
+const plain = (part) => {
+  if (typeof part === 'string') return part;
+  if (part.cites) return part.label.replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]).replace('–', '⁻');
+  if (part.sub) return part.sub.replace(/\d/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[d]);
+  return part.figure;
+};
+export const SENTENCES = Object.fromEntries(BLOCKS.map((block) => [block.id, block.parts.map(plain).join('')]));
+export const SOURCE = 'Jumper et al., 2021';
 
-export const SENTENCES = Object.fromEntries(BLOCKS.map((block) => [
-  block.id,
-  block.parts.map((part) => (typeof part === 'string' ? part : part.cite ? SUPERSCRIPT[part.cite] : part.figure)).join(''),
-]));
-export const PAGES = Object.fromEntries(BLOCKS.map((block) => [block.id, block.page]));
-
-// Every place each work is cited, in reading order.
+// Every citation, by where it stands, and every place each work is cited,
+// in reading order.
+const CITATIONS = {};
 const OCCURRENCES = {};
 BLOCKS.forEach((block) => block.parts.forEach((part, i) => {
-  if (part.cite) (OCCURRENCES[part.cite] ||= []).push(`${block.id}-${i}`);
+  if (!part.cites) return;
+  const at = `${block.id}-${i}`;
+  CITATIONS[at] = part.cites;
+  part.cites.forEach((ref) => (OCCURRENCES[ref] ||= []).push(at));
 }));
-const FIRST_CITATION = OCCURRENCES[1][0];
+const FIRST_CITATION = Object.keys(CITATIONS)[0];
 
-// Table 1 of the paper: distance (10⁶ parsecs) and measured velocity
-// (km/sec) of the 24 nebulae whose distances were estimated.
-const TABLE_1 = [
-  [0.032, 170], [0.034, 290], [0.214, -130], [0.263, -70], [0.275, -185], [0.275, -220],
-  [0.45, 200], [0.5, 290], [0.5, 270], [0.63, 200], [0.8, 300], [0.9, -30],
-  [0.9, 650], [0.9, 150], [0.9, 500], [1.0, 920], [1.1, 450], [1.1, 500],
-  [1.4, 500], [1.7, 960], [2.0, 500], [2.0, 850], [2.0, 800], [2.0, 1090],
+// Fig. 1a, from the two of its bars the text gives: median Cα r.m.s.d.95
+// on the CASP14 domains, with its 95% confidence interval, and the width
+// of a carbon atom for comparison. The paper's figure has all top-15
+// entries.
+const BARS = [
+  { name: 'AlphaFold', median: 0.96, low: 0.85, high: 1.16, own: true },
+  { name: 'Next best', median: 2.8, low: 2.7, high: 4.0 },
 ];
-const px = (r) => 48 + r * 78;
-const py = (v) => 150 - (v + 400) * 0.0875;
-
-// The figure, redrawn from table 1: the two solutions for K the paper
-// gives (465 and 513 km/sec per million parsecs), and the cross at the
-// mean of the 22 nebulae without distances (1.4 × 10⁶ parsecs, 745 km/sec).
-function VelocityDistance() {
+const bx = (a) => 60 + a * 38; // 0–4.2 Å across 160 units
+function BackboneAccuracy() {
   return (
-    <svg viewBox="0 0 228 172" aria-hidden="true" focusable="false" className="hubble-plot">
-      <path className="plot-axis" d="M48 8V150H222" />
-      <path className="plot-zero" d={`M48 ${py(0)}H222`} />
-      <text x="44" y={py(1000) + 3} className="plot-label end">+1000 KM</text>
-      <text x="44" y={py(500) + 3} className="plot-label end">500 KM</text>
-      <text x="44" y={py(0) + 3} className="plot-label end">0</text>
-      <text x={px(1)} y="162" className="plot-label middle">10⁶ PARSECS</text>
-      <text x={px(2)} y="162" className="plot-label middle">2 × 10⁶</text>
-      <path className="plot-tick" d={`M${px(1)} 150v3M${px(2)} 150v3`} />
-      <path className="plot-fit" d={`M${px(0)} ${py(0)}L${px(2.2)} ${py(465 * 2.2)}`} />
-      <path className="plot-fit dashed" d={`M${px(0)} ${py(0)}L${px(2.2)} ${py(513 * 2.2)}`} />
-      {TABLE_1.map(([r, v], i) => <circle key={i} cx={px(r)} cy={py(v)} r="2.6" className="plot-dot" />)}
-      <path className="plot-cross" d={`M${px(1.4) - 4} ${py(745)}h8M${px(1.4)} ${py(745) - 4}v8`} />
+    <svg viewBox="0 0 232 112" aria-hidden="true" focusable="false" className="fold-plot">
+      {[0, 1, 2, 3, 4].map((a) => (
+        <g key={a}>
+          <path className="plot-grid" d={`M${bx(a)} 12V84`} />
+          <text x={bx(a)} y="96" className="plot-label middle">{a}</text>
+        </g>
+      ))}
+      <text x={bx(2.1)} y="108" className="plot-label middle">Median Cα r.m.s.d.₉₅ (Å)</text>
+      {BARS.map((bar, i) => {
+        const y = 22 + i * 30;
+        return (
+          <g key={bar.name}>
+            <text x="54" y={y + 12} className="plot-label end">{bar.name}</text>
+            <rect x={bx(0)} y={y} width={bx(bar.median) - bx(0)} height="18" className={`plot-bar${bar.own ? ' own' : ''}`} />
+            <path className="plot-ci" d={`M${bx(bar.low)} ${y + 9}H${bx(bar.high)}M${bx(bar.low)} ${y + 5}v8M${bx(bar.high)} ${y + 5}v8`} />
+          </g>
+        );
+      })}
+      <path className="plot-atom" d={`M${bx(1.4)} 8V84`} />
+      <text x={bx(1.4) + 3} y="11" className="plot-label">carbon atom, 1.4 Å</text>
     </svg>
   );
 }
 
 export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) {
   const [tool, setTool] = useState('read');
-  const [card, setCard] = useState(null); // { ref, at }
+  const [card, setCard] = useState(null); // { at: where the citation stands, ref: the work shown }
   const [figureOpen, setFigureOpen] = useState(false);
   const [tried, setTried] = useState({});
   const [cardBox, setCardBox] = useState(null);
@@ -108,29 +140,34 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
 
   const markTried = (key) => setTried((current) => (current[key] ? current : { ...current, [key]: true }));
 
-  const openCitation = (ref, occurrence) => {
-    setCard({ ref: Number(ref), at: OCCURRENCES[ref].indexOf(occurrence) });
+  const openCitation = (at) => {
+    setCard({ at, ref: CITATIONS[at][0] });
     markTried('cite');
   };
-
-  const step = (by) => setCard((current) => {
-    const count = OCCURRENCES[current.ref].length;
-    return { ...current, at: (current.at + by + count) % count };
+  // Between the works one citation names.
+  const stepWork = (by) => setCard(({ at, ref }) => {
+    const works = CITATIONS[at];
+    return { at, ref: works[(works.indexOf(ref) + by + works.length) % works.length] };
+  });
+  // Between the places one work is cited.
+  const stepPlace = (by) => setCard(({ at, ref }) => {
+    const places = OCCURRENCES[ref];
+    return { at: places[(places.indexOf(at) + by + places.length) % places.length], ref };
   });
 
-  // The card hangs under the footnote it is showing, and follows it as the
+  // The card hangs under the citation it is showing, and follows it as the
   // arrows step from one place to the next.
-  const activeOccurrence = card && OCCURRENCES[card.ref][card.at];
+  const activeAt = card?.at;
   useLayoutEffect(() => {
-    if (!activeOccurrence || !pageRef.current) { setCardBox(null); return; }
-    const marker = pageRef.current.querySelector(`[data-occurrence="${activeOccurrence}"]`);
+    if (!activeAt || !pageRef.current) { setCardBox(null); return; }
+    const marker = pageRef.current.querySelector(`[data-occurrence="${activeAt}"]`);
     if (!marker) return;
     const page = pageRef.current.getBoundingClientRect();
     const box = marker.getBoundingClientRect();
-    const width = Math.min(300, page.width - 24);
+    const width = Math.min(320, page.width - 24);
     const left = Math.max(12, Math.min(box.left - page.left - 20, page.width - width - 12));
     setCardBox({ top: box.bottom - page.top + 8, left, width });
-  }, [activeOccurrence]);
+  }, [activeAt]);
 
   const togglePaint = (id) => {
     onTogglePaint(id);
@@ -139,6 +176,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
 
   const renderPart = (block, part, i) => {
     if (typeof part === 'string') return part;
+    if (part.sub) return <sub key={i}>{part.sub}</sub>;
     if (part.figure) {
       return (
         <button
@@ -151,28 +189,28 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
         </button>
       );
     }
-    const occurrence = `${block.id}-${i}`;
-    const beckon = !tried.cite && occurrence === FIRST_CITATION;
+    const at = `${block.id}-${i}`;
     return (
       <button
         key={i}
         type="button"
-        data-occurrence={occurrence}
-        aria-label={`Footnote ${part.cite}`}
-        className={`specimen-cite${occurrence === activeOccurrence ? ' active' : ''}${beckon ? ' beckon' : ''}`}
-        onClick={(e) => { e.stopPropagation(); openCitation(part.cite, occurrence); }}
+        data-occurrence={at}
+        aria-label={`References ${part.label}`}
+        className={`specimen-cite${at === activeAt ? ' active' : ''}${!tried.cite && at === FIRST_CITATION ? ' beckon' : ''}`}
+        onClick={(e) => { e.stopPropagation(); openCitation(at); }}
       >
-        {part.cite}
+        {part.label}
       </button>
     );
   };
 
-  const renderBlock = (block) => {
+  const renderBlock = (block, index) => {
+    if (block.elision) return <span key={`elision-${index}`} className="specimen-elision">[…] </span>;
     if (block.figureBlock) {
       return (
         <figure key="figure" className="specimen-figure">
-          <VelocityDistance />
-          <figcaption>Velocity-Distance Relation among Extra-Galactic Nebulae.</figcaption>
+          <BackboneAccuracy />
+          <figcaption><b>Fig. 1:</b> AlphaFold produces highly accurate structures.</figcaption>
         </figure>
       );
     }
@@ -195,13 +233,14 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
   };
 
   const reference = card && REFERENCES[card.ref];
-  const count = card ? OCCURRENCES[card.ref].length : 0;
+  const works = card ? CITATIONS[card.at] : [];
+  const places = card ? OCCURRENCES[card.ref] : [];
 
   return (
     <div className="specimen">
       <div className="specimen-window">
         <div className="specimen-toolbar">
-          <span className="specimen-doc-title">A Relation Between Distance and Radial Velocity Among Extra-Galactic Nebulae</span>
+          <span className="specimen-doc-title">Highly accurate protein structure prediction with AlphaFold</span>
           <span className="specimen-tools" role="group" aria-label="Tool">
             <button
               type="button"
@@ -228,18 +267,24 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
 
         <div className={`specimen-page${tool === 'paint' ? ' painting' : ''}`} ref={pageRef} onClick={() => setCard(null)}>
           <header className="specimen-masthead">
-            <p className="specimen-title">A Relation Between Distance and Radial Velocity Among Extra-Galactic Nebulae</p>
-            <p className="specimen-authors">By Edwin Hubble · Mount Wilson Observatory</p>
-            <p className="specimen-source">Proc. N. A. S. 15, 1929, pp. 168–173 · excerpts</p>
+            <p className="specimen-kicker">Article</p>
+            <p className="specimen-title">Highly accurate protein structure prediction with AlphaFold</p>
+            <p className="specimen-authors">John Jumper, Richard Evans, Alexander Pritzel et al.</p>
+            <p className="specimen-source">Nature 596, 583–589 (2021) · excerpts</p>
           </header>
           <div className="specimen-columns">
             {COLUMNS.map((column, c) => <div key={c} className="specimen-column">{column.map(renderBlock)}</div>)}
           </div>
           <ol className="specimen-references">
             {Object.entries(REFERENCES).map(([n, ref]) => (
-              <li key={n}><span>{n}</span> {ref.printed}</li>
+              <li key={n}><span>{n}.</span> {ref.printed}</li>
             ))}
           </ol>
+          <p className="specimen-licence">
+            Excerpted from <a href={SOURCE_URL} target="_blank" rel="noreferrer">Jumper et al., Nature 2021</a>,
+            {' '}<a href={LICENCE_URL} target="_blank" rel="noreferrer">CC BY 4.0</a>. Sentences left out are marked […];
+            {' '}Fig. 1a is redrawn from the values in the text.
+          </p>
 
           {reference && cardBox && (
             <div
@@ -247,19 +292,26 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
               style={{ top: cardBox.top, left: cardBox.left, width: cardBox.width }}
               onClick={(e) => e.stopPropagation()}
               role="dialog"
-              aria-label={`Footnote ${card.ref}`}
+              aria-label={`Reference ${card.ref}`}
             >
-              <p className="specimen-card-title">{reference.title || reference.printed}</p>
-              {reference.title && <p className="specimen-card-meta">{reference.authors} · {reference.venue}</p>}
+              {works.length > 1 && (
+                <div className="specimen-card-works">
+                  <button type="button" aria-label="Previous work" onClick={() => stepWork(-1)}>‹</button>
+                  <span>{card.ref} · work {works.indexOf(card.ref) + 1} of {works.length}</span>
+                  <button type="button" aria-label="Next work" onClick={() => stepWork(1)}>›</button>
+                </div>
+              )}
+              <p className="specimen-card-title">{reference.title}</p>
+              <p className="specimen-card-meta">{reference.authors} · {reference.venue}</p>
               <div className="specimen-card-steps">
                 <span>
-                  {count === 1 ? 'Cited once in this paper' : `Cited ${count === 2 ? 'twice' : `${count} times`} in this paper`}
-                  {count > 1 && <b> · {card.at + 1} of {count}</b>}
+                  {places.length === 1 ? 'Cited once in this paper' : `Cited ${places.length === 2 ? 'twice' : `${places.length} times`} in this paper`}
+                  {places.length > 1 && <b> · {places.indexOf(card.at) + 1} of {places.length}</b>}
                 </span>
-                {count > 1 && (
+                {places.length > 1 && (
                   <span className="specimen-card-arrows">
-                    <button type="button" aria-label="Previous place" onClick={() => step(-1)}>↑</button>
-                    <button type="button" aria-label="Next place" onClick={() => step(1)}>↓</button>
+                    <button type="button" aria-label="Previous place" onClick={() => stepPlace(-1)}>↑</button>
+                    <button type="button" aria-label="Next place" onClick={() => stepPlace(1)}>↓</button>
                   </span>
                 )}
               </div>
@@ -269,16 +321,16 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
           {figureOpen && (
             <div className="specimen-figure-stage" onClick={(e) => e.stopPropagation()}>
               <figure className="specimen-figure large">
-                <VelocityDistance />
+                <BackboneAccuracy />
                 <figcaption>
-                  Velocity-Distance Relation among Extra-Galactic Nebulae.
-                  <span className="specimen-redrawn">Redrawn from the paper’s table 1.</span>
+                  <b>Fig. 1a</b> The performance of AlphaFold on the CASP14 dataset (n = 87 protein domains).
+                  <span className="specimen-redrawn">Redrawn with the two entries the text gives; the paper’s figure shows the top 15.</span>
                 </figcaption>
               </figure>
               <button
                 type="button"
                 className="specimen-return"
-                onClick={() => { setFigureOpen(false); onGlow('s6'); }}
+                onClick={() => { setFigureOpen(false); onGlow('s7'); }}
               >
                 ← Back to where you were
               </button>

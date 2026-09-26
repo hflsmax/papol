@@ -4244,9 +4244,12 @@ a.button:hover {
   line-height: 1.55;
 }
 .specimen-masthead { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); text-align: center; }
-.specimen-title { max-width: 34ch; margin: 0 auto; font-size: var(--fs-lg); font-weight: 600; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.02em; }
+.specimen-kicker { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
+.specimen-title { max-width: 30ch; margin: 8px auto 0; font-size: var(--fs-xl); font-weight: 600; line-height: 1.25; }
 .specimen-authors { margin-top: 6px; font-size: var(--fs-sm); }
 .specimen-source { margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-xs) var(--font-serif); }
+.specimen-elision { color: var(--ink-faint); }
+.specimen-page sub { font-size: 0.72em; line-height: 0; }
 .specimen-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: justify; hyphens: auto; }
 
 .specimen-sentence { border-radius: 2px; transition: background-color var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out); }
@@ -4284,15 +4287,14 @@ a.button:hover {
 .specimen-page.painting .specimen-link { pointer-events: none; color: inherit; animation: none; }
 
 .specimen-figure { margin: 10px 0 12px; text-align: center; }
-.specimen-figure .hubble-plot { width: 100%; max-width: 230px; height: auto; }
-.specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); font-variant: small-caps; text-align: center; }
-.plot-axis { fill: none; stroke: var(--ink); stroke-width: 1; }
-.plot-zero, .plot-tick { fill: none; stroke: var(--line-strong); stroke-width: 0.8; }
-.plot-fit { fill: none; stroke: var(--ink); stroke-width: 1.1; }
-.plot-fit.dashed { stroke-dasharray: 4 3; }
-.plot-dot { fill: var(--ink); }
-.plot-cross { fill: none; stroke: var(--red); stroke-width: 1.6; }
-.plot-label { fill: var(--ink-soft); font: 7px var(--font-ui); letter-spacing: 0.04em; }
+.specimen-figure .fold-plot { width: 100%; max-width: 250px; height: auto; }
+.specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); text-align: left; }
+.plot-grid { fill: none; stroke: var(--line); stroke-width: 0.8; }
+.plot-bar { fill: var(--fill-strong); }
+.plot-bar.own { fill: var(--accent); }
+.plot-ci { fill: none; stroke: var(--ink); stroke-width: 1; }
+.plot-atom { fill: none; stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.plot-label { fill: var(--ink-soft); font: 7px var(--font-ui); }
 .plot-label.end { text-anchor: end; }
 .plot-label.middle { text-anchor: middle; }
 
@@ -4304,7 +4306,10 @@ a.button:hover {
   font-size: var(--fs-2xs);
   line-height: 1.5;
 }
-.specimen-references span { display: inline-block; min-width: 1.4em; vertical-align: super; font-size: 0.8em; }
+.specimen-references li + li { margin-top: 2px; }
+.specimen-references span { display: inline-block; min-width: 1.8em; }
+.specimen-licence { margin-top: 10px; color: var(--ink-faint); font: var(--fs-2xs)/1.5 var(--font-ui); }
+.specimen-licence a { color: inherit; }
 
 .specimen-card {
   position: absolute; z-index: 3;
@@ -4318,6 +4323,14 @@ a.button:hover {
   transition: top var(--motion-base) var(--ease-out), left var(--motion-base) var(--ease-out);
   animation: specimen-rise var(--motion-base) var(--ease-out);
 }
+.specimen-card-works {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: -4px -4px 8px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-faint);
+  font: var(--fs-xs) var(--font-ui);
+}
+.specimen-card-works button { padding: 0 9px; font-size: var(--fs-sm); line-height: 1.4; }
 .specimen-card-title { font-size: var(--fs-md); font-weight: 600; line-height: 1.35; }
 .specimen-card-meta { margin-top: 3px; color: var(--ink-soft); font-size: var(--fs-xs); line-height: 1.4; }
 .specimen-card-steps {
@@ -4339,8 +4352,8 @@ a.button:hover {
   animation: specimen-fade var(--motion-base) var(--ease-out);
 }
 .specimen-figure.large { width: min(420px, 80vw); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
-.specimen-figure.large .hubble-plot { max-width: none; filter: drop-shadow(0 8px 20px rgba(29, 33, 41, 0.1)); background: var(--card); }
-.specimen-figure.large figcaption { font-size: var(--fs-sm); }
+.specimen-figure.large .fold-plot { max-width: none; filter: drop-shadow(0 8px 20px rgba(29, 33, 41, 0.1)); background: var(--card); }
+.specimen-figure.large figcaption { font-size: var(--fs-sm); text-align: center; }
 .specimen-redrawn { display: block; margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-2xs) var(--font-serif); font-variant: normal; }
 .specimen-return {
   padding: 6px 14px;
@@ -4405,8 +4418,8 @@ a.button:hover {
 .board-mock-file { color: var(--accent); font: var(--fs-xs) var(--font-ui); word-break: break-word; }
 .board-mock-image { display: block; width: 100%; height: 64px; border-radius: 3px; }
 .board-mock-image.video { display: grid; place-items: center; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
-.board-mock-image.cepheid { background: var(--paper-sunken); }
-.board-mock-image.cepheid path { fill: none; stroke: var(--gold); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.board-mock-image.ribbon { background: var(--paper-sunken); }
+.board-mock-image.ribbon path { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .board-mock-image.page { background: linear-gradient(var(--accent) 0 14px, var(--accent-soft) 14px); }
 .board-mock-image.page.alt { background: linear-gradient(var(--identity-3) 0 14px, var(--gold-soft) 14px); }
 

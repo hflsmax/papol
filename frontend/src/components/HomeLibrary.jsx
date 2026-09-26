@@ -6,9 +6,9 @@ import StatePill from './StatePill';
 // their own and call a seminar; nothing leaves the page.
 
 const READERS = [
-  { initial: 'M', tint: 0, name: 'Mei', thought: 'Six pages, and the universe got bigger.' },
-  { initial: 'T', tint: 2, name: 'Tomás', thought: 'Read the last paragraph twice.' },
-  { initial: 'A', tint: 4, name: 'Aisha', thought: 'Pairs well with Leavitt 1912.' },
+  { initial: 'M', tint: 0, name: 'Mei', thought: 'The carbon-atom comparison is the whole pitch.' },
+  { initial: 'T', tint: 2, name: 'Tomás', thought: 'The supplement is where the method lives.' },
+  { initial: 'A', tint: 4, name: 'Aisha', thought: 'Read Senior 2020 first.' },
 ];
 
 export default function HomeLibrary() {
@@ -21,8 +21,8 @@ export default function HomeLibrary() {
   return (
     <div className="landing-jacket">
       <p className="landing-jacket-kicker">Library</p>
-      <p className="landing-jacket-title">A Relation Between Distance and Radial Velocity Among Extra-Galactic Nebulae</p>
-      <p className="landing-jacket-meta">Edwin Hubble · PNAS, 1929 · {readers.length} readers</p>
+      <p className="landing-jacket-title">Highly accurate protein structure prediction with AlphaFold</p>
+      <p className="landing-jacket-meta">Jumper et al. · Nature, 2021 · {readers.length} readers</p>
       <ul className="landing-readers">
         {readers.map((reader) => (
           <li key={reader.name} className={reader.own ? 'own' : ''}>
