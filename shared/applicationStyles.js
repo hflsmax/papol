@@ -4411,6 +4411,7 @@ a.button:hover {
   user-select: none;
 }
 .board-mock-card[data-lifted] { z-index: 2; box-shadow: var(--shadow-md); }
+.board-mock-card[data-returning] { transition: transform 320ms var(--ease-out); }
 .board-mock-card:active { cursor: grabbing; }
 .board-mock-card.excerpt { border-color: rgba(217, 43, 31, 0.3); animation: board-land 420ms var(--ease-out); }
 @keyframes board-land { from { opacity: 0; transform: translateY(-26px) scale(0.92); } }
@@ -4476,6 +4477,7 @@ a.button:hover {
 @media (prefers-reduced-motion: reduce) {
   .beckon, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
   .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own { animation: none; }
+  .board-mock-card[data-returning] { transition: none; }
 }
 
 /* ---------- About ---------- */
