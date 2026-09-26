@@ -1,6 +1,6 @@
 # Papol
 
-Papers, and everything you think about them. **[papol.io](https://papol.io)**:
+Every paper, and what you make of it. **[papol.io](https://papol.io)**:
 try it on its front page, no account needed. Free, on the web and on Mac, and
 its source is all here.
 
