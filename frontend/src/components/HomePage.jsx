@@ -1,12 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { appPath } from '../base';
+import HomeBoard from './HomeBoard';
 import HomeSpecimen from './HomeSpecimen';
 import StatePill from './StatePill';
 
 const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
-
-// Footage from the letter of 2026-09-25, of the real application.
-const READING_LOG_GIF = 'https://files.papol.io/admin/5081b411893efa8a4b1c32f2ddc95dc9e96ce91583a066a4a5853abef9cb1865.gif';
 
 // A folder's review, as Folder Drop shows it.
 const FOLDER = [
@@ -20,6 +18,27 @@ const READERS = [
   { initial: 'M', tint: 0, name: 'Mei', thought: 'Section 3 is the whole paper. Read it twice.' },
   { initial: 'T', tint: 2, name: 'Tomás', thought: 'The proof of Lemma 2 skips a case.' },
   { initial: 'A', tint: 4, name: 'Aisha', thought: 'Pairs well with Huffman ’76.' },
+];
+
+// Papol's places, as the hero lists them. Talk is on its way; it takes its
+// place here, and a section of its own, when it comes.
+const PLACES = [
+  {
+    id: 'read', name: 'Read', line: 'A PDF reader that knows it’s reading a paper',
+    icon: <path d="M3 4.5c2.5-1 4.5-1 7 .5 2.5-1.5 4.5-1.5 7-.5v11c-2.5-1-4.5-1-7 .5-2.5-1.5-4.5-1.5-7-.5ZM10 5v11" />,
+  },
+  {
+    id: 'think', name: 'Think', line: 'A board for everything a paper sets off',
+    icon: <path d="M3 3.5h6v6H3ZM11 3.5h6v4h-6ZM11 9.5h6v7h-6ZM3 11.5h6v5H3Z" />,
+  },
+  {
+    id: 'find', name: 'Find', line: 'A library of every paper, and who reads it',
+    icon: <path d="M3 16.5h14M4.5 16.5v-12h3v12M8.5 16.5v-10h3v10M12.6 16.3l-1-9.6 2.9-.4 1.1 9.6" />,
+  },
+  {
+    id: 'talk', name: 'Talk', line: 'Chat, beside your papers', soon: true,
+    icon: <path d="M3.5 4.5h13v8.5h-7l-4 3v-3h-2Z" />,
+  },
 ];
 
 function GitHubMark() {
@@ -41,113 +60,149 @@ function GitHubMark() {
   );
 }
 
-// What a visitor sees: what Papol is, in a line, with the way in for
-// someone who already knows; then a page to try it on for someone who does
-// not; then the rest of a reading day, most useful first.
+// What a visitor sees: what Papol is, and the way in for someone who
+// already knows; then each of its places, the reader first, as a page to
+// try, whose painted sentences land on the board below it.
 export default function HomePage() {
+  const [painted, setPainted] = useState([]);
+  const [flash, setFlash] = useState(null);
+
+  const glow = (id) => {
+    setFlash(null);
+    requestAnimationFrame(() => setFlash(id));
+  };
+  const togglePaint = (id) => setPainted((current) => (
+    current.includes(id) ? current.filter((each) => each !== id) : [...current, id]
+  ));
+  // A card's backlink: back up to the page, to the sentence it came from.
+  const backTo = (id) => {
+    document.querySelector(`[data-sentence="${id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    glow(id);
+  };
+
   return (
     <div className="landing">
       <header className="landing-hero">
         <p className="landing-eyebrow">Papol · your paper reading companion</p>
-        <h1 className="landing-title">A PDF reader that knows it’s reading a paper.</h1>
+        <h1 className="landing-title">Papers, and everything you think about them.</h1>
         <p className="landing-lede">
-          Click a citation and see what it is, and every place it is used. Click
-          “Figure 2” and the figure comes to you. Lift what matters onto a board,
-          beside videos, web pages and your own thoughts.
+          Papol is where you read a paper, gather everything it sets off, and
+          find the other people reading it.
         </p>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
           <a className="landing-button" href={appPath('/signin')}>Sign in</a>
-          <a className="landing-scroll" href="#try">or try it right here ↓</a>
         </div>
+        <nav className="landing-places" aria-label="Papol’s places">
+          {PLACES.map((place) => {
+            const inner = (
+              <>
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{place.icon}</svg>
+                <span className="landing-place-name">
+                  {place.name}
+                  {place.soon && <span className="landing-soon">Soon</span>}
+                </span>
+                <span className="landing-place-line">{place.line}</span>
+              </>
+            );
+            return place.soon
+              ? <div key={place.id} className="landing-place soon">{inner}</div>
+              : <a key={place.id} className="landing-place" href={`#${place.id}`}>{inner}</a>;
+          })}
+        </nav>
       </header>
 
-      <section id="try" className="landing-try" aria-labelledby="try-title">
+      <section id="read" className="landing-place-section" aria-labelledby="read-title">
         <div className="landing-section-head">
-          <h2 id="try-title">Try it on this page</h2>
-          <p>No account needed. This page behaves the way your papers will.</p>
+          <p className="landing-number">Read</p>
+          <h2 id="read-title">A PDF reader that knows it’s reading a paper</h2>
+          <p>Try it on this page. No account needed; it behaves the way your papers will.</p>
         </div>
-        <HomeSpecimen />
+        <HomeSpecimen painted={painted} onTogglePaint={togglePaint} flash={flash} onGlow={glow} />
       </section>
 
-      <section className="landing-moment" aria-labelledby="folder-title">
-        <div className="landing-moment-text">
-          <p className="landing-number">01</p>
-          <h2 id="folder-title">Your agent’s reading list, in one drop</h2>
+      <section id="think" className="landing-place-section" aria-labelledby="think-title">
+        <div className="landing-section-head">
+          <p className="landing-number">Think</p>
+          <h2 id="think-title">A board for everything a paper sets off</h2>
           <p>
-            Ask your AI agent for a literature review. Drop the folder it fills
-            onto Papol, and every paper arrives with the agent’s reason for
-            picking it. Anything you already have, or that sits behind a paywall,
-            is pointed out before you add a thing.
+            Passages from your papers sit beside videos, web pages, files and
+            your own thoughts, on a canvas with room to spread out. Gather them
+            into booklets and collections. Every excerpt still knows the page it
+            came from.
           </p>
         </div>
-        <div className="landing-folder" aria-hidden="true">
-          <p className="landing-jacket-kicker">Folder · Transformers review</p>
-          <ul className="landing-folder-rows">
-            {FOLDER.map((row) => (
-              <li key={row.title} className={row.state}>
-                <span className="landing-folder-title">{row.title}</span>
-                <span className={`landing-folder-state ${row.state}`}>{row.label}</span>
-                <span className="landing-folder-note">{row.note}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="landing-folder-foot">
-            <span>Shelf <b>Reading</b> · Tag <b>transformers</b></span>
-            <span className="landing-folder-add">Add 2 papers</span>
-          </div>
+        <HomeBoard painted={painted} onBack={backTo} />
+      </section>
+
+      <section id="find" className="landing-place-section" aria-labelledby="find-title">
+        <div className="landing-section-head">
+          <p className="landing-number">Find</p>
+          <h2 id="find-title">A library of every paper, and who reads it</h2>
+          <p>
+            Every paper in Papol has one page. See who else has read it and
+            what each of them made of it, in a line. Your shelves are public or
+            private; you decide which.
+          </p>
+        </div>
+        <div className="landing-pair">
+          <figure className="landing-pair-item">
+            <div className="landing-jacket" aria-hidden="true">
+              <p className="landing-jacket-kicker">Library</p>
+              <p className="landing-jacket-title">Folding as Computation</p>
+              <p className="landing-jacket-meta">Specimen, 2026 · 3 readers</p>
+              <ul className="landing-readers">
+                {READERS.map((reader) => (
+                  <li key={reader.name}>
+                    <span className={`landing-avatar tint-${reader.tint}`}>{reader.initial}</span>
+                    <span>
+                      <b>{reader.name}</b>
+                      <q>{reader.thought}</q>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="landing-jacket-seminar">
+                Seminar <StatePill status="open" link={false} /> 4 waiting for a leader
+              </p>
+            </div>
+            <figcaption>
+              When a few of you want to talk a paper through, call a seminar.
+              Everyone who has the paper hears about it.
+            </figcaption>
+          </figure>
+          <figure className="landing-pair-item">
+            <div className="landing-folder" aria-hidden="true">
+              <p className="landing-jacket-kicker">Folder · Transformers review</p>
+              <ul className="landing-folder-rows">
+                {FOLDER.map((row) => (
+                  <li key={row.title} className={row.state}>
+                    <span className="landing-folder-title">{row.title}</span>
+                    <span className={`landing-folder-state ${row.state}`}>{row.label}</span>
+                    <span className="landing-folder-note">{row.note}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="landing-folder-foot">
+                <span>Shelf <b>Reading</b></span>
+                <span className="landing-folder-add">Add 2 papers</span>
+              </div>
+            </div>
+            <figcaption>
+              Bring in a whole reading list at once: drop the folder your AI
+              agent gathered, each paper with the agent’s reason for it.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
-      <section className="landing-moment flip" aria-labelledby="together-title">
-        <div className="landing-moment-text">
-          <p className="landing-number">02</p>
-          <h2 id="together-title">Read alongside others</h2>
-          <p>
-            Each paper has one page in the Library. See who else read it and
-            what each of them made of it, in a line. When a few of you want to
-            talk it through, call a seminar and everyone who has the paper hears
-            about it.
-          </p>
-          <p className="landing-aside">Your shelves are public or private. You decide which.</p>
+      <section id="talk" className="landing-next" aria-labelledby="talk-title">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3.5 4.5h13v8.5h-7l-4 3v-3h-2Z" /></svg>
+        <div>
+          <p className="landing-number">Talk · coming</p>
+          <h2 id="talk-title">Chat is on its way</h2>
+          <p>Conversations, right beside the papers they are about.</p>
         </div>
-        <div className="landing-jacket" aria-hidden="true">
-          <p className="landing-jacket-kicker">Library</p>
-          <p className="landing-jacket-title">Folding as Computation</p>
-          <p className="landing-jacket-meta">Specimen, 2026 · 3 readers</p>
-          <ul className="landing-readers">
-            {READERS.map((reader) => (
-              <li key={reader.name}>
-                <span className={`landing-avatar tint-${reader.tint}`}>{reader.initial}</span>
-                <span>
-                  <b>{reader.name}</b>
-                  <q>{reader.thought}</q>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="landing-jacket-seminar">
-            Seminar <StatePill status="open" link={false} /> 4 waiting for a leader
-          </p>
-        </div>
-      </section>
-
-      <section className="landing-moment" aria-labelledby="week-title">
-        <div className="landing-moment-text">
-          <p className="landing-number">03</p>
-          <h2 id="week-title">See where your week went</h2>
-          <p>
-            Papol notices the time you spend reading, paper by paper, and shows
-            it by day, week or month. Only you can see it.
-          </p>
-        </div>
-        <figure className="landing-shot">
-          <img
-            src={READING_LOG_GIF}
-            loading="lazy"
-            alt="My activity by week, by month, paper by paper, and for one day"
-          />
-        </figure>
       </section>
 
       <section className="landing-facts" aria-label="Also">
@@ -155,6 +210,10 @@ export default function HomePage() {
           <h3>Links that fit anywhere</h3>
           <p className="landing-link-bubble">papol.io/s/MTFplaGHa6</p>
           <p>Whoever opens it reads the paper with your notes on it.</p>
+        </div>
+        <div className="landing-fact">
+          <h3>Your reading, logged</h3>
+          <p>How much of your week went to reading, and to which paper. Only you can see it.</p>
         </div>
         <div className="landing-fact">
           <h3>On your Mac, offline</h3>

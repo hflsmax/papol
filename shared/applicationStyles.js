@@ -4214,8 +4214,6 @@ a.button:hover {
 .landing-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .landing-button.primary { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
-.landing-scroll { margin-left: 4px; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-decoration: none; }
-.landing-scroll:hover { color: var(--accent); }
 
 .landing h2 { color: var(--ink); font-size: var(--fs-2xl); font-weight: 600; line-height: 1.25; }
 .landing-section-head { margin-bottom: 18px; }
@@ -4376,17 +4374,63 @@ a.button:hover {
 @keyframes specimen-fade { from { opacity: 0; } }
 @keyframes specimen-zoom { from { opacity: 0; transform: scale(0.45) translate(40%, 30%); } }
 
-.specimen-board {
-  padding: 12px 14px 14px;
+.board-mock-kind { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
+.specimen-backlink {
+  justify-self: start;
+  padding: 0; border: 0; background: none; box-shadow: none;
+  text-align: left;
+  color: var(--accent);
+  font: var(--fs-2xs) var(--font-ui);
+}
+.specimen-backlink:hover:not(:disabled) { border: 0; background: none; text-decoration: underline; }
+.specimen-progress { min-height: 1.4em; font: var(--fs-sm) var(--font-ui); text-align: center; }
+.specimen-progress a { color: var(--accent); }
+
+
+/* The places, under the doors: each a way down the page to its section.
+   One still to come says so and leads nowhere. */
+.landing-places { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 34px; }
+.landing-place {
+  display: grid; align-content: start; gap: 4px;
+  padding: 14px 14px 13px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
+}
+a.landing-place:hover { border-color: var(--accent-line); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.landing-place svg { width: 22px; height: 22px; margin-bottom: 4px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.landing-place-name { display: flex; align-items: center; gap: 6px; font-size: var(--fs-lg); font-weight: 600; }
+.landing-place-line { color: var(--ink-soft); font-size: var(--fs-xs); line-height: 1.45; }
+.landing-place.soon { border-style: dashed; background: transparent; }
+.landing-place.soon svg { stroke: var(--ink-faint); }
+.landing-soon { padding: 0 7px; border-radius: var(--radius-pill); background: var(--gold-soft); color: var(--gold-ink); font: 600 var(--fs-2xs)/1.7 var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; }
+
+.landing-place-section { scroll-margin-top: 16px; }
+.landing .landing-number { margin: 0 0 6px; color: var(--accent); font: 600 var(--fs-xs)/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; }
+.landing-section-head p:not(.landing-number) { max-width: 60ch; line-height: 1.6; }
+
+/* The board: a canvas of cards, the way the board draws them. */
+.board-mock { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
+.board-mock-bar { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.board-mock-name { font-size: var(--fs-lg); font-weight: 600; }
+.board-mock-count { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.board-mock-canvas {
+  display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: start; gap: 16px;
+  padding: 18px 16px 22px;
   background-color: var(--paper);
   background-image: radial-gradient(var(--line-strong) 1px, transparent 1px);
   background-size: 18px 18px;
 }
-.specimen-board-label { margin-bottom: 10px; color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.specimen-board-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-items: start; gap: 10px; }
-.specimen-board-card {
+.board-mock-booklet,
+.board-mock-loose,
+.board-mock-collection { display: grid; gap: 10px; }
+.board-mock-booklet { padding-left: 12px; border-left: 2px solid var(--line-strong); }
+.board-mock-collection { padding: 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: rgba(255, 255, 255, 0.5); }
+.board-mock-group-title { font-size: var(--fs-sm); font-weight: 700; }
+.board-mock-card {
   display: grid; gap: 6px;
   padding: 9px 10px;
   border: 1px solid var(--line);
@@ -4396,31 +4440,32 @@ a.button:hover {
   font-size: var(--fs-sm);
   line-height: 1.4;
 }
-.specimen-board-card.excerpt { border-color: rgba(217, 43, 31, 0.3); animation: specimen-land 420ms var(--ease-out); }
-.specimen-board-card.placeholder { border-style: dashed; background: rgba(255, 255, 255, 0.6); box-shadow: none; color: var(--ink-faint); font-size: var(--fs-xs); }
-.specimen-card-kind { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.specimen-video { display: grid; place-items: center; height: 58px; border-radius: 3px; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
-.specimen-backlink {
-  justify-self: start;
-  padding: 0; border: 0; background: none; box-shadow: none;
-  text-align: left;
-  color: var(--accent);
-  font: var(--fs-2xs) var(--font-ui);
-}
-.specimen-backlink:hover:not(:disabled) { border: 0; background: none; text-decoration: underline; }
+.board-mock-card.excerpt { border-color: rgba(217, 43, 31, 0.3); animation: specimen-land 420ms var(--ease-out); }
+.board-mock-card.placeholder { border-style: dashed; background: rgba(255, 255, 255, 0.6); box-shadow: none; color: var(--ink-faint); font-size: var(--fs-xs); }
+.board-mock-file { color: var(--accent); font: var(--fs-xs) var(--font-ui); word-break: break-word; }
+.board-mock-image { height: 64px; border-radius: 3px; }
+.board-mock-image.video { display: grid; place-items: center; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
+.board-mock-image.chalk { background: repeating-linear-gradient(-12deg, #3c4640 0 9px, #46514a 9px 11px); }
+.board-mock-image.page { background: linear-gradient(var(--accent) 0 14px, var(--accent-soft) 14px); }
+.board-mock-image.lab { background: linear-gradient(90deg, #1d2129 0 40%, #7ba26c 40% 70%, #eaeff5 70%); }
 @keyframes specimen-land { from { opacity: 0; transform: translateY(-26px) scale(0.92); } }
-.specimen-progress { min-height: 1.4em; color: var(--green-ink); font: var(--fs-sm) var(--font-ui); text-align: center; }
 
-/* A moment: a few lines of text beside what it looks like, alternating
-   sides down the page. */
-.landing-moment { display: grid; grid-template-columns: 5fr 7fr; align-items: center; gap: 36px; }
-.landing-moment.flip { grid-template-columns: 7fr 5fr; }
-.landing-moment.flip .landing-moment-text { order: 2; }
-.landing-moment-text p { margin-top: 10px; color: var(--ink-soft); line-height: 1.65; }
-.landing-moment-text .landing-number { margin: 0 0 6px; color: var(--accent); font: 600 var(--fs-xs)/1 var(--font-mono); letter-spacing: 0.08em; }
-.landing-aside { font-size: var(--fs-sm); font-style: italic; }
-.landing-shot { overflow: hidden; margin: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
-.landing-shot img { display: block; width: 100%; height: auto; }
+/* The library: two things side by side, each with a line under it. */
+.landing-pair { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 18px; }
+.landing-pair-item { margin: 0; }
+.landing-pair-item figcaption { margin-top: 10px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
+
+/* What is coming: a quiet dashed card, not a section with a demo. */
+.landing-next {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 18px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+.landing-next svg { flex: none; width: 28px; height: 28px; margin-top: 2px; fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-linejoin: round; }
+.landing-next h2 { font-size: var(--fs-xl); }
+.landing-next p:not(.landing-number) { margin-top: 4px; color: var(--ink-soft); }
+.landing-next .landing-number { color: var(--gold-ink); }
 
 .landing-jacket,
 .landing-folder {
@@ -4466,7 +4511,7 @@ a.button:hover {
 .landing-avatar.tint-4 { background: var(--identity-4); }
 .landing-jacket-seminar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink-soft); font: var(--fs-xs) var(--font-ui); }
 
-.landing-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.landing-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .landing-fact { padding: 16px; border-top: 2px solid var(--accent); background: var(--card); box-shadow: var(--shadow-sm); }
 .landing-fact h3 { font-size: var(--fs-lg); font-weight: 600; }
 .landing-fact p { margin-top: 8px; color: var(--ink-soft); font-size: var(--fs-sm); line-height: 1.55; }
@@ -4491,15 +4536,15 @@ a.button:hover {
   .landing { gap: 56px; }
   .specimen-page { margin: 10px; padding: 18px 16px 16px; }
   .specimen-columns { grid-template-columns: 1fr; gap: 0; }
-  .landing-moment,
-  .landing-moment.flip { grid-template-columns: 1fr; gap: 18px; }
-  .landing-moment.flip .landing-moment-text { order: 0; }
+  .landing-places { grid-template-columns: 1fr 1fr; }
+  .board-mock-canvas,
+  .landing-pair { grid-template-columns: 1fr; }
   .landing-facts { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .specimen-card, .specimen-figure-stage, .specimen-figure.large,
-  .specimen-board-card.excerpt, .specimen-sentence.flash { animation: none; }
+  .board-mock-card.excerpt, .specimen-sentence.flash { animation: none; }
 }
 
 /* ---------- About ---------- */

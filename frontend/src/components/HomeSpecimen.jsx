@@ -2,10 +2,10 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 
 // The landing page's specimen: a page of a paper a visitor can read the way
 // Papol reads, before they have an account. Nothing here talks to a server;
-// it acts out, in miniature, what the viewer and the board do with a real
-// PDF — a citation's card that steps through every place it is cited, a
-// figure that comes to the reader, a brush, and a board the painted
-// passages land on.
+// it acts out, in miniature, what the viewer does with a real PDF — a
+// citation's card that steps through every place it is cited, a figure
+// that comes to the reader, and a brush. What is painted is the landing
+// page's, which lays it on the board further down.
 
 const REFERENCES = {
   4: {
@@ -44,7 +44,7 @@ const COLUMNS = [
   ],
 ];
 
-const SENTENCES = Object.fromEntries(
+export const SENTENCES = Object.fromEntries(
   COLUMNS.flat().filter((block) => block.id).map((block) => [
     block.id,
     block.parts.map((part) => (typeof part === 'string' ? part : part.cite ? `[${part.cite}]` : 'Figure 2')).join('').trim(),
@@ -74,22 +74,15 @@ const TRIES = [
   { key: 'paint', label: 'Paint a sentence with the brush' },
 ];
 
-export default function HomeSpecimen() {
+export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) {
   const [tool, setTool] = useState('read');
-  const [painted, setPainted] = useState([]);
   const [card, setCard] = useState(null); // { ref, at }
   const [figureOpen, setFigureOpen] = useState(false);
-  const [flash, setFlash] = useState(null);
   const [tried, setTried] = useState({});
   const [cardBox, setCardBox] = useState(null);
   const pageRef = useRef(null);
 
   const markTried = (key) => setTried((current) => (current[key] ? current : { ...current, [key]: true }));
-
-  const glow = (id) => {
-    setFlash(null);
-    requestAnimationFrame(() => setFlash(id));
-  };
 
   const openCitation = (ref, occurrence) => {
     setCard({ ref, at: OCCURRENCES[ref].indexOf(occurrence) });
@@ -116,7 +109,7 @@ export default function HomeSpecimen() {
   }, [activeOccurrence]);
 
   const togglePaint = (id) => {
-    setPainted((current) => (current.includes(id) ? current.filter((each) => each !== id) : [...current, id]));
+    onTogglePaint(id);
     markTried('paint');
   };
 
@@ -178,7 +171,6 @@ export default function HomeSpecimen() {
 
   const reference = card && REFERENCES[card.ref];
   const count = card ? OCCURRENCES[card.ref].length : 0;
-  const doneCount = TRIES.filter((each) => tried[each.key]).length;
 
   return (
     <div className="specimen">
@@ -268,7 +260,7 @@ export default function HomeSpecimen() {
               <button
                 type="button"
                 className="specimen-return"
-                onClick={() => { setFigureOpen(false); glow('s3'); }}
+                onClick={() => { setFigureOpen(false); onGlow('s3'); }}
               >
                 ← Back to where you were
               </button>
@@ -277,38 +269,12 @@ export default function HomeSpecimen() {
         </div>
       </div>
 
-      <div className="specimen-board" aria-label="Your board">
-        <p className="specimen-board-label">Board · Origami</p>
-        <div className="specimen-board-cards">
-          <div className="specimen-board-card thought">
-            <span className="specimen-card-kind">Thought</span>
-            <p>Could a crease be a register?</p>
-          </div>
-          <div className="specimen-board-card video">
-            <span className="specimen-card-kind">YouTube video</span>
-            <div className="specimen-video" aria-hidden="true"><span>▶</span></div>
-            <p>Pop-up cards, by Peter Dahmen</p>
-          </div>
-          {painted.map((id) => (
-            <div key={id} className="specimen-board-card excerpt">
-              <span className="specimen-card-kind">Excerpt</span>
-              <p>{SENTENCES[id]}</p>
-              <button type="button" className="specimen-backlink" onClick={() => glow(id)}>
-                Folding as Computation, p. 1 ↗
-              </button>
-            </div>
-          ))}
-          {!painted.length && (
-            <div className="specimen-board-card placeholder">
-              <p>Paint a sentence above. It lands here as a card that remembers where it came from.</p>
-            </div>
-          )}
-        </div>
-      </div>
       <p className="specimen-progress" aria-live="polite">
-        {doneCount === TRIES.length
-          ? 'That’s the idea. Now try it on your own papers.'
-          : ' '}
+        {painted.length > 0 && (
+          <a href="#think">
+            {painted.length === 1 ? 'One sentence is' : `${painted.length} sentences are`} on your board below ↓
+          </a>
+        )}
       </p>
     </div>
   );
