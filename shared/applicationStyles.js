@@ -2926,7 +2926,7 @@ h4 .state-pill {
 
 
 /* The source link in the hero. A quiet annotation, not a call to action:
-   it sits below the note and is meant to be found by someone looking
+   it sits below the subtitle and is meant to be found by someone looking
    for it. */
 .home-source {
   display: inline-block;
@@ -4204,20 +4204,6 @@ a.button:hover {
   letter-spacing: 0.18em;
   color: var(--ink-soft);
   font-size: var(--fs-base);
-}
-
-.home-rule {
-  border: none;
-  border-top: 1px solid var(--line);
-  width: 72px;
-  margin: 18px auto;
-}
-
-.home-tagline {
-  color: var(--ink-soft);
-  max-width: 46ch;
-  margin: 0 auto;
-  line-height: 1.7;
 }
 
 /* ---------- About ---------- */

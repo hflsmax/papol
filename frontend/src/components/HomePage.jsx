@@ -1,5 +1,4 @@
 import React from 'react';
-import SeminarFlow from './SeminarFlow';
 
 export default function HomePage({ currentUser }) {
   return (
@@ -7,15 +6,8 @@ export default function HomePage({ currentUser }) {
       <div className="panel home-hero">
         <h2 className="home-title">Papol</h2>
         <p className="home-subtitle">your paper reading companion</p>
-        <hr className="home-rule" />
-        <p className="home-tagline">
-          Read closely. Keep what matters. Let every paper stay part of your
-          thinking.
-        </p>
         {/* A user who wants to know how their notes are stored can go and
-            read the source. The logo alone: the line above already says
-            "open source", and a word "GitHub" beside the GitHub logo would
-            say it a third time. */}
+            read the source. The logo alone says where it leads. */}
         <a
           className="home-source"
           href="https://github.com/hflsmax/papol"
@@ -45,16 +37,13 @@ export default function HomePage({ currentUser }) {
         <h6 className="kicker" id="organize-papers-title">Organize your papers</h6>
         <div className="home-organize-item">
           <strong>Shelves</strong>
-          <p>Every paper belongs to one shelf. Each shelf has a name and a color, and can be either public or private. Papers on public shelves appear in your nook to others; papers on private shelves are visible only to you. Of a paper on a public shelf, others see its thought and ratings unless you make them private, and its summary and tags only if you make them public — the chip beside each on the paper’s jacket turns it the other way.</p>
+          <p>Every paper sits on one shelf. A public shelf shows its papers in your nook; a private one keeps them to you.</p>
         </div>
         <div className="home-organize-item">
           <strong>Tags</strong>
-          <p>Add any number of tags to group papers by topic, project, or reading status. A paper can have several tags, and you can use them to filter your nook. A paper’s tags are private unless you make them public.</p>
+          <p>Group papers by topic, project, or reading status, and filter your nook by them.</p>
         </div>
       </section>
-
-      <SeminarFlow />
-
     </div>
   );
 }
