@@ -76,6 +76,12 @@ FILES_BUCKET = "papol-files"
 # has the file already (docs/cloud-migration.md, phase 5, step 13). The
 # bucket's CORS rules are r2-cors-public.json, applied by hand:
 #   npx wrangler r2 bucket cors set papol-files --file r2-cors-public.json
+# R2 says `Vary: Origin` only to a request that has an Origin, so a PDF
+# opened directly was kept by the browser with no CORS header and handed
+# to the viewer's fetch, which failed ("Failed to fetch"). A response
+# header Transform Rule on the papol.io zone ("Files vary by Origin",
+# made 2026-09-25) sets `Vary: Origin` on every answer from files.papol.io
+# and files-dev.papol.io; it lives in the dashboard, not here.
 FILES_URL = "https://files.papol.io"
 
 [observability]
