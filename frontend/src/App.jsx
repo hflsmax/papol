@@ -550,6 +550,8 @@ export default function App({ startupUser = null, startupError = null }) {
     if (control && anchor?.contains(control)) return;
     if (
       !href ||
+      // A place on this page: the browser scrolls to it.
+      href.startsWith('#') ||
       anchor.hasAttribute('download') ||
       anchor.hasAttribute('data-document') ||
       (anchor.target && anchor.target !== '_self')
@@ -561,11 +563,15 @@ export default function App({ startupUser = null, startupError = null }) {
     navigate(`${routePath}${destination.search}`);
   };
 
-  const macosDownloadBanner = showMacosDownloadBanner && (
+  // The page a visitor lands on offers Papol to try and nothing else: no
+  // announcement over it, and no Feedback button over its text.
+  const onLanding = route.page === 'home' && !user && !DESKTOP;
+
+  const macosDownloadBanner = showMacosDownloadBanner && !onLanding && (
     <div className="macos-download-banner" role="status">
-      <span>Papol is now available as a Mac app.</span>
+      <span>Papol for Mac: read your papers offline.</span>
       <a href={MACOS_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-        Download for macOS
+        Download
       </a>
       <button
         type="button"
@@ -809,14 +815,16 @@ export default function App({ startupUser = null, startupError = null }) {
       <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} />
       {adminMessageDialog}
       {macosDownloadBanner}
-      <button
-        type="button"
-        className="feedback-button"
-        onClick={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
-        title="Report a bug or ask for a feature"
-      >
-        Feedback
-      </button>
+      {!onLanding && (
+        <button
+          type="button"
+          className="feedback-button"
+          onClick={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
+          title="Report a bug or ask for a feature"
+        >
+          Feedback
+        </button>
+      )}
       {feedbackDialog}
       {/* Which page this URL opened, said out loud. The browser smoke
           test and the health probe read it to tell a link that arrived

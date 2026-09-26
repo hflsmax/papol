@@ -76,8 +76,8 @@
       "icons/icon.ico"
     ],
     "category": "Education",
-    "shortDescription": "Your paper reading companion.",
-    "longDescription": "Papol is your paper reading companion, keeping the ideas that matter close at hand.",
+    "shortDescription": "Every paper, and what you make of it.",
+    "longDescription": "Read papers the way you think about them. Click a citation to see every place it is cited; click a figure and it comes to you; paint the sentences that matter onto a board beside videos, web pages and your own thoughts. Works offline. Free and open source.",
     "fileAssociations": [
       {
         "ext": ["pdf"],

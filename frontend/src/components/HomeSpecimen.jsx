@@ -1,11 +1,11 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 // The landing page's specimen: the opening of the AlphaFold 2 paper, in
 // excerpts, to be read the way Papol reads, before the visitor has an
 // account. Nothing here talks to a server; it acts out in miniature what
 // the viewer does with a real PDF. Nothing on it is explained either: what
-// can be tried pulses until it has been. What is painted is the landing
-// page's, which lays it on the board below.
+// can be tried pulses, one thing at a time, until it has been. What is
+// painted is the landing page's, which lays it on the board below.
 //
 // J. Jumper et al., "Highly accurate protein structure prediction with
 // AlphaFold", Nature 596, 583–589 (2021), under CC BY 4.0, which asks for
@@ -63,12 +63,11 @@ const COLUMNS = [
     { elision: true },
     { id: 's3', parts: ['Despite recent progress', { cites: [10, 11, 12, 13, 14], label: '10–14' }, ', existing methods fall far short of atomic accuracy, especially when no homologous structure is available.'] },
     { id: 's4', parts: ['Here we provide the first computational method that can regularly predict protein structures with atomic accuracy even in cases in which no similar structure is known.'] },
+    { id: 's5', parts: ['The neural network AlphaFold that we developed was entered into the CASP14 assessment (May–July 2020; entered under the team name ‘AlphaFold2’ and a completely different model from our CASP13 AlphaFold system', { cites: [10], label: '10' }, ').'] },
   ],
   [
-    { id: 's5', parts: ['The neural network AlphaFold that we developed was entered into the CASP14 assessment (May–July 2020; entered under the team name ‘AlphaFold2’ and a completely different model from our CASP13 AlphaFold system', { cites: [10], label: '10' }, ').'] },
     { id: 's6', parts: ['In CASP14, AlphaFold structures were vastly more accurate than competing methods.'] },
     { id: 's7', parts: ['AlphaFold structures had a median backbone accuracy of 0.96 Å r.m.s.d.', { sub: '95' }, ' (Cα root-mean-square deviation at 95% residue coverage) (95% confidence interval = 0.85–1.16 Å) whereas the next best performing method had a median backbone accuracy of 2.8 Å r.m.s.d.', { sub: '95' }, ' (95% confidence interval = 2.7–4.0 Å) (measured on CASP domains; see ', { figure: 'Fig. 1a' }, ' for backbone accuracy and Supplementary Fig. 14 for all-atom accuracy).'] },
-    { figureBlock: true },
     { id: 's8', parts: ['As a comparison point for this accuracy, the width of a carbon atom is approximately 1.4 Å.'] },
   ],
 ];
@@ -130,19 +129,48 @@ function BackboneAccuracy() {
   );
 }
 
-export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) {
+const ICONS = {
+  home: <path d="M2.5 8 8 3l5.5 5M4 7v6h3v-3.5h2V13h3V7" />,
+  read: <path d="M3.5 2.5 12 8.2l-3.9.6 2.2 4.4-1.6.8-2.2-4.4-3 2.6Z" />,
+  paint: <path d="M13.6 2.4c-.6-.6-1.5-.5-2.1.1L6.3 8l1.7 1.7 5.5-5.2c.6-.6.7-1.5.1-2.1ZM5.4 9c-1.4 0-2.4 1-2.4 2.3 0 .9-.5 1.6-1 2.1 2.7.5 5.1-.4 5.1-2.7Z" />,
+};
+
+// A tool, as the viewer's toolbar draws it: its icon, and the key that
+// picks it.
+function Tool({ name, label, keyLetter, active, beckon, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`specimen-tool${active ? ' active' : ''}${beckon ? ' beckon' : ''}`}
+      aria-pressed={active}
+      aria-label={label}
+      title={`${label} (${keyLetter})`}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">{ICONS[name]}</svg>
+      <span className="specimen-key" aria-hidden="true">{keyLetter}</span>
+    </button>
+  );
+}
+
+export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, beckoning, onTried }) {
   const [tool, setTool] = useState('read');
   const [card, setCard] = useState(null); // { at: where the citation stands, ref: the work shown }
   const [figureOpen, setFigureOpen] = useState(false);
-  const [tried, setTried] = useState({});
   const [cardBox, setCardBox] = useState(null);
   const pageRef = useRef(null);
+  const cardRef = useRef(null);
+  const returnRef = useRef(null);
+  const opener = useRef(null);
 
-  const markTried = (key) => setTried((current) => (current[key] ? current : { ...current, [key]: true }));
-
-  const openCitation = (at) => {
+  const openCitation = (at, trigger) => {
+    opener.current = trigger;
     setCard({ at, ref: CITATIONS[at][0] });
-    markTried('cite');
+    onTried('cite');
+  };
+  const closeCitation = () => {
+    setCard(null);
+    opener.current?.focus();
   };
   // Between the works one citation names.
   const stepWork = (by) => setCard(({ at, ref }) => {
@@ -154,6 +182,18 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
     const places = OCCURRENCES[ref];
     return { at: places[(places.indexOf(at) + by + places.length) % places.length], ref };
   });
+
+  const openFigure = (trigger) => {
+    opener.current = trigger;
+    setCard(null);
+    setFigureOpen(true);
+    onTried('figure');
+  };
+  const closeFigure = () => {
+    setFigureOpen(false);
+    onGlow('s7');
+    opener.current?.focus();
+  };
 
   // The card hangs under the citation it is showing, and follows it as the
   // arrows step from one place to the next.
@@ -169,51 +209,57 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
     setCardBox({ top: box.bottom - page.top + 8, left, width });
   }, [activeAt]);
 
-  const togglePaint = (id) => {
-    onTogglePaint(id);
-    markTried('paint');
+  // What opens takes the focus, so the keyboard is where the eye is.
+  const cardOpen = Boolean(card && cardBox);
+  useEffect(() => { if (cardOpen) cardRef.current?.focus(); }, [cardOpen]);
+  useEffect(() => { if (figureOpen) returnRef.current?.focus(); }, [figureOpen]);
+
+  const onEscape = (close) => (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    close();
   };
+
+  // Links in the running text are spans, not buttons: a button is set as a
+  // block of its own, which lets a line break between "system" and its ¹⁰.
+  const inline = (onActivate) => ({
+    role: 'button',
+    tabIndex: 0,
+    onClick: (e) => { e.stopPropagation(); onActivate(e.currentTarget); },
+    onKeyDown: (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onActivate(e.currentTarget);
+    },
+  });
 
   const renderPart = (block, part, i) => {
     if (typeof part === 'string') return part;
     if (part.sub) return <sub key={i}>{part.sub}</sub>;
     if (part.figure) {
       return (
-        <button
-          key={i}
-          type="button"
-          className={`specimen-link${tried.figure ? '' : ' beckon'}`}
-          onClick={(e) => { e.stopPropagation(); setCard(null); setFigureOpen(true); markTried('figure'); }}
-        >
+        <span key={i} className={`specimen-link${beckoning === 'figure' ? ' beckon' : ''}`} {...inline(openFigure)}>
           {part.figure}
-        </button>
+        </span>
       );
     }
     const at = `${block.id}-${i}`;
     return (
-      <button
+      <span
         key={i}
-        type="button"
         data-occurrence={at}
         aria-label={`References ${part.label}`}
-        className={`specimen-cite${at === activeAt ? ' active' : ''}${!tried.cite && at === FIRST_CITATION ? ' beckon' : ''}`}
-        onClick={(e) => { e.stopPropagation(); openCitation(at); }}
+        className={`specimen-cite${at === activeAt ? ' active' : ''}${beckoning === 'cite' && at === FIRST_CITATION ? ' beckon' : ''}`}
+        {...inline((trigger) => openCitation(at, trigger))}
       >
         {part.label}
-      </button>
+      </span>
     );
   };
 
   const renderBlock = (block, index) => {
     if (block.elision) return <span key={`elision-${index}`} className="specimen-elision">[…] </span>;
-    if (block.figureBlock) {
-      return (
-        <figure key="figure" className="specimen-figure">
-          <BackboneAccuracy />
-          <figcaption><b>Fig. 1:</b> AlphaFold produces highly accurate structures.</figcaption>
-        </figure>
-      );
-    }
     const isPainted = painted.includes(block.id);
     const paintable = tool === 'paint';
     return (
@@ -221,8 +267,8 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
         key={block.id}
         data-sentence={block.id}
         className={`specimen-sentence${isPainted ? ' painted' : ''}${flash === block.id ? ' flash' : ''}${paintable ? ' paintable' : ''}`}
-        onClick={paintable ? () => togglePaint(block.id) : undefined}
-        onKeyDown={paintable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePaint(block.id); } } : undefined}
+        onClick={paintable ? () => onTogglePaint(block.id) : undefined}
+        onKeyDown={paintable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTogglePaint(block.id); } } : undefined}
         role={paintable ? 'button' : undefined}
         aria-pressed={paintable ? isPainted : undefined}
         tabIndex={paintable ? 0 : undefined}
@@ -240,41 +286,34 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
     <div className="specimen">
       <div className="specimen-window">
         <div className="specimen-toolbar">
+          <svg className="specimen-home" viewBox="0 0 16 16" aria-hidden="true">{ICONS.home}</svg>
           <span className="specimen-doc-title">Highly accurate protein structure prediction with AlphaFold</span>
           <span className="specimen-tools" role="group" aria-label="Tool">
-            <button
-              type="button"
-              className={tool === 'read' ? 'active' : ''}
-              aria-pressed={tool === 'read'}
-              onClick={() => setTool('read')}
-              title="Read"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5 12 8.2l-3.9.6 2.2 4.4-1.6.8-2.2-4.4-3 2.6Z" /></svg>
-              Read
-            </button>
-            <button
-              type="button"
-              className={`${tool === 'paint' ? 'active' : ''}${tried.paint || tool === 'paint' ? '' : ' beckon'}`}
-              aria-pressed={tool === 'paint'}
+            <Tool name="read" label="Select" keyLetter="Z" active={tool === 'read'} onClick={() => setTool('read')} />
+            <Tool
+              name="paint"
+              label="Paint"
+              keyLetter="V"
+              active={tool === 'paint'}
+              beckon={beckoning === 'paint' && tool !== 'paint'}
               onClick={() => { setTool('paint'); setCard(null); }}
-              title="Paint"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.6 2.4c-.6-.6-1.5-.5-2.1.1L6.3 8l1.7 1.7 5.5-5.2c.6-.6.7-1.5.1-2.1ZM5.4 9c-1.4 0-2.4 1-2.4 2.3 0 .9-.5 1.6-1 2.1 2.7.5 5.1-.4 5.1-2.7Z" /></svg>
-              Paint
-            </button>
+            />
           </span>
         </div>
 
         <div className={`specimen-page${tool === 'paint' ? ' painting' : ''}`} ref={pageRef} onClick={() => setCard(null)}>
+          <p className="specimen-running-head"><span>Nature | Vol 596</span><span>Article</span></p>
           <header className="specimen-masthead">
-            <p className="specimen-kicker">Article</p>
             <p className="specimen-title">Highly accurate protein structure prediction with AlphaFold</p>
             <p className="specimen-authors">John Jumper, Richard Evans, Alexander Pritzel et al.</p>
-            <p className="specimen-source">Nature 596, 583–589 (2021) · excerpts</p>
           </header>
           <div className="specimen-columns">
-            {COLUMNS.map((column, c) => <div key={c} className="specimen-column">{column.map(renderBlock)}</div>)}
+            {COLUMNS.flat().map(renderBlock)}
           </div>
+          <figure className="specimen-figure">
+            <BackboneAccuracy />
+            <figcaption><b>Fig. 1:</b> AlphaFold produces highly accurate structures.</figcaption>
+          </figure>
           <ol className="specimen-references">
             {Object.entries(REFERENCES).map(([n, ref]) => (
               <li key={n}><span>{n}.</span> {ref.printed}</li>
@@ -285,12 +324,16 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
             {' '}<a href={LICENCE_URL} target="_blank" rel="noreferrer">CC BY 4.0</a>. Sentences left out are marked […];
             {' '}Fig. 1a is redrawn from the values in the text.
           </p>
+          <p className="specimen-folio" aria-hidden="true">583</p>
 
           {reference && cardBox && (
             <div
+              ref={cardRef}
+              tabIndex={-1}
               className="specimen-card"
               style={{ top: cardBox.top, left: cardBox.left, width: cardBox.width }}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={onEscape(closeCitation)}
               role="dialog"
               aria-label={`Reference ${card.ref}`}
             >
@@ -319,7 +362,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
           )}
 
           {figureOpen && (
-            <div className="specimen-figure-stage" onClick={(e) => e.stopPropagation()}>
+            <div className="specimen-figure-stage" onClick={(e) => e.stopPropagation()} onKeyDown={onEscape(closeFigure)}>
               <figure className="specimen-figure large">
                 <BackboneAccuracy />
                 <figcaption>
@@ -327,17 +370,18 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow }) 
                   <span className="specimen-redrawn">Redrawn with the two entries the text gives; the paper’s figure shows the top 15.</span>
                 </figcaption>
               </figure>
-              <button
-                type="button"
-                className="specimen-return"
-                onClick={() => { setFigureOpen(false); onGlow('s7'); }}
-              >
+              <button ref={returnRef} type="button" className="specimen-return" onClick={closeFigure}>
                 ← Back to where you were
               </button>
             </div>
           )}
         </div>
       </div>
+      {painted.length > 0 && (
+        <a className="specimen-landed" href="#board">
+          {painted.length === 1 ? '1 sentence' : `${painted.length} sentences`} on Protein folding ↓
+        </a>
+      )}
     </div>
   );
 }
