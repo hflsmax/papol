@@ -1,25 +1,38 @@
 # Papol
 
-Papol is your paper reading companion. It keeps you close to the papers, the
-ideas, and the people that shape your thinking.
-
-## Nook
-
-![A nook listing papers](docs/screenshots/nook.png)
+Papers, and everything you think about them. **[papol.io](https://papol.io)**:
+try it on its front page, no account needed. Free, on the web and on Mac, and
+its source is all here.
 
 ## Viewer
+
+Click a citation and see what it is, and every place the paper cites it.
+Click "Fig. 1a" and the figure comes to you. Paint what matters.
 
 ![The viewer with a painted passage](docs/screenshots/viewer.png)
 
 ## Board
 
+What a paper sets off, side by side: its passages, videos, web pages, files
+and your own thoughts, on a canvas with room to spread out.
+
 ![A board of cards](docs/screenshots/board.png)
+
+## Library
+
+Every paper, and who reads it. Your nook holds your papers on shelves you
+make public or keep private.
+
+![A nook listing papers](docs/screenshots/nook.png)
 
 ## Papol for Mac
 
+The same Papol, with your papers there when the Wi-Fi is not.
+[Download](https://github.com/hflsmax/papol/releases).
+
 ![Papol running on macOS](docs/screenshots/macos.png)
 
-## Running it
+# Develop
 
 Papol is a Cloudflare Worker (`cloudflare/`: the API and the jobs, on D1,
 R2 and a Queue) serving three Vite apps (`frontend/`, `viewer/`, `board/`)

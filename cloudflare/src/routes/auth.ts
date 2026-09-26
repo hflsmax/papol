@@ -11,7 +11,7 @@ import { registration } from "../validate";
 // The {name} placeholder is filled with the new user's display name.
 // Overridden by the settings table key "welcome_message".
 const DEFAULT_WELCOME =
-  "Welcome to Papol, {name}—your paper reading companion. Your nook is where you " +
+  "Welcome to Papol, {name}—your paper-reading companion. Your nook is where you " +
   "document your reading: upload the papers you read, rate them, " +
   "keep private notes and a summary, and share a public " +
   "one-sentence thought. Use the Library to find papers and see " +
