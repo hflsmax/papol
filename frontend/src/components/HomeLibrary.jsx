@@ -6,9 +6,9 @@ import StatePill from './StatePill';
 // their own and call a seminar; nothing leaves the page.
 
 const READERS = [
-  { initial: 'M', tint: 0, name: 'Mei', thought: 'The carbon-atom comparison is the whole pitch.' },
+  { initial: 'M', tint: 0, name: 'Mei', thought: 'The per-residue confidence is what I actually use.' },
   { initial: 'T', tint: 2, name: 'Tomás', thought: 'The supplement is where the method lives.' },
-  { initial: 'A', tint: 4, name: 'Aisha', thought: 'Read Senior 2020 first.' },
+  { initial: 'A', tint: 4, name: 'Aisha', thought: 'Still struggles when a protein has few relatives to learn from.' },
 ];
 
 export default function HomeLibrary() {
