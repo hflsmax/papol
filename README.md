@@ -66,6 +66,3 @@ Software Foundation, either version 3 of the License, or (at your option) any
 later version. It is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the details.
-
-The AlphaFold 2 excerpt on the front page is from Jumper et al., *Nature*
-596, 583–589 (2021), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
