@@ -69,6 +69,7 @@ import {
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
+import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
@@ -1155,7 +1156,35 @@ export default function App() {
     setSignInOffer(true);
   }, [fromALink]);
 
-  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer;
+  // Where annotations are kept, said as each paper opens: not in the PDF.
+  // The tick is only read when the notice is put away, however that is.
+  const [storageNotice, setStorageNotice] = useState(false);
+  const [storageNoticeOptOut, setStorageNoticeOptOut] = useState(false);
+  const offeredStorageNotice = useRef(false);
+  useEffect(() => {
+    if (!firstPageReady || offeredStorageNotice.current) return;
+    offeredStorageNotice.current = true;
+    if (showsAnnotationStorageNotice({ neverAnnotatable })) setStorageNotice(true);
+  }, [firstPageReady, neverAnnotatable]);
+  // Behind any other window the bar hangs, and never put away unseen.
+  const storageNoticeShown = storageNotice && nookStep === 'idle' && !nookPromptOpen
+    && !paperInfoOpen && !signInOffer && !pdfViewerTip;
+  const closeStorageNotice = () => {
+    if (!storageNoticeShown) return;
+    closeAnnotationStorageNotice(storageNoticeOptOut);
+    setStorageNotice(false);
+  };
+  const registerFromStorageNotice = () => {
+    closeStorageNotice();
+    if (!IS_DESKTOP) {
+      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+      window.location.assign(appPath(`/join?next=${encodeURIComponent(back)}`));
+      return;
+    }
+    requestSignIn({ register: true }).catch(() => {});
+  };
+
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer || storageNoticeShown;
 
   // Everything hung from the paper menu is the same kind of transient
   // window, even though the contents differ. A click beyond the menu puts
@@ -1166,6 +1195,7 @@ export default function App() {
     setNookPromptOpen(false);
     setPdfViewerTip(false);
     setSignInOffer(false);
+    closeStorageNotice();
   }, { escape: false });
 
   useDismiss(learnLinkNavigation, learnLinkTipRef,
@@ -1403,6 +1433,7 @@ export default function App() {
         setNookPromptOpen(false);
         setPdfViewerTip(false);
         setSignInOffer(false);
+        closeStorageNotice();
         return;
       }
       if (e.key === 'Escape' && selectedClipUuid != null) {
@@ -4209,6 +4240,7 @@ export default function App() {
                 setNookPromptOpen(false);
                 setPdfViewerTip(false);
                 setSignInOffer(false);
+                closeStorageNotice();
               }}
               aria-expanded={paperInfoOpen}
               aria-haspopup="dialog"
@@ -4286,6 +4318,32 @@ export default function App() {
                 <div className="nook-ask-actions">
                   <button type="button" onClick={() => setSignInOffer(false)}>Not now</button>
                   <button type="button" className="primary" onClick={signInFromOffer}>Sign in</button>
+                </div>
+              </div>
+            )}
+            {storageNoticeShown && (
+              <div className="paper-info-pop nook-ask storage-notice" role="dialog" aria-labelledby="storage-notice-title" data-tauri-drag-region="false">
+                <button type="button" className="dismiss-button card-x" onClick={closeStorageNotice} aria-label="Close" title="Close">
+                  ×
+                </button>
+                <strong id="storage-notice-title">Annotations aren’t in the PDF</strong>
+                <p>
+                  Papol keeps your notes, ink and clips separately from the PDF file.
+                  {!signedInHere() && ' Create an account to back them up in the cloud.'}
+                </p>
+                <label className="storage-notice-opt-out">
+                  <input
+                    type="checkbox"
+                    checked={storageNoticeOptOut}
+                    onChange={(event) => setStorageNoticeOptOut(event.target.checked)}
+                  />
+                  Don’t show again
+                </label>
+                <div className="nook-ask-actions">
+                  <button type="button" className={signedInHere() ? 'primary' : undefined} onClick={closeStorageNotice}>OK</button>
+                  {!signedInHere() && (
+                    <button type="button" className="primary" onClick={registerFromStorageNotice}>Create account</button>
+                  )}
                 </div>
               </div>
             )}

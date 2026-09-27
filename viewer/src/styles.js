@@ -653,7 +653,9 @@ ${compatibilityStyles}
 .nook-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 /* The offer a link opens with can be closed from its corner as well as
    declined, so its title keeps clear of the ×. */
-.sign-in-offer strong { padding-right: 22px; }
+.sign-in-offer strong, .storage-notice strong { padding-right: 22px; }
+.storage-notice-opt-out { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
+.storage-notice-opt-out input { margin: 0; }
 /* The wait under the button while the paper is added (docs/waiting.md). */
 .nook-adding { padding: 12px 14px; }
 .learn-papol.pdf-viewer-tip { left: auto; right: 0; }
