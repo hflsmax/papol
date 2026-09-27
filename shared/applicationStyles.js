@@ -5812,35 +5812,82 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 /* Sections: a serif word and a faint count; no small caps, no boxes. */
 .project-section + .project-section { margin-top: var(--space-7); }
-.project-section-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-2); }
+.project-section-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
 .project-section-head h3 { margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .project-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-section-action { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
-.project-section-action:hover:not(:disabled), .project-section-action[aria-expanded='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.project-section-action .action-glyph, .project-invite-thought .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .project-empty { margin: 0; color: var(--ink-faint); font-size: var(--fs-md); }
-.project-new-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-2); border-radius: 50%; background: var(--accent); vertical-align: middle; }
 
-/* Papers: compact rows; the selected one becomes a card with its takes. */
-.project-papers { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-paper { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-4); padding: var(--space-3); border-radius: var(--radius-lg); cursor: default; transition: background-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
-.project-paper + .project-paper::before,
-.project-discussions li + li::before,
-.project-boards li + li::before { content: ''; position: absolute; top: 0; right: var(--space-3); left: var(--space-3); border-top: 1px solid var(--line); }
-.project-discussions li, .project-boards li { position: relative; }
-.project-paper.is-selected::before, .project-paper.is-selected + .project-paper::before { display: none; }
-.project-paper:hover:not(.is-selected) { background: color-mix(in srgb, var(--fill) 45%, transparent); }
-.project-paper.is-selected { align-items: start; margin: var(--space-2) 0; background: var(--card); box-shadow: var(--shadow-sm); }
-.project-paper-main h4 { margin: 0; font-size: var(--fs-md); font-weight: 600; line-height: 1.4; }
-.project-paper-main .paper-meta { margin: 2px 0 0; }
-.project-paper .item-actions { grid-column: 2; grid-row: 1; }
+/* The desk: papers and boards as cards on the left, what is being said
+   in a column on the right. Cards share a board card's anatomy: a header
+   strip with an uppercase kind, a serif title. */
+.project-page.is-desk { max-width: 1120px; }
+.project-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3) var(--space-5); }
+.project-head-main { flex: 1 1 22rem; min-width: 0; }
+.project-tally { margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+.project-since { margin: var(--space-2) 0 0; color: var(--gold-ink); font: 600 var(--fs-sm) var(--font-ui); }
+.project-head .project-crowd { margin-top: var(--space-1); }
 
-.project-paper-summary { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-desk { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-6); }
+.project-desk-main { flex: 3 1 460px; min-width: 0; }
+.project-talk { position: sticky; top: var(--space-4); flex: 1 1 280px; min-width: 0; max-height: calc(100vh - 2 * var(--space-4)); overflow: auto; }
+
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.project-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); transition: border-color var(--motion-fast) var(--ease-out); }
+.project-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line-strong)); }
+.project-card.is-selected { grid-column: 1 / -1; border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
+.project-card-kind { color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.project-card-venue { overflow: hidden; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.project-card-new { color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
+.project-card-title { margin: 0; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); }
+.project-card-title a { color: inherit; }
+.project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-card-quote { margin: var(--space-2) 0 0; padding: var(--space-1) 0 var(--space-1) var(--space-3); border-left: 2px solid var(--gold); color: var(--ink); font: var(--fs-sm)/1.45 var(--font-serif); }
+.project-card-quote cite { display: block; margin-top: 2px; color: var(--ink-faint); font: normal var(--fs-2xs) var(--font-ui); }
+.project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
+.project-card .item-actions { position: absolute; top: 100%; left: var(--space-2); z-index: 3; }
+.project-paper.is-selected { margin-bottom: var(--space-6); }
+.project-paper-more { padding: var(--space-3); border-top: 1px solid var(--line); }
+.project-paper-added { margin: var(--space-3) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+
+.project-board-link { color: inherit; text-decoration: none; }
+.project-board-link:hover .project-card-title { color: var(--accent); }
+.project-board-meta { margin-top: auto; padding-top: var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-board-description { color: var(--ink-soft); font-size: var(--fs-sm); }
+.project-board-new { display: flex; min-height: 132px; }
+.project-board-add { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); padding: var(--space-3); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+.project-board-add:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.project-board-add .action-glyph { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.project-board-add span { max-width: 16rem; color: var(--ink-faint); font-size: var(--fs-xs); font-weight: 400; text-align: center; }
+.project-board-form { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--accent); border-radius: 10px; background: var(--card); }
+.project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+.project-talk .project-section-head { margin-bottom: var(--space-3); }
+.project-talk-start { display: flex; align-items: center; gap: var(--space-2); width: 100%; margin-bottom: var(--space-3); padding: var(--space-3); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-serif); text-align: left; }
+.project-talk-start:hover:not(:disabled), .project-talk-start[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
+.project-talk-start .project-talk-mark, .project-talk-hint .project-talk-mark { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; }
+.project-talk-hint .project-talk-mark { margin: 0 1px; vertical-align: -3px; }
+.project-talk-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.project-talk-card { display: grid; gap: var(--space-1); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: none; color: var(--ink); font: inherit; text-align: left; }
+.project-talk-card:hover:not(:disabled), .project-talk-card[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
+.project-talk-card.is-new { border-left: 3px solid var(--gold); }
+.project-talk-subject { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-talk-excerpt { display: -webkit-box; overflow: hidden; font: var(--fs-sm)/1.45 var(--font-serif); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.project-talk-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-talk-meta b { color: var(--ink-soft); font-weight: 600; }
+.project-talk-meta .project-card-new { margin-left: auto; }
+
+@media (max-width: 640px) {
+  .project-talk { position: static; max-height: none; overflow: visible; }
+  .project-thought-form { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .project-thought-form .project-quiet { display: none; }
+}
+
 .project-takes-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-color: transparent; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-takes-toggle:hover:not(:disabled) { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
 .project-takes-toggle:hover .project-faces .mini-avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
-
-.project-paper-more { grid-column: 1 / -1; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: var(--space-2); align-items: baseline; }
 .project-take-talk { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
@@ -5848,52 +5895,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-take-who b { color: var(--ink-soft); font-weight: 600; }
 .project-take-thought { grid-column: 2; margin: 2px 0 0; color: var(--ink); font-size: var(--fs-md); line-height: 1.5; }
-/* The invitations: your thought, and the discussion. */
-.project-invite-thought { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); background: none; box-shadow: none; color: var(--accent); font: var(--fs-xs) var(--font-ui); opacity: .75; transition: opacity var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
-.project-paper:hover .project-invite-thought, .project-invite-thought:focus-visible { opacity: 1; }
-.project-invite-thought:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.project-take-edit { min-height: 0; margin-left: auto; padding: 0 var(--space-2); font-size: var(--fs-xs); line-height: 1.4; }
 .project-thought-form { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-2); margin-top: var(--space-3); }
 .project-takes:empty + .project-thought-form, .project-paper-more > .project-thought-form:first-child { margin-top: 0; }
 .project-thought-form input, .project-board-form input { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-thought-form input:focus, .project-board-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
 .project-thought-form button:not(.project-quiet) { padding: var(--space-1) var(--space-3); }
-.project-thought-note { grid-column: 2 / -1; margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
-.project-paper-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
-.project-paper-added { margin: 0 auto 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-
-/* Discussions: subject, one line of the newest post, a faint meta line. */
-.project-discussions { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-discussion { display: grid; gap: 2px; padding-right: calc(var(--space-3) + 64px); padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
-.project-discussion:hover, .project-discussion:focus-visible { background: color-mix(in srgb, var(--fill) 45%, transparent); }
-.project-discussion-subject { font-size: var(--fs-md); font-weight: 600; line-height: 1.4; }
-.project-discussion-excerpt { overflow: hidden; color: var(--ink-soft); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
-.project-discussion-excerpt b { color: var(--ink); font-weight: 600; }
-.project-discussion-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-discussion-kind { color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-discussion-pin, .project-board-pin { position: absolute; top: 50%; right: var(--space-3); transform: translateY(-50%); }
-.project-section-talk { margin-left: auto; }
-.project-talk-hint .project-talk-mark { width: 16px; height: 16px; margin: 0 1px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; vertical-align: -3px; }
-.project-more { margin-top: var(--space-1); }
-
-/* Boards: a plain list with the name and a faint count. */
-.project-board-form { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-.project-board-form input { flex: 1 1 14rem; min-width: 0; }
-.project-boards { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-board { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-4); padding: var(--space-3) calc(var(--space-3) + 40px) var(--space-3) var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
-.project-board:hover, .project-board:focus-visible { background: color-mix(in srgb, var(--fill) 45%, transparent); }
-.project-board-name { font-size: var(--fs-md); font-weight: 600; }
-.project-board-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-board-description { grid-column: 1 / -1; color: var(--ink-soft); font-size: var(--fs-sm); }
-
-@media (max-width: 640px) {
-  .project-paper { grid-template-columns: minmax(0, 1fr); }
-  .project-paper-summary { margin-top: var(--space-2); }
-  .project-paper .item-actions { grid-column: 1; grid-row: auto; justify-self: end; }
-  .project-discussion-excerpt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .project-thought-form { grid-template-columns: 22px minmax(0, 1fr) auto; }
-  .project-thought-form .project-quiet { display: none; }
-}
 
 /* Talk: one pin and one card for discussing anything in a project. The pin
    is the viewer's note pin; the card is a board card, lifted. */

@@ -45,7 +45,7 @@ function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-function when(iso) {
+export function when(iso) {
   const date = new Date(iso);
   const minutes = Math.round((Date.now() - date) / 60000);
   if (minutes < 1) return 'just now';
@@ -128,6 +128,33 @@ export function TalkPin({
         document.body,
       )}
     </span>
+  );
+}
+
+// Anything can open a talk card, not only a pin: a row in a list of what
+// is being said opens the same card beside itself.
+export function TalkOpener({ projectUuid, subject, label, currentUser, onChanged, className = '', title, children }) {
+  const [open, setOpen] = useState(false);
+  const self = useRef(null);
+  const key = subjectKey(subject);
+  const changed = useCallback((discussion) => { onChanged?.(key, null, discussion); }, [key, onChanged]);
+  return (
+    <>
+      <button
+        ref={self} type="button" className={className} title={title} aria-expanded={open} aria-haspopup="dialog"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
+      >
+        {children}
+      </button>
+      {open && createPortal(
+        <TalkCard
+          anchor={self} projectUuid={projectUuid} subject={key} label={label} currentUser={currentUser}
+          onChanged={changed} onClose={() => { setOpen(false); self.current?.focus({ preventScroll: true }); }}
+        />,
+        document.body,
+      )}
+    </>
   );
 }
 
