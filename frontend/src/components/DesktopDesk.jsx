@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { getNook } from '../../../shared/api/people.js';
 import { paperName } from '../../../shared/paperName.js';
-import { listPapers, paperHref } from '../../../shared/api/papers.js';
+import { listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInListing,
@@ -17,6 +17,7 @@ import FolderImport from './FolderImport';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
+import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
@@ -127,6 +128,7 @@ export function DesktopBrowser({
   // or several PDFs dropped or chosen there.
   const [folderRequest, setFolderRequest] = useState(null);
   const [draggingSha256, setDraggingSha256] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
   const listRef = useRef(null);
   const paperSha256 = route.page === 'paper' ? route.uuid : null;
@@ -203,6 +205,13 @@ export function DesktopBrowser({
 
   const canCompose = Boolean(nook) && !libraryView;
   const listingHome = () => onNavigate(listingPath(listing));
+  const movePaper = async (paper, shelfUuid) => {
+    setActionError(null);
+    try {
+      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
+      reload();
+    } catch (error) { setActionError(error.message); }
+  };
   const moveSelection = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const entries = boardsView ? shownBoards : shownPapers;
@@ -408,6 +417,7 @@ export function DesktopBrowser({
           />
         </label>
         <div className="desktop-list" ref={listRef} onKeyDown={moveSelection}>
+          {actionError && <p className="desktop-list-empty" role="alert">{actionError}</p>}
           {emptyList ? (
             <p className="desktop-list-empty">{emptyList}</p>
           ) : boardsView ? (
@@ -466,6 +476,19 @@ export function DesktopBrowser({
                     setDraggingSha256(paper.sha256);
                   }}
                   onDragEnd={() => setDraggingSha256(null)}
+                  // The one right-click in Papol: moving a paper to another
+                  // shelf without opening it, which the Mac otherwise only
+                  // offers as a drag onto the sidebar.
+                  onContextMenu={libraryView ? undefined : contextMenuHandler(() => [
+                    shelves.length > 1 && {
+                      label: 'Move to Shelf',
+                      submenu: shelves.map((item) => ({
+                        label: item.name,
+                        checked: item.uuid === paper.shelf_uuid,
+                        onSelect: () => item.uuid !== paper.shelf_uuid && movePaper(paper, item.uuid),
+                      })),
+                    },
+                  ])}
                 >
                   {shelfColor && (
                     <span className="desktop-row-swatch" style={{ background: shelfColor }} aria-hidden="true" />
