@@ -5898,27 +5898,26 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* Talk: one pin and one card for discussing anything in a project. The pin
    is the viewer's note pin; the card is a board card, lifted. */
 .talk-pin-wrap { position: relative; display: inline-flex; flex: none; align-items: center; gap: var(--space-1); vertical-align: middle; }
-.talk-pin { position: relative; display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: transform 200ms cubic-bezier(.2,.85,.25,1.15), opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+.talk-pin { position: relative; display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
 .talk-sm .talk-pin { width: 24px; height: 24px; }
 .talk-lg .talk-pin { width: 34px; height: 34px; }
 .talk-pin .talk-glyph { display: block; width: 100%; height: 100%; overflow: visible; }
-.talk-pin:hover:not(:disabled), .talk-pin:focus-visible { border: 0; background: none; color: var(--accent); transform: scale(1.12) rotate(-6deg); }
+.talk-pin:hover:not(:disabled), .talk-pin:focus-visible { border: 0; background: none; color: var(--accent); }
 .talk-pin:focus-visible { outline: none; }
 .talk-pin:focus-visible::before, .talk-pin.is-open::before { content: ''; position: absolute; inset: -3px; z-index: -1; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--focus-soft); }
 .talk-count { position: absolute; top: 4px; left: 0; right: 0; color: var(--ink-inverse); font: 700 10px/16px var(--font-ui); letter-spacing: -.02em; text-align: center; pointer-events: none; }
 .talk-sm .talk-count { top: 2px; font-size: 9px; line-height: 14px; }
 .talk-lg .talk-count { top: 4px; font-size: 12px; line-height: 20px; }
-.talk-count.is-bumped { animation: talk-bump 420ms cubic-bezier(.2,.85,.25,1.15); }
 .talk-plus { position: absolute; top: 1px; left: 0; right: 0; color: currentColor; font: 600 15px/20px var(--font-ui); text-align: center; pointer-events: none; }
 .talk-sm .talk-plus { font-size: 13px; line-height: 17px; }
 .talk-pin.is-empty { color: var(--accent); opacity: .38; }
 .talk-pin.is-empty:hover, .talk-pin.is-empty:focus-visible, .talk-pin.is-empty.is-open { opacity: 1; }
-.talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty { opacity: .9; animation: talk-wiggle 480ms ease-in-out; }
+.talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty { opacity: .9; }
 @media (hover: none) { .talk-pin.is-empty { opacity: .7; } }
-.talk-pin.is-new::after { content: ''; position: absolute; top: -1px; right: -2px; width: 9px; height: 9px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); animation: talk-glow 2.4s ease-in-out infinite; }
+.talk-pin.is-new::after { content: ''; position: absolute; top: -1px; right: -2px; width: 9px; height: 9px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); }
 .talk-caption { padding: var(--space-1) var(--space-2) var(--space-1) 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); white-space: nowrap; }
 .talk-caption:hover:not(:disabled) { border: 0; background: none; color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
-.talk-pin-wrap:has(.talk-caption:hover) .talk-pin { color: var(--accent); opacity: 1; transform: scale(1.12) rotate(-6deg); }
+.talk-pin-wrap:has(.talk-caption:hover) .talk-pin { color: var(--accent); opacity: 1; }
 .talk-faces { display: inline-flex; padding-left: var(--space-1); }
 .board-card-talk { margin-left: auto; }
 .board-card-talk + .board-card-action-menu { margin-left: var(--space-1); }
@@ -5929,27 +5928,15 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .board-toolbar .talk-caption { padding: 4px 6px 4px 0; font-size: var(--fs-sm); }
 .talk-faces .mini-avatar { width: 18px; height: 18px; margin-left: -5px; box-shadow: 0 0 0 2px var(--paper); font-size: 10px; }
 
-@keyframes talk-bump { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
-@keyframes talk-wiggle { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-10deg) scale(1.08); } 65% { transform: rotate(7deg) scale(1.04); } }
-@keyframes talk-glow { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 
 /* The first word on something: a few sparks fly off the pin. */
-.talk-burst { position: fixed; z-index: 400; width: 0; height: 0; pointer-events: none; }
-.talk-burst i { position: absolute; left: -6px; top: -9px; color: var(--gold); font: normal 13px/18px var(--font-ui); opacity: 0; animation: talk-spark 760ms cubic-bezier(.15,.8,.3,1) forwards; }
-.talk-burst i:nth-child(even) { color: var(--accent); font-size: 10px; animation-duration: 660ms; }
-@keyframes talk-spark {
-  0% { opacity: 1; transform: rotate(var(--angle)) translateY(0) scale(.4); }
-  70% { opacity: 1; }
-  100% { opacity: 0; transform: rotate(var(--angle)) translateY(-34px) scale(1.1); }
-}
 
 /* The talk card: a board card lifted off the canvas. */
 .talk-card { position: fixed; z-index: 300; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 16px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md), 0 2px 5px rgba(29,33,41,.09); color: var(--ink); font-family: var(--font-ui); opacity: 0; visibility: hidden; }
-.talk-card.is-placed { visibility: visible; animation: talk-open 240ms cubic-bezier(.2,.85,.25,1.15) forwards; }
+.talk-card.is-placed { visibility: visible; animation: talk-open var(--motion-fast) var(--ease-out) forwards; }
 .talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
-@keyframes talk-open { from { opacity: 0; transform: scale(.55) translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin, .talk-count.is-bumped { animation: none; transition: none; } }
-
+@keyframes talk-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin, 
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .talk-card-kind i { display: inline-grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--accent-strong); }
@@ -5969,8 +5956,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-posts { margin: 0; padding: 0 0 var(--space-2); list-style: none; }
 .talk-post { padding: var(--space-3) 0; }
 .talk-post + .talk-post { border-top: 1px solid var(--line); }
-.talk-post.is-arriving { animation: talk-arrive 320ms cubic-bezier(.2,.85,.25,1.15); }
-@keyframes talk-arrive { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 .talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 11px; }
 .talk-post-head b { color: var(--ink); font-weight: 600; }
@@ -5984,9 +5969,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }
 .talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: vertical; }
 .talk-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
-.talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: transform 200ms cubic-bezier(.2,.85,.25,1.15), opacity var(--motion-fast) var(--ease-out); }
+.talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: opacity var(--motion-fast) var(--ease-out); }
 .talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); transform: translateX(2px) rotate(-8deg); }
+.talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); }
 .talk-send:disabled { opacity: .35; }
 
 /* One discussion: its subject, its posts, and room to write at length. */

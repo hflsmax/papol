@@ -54,24 +54,6 @@ function when(iso) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', ...(thisYear ? {} : { year: 'numeric' }) });
 }
 
-// A burst of small sparks from the pin, for the first word on something.
-function sparkle(pin) {
-  if (!pin || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  const rect = pin.getBoundingClientRect();
-  const burst = document.createElement('span');
-  burst.className = 'talk-burst';
-  burst.style.left = `${rect.left + rect.width / 2}px`;
-  burst.style.top = `${rect.top + rect.height / 2}px`;
-  for (let i = 0; i < 8; i += 1) {
-    const spark = document.createElement('i');
-    spark.textContent = '✦';
-    spark.style.setProperty('--angle', `${i * 45 + 20}deg`);
-    burst.appendChild(spark);
-  }
-  document.body.appendChild(burst);
-  setTimeout(() => burst.remove(), 900);
-}
-
 // The pin. Empty, it is an outline that fills in when you reach for the
 // thing it sits on; with talk, it carries the count, and a gold dot when
 // others have written since you looked.
@@ -80,7 +62,6 @@ export function TalkPin({
 }) {
   const [open, setOpen] = useState(false);
   const [local, setLocal] = useState(null);
-  const [bump, setBump] = useState(0);
   const pin = useRef(null);
   const key = subjectKey(subject);
   const state = local ?? summary ?? null;
@@ -90,13 +71,11 @@ export function TalkPin({
 
   useEffect(() => { setLocal(null); }, [summary?.post_count, summary?.uuid]);
 
-  const changed = useCallback((discussion, { first }) => {
+  const changed = useCallback((discussion) => {
     const next = discussion
       ? { uuid: discussion.uuid, post_count: discussion.posts.length, is_new: false, voices: uniqueVoices(discussion.posts) }
       : { uuid: null, post_count: 0, is_new: false, voices: [] };
     setLocal(next);
-    setBump((n) => n + 1);
-    if (first) sparkle(pin.current);
     onChanged?.(key, next, discussion);
   }, [key, onChanged]);
 
@@ -119,7 +98,7 @@ export function TalkPin({
       >
         <TalkGlyph outline={!count} />
         {count > 0
-          ? <span key={bump} className={`talk-count${bump ? ' is-bumped' : ''}`}>{count > 99 ? '99+' : count}</span>
+          ? <span className="talk-count">{count > 99 ? '99+' : count}</span>
           : <span className="talk-plus" aria-hidden="true">+</span>}
       </button>
       {captionText && (
@@ -192,7 +171,6 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
-  const [justPosted, setJustPosted] = useState(null);
   const [spot, setSpot] = useState(null);
   const card = useRef(null);
   const list = useRef(null);
@@ -243,12 +221,10 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
     setBusy(true);
     setError(null);
     try {
-      const first = !discussion;
-      const next = first ? await startDiscussion(projectUuid, subject, text) : await replyToDiscussion(discussion.uuid, text);
+      const next = !discussion ? await startDiscussion(projectUuid, subject, text) : await replyToDiscussion(discussion.uuid, text);
       setDiscussion(next);
-      setJustPosted(next.posts[next.posts.length - 1]?.uuid ?? null);
       setBody('');
-      onChanged?.(next, { first });
+      onChanged?.(next);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -291,7 +267,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
         ) : (
           <ol className="talk-posts">
             {posts.map((post) => (
-              <li key={post.uuid} className={`talk-post${post.is_mine ? ' is-mine' : ''}${post.uuid === justPosted ? ' is-arriving' : ''}`}>
+              <li key={post.uuid} className={`talk-post${post.is_mine ? ' is-mine' : ''}`}>
                 <p className="talk-post-head">
                   <Avatar user={post.user} className="mini-avatar" />
                   <b>{post.is_mine ? 'You' : post.user.display_name}</b>
