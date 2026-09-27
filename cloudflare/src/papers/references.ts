@@ -338,6 +338,57 @@ export async function previewReference(env: Env, paper: Paper, key: string, raw:
   return openReference(env, reference);
 }
 
+// A reference as the viewer read it off the page (host/analyzer's rules,
+// run in the browser): what is printed, and what the rules made of it.
+export interface PrintedReference {
+  key: string;
+  index: number;
+  raw: string;
+  title: string | null;
+  authors: string[];
+  year: number | null;
+  journal: string | null;
+  doi: string | null;
+  arxiv_id: string | null;
+}
+
+// More rows than any bibliography has: past this, a paper is taking rows
+// from whoever holds its digest, not from its bibliography.
+const MOST_REFERENCES = 2000;
+
+// One reference the viewer read, looked up the first time anyone opens it.
+// What was found is kept by what is printed, so a reference printed the
+// same way is never looked up twice, and a better reading of the page —
+// the rules improve — can never leave a stale row behind: a reference
+// read differently is a different reference.
+export async function lookUpPrinted(env: Env, paper: Paper, printed: PrintedReference) {
+  const rows = await all<Reference>(env.DB,
+    `SELECT * FROM paper_references WHERE paper_sha256 = ? AND raw = ? ORDER BY resolved_status IS NULL, uuid`, paper.sha256, printed.raw);
+  let reference = rows[0] ?? null;
+  const fields = {
+    key: printed.key, index: printed.index, title: printed.title, authors: printed.authors.length ? JSON.stringify(printed.authors) : null,
+    year: printed.year, journal: printed.journal, doi: printed.doi, arxiv_id: printed.arxiv_id,
+  };
+  if (!reference) {
+    const count = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM paper_references WHERE paper_sha256 = ?", paper.sha256);
+    if ((count?.n ?? 0) >= MOST_REFERENCES) refuse(429, "This paper has too many references to look up another");
+    reference = {
+      uuid: newUuid(), paper_sha256: paper.sha256, raw: printed.raw, ...fields, page: null, y: null,
+      resolved_status: null, resolved_at: null, resolution: null,
+    };
+    await statement(env.DB,
+      `INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw, title, authors, year, journal, doi, arxiv_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      reference.uuid, paper.sha256, fields.key, fields.index, printed.raw, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id).run();
+  } else if (reference.resolved_status === null || reference.resolved_status === undefined) {
+    // Not looked up yet: look it up by what the rules make of it now.
+    Object.assign(reference, fields);
+    await statement(env.DB,
+      `UPDATE paper_references SET "key" = ?, "index" = ?, title = ?, authors = ?, year = ?, journal = ?, doi = ?, arxiv_id = ? WHERE uuid = ?`,
+      fields.key, fields.index, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id, reference.uuid).run();
+  }
+  return openReference(env, reference);
+}
+
 export function referenceOr404(reference: Reference | null): Reference {
   return reference ?? refuse(404, "Reference not found");
 }

@@ -486,11 +486,25 @@ export default function Navigator({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(reading * 100)}
-            data-tip="Finding the sections in this paper"
+            data-tip="Reading this paper for its sections, references and links"
           >
             <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
             <span className="navigator-reading-name">Initializing…</span>
           </div>
+        )}
+        {/* A paper with an outline has its sections at once; the rest of
+            it, its references and links, is still being read, and a line
+            along the strip's foot fills as it is. */}
+        {segments.length > 0 && reading != null && (
+          <span
+            className="navigator-loading"
+            role="progressbar"
+            aria-label="Initializing"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(reading * 100)}
+            style={{ width: `${reading * 100}%` }}
+          />
         )}
         {segments.map((segment, index) => {
           const name = [segment.number, segment.title].filter(Boolean).join(' ');

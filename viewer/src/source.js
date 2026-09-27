@@ -7,7 +7,7 @@ import { paperName } from '../../shared/paperName.js';
 import { addToNook as addPaperToNook } from '../../shared/api/papers.js';
 import {
   getPaperByPdf, getPaperLink, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
-  getSharedReferences, getSharedReference, getViewerPaperInfo,
+  lookUpViewerReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   getToken,
 } from './api.js';
@@ -135,8 +135,7 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
     // its bibliography — read through the link, which is the only
     // permission whoever is holding it has.
     references: {
-      list: (pdfHash, paperSha256) => getSharedReferences(shareUuid, pdfHash, paperSha256),
-      open: (referenceUuid) => getSharedReference(shareUuid, referenceUuid),
+      lookUp: (paperSha256, reference) => lookUpViewerReference(paperSha256, reference, shareUuid),
     },
     info: (reading) => getViewerPaperInfo(reading.paper.sha256, shareUuid),
   });

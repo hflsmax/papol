@@ -266,6 +266,17 @@ ${compatibilityStyles}
   transition: width var(--motion-fast) var(--ease-out);
 }
 .navigator-reading-name { position: relative; }
+.navigator-loading {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+  transition: width var(--motion-fast) var(--ease-out);
+}
 
 /* The subsections, in a lane over the strip: a small caret pointing down at
    the top edge of its section, at its place. Sections are the grounds and the

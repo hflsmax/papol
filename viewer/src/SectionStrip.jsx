@@ -154,9 +154,9 @@ export default function SectionStrip({
           </button>
         ))}
       </div>
-      {/* While the printed headings are read, a line under the pages
-          fills as they are (see Navigator). */}
-      {paged && reading != null && (
+      {/* While the paper is read for its headings, references and links,
+          a line under the strip fills as it is (see Navigator). */}
+      {reading != null && (
         <span
           className="strip-reading"
           role="progressbar"
