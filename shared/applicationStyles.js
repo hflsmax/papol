@@ -5321,9 +5321,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.selected > .board-card-content,
 .board-canvas-card.selected > .board-card-content * { user-select: none; }
 .board-card-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
-.board-card-discussion { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: auto; border-radius: var(--radius); color: var(--accent); }
-.board-card-discussion:hover { background: var(--accent-soft); }
-.board-card-discussion .action-glyph { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .board-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .board-card-kind i { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 15px; font-weight: 700; line-height: 1; text-align: center; }
 .board-canvas-card.youtube .board-card-kind i,
@@ -5820,7 +5817,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .project-section-action { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
 .project-section-action:hover:not(:disabled), .project-section-action[aria-expanded='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.project-section-action .action-glyph, .project-invite-thought .action-glyph, .project-discuss-button .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.project-section-action .action-glyph, .project-invite-thought .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .project-empty { margin: 0; color: var(--ink-faint); font-size: var(--fs-md); }
 .project-new-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-2); border-radius: 50%; background: var(--accent); vertical-align: middle; }
 
@@ -5842,14 +5839,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-takes-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-color: transparent; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-takes-toggle:hover:not(:disabled) { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
 .project-takes-toggle:hover .project-faces .mini-avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
-.project-discussion-mark { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-soft); text-decoration: none; }
-.project-discussion-mark:hover { color: var(--accent); }
-.project-discussion-mark.is-new { color: var(--accent); font-weight: 600; }
-.project-discussion-mark .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .project-paper-more { grid-column: 1 / -1; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
+.project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: var(--space-2); align-items: baseline; }
+.project-take-talk { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 .project-take .mini-avatar { grid-row: 1 / span 2; align-self: start; }
 .project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-take-who b { color: var(--ink-soft); font-weight: 600; }
@@ -5867,35 +5861,26 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-thought-note { grid-column: 2 / -1; margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
 .project-paper-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
 .project-paper-added { margin: 0 auto 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-discuss-button { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent); color: var(--ink-inverse); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; }
-.project-discuss-button:hover { filter: brightness(1.08); color: var(--ink-inverse); }
-
-/* Starting a discussion: first, what it is about. */
-.project-subject-pick { box-sizing: border-box; width: 100%; margin: 0 0 var(--space-3); padding: var(--space-3); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
-.project-subject-pick-note { margin: 0 0 var(--space-2); color: var(--ink-soft); font-size: var(--fs-sm); }
-.project-subject-pick ul { margin: 0 calc(-1 * var(--space-2)); padding: 0; list-style: none; }
-.project-subject-pick a { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius); color: var(--ink); font-size: var(--fs-md); font-weight: 600; line-height: 1.4; text-decoration: none; }
-.project-subject-pick a:hover { background: var(--accent-soft); color: var(--accent); }
-.project-subject-pick-meta { margin-left: auto; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); white-space: nowrap; }
 
 /* Discussions: subject, one line of the newest post, a faint meta line. */
 .project-discussions { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-discussion { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); row-gap: 2px; padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-discussion { display: grid; gap: 2px; padding-right: calc(var(--space-3) + 64px); padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-discussion:hover, .project-discussion:focus-visible { background: color-mix(in srgb, var(--fill) 45%, transparent); }
 .project-discussion-subject { font-size: var(--fs-md); font-weight: 600; line-height: 1.4; }
 .project-discussion-excerpt { overflow: hidden; color: var(--ink-soft); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
 .project-discussion-excerpt b { color: var(--ink); font-weight: 600; }
-.project-discussion-subject, .project-discussion-excerpt, .project-discussion-meta { grid-column: 1; }
 .project-discussion-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-discussion-reply { grid-column: 2; grid-row: 1 / span 3; align-self: center; padding: var(--space-1) var(--space-3); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: var(--radius); color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); transition: background-color var(--motion-fast) var(--ease-out); }
-.project-discussion:hover .project-discussion-reply { border-color: var(--accent); background: var(--accent-soft); }
+.project-discussion-kind { color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.project-discussion-pin, .project-board-pin { position: absolute; top: 50%; right: var(--space-3); transform: translateY(-50%); }
+.project-section-talk { margin-left: auto; }
+.project-talk-hint .project-talk-mark { width: 16px; height: 16px; margin: 0 1px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; vertical-align: -3px; }
 .project-more { margin-top: var(--space-1); }
 
 /* Boards: a plain list with the name and a faint count. */
 .project-board-form { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .project-board-form input { flex: 1 1 14rem; min-width: 0; }
 .project-boards { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-board { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-4); padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-board { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-4); padding: var(--space-3) calc(var(--space-3) + 40px) var(--space-3) var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-board:hover, .project-board:focus-visible { background: color-mix(in srgb, var(--fill) 45%, transparent); }
 .project-board-name { font-size: var(--fs-md); font-weight: 600; }
 .project-board-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
@@ -5906,10 +5891,103 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-paper-summary { margin-top: var(--space-2); }
   .project-paper .item-actions { grid-column: 1; grid-row: auto; justify-self: end; }
   .project-discussion-excerpt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .project-discussion-reply { display: none; }
   .project-thought-form { grid-template-columns: 22px minmax(0, 1fr) auto; }
   .project-thought-form .project-quiet { display: none; }
 }
+
+/* Talk: one pin and one card for discussing anything in a project. The pin
+   is the viewer's note pin; the card is a board card, lifted. */
+.talk-pin-wrap { position: relative; display: inline-flex; flex: none; align-items: center; gap: var(--space-1); vertical-align: middle; }
+.talk-pin { position: relative; display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: transform 200ms cubic-bezier(.2,.85,.25,1.15), opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+.talk-sm .talk-pin { width: 24px; height: 24px; }
+.talk-lg .talk-pin { width: 34px; height: 34px; }
+.talk-pin .talk-glyph { display: block; width: 100%; height: 100%; overflow: visible; }
+.talk-pin:hover:not(:disabled), .talk-pin:focus-visible { border: 0; background: none; color: var(--accent); transform: scale(1.12) rotate(-6deg); }
+.talk-pin:focus-visible { outline: none; }
+.talk-pin:focus-visible::before, .talk-pin.is-open::before { content: ''; position: absolute; inset: -3px; z-index: -1; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--focus-soft); }
+.talk-count { position: absolute; top: 4px; left: 0; right: 0; color: var(--ink-inverse); font: 700 10px/16px var(--font-ui); letter-spacing: -.02em; text-align: center; pointer-events: none; }
+.talk-sm .talk-count { top: 2px; font-size: 9px; line-height: 14px; }
+.talk-lg .talk-count { top: 4px; font-size: 12px; line-height: 20px; }
+.talk-count.is-bumped { animation: talk-bump 420ms cubic-bezier(.2,.85,.25,1.15); }
+.talk-plus { position: absolute; top: 1px; left: 0; right: 0; color: currentColor; font: 600 15px/20px var(--font-ui); text-align: center; pointer-events: none; }
+.talk-sm .talk-plus { font-size: 13px; line-height: 17px; }
+.talk-pin.is-empty { color: var(--accent); opacity: .38; }
+.talk-pin.is-empty:hover, .talk-pin.is-empty:focus-visible, .talk-pin.is-empty.is-open { opacity: 1; }
+.talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty { opacity: .9; animation: talk-wiggle 480ms ease-in-out; }
+@media (hover: none) { .talk-pin.is-empty { opacity: .7; } }
+.talk-pin.is-new::after { content: ''; position: absolute; top: -1px; right: -2px; width: 9px; height: 9px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); animation: talk-glow 2.4s ease-in-out infinite; }
+.talk-caption { padding: var(--space-1) var(--space-2) var(--space-1) 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); white-space: nowrap; }
+.talk-caption:hover:not(:disabled) { border: 0; background: none; color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
+.talk-pin-wrap:has(.talk-caption:hover) .talk-pin { color: var(--accent); opacity: 1; transform: scale(1.12) rotate(-6deg); }
+.talk-faces { display: inline-flex; padding-left: var(--space-1); }
+.board-card-talk { margin-left: auto; }
+.board-card-talk + .board-card-action-menu { margin-left: var(--space-1); }
+.board-canvas-card .talk-pin.is-empty { opacity: 0; }
+.board-canvas-card:hover .talk-pin.is-empty, .board-canvas-card.selected .talk-pin.is-empty, .board-canvas-card .talk-pin.is-empty:focus-visible, .board-canvas-card .talk-pin.is-empty.is-open { opacity: .9; }
+.board-toolbar-talk { margin-left: var(--space-1); }
+.board-toolbar .talk-pin { padding: 0; }
+.board-toolbar .talk-caption { padding: 4px 6px 4px 0; font-size: var(--fs-sm); }
+.talk-faces .mini-avatar { width: 18px; height: 18px; margin-left: -5px; box-shadow: 0 0 0 2px var(--paper); font-size: 10px; }
+
+@keyframes talk-bump { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes talk-wiggle { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-10deg) scale(1.08); } 65% { transform: rotate(7deg) scale(1.04); } }
+@keyframes talk-glow { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* The first word on something: a few sparks fly off the pin. */
+.talk-burst { position: fixed; z-index: 400; width: 0; height: 0; pointer-events: none; }
+.talk-burst i { position: absolute; left: -6px; top: -9px; color: var(--gold); font: normal 13px/18px var(--font-ui); opacity: 0; animation: talk-spark 760ms cubic-bezier(.15,.8,.3,1) forwards; }
+.talk-burst i:nth-child(even) { color: var(--accent); font-size: 10px; animation-duration: 660ms; }
+@keyframes talk-spark {
+  0% { opacity: 1; transform: rotate(var(--angle)) translateY(0) scale(.4); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateY(-34px) scale(1.1); }
+}
+
+/* The talk card: a board card lifted off the canvas. */
+.talk-card { position: fixed; z-index: 300; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 16px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md), 0 2px 5px rgba(29,33,41,.09); color: var(--ink); font-family: var(--font-ui); opacity: 0; visibility: hidden; }
+.talk-card.is-placed { visibility: visible; animation: talk-open 240ms cubic-bezier(.2,.85,.25,1.15) forwards; }
+.talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
+@keyframes talk-open { from { opacity: 0; transform: scale(.55) translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin, .talk-count.is-bumped { animation: none; transition: none; } }
+
+.talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
+.talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.talk-card-kind i { display: inline-grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--accent-strong); }
+.talk-card-kind i .talk-glyph { width: 11px; height: 11px; }
+.talk-card-count { color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
+.talk-card-open, .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
+.talk-card-open { margin-left: auto; }
+.talk-card-close { margin-left: auto; }
+.talk-card-open + .talk-card-close { margin-left: 0; }
+.talk-card-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.talk-card-open:hover, .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
+.talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
+
+.talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
+.talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+.talk-card-invite { font-style: italic; font-family: var(--font-serif); font-size: var(--fs-md); }
+.talk-posts { margin: 0; padding: 0 0 var(--space-2); list-style: none; }
+.talk-post { padding: var(--space-3) 0; }
+.talk-post + .talk-post { border-top: 1px solid var(--line); }
+.talk-post.is-arriving { animation: talk-arrive 320ms cubic-bezier(.2,.85,.25,1.15); }
+@keyframes talk-arrive { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 11px; }
+.talk-post-head b { color: var(--ink); font-weight: 600; }
+.talk-post.is-mine .talk-post-head b { color: var(--accent); }
+.talk-post-body { color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); overflow-wrap: anywhere; }
+.talk-post-body > :first-child { margin-top: 0; }
+.talk-post-body > :last-child { margin-bottom: 0; }
+.talk-card-error { margin: 0 var(--space-4) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
+
+.talk-compose { flex: none; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-top: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 50%, var(--card)); }
+.talk-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }
+.talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: vertical; }
+.talk-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: transform 200ms cubic-bezier(.2,.85,.25,1.15), opacity var(--motion-fast) var(--ease-out); }
+.talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); transform: translateX(2px) rotate(-8deg); }
+.talk-send:disabled { opacity: .35; }
 
 /* One discussion: its subject, its posts, and room to write at length. */
 .discussion-page { max-width: 46rem; margin: 0 auto; }

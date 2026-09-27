@@ -1,6 +1,7 @@
-// Discussions: long-form writing in a project about one thing in it, a
-// paper the project holds or a card on one of its boards. A subject has
-// one discussion, so "Discuss" on it always leads to the same place; the
+// Discussions: writing in a project about one thing in it. The thing can
+// be anything the project holds: the project itself, a paper, a member's
+// thought on a paper, a board, or a card on a board. A subject has one
+// discussion, so talking about it always leads to the same place; the
 // first post opens it and the last one taken back closes it.
 
 import limits from "../../../config/app_limits.json";
@@ -9,14 +10,17 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { liveProject, membership, subjectOut, type Member, type Project } from "./projects";
+import { liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
 interface Discussion extends Row {
   uuid: string;
   project_uuid: string;
+  subject: string;
   paper_sha256: string | null;
+  take_user_uuid: string | null;
+  board_uuid: string | null;
   board_item_uuid: string | null;
   started_by: string;
   created_at: string;
@@ -30,37 +34,72 @@ function postBody(value: unknown): string {
   return body!.trim() || refuse(422, "body is required");
 }
 
-// Which subject a request names, checked to be in the project.
-async function subjectOf(env: Env, project: Project, data: Row): Promise<{ paper_sha256: string | null; board_item_uuid: string | null }> {
-  if (typeof data.paper_sha256 === "string") {
-    const digest = data.paper_sha256.toLowerCase();
-    if (!DIGEST.test(digest) || !(await one(env.DB, "SELECT 1 FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, digest))) {
-      refuse(404, "That paper is not in this project");
-    }
-    return { paper_sha256: digest, board_item_uuid: null };
+export interface Subject {
+  subject: string;
+  paper_sha256: string | null;
+  take_user_uuid: string | null;
+  board_uuid: string | null;
+  board_item_uuid: string | null;
+}
+
+const NONE = { paper_sha256: null, take_user_uuid: null, board_uuid: null, board_item_uuid: null };
+
+async function paperIn(env: Env, project: Project, value: string): Promise<string> {
+  const digest = value.toLowerCase();
+  if (!DIGEST.test(digest) || !(await one(env.DB, "SELECT 1 FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, digest))) {
+    refuse(404, "That paper is not in this project");
   }
-  if (typeof data.board_item_uuid === "string") {
+  return digest;
+}
+
+// Which subject a request names, checked to be in the project. A subject
+// is named by its key; `paper_sha256` and `board_item_uuid` still name a
+// paper and a card.
+async function subjectOf(env: Env, project: Project, data: Row): Promise<Subject> {
+  let key = typeof data.subject === "string" ? data.subject : null;
+  if (!key && typeof data.paper_sha256 === "string") key = `paper:${data.paper_sha256}`;
+  if (!key && typeof data.board_item_uuid === "string") key = `card:${data.board_item_uuid}`;
+  if (!key) return refuse(422, "Say what the discussion is about");
+  const [kind, first, second] = key.split(":");
+  if (kind === "project" && first === undefined) return { subject: "project", ...NONE };
+  if (kind === "paper" && first && second === undefined) {
+    const digest = await paperIn(env, project, first);
+    return { ...NONE, subject: `paper:${digest}`, paper_sha256: digest };
+  }
+  if (kind === "take" && first && second) {
+    const digest = await paperIn(env, project, first);
+    const holder = await one(env.DB,
+      `SELECT 1 FROM project_members m JOIN copies c ON c.user_uuid = m.user_uuid AND c.paper_sha256 = ? AND c.deleted_at IS NULL
+       WHERE m.project_uuid = ? AND m.user_uuid = ?`, digest, project.uuid, second);
+    if (!holder) refuse(404, "That member has no copy of this paper");
+    return { ...NONE, subject: `take:${digest}:${second}`, paper_sha256: digest, take_user_uuid: second };
+  }
+  if (kind === "board" && first && second === undefined) {
+    const board = await one(env.DB,
+      "SELECT 1 FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid WHERE pb.project_uuid = ? AND b.uuid = ? AND b.deleted_at IS NULL",
+      project.uuid, first);
+    if (!board) refuse(404, "That board is not in this project");
+    return { ...NONE, subject: `board:${first}`, board_uuid: first };
+  }
+  if (kind === "card" && first && second === undefined) {
     const card = await one(env.DB,
       `SELECT 1 FROM board_items bi JOIN project_boards pb ON pb.board_uuid = bi.board_uuid JOIN boards b ON b.uuid = bi.board_uuid
-       WHERE bi.uuid = ? AND pb.project_uuid = ? AND bi.deleted_at IS NULL AND b.deleted_at IS NULL`, data.board_item_uuid, project.uuid);
+       WHERE bi.uuid = ? AND pb.project_uuid = ? AND bi.deleted_at IS NULL AND b.deleted_at IS NULL`, first, project.uuid);
     if (!card) refuse(404, "That card is not on this project's boards");
-    return { paper_sha256: null, board_item_uuid: data.board_item_uuid };
+    return { ...NONE, subject: `card:${first}`, board_item_uuid: first };
   }
-  return refuse(422, "Say what the discussion is about");
+  return refuse(422, "That is not something a discussion can be about");
 }
 
-async function existing(env: Env, project: Project, subject: { paper_sha256: string | null; board_item_uuid: string | null }) {
-  return subject.paper_sha256
-    ? one<Discussion>(env.DB, "SELECT * FROM discussions WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, subject.paper_sha256)
-    : one<Discussion>(env.DB, "SELECT * FROM discussions WHERE project_uuid = ? AND board_item_uuid = ?", project.uuid, subject.board_item_uuid);
+async function existing(env: Env, project: Project, subject: Subject) {
+  return one<Discussion>(env.DB, "SELECT * FROM discussions WHERE project_uuid = ? AND subject = ?", project.uuid, subject.subject);
 }
 
-async function subjectRow(env: Env, subject: { paper_sha256: string | null; board_item_uuid: string | null }): Promise<Row> {
+async function subjectRow(env: Env, projectUuid: string, subject: Subject): Promise<Row> {
   return (await one<Row>(env.DB,
-    `SELECT ? AS paper_sha256, ? AS board_item_uuid, p.title AS paper_title, bi.kind AS card_kind, bi.content AS card_content,
-            bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file, bi.board_uuid AS card_board, b.name AS board_name
-     FROM (SELECT 1) LEFT JOIN papers p ON p.sha256 = ? LEFT JOIN board_items bi ON bi.uuid = ? LEFT JOIN boards b ON b.uuid = bi.board_uuid`,
-    subject.paper_sha256, subject.board_item_uuid, subject.paper_sha256, subject.board_item_uuid))!;
+    `SELECT d.*, ${SUBJECT_COLUMNS}
+     FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS take_user_uuid, ? AS board_uuid, ? AS board_item_uuid) d ${SUBJECT_JOINS}`,
+    subject.subject, projectUuid, subject.paper_sha256, subject.take_user_uuid, subject.board_uuid, subject.board_item_uuid))!;
 }
 
 async function openDiscussion(env: Env, uuid: string, me: User): Promise<{ discussion: Discussion; project: Project; member: Member }> {
@@ -79,7 +118,7 @@ async function discussionOut(env: Env, discussion: Discussion, project: Project,
   return {
     uuid: discussion.uuid, created_at: discussion.created_at, updated_at: discussion.updated_at,
     project: { uuid: project.uuid, name: project.name },
-    subject: subjectOut(await subjectRow(env, discussion)),
+    subject: subjectOut(await subjectRow(env, project.uuid, discussion)),
     can_moderate: Boolean(member.is_keeper),
     posts: posts.map((p) => ({
       uuid: p.uuid, user: userPublic({ ...p, uuid: p.user_uuid }), body: p.body,
@@ -100,10 +139,11 @@ export function discussionRoutes(router: Router) {
     const project = await liveProject(env, params.uuid);
     await membership(env, project, me);
     const subject = await subjectOf(env, project, {
+      subject: url.searchParams.get("subject") ?? undefined,
       paper_sha256: url.searchParams.get("paper") ?? undefined, board_item_uuid: url.searchParams.get("card") ?? undefined,
     });
     const found = await existing(env, project, subject);
-    return json({ discussion_uuid: found?.uuid ?? null, project: { uuid: project.uuid, name: project.name }, subject: subjectOut(await subjectRow(env, subject)) });
+    return json({ discussion_uuid: found?.uuid ?? null, project: { uuid: project.uuid, name: project.name }, subject: subjectOut(await subjectRow(env, project.uuid, subject)) });
   });
 
   // The first post opens a discussion; on a subject that has one already,

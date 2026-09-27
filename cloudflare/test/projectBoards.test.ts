@@ -1,6 +1,6 @@
 // A project's boards and discussions: members make and edit boards
-// together, and write at length about a paper or a card, one discussion
-// to a subject.
+// together, and talk about anything the project holds, one discussion to
+// a subject.
 import { describe, expect, it } from "vitest";
 
 import { call, defaultShelf, ok, paperWithCopy, register, row, type Account } from "./helpers";
@@ -93,7 +93,37 @@ describe("discussions", () => {
     const opened = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { board_item_uuid: card.uuid, body: "Who has tried this?" } });
     expect(opened.subject).toMatchObject({ kind: "card", board_uuid: board.uuid, label: "Adaptive optics for retinal imaging" });
     const shown = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
-    expect(shown.discussions).toEqual({ [card.uuid]: opened.uuid });
+    expect(shown.discussions).toEqual({
+      [`card:${card.uuid}`]: { uuid: opened.uuid, post_count: 1, is_new: true, voices: [expect.objectContaining({ uuid: ana.uuid })] },
+    });
+  });
+
+  it("talks about the project, a board, and a member's thought on a paper", async () => {
+    const { dana, ana, sam, project } = await group();
+    await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const board = await boardIn(dana, project.uuid, "Bench plan");
+
+    const general = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: "project", body: "Weekly sync on Friday?" } });
+    expect(general.subject).toMatchObject({ key: "project", kind: "project", label: "Wavefronts" });
+    const onBoard = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `board:${board.uuid}`, body: "Too many cards." } });
+    expect(onBoard.subject).toMatchObject({ key: `board:${board.uuid}`, kind: "board", board_uuid: board.uuid, label: "Bench plan" });
+    const take = `take:${A_PAPER}:${dana.uuid}`;
+    const onTake = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: take, body: "Why only 3/5?" } });
+    expect(onTake.subject).toMatchObject({ key: take, kind: "take", paper_sha256: A_PAPER, user_uuid: dana.uuid });
+    // A thought and its paper are two subjects.
+    const onPaper = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, body: "Section 3." } });
+    expect(onPaper.uuid).not.toBe(onTake.uuid);
+
+    const found = await ok("GET", `/api/projects/${project.uuid}/discussion?subject=${encodeURIComponent(take)}`, { headers: dana.headers });
+    expect(found.discussion_uuid).toBe(onTake.uuid);
+    const shown = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
+    expect(Object.keys(shown.discussions)).toEqual([`board:${board.uuid}`]);
+
+    // Only members, and only about what the project holds.
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `take:${A_PAPER}:${sam.uuid}`, body: "x" } })).status).toBe(404);
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: "shelf:1", body: "x" } })).status).toBe(422);
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: sam.headers, json: { subject: "project", body: "x" } })).status).toBe(403);
   });
 
   it("lets a writer edit, and a writer or keeper take back; the last post closes it", async () => {

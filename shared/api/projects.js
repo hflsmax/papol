@@ -69,14 +69,26 @@ export function createProjectBoard(uuid, name) {
 
 // ---------- Discussions ----------
 
+// A discussion can be about anything a project holds, named by a key:
+// "project", "paper:<sha256>", "take:<sha256>:<user uuid>",
+// "board:<uuid>" or "card:<uuid>".
+export function subjectKey(subject) {
+  if (typeof subject === 'string') return subject;
+  if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
+  if (subject.paper) return `paper:${subject.paper}`;
+  if (subject.card) return `card:${subject.card}`;
+  if (subject.board) return `board:${subject.board}`;
+  return 'project';
+}
+
 // A subject's discussion, if it has one, and what it is about.
-export function findDiscussion(projectUuid, { paper, card }) {
-  return request(`/projects/${projectUuid}/discussion?${paper ? `paper=${paper}` : `card=${card}`}`);
+export function findDiscussion(projectUuid, subject) {
+  return request(`/projects/${projectUuid}/discussion?subject=${encodeURIComponent(subjectKey(subject))}`);
 }
 
 // The first post on a subject, or the next one if it has a discussion.
-export function startDiscussion(projectUuid, { paper, card }, body) {
-  return jsonRequest(`/projects/${projectUuid}/discussions`, 'POST', paper ? { paper_sha256: paper, body } : { board_item_uuid: card, body });
+export function startDiscussion(projectUuid, subject, body) {
+  return jsonRequest(`/projects/${projectUuid}/discussions`, 'POST', { subject: subjectKey(subject), body });
 }
 
 export function getDiscussion(uuid) {
@@ -95,9 +107,9 @@ export function deleteDiscussionPost(uuid) {
   return request(`/discussion-posts/${uuid}`, { method: 'DELETE' });
 }
 
-// Where "Discuss" on a subject leads, on this deployment.
-export function discussPath(projectUuid, { paper, card }) {
-  return `/project/${projectUuid}/discuss/${paper ? `paper/${paper}` : `card/${card}`}`;
+// Where talking about a subject leads, as a page of its own.
+export function discussPath(projectUuid, subject) {
+  return `/project/${projectUuid}/discuss/${subjectKey(subject).replace(/:/g, '/')}`;
 }
 
 // Where an invitation link leads, on this deployment.

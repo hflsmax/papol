@@ -17,6 +17,7 @@ import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "..
 import { rowSnapshot } from "../sync/rows";
 import { writeSynced } from "../sync/write";
 import * as validate from "../validate";
+import { discussionsOf, type Member } from "./projects";
 
 const COORDINATE = limits.board.coordinate_abs_max;
 
@@ -97,16 +98,15 @@ async function sourcePapers(env: Env, items: Item[]) {
   return all(env.DB, `SELECT sha256, title, authors, year FROM papers WHERE sha256 IN (${digests.map(() => "?").join(",")})`, ...digests);
 }
 
-export async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false } = {}) {
+export async function boardOut(env: Env, board: Board, { includeItems = false, canEdit = false, viewer = null as User | null } = {}) {
   const owner = await one(env.DB, "SELECT * FROM users WHERE uuid = ?", board.user_uuid);
   const items = await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", board.uuid);
   const active = items.filter((i) => !i.staged), staged = items.filter((i) => i.staged);
   const groups = includeItems ? await all<Group>(env.DB, "SELECT * FROM board_groups WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY created_at, uuid", board.uuid) : [];
   const project = await boardProject(env, board.uuid);
-  // Which cards have a discussion, for the members who can see them.
-  const discussions = includeItems && project && canEdit ? Object.fromEntries((await all<{ uuid: string; board_item_uuid: string }>(env.DB,
-    "SELECT uuid, board_item_uuid FROM discussions WHERE project_uuid = ? AND board_item_uuid IN (SELECT uuid FROM board_items WHERE board_uuid = ?)",
-    project.uuid, board.uuid)).map((d) => [d.board_item_uuid, d.uuid])) : {};
+  // What is being said about the board and its cards, for the members who
+  // can see them, keyed by subject.
+  const discussions = includeItems && project && canEdit && viewer ? await boardTalk(env, project.uuid, board.uuid, viewer) : {};
   return {
     uuid: board.uuid, revision: board.revision, user_uuid: board.user_uuid, owner: owner ? userPublic(owner) : null,
     project, discussions,
@@ -122,6 +122,15 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
 // ------------------------------------------------------------- ownership
 
 // The live project a board belongs to, if any.
+async function boardTalk(env: Env, projectUuid: string, boardUuid: string, viewer: User) {
+  const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", projectUuid, viewer.uuid);
+  if (!member) return {};
+  const talk = await discussionsOf(env, projectUuid, viewer, member);
+  return Object.fromEntries(talk
+    .filter((d) => (d.subject as { board_uuid?: string }).board_uuid === boardUuid)
+    .map((d) => [d.subject.key, { uuid: d.uuid, post_count: d.post_count, is_new: d.is_new, voices: d.voices }]));
+}
+
 export async function boardProject(env: Env, boardUuid: string): Promise<{ uuid: string; name: string } | null> {
   return one<{ uuid: string; name: string }>(env.DB,
     `SELECT p.uuid, p.name FROM project_boards pb JOIN projects p ON p.uuid = pb.project_uuid
@@ -264,7 +273,7 @@ export function boardRoutes(router: Router) {
       const shelf = board.shelf_uuid ? await one<{ is_public: number }>(env.DB, "SELECT is_public FROM shelves WHERE uuid = ?", board.shelf_uuid) : null;
       if (!shelf?.is_public || await boardProject(env, board.uuid)) refuse(404, "Board not found");
     }
-    return json(await boardOut(env, board, { includeItems: true, canEdit }));
+    return json(await boardOut(env, board, { includeItems: true, canEdit, viewer: user }));
   });
 
   router.on("PUT", "/api/boards/:uuid", async ({ request, env, params }) => {
@@ -282,7 +291,7 @@ export function boardRoutes(router: Router) {
       board.shelf_uuid = await ownShelf(env, data.shelf_uuid, user);
     }
     await batch(env.DB, await writeSynced(env.DB, "boards", board, board.user_uuid, false));
-    return json(await boardOut(env, board, { includeItems: true, canEdit: true }));
+    return json(await boardOut(env, board, { includeItems: true, canEdit: true, viewer: user }));
   });
 
   router.on("DELETE", "/api/boards/:uuid", async ({ request, env, params }) => {

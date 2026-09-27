@@ -141,14 +141,11 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
 // it has run, and whether others have written since this member looked.
 export async function discussionsOf(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
   const rows = await all<Row>(env.DB,
-    `SELECT d.*, p.title AS paper_title, bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt,
-            bi.original_filename AS card_file, bi.board_uuid AS card_board, b.name AS board_name,
+    `SELECT d.*, ${SUBJECT_COLUMNS},
             (SELECT count(*) FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid) AS post_count,
-            (SELECT count(*) FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread
-     FROM discussions d
-     LEFT JOIN papers p ON p.sha256 = d.paper_sha256
-     LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
-     LEFT JOIN boards b ON b.uuid = bi.board_uuid
+            (SELECT count(*) FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
+            (SELECT group_concat(user_uuid) FROM (SELECT DISTINCT dp.user_uuid FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid)) AS voices
+     FROM discussions d ${SUBJECT_JOINS}
      WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
   const lasts = rows.length ? await all<Row>(env.DB,
@@ -157,12 +154,17 @@ export async function discussionsOf(env: Env, projectUuid: string, me: User, mem
      WHERE dp.discussion_uuid IN (${rows.map(() => "?").join(",")})
      AND dp.created_at = (SELECT max(created_at) FROM discussion_posts x WHERE x.discussion_uuid = dp.discussion_uuid)`,
     ...rows.map((r) => r.uuid)) : [];
+  const voiceUuids = [...new Set(rows.flatMap((d) => String(d.voices ?? "").split(",").filter(Boolean)))];
+  const voices = new Map(voiceUuids.length ? (await all<Row>(env.DB,
+    `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${voiceUuids.map(() => "?").join(",")})`,
+    ...voiceUuids)).map((u) => [u.uuid as string, userPublic(u)]) : []);
   return rows.map((d) => {
     const last = lasts.find((l) => l.discussion_uuid === d.uuid);
     return {
       uuid: d.uuid, project_uuid: d.project_uuid, created_at: d.created_at, updated_at: d.updated_at,
       subject: subjectOut(d),
       post_count: d.post_count, is_new: Number(d.unread) > 0,
+      voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => voices.get(uuid)).filter(Boolean),
       last_post: last ? { user: userPublic(last), excerpt: excerpt(String(last.body)), created_at: last.created_at } : null,
     };
   });
@@ -173,12 +175,34 @@ function excerpt(body: string): string {
   return flat.length > 180 ? `${flat.slice(0, 177).trimEnd()}…` : flat;
 }
 
+// Everything subjectOut needs to name a subject.
+export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_name, tc.thought AS take_thought, tc.thought_public AS take_public,
+  bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
+  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name, pj.name AS project_name`;
+export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
+  LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
+  LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
+  LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
+  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
+  LEFT JOIN projects pj ON pj.uuid = d.project_uuid`;
+
 // What a discussion is about, said the way the project page says it.
 export function subjectOut(d: Row) {
-  if (d.paper_sha256) return { kind: "paper", paper_sha256: d.paper_sha256, label: d.paper_title ?? "A paper" };
+  const key = String(d.subject);
+  const base = { key, kind: key.split(":")[0] };
+  if (base.kind === "project") return { ...base, label: (d.project_name as string) ?? "The project" };
+  if (base.kind === "paper") return { ...base, paper_sha256: d.paper_sha256, label: d.paper_title ?? "A paper" };
+  if (base.kind === "take") {
+    const thought = d.take_public && d.take_thought ? `“${excerpt(String(d.take_thought)).slice(0, 120)}”` : null;
+    return {
+      ...base, paper_sha256: d.paper_sha256, user_uuid: d.take_user_uuid, paper_title: d.paper_title,
+      label: thought ?? `${d.take_name ?? "A member"}’s take on ${d.paper_title ?? "a paper"}`, by: d.take_name ?? null,
+    };
+  }
+  if (base.kind === "board") return { ...base, board_uuid: d.board_uuid, board_name: d.board_name, label: d.board_name ?? "A board" };
   const text = (d.card_excerpt || d.card_content || d.card_file || "") as string;
   return {
-    kind: "card", board_item_uuid: d.board_item_uuid, board_uuid: d.card_board, board_name: d.board_name,
+    ...base, board_item_uuid: d.board_item_uuid, board_uuid: d.card_board, board_name: d.board_name,
     card_kind: d.card_kind, label: text ? excerpt(text).slice(0, 120) : `A card on ${d.board_name ?? "a board"}`,
   };
 }

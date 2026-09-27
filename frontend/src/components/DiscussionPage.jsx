@@ -27,20 +27,26 @@ function when(iso) {
 
 // What the discussion is about, and a way back to it.
 function Subject({ project, subject, action }) {
-  const isPaper = subject.kind === 'paper';
-  const href = isPaper
-    ? appPath(`/paper/${paperName(subject.paper_sha256)}`)
-    : appPath(`/boards/${subject.board_uuid}`);
+  const projectHref = appPath(`/project/${project.uuid}`);
+  const paperHref = subject.paper_sha256 ? appPath(`/paper/${paperName(subject.paper_sha256)}`) : null;
+  const boardHref = subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
+  const about = {
+    project: 'Talking about the project',
+    paper: 'Talking about a paper',
+    take: <>Talking about {subject.by ? `${subject.by}’s` : 'a'} thought on <a href={paperHref}>{subject.paper_title ?? 'a paper'}</a></>,
+    board: 'Talking about a board',
+    card: <>Talking about a card on <a href={boardHref}>{subject.board_name}</a></>,
+  }[subject.kind];
+  const title = {
+    paper: <a className="paper-title-link" href={paperHref}>{subject.label}</a>,
+    board: <a className="paper-title-link" href={boardHref}>{subject.label}</a>,
+    card: <span className="discussion-card-label">{subject.label}</span>,
+    take: <span className="discussion-card-label">{subject.label}</span>,
+  }[subject.kind] ?? subject.label;
   return (
     <header className="discussion-head">
-      <p className="kicker">
-        <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
-        {' · '}
-        {isPaper ? 'Discussing a paper' : <>Discussing a card on <a href={href}>{subject.board_name}</a></>}
-      </p>
-      <h2 className="discussion-title">
-        {isPaper ? <a className="paper-title-link" href={href}>{subject.label}</a> : <span className="discussion-card-label">{subject.label}</span>}
-      </h2>
+      <p className="kicker"><a href={projectHref}>{project.name}</a>{' · '}{about}</p>
+      <h2 className="discussion-title">{title}</h2>
       {action}
     </header>
   );
@@ -207,11 +213,10 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
   const [found, setFound] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const which = subject.kind === 'paper' ? { paper: subject.id } : { card: subject.id };
 
   useEffect(() => {
     let active = true;
-    findDiscussion(projectUuid, which)
+    findDiscussion(projectUuid, subject)
       .then((next) => {
         if (!active) return;
         if (next.discussion_uuid) onOpen(next.discussion_uuid);
@@ -219,7 +224,7 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
       })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
-  }, [projectUuid, subject.kind, subject.id]);
+  }, [projectUuid, subject]);
 
   if (error) {
     return (
@@ -244,7 +249,7 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
           onSubmit={async (body) => {
             setNotice(null);
             try {
-              const next = await startDiscussion(projectUuid, which, body);
+              const next = await startDiscussion(projectUuid, subject, body);
               onOpen(next.uuid);
               return true;
             } catch (err) {

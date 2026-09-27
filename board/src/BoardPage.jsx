@@ -30,6 +30,8 @@ import appLimits from '../../shared/appLimits.js';
 import { carriesFiles } from '../../shared/fileDrop.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
+import { TalkPin } from '../../shared/ui/Talk.jsx';
+import { getMe } from '../../shared/api/account.js';
 import { hasCardPreview } from './cardPreview.js';
 import { fillPictures } from './pictureRound.js';
 import { browserDate, lastEdited as formatLastEdit } from '../../shared/lastEdited.js';
@@ -132,6 +134,12 @@ function GroupOptions({ group, busy, onArrange, onArrangeColumns, onRename, onHe
   </div>;
 }
 
+// What a card is, in a few words, for the talk card that is about it.
+function cardTalkLabel(item) {
+  const text = String(item.excerpt_text || item.content || item.original_filename || '').replace(/\s+/g, ' ').trim();
+  return text ? (text.length > 120 ? `${text.slice(0, 117).trimEnd()}…` : text) : `A ${itemTypeLabels[item.kind]?.toLowerCase() ?? 'card'} card`;
+}
+
 const itemTypeLabels = {
   comment: 'Thought', excerpt: 'Excerpt', image: 'Image', file: 'File', youtube: 'YouTube video', bilibili: 'Bilibili video', webpage: 'Webpage',
 };
@@ -143,6 +151,8 @@ const itemTypeIcons = {
 
 export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const [board, setBoard] = useState(null);
+  const [me, setMe] = useState(null);
+  useEffect(() => { getMe().then(setMe).catch(() => {}); }, []);
   const [view, setView] = useState(() => initialBoardView(boardUuid));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1483,12 +1493,17 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       setMarquee(null);
     }
   };
-  // A card's discussion lives in the project, outside the canvas: one per
-  // card, so Discuss always leads to the same place.
-  const openDiscussion = (item) => {
-    const found = board.discussions?.[item.uuid];
-    window.location.assign(appPath(found ? `/discussion/${found}` : `/project/${board.project.uuid}/discuss/card/${item.uuid}`));
+  // Talk about the board or a card on it happens right here, in a talk
+  // card over the canvas; the pin keeps the board's own counts current.
+  const talked = (key, summary) => {
+    setBoard((current) => current && ({ ...current, discussions: { ...(current.discussions ?? {}), [key]: summary } }));
   };
+  const talkPin = (subject, label, extra = {}) => (board.project && board.can_edit ? (
+    <TalkPin
+      projectUuid={board.project.uuid} subject={subject} label={label} summary={board.discussions?.[subject]}
+      currentUser={me} onChanged={talked} {...extra}
+    />
+  ) : null);
 
   const removeItem = async (item, ask = true) => {
     if (ask && !(await confirmAction('Remove this card?', { confirmLabel: 'Remove', destructive: true }))) return;
@@ -2112,6 +2127,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           </BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       {board.project && <a className="board-toolbar-project" href={appPath(`/project/${board.project.uuid}`)} title="Open project">{board.project.name}</a>}
+      {talkPin(`board:${board.uuid}`, board.name, { className: 'board-toolbar-talk', faces: true, caption: (n) => (n ? null : 'Talk') })}
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
@@ -2192,23 +2208,17 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           />
         </div>}
         {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><PlaceholderWait item={item} /></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card talk-host ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
-            {board.discussions?.[item.uuid] && <a className="board-card-discussion" href={appPath(`/discussion/${board.discussions[item.uuid]}`)} title="Open discussion" aria-label="Open discussion" onPointerDown={(event) => event.stopPropagation()}><ActionGlyph name="discuss" /></a>}
+            {talkPin(`card:${item.uuid}`, cardTalkLabel(item), { size: 'sm', className: 'board-card-talk' })}
             {selectedItems.length === 1 && selectedItems[0] === item.uuid && (board.can_edit || item.source_url || item.kind !== 'comment') && (
               <ItemActions
                 className="board-card-action-menu"
                 label={`${itemTypeLabels[item.kind]} card actions`}
                 placement="right-start"
                 actions={[
-                  board.project && board.can_edit && {
-                    label: board.discussions?.[item.uuid] ? 'Open discussion' : 'Discuss',
-                    icon: <ActionGlyph name="discuss" />,
-                    tone: 'accent',
-                    onSelect: () => openDiscussion(item),
-                  },
                   item.source_url && {
                     label: VIDEO_KINDS.includes(item.kind) ? 'Open video' : 'Open source in viewer',
                     icon: <ActionGlyph name={VIDEO_KINDS.includes(item.kind) ? 'external' : 'backlink'} />,

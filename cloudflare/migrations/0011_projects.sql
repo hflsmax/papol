@@ -69,27 +69,37 @@ CREATE TABLE project_boards (
 CREATE INDEX ix_project_boards_project_uuid ON project_boards (project_uuid);
 CREATE INDEX ix_project_boards_board_uuid ON project_boards (board_uuid);
 
--- A discussion: long-form writing about one thing in a project, a paper
--- or a card on one of its boards. One discussion per subject, so the
--- place to talk about something is always the same place.
+-- A discussion: writing about one thing in a project. The thing can be
+-- anything the project holds: the project itself, a paper, a member's
+-- thought on a paper, a board, or a card on a board. `subject` names it
+-- ("project", "paper:<sha256>", "take:<sha256>:<user>", "board:<uuid>",
+-- "card:<uuid>"); the columns beside it point at the same thing so it can
+-- be joined and cleaned up. One discussion per subject, so the place to
+-- talk about something is always the same place.
 CREATE TABLE discussions (
 	uuid VARCHAR(36) NOT NULL,
 	project_uuid VARCHAR(36) NOT NULL,
+	subject VARCHAR(140) NOT NULL,
 	paper_sha256 VARCHAR(64),
+	take_user_uuid VARCHAR(36),
+	board_uuid VARCHAR(36),
 	board_item_uuid VARCHAR(36),
 	started_by VARCHAR(36) NOT NULL,
 	created_at DATETIME NOT NULL,
 	updated_at DATETIME NOT NULL,
 	PRIMARY KEY (uuid),
-	CONSTRAINT uq_discussion_paper UNIQUE (project_uuid, paper_sha256),
-	CONSTRAINT uq_discussion_card UNIQUE (project_uuid, board_item_uuid),
+	CONSTRAINT uq_discussion_subject UNIQUE (project_uuid, subject),
 	FOREIGN KEY(project_uuid) REFERENCES projects (uuid),
 	FOREIGN KEY(paper_sha256) REFERENCES papers (sha256),
+	FOREIGN KEY(take_user_uuid) REFERENCES users (uuid),
+	FOREIGN KEY(board_uuid) REFERENCES boards (uuid),
 	FOREIGN KEY(board_item_uuid) REFERENCES board_items (uuid),
 	FOREIGN KEY(started_by) REFERENCES users (uuid)
 );
 CREATE INDEX ix_discussions_project_uuid ON discussions (project_uuid);
 CREATE INDEX ix_discussions_paper_sha256 ON discussions (paper_sha256);
+CREATE INDEX ix_discussions_take_user_uuid ON discussions (take_user_uuid);
+CREATE INDEX ix_discussions_board_uuid ON discussions (board_uuid);
 CREATE INDEX ix_discussions_board_item_uuid ON discussions (board_item_uuid);
 CREATE INDEX ix_discussions_started_by ON discussions (started_by);
 

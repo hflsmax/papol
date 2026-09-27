@@ -3,9 +3,10 @@ import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ItemActions from '../../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
+import { TalkPin } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  createProjectBoard, discussPath, getProject, invitationPath, openInvitation, removeMember, removePaperFromProject, renameProject,
+  createProjectBoard, getProject, invitationPath, openInvitation, removeMember, removePaperFromProject, renameProject,
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { addToNook, getPaper, updatePaper } from '../../../shared/api/papers.js';
@@ -103,6 +104,16 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   }
   if (!project) return <div className="loading"><Working label="Loading project…" /></div>;
 
+  // What is being said, by subject, and how a pin tells the page it spoke.
+  const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
+  const talked = () => { getProject(project.uuid).then((next) => setProject(show(next))).catch(() => {}); };
+  const pin = (subject, label, extra = {}) => (
+    <TalkPin
+      projectUuid={project.uuid} subject={subject} label={label} summary={talk.get(subject)}
+      currentUser={currentUser} onChanged={talked} {...extra}
+    />
+  );
+
   // A keeper alone in a project has one thing to do next: invite.
   const open = peopleOpen ?? (project.is_keeper && project.members.length === 1);
   const people = project.members.map((m) => m.user);
@@ -134,6 +145,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
           {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} />}
           <ProjectPapers
             project={project}
+            pin={pin}
             currentUser={currentUser}
             onAddToNook={(paper) => act(async () => { await addToNook(paper.sha256); return getProject(project.uuid); })}
             onRemove={(paper) => act(() => removePaperFromProject(project.uuid, paper.sha256))}
@@ -143,8 +155,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               return getProject(project.uuid);
             })}
           />
-          <ProjectDiscussions project={project} currentUser={currentUser} />
-          <ProjectBoards project={project} act={act} />
+          <ProjectDiscussions project={project} currentUser={currentUser} pin={pin} />
+          <ProjectBoards project={project} act={act} pin={pin} />
         </>
       )}
     </div>
@@ -247,7 +259,7 @@ function SectionHead({ id, title, count, action }) {
 // Each paper is a title and its citation. Who has it shows as faces; what
 // they think, and how they rated it, opens when the paper is selected, with
 // room for your own thought and the way into its discussion.
-function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought }) {
+function ProjectPapers({ project, currentUser, pin, onAddToNook, onRemove, onThought }) {
   const [selected, setSelected] = useState(null);
   const [writing, setWriting] = useState(null);
   useEffect(() => {
@@ -259,8 +271,6 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
   }, [selected]);
 
-  const discussionOf = new Map((project.discussions ?? [])
-    .filter((d) => d.subject.kind === 'paper').map((d) => [d.subject.paper_sha256, d]));
   const nameOf = (user) => (user.uuid === currentUser?.uuid ? 'You' : user.display_name);
   const write = (sha256) => { setSelected(sha256); setWriting(sha256); };
 
@@ -273,12 +283,10 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
         <ul className="project-papers">
           {project.papers.map((paper) => {
             const mine = paper.added_by.uuid === currentUser?.uuid;
-            const discussion = discussionOf.get(paper.sha256);
             const takes = paper.users.filter((u) => u.thought || TAKE_RATINGS.some((d) => u[d.key]));
             const thoughts = paper.users.filter((u) => u.thought).length;
             const myTake = paper.users.find((u) => u.user.uuid === currentUser?.uuid);
             const isSelected = selected === paper.sha256;
-            const discussHref = appPath(discussion ? `/discussion/${discussion.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }));
             const actions = [
               !paper.in_my_nook && { key: 'nook', label: 'Add to my nook', tone: 'accent', icon: <ActionGlyph name="add" />, onSelect: () => onAddToNook(paper) },
               (project.is_keeper || mine) && { key: 'out', label: 'Take out', danger: true, icon: <ActionGlyph name="take-out" />, onSelect: () => { setSelected(null); onRemove(paper); } },
@@ -286,9 +294,9 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
             return (
               <li
                 key={paper.sha256}
-                className={`project-paper${isSelected ? ' is-selected' : ''}`}
+                className={`project-paper talk-host${isSelected ? ' is-selected' : ''}`}
                 onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) setSelected(paper.sha256); }}
-                onFocus={() => setSelected(paper.sha256)}
+                onFocus={(e) => { if (!e.target.closest('.talk-pin-wrap')) setSelected(paper.sha256); }}
               >
                 <div className="project-paper-main">
                   <h4>
@@ -309,15 +317,7 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
                         <ActionGlyph name="edit" />Add your thought
                       </button>
                     )}
-                    {discussion && (
-                      <a
-                        className={`project-discussion-mark${discussion.is_new ? ' is-new' : ''}`}
-                        href={appPath(`/discussion/${discussion.uuid}`)}
-                        aria-label={`Discussion, ${plural(discussion.post_count, 'post', 'posts')}${discussion.is_new ? ', new' : ''}`}
-                      >
-                        <ActionGlyph name="discuss" />{discussion.post_count}
-                      </a>
-                    )}
+                    {pin(`paper:${paper.sha256}`, paper.title)}
                     {paper.users.length > 0 && (
                       <button
                         type="button" className="project-takes-toggle" aria-expanded={false}
@@ -339,7 +339,7 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
                           const me = entry.user.uuid === currentUser?.uuid;
                           if (me && writing === paper.sha256) return null;
                           return (
-                            <li key={entry.user.uuid} className="project-take">
+                            <li key={entry.user.uuid} className="project-take talk-host">
                               <Avatar user={entry.user} className="mini-avatar" />
                               <p className="project-take-who">
                                 <b>{nameOf(entry.user)}</b>
@@ -351,6 +351,9 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
                                 )}
                               </p>
                               {entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
+                              <span className="project-take-talk">
+                                {pin(`take:${paper.sha256}:${entry.user.uuid}`, entry.thought ? `“${entry.thought}”` : `${nameOf(entry.user)}’s take on ${paper.title}`, { size: 'sm' })}
+                              </span>
                             </li>
                           );
                         })}
@@ -371,10 +374,7 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought 
                       <p className="project-paper-added">
                         Added by {mine ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
                       </p>
-                      <a className="project-discuss-button" href={discussHref}>
-                        <ActionGlyph name="discuss" />
-                        {discussion ? `Open discussion · ${plural(discussion.post_count, 'post', 'posts')}` : 'Start a discussion'}
-                      </a>
+                      {pin(`paper:${paper.sha256}`, paper.title, { caption: (n) => (n ? 'Open the talk' : 'Talk about this paper') })}
                     </div>
                   </div>
                 )}
@@ -432,56 +432,40 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
   );
 }
 
-// The latest few discussions, each with one line of its newest post; the
-// rest are a click away. Starting one begins with what it is about.
+// Everything being talked about, latest first, each with one line of its
+// newest post; the rest are a click away. Talk starts from the pin beside
+// anything, or here, about the project as a whole.
 const DISCUSSIONS_SHOWN = 3;
 
-function ProjectDiscussions({ project, currentUser }) {
+const SUBJECT_WORDS = { project: 'The project', paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
+
+function ProjectDiscussions({ project, currentUser, pin }) {
   const [all, setAll] = useState(false);
-  const [picking, setPicking] = useState(false);
   const discussions = project.discussions ?? [];
   const shown = all ? discussions : discussions.slice(0, DISCUSSIONS_SHOWN);
-  const discussed = new Map(discussions.filter((d) => d.subject.kind === 'paper').map((d) => [d.subject.paper_sha256, d]));
   return (
     <section className="project-section" aria-labelledby="project-discussions-heading">
       <SectionHead
         id="project-discussions-heading" title="Discussions" count={discussions.length}
-        action={(
-          <button type="button" className="project-section-action" aria-expanded={picking} onClick={() => setPicking(!picking)}>
-            <ActionGlyph name="discuss" />Start a discussion
-          </button>
-        )}
+        action={<span className="project-section-talk">{pin('project', project.name, { caption: 'Talk about the project', faces: true })}</span>}
       />
-      {picking && (
-        <div className="project-subject-pick">
-          <p className="project-subject-pick-note">What about? Pick a paper, or select a card on a board and choose <b>Discuss</b>.</p>
-          {project.papers.length > 0 && (
-            <ul>
-              {project.papers.map((paper) => {
-                const d = discussed.get(paper.sha256);
-                return (
-                  <li key={paper.sha256}>
-                    <a href={appPath(d ? `/discussion/${d.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }))}>
-                      <span>{paper.title}</span>
-                      {d && <span className="project-subject-pick-meta">Open · {plural(d.post_count, 'post', 'posts')}</span>}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
       {!discussions.length ? (
-        !picking && <p className="project-empty">No discussions yet. Start one about a paper or a board card, and everyone here can reply.</p>
+        <p className="project-empty project-talk-hint">
+          Nothing yet. Every paper, thought, board and card has a talk pin <TalkMark />. Press one to start.
+        </p>
       ) : (
         <>
           <ul className="project-discussions">
             {shown.map((d) => {
               const last = d.last_post;
               return (
-                <li key={d.uuid}>
+                <li key={d.uuid} className="talk-host">
                   <a className="project-discussion" href={appPath(`/discussion/${d.uuid}`)}>
+                    <span className="project-discussion-kind">
+                      {SUBJECT_WORDS[d.subject.kind]}
+                      {d.subject.kind === 'take' && d.subject.by && ` · ${d.subject.by}`}
+                      {d.subject.kind === 'card' && d.subject.board_name && ` · ${d.subject.board_name}`}
+                    </span>
                     <strong className="project-discussion-subject">{d.is_new && <NewDot />}{d.subject.label}</strong>
                     {last && (
                       <span className="project-discussion-excerpt">
@@ -489,11 +473,10 @@ function ProjectDiscussions({ project, currentUser }) {
                       </span>
                     )}
                     <span className="project-discussion-meta">
-                      {d.subject.kind !== 'paper' && `On ${d.subject.board_name} · `}
                       {plural(d.post_count, 'post', 'posts')} · {day(d.updated_at)}
                     </span>
-                    <span className="project-discussion-reply" aria-hidden="true">Reply</span>
                   </a>
+                  <span className="project-discussion-pin">{pin(d.subject.key, d.subject.label, { faces: true })}</span>
                 </li>
               );
             })}
@@ -509,8 +492,17 @@ function ProjectDiscussions({ project, currentUser }) {
   );
 }
 
+// The talk pin as a picture, for saying where to press.
+function TalkMark() {
+  return (
+    <svg className="project-talk-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.6L6 21.4V17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+    </svg>
+  );
+}
+
 // The project's boards, which every member arranges; one more is a name away.
-function ProjectBoards({ project, act }) {
+function ProjectBoards({ project, act, pin }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -547,12 +539,13 @@ function ProjectBoards({ project, act }) {
       ) : (
         <ul className="project-boards">
           {boards.map((board) => (
-            <li key={board.uuid}>
+            <li key={board.uuid} className="talk-host">
               <a className="project-board" href={appPath(`/boards/${board.uuid}`)}>
                 <strong className="project-board-name">{board.name}</strong>
                 <span className="project-board-meta">{plural(board.item_count ?? 0, 'card', 'cards')} · {day(board.updated_at)}</span>
                 {board.description && <span className="project-board-description">{board.description}</span>}
               </a>
+              <span className="project-board-pin">{pin(`board:${board.uuid}`, board.name)}</span>
             </li>
           ))}
         </ul>

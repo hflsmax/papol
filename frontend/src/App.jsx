@@ -731,7 +731,7 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {route.page === 'discuss' && (
         <StartDiscussionPage
-          key={`${route.subject.kind}/${route.subject.id}`}
+          key={route.subject}
           projectUuid={route.uuid}
           subject={route.subject}
           currentUser={user}

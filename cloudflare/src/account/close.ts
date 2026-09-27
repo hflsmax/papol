@@ -68,6 +68,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const projectBoards = await handOnProjectBoards(env, user.uuid);
   const boardUuids = (await all<{ uuid: string }>(db, "SELECT uuid FROM boards WHERE user_uuid = ?", user.uuid)).map((b) => b.uuid);
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
+  const goneTalk = `board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR ${inBoards} OR take_user_uuid = ?`;
   const files = await boardFiles(env, boardUuids);
   const seminars = await handOnSeminars(env, user.uuid);
   const projects = await leaveAllProjects(env, user.uuid);
@@ -81,9 +82,10 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
     ["papers_in_nook", statement(db, "DELETE FROM copies WHERE user_uuid = ?", user.uuid)],
     ["tags", statement(db, "DELETE FROM tags WHERE user_uuid = ?", user.uuid)],
-    // A discussion about a card that goes with its board goes too.
-    ["discussion_posts", statement(db, `DELETE FROM discussion_posts WHERE discussion_uuid IN (SELECT uuid FROM discussions WHERE board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}))`, ...boardUuids)],
-    ["discussions", statement(db, `DELETE FROM discussions WHERE board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards})`, ...boardUuids)],
+    // A discussion about a board that goes, or a card on it, or their own
+    // thought on a paper, goes too.
+    ["discussion_posts", statement(db, `DELETE FROM discussion_posts WHERE discussion_uuid IN (SELECT uuid FROM discussions WHERE ${goneTalk})`, ...boardUuids, ...boardUuids, user.uuid)],
+    ["discussions", statement(db, `DELETE FROM discussions WHERE ${goneTalk}`, ...boardUuids, ...boardUuids, user.uuid)],
     ["project_boards", statement(db, `DELETE FROM project_boards WHERE ${inBoards}`, ...boardUuids)],
     ["board_items", statement(db, `DELETE FROM board_items WHERE ${inBoards}`, ...boardUuids)],
     ["board_groups", statement(db, `DELETE FROM board_groups WHERE ${inBoards}`, ...boardUuids)],
