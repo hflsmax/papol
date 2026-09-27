@@ -5942,7 +5942,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-card.is-placed { visibility: visible; animation: talk-open var(--motion-fast) var(--ease-out) forwards; }
 .talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
 @keyframes talk-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin, 
+@media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin { transition: none; } }
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .talk-card-kind i { display: inline-grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--accent-strong); }

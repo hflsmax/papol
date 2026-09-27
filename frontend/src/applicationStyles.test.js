@@ -11,6 +11,17 @@ test('shared application styles can be evaluated outside the app module', () => 
   assert.doesNotMatch(applicationStyles, /desktopChrome/);
 });
 
+// A rule left open swallows every rule after it without a parse error.
+test('every block in the shared application styles is closed', () => {
+  let depth = 0;
+  for (const char of applicationStyles.replace(/\/\*[\s\S]*?\*\//g, '')) {
+    if (char === '{') depth += 1;
+    if (char === '}') depth -= 1;
+    assert.ok(depth >= 0, 'a block closes before it opens');
+  }
+  assert.equal(depth, 0);
+});
+
 test('shared application styles reference only declared or runtime tokens', () => {
   const declared = new Set(
     [...applicationStyles.matchAll(/--([\w-]+)\s*:/g)].map((match) => match[1]),
