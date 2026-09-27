@@ -898,7 +898,7 @@ export default function App({ startupUser = null, startupError = null }) {
                 className={['projects', 'project', 'invitation'].includes(route.page) ? 'active' : ''}
               >
                 Projects
-                {projectNewCount > 0 && <span className="badge inbox-badge">{projectNewCount}</span>}
+                {projectNewCount > 0 && <span className="badge inbox-badge" title={`${projectNewCount} new papers`}>{projectNewCount}</span>}
               </a>
             ) : (
               <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>

@@ -5,8 +5,22 @@ import { appPath } from '../base';
 import ProjectMembers, { keeperNames } from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
 
+const SHOWN = 5;
+
+// Keepers first, and never more faces than the row can hold.
+function Crowd({ members, currentUser }) {
+  const ordered = [...members].sort((a, b) => Number(b.is_keeper) - Number(a.is_keeper));
+  const cut = ordered.length > SHOWN ? SHOWN - 1 : ordered.length;
+  return (
+    <div className="projects-crowd">
+      <ProjectMembers members={ordered.slice(0, cut)} currentUser={currentUser} />
+      {ordered.length > cut && <span className="projects-more">+{ordered.length - cut}</span>}
+    </div>
+  );
+}
+
 // Every project: mine first, where the work is, then everyone else's by
-// name and members, so anyone can see who to ask to be let in.
+// name and keepers, so anyone can see who to ask to be let in.
 export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) {
   const [projects, setProjects] = useState(null);
   const [error, setError] = useState(null);
@@ -38,61 +52,79 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) 
     }
   };
 
-  if (!projects && !error) return <div className="loading"><Working label="Loading projects…" /></div>;
+  const stopNaming = () => { setNaming(false); setName(''); };
   const mine = (projects || []).filter((p) => p.is_member);
   const others = (projects || []).filter((p) => !p.is_member);
 
   return (
     <div className="projects-page">
-      <div className="projects-header">
+      <div className="projects-head">
         <h2>Projects</h2>
-        {!naming && (
-          <button type="button" className="primary" onClick={() => setNaming(true)}>New project</button>
+        {projects && !naming && (
+          <button type="button" onClick={() => setNaming(true)}>New project</button>
         )}
       </div>
-      {naming && (
-        <form className="project-name-form" onSubmit={create}>
-          <input
-            autoFocus
-            value={name}
-            maxLength={80}
-            placeholder="What is the project about?"
-            aria-label="Project name"
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }}
-          />
-          <button type="submit" className="primary" disabled={busy || !name.trim()}>Create</button>
-          <button type="button" onClick={() => setNaming(false)}>Cancel</button>
-        </form>
-      )}
       {error && <div className="error" role="alert">{error}</div>}
+      {!projects && !error && <div className="loading"><Working label="Loading projects…" /></div>}
 
-      {mine.length > 0 ? (
-        <ul className="project-list">
-          {mine.map((project) => (
-            <li key={project.uuid} className="project-row">
-              <a className="project-row-name" href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
-              {project.new_count > 0 && <span className="badge project-new">{project.new_count} new</span>}
-              <ProjectMembers members={project.members} currentUser={currentUser} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        !naming && <p className="panel-note">A project gathers the papers and thinking for one question. Start one alone and invite others when you like.</p>
-      )}
-
-      {others.length > 0 && (
+      {projects && (
         <>
-          <h3 className="projects-subhead">Other projects</h3>
-          <ul className="project-list">
-            {others.map((project) => (
-              <li key={project.uuid} className="project-row closed">
-                <a className="project-row-name" href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
-                <span className="project-row-note">By invitation · ask {keeperNames(project.members)}</span>
-                <ProjectMembers members={project.members} currentUser={currentUser} />
-              </li>
-            ))}
-          </ul>
+          {others.length > 0 && <p className="kicker projects-kicker">My projects</p>}
+          <div className="panel projects-panel">
+            {naming && (
+              <form className="projects-create" onSubmit={create}>
+                <input
+                  autoFocus
+                  value={name}
+                  maxLength={80}
+                  placeholder="What is the project about?"
+                  aria-label="Project name"
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') stopNaming(); }}
+                />
+                <button type="submit" className="primary" disabled={busy || !name.trim()}>Create</button>
+                <button type="button" onClick={stopNaming}>Cancel</button>
+              </form>
+            )}
+            {mine.length > 0 ? (
+              <ul className="projects-list">
+                {mine.map((project) => (
+                  <li key={project.uuid} className="projects-row">
+                    <div className="projects-row-text">
+                      <a className="projects-row-name" href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
+                      {project.new_count > 0 && <span className="badge project-new">{project.new_count} new</span>}
+                    </div>
+                    <Crowd members={project.members} currentUser={currentUser} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              !naming && (
+                <p className="projects-empty">
+                  A project gathers papers and thinking for one question. Start one alone; invite others when you like.
+                </p>
+              )
+            )}
+          </div>
+
+          {others.length > 0 && (
+            <>
+              <p className="kicker projects-kicker">Other projects</p>
+              <div className="panel projects-panel">
+                <ul className="projects-list">
+                  {others.map((project) => (
+                    <li key={project.uuid} className="projects-row closed">
+                      <div className="projects-row-text">
+                        <span className="projects-row-name">{project.name}</span>
+                        <span className="projects-row-note">Ask {keeperNames(project.members)} for a link</span>
+                      </div>
+                      <Crowd members={project.members} currentUser={currentUser} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

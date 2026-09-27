@@ -2,12 +2,17 @@ import React, { useRef, useState } from 'react';
 import { useDismiss } from '../../../shared/useDismiss.js';
 import { addPaperToProject, listProjects } from '../../../shared/api/projects.js';
 import { updatePaper } from '../../../shared/api/papers.js';
+import { Working } from '../../../shared/ui/Waiting.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath } from '../base';
 
-// Adding this paper to one of my projects. When I have not said why the
-// paper matters yet, the menu asks once, in a line, since that is what the
-// other members will read beside it.
+const membersLabel = (project) => {
+  const count = project.members?.length ?? 1;
+  return count > 1 ? `${count} members` : 'Just you';
+};
+
+// Adding this paper to one of my projects. Until I have said why the
+// paper matters, the menu asks once, in a line: members read it beside it.
 export default function ProjectPicker({ paper, onThought }) {
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState(null);
@@ -27,6 +32,7 @@ export default function ProjectPicker({ paper, onThought }) {
   };
 
   const add = async (project) => {
+    if (project.has_paper || busy) return;
     setBusy(project.uuid);
     setError(null);
     try {
@@ -44,6 +50,12 @@ export default function ProjectPicker({ paper, onThought }) {
     }
   };
 
+  const stateOf = (project) => {
+    if (project.has_paper) return <span className="project-picker-state is-added">✓ Added</span>;
+    if (busy === project.uuid) return <span className="project-picker-state is-busy">Adding…</span>;
+    return <span className="project-picker-state">Add</span>;
+  };
+
   return (
     <div className="share-control" ref={ref}>
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={toggle}>
@@ -51,35 +63,39 @@ export default function ProjectPicker({ paper, onThought }) {
       </button>
       {open && (
         <div className="share-menu project-picker" role="menu">
-          {!projects && !error && <p className="share-note">Loading…</p>}
-          {projects && projects.length === 0 && (
+          {!projects && !error && <Working className="project-picker-wait" label="Loading…" />}
+          {projects?.length === 0 && (
             <p className="share-note">
-              No projects yet. <a href={appPath('/projects')}>Start one</a>
+              You have no projects yet. <a href={appPath('/projects')}>Start a project</a>
             </p>
           )}
-          {projects && projects.length > 0 && !paper.thought && (
-            <input
-              className="project-picker-why"
-              value={why}
-              maxLength={appLimits.text.paper_thought}
-              placeholder="Why this paper? (optional)"
-              aria-label="Why this paper"
-              onChange={(e) => setWhy(e.target.value)}
-            />
+          {projects?.length > 0 && !paper.thought && (
+            <div className="share-menu-section project-picker-why">
+              <label className="share-menu-heading" htmlFor="project-picker-why">Why this paper?</label>
+              <input
+                id="project-picker-why"
+                value={why}
+                maxLength={appLimits.text.paper_thought}
+                placeholder="One line, optional"
+                onChange={(e) => setWhy(e.target.value)}
+              />
+              <p className="share-note">Saved as your thought. Members read it beside the paper.</p>
+            </div>
           )}
+          {projects?.length > 0 && <span className="share-menu-heading">My projects</span>}
           {projects?.map((project) => (
             <button
               key={project.uuid}
               type="button"
               role="menuitem"
-              className="project-picker-item"
-              disabled={project.has_paper || busy != null}
+              className={project.has_paper ? 'project-picker-item is-added' : 'project-picker-item'}
+              aria-disabled={project.has_paper || undefined}
+              disabled={busy != null && busy !== project.uuid && !project.has_paper}
               onClick={() => add(project)}
             >
-              <span>{project.name}</span>
-              <span className="project-picker-state">
-                {project.has_paper ? 'Added' : busy === project.uuid ? 'Adding…' : ''}
-              </span>
+              <strong>{project.name}</strong>
+              <span className="project-picker-meta">{membersLabel(project)}</span>
+              {stateOf(project)}
             </button>
           ))}
           {error && <p className="error" role="alert">{error}</p>}
