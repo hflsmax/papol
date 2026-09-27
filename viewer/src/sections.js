@@ -424,13 +424,15 @@ export function looksLikeContents(sections) {
  *
  * One bookmark is a cover link rather than a table of contents, so it is
  * not worth a Navigator; two is a paper describing itself. The outline's
- * order is the author's and is kept as given.
+ * order is the author's and is kept as given. Where there is none,
+ * `readPrinted` reads the printed headings, telling `onProgress` how far
+ * through the pages it is.
  */
-export async function readSections(doc, { cancelled = () => false, readPrinted = null } = {}) {
+export async function readSections(doc, { cancelled = () => false, readPrinted = null, onProgress } = {}) {
   if (!doc?.numPages) return { sections: [] };
   const printed = async () => {
     if (!readPrinted) return { sections: [] };
-    const headings = await readPrinted(doc, { cancelled });
+    const headings = await readPrinted(doc, { cancelled, onProgress });
     if (cancelled() || !headings) return null;
     return { sections: printedSections(headings), printed: true };
   };

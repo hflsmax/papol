@@ -35,6 +35,7 @@ const FAR = 1.5;
 export default function SectionStrip({
   pages = 0,
   sections = [],
+  reading = null,
   scrollerRef,
   live = false,
   onSection,
@@ -153,6 +154,19 @@ export default function SectionStrip({
           </button>
         ))}
       </div>
+      {/* While the printed headings are read, a line under the pages
+          fills as they are (see Navigator). */}
+      {paged && reading != null && (
+        <span
+          className="strip-reading"
+          role="progressbar"
+          aria-label="Finding sections"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(reading * 100)}
+          style={{ width: `${reading * 100}%` }}
+        />
+      )}
       {/* Where in the paper the section is, which the names alone do not
           say: the page under the reading line, of how many. The page
           numbers say it themselves when they are the stops. */}

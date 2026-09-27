@@ -145,6 +145,9 @@ const usePhone = () => {
 export default function Navigator({
   pages = 0,
   sections = [],
+  // How far a paper with no outline has been read for its printed headings,
+  // 0 to 1, or null when nothing is being read.
+  reading = null,
   anchors = [],
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
@@ -425,6 +428,7 @@ export default function Navigator({
       <SectionStrip
         pages={pages}
         sections={sections}
+        reading={reading}
         scrollerRef={scrollerRef}
         live={live}
         onSection={onSection}
@@ -472,6 +476,22 @@ export default function Navigator({
         aria-label="Sections"
         onKeyDown={(event) => walk(event, trackRef)}
       >
+        {/* While a paper with no outline is read for its headings, the
+            empty strip fills as the pages are read, and says so. */}
+        {!segments.length && reading != null && (
+          <div
+            className="navigator-reading"
+            role="progressbar"
+            aria-label="Finding sections"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(reading * 100)}
+            data-tip="Finding the sections in this paper"
+          >
+            <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
+            <span className="navigator-reading-name">Finding sections…</span>
+          </div>
+        )}
         {segments.map((segment, index) => {
           const name = [segment.number, segment.title].filter(Boolean).join(' ');
           return (

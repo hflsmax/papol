@@ -12,7 +12,7 @@
 import { findBibliography } from "./bibliography";
 import { findFloats, typeOf, type Found } from "./floats";
 import { layout as layOut, type Layout, type Line } from "./layout";
-import { readPage, type Page as PdfText, type PdfPage } from "./page";
+import { readPages, type Page as PdfText, type PdfDocument, type ReadOptions } from "./page";
 import { findSections } from "./sections";
 import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
 import { Trace } from "./trace";
@@ -219,44 +219,25 @@ function columnOrder(a: Heading & { line?: Line }, b: Heading & { line?: Line })
 }
 
 /**
- * The contents of an open pdf.js document, read page by page from the
- * document the caller already has — the viewer's own — with pdf.js's OPS
- * table from the same build. `pause` is awaited before each page, so a
- * reader can give way to whatever else the page is doing; each page is let
- * go once read (pdf.js keeps nothing of it that a render still needs).
+ * The contents of an open pdf.js document, read page by page (readPages)
+ * and then by the rules (contentsOfPages). The viewer runs the two apart,
+ * the rules in a worker of their own (viewer/src/printedContents.js).
  * Resolves to null when cancelled between pages.
  */
 export async function readContents(
-  doc: { numPages: number; getPage(number: number): Promise<unknown> },
+  doc: PdfDocument,
   OPS: Record<string, number>,
-  { cancelled = () => false, pause = async () => {} }: { cancelled?: () => boolean; pause?: () => Promise<void> } = {},
+  options: ReadOptions = {},
 ): Promise<Heading[] | null> {
-  const pages: PdfText[] = [];
-  for (let number = 1; number <= doc.numPages; number += 1) {
-    await pause();
-    if (cancelled()) return null;
-    const page = (await doc.getPage(number)) as PdfPage & { cleanup?: () => void };
-    pages.push(boundDrawn(await readPage(page, number, OPS)));
-    page.cleanup?.();
-  }
-  if (cancelled()) return null;
+  const pages = await readPages(doc, OPS, options);
+  return pages && contentsOfPages(pages);
+}
+
+/** The contents of pages already read (readPages). */
+export function contentsOfPages(pages: PdfText[]): Heading[] {
   const layout = layOut({ pages, info: { title: "", author: "" } });
   const trace = new Trace();
   const bibliography = findBibliography(layout, trace);
   const floats = findFloats(layout, trace);
   return findContents(layout, bibliography.lines, floats.values(), trace);
-}
-
-// A page drawn in hundreds of thousands of strokes (a plot exported point by
-// point) is one picture to the float rules, which walk every stroke against
-// every other and took a minute and a half over one such paper. Its strokes
-// are taken as the one box they cover.
-const MOST_DRAWN = 5000;
-function boundDrawn(page: PdfText): PdfText {
-  if (page.drawn.length <= MOST_DRAWN) return page;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const d of page.drawn) {
-    x0 = Math.min(x0, d.x); y0 = Math.min(y0, d.y); x1 = Math.max(x1, d.x + d.w); y1 = Math.max(y1, d.y + d.h);
-  }
-  return { ...page, drawn: [{ x: x0, y: y0, w: x1 - x0, h: y1 - y0, image: false }] };
 }

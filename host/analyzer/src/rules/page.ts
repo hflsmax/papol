@@ -214,3 +214,50 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   const text = (content.items as TextItem[]).map((item) => ("str" in item ? item.str : "")).join(" ");
   return { number, width: right - left, height: top - bottom, runs, drawn, text };
 }
+
+export interface PdfDocument { numPages: number; getPage(number: number): Promise<unknown> }
+export interface ReadOptions {
+  cancelled?: () => boolean;
+  pause?: () => Promise<void>;
+  onPage?: (read: number, of: number) => void;
+}
+
+/**
+ * Every page of an open pdf.js document, read from the document the caller
+ * already has — the viewer's own — with pdf.js's OPS table from the same
+ * build. `pause` is awaited before each page, so a reader can give way to
+ * whatever else the page is doing, and `onPage` told after each; each page
+ * is let go once read (pdf.js keeps nothing of it that a render still
+ * needs). Resolves to null when cancelled between pages.
+ */
+export async function readPages(
+  doc: PdfDocument,
+  OPS: Record<string, number>,
+  { cancelled = () => false, pause = async () => {}, onPage }: ReadOptions = {},
+): Promise<Page[] | null> {
+  const pages: Page[] = [];
+  for (let number = 1; number <= doc.numPages; number += 1) {
+    await pause();
+    if (cancelled()) return null;
+    const page = (await doc.getPage(number)) as PdfPage & { cleanup?: () => void };
+    pages.push(boundDrawn(await readPage(page, number, OPS)));
+    page.cleanup?.();
+    onPage?.(number, doc.numPages);
+  }
+  return cancelled() ? null : pages;
+}
+
+// A page drawn in hundreds of thousands of strokes (a plot exported point by
+// point) is one picture to the float rules, which walk every stroke against
+// every other and took a minute and a half over one such paper. Its strokes
+// are taken as the one box they cover. (It also keeps what a reader posts
+// to a worker small.)
+const MOST_DRAWN = 5000;
+function boundDrawn(page: Page): Page {
+  if (page.drawn.length <= MOST_DRAWN) return page;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const d of page.drawn) {
+    x0 = Math.min(x0, d.x); y0 = Math.min(y0, d.y); x1 = Math.max(x1, d.x + d.w); y1 = Math.max(y1, d.y + d.h);
+  }
+  return { ...page, drawn: [{ x: x0, y: y0, w: x1 - x0, h: y1 - y0, image: false }] };
+}
