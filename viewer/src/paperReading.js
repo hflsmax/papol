@@ -1,4 +1,5 @@
 import { pdfjsReady } from './pdfRuntime.js';
+import { keepReading, keptReading } from './readingCache.js';
 
 /**
  * A paper read in the browser by the analyzer's rules
@@ -15,9 +16,20 @@ import { pdfjsReady } from './pdfRuntime.js';
  * then run in a worker of their own (readingWorker.js). `onProgress` is told
  * how far through the pages the reading is, from 0 to 1.
  *
+ * A paper read before on this device, by the same rules, is not read
+ * again (readingCache.js): its reading is there at once, with no progress
+ * to show.
+ *
  * Resolves to { headings, analysis }, or null when cancelled.
  */
 export async function readPaper(doc, { cancelled = () => false, onProgress } = {}) {
+  const started = performance.now();
+  const kept = await keptReading(doc);
+  if (cancelled()) return null;
+  if (kept) {
+    measure(started, doc, true);
+    return kept;
+  }
   const [{ readPages }, pdfjs] = await Promise.all([
     import('../../host/analyzer/src/rules/page.ts'),
     pdfjsReady,
@@ -31,7 +43,11 @@ export async function readPaper(doc, { cancelled = () => false, onProgress } = {
   });
   if (!pages || cancelled()) return null;
   const read = await inWorker(pages, cancelled);
-  return read && { headings: read.headings, analysis: viewerAnalysis(read.analysis) };
+  if (!read) return null;
+  const paper = { headings: read.headings, analysis: viewerAnalysis(read.analysis) };
+  keepReading(doc, paper);
+  measure(started, doc, false);
+  return paper;
 }
 
 /**
@@ -96,6 +112,16 @@ export function printedCard(reference) {
       source: 'bibliography',
     },
   };
+}
+
+// How long the reading took, for the browser's performance tools
+// (Performance panel, or performance.getEntriesByName('papol:reading')).
+function measure(start, doc, kept) {
+  try {
+    performance.measure('papol:reading', { start, detail: { pages: doc.numPages, kept } });
+  } catch {
+    // A browser without measure details reads the same.
+  }
 }
 
 function inWorker(pages, cancelled) {
