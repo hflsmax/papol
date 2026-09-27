@@ -10,7 +10,7 @@ import { currentUser } from "../auth";
 import { one } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { resolve } from "../papers/resolve";
-import { openReference, paperReferences, previewReference, referenceOr404, type Reference } from "../papers/references";
+import { lookUpPrinted, openReference, paperReferences, previewReference, referenceOr404, type Reference } from "../papers/references";
 import { keptPaper, openSharable, viewerPaper } from "../papers/sharables";
 import * as validate from "../validate";
 
@@ -40,6 +40,28 @@ export function referenceRoutes(router: Router) {
     const raw = check.string("raw", data.raw, { min: 3, max: limits.text.reference_raw })!;
     check.done();
     return json(await previewReference(env, paper, key.trim(), raw.split(/\s+/).filter(Boolean).join(" ")));
+  });
+
+  // One reference the viewer read off the page itself. Anyone who may read
+  // the paper may have what it cites looked up, as with the item above.
+  router.on("POST", "/api/viewer-references/:digest/resolve", async ({ request, env, params, url }) => {
+    const paper = await viewerPaper(env.DB, params.digest, url.searchParams.get("share"));
+    const data = await readJson<Record<string, unknown>>(request);
+    const check = validate.checking();
+    const key = check.string("key", data.key, { min: 1, max: limits.text.reference_key })!;
+    const index = check.integer("index", data.index, { min: 0, max: 100_000 })!;
+    const raw = check.string("raw", data.raw, { min: 3, max: limits.text.reference_raw })!;
+    const title = check.string("title", data.title, { optional: true, max: limits.text.reference_raw });
+    const year = check.integer("year", data.year, { optional: true, min: 0, max: 3000 });
+    const journal = check.string("journal", data.journal, { optional: true, max: limits.text.reference_raw });
+    const doi = check.string("doi", data.doi, { optional: true, max: limits.text.paper_doi });
+    const arxivId = check.string("arxiv_id", data.arxiv_id, { optional: true, max: limits.text.reference_key });
+    const authors = data.authors ?? [];
+    if (!Array.isArray(authors) || authors.length > 500 || authors.some((a) => typeof a !== "string" || a.length > limits.text.reference_key)) check.fail("authors must be a list of names");
+    check.done();
+    return json(await lookUpPrinted(env, paper, {
+      key: key.trim(), index, raw: raw.split(/\s+/).filter(Boolean).join(" "), title, authors: authors as string[], year, journal, doi, arxiv_id: arxivId,
+    }));
   });
 
   // Enriched bibliographic information for the paper being viewed. What

@@ -13,7 +13,7 @@ import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import { documentWorker, pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
 import { downloadPdf } from './pdfDownload.js';
 import {
-  pdfHref, pdfLoadInput, getViewerPaperInfo, getViewerReferences, getViewerReference, resolveViewerReference,
+  pdfHref, pdfLoadInput, getViewerPaperInfo, lookUpViewerReference, resolveViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
 } from './api';
 import { identifierInDocument, identifierWithin } from '../../shared/identifiers.js';
@@ -24,7 +24,6 @@ import {
 } from './source';
 import { appPath, backendPath, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
-import { pollUntil } from '../../shared/polling.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus,
@@ -56,6 +55,7 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { anchorKeyAction, isEditingTarget } from './anchorKeys';
 import { pageAtLine } from './readingPage';
 import { readSections } from './sections';
+import { printedCard, readPaper, READING, UNREAD } from './paperReading.js';
 import ReturnPill from './ReturnPill';
 import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
@@ -505,6 +505,9 @@ export default function App() {
   const [searchWrap, setSearchWrap] = useState(null);
   // The paper's own headings, which the Navigator draws across the bar.
   const [sections, setSections] = useState([]);
+  // How far the paper has been read, 0 to 1, while its pages are read for
+  // its references, links and headings (paperReading.js); null otherwise.
+  const [paperReading, setPaperReading] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -1205,27 +1208,49 @@ export default function App() {
     setSearchFinder(null);
     setSearchResults(NO_RESULTS);
     setSections([]);
+    setPaperReading(null);
+    setAnalysis(null);
   }, [doc]);
 
-  // The paper's headings, read once the document is open.
+  // The paper read, once the document is open: its headings, and its
+  // references, citation markers and links (paperReading.js).
   //
-  // Reading the outline costs a destination lookup per heading and nothing
-  // else, but it still waits for an idle moment rather than competing with
-  // the first render: the bar can stand empty for a moment, and the reader
-  // gets their first page sooner.
+  // Both wait for an idle moment rather than competing with the first
+  // render: the bar can stand empty for a moment, and the reader gets their
+  // first page sooner. The outline costs a destination lookup per heading
+  // and is drawn as soon as it is read. Every page is then read, in idle
+  // moments too, for the rest; a paper with no outline takes its headings
+  // from that same reading.
   useEffect(() => {
     if (!doc) return undefined;
     let cancelled = false;
+    let reading = null;
+    const read = () => {
+      reading ??= readPaper(doc, {
+        cancelled: () => cancelled,
+        onProgress: (done) => { if (!cancelled) setPaperReading(done); },
+      }).finally(() => { if (!cancelled) setPaperReading(null); });
+      return reading;
+    };
     const start = () => {
       if (cancelled) return;
-      readSections(doc, { cancelled: () => cancelled })
-        .then((read) => {
-          if (cancelled || !read) return;
-          setSections(read.sections);
+      readSections(doc, {
+        cancelled: () => cancelled,
+        readPrinted: () => read().then((paperRead) => paperRead && paperRead.headings),
+      })
+        .then((sectionsRead) => {
+          if (cancelled || !sectionsRead) return;
+          setSections(sectionsRead.sections);
         })
         // A paper whose outline cannot be read is a paper without a
         // Navigator, not a paper that failed to open.
         .catch(() => {});
+      setAnalysis(READING);
+      read()
+        .then((paperRead) => { if (!cancelled && paperRead) setAnalysis(paperRead.analysis); })
+        // References are an extra. Failing to read them is not worth an
+        // error bar over the user's paper.
+        .catch(() => { if (!cancelled) setAnalysis(UNREAD); });
     };
     const idle = window.requestIdleCallback
       ? window.requestIdleCallback(start, { timeout: 2000 })
@@ -1331,32 +1356,6 @@ export default function App() {
       // text layer will make the smaller, exact adjustment to the match.
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [searchResults, activeSearchResult]);
-
-  // The references, fetched once the paper is known and then waited on.
-  // Reading a PDF's bibliography takes a pass over the whole document, so
-  // the first reader of a PDF starts that pass and everyone after
-  // them gets the stored answer straight away.
-  useEffect(() => {
-    const paperSha256 = paper?.sha256;
-    if (!firstPageReady || !paperSha256) return undefined;
-
-    // A shared reading reads the same bibliography on the authority of
-    // its link, so the source answers when it has its own way in.
-    const list = source?.references?.list || getViewerReferences;
-    const waiting = new AbortController();
-    // Every answer is shown, `pending` included, and the asking stops when
-    // the paper's pass has settled — on the one schedule every wait in
-    // Papol keeps (shared/polling.js).
-    pollUntil(() => list(paperSha256), (loaded) => loaded.status !== 'pending', {
-      signal: waiting.signal, onAnswer: setAnalysis,
-    }).catch(() => {
-      // References are an extra. Failing to load them is not worth an
-      // error bar over the user's paper.
-      if (!waiting.signal.aborted) setAnalysis({ status: 'failed', references: [], citations: [] });
-    });
-
-    return () => waiting.abort();
-  }, [firstPageReady, paper, source]);
 
   useEffect(() => {
     if (source?.annotationsRequireNook) return;
@@ -1664,9 +1663,19 @@ export default function App() {
       }
       return;
     }
-    // Show a cached answer immediately, and ask the item endpoint, which
-    // looks the reference up the first time anyone opens it.
-    const lookUp = source?.references?.open || getViewerReference;
+    // Show what is printed at once, and ask the Worker, which looks the
+    // printed reference up the first time anyone opens it and keeps what it
+    // found by what is printed. A paper Papol does not hold, or no network,
+    // leaves the card with what the page says.
+    const lookUp = (uuid) => {
+      const printed = referencesByUuid.get(uuid);
+      if (!printed) return Promise.reject(new Error('Reference not found.'));
+      if (!paper?.sha256) return Promise.resolve(printedCard(printed));
+      const ask = source?.references?.lookUp || lookUpViewerReference;
+      return ask(paper.sha256, printed)
+        .then((found) => ({ ...printed, ...found, uuid }))
+        .catch(() => printedCard(printed));
+    };
     lookUp(referenceUuid)
       .then((full) => {
         setReference((current) =>
@@ -3880,6 +3889,7 @@ export default function App() {
         <Navigator
           pages={doc?.numPages || 0}
           sections={sections}
+          reading={paperReading}
           anchors={contentsAnchors}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}

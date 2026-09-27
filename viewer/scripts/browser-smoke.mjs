@@ -6,10 +6,11 @@
 // answer, and that is the click Papol exists for.
 //
 // The API is served by this script from the shapes the backend declares, so
-// the check is hermetic: no backend, no analyzer, no network. What it proves
-// is the viewer's own half — markers drawn from an analysis, a click turned
-// into an item request, the answer rendered — which is the half a release
-// can break silently.
+// the check is hermetic: no backend, no network. The PDFs are read by the
+// analyzer's rules in the viewer itself, as every paper is, so what it
+// proves is the viewer's whole reading — markers found on the page, a click
+// turned into a lookup, the answer rendered — which is what a release can
+// break silently.
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { distFile, runSmoke } from '../../scripts/smoke-harness.mjs';
@@ -20,7 +21,7 @@ const dist = resolve(process.env.PAPOL_SMOKE_DIST || 'dist');
 // run from a bare checkout, on CI as on a laptop, and a fixture nobody can
 // read is a fixture nobody maintains. The offsets are computed, not
 // guessed, because pdf.js follows the xref table to every object.
-function smokePdf(contents = ['BT /F1 12 Tf 72 720 Td (A paper worth citing) Tj ET']) {
+function smokePdf(contents) {
   const pageNumbers = contents.map((_, index) => 3 + index);
   const streams = contents.map((_, index) => 4 + contents.length + index);
   const objects = [
@@ -44,7 +45,43 @@ function smokePdf(contents = ['BT /F1 12 Tf 72 720 Td (A paper worth citing) Tj 
   return Buffer.from(body, 'latin1');
 }
 
-const pdfBytes = smokePdf();
+// What the rules need to believe a page is a paper's: prose to learn its
+// text from, three entries under a References heading, and three markers
+// at least of the one way the paper cites (host/analyzer/src/rules).
+const PROSE = [
+  'Smoke rises from every fire that burns in the open air, and it carries',
+  'with it the fine particles that the flame could not consume. It drifts',
+  'with the wind, settles in low places, and thins as it climbs above the',
+  'ground. Those who study it measure how far it travels and how long it',
+  'lingers, and they compare what they find with what others have seen.',
+];
+const prose = (count) => Array.from({ length: count }, (_, i) => PROSE[i % PROSE.length]);
+// Lines down a page from `from`, 11pt on a 14pt leading; a [text, size]
+// is set larger, with room around it, as a heading is.
+function page(lines, from = 720) {
+  let y = from;
+  return lines.map((line) => {
+    const [text, size] = Array.isArray(line) ? line : [line, 11];
+    if (size > 11) y -= 8;
+    const op = `BT /F1 ${size} Tf 72 ${y} Td (${text}) Tj ET`;
+    y -= size + 3 + (size > 11 ? 6 : 0);
+    return op;
+  }).join('\n');
+}
+const REFERENCES = [
+  ['References', 12],
+  '[1] A. Author. The Cited Work. Journal of Smoke, 2020.',
+  '[2] B. Author. Another Work on Smoke. Journal of Smoke, 2021.',
+  '[3] C. Author. A Third Work on Smoke. Journal of Smoke, 2022.',
+];
+
+const pdfBytes = smokePdf([page([
+  ['A paper worth citing', 16], ...prose(5),
+  'What is known of smoke begins with the work of others [1], who first', ...prose(10),
+  'measured it in the open, and with those who followed them [2, 3] since.', ...prose(6),
+  'The latest of them [3] asks where it goes once the fire is out.', ...prose(6),
+  ...REFERENCES,
+])]);
 const PDF_SHA256 = createHash('sha256').update(pdfBytes).digest('hex');
 
 const SHARE = 'Aa11Bb22Cc';
@@ -75,16 +112,6 @@ const shared = {
   annotations: [],
   created_at: '2026-01-02T03:04:05',
 };
-const analysis = {
-  paper_sha256: PDF_SHA256,
-  status: 'ready',
-  detail: null,
-  references: [reference],
-  citations: [
-    { reference_uuids: [REFERENCE], label: '[1]', inferred: false, boxes: [{ page: 1, x: 0.2, y: 0.2, w: 0.08, h: 0.02 }] },
-  ],
-  links: [],
-};
 const resolved = {
   ...reference,
   resolved_status: 'ok',
@@ -99,14 +126,17 @@ const resolved = {
   },
 };
 
-// A second paper: page 1 mentions Figure 2, a small figure in the right
-// half of page 2 — a box drawn, and its caption. The link carries the
-// float's box, as the analyzer stores it.
-const FIGURE = { x: 0.55, y: 0.6, w: 0.35, h: 0.15 };
+// A second paper: page 1 mentions Figure 2, a figure in the text of page 2
+// — a box drawn, and its caption under it. The float is the two together,
+// as the rules find it: FIGURE is where the viewer should bring it.
+const DRAWN = { x: 0.15, y: 0.55, w: 0.5, h: 0.15 };
+const FIGURE = { x: 0.147, y: 0.547, w: 0.507, h: 0.175 };
 const figurePdf = smokePdf([
-  'BT /F1 12 Tf 72 720 Td (As Figure 2 shows, the latch holds.) Tj ET',
-  `0.2 G 2 w ${612 * FIGURE.x} ${792 * (1 - FIGURE.y - FIGURE.h)} ${612 * FIGURE.w} ${792 * FIGURE.h} re S `
-    + `BT /F1 9 Tf ${612 * FIGURE.x} ${792 * (1 - FIGURE.y - FIGURE.h) - 14} Td (Figure 2: A latch.) Tj ET`,
+  page(['As Figure 2 shows, the latch holds against the pressure of the smoke,', ...prose(40)]),
+  page(prose(16))
+    + `\n0.2 G 2 w ${612 * DRAWN.x} ${792 * (1 - DRAWN.y - DRAWN.h)} ${612 * DRAWN.w} ${792 * DRAWN.h} re S `
+    + `BT /F1 9 Tf ${612 * DRAWN.x} ${792 * (1 - DRAWN.y - DRAWN.h) - 14} Td (Figure 2: A latch.) Tj ET\n`
+    + page(prose(12), 792 * (1 - DRAWN.y - DRAWN.h) - 40),
 ]);
 const FIGURE_SHA256 = createHash('sha256').update(figurePdf).digest('hex');
 const FIGURE_SHARE = 'Dd33Ee44Ff';
@@ -115,20 +145,14 @@ const figureShared = {
   uuid: FIGURE_SHARE,
   paper: { ...shared.paper, title: 'The Figure Paper', file_path: 'figure.pdf', sha256: FIGURE_SHA256 },
 };
-const FLOAT = '22223333-4444-4555-8666-777788889999';
-const figureAnalysis = {
-  paper_sha256: FIGURE_SHA256,
-  status: 'ready',
-  detail: null,
-  references: [],
-  citations: [],
-  floats: [{ uuid: FLOAT, kind: 'figure', label: '2', page: 2, ...FIGURE }],
-  links: [{ float_uuid: FLOAT, label: '2', page: 1, x: 0.2, y: 0.08, w: 0.05, h: 0.02 }],
-};
-
 // A third: four pages citing the one work on pages 1, 3 and 4, for stepping
 // through the places it is cited from its card.
-const citedPdf = smokePdf([1, 2, 3, 4].map((n) => `BT /F1 12 Tf 72 720 Td (Page ${n} of the cited paper.) Tj ET`));
+const citedPdf = smokePdf([1, 2, 3, 4].map((n) => page([
+  ...prose(n === 2 ? 4 : 3),
+  ...(n === 2 ? [] : [`Page ${n} of the citing paper returns to the one work it cites [1], and`]),
+  ...prose(6),
+  ...(n === 4 ? REFERENCES : []),
+])));
 const CITED_SHA256 = createHash('sha256').update(citedPdf).digest('hex');
 const CITED_SHARE = 'Gg55Hh66Jj';
 const citedShared = {
@@ -136,15 +160,6 @@ const citedShared = {
   uuid: CITED_SHARE,
   paper: { ...shared.paper, title: 'The Citing Paper', file_path: 'cited.pdf', sha256: CITED_SHA256 },
 };
-const PLACES = [{ page: 1, y: 0.2 }, { page: 3, y: 0.3 }, { page: 4, y: 0.4 }];
-const citedAnalysis = {
-  ...analysis,
-  paper_sha256: CITED_SHA256,
-  citations: PLACES.map(({ page, y }) => ({
-    reference_uuids: [REFERENCE], label: '[1]', inferred: false, boxes: [{ page, x: 0.2, y, w: 0.08, h: 0.02 }],
-  })),
-};
-
 // A link its sharer took back: the Worker's 404, which the viewer must say
 // in place of a PDF. Every hook the viewer calls has to stand above the
 // return that says it, or React throws and the boundary's panel stands
@@ -434,12 +449,10 @@ await runSmoke(
     if (pathname === `/papol/api/shared/${REVOKED_SHARE}`) {
       return { status: 404, ...json({ detail: 'This reading is no longer shared' }) };
     }
-    if (pathname === `/papol/api/viewer-references/${CITED_SHA256}`) return json(citedAnalysis);
     if (pathname === '/papol/uploads/cited.pdf') return { type: 'application/pdf', body: citedPdf };
-    if (pathname === `/papol/api/viewer-references/${FIGURE_SHA256}`) return json(figureAnalysis);
     if (pathname === '/papol/uploads/figure.pdf') return { type: 'application/pdf', body: figurePdf };
-    if (pathname === `/papol/api/viewer-references/${PDF_SHA256}`) return json(analysis);
-    if (pathname === `/papol/api/viewer-references/item/${REFERENCE}`) return json(resolved);
+    // A reference the viewer read off the page, looked up (for any of the papers).
+    if (/^\/papol\/api\/viewer-references\/[0-9a-f]{64}\/resolve$/.test(pathname)) return json(resolved);
     if (pathname === '/papol/uploads/smoke.pdf') return { type: 'application/pdf', body: pdfBytes };
     if (pathname.startsWith('/papol/api/')) {
       // Everything else the viewer asks for is an extra a shared reading

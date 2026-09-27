@@ -51,7 +51,7 @@ Object.defineProperty(globalThis, 'navigator', {
   value: { onLine: true }, configurable: true, writable: true,
 });
 global.fetch = async (url, options = {}) => {
-  asked.push({ url: String(url), headers: options.headers || {} });
+  asked.push({ url: String(url), headers: options.headers || {}, method: options.method || 'GET' });
   const path = new URL(String(url), 'http://127.0.0.1').pathname;
   if (path === `/api/shared/${SHARE}`) {
     return new Response(JSON.stringify(reading), {
@@ -229,16 +229,16 @@ test('one request answers the whole reading', async () => {
   assert.deepEqual(asked.map((call) => new URL(call.url, 'http://127.0.0.1').pathname), [`/api/shared/${SHARE}`]);
 });
 
-test('a shared reading reads its bibliography on the authority of the link', async () => {
+test('a shared reading looks a reference up on the authority of the link', async () => {
   asked.length = 0;
   const source = resolveSource();
 
-  await source.references.list(HASH, PAPER);
+  await source.references.lookUp(PAPER, { key: 'b0', index: 0, raw: 'A. Author. A title. 2001.' }).catch(() => {});
 
   const url = new URL(asked.at(-1).url, 'http://127.0.0.1');
-  assert.equal(url.pathname, `/api/viewer-references/${HASH}`);
+  assert.equal(url.pathname, `/api/viewer-references/${PAPER}/resolve`);
   assert.equal(url.searchParams.get('share'), SHARE);
-  assert.equal(url.searchParams.get('paper_sha256'), PAPER);
+  assert.equal(asked.at(-1).method, 'POST');
 });
 
 test('a lean link carries the paper and none of the user\u2019s annotations', async () => {

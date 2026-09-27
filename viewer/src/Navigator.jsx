@@ -145,6 +145,9 @@ const usePhone = () => {
 export default function Navigator({
   pages = 0,
   sections = [],
+  // How far a paper with no outline has been read for its printed headings,
+  // 0 to 1, or null when nothing is being read.
+  reading = null,
   anchors = [],
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
@@ -425,6 +428,7 @@ export default function Navigator({
       <SectionStrip
         pages={pages}
         sections={sections}
+        reading={reading}
         scrollerRef={scrollerRef}
         live={live}
         onSection={onSection}
@@ -472,6 +476,36 @@ export default function Navigator({
         aria-label="Sections"
         onKeyDown={(event) => walk(event, trackRef)}
       >
+        {/* While a paper with no outline is read for its headings, the
+            empty strip fills as the pages are read, and says so. */}
+        {!segments.length && reading != null && (
+          <div
+            className="navigator-reading"
+            role="progressbar"
+            aria-label="Initializing"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(reading * 100)}
+            data-tip="Reading this paper for its sections, references and links"
+          >
+            <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
+            <span className="navigator-reading-name">Initializing…</span>
+          </div>
+        )}
+        {/* A paper with an outline has its sections at once; the rest of
+            it, its references and links, is still being read, and a line
+            along the strip's foot fills as it is. */}
+        {segments.length > 0 && reading != null && (
+          <span
+            className="navigator-loading"
+            role="progressbar"
+            aria-label="Initializing"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(reading * 100)}
+            style={{ width: `${reading * 100}%` }}
+          />
+        )}
         {segments.map((segment, index) => {
           const name = [segment.number, segment.title].filter(Boolean).join(' ');
           return (

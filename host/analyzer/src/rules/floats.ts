@@ -8,7 +8,7 @@ import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
   CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_CITED, MENTION_FLOAT,
 } from "./registry";
-import type { Drawn } from "./pdf";
+import type { Drawn } from "./page";
 import type { Trace } from "./trace";
 
 // A float as found: the analysis's Float (reading.ts) with the caption line it

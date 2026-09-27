@@ -246,6 +246,38 @@ ${compatibilityStyles}
 
 .navigator-seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
+/* A paper with no outline, while its printed headings are read: the empty
+   strip fills from the left as the pages are, and names what it is doing.
+   It gives way to the sections the moment they are found. */
+.navigator-reading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+  color: var(--ink-faint);
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+.navigator-reading-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--line);
+  transition: width var(--motion-fast) var(--ease-out);
+}
+.navigator-reading-name { position: relative; }
+.navigator-loading {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+  transition: width var(--motion-fast) var(--ease-out);
+}
+
 /* The subsections, in a lane over the strip: a small caret pointing down at
    the top edge of its section, at its place. Sections are the grounds and the
    names; this is the level below, kept to a mark so the two can never be
@@ -415,12 +447,26 @@ ${compatibilityStyles}
    width: a name cut off at the right edge is the sign that there are
    more. */
 .section-strip {
+  /* The reading line (.strip-reading) is placed along its foot. */
+  position: relative;
   display: flex;
   flex: 1;
   align-items: center;
   gap: 8px;
   min-width: 0;
   font-family: var(--font-ui);
+}
+
+/* While a paper with no outline is read for its headings, a hairline along
+   the foot of the page numbers fills as the pages are read. */
+.strip-reading {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  transition: width var(--motion-fast) var(--ease-out);
 }
 
 .strip-row {

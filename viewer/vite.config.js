@@ -1,4 +1,5 @@
 import { createReadStream, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
 import { defineConfig } from 'vite';
@@ -66,11 +67,24 @@ function pdfjsAssets() {
   };
 }
 
+// The version of the analyzer's rules the viewer runs: a digest of their
+// source, and of how the viewer shapes what they find. A reading kept on
+// a device (src/readingCache.js) is kept under it, so one made by other
+// rules is never shown.
+const rulesDir = join(dirname(new URL(import.meta.url).pathname), '../host/analyzer/src/rules');
+const rulesVersion = (() => {
+  const hash = createHash('sha256');
+  for (const name of readdirSync(rulesDir).sort()) hash.update(name).update(readFileSync(join(rulesDir, name)));
+  hash.update(readFileSync(new URL('./src/paperReading.js', import.meta.url)));
+  return hash.digest('hex').slice(0, 16);
+})();
+
 // Served by the Worker under /viewer/, so every asset URL is
 // relative — the app must work at that subpath and behind the proxy.
 export default defineConfig(({ command }) => ({
   base: command === 'serve' ? '/viewer/' : './',
   plugins: [react(), pdfjsAssets()],
+  define: { __PAPOL_RULES_VERSION__: JSON.stringify(rulesVersion) },
   // Desktop-only UI is shared from the frontend package. Without deduping,
   // a production build resolves React once from each package's node_modules;
   // hooks in the shared components then run against the wrong dispatcher.

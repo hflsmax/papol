@@ -264,6 +264,42 @@ export const SECTION_SCANNED = rule({
   summary: "On a scanned page, a numbered title in capitals alone on its row and narrower than the measure is a heading, in place of the bold-or-larger test.",
   why: "A scan's text layer has no bold and sizes that wander by half a point; the small-caps headings failed, and two run-in list items measured large were taken instead (Lamport, Shostak and Pease).",
 });
+export const SECTION_UNNUMBERED_NAME = rule({
+  id: "section.unnumbered-name", stage: "section",
+  summary: "A line alone on its row, set apart from the text (mostly bold, larger, or in capitals), narrower than the measure and outside any float, that is one of the names papers give their sections (\"Introduction\", \"Related Work\", \"Materials and Methods\", \"References\" …) heads an unnumbered section.",
+  why: "A PDF with no outline still needs a contents for the Navigator, and what a paper leaves unnumbered — Abstract and References in a numbered paper, every heading in a journal's — section.heading never reads.",
+  pattern: /^(?:abstract|summary|introduction|background|motivation|overview|preliminaries|related work|previous work|prior work|methods?|methodology|materials and methods|methods and materials|approach|experiments?|experimental setup|evaluation|results|results and discussion|discussion|analysis|limitations|future work|conclusions?|concluding remarks|conclusions? and future work|summary and conclusions?|acknowledge?ments?|references|bibliography|literature cited|works cited|appendix(?: [A-Z])?|appendices|supplementary material|supplementary information|statement of need|significance|data availability|code availability|author contributions|competing interests|funding)[.:]?$/i,
+  matches: ["Introduction", "INTRODUCTION", "Related Work", "Materials and Methods", "References", "Acknowledgments", "Conclusions.", "Appendix A", "Statement of need"],
+  rejects: ["Introduction to the theory", "The results show that", "In this section we", "Methods of proof are", "Figure 1"],
+});
+export const SECTION_CONTENTS_PAGE = rule({
+  id: "section.contents-page", stage: "section",
+  summary: "A numbered line with a bare page number level with it on its right, apart, is a contents entry; and a page with a line \"Contents\" (or \"Table of Contents\") on which three lines in ten end in a page number, and the pages after it that go on so, are the paper's table of contents: nothing on them heads a section.",
+  why: "A book or thesis lists every heading ahead of itself; read as headings, those lines took each number from the chapter it names (Programming Languages: Application and Interpretation, 17 chapters all placed on page 3).",
+});
+export const SECTION_HEADING_FACE = rule({
+  id: "section.heading-face", stage: "section",
+  summary: "For the contents, a line is set apart from the text — as bold or a larger size set it apart for section.heading and section.roman — when it is in capitals, or every letter of it is upright and in a font that is not the text's and sets under 3% of the paper.",
+  why: "IEEE sets \"I. INTRODUCTION\" in small capitals at the text's size, and some publishers' heading faces have names that say nothing of weight (\"AdvPS6F01\" beside the text's \"AdvPS6F00\"); either paper had no contents at all.",
+});
+export const SECTION_IN_SEQUENCE = rule({
+  id: "section.in-sequence", stage: "section",
+  summary: "For the contents, numbered sections are kept only where there are two or more; each when, in reading order, it is the next number or the one after; a subsection when its section is kept. A numbered line running on past a stop into more than eight words is a numbered paragraph, and leaves its number to a later line.",
+  why: "A numbered list item or a figure's panel set in bold passes section.heading; in a contents it put \"15\" and \"21\" among sections 1 to 5.",
+});
+// What opens a line set like a heading and is not one, in any case.
+const anyCase = (word: string) => word.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const NOT_A_HEADING = ["fig", "figure", "table", "tab", "eq", "equation", "theorem", "lemma", "proof", "definition", "corollary", "proposition", "remark", "example",
+  "algorithm", "listing", "keywords", "keyword", "index terms", "general terms", "categories and subject descriptors", "ccs concepts", "acm reference format",
+  "table of contents", "contents"].map(anyCase).join("|");
+export const SECTION_UNNUMBERED_STYLE = rule({
+  id: "section.unnumbered-style", stage: "section",
+  summary: "After section.unnumbered-name, a line alone on its row set in the font and size of at least two headings already found — named ones, or the numbered sections — and reading as a title (a capital, at most twelve words, no closing stop after a sentence), heads an unnumbered section too.",
+  why: "A journal names only some of its sections from a common stock (\"Introduction\", \"Discussion\"); the rest (\"Graphene growth on copper\") share their style, which is the paper's own sign of a heading.",
+  pattern: new RegExp(`^(?=\\p{Lu})(?![IVX]{1,5}\\.\\s)(?!(?:${NOT_A_HEADING})\\b)(?!.*[.,;]$)(?:\\S+\\s+){0,11}\\S+$`, "u"),
+  matches: ["Graphene growth on copper", "Statement of need", "THE ARCHITECTURE", "Why functional programming matters"],
+  rejects: ["Figure 3", "Theorem 2.", "lower-case start of a sentence", "One two three four five six seven eight nine ten eleven twelve thirteen", "4.3 [D1] Discover", "II. METHODS", "Keywords", "General Terms", "It ends as a sentence does."],
+});
 export const MENTION_CITED = rule({
   id: "mention.cited", stage: "mention",
   summary: "A mention of a section, figure or table is no link when it points into a cited work: inside a citation's bracket after the citation and a comma (\"[Annenkov et al. 2019, Section 2.3]\", \"[16, Fig. 1]\", \"Lang (2003, Sec. 9.11)\"), or followed by \"of\"/\"in\" and a citation or the supplementary material (\"Figure 2 of Connelly et al. 2003\").",

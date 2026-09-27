@@ -7,7 +7,7 @@
 // place on a page.
 
 import { least, most } from "./numbers";
-import type { Doc, Drawn, Page, Run } from "./pdf";
+import type { Doc, Drawn, Page, Run } from "./page";
 
 export interface Placed extends Run {
   sup: boolean; // raised and smaller than its line: a superscript
