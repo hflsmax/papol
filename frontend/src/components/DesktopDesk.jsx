@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { deleteBoard, updateBoard } from '../../../shared/api/boards.js';
 import { getNook } from '../../../shared/api/people.js';
 import { paperName } from '../../../shared/paperName.js';
-import { deletePaper, listPapers, paperHref, updatePaper } from '../../../shared/api/papers.js';
+import { listPapers, paperHref } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
   PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInListing,
@@ -18,8 +17,6 @@ import FolderImport from './FolderImport';
 import BoardCreateForm from './BoardCreateForm';
 import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
-import { confirmAction } from '../../../shared/confirmAction';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
@@ -130,7 +127,6 @@ export function DesktopBrowser({
   // or several PDFs dropped or chosen there.
   const [folderRequest, setFolderRequest] = useState(null);
   const [draggingSha256, setDraggingSha256] = useState(null);
-  const [actionError, setActionError] = useState(null);
   const [selectedBoardUuid, setSelectedBoardUuid] = useState(null);
   const listRef = useRef(null);
   const paperSha256 = route.page === 'paper' ? route.uuid : null;
@@ -207,43 +203,6 @@ export function DesktopBrowser({
 
   const canCompose = Boolean(nook) && !libraryView;
   const listingHome = () => onNavigate(listingPath(listing));
-  const movePaper = async (paper, shelfUuid) => {
-    setActionError(null);
-    try {
-      await updatePaper(paper.sha256, { shelf_uuid: shelfUuid });
-      reload();
-    } catch (error) { setActionError(error.message); }
-  };
-  const moveBoard = async (board, shelfUuid) => {
-    setActionError(null);
-    try {
-      await updateBoard(board.uuid, { shelf_uuid: shelfUuid });
-      reload();
-      return true;
-    } catch (error) {
-      setActionError(error.message);
-      return false;
-    }
-  };
-  const removePaper = async (paper) => {
-    if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
-    setActionError(null);
-    try {
-      await deletePaper(paper.sha256);
-      if (isSelected(paper)) listingHome();
-      reload();
-    } catch (error) { setActionError(error.message); }
-  };
-  const removeBoard = async (board) => {
-    if (!(await confirmAction(`Delete “${board.name}”? This cannot be undone.`, { confirmLabel: 'Delete board', destructive: true }))) return;
-    setActionError(null);
-    try {
-      await deleteBoard(board.uuid);
-      if (selectedBoardUuid === board.uuid) setSelectedBoardUuid(null);
-      reload();
-    } catch (error) { setActionError(error.message); }
-  };
-
   const moveSelection = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const entries = boardsView ? shownBoards : shownPapers;
@@ -449,7 +408,6 @@ export function DesktopBrowser({
           />
         </label>
         <div className="desktop-list" ref={listRef} onKeyDown={moveSelection}>
-          {actionError && <p className="desktop-list-empty" role="alert">{actionError}</p>}
           {emptyList ? (
             <p className="desktop-list-empty">{emptyList}</p>
           ) : boardsView ? (
@@ -472,20 +430,6 @@ export function DesktopBrowser({
                   event.preventDefault();
                   onOpenBoard(board.uuid);
                 }}
-                onContextMenu={contextMenuHandler(() => [
-                  { label: 'Open Board', onSelect: () => onOpenBoard(board.uuid) },
-                  shelves.length > 0 && { separator: true },
-                  shelves.length > 0 && {
-                    label: 'Move to Shelf',
-                    submenu: shelves.map((item) => ({
-                      label: item.name,
-                      checked: item.uuid === board.shelf_uuid,
-                      onSelect: () => item.uuid !== board.shelf_uuid && moveBoard(board, item.uuid),
-                    })),
-                  },
-                  { separator: true },
-                  { label: 'Delete Board…', onSelect: () => removeBoard(board) },
-                ])}
               >
                 <span
                   className="desktop-row-swatch"
@@ -522,20 +466,6 @@ export function DesktopBrowser({
                     setDraggingSha256(paper.sha256);
                   }}
                   onDragEnd={() => setDraggingSha256(null)}
-                  onContextMenu={contextMenuHandler(() => [
-                    { label: 'Open Paper', onSelect: () => onNavigate(`/paper/${paperName(paper.sha256)}`) },
-                    !libraryView && shelves.length > 0 && { separator: true },
-                    !libraryView && shelves.length > 0 && {
-                      label: 'Move to Shelf',
-                      submenu: shelves.map((item) => ({
-                        label: item.name,
-                        checked: item.uuid === paper.shelf_uuid,
-                        onSelect: () => item.uuid !== paper.shelf_uuid && movePaper(paper, item.uuid),
-                      })),
-                    },
-                    !libraryView && { separator: true },
-                    !libraryView && { label: 'Remove from My Nook…', onSelect: () => removePaper(paper) },
-                  ])}
                 >
                   {shelfColor && (
                     <span className="desktop-row-swatch" style={{ background: shelfColor }} aria-hidden="true" />

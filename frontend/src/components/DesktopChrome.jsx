@@ -5,7 +5,6 @@ import Glyph from './DesktopGlyph';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../../../shared/connectivity.js';
 import {
   nativeDataActive, nativeRepository, nativeSyncInProgress, subscribeNativeData,
@@ -228,8 +227,6 @@ function SyncControl({ onReportableError, onSynced }) {
 
 export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
-  const openPath = (path) => onNavigate(path);
-
   // Shelves accept a paper dragged from the list, the way a Finder sidebar
   // accepts files: the shelf lights up under the pointer and takes the paper
   // on release.
@@ -289,11 +286,6 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
               aria-current={item.active ? 'page' : undefined}
               title={item.shortcut ? `${item.title || item.label} (${MOD}${item.shortcut})` : item.title}
               draggable="false"
-              onContextMenu={contextMenuHandler(() => [
-                { label: 'Open', shortcut: item.shortcut ? `${MOD}${item.shortcut}` : undefined, onSelect: () => openPath(item.path) },
-                item.shelfUuid != null && onManageNook && { separator: true },
-                item.shelfUuid != null && onManageNook && { label: 'Manage Shelves…', onSelect: onManageNook },
-              ])}
               {...shelfDropProps(item)}
             >
               <ItemMark item={item} />
@@ -312,9 +304,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
       ))}
       {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
       <div className="desktop-sidebar-footer">
-        <button type="button" className="desktop-sidebar-item" onClick={onFeedback} onContextMenu={contextMenuHandler(() => [
-          { label: 'Feedback…', onSelect: onFeedback },
-        ])}>
+        <button type="button" className="desktop-sidebar-item" onClick={onFeedback}>
           <Glyph name="feedback" />
           <span className="desktop-sidebar-text">Feedback</span>
         </button>
@@ -326,9 +316,6 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
               aria-current={profileActive ? 'page' : undefined}
               title="Edit profile"
               draggable="false"
-              onContextMenu={contextMenuHandler(() => [
-                { label: 'Edit Profile…', onSelect: () => openPath('/profile') },
-              ])}
             >
               <Avatar user={user} className="desktop-sidebar-avatar" />
               <span className="desktop-sidebar-text">{user.display_name}</span>

@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './configurePlatform.js'
 import '../../shared/desktopShell'
+// Papol macOS stays quiet on right-click, as a native app does.
+import '../../shared/contextMenu'
 import App from './App.jsx'
 import { hydrateCredential } from '../../shared/credentials.js'
 import { getStartupUser } from '../../shared/api/account.js'

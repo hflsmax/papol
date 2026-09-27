@@ -77,7 +77,7 @@ import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import {
   DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
 } from '../../shared/macHandoff.js';
-import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
+import '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 import { showInNookTarget } from './nookOffer.js';
@@ -3259,12 +3259,6 @@ export default function App() {
   };
 
   // From the context menu, where what is wanted has already been said.
-  const openNoteCard = (note, field) => {
-    goToNote(note);
-    setActiveNoteUuid(note.uuid);
-    setNoteCardFocus(field);
-  };
-
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
@@ -3356,27 +3350,6 @@ export default function App() {
       setError(e.message);
     }
   };
-
-  // An anchor in a shared reading is somewhere to go, and nothing else.
-  const noteContextMenu = (event, note) => openContextMenu(event, readOnly ? [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-  ] : [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => openNoteCard(note, 'text') },
-    { label: 'Rename Anchor…', onSelect: () => openNoteCard(note, 'name') },
-    { separator: true },
-    { label: 'Delete Anchor', onSelect: () => removeNote(note.uuid) },
-    { separator: true },
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ]);
-
-  const pageContextMenu = contextMenuHandler((event) => (
-    !readOnly && event.target.closest?.('.pdf-page')
-  ) ? [
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ] : []);
 
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
@@ -4475,7 +4448,6 @@ export default function App() {
           className="pages"
           ref={scrollerRef}
           aria-busy={!doc}
-          onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
             const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
@@ -4591,7 +4563,6 @@ export default function App() {
               onSelectClip={setSelectedClipUuid}
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
-              onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}
