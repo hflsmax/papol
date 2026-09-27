@@ -23,7 +23,7 @@ const MOD = MAC ? '⌘' : 'Ctrl+';
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
 // are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
+export function desktopNavigation({ user, route, unreadCount, projectNewCount, nook, listing }) {
   const page = route.page;
   if (!user) {
     return [
@@ -79,6 +79,7 @@ export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
       label: 'Papol',
       items: [
         { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
+        { key: 'projects', label: 'Projects', path: '/projects', glyph: 'folder', active: ['projects', 'project', 'invitation'].includes(page), count: projectNewCount, unread: true },
         { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
         { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
         ...(user.is_admin
@@ -94,6 +95,9 @@ const TITLES = {
   paper: 'Paper',
   papers: 'Desk',
   room: 'Seminar',
+  projects: 'Projects',
+  project: 'Project',
+  invitation: 'Invitation',
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',

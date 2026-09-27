@@ -11,6 +11,7 @@ import { writeSynced } from "../sync/write";
 import { effortByPaper } from "./activity";
 import * as validate from "../validate";
 import { boardOut, userPublic } from "./boards";
+import { projectsOfUser } from "./projects";
 
 interface Shelf extends Row {
   uuid: string;
@@ -96,6 +97,7 @@ export function nookRoutes(router: Router) {
       papers: entries.map((p) => ({ ...p, effort: effort?.get(p.sha256 as string) ?? null })),
       boards: outBoards,
       stats, tags,
+      projects: await projectsOfUser(env, user.uuid, me),
       shelves: await Promise.all(shelves.map((s) => shelfOut(env, s))),
     });
   });

@@ -29,6 +29,9 @@ const pages = [
   { path: `/u/${USER_UUID}`, page: 'nook' },
   { path: `/room/${USER_UUID}`, page: 'room' },
   { path: '/library', page: 'papers' },
+  { path: '/projects', page: 'projects' },
+  { path: `/project/${USER_UUID}`, page: 'project' },
+  { path: '/projects/join/Ab3dE5gH7j', page: 'invitation' },
   { path: '/learn', page: 'learn' },
   { path: '/signin', page: 'signin' },
 ];

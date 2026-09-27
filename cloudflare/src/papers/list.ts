@@ -30,7 +30,19 @@ export async function roomStatusMap(db: D1Database): Promise<Map<string, string>
 // Every displayed copy of these papers, with its user: the readers shown
 // against a paper, which is each user's own business to be among. Of each
 // copy, only what its user lets be seen.
-export async function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
+export function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
+  return shownCopies(db, digests, { join: "JOIN shelves s ON s.uuid = c.shelf_uuid AND s.is_public = 1" });
+}
+
+// Every copy these users keep of these papers, on whatever shelf: the
+// members of a project, who joined it trusting each other. Of each copy,
+// still only what its user lets be seen.
+export function membersCopies(db: D1Database, digests: string[], userUuids: string[]): Promise<Map<string, UserEntry[]>> {
+  if (!userUuids.length) return Promise.resolve(new Map());
+  return shownCopies(db, digests, { where: `AND c.user_uuid IN (${userUuids.map(() => "?").join(",")})`, binds: userUuids });
+}
+
+async function shownCopies(db: D1Database, digests: string[], { join = "", where = "", binds = [] as string[] }): Promise<Map<string, UserEntry[]>> {
   const shown = new Map<string, UserEntry[]>();
   if (!digests.length) return shown;
   const rows = await all<Row>(
@@ -38,10 +50,10 @@ export async function displayedCopies(db: D1Database, digests: string[]): Promis
     `SELECT c.uuid, c.paper_sha256, c.is_author, c.thought, c.rating_expertise, c.rating_reading, c.rating_liking, c.summary,
             c.thought_public, c.ratings_public, c.summary_public, c.tags_public,
             u.uuid AS user_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
-     FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid JOIN users u ON u.uuid = c.user_uuid
-     WHERE c.deleted_at IS NULL AND s.is_public = 1 AND c.paper_sha256 IN (${digests.map(() => "?").join(",")})
+     FROM copies c ${join} JOIN users u ON u.uuid = c.user_uuid
+     WHERE c.deleted_at IS NULL ${where} AND c.paper_sha256 IN (${digests.map(() => "?").join(",")})
      ORDER BY c.created_at, c.uuid`,
-    ...digests,
+    ...binds, ...digests,
   );
   const tags = await tagsOf(db, rows.filter((row) => row.tags_public).map((row) => row.uuid as string));
   for (const row of rows) {

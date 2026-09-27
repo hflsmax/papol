@@ -5610,6 +5610,234 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 }
 ${desktopStyles}
 
+/* Projects: a list of them, one of them, and the link that lets someone in. */
+.projects-page,
+.project-page {
+  max-width: 760px;
+}
+
+.projects-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.projects-header h2 {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.project-rename {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+}
+
+.project-name-form,
+.project-invite {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.project-name-form input,
+.project-invite input,
+.project-picker-why {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: var(--fs-sm) var(--font-ui);
+}
+
+.project-invite input {
+  font-size: var(--fs-xs);
+}
+
+.project-list,
+.project-papers,
+.project-takes,
+.project-membership ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-row-name {
+  font-size: var(--fs-lg);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.project-row-name:hover {
+  color: var(--accent);
+}
+
+.project-row.closed .project-row-name {
+  color: var(--ink-soft);
+}
+
+.project-row-note {
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+}
+
+.project-row .project-members {
+  margin-left: auto;
+}
+
+.projects-subhead {
+  margin: var(--space-6) 0 var(--space-1);
+  color: var(--ink-soft);
+  font-size: var(--fs-md);
+}
+
+.project-new {
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+
+.project-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.project-keeper .mini-avatar {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.project-paper {
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-paper-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.project-paper .paper-meta {
+  margin: var(--space-1) 0 0;
+}
+
+.project-paper-added {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-1) 0 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+}
+
+.project-takes {
+  margin-top: var(--space-2);
+}
+
+.project-take {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--fs-sm);
+}
+
+.project-take-name {
+  font-weight: 600;
+}
+
+.project-take-thought {
+  color: var(--ink);
+}
+
+.project-take-none {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.project-take .rating-summary {
+  margin-left: auto;
+}
+
+.project-membership {
+  margin-top: var(--space-6);
+}
+
+.project-membership summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.project-membership li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.project-membership > .link-button {
+  margin-top: var(--space-3);
+}
+
+.project-invitation {
+  max-width: 480px;
+}
+
+.project-invitation .project-members {
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.project-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.project-picker-why {
+  margin-bottom: var(--space-1);
+}
+
+.paper-actions .project-picker > .project-picker-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.paper-actions .project-picker .project-picker-state {
+  display: inline;
+  margin: 0;
+}
+
+.nook-projects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-sm);
+}
+
+.nook-projects-label {
+  color: var(--ink-faint);
+}
+
 /* Product-wide motion preference. Component media rules can remove layout
    transitions more selectively, while this guarantees that no newly added
    animation escapes the user's operating-system preference. */

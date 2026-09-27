@@ -61,6 +61,10 @@ export async function gather(db: D1Database, user: User) {
   const boards = await all<Row>(db, "SELECT * FROM boards WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY created_at, uuid", user.uuid);
   const groups = await all<Row>(db, "SELECT g.* FROM board_groups g JOIN boards b ON b.uuid = g.board_uuid WHERE b.user_uuid = ? AND b.deleted_at IS NULL AND g.deleted_at IS NULL ORDER BY g.created_at, g.uuid", user.uuid);
   const items = await all<Row>(db, "SELECT i.* FROM board_items i JOIN boards b ON b.uuid = i.board_uuid WHERE b.user_uuid = ? AND b.deleted_at IS NULL AND i.deleted_at IS NULL ORDER BY i.created_at, i.uuid", user.uuid);
+  const projects = await all<Row>(db, `SELECT p.uuid, p.name, m.is_keeper, m.joined_at FROM projects p JOIN project_members m ON m.project_uuid = p.uuid
+    WHERE m.user_uuid = ? AND p.deleted_at IS NULL ORDER BY m.joined_at, p.uuid`, user.uuid);
+  const projectPapers = await all<Row>(db, `SELECT pp.project_uuid, pp.added_at, p.sha256, p.title, p.authors, p.journal, p.year, p.doi
+    FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 WHERE pp.added_by = ? ORDER BY pp.added_at, pp.uuid`, user.uuid);
   const activity = await all<Row>(db, `SELECT a.subject, a.started_at, a.ended_at, a.seconds, p.title
     FROM activity a LEFT JOIN papers p ON p.sha256 = a.subject WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
 
@@ -97,6 +101,11 @@ export async function gather(db: D1Database, user: User) {
         uuid: i.uuid, group_uuid: i.group_uuid ?? null, kind: i.kind, content: i.content, file: i.file_path, original_filename: i.original_filename,
         mime_type: i.mime_type, source_url: i.source_url, text_align: i.text_align, x: i.x, y: i.y, width: i.width, created: i.created_at,
       })),
+    })),
+    // The projects I am in, and the papers I added to each.
+    projects: projects.map((p) => ({
+      uuid: p.uuid, name: p.name, i_keep_it: Boolean(p.is_keeper), joined: p.joined_at,
+      papers_i_added: projectPapers.filter((pp) => pp.project_uuid === p.uuid).map((pp) => ({ paper: paperRef(pp), added: pp.added_at })),
     })),
     // Every stretch of time spent reading a paper.
     activity: activity.map((a) => ({

@@ -89,3 +89,10 @@ test("a board link opens that board's jacket, not its canvas", () => {
   assert.deepEqual(parseRoute(`/board/${UUID}`), { page: 'board', uuid: UUID });
   assert.deepEqual(parseRoute(`/board/${UUID}/`), { page: 'board', uuid: UUID });
 });
+
+test('projects have a list, a page each, and an invitation link read as written', () => {
+  assert.deepEqual(parseRoute('/projects'), { page: 'projects' });
+  assert.deepEqual(parseRoute(`/project/${UUID}`), { page: 'project', uuid: UUID });
+  assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
+  assert.equal(parseRoute('/projects/join/short').page, 'home');
+});

@@ -20,6 +20,10 @@ import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
 import AboutPage from './components/AboutPage';
 import LearnPage from './components/LearnPage';
+import ProjectsPage from './components/ProjectsPage';
+import ProjectPage from './components/ProjectPage';
+import InvitationPage from './components/InvitationPage';
+import { listProjects } from '../../shared/api/projects.js';
 import Avatar from './components/Avatar';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
@@ -61,6 +65,7 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'projects', 'project', 'invitation',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -146,6 +151,8 @@ export default function App({ startupUser = null, startupError = null }) {
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [projectsRevision, setProjectsRevision] = useState(0);
+  const [projectNewCount, setProjectNewCount] = useState(0);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
   const [deskFileDrag, setDeskFileDrag] = useState(null);
@@ -366,6 +373,19 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
   }, [user, route]);
 
+  // What other members added to my projects since I last opened each.
+  useEffect(() => {
+    if (!user) {
+      setProjectNewCount(0);
+      return;
+    }
+    listProjects()
+      .then((projects) => setProjectNewCount(
+        projects.reduce((sum, project) => sum + (project.is_member ? project.new_count || 0 : 0), 0),
+      ))
+      .catch(() => {});
+  }, [user, route, projectsRevision]);
+
   useEffect(() => {
     let cancelled = false;
     if (mode !== 'signed-in' || !getToken()) {
@@ -447,7 +467,7 @@ export default function App({ startupUser = null, startupError = null }) {
     lastShown: lastShownListing(),
   });
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, nook: nookState.nook, listing: desktopListing,
+    user, route, unreadCount, projectNewCount, nook: nookState.nook, listing: desktopListing,
   });
   useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 
@@ -683,6 +703,32 @@ export default function App({ startupUser = null, startupError = null }) {
           onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
         />
       )}
+      {route.page === 'projects' && (
+        <ProjectsPage
+          currentUser={user}
+          onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
+          onChanged={() => setProjectsRevision((r) => r + 1)}
+        />
+      )}
+      {route.page === 'project' && (
+        <ProjectPage
+          key={route.uuid}
+          projectUuid={route.uuid}
+          currentUser={user}
+          onBack={goBack}
+          backHref={backHref}
+          onChanged={() => setProjectsRevision((r) => r + 1)}
+          onLeft={() => navigate('/projects', { replace: true })}
+        />
+      )}
+      {route.page === 'invitation' && (
+        <InvitationPage
+          code={route.code}
+          currentUser={user}
+          onOpenProject={(uuid, options) => navigate(`/project/${uuid}`, options)}
+          onChanged={() => setProjectsRevision((r) => r + 1)}
+        />
+      )}
       {route.page === 'room' && (
         <RoomPage roomUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
       )}
@@ -844,6 +890,15 @@ export default function App({ startupUser = null, startupError = null }) {
                 }
               >
                 My nook
+              </a>
+            ) : null}
+            {user ? (
+              <a
+                href={appPath('/projects')}
+                className={['projects', 'project', 'invitation'].includes(route.page) ? 'active' : ''}
+              >
+                Projects
+                {projectNewCount > 0 && <span className="badge inbox-badge">{projectNewCount}</span>}
               </a>
             ) : (
               <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>

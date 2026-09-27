@@ -16,6 +16,7 @@ import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput } from './Rating';
 import ReaderPop from './ReaderPop';
+import ProjectPicker from './ProjectPicker';
 import VisibilityChip from './VisibilityChip';
 import Markdown, { MarkdownHint } from './Markdown';
 import appLimits from '../../../shared/appLimits.js';
@@ -846,6 +847,9 @@ export default function PaperJacket({
                   </div>
                 )}
               </div>
+            )}
+            {hasEntry && (
+              <ProjectPicker paper={paper} onThought={(thought) => loadPaper({ thought })} />
             )}
           </div>
 

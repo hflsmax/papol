@@ -7,6 +7,7 @@ import { type User } from "../auth";
 import { cohortUserUuids } from "../cohorts";
 import { all, now, one, statement, type Row } from "../db";
 import { boardFileKey, UPLOADS } from "../files";
+import { leaveAllProjects } from "../routes/projects";
 import { notify, saveRoom, type Room } from "../routes/rooms";
 
 // What a closed account is called wherever it still shows.
@@ -66,6 +67,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
   const files = await boardFiles(env, boardUuids);
   const seminars = await handOnSeminars(env, user.uuid);
+  const projects = await leaveAllProjects(env, user.uuid);
 
   // Private, and theirs alone; then out of the cohorts, since someone who
   // has closed their account is not going to turn up; then signed out and
@@ -95,7 +97,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const scrub = statement(db,
     "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, password_hash = ?, deleted_at = ? WHERE uuid = ?",
     `deleted-${user.uuid}@papol.invalid`, FORMER_USER, UNUSABLE_PASSWORD, now(), user.uuid);
-  const results = await db.batch([...counted.map(([, s]) => s), ...seminars.statements, scrub]);
+  const results = await db.batch([...counted.map(([, s]) => s), ...seminars.statements, ...projects, scrub]);
 
   const removed: Record<string, number> = {};
   counted.forEach(([name], i) => { removed[name] = results[i].meta.changes ?? 0; });

@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
+import { appPath } from '../base';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -141,6 +142,15 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           onClose={() => setManagingShelves(false)}
           onTagDeleted={(tagUuid) => { if (selectedTag === tagUuid) setSelectedTag(null); }}
         />
+      )}
+
+      {nook.projects?.length > 0 && (
+        <p className="nook-projects">
+          <span className="nook-projects-label">Projects</span>
+          {nook.projects.map((project) => (
+            <a key={project.uuid} href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
+          ))}
+        </p>
       )}
 
       <PaperList
