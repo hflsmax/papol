@@ -5187,6 +5187,8 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 /* Stands in the row after the name rather than pinned to the bar's centre:
    pinned there, a long name or a narrow window (a tablet) ran the two into
    each other. It gives way first when the row is short of room. */
+.board-toolbar-project { flex: 0 1 auto; min-width: 0; overflow: hidden; padding: 2px var(--space-2); border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 600 var(--fs-2xs) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.board-toolbar-project:hover { border-color: var(--accent); }
 .board-toolbar-edited { flex: 0 100 auto; min-width: 0; overflow: hidden; color: var(--ink-faint); cursor: default; font: var(--fs-2xs) var(--font-ui); user-select: none; white-space: nowrap; text-overflow: ellipsis; }
 @media (max-width: 900px) { .board-toolbar-edited { display: none; } }
 .board-readonly-badge { border-color: var(--line-strong); background: var(--paper); color: var(--ink-soft); }
@@ -5319,6 +5321,9 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-canvas-card.selected > .board-card-content,
 .board-canvas-card.selected > .board-card-content * { user-select: none; }
 .board-card-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
+.board-card-discussion { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: auto; border-radius: var(--radius); color: var(--accent); }
+.board-card-discussion:hover { background: var(--accent-soft); }
+.board-card-discussion .action-glyph { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .board-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .board-card-kind i { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--ink-soft); font-style: normal; font-size: 15px; font-weight: 700; line-height: 1; text-align: center; }
 .board-canvas-card.youtube .board-card-kind i,
@@ -5836,6 +5841,57 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-take-rating.is-empty { display: none; }
 }
 
+
+.project-section-action { margin-left: auto; }
+.project-discussion-mark { display: inline-flex; align-items: center; gap: 3px; margin-left: var(--space-2); color: var(--accent); text-decoration: none; }
+.project-discussion-mark:hover { text-decoration: underline; }
+.project-discussion-mark .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.project-discussion-mark.is-new { font-weight: 600; }
+
+.project-discussions { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.project-discussion + .project-discussion { border-top: 1px solid var(--line); }
+.project-discussion-link { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-discussion-link:hover, .project-discussion-link:focus-visible { background: color-mix(in srgb, var(--accent-soft) 60%, var(--card)); }
+.project-discussion-subject { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.project-discussion-kind { color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); font-variant: small-caps; letter-spacing: .04em; }
+.project-discussion-subject strong { flex: 1 1 14rem; min-width: 0; font-size: var(--fs-lg); font-weight: 600; line-height: 1.35; }
+.project-discussion-last { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--ink-soft); font-size: var(--fs-md); line-height: 1.5; }
+.project-discussion-last .mini-avatar { flex: none; margin-top: 2px; }
+.project-discussion-excerpt b { color: var(--ink); font-weight: 600; }
+.project-discussion-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+
+.project-board-form { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.project-board-form input { flex: 1 1 14rem; min-width: 0; }
+.project-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.project-board { display: flex; flex-direction: column; gap: var(--space-1); height: 100%; min-height: 6.5rem; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); text-decoration: none; transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+.project-board:hover, .project-board:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-md); }
+.project-board-name { font-size: var(--fs-lg); font-weight: 600; line-height: 1.3; }
+.project-board-description { color: var(--ink-soft); font-size: var(--fs-sm); }
+.project-board-meta { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+
+/* One discussion: its subject, its posts, and room to write at length. */
+.discussion-page { max-width: 46rem; margin: 0 auto; }
+.discussion-head { margin: var(--space-2) 0 var(--space-5); }
+.discussion-head .kicker { margin: 0 0 var(--space-1); }
+.discussion-head .kicker a { color: inherit; }
+.discussion-head .kicker a:hover { color: var(--accent); }
+.discussion-title { margin: 0; font-size: var(--fs-2xl); line-height: 1.25; }
+.discussion-card-label { font-style: italic; }
+.discussion-posts { margin: 0; padding: 0; list-style: none; }
+.discussion-post { position: relative; padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); border-left: 2px solid var(--line); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+.discussion-post + .discussion-post { margin-top: var(--space-3); }
+.discussion-post.is-selected { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding-right: calc(var(--space-7) + var(--space-6)); }
+.discussion-post-head .item-actions { position: absolute; top: var(--space-3); right: var(--space-3); }
+.discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
+.discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.discussion-post-body { font-size: var(--fs-md); line-height: 1.65; }
+.discussion-reply, .discussion-start { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.discussion-reply-heading { margin: 0 0 var(--space-2); color: var(--ink-soft); font: 600 var(--fs-sm) var(--font-ui); font-variant: small-caps; letter-spacing: .04em; }
+.discussion-start-note { margin: 0 0 var(--space-3); color: var(--ink-soft); font-size: var(--fs-sm); }
+.discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
+.discussion-composer-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+.discussion-composer-foot .md-hint { margin: 0 auto 0 0; }
 
 .project-invitation {
   display: flex;

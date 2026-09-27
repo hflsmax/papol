@@ -62,6 +62,44 @@ export function removePaperFromProject(uuid, paperSha256) {
   return request(`/projects/${uuid}/papers/${paperSha256}`, { method: 'DELETE' });
 }
 
+// A board the project holds, made by the member who asks.
+export function createProjectBoard(uuid, name) {
+  return jsonRequest(`/projects/${uuid}/boards`, 'POST', { name });
+}
+
+// ---------- Discussions ----------
+
+// A subject's discussion, if it has one, and what it is about.
+export function findDiscussion(projectUuid, { paper, card }) {
+  return request(`/projects/${projectUuid}/discussion?${paper ? `paper=${paper}` : `card=${card}`}`);
+}
+
+// The first post on a subject, or the next one if it has a discussion.
+export function startDiscussion(projectUuid, { paper, card }, body) {
+  return jsonRequest(`/projects/${projectUuid}/discussions`, 'POST', paper ? { paper_sha256: paper, body } : { board_item_uuid: card, body });
+}
+
+export function getDiscussion(uuid) {
+  return request(`/discussions/${uuid}`);
+}
+
+export function replyToDiscussion(uuid, body) {
+  return jsonRequest(`/discussions/${uuid}/posts`, 'POST', { body });
+}
+
+export function editDiscussionPost(uuid, body) {
+  return jsonRequest(`/discussion-posts/${uuid}`, 'PUT', { body });
+}
+
+export function deleteDiscussionPost(uuid) {
+  return request(`/discussion-posts/${uuid}`, { method: 'DELETE' });
+}
+
+// Where "Discuss" on a subject leads, on this deployment.
+export function discussPath(projectUuid, { paper, card }) {
+  return `/project/${projectUuid}/discuss/${paper ? `paper/${paper}` : `card/${card}`}`;
+}
+
 // Where an invitation link leads, on this deployment.
 export function invitationPath(code) {
   return `/projects/join/${code}`;

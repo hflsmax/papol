@@ -102,8 +102,14 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
   const items = await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", board.uuid);
   const active = items.filter((i) => !i.staged), staged = items.filter((i) => i.staged);
   const groups = includeItems ? await all<Group>(env.DB, "SELECT * FROM board_groups WHERE board_uuid = ? AND deleted_at IS NULL ORDER BY created_at, uuid", board.uuid) : [];
+  const project = await boardProject(env, board.uuid);
+  // Which cards have a discussion, for the members who can see them.
+  const discussions = includeItems && project && canEdit ? Object.fromEntries((await all<{ uuid: string; board_item_uuid: string }>(env.DB,
+    "SELECT uuid, board_item_uuid FROM discussions WHERE project_uuid = ? AND board_item_uuid IN (SELECT uuid FROM board_items WHERE board_uuid = ?)",
+    project.uuid, board.uuid)).map((d) => [d.board_item_uuid, d.uuid])) : {};
   return {
     uuid: board.uuid, revision: board.revision, user_uuid: board.user_uuid, owner: owner ? userPublic(owner) : null,
+    project, discussions,
     shelf_uuid: board.shelf_uuid, can_edit: canEdit, name: board.name, description: board.description,
     created_at: board.created_at, updated_at: board.updated_at, item_count: active.length,
     items: includeItems ? await Promise.all(active.map((i) => itemOut(env, i))) : [],
@@ -115,23 +121,40 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
 
 // ------------------------------------------------------------- ownership
 
+// The live project a board belongs to, if any.
+export async function boardProject(env: Env, boardUuid: string): Promise<{ uuid: string; name: string } | null> {
+  return one<{ uuid: string; name: string }>(env.DB,
+    `SELECT p.uuid, p.name FROM project_boards pb JOIN projects p ON p.uuid = pb.project_uuid
+     WHERE pb.board_uuid = ? AND p.deleted_at IS NULL`, boardUuid);
+}
+
+// A board is its maker's, and a project board is also every member's.
+async function mayEdit(env: Env, board: Board, user: User): Promise<boolean> {
+  if (board.user_uuid === user.uuid) return true;
+  return Boolean(await one(env.DB,
+    `SELECT 1 FROM project_boards pb JOIN projects p ON p.uuid = pb.project_uuid AND p.deleted_at IS NULL
+     JOIN project_members m ON m.project_uuid = pb.project_uuid AND m.user_uuid = ?
+     WHERE pb.board_uuid = ?`, user.uuid, board.uuid));
+}
+
 async function ownedBoard(env: Env, boardUuid: string, user: User): Promise<Board> {
-  const board = await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ? AND user_uuid = ? AND deleted_at IS NULL", boardUuid, user.uuid);
+  const board = await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ? AND deleted_at IS NULL", boardUuid);
   // Do not reveal whether another user's private board exists.
-  return board ?? refuse(404, "Board not found");
+  if (!board || !(await mayEdit(env, board, user))) refuse(404, "Board not found");
+  return board!;
 }
 
 async function ownedItem(env: Env, itemUuid: string, user: User, { deleted = false } = {}): Promise<Item & { board: Board }> {
   const item = await one<Item>(env.DB, "SELECT * FROM board_items WHERE uuid = ?", itemUuid);
   const board = item ? await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ?", item.board_uuid) : null;
-  if (!item || !board || board.user_uuid !== user.uuid || (!deleted && item.deleted_at)) refuse(404, "Board item not found");
+  if (!item || !board || !(await mayEdit(env, board, user)) || (!deleted && item.deleted_at)) refuse(404, "Board item not found");
   return { ...item!, board: board! };
 }
 
 async function ownedGroup(env: Env, groupUuid: string, user: User): Promise<Group & { board: Board }> {
   const group = await one<Group>(env.DB, "SELECT * FROM board_groups WHERE uuid = ?", groupUuid);
   const board = group ? await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ?", group.board_uuid) : null;
-  if (!group || group.deleted_at || !board || board.user_uuid !== user.uuid) refuse(404, "Board group not found");
+  if (!group || group.deleted_at || !board || !(await mayEdit(env, board, user))) refuse(404, "Board group not found");
   return { ...group!, board: board! };
 }
 
@@ -208,7 +231,8 @@ export function boardRoutes(router: Router) {
   router.on("GET", "/api/library/boards", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const boards = await all<Board>(env.DB,
-      "SELECT b.* FROM boards b JOIN shelves s ON s.uuid = b.shelf_uuid WHERE s.is_public = 1 AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid DESC");
+      `SELECT b.* FROM boards b JOIN shelves s ON s.uuid = b.shelf_uuid WHERE s.is_public = 1 AND b.deleted_at IS NULL
+       AND b.uuid NOT IN (SELECT board_uuid FROM project_boards) ORDER BY b.updated_at DESC, b.uuid DESC`);
     return json(await Promise.all(boards.map((b) => boardOut(env, b, { canEdit: b.user_uuid === user.uuid }))));
   });
 
@@ -226,7 +250,7 @@ export function boardRoutes(router: Router) {
       uuid: newUuid(), user_uuid: user.uuid, shelf_uuid: shelf, name: name!.trim(),
       description: description?.trim() || null, created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
-    await batch(env.DB, await writeSynced(env.DB, "boards", board, user.uuid, true));
+    await batch(env.DB, await writeSynced(env.DB, "boards", board, board.user_uuid, true));
     return json(await boardOut(env, board, { canEdit: true }));
   });
 
@@ -234,10 +258,11 @@ export function boardRoutes(router: Router) {
     const user = await currentUser(request, env);
     const board = await one<Board>(env.DB, "SELECT * FROM boards WHERE uuid = ? AND deleted_at IS NULL", params.uuid);
     if (!board) refuse(404, "Board not found");
-    const canEdit = board.user_uuid === user.uuid;
+    const canEdit = await mayEdit(env, board, user);
     if (!canEdit) {
+      // A project's board is its members' alone, whatever shelf it is on.
       const shelf = board.shelf_uuid ? await one<{ is_public: number }>(env.DB, "SELECT is_public FROM shelves WHERE uuid = ?", board.shelf_uuid) : null;
-      if (!shelf?.is_public) refuse(404, "Board not found");
+      if (!shelf?.is_public || await boardProject(env, board.uuid)) refuse(404, "Board not found");
     }
     return json(await boardOut(env, board, { includeItems: true, canEdit }));
   });
@@ -252,24 +277,32 @@ export function boardRoutes(router: Router) {
       board.description = check.string("description", data.description, { max: limits.text.board_description })?.trim() || null;
     }
     check.done();
-    if (data.shelf_uuid !== undefined && data.shelf_uuid !== null) board.shelf_uuid = await ownShelf(env, data.shelf_uuid, user);
-    await batch(env.DB, await writeSynced(env.DB, "boards", board, user.uuid, false));
+    if (data.shelf_uuid !== undefined && data.shelf_uuid !== null && data.shelf_uuid !== board.shelf_uuid) {
+      if (board.user_uuid !== user.uuid) refuse(403, "Only the member who made this board can shelve it");
+      board.shelf_uuid = await ownShelf(env, data.shelf_uuid, user);
+    }
+    await batch(env.DB, await writeSynced(env.DB, "boards", board, board.user_uuid, false));
     return json(await boardOut(env, board, { includeItems: true, canEdit: true }));
   });
 
   router.on("DELETE", "/api/boards/:uuid", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const board = await ownedBoard(env, params.uuid, user);
+    if (board.user_uuid !== user.uuid && !(await one(env.DB,
+      `SELECT 1 FROM project_boards pb JOIN project_members m ON m.project_uuid = pb.project_uuid
+       WHERE pb.board_uuid = ? AND m.user_uuid = ? AND m.is_keeper = 1`, board.uuid, user.uuid))) {
+      refuse(403, "Only the member who made this board, or a keeper, can delete it");
+    }
     const at = now();
     board.deleted_at = at;
-    const statements = await writeSynced(env.DB, "boards", board, user.uuid, false);
+    const statements = await writeSynced(env.DB, "boards", board, board.user_uuid, false);
     for (const group of await all<Group>(env.DB, "SELECT * FROM board_groups WHERE board_uuid = ?", board.uuid)) {
       group.deleted_at = at;
-      statements.push(...await writeSynced(env.DB, "board_groups", group, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_groups", group, board.user_uuid, false));
     }
     for (const item of await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ?", board.uuid)) {
       item.deleted_at = at;
-      statements.push(...await writeSynced(env.DB, "board_items", item, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
     }
     await batch(env.DB, statements);
     return new Response(null, { status: 204 });
@@ -408,7 +441,7 @@ export function boardRoutes(router: Router) {
     const hostname = new URL(url).hostname;
     const item = newItem(board, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
     const job = enqueue(env.DB, WEBPAGE, { item_uuid: item.uuid, url }, { userUuid: user.uuid });
-    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, user.uuid, true), touched(env, board), job.statement]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, true), touched(env, board), job.statement]);
     await wake(env, [job.uuid]);
     return json({ job: job.uuid, item: await itemOut(env, item) }, { status: 202 });
   });
@@ -417,7 +450,7 @@ export function boardRoutes(router: Router) {
     const user = await currentUser(request, env);
     const { board, ...item } = await ownedItem(env, params.uuid, user);
     item.deleted_at = now();
-    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, user.uuid, false), touched(env, board)]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, false), touched(env, board)]);
     return new Response(null, { status: 204 });
   });
 
@@ -495,12 +528,12 @@ export function boardRoutes(router: Router) {
       uuid: newUuid(), board_uuid: board.uuid, kind, title: title.trim(), header: header.trim() || null,
       auto_arrange: kind === "collection" && autoArrange ? 1 : 0, created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
-    const statements = await writeSynced(env.DB, "board_groups", group, user.uuid, true);
+    const statements = await writeSynced(env.DB, "board_groups", group, board.user_uuid, true);
     const anchorX = Math.min(...items.map((i) => i.x));
     for (const item of items) {
       item.group_uuid = group.uuid;
       if (kind === "booklet") item.x = anchorX;
-      statements.push(...await writeSynced(env.DB, "board_items", item, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return json(groupOut(group, itemUuids));
@@ -516,7 +549,7 @@ export function boardRoutes(router: Router) {
     for (const item of items) {
       item.x += dx;
       item.y += dy;
-      statements.push(...await writeSynced(env.DB, "board_items", item, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return json(await Promise.all(items.map((i) => itemOut(env, i))));
@@ -534,7 +567,7 @@ export function boardRoutes(router: Router) {
       if (group.kind !== "collection") refuse(400, "Only collections can use auto-arrange");
       group.auto_arrange = data.auto_arrange ? 1 : 0;
     }
-    await batch(env.DB, [...await writeSynced(env.DB, "board_groups", group, user.uuid, false), touched(env, board)]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_groups", group, board.user_uuid, false), touched(env, board)]);
     const members = await all<{ uuid: string }>(env.DB, "SELECT uuid FROM board_items WHERE group_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", group.uuid);
     return json(groupOut(group, members.map((m) => m.uuid)));
   });
@@ -555,7 +588,7 @@ export function boardRoutes(router: Router) {
       if (known!.n !== targets.length) refuse(400, "A previous group no longer exists");
     }
     group.deleted_at = now();
-    const statements = await writeSynced(env.DB, "board_groups", group, user.uuid, false);
+    const statements = await writeSynced(env.DB, "board_groups", group, board.user_uuid, false);
     const byUuid = new Map(members.map((m) => [m.uuid, m]));
     for (const entry of entries) {
       const item = byUuid.get(String(entry.uuid))!;
@@ -565,7 +598,7 @@ export function boardRoutes(router: Router) {
       item.group_uuid = target?.uuid ?? null;
       item.x = coordinate("x", entry.x)!;
       item.y = coordinate("y", entry.y)!;
-      statements.push(...await writeSynced(env.DB, "board_items", item, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return new Response(null, { status: 204 });
@@ -586,7 +619,7 @@ export function boardRoutes(router: Router) {
       const item = byUuid.get(String(entry.uuid))!;
       item.x = coordinate("x", entry.x)!;
       item.y = coordinate("y", entry.y)!;
-      statements.push(...await writeSynced(env.DB, "board_items", item, user.uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
       placed.push(item);
     }
     await batch(env.DB, [...statements, touched(env, board)]);

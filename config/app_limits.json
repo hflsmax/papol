@@ -59,6 +59,7 @@
     "tag_name": 60,
     "shelf_name": 40,
     "project_name": 80,
+    "discussion_post": 20000,
     "reference_key": 300,
     "reference_raw": 5000,
     "uploaded_filename": 255,

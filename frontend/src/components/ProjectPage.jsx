@@ -5,7 +5,7 @@ import ItemActions from '../../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  getProject, invitationPath, openInvitation, removeMember, removePaperFromProject, renameProject,
+  createProjectBoard, discussPath, getProject, invitationPath, openInvitation, removeMember, removePaperFromProject, renameProject,
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { addToNook } from '../../../shared/api/papers.js';
@@ -119,6 +119,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             onAddToNook={(paper) => act(async () => { await addToNook(paper.sha256); return getProject(project.uuid); })}
             onRemove={(paper) => act(() => removePaperFromProject(project.uuid, paper.sha256))}
           />
+          <ProjectDiscussions project={project} currentUser={currentUser} />
+          <ProjectBoards project={project} act={act} />
         </>
       )}
     </div>
@@ -244,6 +246,8 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
   }, [selected]);
 
+  const discussionOf = new Map((project.discussions ?? [])
+    .filter((d) => d.subject.kind === 'paper').map((d) => [d.subject.paper_sha256, d]));
   const rated = project.papers.some((p) => p.users.some((u) => TAKE_RATINGS.some((d) => u[d.key])));
   return (
     <section className="project-section" aria-labelledby="project-papers-heading">
@@ -262,7 +266,9 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
         <ul className="project-papers">
           {project.papers.map((paper) => {
             const mine = paper.added_by.uuid === currentUser?.uuid;
+            const discussion = discussionOf.get(paper.sha256);
             const actions = [
+              { key: 'discuss', label: discussion ? 'Open discussion' : 'Discuss', icon: <ActionGlyph name="discuss" />, onSelect: () => window.location.assign(appPath(discussion ? `/discussion/${discussion.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }))) },
               !paper.in_my_nook && { key: 'nook', label: 'Add to my nook', tone: 'accent', icon: <ActionGlyph name="add" />, onSelect: () => onAddToNook(paper) },
               (project.is_keeper || mine) && { key: 'out', label: 'Take out', danger: true, icon: <ActionGlyph name="take-out" />, onSelect: () => { setSelected(null); onRemove(paper); } },
             ].filter(Boolean);
@@ -298,10 +304,122 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
                     ))}
                   </ul>
                 )}
-                <p className="project-paper-added">Added by {mine ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}</p>
+                <p className="project-paper-added">
+                  Added by {mine ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
+                  {discussion && (
+                    <a className={`project-discussion-mark${discussion.is_new ? ' is-new' : ''}`} href={appPath(`/discussion/${discussion.uuid}`)}>
+                      <ActionGlyph name="discuss" />
+                      {discussion.post_count === 1 ? '1 post' : `${discussion.post_count} posts`}
+                    </a>
+                  )}
+                </p>
               </li>
             );
           })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function plural(count, one, many) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+// Every discussion in the project, the latest first, each with the start of
+// its newest post: enough to know whether to go and read it.
+function ProjectDiscussions({ project, currentUser }) {
+  const discussions = project.discussions ?? [];
+  return (
+    <section className="project-section" aria-labelledby="project-discussions-heading">
+      <header className="project-section-head">
+        <h3 id="project-discussions-heading">Discussions</h3>
+        {discussions.length > 0 && <span className="project-count">{discussions.length}</span>}
+      </header>
+      {!discussions.length ? (
+        <p className="project-empty">No discussions yet. Select a paper, or a card on a board, and choose <b>Discuss</b>.</p>
+      ) : (
+        <ul className="project-discussions">
+          {discussions.map((d) => {
+            const last = d.last_post;
+            return (
+              <li key={d.uuid} className="project-discussion">
+                <a className="project-discussion-link" href={appPath(`/discussion/${d.uuid}`)}>
+                  <span className="project-discussion-subject">
+                    <span className="project-discussion-kind">{d.subject.kind === 'paper' ? 'Paper' : `Card on ${d.subject.board_name}`}</span>
+                    <strong>{d.subject.label}</strong>
+                    {d.is_new && <span className="badge project-paper-new">New</span>}
+                  </span>
+                  {last && (
+                    <span className="project-discussion-last">
+                      <Avatar user={last.user} className="mini-avatar" />
+                      <span className="project-discussion-excerpt">
+                        <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b> {last.excerpt}
+                      </span>
+                    </span>
+                  )}
+                  <span className="project-discussion-meta">{plural(d.post_count, 'post', 'posts')} · {day(d.updated_at)}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// The project's boards, which every member arranges; one more is a name away.
+function ProjectBoards({ project, act }) {
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const boards = project.boards ?? [];
+  const create = async (e) => {
+    e.preventDefault();
+    const next = name.trim();
+    if (!next || busy) return;
+    setBusy(true);
+    const board = await act(() => createProjectBoard(project.uuid, next));
+    setBusy(false);
+    if (board) window.location.assign(appPath(`/boards/${board.uuid}`));
+  };
+  return (
+    <section className="project-section" aria-labelledby="project-boards-heading">
+      <header className="project-section-head">
+        <h3 id="project-boards-heading">Boards</h3>
+        {boards.length > 0 && <span className="project-count">{boards.length}</span>}
+        {!naming && (
+          <button type="button" className="project-quiet project-section-action" onClick={() => setNaming(true)}>New board</button>
+        )}
+      </header>
+      {naming && (
+        <form className="project-board-form" onSubmit={create}>
+          <input
+            autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setNaming(false); setName(''); } }}
+          />
+          <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
+          <button type="button" className="project-quiet" onClick={() => { setNaming(false); setName(''); }}>Cancel</button>
+        </form>
+      )}
+      {!boards.length ? (
+        !naming && <p className="project-empty">No boards yet. A board lays out papers, notes and figures for everyone here.</p>
+      ) : (
+        <ul className="project-boards">
+          {boards.map((board) => (
+            <li key={board.uuid}>
+              <a className="project-board" href={appPath(`/boards/${board.uuid}`)}>
+                <strong className="project-board-name">{board.name}</strong>
+                {board.description && <span className="project-board-description">{board.description}</span>}
+                <span className="project-board-meta">
+                  {board.owner && <Avatar user={board.owner} className="mini-avatar" />}
+                  {plural(board.item_count ?? 0, 'card', 'cards')} · {day(board.updated_at)}
+                </span>
+              </a>
+            </li>
+          ))}
         </ul>
       )}
     </section>

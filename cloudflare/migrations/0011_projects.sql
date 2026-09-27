@@ -51,3 +51,59 @@ CREATE TABLE project_papers (
 CREATE INDEX ix_project_papers_project_uuid ON project_papers (project_uuid);
 CREATE INDEX ix_project_papers_paper_sha256 ON project_papers (paper_sha256);
 CREATE INDEX ix_project_papers_added_by ON project_papers (added_by);
+
+-- A board the project holds. The board stays a board like any other, in
+-- the table the replicas know, owned by the member who made it (its
+-- changes are logged to them); this row is what lets every member edit
+-- it, and what keeps it off the Library and out of other people's view.
+CREATE TABLE project_boards (
+	uuid VARCHAR(36) NOT NULL,
+	project_uuid VARCHAR(36) NOT NULL,
+	board_uuid VARCHAR(36) NOT NULL,
+	created_at DATETIME NOT NULL,
+	PRIMARY KEY (uuid),
+	CONSTRAINT uq_project_board UNIQUE (board_uuid),
+	FOREIGN KEY(project_uuid) REFERENCES projects (uuid),
+	FOREIGN KEY(board_uuid) REFERENCES boards (uuid)
+);
+CREATE INDEX ix_project_boards_project_uuid ON project_boards (project_uuid);
+CREATE INDEX ix_project_boards_board_uuid ON project_boards (board_uuid);
+
+-- A discussion: long-form writing about one thing in a project, a paper
+-- or a card on one of its boards. One discussion per subject, so the
+-- place to talk about something is always the same place.
+CREATE TABLE discussions (
+	uuid VARCHAR(36) NOT NULL,
+	project_uuid VARCHAR(36) NOT NULL,
+	paper_sha256 VARCHAR(64),
+	board_item_uuid VARCHAR(36),
+	started_by VARCHAR(36) NOT NULL,
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL,
+	PRIMARY KEY (uuid),
+	CONSTRAINT uq_discussion_paper UNIQUE (project_uuid, paper_sha256),
+	CONSTRAINT uq_discussion_card UNIQUE (project_uuid, board_item_uuid),
+	FOREIGN KEY(project_uuid) REFERENCES projects (uuid),
+	FOREIGN KEY(paper_sha256) REFERENCES papers (sha256),
+	FOREIGN KEY(board_item_uuid) REFERENCES board_items (uuid),
+	FOREIGN KEY(started_by) REFERENCES users (uuid)
+);
+CREATE INDEX ix_discussions_project_uuid ON discussions (project_uuid);
+CREATE INDEX ix_discussions_paper_sha256 ON discussions (paper_sha256);
+CREATE INDEX ix_discussions_board_item_uuid ON discussions (board_item_uuid);
+CREATE INDEX ix_discussions_started_by ON discussions (started_by);
+
+-- What members wrote in a discussion, oldest first.
+CREATE TABLE discussion_posts (
+	uuid VARCHAR(36) NOT NULL,
+	discussion_uuid VARCHAR(36) NOT NULL,
+	user_uuid VARCHAR(36) NOT NULL,
+	body TEXT NOT NULL,
+	created_at DATETIME NOT NULL,
+	edited_at DATETIME,
+	PRIMARY KEY (uuid),
+	FOREIGN KEY(discussion_uuid) REFERENCES discussions (uuid),
+	FOREIGN KEY(user_uuid) REFERENCES users (uuid)
+);
+CREATE INDEX ix_discussion_posts_discussion_uuid ON discussion_posts (discussion_uuid);
+CREATE INDEX ix_discussion_posts_user_uuid ON discussion_posts (user_uuid);

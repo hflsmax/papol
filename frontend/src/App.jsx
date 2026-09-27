@@ -22,6 +22,7 @@ import AboutPage from './components/AboutPage';
 import LearnPage from './components/LearnPage';
 import ProjectsPage from './components/ProjectsPage';
 import ProjectPage from './components/ProjectPage';
+import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from './components/Avatar';
@@ -65,7 +66,7 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation',
+  'projects', 'project', 'invitation', 'discussion', 'discuss',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -721,6 +722,19 @@ export default function App({ startupUser = null, startupError = null }) {
           onLeft={() => navigate('/projects', { replace: true })}
         />
       )}
+      {route.page === 'discussion' && (
+        <DiscussionPage key={route.uuid} discussionUuid={route.uuid} onBack={goBack} backHref={backHref} />
+      )}
+      {route.page === 'discuss' && (
+        <StartDiscussionPage
+          key={`${route.subject.kind}/${route.subject.id}`}
+          projectUuid={route.uuid}
+          subject={route.subject}
+          onBack={goBack}
+          backHref={backHref}
+          onOpen={(uuid) => navigate(`/discussion/${uuid}`, { replace: true })}
+        />
+      )}
       {route.page === 'invitation' && (
         <InvitationPage
           code={route.code}
@@ -895,7 +909,7 @@ export default function App({ startupUser = null, startupError = null }) {
             {user ? (
               <a
                 href={appPath('/projects')}
-                className={['projects', 'project', 'invitation'].includes(route.page) ? 'active' : ''}
+                className={['projects', 'project', 'invitation', 'discussion', 'discuss'].includes(route.page) ? 'active' : ''}
               >
                 Projects
                 {projectNewCount > 0 && <span className="badge inbox-badge" title={`${projectNewCount} new papers`}>{projectNewCount}</span>}

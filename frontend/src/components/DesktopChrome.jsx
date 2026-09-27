@@ -78,7 +78,7 @@ export function desktopNavigation({ user, route, unreadCount, projectNewCount, n
       label: 'Papol',
       items: [
         { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
-        { key: 'projects', label: 'Projects', path: '/projects', glyph: 'folder', active: ['projects', 'project', 'invitation'].includes(page), count: projectNewCount, unread: true },
+        { key: 'projects', label: 'Projects', path: '/projects', glyph: 'folder', active: ['projects', 'project', 'invitation', 'discussion', 'discuss'].includes(page), count: projectNewCount, unread: true },
         { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
         { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
         ...(user.is_admin
@@ -97,6 +97,8 @@ const TITLES = {
   projects: 'Projects',
   project: 'Project',
   invitation: 'Invitation',
+  discussion: 'Discussion',
+  discuss: 'Discussion',
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',

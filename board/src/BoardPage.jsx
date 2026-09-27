@@ -1483,6 +1483,13 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       setMarquee(null);
     }
   };
+  // A card's discussion lives in the project, outside the canvas: one per
+  // card, so Discuss always leads to the same place.
+  const openDiscussion = (item) => {
+    const found = board.discussions?.[item.uuid];
+    window.location.assign(appPath(found ? `/discussion/${found}` : `/project/${board.project.uuid}/discuss/card/${item.uuid}`));
+  };
+
   const removeItem = async (item, ask = true) => {
     if (ask && !(await confirmAction('Remove this card?', { confirmLabel: 'Remove', destructive: true }))) return;
     setBusy(true); setError(null);
@@ -2104,6 +2111,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             </svg>
           </BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
+      {board.project && <a className="board-toolbar-project" href={appPath(`/project/${board.project.uuid}`)} title="Open project">{board.project.name}</a>}
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
@@ -2188,12 +2196,19 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>
+            {board.discussions?.[item.uuid] && <a className="board-card-discussion" href={appPath(`/discussion/${board.discussions[item.uuid]}`)} title="Open discussion" aria-label="Open discussion" onPointerDown={(event) => event.stopPropagation()}><ActionGlyph name="discuss" /></a>}
             {selectedItems.length === 1 && selectedItems[0] === item.uuid && (board.can_edit || item.source_url || item.kind !== 'comment') && (
               <ItemActions
                 className="board-card-action-menu"
                 label={`${itemTypeLabels[item.kind]} card actions`}
                 placement="right-start"
                 actions={[
+                  board.project && board.can_edit && {
+                    label: board.discussions?.[item.uuid] ? 'Open discussion' : 'Discuss',
+                    icon: <ActionGlyph name="discuss" />,
+                    tone: 'accent',
+                    onSelect: () => openDiscussion(item),
+                  },
                   item.source_url && {
                     label: VIDEO_KINDS.includes(item.kind) ? 'Open video' : 'Open source in viewer',
                     icon: <ActionGlyph name={VIDEO_KINDS.includes(item.kind) ? 'external' : 'backlink'} />,

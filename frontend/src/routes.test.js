@@ -96,3 +96,11 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
   assert.equal(parseRoute('/projects/join/short').page, 'home');
 });
+
+test('a discussion has a page, and Discuss on a paper or a card leads to one', () => {
+  const DIGEST64 = 'ab'.repeat(32);
+  assert.deepEqual(parseRoute(`/discussion/${UUID}`), { page: 'discussion', uuid: UUID });
+  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/paper/${DIGEST64}`), { page: 'discuss', uuid: UUID, subject: { kind: 'paper', id: DIGEST64 } });
+  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/card/${UUID}`), { page: 'discuss', uuid: UUID, subject: { kind: 'card', id: UUID } });
+  assert.equal(parseRoute(`/project/${UUID}/discuss/paper/abc`).page, 'home');
+});
