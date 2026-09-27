@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { stopBrowser } from '../smoke-harness.mjs';
 
 // CHROME names the binary. Unset, the Chrome the machine already has: a
 // Mac's in /Applications, else the first on PATH — `google-chrome` is
@@ -66,7 +67,8 @@ export class Browser {
       'about:blank',
     ];
     if (this.headless) args.unshift('--headless=new');
-    this.chrome = spawn(CHROME, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    // Its own process group, so stopBrowser reaches every process it starts.
+    this.chrome = spawn(CHROME, args, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
     this.stderr = '';
     this.chrome.on('error', (error) => { this.stderr += `${error.message}\n`; });
     this.chrome.stderr.on('data', (chunk) => { this.stderr += chunk; });
@@ -258,11 +260,7 @@ export class Browser {
 
   async stop() {
     try { this.socket?.close(); } catch { /* already gone */ }
-    if (this.chrome?.exitCode === null) {
-      const closed = new Promise((resolve) => this.chrome.once('close', resolve));
-      this.chrome.kill('SIGTERM');
-      await closed;
-    }
-    if (this.profile) await rm(this.profile, { recursive: true, force: true });
+    await stopBrowser(this.chrome);
+    if (this.profile) await rm(this.profile, { recursive: true, force: true, maxRetries: 5 });
   }
 }
