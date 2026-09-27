@@ -95,6 +95,9 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.deepEqual(parseRoute(`/project/${UUID}`), { page: 'project', uuid: UUID });
   assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
   assert.equal(parseRoute('/projects/join/short').page, 'home');
+  const NAME = 'ab'.repeat(16);
+  assert.deepEqual(parseRoute(`/project/${UUID}/paper/${NAME}`), { page: 'brief', uuid: UUID, paper: NAME });
+  assert.equal(parseRoute(`/project/${UUID}/paper/${'ab'.repeat(32)}`).page, 'home');
 });
 
 test('a discussion has a page, and talking about anything in a project leads to one', () => {

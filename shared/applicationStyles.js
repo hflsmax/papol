@@ -2480,13 +2480,15 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 
 /* The anchor equivalent of button.primary: reading the paper is the action
    this page exists for. */
-.paper-actions .button.primary {
+.paper-actions .button.primary,
+.brief-actions .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
 }
 
-.paper-actions .button.primary:hover {
+.paper-actions .button.primary:hover,
+.brief-actions .button.primary:hover {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
   color: var(--ink-inverse);
@@ -5857,12 +5859,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-card:hover, .project-card.is-lit { border-color: var(--accent); }
 .project-card.is-lit { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-.project-paper { cursor: default; }
-.project-paper:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.project-card.is-selected { grid-column: 1 / -1; margin: var(--space-6) 0 var(--space-2); border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-paper { cursor: pointer; }
+.project-paper:focus-within:has(.project-card-title a:focus-visible) { border-color: var(--accent); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .project-paper.is-new .project-card-head { border-bottom-color: var(--gold-line); background: var(--gold-soft); }
-.project-card-head .item-actions { margin-left: auto; }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-hue { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--hue, var(--line-strong)); }
 .project-card-venue { overflow: hidden; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
@@ -5886,9 +5886,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-dig-meta .project-card-new { margin-left: auto; }
 .project-board-dig { padding: 0 var(--space-3) var(--space-3); }
 .project-board-dig .project-card-dig { margin: 0; }
+.project-card-readers { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
-.project-paper-more { display: grid; gap: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--line); }
-.project-paper-more > * { max-width: 44rem; }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-paper-empty, .project-board-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); width: 100%; min-height: 96px; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); text-align: center; }
 .project-paper-empty span, .project-board-add span { color: var(--ink-faint); font-size: var(--fs-xs); font-weight: 400; }
@@ -5999,6 +5998,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-card { position: fixed; z-index: 300; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 16px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md), 0 2px 5px rgba(29,33,41,.09); color: var(--ink); font-family: var(--font-ui); opacity: 0; visibility: hidden; }
 .talk-card.is-placed { visibility: visible; animation: talk-open var(--motion-fast) var(--ease-out) forwards; }
 .talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
+.talk-card.is-inline { position: relative; z-index: auto; max-height: min(640px, calc(100vh - 2 * var(--space-4))); opacity: 1; visibility: visible; box-shadow: var(--shadow-sm); animation: none; }
+.talk-card.is-inline .talk-card-open { margin-left: auto; }
+[data-shell='desktop'] .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 @keyframes talk-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin { transition: none; } }
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
@@ -6061,6 +6063,35 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); }
 .talk-send:disabled { opacity: .35; }
+
+/* A paper's brief: the paper as the project sees it, its takes and the
+   rest on the left, and its dig open on the right once there is room. */
+.app[data-page='brief']:has(.brief-page) { max-width: 1180px; }
+.app[data-page='brief']:has(.brief-page) > .topnav { max-width: 720px; margin-inline: auto; }
+.desktop-content:has(.brief-page) { max-width: 1240px; }
+.brief-page { container-type: inline-size; }
+.brief-head { margin: var(--space-2) 0 var(--space-6); }
+.brief-head .kicker { margin: 0 0 var(--space-1); }
+.brief-head .kicker a { color: inherit; }
+.brief-head .kicker a:hover { color: var(--accent); }
+.brief-title { max-width: 46rem; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); }
+.brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: var(--space-2) 0 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.brief-authors { font: italic var(--fs-md) var(--font-serif); }
+.brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
+.brief-actions .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+.brief-jacket { color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.brief-jacket:hover { color: var(--accent); }
+.brief-take-out { margin-left: auto; }
+.brief-layout { display: grid; gap: var(--space-6); }
+.brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
+.brief-main .project-takes { margin-bottom: var(--space-4); }
+.brief-boards { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.brief-boards a { display: inline-block; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-ui); text-decoration: none; }
+.brief-boards a:hover { border-color: var(--accent); color: var(--accent); }
+@container (min-width: 880px) {
+  .brief-layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+  .brief-dig { position: sticky; top: var(--space-4); }
+}
 
 /* One discussion: its subject, its posts, and room to write at length. */
 .discussion-page { max-width: 46rem; margin: 0 auto; }

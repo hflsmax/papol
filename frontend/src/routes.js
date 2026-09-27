@@ -26,6 +26,9 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   const DIGEST = '[0-9a-f]{64}';
   const discuss = path.match(new RegExp(`^/project/${UUID}/discuss/(project|paper/${DIGEST}|take/${DIGEST}/${ID}|(?:board|card)/${ID})/?$`, 'i'));
   if (discuss) return { page: 'discuss', uuid: discuss[1].toLowerCase(), subject: discuss[2].toLowerCase().replace(/\//g, ':') };
+  // A paper as a project sees it, named as the Library names it.
+  const brief = path.match(new RegExp(`^/project/${UUID}/paper/${PAPER}/?$`, 'i'));
+  if (brief) return { page: 'brief', uuid: brief[1].toLowerCase(), paper: brief[2].toLowerCase() };
   if ((uuid = at(`/project/${UUID}`))) return { page: 'project', uuid };
   if ((uuid = at(`/discussion/${UUID}`))) return { page: 'discussion', uuid };
   // An invitation's code is case-sensitive, so it is read as written.

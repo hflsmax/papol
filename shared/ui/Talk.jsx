@@ -293,7 +293,9 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
   );
 }
 
-export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null }) {
+// Inline, the card is part of a page (a paper's brief) rather than a
+// popover: it is not placed, closes on nothing, and waits to be written in.
+export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false }) {
   const [topic, setTopic] = useState({ subject, label });
   const [from, setFrom] = useState(null);
   const [drift, setDrift] = useState(startDrift);
@@ -321,16 +323,18 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   }, [projectUuid, topic.subject]);
 
   const reposition = useCallback(() => {
-    if (anchor.current) setSpot(place(anchor.current, card.current));
-  }, [anchor]);
+    if (!inline && anchor.current) setSpot(place(anchor.current, card.current));
+  }, [anchor, inline]);
   useLayoutEffect(() => { reposition(); }, [reposition, discussion, drift]);
   useEffect(() => {
+    if (inline) return undefined;
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
     return () => { window.removeEventListener('resize', reposition); window.removeEventListener('scroll', reposition, true); };
-  }, [reposition]);
+  }, [reposition, inline]);
 
   useEffect(() => {
+    if (inline) return undefined;
     const away = (e) => {
       if (card.current?.contains(e.target) || anchor.current?.contains(e.target)) return;
       onClose();
@@ -339,12 +343,12 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
     document.addEventListener('pointerdown', away, true);
     document.addEventListener('keydown', escape, true);
     return () => { document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', escape, true); };
-  }, [anchor, onClose]);
+  }, [anchor, onClose, inline]);
 
   useEffect(() => {
     if (discussion === undefined || drift) return;
     const field = box.current;
-    field?.focus({ preventScroll: true });
+    if (!inline || body) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
   }, [discussion, drift]);
@@ -396,9 +400,9 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   return (
     <section
       ref={card}
-      className={`talk-card${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
+      className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
-      role="dialog"
+      role={inline ? 'region' : 'dialog'}
       aria-label={`Dig into ${topic.label}`}
       {...CONTAINED}
     >
@@ -410,20 +414,20 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
           </a>
         )}
-        <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>
+        {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       {from && (
         <button type="button" className="talk-card-back" onClick={goBack}>
           <span aria-hidden="true">←</span> Dug out of {from.label}
         </button>
       )}
-      <p className="talk-card-subject">{topic.label}</p>
+      {(!inline || !onHome) && <p className="talk-card-subject">{topic.label}</p>}
 
       <div className="talk-card-body" ref={list}>
         {drift ? (
           <DigChooser
             projectUuid={projectUuid} post={drift} current={topic.subject} boardUuid={discussion?.subject?.board_uuid}
-            onPick={dugInto} onCancel={() => (startDrift && !from ? onClose() : setDrift(null))}
+            onPick={dugInto} onCancel={() => (startDrift && !from ? onClose?.() : setDrift(null))}
           />
         ) : discussion === undefined ? (
           <p className="talk-card-quiet">Opening…</p>

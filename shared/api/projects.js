@@ -1,5 +1,6 @@
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
+import { paperName } from '../paperName.js';
 
 // ---------- Projects ----------
 
@@ -117,6 +118,11 @@ export function deleteDiscussionPost(uuid) {
 // Where talking about a subject leads, as a page of its own.
 export function discussPath(projectUuid, subject) {
   return `/project/${projectUuid}/discuss/${subjectKey(subject).replace(/:/g, '/')}`;
+}
+
+// A paper as a project sees it: its brief.
+export function briefPath(projectUuid, paperSha256) {
+  return `/project/${projectUuid}/paper/${paperName(paperSha256)}`;
 }
 
 // Where an invitation link leads, on this deployment.

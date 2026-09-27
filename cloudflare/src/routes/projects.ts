@@ -119,6 +119,16 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
   const boards = await all<Row>(env.DB,
     `SELECT b.* FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid
      WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, project.uuid);
+  // Which of the project's boards carry a card from each paper: an excerpt's
+  // backlink names the paper by the first half of its digest.
+  const placed = digests.length ? await all<{ paper_sha256: string; board_uuid: string }>(env.DB,
+    `SELECT DISTINCT pp.paper_sha256, bi.board_uuid FROM project_papers pp
+     JOIN project_boards pb ON pb.project_uuid = pp.project_uuid
+     JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
+     JOIN board_items bi ON bi.board_uuid = pb.board_uuid AND bi.deleted_at IS NULL AND NOT bi.staged AND bi.source_url IS NOT NULL
+     WHERE pp.project_uuid = ? AND instr(lower(bi.source_url), substr(pp.paper_sha256, 1, 32)) > 0`, project.uuid) : [];
+  const onBoards = new Map<string, string[]>();
+  for (const r of placed) onBoards.set(r.paper_sha256, [...(onBoards.get(r.paper_sha256) ?? []), r.board_uuid]);
   return {
     ...summaryOut(project, members, me),
     invite_code: member.is_keeper ? project.invite_code : null,
@@ -133,6 +143,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
       is_new: e.added_by !== me.uuid && (e.added_at as string) > member.seen_at,
       in_my_nook: held.has(e.paper_sha256 as string),
       users: copies.get(e.paper_sha256 as string) ?? [],
+      board_uuids: onBoards.get(e.paper_sha256 as string) ?? [],
     })),
   };
 }

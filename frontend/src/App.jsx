@@ -23,8 +23,9 @@ import LearnPage from './components/LearnPage';
 import ProjectsPage from './components/ProjectsPage';
 import ProjectPage from './components/ProjectPage';
 import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage';
+import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
-import { listProjects } from '../../shared/api/projects.js';
+import { briefPath, listProjects } from '../../shared/api/projects.js';
 import Avatar from './components/Avatar';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
@@ -66,7 +67,7 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation', 'discussion', 'discuss',
+  'projects', 'project', 'brief', 'invitation', 'discussion', 'discuss',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -724,6 +725,19 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
+          onOpenBrief={(sha256) => navigate(briefPath(route.uuid, sha256))}
+        />
+      )}
+      {route.page === 'brief' && (
+        <BriefPage
+          key={`${route.uuid}/${route.paper}`}
+          projectUuid={route.uuid}
+          paper={route.paper}
+          currentUser={user}
+          onBack={goBack}
+          backHref={backHref}
+          onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
+          onRemoved={() => navigate(`/project/${route.uuid}`, { replace: true })}
         />
       )}
       {route.page === 'discussion' && (
@@ -914,7 +928,7 @@ export default function App({ startupUser = null, startupError = null }) {
             {user ? (
               <a
                 href={appPath('/projects')}
-                className={['projects', 'project', 'invitation', 'discussion', 'discuss'].includes(route.page) ? 'active' : ''}
+                className={['projects', 'project', 'brief', 'invitation', 'discussion', 'discuss'].includes(route.page) ? 'active' : ''}
               >
                 Projects
                 {projectNewCount > 0 && <span className="badge inbox-badge" title={`${projectNewCount} new papers`}>{projectNewCount}</span>}

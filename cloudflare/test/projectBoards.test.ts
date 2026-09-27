@@ -63,6 +63,23 @@ describe("project boards", () => {
   });
 });
 
+describe("papers on boards", () => {
+  it("lists the boards that carry a card from each paper, placed not staged", async () => {
+    const { dana, project } = await group();
+    await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const board = await boardIn(dana, project.uuid);
+    const waiting = await boardIn(dana, project.uuid, "Later");
+    const source_url = `https://papol.io/viewer/?pdf=${A_PAPER.slice(0, 32)}&page=2`;
+    const staged = await ok("POST", `/api/boards/${board.uuid}/staging`, { headers: dana.headers, json: { excerpt_text: "The loop lags.", source_url, source_label: "Error dynamics" } });
+    await ok("POST", `/api/board-items/${staged.uuid}/place`, { headers: dana.headers, json: { x: 10, y: 10 } });
+    await ok("POST", `/api/boards/${waiting.uuid}/staging`, { headers: dana.headers, json: { excerpt_text: "Not yet.", source_url, source_label: "Error dynamics" } });
+
+    const listed = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(listed.papers[0].board_uuids).toEqual([board.uuid]);
+  });
+});
+
 describe("discussions", () => {
   it("opens one discussion per paper, and lists it with what is new", async () => {
     const { dana, ana, sam, project } = await group();
