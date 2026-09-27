@@ -42,6 +42,12 @@ updates:
     directory: /cloudflare
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    # The suite runs in @cloudflare/vitest-pool-workers, which wants Vitest 4
+    # (0.22.0 peers on ^4.1.0); under Vitest 5 no test file starts. Lift this
+    # when a pool release takes Vitest 5, and bump the two together.
+    ignore:
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /host/analyzer
     schedule: { interval: weekly }
