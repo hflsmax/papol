@@ -56,6 +56,7 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { anchorKeyAction, isEditingTarget } from './anchorKeys';
 import { pageAtLine } from './readingPage';
 import { readSections } from './sections';
+import { readPrintedHeadings } from './printedContents.js';
 import ReturnPill from './ReturnPill';
 import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
@@ -1182,13 +1183,14 @@ export default function App() {
   // Reading the outline costs a destination lookup per heading and nothing
   // else, but it still waits for an idle moment rather than competing with
   // the first render: the bar can stand empty for a moment, and the reader
-  // gets their first page sooner.
+  // gets their first page sooner. A paper with no outline has its printed
+  // headings read instead, every page of it, in idle moments too.
   useEffect(() => {
     if (!doc) return undefined;
     let cancelled = false;
     const start = () => {
       if (cancelled) return;
-      readSections(doc, { cancelled: () => cancelled })
+      readSections(doc, { cancelled: () => cancelled, readPrinted: readPrintedHeadings })
         .then((read) => {
           if (cancelled || !read) return;
           setSections(read.sections);

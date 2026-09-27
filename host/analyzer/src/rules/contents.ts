@@ -1,0 +1,262 @@
+// A paper's contents read off its printed headings, for a PDF that carries
+// no outline of its own: the Navigator's fallback (viewer/src/sections.js).
+//
+// The numbered headings are findSections' (sections.ts), the same ones a
+// "Section 2.1" link lands on. What a paper leaves unnumbered — Abstract,
+// Introduction and References in a numbered paper, every heading in one
+// that numbers none — is read here, in two steps: a line alone on its row
+// that is one of the names papers give their sections, set apart from the
+// text (section.unnumbered-name); then any other line set in exactly the
+// style of those (section.unnumbered-style).
+
+import { findBibliography } from "./bibliography";
+import { findFloats, typeOf, type Found } from "./floats";
+import { layout as layOut, type Layout, type Line } from "./layout";
+import { readPage, type Page as PdfText, type PdfPage } from "./page";
+import { findSections } from "./sections";
+import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
+import { Trace } from "./trace";
+
+export interface Heading {
+  number: string; // as printed, "" for none
+  title: string;
+  level: number; // 0 for a section, 1 for its subsection, …
+  page: number; // 1-based
+  top: number; // the heading's top, as a fraction of the page from its top
+}
+
+type Page = Layout["pages"][number];
+
+const letters = (runs: Line["runs"]) => runs.reduce((n, r) => n + r.text.replace(/\s/g, "").length, 0);
+const boldShare = (l: Line) => letters(l.runs.filter((r) => r.bold)) / Math.max(1, letters(l.runs));
+const styleOf = (l: Line) => `${l.runs.find((r) => r.text.trim())?.font}@${l.size.toFixed(1)}`;
+const clean = (text: string) => text.normalize("NFKC").replace(/\s+/g, " ").trim();
+
+// Depth by the number: "2" is a section, "2.1" its subsection; an
+// appendix's "A" is a section and "A.1" its subsection; Roman numerals are
+// sections.
+const levelOf = (number: string) => (/^[IVX]+$/.test(number) ? 0 : number.split(".").length - 1);
+
+export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<Found>, trace: Trace): Heading[] {
+  const within = [...floats];
+  const listing = contentsPages(layout);
+  // The paper's own table of contents lists every heading ahead of it; the
+  // headings are where it points (section.contents-page).
+  const skipped = new Set(skip);
+  for (const page of layout.pages) if (listing.has(page.number)) {
+    for (const line of page.lines) skipped.add(line);
+    trace.add(SECTION_CONTENTS_PAGE.id, page.number, "", []);
+  }
+  // And a contents without a page of its own — a list on the title page —
+  // is a heading with its page number level with it on the right, apart.
+  for (const page of layout.pages) for (const line of page.lines) {
+    if (page.lines.some((o) => o !== line && /^\d{1,4}$/.test(o.text.trim()) && o.x0 > line.x1 && Math.abs(o.baseline - line.baseline) <= 2)
+      && /^\s*(?:\d{1,2}|[A-Z])(?:\.\d{1,2})*\.?\s+\S/.test(line.text)) {
+      skipped.add(line);
+      trace.add(SECTION_CONTENTS_PAGE.id, page.number, line.text.slice(0, 80), []);
+    }
+  }
+  const type = typeOf(layout);
+  // A heading set in a face of its own: every word in a font the text is
+  // not set in, upright, and a font little of the paper is set in (a
+  // publisher's heading face whose name says nothing of weight:
+  // "AdvPS6F01" beside the text's "AdvPS6F00") (section.heading-face).
+  const faceShare = new Map<string, number>();
+  let total = 0;
+  for (const page of layout.pages) for (const line of page.lines) for (const r of line.runs) {
+    const n = r.text.replace(/\s/g, "").length;
+    faceShare.set(r.font, (faceShare.get(r.font) ?? 0) + n);
+    total += n;
+  }
+  // (Its number may be in the text's face: "1." in CMR10, "Introduction" in
+  // the small capitals CMCSC10.)
+  const ownFace = (line: Line) => {
+    const worded = line.runs.filter((r) => /\p{L}/u.test(r.text));
+    return worded.length > 0 && worded.every((r) => r.font !== type.font && !r.italic && (faceShare.get(r.font) ?? 0) < 0.03 * total);
+  };
+  const capitals = (line: Line) => {
+    const word = line.text.replace(/^[\dIVX.\s]+/, "").replace(/[^\p{L}]/gu, "");
+    return word.length >= 4 && word === word.toUpperCase();
+  };
+  // A numbered line that runs on into its paragraph past a full stop
+  // ("5 Placeholder Variables. We …") is a numbered paragraph, not a
+  // section's heading (section.in-sequence).
+  const runsOn = (title: string) => /[.:]\s+\p{L}/u.test(title) && title.split(/\s+/).length > 8;
+  const numbered = inSequence([...findSections(layout, skipped, within, trace, {
+    setApart: (line) => ownFace(line) || capitals(line),
+    heads: (line, title) => !runsOn(title),
+    columns: true,
+  }).values()], trace);
+  const out: (Heading & { line?: Line })[] = [];
+  for (const s of numbered) {
+    const line = s.caption as Line;
+    const text = clean(line.text);
+    let title = text.replace(/^\S+\s*/, "").replace(/^[.)]\s*/, "");
+    // A run-in heading's title ends at its stop; the paragraph runs on.
+    const lead = /^(.{2,80}?[^\s.])[.:]\s+\p{Lu}/u.exec(title);
+    if (lead && title.split(/\s+/).length > 8) title = lead[1];
+    out.push({ number: s.label, title, level: levelOf(s.label), page: s.page, top: s.y, line });
+  }
+  const numberedSections = out.filter((h) => h.level === 0).length;
+  const taken = new Set(out.map((h) => h.line));
+  const titles = new Set(out.map((h) => h.title.toLowerCase()));
+  const inFloat = (line: Line, page: Page) => within.some((f) => f.page === page.number
+    && line.x0 / page.width >= f.x - 0.001 && line.x1 / page.width <= f.x + f.w + 0.001
+    && line.top / page.height >= f.y - 0.001 && line.bottom / page.height <= f.y + f.h + 0.001);
+  // Alone on its row: nothing else at its baseline in its column.
+  const alone = (line: Line, page: Page) => !page.lines.some((o) => o !== line && !o.furniture
+    && Math.abs(o.baseline - line.baseline) <= 2 && o.column === line.column);
+  // Set apart from the text: mostly bold, larger, in capitals, or in a
+  // face of its own.
+  const setApart = (line: Line) => boldShare(line) > 0.5 || line.size > layout.bodySize + 0.5 || capitals(line) || ownFace(line);
+  const candidates: { page: Page; line: Line; text: string }[] = [];
+  for (const page of layout.pages) for (const line of page.lines) {
+    const text = clean(line.text);
+    // The bibliography's own heading is kept with its entries (skip); it
+    // heads a section all the same.
+    if (line.furniture || taken.has(line) || listing.has(page.number)) continue;
+    if (skip.has(line) && !SECTION_UNNUMBERED_NAME.pattern!.test(text)) continue;
+    if (line.x1 - line.x0 > 0.8 * type.measure) continue;
+    if (inFloat(line, page) || !alone(line, page)) continue;
+    candidates.push({ page, line, text });
+  }
+
+  const add = (page: Page, line: Line, title: string, rule: string) => {
+    out.push({ number: "", title, level: 0, page: page.number, top: line.top / page.height, line });
+    taken.add(line);
+    titles.add(title.toLowerCase());
+    trace.add(rule, page.number, title.slice(0, 80), []);
+  };
+  // A paper that numbers its sections leaves unnumbered only what stands
+  // around them: its abstract, its references, its notices and appendices.
+  const around = /^(?:abstract|summary|acknowledge?ments?|references|bibliography|literature cited|works cited|appendix(?: [A-Z])?|appendices|supplementary (?:material|information)|data availability|code availability|author contributions|competing interests|funding)[.:]?$/i;
+  const named: { page: Page; line: Line }[] = [];
+  for (const { page, line, text } of candidates) {
+    if (!SECTION_UNNUMBERED_NAME.pattern!.test(text) || !setApart(line)) continue;
+    if (numberedSections >= 2 && !around.test(text)) continue;
+    const title = text.replace(/[.:]$/, "");
+    if (titles.has(title.toLowerCase())) continue;
+    named.push({ page, line });
+    add(page, line, title, SECTION_UNNUMBERED_NAME.id);
+  }
+
+  // A paper that numbers none: its other headings are the lines set as the
+  // named ones are, once two of those make the style plain.
+  if (numberedSections < 2) {
+    const counts = new Map<string, number>();
+    for (const n of named) counts.set(styleOf(n.line), (counts.get(styleOf(n.line)) ?? 0) + 1);
+    const styles = new Set([...counts].filter(([, count]) => count >= 2).map(([style]) => style));
+    for (const { page, line, text } of candidates) {
+      if (taken.has(line) || !styles.has(styleOf(line)) || !setApart(line)) continue;
+      if (!SECTION_UNNUMBERED_STYLE.pattern!.test(text)) continue;
+      add(page, line, text.replace(/[.:]$/, ""), SECTION_UNNUMBERED_STYLE.id);
+    }
+  }
+
+  return out
+    .sort((a, b) => a.page - b.page || columnOrder(a, b))
+    .map(({ line: _, ...heading }) => heading);
+}
+
+// The numbered headings that keep the paper's count: in reading order, a
+// section is kept when it is the next number (or the one after, a heading
+// missed between), and a subsection when its section was kept. Anything
+// else is a list item, a figure's panel, or an equation's number that
+// passed for a heading (section.in-sequence).
+function inSequence(found: Found[], trace: Trace): Found[] {
+  const ordered = [...found].sort((a, b) => a.page - b.page || (a.caption as Line).index - (b.caption as Line).index);
+  const kept: Found[] = [];
+  const keptTop = new Set<string>();
+  let last = -1;
+  // One numbered section is not a numbering: a line of affiliations "1
+  // University of …", a lone numbered paragraph.
+  const tops = ordered.filter((s) => /^\d+$/.test(s.label));
+  if (tops.length < 2) {
+    for (const s of tops) trace.add(SECTION_IN_SEQUENCE.id, s.page, `dropped ${s.label}: alone`, []);
+    return ordered.filter((s) => !/^\d/.test(s.label));
+  }
+  for (const s of ordered) {
+    if (/^\d+$/.test(s.label)) {
+      const n = Number(s.label);
+      if (last < 0 ? n > 2 : n !== last + 1 && n !== last + 2) {
+        trace.add(SECTION_IN_SEQUENCE.id, s.page, `dropped ${s.label}`, []);
+        continue;
+      }
+      last = n;
+      keptTop.add(s.label);
+      kept.push(s);
+    } else if (/^\d/.test(s.label)) {
+      if (keptTop.has(s.label.split(".")[0])) kept.push(s);
+    } else {
+      kept.push(s);
+    }
+  }
+  return kept;
+}
+
+// Pages of a table of contents: the page headed "Contents", and those
+// after it that carry on listing — most of their lines ending in a page
+// number, or being one.
+function contentsPages(layout: Layout): Set<number> {
+  const pages = new Set<number>();
+  const listingShare = (page: Page) => {
+    const lines = page.lines.filter((l) => !l.furniture);
+    return lines.filter((l) => /(?:^|\s|\.)\d{1,4}$/.test(l.text.trim())).length / Math.max(1, lines.length);
+  };
+  for (const page of layout.pages) {
+    if (!page.lines.some((l) => !l.furniture && /^(?:table of )?contents$/i.test(clean(l.text)))) continue;
+    if (listingShare(page) < 0.3) continue;
+    pages.add(page.number);
+    for (let next = page.number + 1; next <= layout.pages.length && listingShare(layout.pages[next - 1]) >= 0.3; next += 1) pages.add(next);
+  }
+  return pages;
+}
+
+// Within a page, in reading order: the order the layout read the lines in.
+function columnOrder(a: Heading & { line?: Line }, b: Heading & { line?: Line }): number {
+  if (a.line && b.line) return a.line.index - b.line.index;
+  return a.top - b.top;
+}
+
+/**
+ * The contents of an open pdf.js document, read page by page from the
+ * document the caller already has — the viewer's own — with pdf.js's OPS
+ * table from the same build. `pause` is awaited before each page, so a
+ * reader can give way to whatever else the page is doing; each page is let
+ * go once read (pdf.js keeps nothing of it that a render still needs).
+ * Resolves to null when cancelled between pages.
+ */
+export async function readContents(
+  doc: { numPages: number; getPage(number: number): Promise<unknown> },
+  OPS: Record<string, number>,
+  { cancelled = () => false, pause = async () => {} }: { cancelled?: () => boolean; pause?: () => Promise<void> } = {},
+): Promise<Heading[] | null> {
+  const pages: PdfText[] = [];
+  for (let number = 1; number <= doc.numPages; number += 1) {
+    await pause();
+    if (cancelled()) return null;
+    const page = (await doc.getPage(number)) as PdfPage & { cleanup?: () => void };
+    pages.push(boundDrawn(await readPage(page, number, OPS)));
+    page.cleanup?.();
+  }
+  if (cancelled()) return null;
+  const layout = layOut({ pages, info: { title: "", author: "" } });
+  const trace = new Trace();
+  const bibliography = findBibliography(layout, trace);
+  const floats = findFloats(layout, trace);
+  return findContents(layout, bibliography.lines, floats.values(), trace);
+}
+
+// A page drawn in hundreds of thousands of strokes (a plot exported point by
+// point) is one picture to the float rules, which walk every stroke against
+// every other and took a minute and a half over one such paper. Its strokes
+// are taken as the one box they cover.
+const MOST_DRAWN = 5000;
+function boundDrawn(page: PdfText): PdfText {
+  if (page.drawn.length <= MOST_DRAWN) return page;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const d of page.drawn) {
+    x0 = Math.min(x0, d.x); y0 = Math.min(y0, d.y); x1 = Math.max(x1, d.x + d.w); y1 = Math.max(y1, d.y + d.h);
+  }
+  return { ...page, drawn: [{ x: x0, y: y0, w: x1 - x0, h: y1 - y0, image: false }] };
+}

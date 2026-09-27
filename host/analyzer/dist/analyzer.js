@@ -40143,6 +40143,70 @@ var SECTION_SCANNED = rule({
   summary: "On a scanned page, a numbered title in capitals alone on its row and narrower than the measure is a heading, in place of the bold-or-larger test.",
   why: "A scan's text layer has no bold and sizes that wander by half a point; the small-caps headings failed, and two run-in list items measured large were taken instead (Lamport, Shostak and Pease)."
 });
+var SECTION_UNNUMBERED_NAME = rule({
+  id: "section.unnumbered-name",
+  stage: "section",
+  summary: 'A line alone on its row, set apart from the text (mostly bold, larger, or in capitals), narrower than the measure and outside any float, that is one of the names papers give their sections ("Introduction", "Related Work", "Materials and Methods", "References" \u2026) heads an unnumbered section.',
+  why: "A PDF with no outline still needs a contents for the Navigator, and what a paper leaves unnumbered \u2014 Abstract and References in a numbered paper, every heading in a journal's \u2014 section.heading never reads.",
+  pattern: /^(?:abstract|summary|introduction|background|motivation|overview|preliminaries|related work|previous work|prior work|methods?|methodology|materials and methods|methods and materials|approach|experiments?|experimental setup|evaluation|results|results and discussion|discussion|analysis|limitations|future work|conclusions?|concluding remarks|conclusions? and future work|summary and conclusions?|acknowledge?ments?|references|bibliography|literature cited|works cited|appendix(?: [A-Z])?|appendices|supplementary material|supplementary information|statement of need|significance|data availability|code availability|author contributions|competing interests|funding)[.:]?$/i,
+  matches: ["Introduction", "INTRODUCTION", "Related Work", "Materials and Methods", "References", "Acknowledgments", "Conclusions.", "Appendix A", "Statement of need"],
+  rejects: ["Introduction to the theory", "The results show that", "In this section we", "Methods of proof are", "Figure 1"]
+});
+var SECTION_CONTENTS_PAGE = rule({
+  id: "section.contents-page",
+  stage: "section",
+  summary: `A numbered line with a bare page number level with it on its right, apart, is a contents entry; and a page with a line "Contents" (or "Table of Contents") on which three lines in ten end in a page number, and the pages after it that go on so, are the paper's table of contents: nothing on them heads a section.`,
+  why: "A book or thesis lists every heading ahead of itself; read as headings, those lines took each number from the chapter it names (Programming Languages: Application and Interpretation, 17 chapters all placed on page 3)."
+});
+var SECTION_HEADING_FACE = rule({
+  id: "section.heading-face",
+  stage: "section",
+  summary: "For the contents, a line is set apart from the text \u2014 as bold or a larger size set it apart for section.heading and section.roman \u2014 when it is in capitals, or every letter of it is upright and in a font that is not the text's and sets under 3% of the paper.",
+  why: `IEEE sets "I. INTRODUCTION" in small capitals at the text's size, and some publishers' heading faces have names that say nothing of weight ("AdvPS6F01" beside the text's "AdvPS6F00"); either paper had no contents at all.`
+});
+var SECTION_IN_SEQUENCE = rule({
+  id: "section.in-sequence",
+  stage: "section",
+  summary: "For the contents, numbered sections are kept only where there are two or more; each when, in reading order, it is the next number or the one after; a subsection when its section is kept. A numbered line running on past a stop into more than eight words is a numbered paragraph, and leaves its number to a later line.",
+  why: `A numbered list item or a figure's panel set in bold passes section.heading; in a contents it put "15" and "21" among sections 1 to 5.`
+});
+var anyCase = (word) => word.replace(/[a-z]/g, (c2) => `[${c2}${c2.toUpperCase()}]`);
+var NOT_A_HEADING = [
+  "fig",
+  "figure",
+  "table",
+  "tab",
+  "eq",
+  "equation",
+  "theorem",
+  "lemma",
+  "proof",
+  "definition",
+  "corollary",
+  "proposition",
+  "remark",
+  "example",
+  "algorithm",
+  "listing",
+  "keywords",
+  "keyword",
+  "index terms",
+  "general terms",
+  "categories and subject descriptors",
+  "ccs concepts",
+  "acm reference format",
+  "table of contents",
+  "contents"
+].map(anyCase).join("|");
+var SECTION_UNNUMBERED_STYLE = rule({
+  id: "section.unnumbered-style",
+  stage: "section",
+  summary: "After section.unnumbered-name, a line alone on its row set in the font and size of at least two headings already found \u2014 named ones, or the numbered sections \u2014 and reading as a title (a capital, at most twelve words, no closing stop after a sentence), heads an unnumbered section too.",
+  why: `A journal names only some of its sections from a common stock ("Introduction", "Discussion"); the rest ("Graphene growth on copper") share their style, which is the paper's own sign of a heading.`,
+  pattern: new RegExp(`^(?=\\p{Lu})(?![IVX]{1,5}\\.\\s)(?!(?:${NOT_A_HEADING})\\b)(?!.*[.,;]$)(?:\\S+\\s+){0,11}\\S+$`, "u"),
+  matches: ["Graphene growth on copper", "Statement of need", "THE ARCHITECTURE", "Why functional programming matters"],
+  rejects: ["Figure 3", "Theorem 2.", "lower-case start of a sentence", "One two three four five six seven eight nine ten eleven twelve thirteen", "4.3 [D1] Discover", "II. METHODS", "Keywords", "General Terms", "It ends as a sentence does."]
+});
 var MENTION_CITED = rule({
   id: "mention.cited",
   stage: "mention",
@@ -41614,7 +41678,8 @@ function findFootnoteMarkers(layout2, notes, cited, trace) {
 var keyOf3 = (number) => `section
 ${number.toLowerCase()}`;
 var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
-function findSections(layout2, skip, floats, trace) {
+function findSections(layout2, skip, floats, trace, options = {}) {
+  const { setApart, heads } = options;
   const sections = /* @__PURE__ */ new Map();
   const type = typeOf(layout2);
   const within = [...floats];
@@ -41639,10 +41704,11 @@ function findSections(layout2, skip, floats, trace) {
     for (const line of candidates[p2]) {
       const match = SECTION_HEADING.pattern.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page)) continue;
-      const set = scanned(page) ? scannedHeading(line, page, match.groups.title) : letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
+      const set = scanned(page) ? scannedHeading(line, page, match.groups.title) : letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5 || Boolean(setApart?.(line));
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf3(number))) continue;
+      if (heads && !heads(line, match.groups.title)) continue;
       if (runningHead(line, page)) {
         trace.add(SECTION_NOT_RUNNING_HEAD.id, page.number, line.text.slice(0, 80), []);
         continue;
@@ -41748,10 +41814,11 @@ function findSections(layout2, skip, floats, trace) {
       const match = ROMAN.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
       const set = letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5;
-      if (set) romans.push({ page, line, number: match.groups.number });
+      if (set || setApart?.(line)) romans.push({ page, line, number: match.groups.number });
     }
   });
-  const levelWithAnother = (c2) => romans.some((o2) => o2 !== c2 && o2.page === c2.page && Math.abs(o2.line.top - c2.line.top) <= 2);
+  const columnOf = (l2) => type.columns.findIndex((c2) => (l2.x0 + l2.x1) / 2 >= c2.x0 && (l2.x0 + l2.x1) / 2 <= c2.x1);
+  const levelWithAnother = (c2) => romans.some((o2) => o2 !== c2 && o2.page === c2.page && Math.abs(o2.line.top - c2.line.top) <= 2 && (!options.columns || !c2.page.twoColumn || columnOf(o2.line) === columnOf(c2.line)));
   const run = [];
   for (const c2 of romans.filter((c3) => !levelWithAnother(c3))) if (roman(c2.number) === run.length + 1) run.push(c2);
   if (run.length >= 3) {
@@ -41917,7 +41984,7 @@ async function interopDefault(m2) {
   return resolved.default || resolved;
 }
 
-// src/rules/pdf.ts
+// src/rules/page.ts
 var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
 var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
 var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
@@ -41997,6 +42064,49 @@ function offsetsOf(text, width, font) {
   }
   return offsets;
 }
+async function readPage(page, number, OPS) {
+  const [left, bottom, right, top] = page.view;
+  const content = await page.getTextContent();
+  const operators = await page.getOperatorList();
+  const drawn = drawnOn(operators, OPS, page.view);
+  const widths = glyphWidths(operators, OPS);
+  const fonts = /* @__PURE__ */ new Map();
+  const fontName = (id) => {
+    if (!fonts.has(id)) {
+      let name = "";
+      try {
+        name = page.commonObjs.get(id)?.name ?? "";
+      } catch {
+        name = "";
+      }
+      fonts.set(id, name.replace(/^[A-Z]{6}\+/, ""));
+    }
+    return fonts.get(id);
+  };
+  const runs = [];
+  for (const raw of content.items) {
+    if (!("str" in raw) || !raw.str || !raw.str.trim()) continue;
+    const [a2, b2, c2, d2, e2, f2] = raw.transform;
+    if (Math.abs(b2) > 0.01 || Math.abs(c2) > 0.01 || a2 <= 0 || d2 <= 0) continue;
+    const size = Math.hypot(c2, d2) || raw.height;
+    const font = fontName(raw.fontName);
+    runs.push({
+      text: raw.str,
+      x: e2 - left,
+      baseline: top - f2,
+      width: raw.width,
+      offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
+      size,
+      font,
+      bold: BOLD.test(font),
+      italic: ITALIC.test(font)
+    });
+  }
+  const text = content.items.map((item) => "str" in item ? item.str : "").join(" ");
+  return { number, width: right - left, height: top - bottom, runs, drawn, text };
+}
+
+// src/rules/pdf.ts
 async function readPdf(bytes, { pages: limit } = {}) {
   const { OPS } = await getResolvedPDFJS();
   const proxy = await getDocumentProxy(new Uint8Array(bytes));
@@ -42010,45 +42120,7 @@ async function readPdf(bytes, { pages: limit } = {}) {
     }
     for (let number = 1; number <= Math.min(proxy.numPages, limit ?? Infinity); number += 1) {
       const page = await proxy.getPage(number);
-      const [left, bottom, right, top] = page.view;
-      const content = await page.getTextContent();
-      const operators = await page.getOperatorList();
-      const drawn = drawnOn(operators, OPS, page.view);
-      const widths = glyphWidths(operators, OPS);
-      const fonts = /* @__PURE__ */ new Map();
-      const fontName = (id) => {
-        if (!fonts.has(id)) {
-          let name = "";
-          try {
-            name = page.commonObjs.get(id)?.name ?? "";
-          } catch {
-            name = "";
-          }
-          fonts.set(id, name.replace(/^[A-Z]{6}\+/, ""));
-        }
-        return fonts.get(id);
-      };
-      const runs = [];
-      for (const raw of content.items) {
-        if (!("str" in raw) || !raw.str || !raw.str.trim()) continue;
-        const [a2, b2, c2, d2, e2, f2] = raw.transform;
-        if (Math.abs(b2) > 0.01 || Math.abs(c2) > 0.01 || a2 <= 0 || d2 <= 0) continue;
-        const size = Math.hypot(c2, d2) || raw.height;
-        const font = fontName(raw.fontName);
-        runs.push({
-          text: raw.str,
-          x: e2 - left,
-          baseline: top - f2,
-          width: raw.width,
-          offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
-          size,
-          font,
-          bold: BOLD.test(font),
-          italic: ITALIC.test(font)
-        });
-      }
-      const text = content.items.map((item) => "str" in item ? item.str : "").join(" ");
-      pages.push({ number, width: right - left, height: top - bottom, runs, drawn, text });
+      pages.push(await readPage(page, number, OPS));
       page.cleanup();
     }
   } finally {

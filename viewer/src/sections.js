@@ -1,24 +1,25 @@
 /**
  * Where a paper's sections are.
  *
- * One source: the PDF's own outline. A file built by LaTeX with hyperref,
- * or exported by any of the publishers, carries the author's table of
+ * First, the PDF's own outline. A file built by LaTeX with hyperref, or
+ * exported by any of the publishers, carries the author's table of
  * contents — a title and a destination for every heading — and that is
  * what every other reader uses. Preview, Acrobat, Chrome and pdf.js all
- * walk the same `/Outlines` tree and, where a file has none, show no
- * contents at all.
+ * walk the same `/Outlines` tree.
  *
- * Papol used to try harder, reading headings out of the printed text where
- * the outline was missing. Measured over eighty papers it was wrong more
- * often than right: the rule it turned on — a heading is set larger or
- * heavier than the body — is false for most journal typography and for
- * every scan, where headings are frequently *smaller* than the text they
- * head. It returned nothing for a dozen papers that plainly have sections,
- * and for Shannon it returned thirty-seven display equations. A contents
- * that is wrong is worse than a contents that is absent, because only one
- * of the two can be disbelieved at a glance. So that pass is gone, and a
- * paper with no outline now has no Navigator — the same answer Preview
- * gives, arrived at honestly.
+ * Where a file has none, the headings are read off the printed page by the
+ * analyzer's rules (host/analyzer/src/rules/contents.ts): a numbered line
+ * set apart from the text and continuing the paper's numbering, and an
+ * unnumbered line alone on its row that names one of the sections papers
+ * have, or is set in exactly the style of those. Papol once tried harder
+ * than that, taking any line set larger or heavier than the body for a
+ * heading, and it was wrong more often than right — for Shannon it
+ * returned thirty-seven display equations. These rules ask for a number in
+ * sequence or a known name before they believe a style, and they are
+ * measured against the papers that do carry an outline
+ * (host/analyzer/scripts/contents.ts). A contents that is wrong is worse
+ * than a contents that is absent, so where they find fewer than two
+ * sections the paper still has no Navigator.
  *
  * The printed text is still consulted for one thing, and it is not the
  * same thing. Many outlines say which *page* a heading is on and nothing
@@ -425,8 +426,14 @@ export function looksLikeContents(sections) {
  * not worth a Navigator; two is a paper describing itself. The outline's
  * order is the author's and is kept as given.
  */
-export async function readSections(doc, { cancelled = () => false } = {}) {
+export async function readSections(doc, { cancelled = () => false, readPrinted = null } = {}) {
   if (!doc?.numPages) return { sections: [] };
+  const printed = async () => {
+    if (!readPrinted) return { sections: [] };
+    const headings = await readPrinted(doc, { cancelled });
+    if (cancelled() || !headings) return null;
+    return { sections: printedSections(headings), printed: true };
+  };
 
   let outline = null;
   try {
@@ -437,12 +444,33 @@ export async function readSections(doc, { cancelled = () => false } = {}) {
   if (cancelled()) return null;
 
   const flat = flattenOutline(outline);
-  if (flat.length < 2) return { sections: [] };
+  if (flat.length < 2) return printed();
 
   const placed = await placeOutline(doc, flat, cancelled);
   if (cancelled()) return null;
   // The outline is judged whole, as it was written; the notices are taken
   // out of what is drawn only after it has passed.
-  if (!placed || !looksLikeContents(placed)) return { sections: [] };
+  if (!placed) return null;
+  if (!looksLikeContents(placed)) return printed();
   return { sections: withoutEndMatter(markParts(placed)) };
+}
+
+/**
+ * The sections, from headings read off the printed page: each with its
+ * number, title, depth (0 for a section), page, and its top as a fraction
+ * of the page from the top. Fewer than two sections is no contents.
+ */
+export function printedSections(headings) {
+  const placed = (headings || [])
+    .filter((heading) => heading?.title && Number.isInteger(heading.page))
+    .map((heading) => ({
+      number: heading.number || '',
+      title: collapseSpace(heading.title),
+      level: heading.level ?? 0,
+      page: heading.page,
+      y: Math.max(0, Math.min(1, 1 - (heading.top ?? 0))),
+      appendix: false,
+    }));
+  if (placed.filter((section) => section.level === 0).length < 2) return [];
+  return withoutEndMatter(markParts(placed));
 }
