@@ -258,10 +258,17 @@ export class Browser {
 
   async stop() {
     try { this.socket?.close(); } catch { /* already gone */ }
-    if (this.chrome?.exitCode === null) {
-      const closed = new Promise((resolve) => this.chrome.once('close', resolve));
-      this.chrome.kill('SIGTERM');
-      await closed;
+    // As in smoke-harness.mjs: SIGKILL after five seconds of SIGTERM, and
+    // the exit waited for rather than stderr's close, so a Chromium that
+    // will not go cannot hold the job until CI's timeout.
+    const chrome = this.chrome;
+    if (chrome?.pid !== undefined && chrome.exitCode === null && chrome.signalCode === null) {
+      const exited = new Promise((resolve) => chrome.once('exit', resolve));
+      chrome.kill('SIGTERM');
+      const killTimer = setTimeout(() => chrome.kill('SIGKILL'), 5_000);
+      await exited;
+      clearTimeout(killTimer);
+      chrome.stderr.destroy();
     }
     if (this.profile) await rm(this.profile, { recursive: true, force: true });
   }

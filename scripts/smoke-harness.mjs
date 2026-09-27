@@ -166,10 +166,17 @@ export async function runSmoke(pages, respond) {
       clearTimeout(timeoutId);
       return { ...outcome, errors };
     } finally {
-      if (child?.exitCode === null) {
-        const done = new Promise((resolveClosed) => child.once('close', resolveClosed));
+      // A Chromium that shrugs off SIGTERM would hold the job until CI's own
+      // timeout, so it gets five seconds and then SIGKILL. Its exit is waited
+      // for, not its pipes' close: a crash handler it spawned can hold stderr
+      // open after it is gone.
+      if (child?.pid !== undefined && child.exitCode === null && child.signalCode === null) {
+        const exited = new Promise((resolveExited) => child.once('exit', resolveExited));
         child.kill('SIGTERM');
-        await done;
+        const killTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+        await exited;
+        clearTimeout(killTimer);
+        child.stderr.destroy();
       }
       await rm(profile, { recursive: true, force: true });
     }
