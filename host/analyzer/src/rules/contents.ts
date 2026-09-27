@@ -221,7 +221,7 @@ function columnOrder(a: Heading & { line?: Line }, b: Heading & { line?: Line })
 /**
  * The contents of an open pdf.js document, read page by page (readPages)
  * and then by the rules (contentsOfPages). The viewer runs the two apart,
- * the rules in a worker of their own (viewer/src/printedContents.js).
+ * the rules in a worker of their own (viewer/src/paperReading.js).
  * Resolves to null when cancelled between pages.
  */
 export async function readContents(

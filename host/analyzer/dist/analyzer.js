@@ -40898,216 +40898,6 @@ function findBibliography(layout2, trace) {
   return result;
 }
 
-// src/rules/citations.ts
-var LEAST_HITS = 3;
-var LONGEST_RANGE = 40;
-function numbersOf(list) {
-  const out = [];
-  for (const part of list.split(/[,;]/)) {
-    const range = part.trim().split(/\s*[-–—]\s*/);
-    if (range.some((r2) => !/^\d{1,4}$/.test(r2))) return null;
-    if (range.length === 1) out.push(Number(range[0]));
-    else {
-      const [a2, b2] = range.map(Number);
-      if (!(b2 > a2) || b2 - a2 > LONGEST_RANGE) return null;
-      for (let n2 = a2; n2 <= b2; n2 += 1) out.push(n2);
-    }
-  }
-  return out;
-}
-function numbered(bibliography) {
-  const map = /* @__PURE__ */ new Map();
-  bibliography.entries.forEach((entry, i2) => map.set(entry.number ?? i2 + 1, entry));
-  return map;
-}
-var EQUATION_BEFORE = /\b(?:Eqs?|Equations?|equations?|eqs?|Eqn|eqn|Fig|Figs|Figure|Figures|Table|Section|Sec|Step|step|Chapter|Theorem|Lemma|Rule|rule)\.?\s*$/;
-function bracketHits(flows, byNumber, size) {
-  const hits = [];
-  for (const flow of flows) {
-    const re2 = new RegExp(CITE_BRACKET.pattern.source, "g");
-    let m2;
-    while (m2 = re2.exec(flow.text)) {
-      const numbers = numbersOf(m2.groups.list);
-      if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
-      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes.length) continue;
-      hits.push({ rule: CITE_BRACKET.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
-    }
-  }
-  return hits;
-}
-function parenHits(flows, byNumber, size) {
-  const hits = [];
-  for (const flow of flows) {
-    const re2 = new RegExp(CITE_PAREN.pattern.source, "g");
-    let m2;
-    while (m2 = re2.exec(flow.text)) {
-      const numbers = numbersOf(m2.groups.list);
-      if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
-      if (EQUATION_BEFORE.test(flow.text.slice(Math.max(0, m2.index - 14), m2.index))) continue;
-      const alone = flow.at[m2.index];
-      if (alone && alone.line.text.trim() === m2[0].trim()) continue;
-      const end = flow.at[m2.index + m2[0].length - 1], start = flow.at[m2.index];
-      if (end && start && end.line === start.line && start.char > 0) {
-        const line = start.line, run = line.runs[line.chars[start.char]?.run ?? 0];
-        const before = line.chars.slice(0, start.char).map((c2) => line.runs[c2.run]).filter(Boolean).pop();
-        const trailing = end.char >= line.text.trimEnd().length - 1;
-        if (trailing && before && run && run.x - (before.x + before.width) > 2 * line.size) continue;
-      }
-      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes.length) continue;
-      hits.push({ rule: CITE_PAREN.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
-    }
-  }
-  return hits;
-}
-var UNIT = /(?:^|\s)(?:m|cm|mm|µm|μm|nm|km|s|ms|kg|g|N|J|Pa|kPa|MPa|GPa|W|K|Hz|mol|L|m\/s|N\/m)$/;
-var MATH_FONT = /math|cmmi|cmsy|symbol|cmex|msbm|stix.*math/i;
-function superscriptHits(layout2, skip, byNumber) {
-  const hits = [];
-  for (const page of layout2.pages) {
-    for (const line of page.lines) {
-      if (line.furniture || skip.has(line)) continue;
-      const tokens = [];
-      line.runs.forEach((run, i2) => {
-        if (!run.sup) return;
-        const last = tokens[tokens.length - 1];
-        if (last && last.end === i2) last.end = i2 + 1;
-        else tokens.push({ start: i2, end: i2 + 1 });
-      });
-      if (page.number === 1 && tokens.length >= 1) {
-        const words = line.text.split(/\s+/).filter((w2) => new RegExp("\\p{L}", "u").test(w2));
-        if (words.length && words.filter((w2) => new RegExp("^\\p{Lu}", "u").test(w2)).length >= 0.6 * words.length) continue;
-      }
-      for (const token of tokens) {
-        const runs = line.runs.slice(token.start, token.end);
-        const text = runs.map((r2) => r2.text).join("").replace(/\s+/g, "");
-        const m2 = CITE_SUPERSCRIPT.pattern.exec(text);
-        if (!m2) continue;
-        const before = line.runs.slice(0, token.start).filter((r2) => !r2.sup && !r2.sub);
-        const prev = before[before.length - 1];
-        if (!prev) continue;
-        const prevText = before.map((r2) => r2.text).join("");
-        if (/\d\s*$/.test(prevText) || UNIT.test(prevText.trimEnd()) || MATH_FONT.test(prev.font)) continue;
-        if (prev.italic && new RegExp("(?:^|\\s)\\p{L}\\s*$", "u").test(prevText)) continue;
-        if (/\b(?:sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|log|ln|exp)\s*$/.test(prevText)) continue;
-        if (/[)\]}|]\s*$/.test(prevText) && /[=+−×÷±√∑∫≤≥≈]/.test(line.text)) continue;
-        const numbers = numbersOf(m2.groups.list);
-        if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
-        const x0 = least(runs.map((r2) => r2.x)), x1 = most(runs.map((r2) => r2.x + r2.width));
-        const top = least(runs.map((r2) => r2.baseline - r2.size * 0.8)), bottom = most(runs.map((r2) => r2.baseline + r2.size * 0.22));
-        const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
-        hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n2) => byNumber.get(n2)), label: text, boxes: [box], page: page.number });
-      }
-    }
-  }
-  return hits;
-}
-var YEAR_ITEM = /(?:1[5-9]\d\d|20\d\d)[a-z]?|\b[a-z]\b/g;
-function lookup(entries, names, years) {
-  const people = names.replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n2) => n2.trim()).filter(Boolean);
-  const firstWords = (people[0] ?? "").split(/\s+/).filter((w2) => new RegExp("^\\p{Lu}", "u").test(w2) || /^(?:van|von|de|der|den|du|la|le|da|di)$/.test(w2));
-  const first = normalizeName(firstWords.join(" "));
-  const second = people[1] ? normalizeName(people[1].split(/\s+/).pop() ?? "") : null;
-  if (!first || NOT_A_NAME.has(firstWords[0] ?? "")) return [];
-  const same = (a2, b2) => a2 === b2 || Math.min(a2.length, b2.length) >= 3 && (a2.endsWith(b2) || b2.endsWith(a2));
-  const byAuthor = entries.filter((e2) => e2.surnames[0] && same(e2.surnames[0], first));
-  const out = [];
-  let lastYear = null;
-  for (const item of years) {
-    const letterOnly = /^[a-z]$/.test(item);
-    const year = letterOnly ? lastYear : Number(item.slice(0, 4));
-    const letter = letterOnly ? item : item.slice(4);
-    if (!year) continue;
-    lastYear = year;
-    let candidates = byAuthor.filter((e2) => e2.year === year);
-    if (second && candidates.length > 1) {
-      const withSecond = candidates.filter((e2) => e2.surnames[1] && same(e2.surnames[1], second));
-      if (withSecond.length) candidates = withSecond;
-    }
-    if (!candidates.length) continue;
-    const lettered = letter ? candidates.find((e2) => e2.yearSuffix === letter) ?? candidates[letter.charCodeAt(0) - 97] : candidates[0];
-    if (lettered) out.push(lettered);
-  }
-  return out;
-}
-function authorYearHits(flows, entries, size) {
-  const hits = [];
-  for (const flow of flows) {
-    const claimed = [];
-    const group = new RegExp(CITE_AUTHOR_YEAR_GROUP.pattern.source, "gu");
-    let m2;
-    while (m2 = group.exec(flow.text)) {
-      const inner = m2.groups.group;
-      const innerStart = m2.index + 1;
-      let offset = 0, names = "";
-      for (const part of inner.split(";")) {
-        const partStart = innerStart + offset;
-        offset += part.length + 1;
-        const text = part.replace(/^\s*(?:(?:see|See|e\.g\.|cf\.|i\.e\.|and|also)[,]?\s+)+/, (s2) => " ".repeat(s2.length));
-        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text);
-        if (!parsed?.groups?.years) continue;
-        if (parsed.groups.names) names = parsed.groups.names.trim();
-        if (!names) continue;
-        const found = lookup(entries, names, parsed.groups.years.match(YEAR_ITEM) ?? []);
-        if (!found.length) continue;
-        const from = partStart + parsed.groups.lead.length, to2 = partStart + parsed[0].length;
-        const boxes = boxesOf(flow, from, to2, size);
-        if (!boxes.length) continue;
-        claimed.push([from, to2]);
-        hits.push({ rule: CITE_AUTHOR_YEAR_GROUP.id, entries: found, label: flow.text.slice(from, to2).trim(), boxes, page: boxes[0].page });
-      }
-    }
-    const narrative = new RegExp(CITE_AUTHOR_YEAR_NARRATIVE.pattern.source, "gu");
-    while (m2 = narrative.exec(flow.text)) {
-      const from = m2.index, to2 = m2.index + m2[0].length;
-      if (claimed.some(([a2, b2]) => from < b2 && to2 > a2)) continue;
-      const found = lookup(entries, m2.groups.names, m2.groups.years.match(YEAR_ITEM) ?? []);
-      if (!found.length) continue;
-      const boxes = boxesOf(flow, from, to2, size);
-      if (!boxes.length) continue;
-      hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: m2[0], boxes, page: boxes[0].page });
-    }
-  }
-  return hits;
-}
-function labelHits(flows, entries, size) {
-  const byLabel = new Map(entries.filter((e2) => e2.label).map((e2) => [e2.label, e2]));
-  const hits = [];
-  for (const flow of flows) {
-    const re2 = new RegExp(CITE_LABEL.pattern.source, "g");
-    let m2;
-    while (m2 = re2.exec(flow.text)) {
-      const labels = m2.groups.list.split(/\s*,\s*/);
-      if (!labels.every((l2) => byLabel.has(l2))) continue;
-      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
-      if (!boxes.length) continue;
-      hits.push({ rule: CITE_LABEL.id, entries: labels.map((l2) => byLabel.get(l2)), label: m2[0], boxes, page: boxes[0].page });
-    }
-  }
-  return hits;
-}
-function findCitations(layout2, flows, bibliography, trace) {
-  if (!bibliography.entries.length) return [];
-  const size = (page) => [layout2.pages[page - 1].width, layout2.pages[page - 1].height];
-  const ways = [];
-  if (bibliography.numbering === "bracket" || bibliography.numbering === "number") {
-    const byNumber = numbered(bibliography);
-    ways.push(bracketHits(flows, byNumber, size), parenHits(flows, byNumber, size), superscriptHits(layout2, bibliography.lines, byNumber));
-  } else if (bibliography.numbering === "label") {
-    ways.push(labelHits(flows, bibliography.entries, size));
-  } else {
-    ways.push(authorYearHits(flows, bibliography.entries, size));
-  }
-  const breadth = (hits) => new Set(hits.flatMap((h2) => h2.entries.map((e2) => e2.key))).size;
-  const best = ways.reduce((a2, b2) => breadth(b2) > breadth(a2) || breadth(b2) === breadth(a2) && b2.length > a2.length ? b2 : a2, []);
-  const kept = best.length >= LEAST_HITS ? best : [];
-  return kept.map((hit) => {
-    trace.add(hit.rule, hit.page, `${hit.label} \u2192 ${hit.entries.map((e2) => e2.key).join(",")}`, hit.boxes);
-    return { keys: hit.entries.map((e2) => e2.key), label: hit.label, inferred: false, boxes: hit.boxes };
-  });
-}
-
 // src/rules/cited.ts
 var YEAR = /(?:1[89]|20)\d\d[a-z]?/;
 function citedLocator(text, start) {
@@ -41617,65 +41407,130 @@ function findMentions(flow, floats, layout2, trace) {
   return links;
 }
 
-// src/rules/footnotes.ts
-var NUMBER = /^\s*(\d{1,2})\s*$/;
-var keyOf2 = (page, number) => `footnote
-${page}
-${number}`;
-var sameSize2 = (a2, b2) => Math.abs(a2 - b2) <= 0.03 * b2;
-var across2 = (a2, b2) => Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0) > 0;
-var boxOf = (page, x0, top, x1, bottom) => ({ page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height });
-function openingNumber(line) {
-  const first = line.runs[0];
-  const rest = line.runs.slice(1).map((r2) => r2.text).join("").trimStart();
-  return first?.sup && /^[\p{L}"“‘(]/u.test(rest) ? NUMBER.exec(first.text)?.[1] ?? null : null;
+// src/rules/page.ts
+var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
+var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
+var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
+var ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
+var ITALIC = { test: (name) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
+var multiply = (m2, n2) => [
+  m2[0] * n2[0] + m2[2] * n2[1],
+  m2[1] * n2[0] + m2[3] * n2[1],
+  m2[0] * n2[2] + m2[2] * n2[3],
+  m2[1] * n2[2] + m2[3] * n2[3],
+  m2[0] * n2[4] + m2[2] * n2[5] + m2[4],
+  m2[1] * n2[4] + m2[3] * n2[5] + m2[5]
+];
+var apply = (m2, x2, y2) => [m2[0] * x2 + m2[2] * y2 + m2[4], m2[1] * x2 + m2[3] * y2 + m2[5]];
+function drawnOn(ops, OPS, view) {
+  const [left, , , top] = view;
+  const painted = /* @__PURE__ */ new Set([OPS.fill, OPS.eoFill, OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+  const images = /* @__PURE__ */ new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintImageXObjectRepeat, OPS.paintSolidColorImageMask]);
+  const out = [];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const add = (x0, y0, x1, y1, image) => {
+    const corners = [apply(ctm, x0, y0), apply(ctm, x1, y0), apply(ctm, x0, y1), apply(ctm, x1, y1)];
+    const xs2 = corners.map((c2) => c2[0] - left), ys2 = corners.map((c2) => top - c2[1]);
+    const box = { x: least(xs2), y: least(ys2), w: most(xs2) - least(xs2), h: most(ys2) - least(ys2), image };
+    if ([box.x, box.y, box.w, box.h].every(Number.isFinite)) out.push(box);
+  };
+  ops.fnArray.forEach((fn2, i2) => {
+    const args = ops.argsArray[i2];
+    if (fn2 === OPS.save) stack.push(ctm);
+    else if (fn2 === OPS.restore) ctm = stack.pop() ?? ctm;
+    else if (fn2 === OPS.transform) ctm = multiply(ctm, args);
+    else if (fn2 === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      const matrix = args?.[0];
+      if (matrix && matrix.length === 6) ctm = multiply(ctm, Array.from(matrix));
+    } else if (fn2 === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
+    else if (fn2 === OPS.constructPath) {
+      const op = args?.[0];
+      const minMax = args?.[2];
+      if (painted.has(op) && minMax && Number.isFinite(minMax[0])) add(minMax[0], minMax[1], minMax[2], minMax[3], false);
+    } else if (images.has(fn2)) add(0, 0, 1, 1, true);
+  });
+  return out;
 }
-function findFootnotes(layout2, trace) {
-  const notes = /* @__PURE__ */ new Map();
-  for (const page of layout2.pages) {
-    const lines = page.lines.filter((l2) => !l2.furniture);
-    for (const line of lines) {
-      const number = openingNumber(line);
-      if (!number || line.size >= layout2.bodySize - 0.5) continue;
-      if (lines.some((o2) => o2.top > line.bottom && across2(o2, line) && sameSize2(o2.size, layout2.bodySize) && !o2.runs.every((r2) => r2.sup || r2.sub))) continue;
-      const own = [line];
-      for (const next of lines.filter((o2) => o2.top > line.top && across2(o2, line) && sameSize2(o2.size, line.size)).sort((a2, b2) => a2.top - b2.top)) {
-        const last = own[own.length - 1];
-        if (openingNumber(next) || next.top - last.bottom > 0.6 * line.size) break;
-        own.push(next);
+function glyphWidths(ops, OPS) {
+  const fonts = /* @__PURE__ */ new Map();
+  let font = null;
+  ops.fnArray.forEach((fn2, i2) => {
+    const args = ops.argsArray[i2];
+    if (fn2 === OPS.setFont) {
+      const id = String(args?.[0] ?? "");
+      font = fonts.get(id) ?? /* @__PURE__ */ new Map();
+      fonts.set(id, font);
+    } else if (fn2 === OPS.showText && font && Array.isArray(args?.[0])) {
+      for (const glyph of args[0]) {
+        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width) || font.has(glyph.unicode)) continue;
+        font.set(glyph.unicode, glyph.width);
       }
-      const box = boxOf(page, Math.min(...own.map((l2) => l2.x0)), line.top, Math.max(...own.map((l2) => l2.x1)), own[own.length - 1].bottom);
-      if (notes.has(keyOf2(page.number, number))) continue;
-      notes.set(keyOf2(page.number, number), { key: `n${notes.size}`, kind: "footnote", label: number, caption: line, ...box });
-      trace.add(FOOTNOTE_NOTE.id, page.number, line.text.slice(0, 80), [box]);
     }
-  }
-  return notes;
+  });
+  return fonts;
 }
-function findFootnoteMarkers(layout2, notes, cited, trace) {
-  const links = [];
-  const overlaps = (a2, b2) => a2.page === b2.page && a2.x < b2.x + b2.w && b2.x < a2.x + a2.w && a2.y < b2.y + b2.h && b2.y < a2.y + a2.h;
-  const noteLines = new Set([...notes.values()].map((n2) => n2.caption));
-  for (const page of layout2.pages) {
-    for (const line of page.lines) {
-      if (line.furniture || noteLines.has(line)) continue;
-      line.runs.forEach((run, index) => {
-        const number = run.sup ? NUMBER.exec(run.text)?.[1] : void 0;
-        if (!number || index === 0 && openingNumber(line)) return;
-        const note = notes.get(keyOf2(page.number, number));
-        if (!note || note.caption === line) return;
-        const box = boxOf(page, run.x, run.baseline - run.size, run.x + run.width, run.baseline + 0.2 * run.size);
-        if (cited.some((c2) => overlaps(c2, box))) return;
-        links.push({ float: note.key, label: number, ...box });
-        trace.add(FOOTNOTE_MARKER.id, page.number, `${line.text.slice(0, 40)} \u2192 ${number}`, [box]);
-      });
-    }
+function offsetsOf(text, width, font) {
+  if (!font?.size || [...text].length !== text.length) return void 0;
+  let total = 0;
+  for (const w2 of font.values()) total += w2;
+  const average = total / font.size;
+  const widths = Array.from(text, (c2) => font.get(c2) ?? (c2 === " " ? 250 : average));
+  const sum = widths.reduce((s2, w2) => s2 + w2, 0);
+  if (!(sum > 0)) return void 0;
+  const offsets = [0];
+  let at2 = 0;
+  for (const w2 of widths) {
+    at2 += w2;
+    offsets.push(at2 / sum * width);
   }
-  return links;
+  return offsets;
+}
+async function readPage(page, number, OPS) {
+  const [left, bottom, right, top] = page.view;
+  const content = await page.getTextContent();
+  const operators = await page.getOperatorList();
+  const drawn = drawnOn(operators, OPS, page.view);
+  const widths = glyphWidths(operators, OPS);
+  const fonts = /* @__PURE__ */ new Map();
+  const fontName = (id) => {
+    if (!fonts.has(id)) {
+      let name = "";
+      try {
+        name = page.commonObjs.get(id)?.name ?? "";
+      } catch {
+        name = "";
+      }
+      fonts.set(id, name.replace(/^[A-Z]{6}\+/, ""));
+    }
+    return fonts.get(id);
+  };
+  const runs = [];
+  for (const raw of content.items) {
+    if (!("str" in raw) || !raw.str || !raw.str.trim()) continue;
+    const [a2, b2, c2, d2, e2, f2] = raw.transform;
+    if (Math.abs(b2) > 0.01 || Math.abs(c2) > 0.01 || a2 <= 0 || d2 <= 0) continue;
+    const size = Math.hypot(c2, d2) || raw.height;
+    const font = fontName(raw.fontName);
+    runs.push({
+      text: raw.str,
+      x: e2 - left,
+      baseline: top - f2,
+      width: raw.width,
+      offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
+      size,
+      font,
+      bold: BOLD.test(font),
+      italic: ITALIC.test(font)
+    });
+  }
+  const text = content.items.map((item) => "str" in item ? item.str : "").join(" ");
+  return { number, width: right - left, height: top - bottom, runs, drawn, text };
 }
 
 // src/rules/sections.ts
-var keyOf3 = (number) => `section
+var keyOf2 = (number) => `section
 ${number.toLowerCase()}`;
 var isContents = (title) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\.\s?\.|…/.test(title);
 function findSections(layout2, skip, floats, trace, options = {}) {
@@ -41690,7 +41545,7 @@ function findSections(layout2, skip, floats, trace, options = {}) {
     const column = page.twoColumn && type.columns.length > 1 && type.columns.find((c2) => middle >= c2.x0 && middle <= c2.x1) || type.text;
     const x0 = Math.min(column.x0, line.x0), x1 = Math.max(column.x1, line.x1);
     const box = { page: page.number, x: x0 / page.width, y: line.top / page.height, w: (x1 - x0) / page.width, h: (line.bottom - line.top) / page.height };
-    sections.set(keyOf3(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
+    sections.set(keyOf2(number), { key: `s${sections.size}`, kind: "section", label: number, caption: line, ...box });
     trace.add(rule2, page.number, line.text.slice(0, 80), [box]);
   };
   const scanned = (page) => page.drawn.some((d2) => d2.image && d2.w * d2.h >= 0.8 * page.width * page.height);
@@ -41707,7 +41562,7 @@ function findSections(layout2, skip, floats, trace, options = {}) {
       const set = scanned(page) ? scannedHeading(line, page, match.groups.title) : letters2(line.runs.filter((r2) => r2.bold)) > letters2(line.runs) / 2 || line.size > layout2.bodySize + 0.5 || Boolean(setApart?.(line));
       if (!set) continue;
       const number = match.groups.number;
-      if (sections.has(keyOf3(number))) continue;
+      if (sections.has(keyOf2(number))) continue;
       if (heads && !heads(line, match.groups.title)) continue;
       if (runningHead(line, page)) {
         trace.add(SECTION_NOT_RUNNING_HEAD.id, page.number, line.text.slice(0, 80), []);
@@ -41716,8 +41571,8 @@ function findSections(layout2, skip, floats, trace, options = {}) {
       add(page, line, number, SECTION_HEADING.id);
     }
   });
-  const known = (n2) => sections.has(keyOf3(n2));
-  const pageOf = (n2) => sections.get(keyOf3(n2)).page;
+  const known = (n2) => sections.has(keyOf2(n2));
+  const pageOf = (n2) => sections.get(keyOf2(n2)).page;
   const style = (r2) => r2.bold ? "bold" : r2.italic ? "italic" : "roman";
   const styledShare = (l2) => letters2(l2.runs.filter((r2) => r2.bold || r2.italic)) / Math.max(1, letters2(l2.runs));
   const LEAD = new RegExp("^(?<number>(?:\\d{1,2}|[A-Z](?=\\.\\d))(?:\\.\\d{1,2}){0,3})\\.?\\s+(?<title>\\p{L}.*)$", "u");
@@ -41889,7 +41744,7 @@ function findSectionMentions(flow, sections, layout2, trace) {
     const listStart = match.index + match[0].length - groups.list.length;
     if (/^[A-Z]$|^[IVX]+$/.test(groups.list.trim()) && /^\s*:/.test(flow.text.slice(match.index + match[0].length))) continue;
     numbersIn2(groups.list).forEach((item, index) => {
-      const section2 = sections.get(keyOf3(item.number));
+      const section2 = sections.get(keyOf2(item.number));
       if (!section2) return;
       const from = index === 0 ? match.index : listStart + item.start;
       const boxes = boxesOf(flow, from, listStart + item.end, size);
@@ -41898,6 +41753,324 @@ function findSectionMentions(flow, sections, layout2, trace) {
     });
   }
   return links;
+}
+
+// src/rules/citations.ts
+var LEAST_HITS = 3;
+var LONGEST_RANGE = 40;
+function numbersOf(list) {
+  const out = [];
+  for (const part of list.split(/[,;]/)) {
+    const range = part.trim().split(/\s*[-–—]\s*/);
+    if (range.some((r2) => !/^\d{1,4}$/.test(r2))) return null;
+    if (range.length === 1) out.push(Number(range[0]));
+    else {
+      const [a2, b2] = range.map(Number);
+      if (!(b2 > a2) || b2 - a2 > LONGEST_RANGE) return null;
+      for (let n2 = a2; n2 <= b2; n2 += 1) out.push(n2);
+    }
+  }
+  return out;
+}
+function numbered(bibliography) {
+  const map = /* @__PURE__ */ new Map();
+  bibliography.entries.forEach((entry, i2) => map.set(entry.number ?? i2 + 1, entry));
+  return map;
+}
+var EQUATION_BEFORE = /\b(?:Eqs?|Equations?|equations?|eqs?|Eqn|eqn|Fig|Figs|Figure|Figures|Table|Section|Sec|Step|step|Chapter|Theorem|Lemma|Rule|rule)\.?\s*$/;
+function bracketHits(flows, byNumber, size) {
+  const hits = [];
+  for (const flow of flows) {
+    const re2 = new RegExp(CITE_BRACKET.pattern.source, "g");
+    let m2;
+    while (m2 = re2.exec(flow.text)) {
+      const numbers = numbersOf(m2.groups.list);
+      if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_BRACKET.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
+    }
+  }
+  return hits;
+}
+function parenHits(flows, byNumber, size) {
+  const hits = [];
+  for (const flow of flows) {
+    const re2 = new RegExp(CITE_PAREN.pattern.source, "g");
+    let m2;
+    while (m2 = re2.exec(flow.text)) {
+      const numbers = numbersOf(m2.groups.list);
+      if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
+      if (EQUATION_BEFORE.test(flow.text.slice(Math.max(0, m2.index - 14), m2.index))) continue;
+      const alone = flow.at[m2.index];
+      if (alone && alone.line.text.trim() === m2[0].trim()) continue;
+      const end = flow.at[m2.index + m2[0].length - 1], start = flow.at[m2.index];
+      if (end && start && end.line === start.line && start.char > 0) {
+        const line = start.line, run = line.runs[line.chars[start.char]?.run ?? 0];
+        const before = line.chars.slice(0, start.char).map((c2) => line.runs[c2.run]).filter(Boolean).pop();
+        const trailing = end.char >= line.text.trimEnd().length - 1;
+        if (trailing && before && run && run.x - (before.x + before.width) > 2 * line.size) continue;
+      }
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_PAREN.id, entries: numbers.map((n2) => byNumber.get(n2)), label: m2[0], boxes, page: boxes[0].page });
+    }
+  }
+  return hits;
+}
+var UNIT = /(?:^|\s)(?:m|cm|mm|µm|μm|nm|km|s|ms|kg|g|N|J|Pa|kPa|MPa|GPa|W|K|Hz|mol|L|m\/s|N\/m)$/;
+var MATH_FONT = /math|cmmi|cmsy|symbol|cmex|msbm|stix.*math/i;
+function superscriptHits(layout2, skip, byNumber) {
+  const hits = [];
+  for (const page of layout2.pages) {
+    for (const line of page.lines) {
+      if (line.furniture || skip.has(line)) continue;
+      const tokens = [];
+      line.runs.forEach((run, i2) => {
+        if (!run.sup) return;
+        const last = tokens[tokens.length - 1];
+        if (last && last.end === i2) last.end = i2 + 1;
+        else tokens.push({ start: i2, end: i2 + 1 });
+      });
+      if (page.number === 1 && tokens.length >= 1) {
+        const words = line.text.split(/\s+/).filter((w2) => new RegExp("\\p{L}", "u").test(w2));
+        if (words.length && words.filter((w2) => new RegExp("^\\p{Lu}", "u").test(w2)).length >= 0.6 * words.length) continue;
+      }
+      for (const token of tokens) {
+        const runs = line.runs.slice(token.start, token.end);
+        const text = runs.map((r2) => r2.text).join("").replace(/\s+/g, "");
+        const m2 = CITE_SUPERSCRIPT.pattern.exec(text);
+        if (!m2) continue;
+        const before = line.runs.slice(0, token.start).filter((r2) => !r2.sup && !r2.sub);
+        const prev = before[before.length - 1];
+        if (!prev) continue;
+        const prevText = before.map((r2) => r2.text).join("");
+        if (/\d\s*$/.test(prevText) || UNIT.test(prevText.trimEnd()) || MATH_FONT.test(prev.font)) continue;
+        if (prev.italic && new RegExp("(?:^|\\s)\\p{L}\\s*$", "u").test(prevText)) continue;
+        if (/\b(?:sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|log|ln|exp)\s*$/.test(prevText)) continue;
+        if (/[)\]}|]\s*$/.test(prevText) && /[=+−×÷±√∑∫≤≥≈]/.test(line.text)) continue;
+        const numbers = numbersOf(m2.groups.list);
+        if (!numbers?.length || numbers.some((n2) => !byNumber.has(n2))) continue;
+        const x0 = least(runs.map((r2) => r2.x)), x1 = most(runs.map((r2) => r2.x + r2.width));
+        const top = least(runs.map((r2) => r2.baseline - r2.size * 0.8)), bottom = most(runs.map((r2) => r2.baseline + r2.size * 0.22));
+        const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
+        hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n2) => byNumber.get(n2)), label: text, boxes: [box], page: page.number });
+      }
+    }
+  }
+  return hits;
+}
+var YEAR_ITEM = /(?:1[5-9]\d\d|20\d\d)[a-z]?|\b[a-z]\b/g;
+function lookup(entries, names, years) {
+  const people = names.replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n2) => n2.trim()).filter(Boolean);
+  const firstWords = (people[0] ?? "").split(/\s+/).filter((w2) => new RegExp("^\\p{Lu}", "u").test(w2) || /^(?:van|von|de|der|den|du|la|le|da|di)$/.test(w2));
+  const first = normalizeName(firstWords.join(" "));
+  const second = people[1] ? normalizeName(people[1].split(/\s+/).pop() ?? "") : null;
+  if (!first || NOT_A_NAME.has(firstWords[0] ?? "")) return [];
+  const same = (a2, b2) => a2 === b2 || Math.min(a2.length, b2.length) >= 3 && (a2.endsWith(b2) || b2.endsWith(a2));
+  const byAuthor = entries.filter((e2) => e2.surnames[0] && same(e2.surnames[0], first));
+  const out = [];
+  let lastYear = null;
+  for (const item of years) {
+    const letterOnly = /^[a-z]$/.test(item);
+    const year = letterOnly ? lastYear : Number(item.slice(0, 4));
+    const letter = letterOnly ? item : item.slice(4);
+    if (!year) continue;
+    lastYear = year;
+    let candidates = byAuthor.filter((e2) => e2.year === year);
+    if (second && candidates.length > 1) {
+      const withSecond = candidates.filter((e2) => e2.surnames[1] && same(e2.surnames[1], second));
+      if (withSecond.length) candidates = withSecond;
+    }
+    if (!candidates.length) continue;
+    const lettered = letter ? candidates.find((e2) => e2.yearSuffix === letter) ?? candidates[letter.charCodeAt(0) - 97] : candidates[0];
+    if (lettered) out.push(lettered);
+  }
+  return out;
+}
+function authorYearHits(flows, entries, size) {
+  const hits = [];
+  for (const flow of flows) {
+    const claimed = [];
+    const group = new RegExp(CITE_AUTHOR_YEAR_GROUP.pattern.source, "gu");
+    let m2;
+    while (m2 = group.exec(flow.text)) {
+      const inner = m2.groups.group;
+      const innerStart = m2.index + 1;
+      let offset = 0, names = "";
+      for (const part of inner.split(";")) {
+        const partStart = innerStart + offset;
+        offset += part.length + 1;
+        const text = part.replace(/^\s*(?:(?:see|See|e\.g\.|cf\.|i\.e\.|and|also)[,]?\s+)+/, (s2) => " ".repeat(s2.length));
+        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text);
+        if (!parsed?.groups?.years) continue;
+        if (parsed.groups.names) names = parsed.groups.names.trim();
+        if (!names) continue;
+        const found = lookup(entries, names, parsed.groups.years.match(YEAR_ITEM) ?? []);
+        if (!found.length) continue;
+        const from = partStart + parsed.groups.lead.length, to2 = partStart + parsed[0].length;
+        const boxes = boxesOf(flow, from, to2, size);
+        if (!boxes.length) continue;
+        claimed.push([from, to2]);
+        hits.push({ rule: CITE_AUTHOR_YEAR_GROUP.id, entries: found, label: flow.text.slice(from, to2).trim(), boxes, page: boxes[0].page });
+      }
+    }
+    const narrative = new RegExp(CITE_AUTHOR_YEAR_NARRATIVE.pattern.source, "gu");
+    while (m2 = narrative.exec(flow.text)) {
+      const from = m2.index, to2 = m2.index + m2[0].length;
+      if (claimed.some(([a2, b2]) => from < b2 && to2 > a2)) continue;
+      const found = lookup(entries, m2.groups.names, m2.groups.years.match(YEAR_ITEM) ?? []);
+      if (!found.length) continue;
+      const boxes = boxesOf(flow, from, to2, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: m2[0], boxes, page: boxes[0].page });
+    }
+  }
+  return hits;
+}
+function labelHits(flows, entries, size) {
+  const byLabel = new Map(entries.filter((e2) => e2.label).map((e2) => [e2.label, e2]));
+  const hits = [];
+  for (const flow of flows) {
+    const re2 = new RegExp(CITE_LABEL.pattern.source, "g");
+    let m2;
+    while (m2 = re2.exec(flow.text)) {
+      const labels = m2.groups.list.split(/\s*,\s*/);
+      if (!labels.every((l2) => byLabel.has(l2))) continue;
+      const boxes = boxesOf(flow, m2.index, m2.index + m2[0].length, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_LABEL.id, entries: labels.map((l2) => byLabel.get(l2)), label: m2[0], boxes, page: boxes[0].page });
+    }
+  }
+  return hits;
+}
+function findCitations(layout2, flows, bibliography, trace) {
+  if (!bibliography.entries.length) return [];
+  const size = (page) => [layout2.pages[page - 1].width, layout2.pages[page - 1].height];
+  const ways = [];
+  if (bibliography.numbering === "bracket" || bibliography.numbering === "number") {
+    const byNumber = numbered(bibliography);
+    ways.push(bracketHits(flows, byNumber, size), parenHits(flows, byNumber, size), superscriptHits(layout2, bibliography.lines, byNumber));
+  } else if (bibliography.numbering === "label") {
+    ways.push(labelHits(flows, bibliography.entries, size));
+  } else {
+    ways.push(authorYearHits(flows, bibliography.entries, size));
+  }
+  const breadth = (hits) => new Set(hits.flatMap((h2) => h2.entries.map((e2) => e2.key))).size;
+  const best = ways.reduce((a2, b2) => breadth(b2) > breadth(a2) || breadth(b2) === breadth(a2) && b2.length > a2.length ? b2 : a2, []);
+  const kept = best.length >= LEAST_HITS ? best : [];
+  return kept.map((hit) => {
+    trace.add(hit.rule, hit.page, `${hit.label} \u2192 ${hit.entries.map((e2) => e2.key).join(",")}`, hit.boxes);
+    return { keys: hit.entries.map((e2) => e2.key), label: hit.label, inferred: false, boxes: hit.boxes };
+  });
+}
+
+// src/rules/footnotes.ts
+var NUMBER = /^\s*(\d{1,2})\s*$/;
+var keyOf3 = (page, number) => `footnote
+${page}
+${number}`;
+var sameSize2 = (a2, b2) => Math.abs(a2 - b2) <= 0.03 * b2;
+var across2 = (a2, b2) => Math.min(a2.x1, b2.x1) - Math.max(a2.x0, b2.x0) > 0;
+var boxOf = (page, x0, top, x1, bottom) => ({ page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height });
+function openingNumber(line) {
+  const first = line.runs[0];
+  const rest = line.runs.slice(1).map((r2) => r2.text).join("").trimStart();
+  return first?.sup && /^[\p{L}"“‘(]/u.test(rest) ? NUMBER.exec(first.text)?.[1] ?? null : null;
+}
+function findFootnotes(layout2, trace) {
+  const notes = /* @__PURE__ */ new Map();
+  for (const page of layout2.pages) {
+    const lines = page.lines.filter((l2) => !l2.furniture);
+    for (const line of lines) {
+      const number = openingNumber(line);
+      if (!number || line.size >= layout2.bodySize - 0.5) continue;
+      if (lines.some((o2) => o2.top > line.bottom && across2(o2, line) && sameSize2(o2.size, layout2.bodySize) && !o2.runs.every((r2) => r2.sup || r2.sub))) continue;
+      const own = [line];
+      for (const next of lines.filter((o2) => o2.top > line.top && across2(o2, line) && sameSize2(o2.size, line.size)).sort((a2, b2) => a2.top - b2.top)) {
+        const last = own[own.length - 1];
+        if (openingNumber(next) || next.top - last.bottom > 0.6 * line.size) break;
+        own.push(next);
+      }
+      const box = boxOf(page, Math.min(...own.map((l2) => l2.x0)), line.top, Math.max(...own.map((l2) => l2.x1)), own[own.length - 1].bottom);
+      if (notes.has(keyOf3(page.number, number))) continue;
+      notes.set(keyOf3(page.number, number), { key: `n${notes.size}`, kind: "footnote", label: number, caption: line, ...box });
+      trace.add(FOOTNOTE_NOTE.id, page.number, line.text.slice(0, 80), [box]);
+    }
+  }
+  return notes;
+}
+function findFootnoteMarkers(layout2, notes, cited, trace) {
+  const links = [];
+  const overlaps = (a2, b2) => a2.page === b2.page && a2.x < b2.x + b2.w && b2.x < a2.x + a2.w && a2.y < b2.y + b2.h && b2.y < a2.y + a2.h;
+  const noteLines = new Set([...notes.values()].map((n2) => n2.caption));
+  for (const page of layout2.pages) {
+    for (const line of page.lines) {
+      if (line.furniture || noteLines.has(line)) continue;
+      line.runs.forEach((run, index) => {
+        const number = run.sup ? NUMBER.exec(run.text)?.[1] : void 0;
+        if (!number || index === 0 && openingNumber(line)) return;
+        const note = notes.get(keyOf3(page.number, number));
+        if (!note || note.caption === line) return;
+        const box = boxOf(page, run.x, run.baseline - run.size, run.x + run.width, run.baseline + 0.2 * run.size);
+        if (cited.some((c2) => overlaps(c2, box))) return;
+        links.push({ float: note.key, label: number, ...box });
+        trace.add(FOOTNOTE_MARKER.id, page.number, `${line.text.slice(0, 40)} \u2192 ${number}`, [box]);
+      });
+    }
+  }
+  return links;
+}
+
+// src/rules/paper.ts
+function analyzeLayout(layout2) {
+  const { analysis, trace, stats } = analyzed(layout2);
+  return { analysis, trace, stats };
+}
+function analyzed(layout2) {
+  const trace = new Trace();
+  const bibliography = findBibliography(layout2, trace);
+  const readable = (line) => !line.furniture && !bibliography.lines.has(line);
+  const flows = layout2.pages.map((page) => flowOf(page.lines.filter(readable)));
+  const floats = findFloats(layout2, trace);
+  const sections = findSections(layout2, bibliography.lines, floats.values(), trace);
+  const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout2, trace), ...findSectionMentions(flow, sections, layout2, trace)]);
+  const citations = findCitations(layout2, flows, bibliography, trace);
+  const notes = findFootnotes(layout2, trace);
+  links.push(...findFootnoteMarkers(layout2, notes, citations.flatMap((c2) => c2.boxes), trace));
+  const analysis = {
+    references: bibliography.entries.map((e2) => ({
+      key: e2.key,
+      index: e2.index,
+      raw: e2.raw,
+      title: e2.title,
+      authors: e2.authors,
+      year: e2.year,
+      journal: e2.journal,
+      doi: e2.doi,
+      arxiv_id: e2.arxiv_id,
+      page: e2.page,
+      y: e2.y
+    })),
+    citations,
+    floats: [...floats.values(), ...sections.values(), ...notes.values()].map(({ caption: _2, ...float }) => float),
+    links
+  };
+  return {
+    analysis,
+    trace,
+    bibliographyLines: bibliography.lines,
+    floatValues: floats.values(),
+    stats: {
+      pages: layout2.pages.length,
+      bodySize: layout2.bodySize,
+      numbering: bibliography.numbering,
+      twoColumnPages: layout2.pages.filter((p2) => p2.twoColumn).length,
+      floats: floats.size,
+      sections: sections.size,
+      footnotes: notes.size
+    }
+  };
 }
 
 // node_modules/unpdf/dist/index.mjs
@@ -41984,128 +42157,6 @@ async function interopDefault(m2) {
   return resolved.default || resolved;
 }
 
-// src/rules/page.ts
-var BOLD_WORD = /bold|black|heavy|semibold|demi|medi(?!um)|\.b\b|-b$|cmbx|bx\d/i;
-var BOLD_SUFFIX = /[a-z][TO]?B[IO]?$|Bd$|-Bd/;
-var BOLD = { test: (name) => BOLD_WORD.test(name) || BOLD_SUFFIX.test(name) };
-var ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
-var ITALIC = { test: (name) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
-var multiply = (m2, n2) => [
-  m2[0] * n2[0] + m2[2] * n2[1],
-  m2[1] * n2[0] + m2[3] * n2[1],
-  m2[0] * n2[2] + m2[2] * n2[3],
-  m2[1] * n2[2] + m2[3] * n2[3],
-  m2[0] * n2[4] + m2[2] * n2[5] + m2[4],
-  m2[1] * n2[4] + m2[3] * n2[5] + m2[5]
-];
-var apply = (m2, x2, y2) => [m2[0] * x2 + m2[2] * y2 + m2[4], m2[1] * x2 + m2[3] * y2 + m2[5]];
-function drawnOn(ops, OPS, view) {
-  const [left, , , top] = view;
-  const painted = /* @__PURE__ */ new Set([OPS.fill, OPS.eoFill, OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
-  const images = /* @__PURE__ */ new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintImageXObjectRepeat, OPS.paintSolidColorImageMask]);
-  const out = [];
-  let ctm = [1, 0, 0, 1, 0, 0];
-  const stack = [];
-  const add = (x0, y0, x1, y1, image) => {
-    const corners = [apply(ctm, x0, y0), apply(ctm, x1, y0), apply(ctm, x0, y1), apply(ctm, x1, y1)];
-    const xs2 = corners.map((c2) => c2[0] - left), ys2 = corners.map((c2) => top - c2[1]);
-    const box = { x: least(xs2), y: least(ys2), w: most(xs2) - least(xs2), h: most(ys2) - least(ys2), image };
-    if ([box.x, box.y, box.w, box.h].every(Number.isFinite)) out.push(box);
-  };
-  ops.fnArray.forEach((fn2, i2) => {
-    const args = ops.argsArray[i2];
-    if (fn2 === OPS.save) stack.push(ctm);
-    else if (fn2 === OPS.restore) ctm = stack.pop() ?? ctm;
-    else if (fn2 === OPS.transform) ctm = multiply(ctm, args);
-    else if (fn2 === OPS.paintFormXObjectBegin) {
-      stack.push(ctm);
-      const matrix = args?.[0];
-      if (matrix && matrix.length === 6) ctm = multiply(ctm, Array.from(matrix));
-    } else if (fn2 === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
-    else if (fn2 === OPS.constructPath) {
-      const op = args?.[0];
-      const minMax = args?.[2];
-      if (painted.has(op) && minMax && Number.isFinite(minMax[0])) add(minMax[0], minMax[1], minMax[2], minMax[3], false);
-    } else if (images.has(fn2)) add(0, 0, 1, 1, true);
-  });
-  return out;
-}
-function glyphWidths(ops, OPS) {
-  const fonts = /* @__PURE__ */ new Map();
-  let font = null;
-  ops.fnArray.forEach((fn2, i2) => {
-    const args = ops.argsArray[i2];
-    if (fn2 === OPS.setFont) {
-      const id = String(args?.[0] ?? "");
-      font = fonts.get(id) ?? /* @__PURE__ */ new Map();
-      fonts.set(id, font);
-    } else if (fn2 === OPS.showText && font && Array.isArray(args?.[0])) {
-      for (const glyph of args[0]) {
-        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width) || font.has(glyph.unicode)) continue;
-        font.set(glyph.unicode, glyph.width);
-      }
-    }
-  });
-  return fonts;
-}
-function offsetsOf(text, width, font) {
-  if (!font?.size || [...text].length !== text.length) return void 0;
-  let total = 0;
-  for (const w2 of font.values()) total += w2;
-  const average = total / font.size;
-  const widths = Array.from(text, (c2) => font.get(c2) ?? (c2 === " " ? 250 : average));
-  const sum = widths.reduce((s2, w2) => s2 + w2, 0);
-  if (!(sum > 0)) return void 0;
-  const offsets = [0];
-  let at2 = 0;
-  for (const w2 of widths) {
-    at2 += w2;
-    offsets.push(at2 / sum * width);
-  }
-  return offsets;
-}
-async function readPage(page, number, OPS) {
-  const [left, bottom, right, top] = page.view;
-  const content = await page.getTextContent();
-  const operators = await page.getOperatorList();
-  const drawn = drawnOn(operators, OPS, page.view);
-  const widths = glyphWidths(operators, OPS);
-  const fonts = /* @__PURE__ */ new Map();
-  const fontName = (id) => {
-    if (!fonts.has(id)) {
-      let name = "";
-      try {
-        name = page.commonObjs.get(id)?.name ?? "";
-      } catch {
-        name = "";
-      }
-      fonts.set(id, name.replace(/^[A-Z]{6}\+/, ""));
-    }
-    return fonts.get(id);
-  };
-  const runs = [];
-  for (const raw of content.items) {
-    if (!("str" in raw) || !raw.str || !raw.str.trim()) continue;
-    const [a2, b2, c2, d2, e2, f2] = raw.transform;
-    if (Math.abs(b2) > 0.01 || Math.abs(c2) > 0.01 || a2 <= 0 || d2 <= 0) continue;
-    const size = Math.hypot(c2, d2) || raw.height;
-    const font = fontName(raw.fontName);
-    runs.push({
-      text: raw.str,
-      x: e2 - left,
-      baseline: top - f2,
-      width: raw.width,
-      offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
-      size,
-      font,
-      bold: BOLD.test(font),
-      italic: ITALIC.test(font)
-    });
-  }
-  const text = content.items.map((item) => "str" in item ? item.str : "").join(" ");
-  return { number, width: right - left, height: top - bottom, runs, drawn, text };
-}
-
 // src/rules/pdf.ts
 async function readPdf(bytes, { pages: limit } = {}) {
   const { OPS } = await getResolvedPDFJS();
@@ -42131,49 +42182,7 @@ async function readPdf(bytes, { pages: limit } = {}) {
 
 // src/rules/analyze.ts
 async function analyzeWithRules(bytes) {
-  const doc = await readPdf(bytes);
-  const layout2 = layout(doc);
-  const trace = new Trace();
-  const bibliography = findBibliography(layout2, trace);
-  const readable = (line) => !line.furniture && !bibliography.lines.has(line);
-  const flows = layout2.pages.map((page) => flowOf(page.lines.filter(readable)));
-  const floats = findFloats(layout2, trace);
-  const sections = findSections(layout2, bibliography.lines, floats.values(), trace);
-  const links = flows.flatMap((flow) => [...findMentions(flow, floats, layout2, trace), ...findSectionMentions(flow, sections, layout2, trace)]);
-  const citations = findCitations(layout2, flows, bibliography, trace);
-  const notes = findFootnotes(layout2, trace);
-  links.push(...findFootnoteMarkers(layout2, notes, citations.flatMap((c2) => c2.boxes), trace));
-  const analysis = {
-    references: bibliography.entries.map((e2) => ({
-      key: e2.key,
-      index: e2.index,
-      raw: e2.raw,
-      title: e2.title,
-      authors: e2.authors,
-      year: e2.year,
-      journal: e2.journal,
-      doi: e2.doi,
-      arxiv_id: e2.arxiv_id,
-      page: e2.page,
-      y: e2.y
-    })),
-    citations,
-    floats: [...floats.values(), ...sections.values(), ...notes.values()].map(({ caption: _2, ...float }) => float),
-    links
-  };
-  return {
-    analysis,
-    trace,
-    stats: {
-      pages: layout2.pages.length,
-      bodySize: layout2.bodySize,
-      numbering: bibliography.numbering,
-      twoColumnPages: layout2.pages.filter((p2) => p2.twoColumn).length,
-      floats: floats.size,
-      sections: sections.size,
-      footnotes: notes.size
-    }
-  };
+  return analyzeLayout(layout(await readPdf(bytes)));
 }
 
 // ../../cloudflare/src/papers/reading.ts

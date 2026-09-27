@@ -348,6 +348,38 @@ describe("the viewer's references", () => {
     expect((await call("GET", `/api/viewer-references/item/${references[0].uuid}?${share}`)).status).toBe(404);
   });
 
+  it("look up a reference the viewer read itself, keeping what was found by what is printed", async () => {
+    const ada = await register();
+    await kept(ada);
+    await kept(ada, OTHER, "Another");
+    let asked = 0;
+    hosts({
+      "api.crossref.org": () => { asked += 1; return crossrefItems({ DOI: "10.1/attention", title: ["Attention Is All You Need"], issued: { "date-parts": [[2017]] }, "container-title": ["NeurIPS"] }); },
+      "api.openalex.org": () => jsonResponse({}, 404),
+    });
+    const attention = { key: "b0", index: 0, raw: "Vaswani  et al. Attention Is All You Need.\n2017.", title: "Attention Is All You Need", authors: ["A. Vaswani"], year: 2017 };
+    // Whoever may read the paper may have what it cites looked up.
+    const opened = await ok("POST", `/api/viewer-references/${PDF}/resolve`, { json: attention });
+    expect(opened).toMatchObject({ key: "b0", raw: "Vaswani et al. Attention Is All You Need. 2017.", resolved_status: "ok", resolution: { title: "Attention Is All You Need", venue: "NeurIPS" } });
+    expect(await count("paper_references", "paper_sha256 = ?", PDF)).toBe(1);
+    // The same printed words, however the rules number them now, are the
+    // same reference, and are not looked up again.
+    expect(await ok("POST", `/api/viewer-references/${PDF}/resolve`, { headers: ada.headers, json: { ...attention, key: "b3", index: 3 } })).toMatchObject({ uuid: opened.uuid, resolved_status: "ok" });
+    expect(asked).toBe(1);
+    expect(await count("paper_references", "paper_sha256 = ?", PDF)).toBe(1);
+    // A reference the indexes do not know keeps its printed words.
+    expect(await ok("POST", `/api/viewer-references/${PDF}/resolve`, { json: { key: "b1", index: 1, raw: "Knuth D. The art of computer programming." } }))
+      .toMatchObject({ resolved_status: "bibliography", resolution: { source: "bibliography" } });
+
+    // A link opens one file, and it is not a key to every other PDF.
+    const link = await ok("POST", `/api/papers/${PDF.slice(0, 32)}/sharable`, { headers: ada.headers, json: { include_annotations: true } });
+    expect((await ok("POST", `/api/viewer-references/${PDF}/resolve?share=${link.uuid}`, { json: attention })).uuid).toBe(opened.uuid);
+    expect((await call("POST", `/api/viewer-references/${OTHER}/resolve?share=${link.uuid}`, { json: attention })).status).toBe(404);
+    expect((await call("POST", `/api/viewer-references/${"9".repeat(64)}/resolve`, { json: attention })).status).toBe(404);
+    expect((await call("POST", `/api/viewer-references/${PDF}/resolve`, { json: { ...attention, raw: "x" } })).status).toBe(422);
+    expect((await call("POST", `/api/viewer-references/${PDF}/resolve`, { json: { ...attention, authors: "A. Vaswani" } })).status).toBe(422);
+  });
+
   it("register a citation read off the page without giving the paper a second row for an entry it holds", async () => {
     const ada = await register();
     await kept(ada);

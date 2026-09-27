@@ -334,27 +334,26 @@ export function deleteAnnotation(uuid) {
 
 // ---- References ----
 
-// The bibliography of the PDF being read, and where each work is cited in
-// it. The first ask may answer `pending`: reading a PDF's references takes
-// a pass over the whole document, which happens once and is then kept.
-export function getViewerReferences(paperSha256) {
-  return request(`/viewer-references/${paperSha256}?paper_sha256=${paperSha256}`);
-}
+// What the fields of a reference read off the page are, for the Worker to
+// look up (paperReading.js reads them).
+const printedOf = (reference) => ({
+  key: reference.key,
+  index: reference.index,
+  raw: reference.raw,
+  title: reference.title ?? null,
+  authors: Array.isArray(reference.authors) ? reference.authors : [],
+  year: reference.year ?? null,
+  journal: reference.journal ?? null,
+  doi: reference.doi ?? null,
+  arxiv_id: reference.arxiv_id ?? null,
+});
 
-// One reference, looked up the first time anyone opens it.
-export function getViewerReference(uuid) {
-  return request(`/viewer-references/item/${uuid}`);
-}
-
-// The same two questions, asked on the authority of a shared link. The
-// bibliography belongs to the PDF, so the answers are the same ones; only
-// what allows the asking differs.
-export function getSharedReferences(share, pdfHash, paperSha256) {
-  return request(`/viewer-references/${pdfHash}?paper_sha256=${paperSha256}&share=${share}`);
-}
-
-export function getSharedReference(share, referenceUuid) {
-  return request(`/viewer-references/item/${referenceUuid}?share=${share}`);
+// One reference the viewer read off the page, looked up the first time
+// anyone opens it and then kept by what is printed. A shared reading asks
+// on the authority of its link.
+export function lookUpViewerReference(paperSha256, reference, share = null) {
+  const on = share ? `?share=${encodeURIComponent(share)}` : '';
+  return jsonRequest(`/viewer-references/${paperSha256}/resolve${on}`, 'POST', printedOf(reference));
 }
 
 export function resolveViewerReference(pdfHash, { key, raw }) {
