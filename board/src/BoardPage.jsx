@@ -2099,11 +2099,21 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid);
   };
   const handleCanvasContextMenu = (event) => {
-    if (!board.can_edit || event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging, .board-youtube-loading')) return;
+    if (event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging, .board-youtube-loading')) return;
+    // Zoom about the point that was clicked, as a pinch there would.
+    const bounds = viewportRef.current?.getBoundingClientRect();
+    const at = { x: event.clientX - (bounds?.left || 0), y: event.clientY - (bounds?.top || 0) };
+    const spot = { clientX: event.clientX, clientY: event.clientY, target: event.target };
+    const zoom = viewRef.current.zoom;
     openContextMenu(event, [
-      { label: 'Tidy Up', disabled: busy || !board.items.length, onSelect: () => tidyUp() },
-      { separator: true },
-      ...historyEntries(),
+      board.can_edit && { label: 'New Thought', disabled: busy, onSelect: () => createNoteAt(spot) },
+      board.can_edit && { label: 'Tidy Up', disabled: busy || !board.items.length, onSelect: () => tidyUp() },
+      board.can_edit && { separator: true },
+      { label: 'Zoom In', disabled: zoom >= 3, onSelect: () => zoomAt(1.25, at.x, at.y) },
+      { label: 'Zoom Out', disabled: zoom <= 0.25, onSelect: () => zoomAt(1 / 1.25, at.x, at.y) },
+      { label: 'Actual Size', disabled: zoom === 1, onSelect: () => zoomAt(1 / zoom, at.x, at.y) },
+      board.can_edit && { separator: true },
+      ...(board.can_edit ? historyEntries() : []),
     ]);
   };
   const handleGroupContextMenu = (event, booklet) => {

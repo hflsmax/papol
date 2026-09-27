@@ -3340,11 +3340,43 @@ export default function App() {
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ]);
 
+  // Paint is taken in hand as it is offered, so the menu is plainly about
+  // the stroke under the pointer and not another one already selected.
+  const inkContextMenu = (event, stroke) => {
+    if (readOnly) return;
+    const opened = openContextMenu(event, [
+      { label: 'Remove Paint', shortcut: '⌫', onSelect: () => {
+        setSelectedInk(null);
+        eraseStroke(stroke.uuid);
+      } },
+      { separator: true },
+      { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+      { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+    ]);
+    if (opened) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
+  };
+
+  // The page: the tools in the bar, with their keys, find, and history.
   const pageContextMenu = contextMenuHandler((event) => (
-    !readOnly && event.target.closest?.('.pdf-page')
+    event.target.closest?.('.pdf-page')
   ) ? [
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
+    {
+      label: 'Tool',
+      submenu: availableTools.map((candidate) => ({
+        label: candidate.label,
+        shortcut: candidate.badge,
+        checked: tool === candidate.id,
+        // Only a change: taking the tool in hand again opens its sheet.
+        onSelect: () => tool !== candidate.id && takeTool(candidate.id),
+      })),
+    },
+    { label: 'Find…', shortcut: '⌘F', onSelect: () => {
+      setSearchOpen(true);
+      window.requestAnimationFrame(() => searchInputRef.current?.select());
+    } },
+    !readOnly && { separator: true },
+    !readOnly && { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
+    !readOnly && { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
   ] : []);
 
   // Reading position is implicit: remember the point at the centre of the
@@ -3687,6 +3719,7 @@ export default function App() {
   const pageCommitClip = useEvent(commitClip);
   const pageRemoveClip = useEvent(removeClip);
   const pageSendClip = useEvent(openSendClip);
+  const pageContextInk = useEvent(inkContextMenu);
   const pageMoveStroke = useEvent(moveStroke);
   const pageDropAnimal = useEvent(dropAnimal);
   const pageMoveAnimal = useEvent(moveAnimal);
@@ -4534,6 +4567,7 @@ export default function App() {
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
               onContextNote={noteContextMenu}
+              onContextInk={pageContextInk}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}

@@ -4,6 +4,7 @@ import { addComment, updateComment, deleteComment } from '../../../shared/api/pa
 import Markdown, { MarkdownHint } from './Markdown';
 import AutoTextarea from './AutoTextarea';
 import { confirmAction } from '../../../shared/confirmAction';
+import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function CommentSection({
   noteHref, onOpenNote, paperSha256, comments, currentUser, onCommentChange,
@@ -120,7 +121,22 @@ export default function CommentSection({
       <div className="comments-list">
         {comments.length > 0 &&
           comments.map((comment) => (
-            <div key={comment.uuid} className="comment">
+            <div
+              key={comment.uuid}
+              className="comment"
+              onContextMenu={editingUuid === comment.uuid ? undefined : contextMenuHandler(() => {
+                const own = currentUser && comment.user && comment.user.uuid === currentUser.uuid;
+                return [
+                  comment.page != null && onOpenNote && { label: `Open at Page ${comment.page}`, onSelect: () => onOpenNote(noteHref(comment)) },
+                  own && { separator: true },
+                  own && { label: 'Edit Note…', onSelect: () => {
+                    setDraft(comment.content);
+                    setEditingUuid(comment.uuid);
+                  } },
+                  own && { label: 'Delete Note…', onSelect: () => handleDelete(comment.uuid) },
+                ];
+              })}
+            >
               {editingUuid === comment.uuid ? (
                 <div className="inline-edit">
                   <AutoTextarea

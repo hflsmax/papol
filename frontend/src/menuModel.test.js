@@ -25,6 +25,32 @@ test('a submenu is tidied the same way and kept when it has entries', () => {
   assert.deepEqual(labels(entry.submenu), ['Reading']);
 });
 
+test('a menu for someone who may only look keeps what they can do, with no stray separators', () => {
+  // The shape of the board detail menu for a board that is not yours: every
+  // owner's entry and the separators between them fall away.
+  const mine = false;
+  const entries = menuEntries([
+    { label: 'Open Board' },
+    mine && { separator: true },
+    mine && { label: 'Rename Board…' },
+    mine && { label: 'Move to Shelf', submenu: [] },
+    { separator: true },
+    mine && { label: 'Delete Board…' },
+  ]);
+  assert.deepEqual(labels(entries), ['Open Board']);
+});
+
+test('an empty submenu goes, and so does the separator it leaves behind', () => {
+  const entries = menuEntries([
+    { label: 'Open' },
+    { separator: true },
+    { label: 'Move to Shelf', submenu: [] },
+    { separator: true },
+    { label: 'Delete' },
+  ]);
+  assert.deepEqual(labels(entries), ['Open', '—', 'Delete']);
+});
+
 test('the arrow keys skip separators and disabled entries, and wrap round', () => {
   const entries = menuEntries([
     { label: 'Open' },
