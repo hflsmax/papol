@@ -5818,7 +5818,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-section-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-2); }
 .project-section-head h3 { margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .project-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-section-action { margin-left: auto; }
+.project-section-action { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+.project-section-action:hover:not(:disabled), .project-section-action[aria-expanded='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.project-section-action .action-glyph, .project-invite-thought .action-glyph, .project-discuss-button .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .project-empty { margin: 0; color: var(--ink-faint); font-size: var(--fs-md); }
 .project-new-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-2); border-radius: 50%; background: var(--accent); vertical-align: middle; }
 
@@ -5852,17 +5854,41 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-take-who b { color: var(--ink-soft); font-weight: 600; }
 .project-take-thought { grid-column: 2; margin: 2px 0 0; color: var(--ink); font-size: var(--fs-md); line-height: 1.5; }
-.project-paper-added { margin: var(--space-3) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-paper-added a { color: var(--accent); }
+/* The invitations: your thought, and the discussion. */
+.project-invite-thought { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); background: none; box-shadow: none; color: var(--accent); font: var(--fs-xs) var(--font-ui); opacity: .75; transition: opacity var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.project-paper:hover .project-invite-thought, .project-invite-thought:focus-visible { opacity: 1; }
+.project-invite-thought:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.project-take-edit { min-height: 0; margin-left: auto; padding: 0 var(--space-2); font-size: var(--fs-xs); line-height: 1.4; }
+.project-thought-form { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-2); margin-top: var(--space-3); }
+.project-takes:empty + .project-thought-form, .project-paper-more > .project-thought-form:first-child { margin-top: 0; }
+.project-thought-form input, .project-board-form input { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
+.project-thought-form input:focus, .project-board-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
+.project-thought-form button:not(.project-quiet) { padding: var(--space-1) var(--space-3); }
+.project-thought-note { grid-column: 2 / -1; margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
+.project-paper-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
+.project-paper-added { margin: 0 auto 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-discuss-button { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent); color: var(--ink-inverse); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; }
+.project-discuss-button:hover { filter: brightness(1.08); color: var(--ink-inverse); }
+
+/* Starting a discussion: first, what it is about. */
+.project-subject-pick { box-sizing: border-box; width: 100%; margin: 0 0 var(--space-3); padding: var(--space-3); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
+.project-subject-pick-note { margin: 0 0 var(--space-2); color: var(--ink-soft); font-size: var(--fs-sm); }
+.project-subject-pick ul { margin: 0 calc(-1 * var(--space-2)); padding: 0; list-style: none; }
+.project-subject-pick a { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius); color: var(--ink); font-size: var(--fs-md); font-weight: 600; line-height: 1.4; text-decoration: none; }
+.project-subject-pick a:hover { background: var(--accent-soft); color: var(--accent); }
+.project-subject-pick-meta { margin-left: auto; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); white-space: nowrap; }
 
 /* Discussions: subject, one line of the newest post, a faint meta line. */
 .project-discussions { margin: 0 calc(-1 * var(--space-3)); padding: 0; list-style: none; }
-.project-discussion { display: grid; gap: 2px; padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-discussion { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); row-gap: 2px; padding: var(--space-3); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-discussion:hover, .project-discussion:focus-visible { background: color-mix(in srgb, var(--fill) 45%, transparent); }
 .project-discussion-subject { font-size: var(--fs-md); font-weight: 600; line-height: 1.4; }
 .project-discussion-excerpt { overflow: hidden; color: var(--ink-soft); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
 .project-discussion-excerpt b { color: var(--ink); font-weight: 600; }
+.project-discussion-subject, .project-discussion-excerpt, .project-discussion-meta { grid-column: 1; }
 .project-discussion-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-discussion-reply { grid-column: 2; grid-row: 1 / span 3; align-self: center; padding: var(--space-1) var(--space-3); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: var(--radius); color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); transition: background-color var(--motion-fast) var(--ease-out); }
+.project-discussion:hover .project-discussion-reply { border-color: var(--accent); background: var(--accent-soft); }
 .project-more { margin-top: var(--space-1); }
 
 /* Boards: a plain list with the name and a faint count. */
@@ -5880,6 +5906,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-paper-summary { margin-top: var(--space-2); }
   .project-paper .item-actions { grid-column: 1; grid-row: auto; justify-self: end; }
   .project-discussion-excerpt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .project-discussion-reply { display: none; }
+  .project-thought-form { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .project-thought-form .project-quiet { display: none; }
 }
 
 /* One discussion: its subject, its posts, and room to write at length. */
@@ -5899,8 +5928,14 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
 .discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .discussion-post-body { font-size: var(--fs-md); line-height: 1.65; }
-.discussion-reply, .discussion-start { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.discussion-reply-heading { margin: 0 0 var(--space-2); color: var(--ink-soft); font: 600 var(--fs-sm) var(--font-ui); font-variant: small-caps; letter-spacing: .04em; }
+.discussion-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: end; }
+.discussion-head .kicker, .discussion-title { grid-column: 1; }
+.discussion-jump { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+.discussion-jump:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.discussion-jump .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Your turn: a card with your face on it, below the last post. */
+.discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
+.discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
 .discussion-start-note { margin: 0 0 var(--space-3); color: var(--ink-soft); font-size: var(--fs-sm); }
 .discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
 .discussion-composer-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }

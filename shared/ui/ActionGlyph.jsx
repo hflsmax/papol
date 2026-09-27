@@ -9,6 +9,7 @@ export default function ActionGlyph({ name }) {
     trash: <><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /><path d="M10.5 11v5M13.5 11v5" /></>,
     lock: <><rect x="5.5" y="10" width="13" height="9" rx="2" /><path d="M8.5 10V7.2a3.5 3.5 0 0 1 7 0V10" /><circle cx="12" cy="14.5" r="1" className="action-glyph-fill" /></>,
     unlock: <><rect x="7" y="10" width="11" height="9" rx="2" /><path d="M10 10V7.5a4 4 0 0 1 7.2-2.4" /><circle cx="12.5" cy="14.5" r="1" className="action-glyph-fill" /></>,
+    plus: <path d="M12 5v14M5 12h14" />,
     add: <><path d="M12 4v10M7 9h10" /><path d="M4 14v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></>,
     'take-out': <><circle cx="12" cy="12" r="8" /><path d="M8.5 12h7" /></>,
     discuss: <><path d="M5 6.5A1.5 1.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5v8a1.5 1.5 0 0 1-1.5 1.5H11l-4 3v-3h-.5A1.5 1.5 0 0 1 5 14.5Z" /><path d="M9 9.5h6M9 12.5h4" /></>,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ItemActions from '../../../shared/ui/ItemActions.jsx';
@@ -26,7 +26,7 @@ function when(iso) {
 }
 
 // What the discussion is about, and a way back to it.
-function Subject({ project, subject }) {
+function Subject({ project, subject, action }) {
   const isPaper = subject.kind === 'paper';
   const href = isPaper
     ? appPath(`/paper/${paperName(subject.paper_sha256)}`)
@@ -41,6 +41,7 @@ function Subject({ project, subject }) {
       <h2 className="discussion-title">
         {isPaper ? <a className="paper-title-link" href={href}>{subject.label}</a> : <span className="discussion-card-label">{subject.label}</span>}
       </h2>
+      {action}
     </header>
   );
 }
@@ -108,11 +109,12 @@ function Post({ post, canModerate, selected, onSelect, onEdit, onDelete }) {
 }
 
 // One discussion: its subject, every post in order, and room to write more.
-export function DiscussionPage({ discussionUuid, onBack, backHref }) {
+export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }) {
   const [discussion, setDiscussion] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [selected, setSelected] = useState(null);
+  const replyBox = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -165,7 +167,18 @@ export function DiscussionPage({ discussionUuid, onBack, backHref }) {
   return (
     <div className="discussion-page">
       <BackLink className="back-button" href={backHref} onBack={onBack} />
-      <Subject project={discussion.project} subject={discussion.subject} />
+      <Subject
+        project={discussion.project}
+        subject={discussion.subject}
+        action={discussion.posts.length > 1 && (
+          <button
+            type="button" className="discussion-jump"
+            onClick={() => { replyBox.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); replyBox.current?.querySelector('textarea')?.focus({ preventScroll: true }); }}
+          >
+            <ActionGlyph name="discuss" />Reply
+          </button>
+        )}
+      />
       {notice && <div className="error" role="alert">{notice}</div>}
       <ol className="discussion-posts">
         {discussion.posts.map((post) => (
@@ -180,9 +193,9 @@ export function DiscussionPage({ discussionUuid, onBack, backHref }) {
           />
         ))}
       </ol>
-      <section className="discussion-reply" aria-label="Reply">
-        <h3 className="discussion-reply-heading">Reply</h3>
-        <Composer label="Your reply" placeholder={INVITE} submitLabel="Post" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
+      <section ref={replyBox} className="discussion-reply" aria-label="Reply">
+        <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Your reply</h3>
+        <Composer label="Your reply" placeholder={INVITE} submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
       </section>
     </div>
   );
@@ -190,7 +203,7 @@ export function DiscussionPage({ discussionUuid, onBack, backHref }) {
 
 // "Discuss" on a subject: its discussion if it has one, and otherwise the
 // first post to open it with.
-export function StartDiscussionPage({ projectUuid, subject, onBack, backHref, onOpen }) {
+export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack, backHref, onOpen }) {
   const [found, setFound] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -224,10 +237,10 @@ export function StartDiscussionPage({ projectUuid, subject, onBack, backHref, on
       <Subject project={found.project} subject={found.subject} />
       {notice && <div className="error" role="alert">{notice}</div>}
       <section className="discussion-start" aria-label="Start the discussion">
-        <h3 className="discussion-reply-heading">Start the discussion</h3>
+        <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Start the discussion</h3>
         <p className="discussion-start-note">Everyone in {found.project.name} can read and reply.</p>
         <Composer
-          label="First post" placeholder={INVITE} submitLabel="Post"
+          label="First post" placeholder={INVITE} submitLabel="Start discussion"
           onSubmit={async (body) => {
             setNotice(null);
             try {

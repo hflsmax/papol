@@ -8,7 +8,8 @@ import {
   createProjectBoard, discussPath, getProject, invitationPath, openInvitation, removeMember, removePaperFromProject, renameProject,
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
-import { addToNook } from '../../../shared/api/papers.js';
+import { addToNook, getPaper, updatePaper } from '../../../shared/api/papers.js';
+import appLimits from '../../../shared/appLimits.js';
 import { paperName } from '../../../shared/paperName.js';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat.js';
@@ -136,6 +137,11 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             currentUser={currentUser}
             onAddToNook={(paper) => act(async () => { await addToNook(paper.sha256); return getProject(project.uuid); })}
             onRemove={(paper) => act(() => removePaperFromProject(project.uuid, paper.sha256))}
+            onThought={(paper, thought) => act(async () => {
+              if (!paper.in_my_nook) await addToNook(paper.sha256);
+              await updatePaper(paper.sha256, { thought, thought_public: true });
+              return getProject(project.uuid);
+            })}
           />
           <ProjectDiscussions project={project} currentUser={currentUser} />
           <ProjectBoards project={project} act={act} />
@@ -239,13 +245,15 @@ function SectionHead({ id, title, count, action }) {
 }
 
 // Each paper is a title and its citation. Who has it shows as faces; what
-// they think, and how they rated it, opens when the paper is selected.
-function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
+// they think, and how they rated it, opens when the paper is selected, with
+// room for your own thought and the way into its discussion.
+function ProjectPapers({ project, currentUser, onAddToNook, onRemove, onThought }) {
   const [selected, setSelected] = useState(null);
+  const [writing, setWriting] = useState(null);
   useEffect(() => {
     if (!selected) return undefined;
-    const away = (e) => { if (!e.target.closest?.('.project-paper')) setSelected(null); };
-    const escape = (e) => { if (e.key === 'Escape') setSelected(null); };
+    const away = (e) => { if (!e.target.closest?.('.project-paper')) { setSelected(null); setWriting(null); } };
+    const escape = (e) => { if (e.key === 'Escape') { setSelected(null); setWriting(null); } };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
@@ -254,6 +262,7 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
   const discussionOf = new Map((project.discussions ?? [])
     .filter((d) => d.subject.kind === 'paper').map((d) => [d.subject.paper_sha256, d]));
   const nameOf = (user) => (user.uuid === currentUser?.uuid ? 'You' : user.display_name);
+  const write = (sha256) => { setSelected(sha256); setWriting(sha256); };
 
   return (
     <section className="project-section" aria-labelledby="project-papers-heading">
@@ -267,9 +276,10 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
             const discussion = discussionOf.get(paper.sha256);
             const takes = paper.users.filter((u) => u.thought || TAKE_RATINGS.some((d) => u[d.key]));
             const thoughts = paper.users.filter((u) => u.thought).length;
+            const myTake = paper.users.find((u) => u.user.uuid === currentUser?.uuid);
             const isSelected = selected === paper.sha256;
+            const discussHref = appPath(discussion ? `/discussion/${discussion.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }));
             const actions = [
-              { key: 'discuss', label: discussion ? 'Open discussion' : 'Discuss', icon: <ActionGlyph name="discuss" />, onSelect: () => window.location.assign(appPath(discussion ? `/discussion/${discussion.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }))) },
               !paper.in_my_nook && { key: 'nook', label: 'Add to my nook', tone: 'accent', icon: <ActionGlyph name="add" />, onSelect: () => onAddToNook(paper) },
               (project.is_keeper || mine) && { key: 'out', label: 'Take out', danger: true, icon: <ActionGlyph name="take-out" />, onSelect: () => { setSelected(null); onRemove(paper); } },
             ].filter(Boolean);
@@ -277,7 +287,7 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
               <li
                 key={paper.sha256}
                 className={`project-paper${isSelected ? ' is-selected' : ''}`}
-                onClick={(e) => { if (!e.target.closest('a, button, input')) setSelected(paper.sha256); }}
+                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) setSelected(paper.sha256); }}
                 onFocus={() => setSelected(paper.sha256)}
               >
                 <div className="project-paper-main">
@@ -294,6 +304,11 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
                   actions.length > 0 && <ItemActions actions={actions} label={`${paper.title}: actions`} placement="below-end" />
                 ) : (
                   <div className="project-paper-summary">
+                    {!myTake?.thought && (
+                      <button type="button" className="project-invite-thought" onClick={() => write(paper.sha256)}>
+                        <ActionGlyph name="edit" />Add your thought
+                      </button>
+                    )}
                     {discussion && (
                       <a
                         className={`project-discussion-mark${discussion.is_new ? ' is-new' : ''}`}
@@ -320,26 +335,47 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
                   <div className="project-paper-more">
                     {takes.length > 0 && (
                       <ul className="project-takes">
-                        {takes.map((entry) => (
-                          <li key={entry.user.uuid} className="project-take">
-                            <Avatar user={entry.user} className="mini-avatar" />
-                            <p className="project-take-who">
-                              <b>{nameOf(entry.user)}</b>
-                              {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
-                                <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
-                              ))}
-                            </p>
-                            {entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
-                          </li>
-                        ))}
+                        {takes.map((entry) => {
+                          const me = entry.user.uuid === currentUser?.uuid;
+                          if (me && writing === paper.sha256) return null;
+                          return (
+                            <li key={entry.user.uuid} className="project-take">
+                              <Avatar user={entry.user} className="mini-avatar" />
+                              <p className="project-take-who">
+                                <b>{nameOf(entry.user)}</b>
+                                {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
+                                  <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
+                                ))}
+                                {me && entry.thought && (
+                                  <button type="button" className="project-quiet project-take-edit" onClick={() => setWriting(paper.sha256)}>Edit</button>
+                                )}
+                              </p>
+                              {entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
-                    <p className="project-paper-added">
-                      Added by {mine ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
-                      {discussion && (
-                        <> · <a href={appPath(`/discussion/${discussion.uuid}`)}>{plural(discussion.post_count, 'post', 'posts')}</a></>
-                      )}
-                    </p>
+                    {(!myTake?.thought || writing === paper.sha256) && (
+                      <ThoughtComposer
+                        key={paper.sha256}
+                        paper={paper}
+                        currentUser={currentUser}
+                        initial={myTake?.thought ?? ''}
+                        autoFocus={writing === paper.sha256}
+                        onCancel={myTake?.thought ? () => setWriting(null) : null}
+                        onSave={async (thought) => { const ok = await onThought(paper, thought); if (ok) setWriting(null); return ok; }}
+                      />
+                    )}
+                    <div className="project-paper-foot">
+                      <p className="project-paper-added">
+                        Added by {mine ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
+                      </p>
+                      <a className="project-discuss-button" href={discussHref}>
+                        <ActionGlyph name="discuss" />
+                        {discussion ? `Open discussion · ${plural(discussion.post_count, 'post', 'posts')}` : 'Start a discussion'}
+                      </a>
+                    </div>
                   </div>
                 )}
               </li>
@@ -351,19 +387,93 @@ function ProjectPapers({ project, currentUser, onAddToNook, onRemove }) {
   );
 }
 
+// Your one line on a paper, which everyone in the project reads beside it.
+// A thought kept private on your copy is offered back to edit, and saving
+// shares it here.
+function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onSave }) {
+  const [draft, setDraft] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const touched = useRef(false);
+  useEffect(() => {
+    if (initial || !paper.in_my_nook) return undefined;
+    let active = true;
+    getPaper(paper.sha256)
+      .then((copy) => { if (active && copy?.thought && !touched.current) setDraft(copy.thought); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [paper.sha256]);
+  const save = async (e) => {
+    e.preventDefault();
+    const thought = draft.trim();
+    if (!thought || busy) return;
+    setBusy(true);
+    await onSave(thought);
+    setBusy(false);
+  };
+  return (
+    <form className="project-thought-form" onSubmit={save}>
+      <Avatar user={currentUser} className="mini-avatar" />
+      <input
+        type="text"
+        autoFocus={autoFocus}
+        value={draft}
+        maxLength={appLimits.text.paper_thought}
+        aria-label="Your thought on this paper"
+        placeholder="Your thought on this paper, in a line"
+        onChange={(e) => { touched.current = true; setDraft(e.target.value); }}
+        onKeyDown={(e) => { if (e.key === 'Escape' && onCancel) { e.stopPropagation(); onCancel(); } }}
+      />
+      {onCancel && <button type="button" className="project-quiet" onClick={onCancel}>Cancel</button>}
+      <button type="submit" className="primary" disabled={!draft.trim() || busy}>{busy ? 'Saving…' : 'Share'}</button>
+      <p className="project-thought-note">
+        Everyone in the project sees it.{!paper.in_my_nook && ' Sharing adds the paper to your nook.'}
+      </p>
+    </form>
+  );
+}
+
 // The latest few discussions, each with one line of its newest post; the
-// rest are a click away.
+// rest are a click away. Starting one begins with what it is about.
 const DISCUSSIONS_SHOWN = 3;
 
 function ProjectDiscussions({ project, currentUser }) {
   const [all, setAll] = useState(false);
+  const [picking, setPicking] = useState(false);
   const discussions = project.discussions ?? [];
   const shown = all ? discussions : discussions.slice(0, DISCUSSIONS_SHOWN);
+  const discussed = new Map(discussions.filter((d) => d.subject.kind === 'paper').map((d) => [d.subject.paper_sha256, d]));
   return (
     <section className="project-section" aria-labelledby="project-discussions-heading">
-      <SectionHead id="project-discussions-heading" title="Discussions" count={discussions.length} />
+      <SectionHead
+        id="project-discussions-heading" title="Discussions" count={discussions.length}
+        action={(
+          <button type="button" className="project-section-action" aria-expanded={picking} onClick={() => setPicking(!picking)}>
+            <ActionGlyph name="discuss" />Start a discussion
+          </button>
+        )}
+      />
+      {picking && (
+        <div className="project-subject-pick">
+          <p className="project-subject-pick-note">What about? Pick a paper, or select a card on a board and choose <b>Discuss</b>.</p>
+          {project.papers.length > 0 && (
+            <ul>
+              {project.papers.map((paper) => {
+                const d = discussed.get(paper.sha256);
+                return (
+                  <li key={paper.sha256}>
+                    <a href={appPath(d ? `/discussion/${d.uuid}` : discussPath(project.uuid, { paper: paper.sha256 }))}>
+                      <span>{paper.title}</span>
+                      {d && <span className="project-subject-pick-meta">Open · {plural(d.post_count, 'post', 'posts')}</span>}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
       {!discussions.length ? (
-        <p className="project-empty">No discussions yet. Select a paper or a board card and choose <b>Discuss</b>.</p>
+        !picking && <p className="project-empty">No discussions yet. Start one about a paper or a board card, and everyone here can reply.</p>
       ) : (
         <>
           <ul className="project-discussions">
@@ -382,6 +492,7 @@ function ProjectDiscussions({ project, currentUser }) {
                       {d.subject.kind !== 'paper' && `On ${d.subject.board_name} · `}
                       {plural(d.post_count, 'post', 'posts')} · {day(d.updated_at)}
                     </span>
+                    <span className="project-discussion-reply" aria-hidden="true">Reply</span>
                   </a>
                 </li>
               );
@@ -418,7 +529,7 @@ function ProjectBoards({ project, act }) {
     <section className="project-section" aria-labelledby="project-boards-heading">
       <SectionHead
         id="project-boards-heading" title="Boards" count={boards.length}
-        action={!naming && <button type="button" className="project-quiet project-section-action" onClick={() => setNaming(true)}>New board</button>}
+        action={!naming && <button type="button" className="project-section-action" onClick={() => setNaming(true)}><ActionGlyph name="plus" />New board</button>}
       />
       {naming && (
         <form className="project-board-form" onSubmit={create}>
@@ -432,7 +543,7 @@ function ProjectBoards({ project, act }) {
         </form>
       )}
       {!boards.length ? (
-        !naming && <p className="project-empty">No boards yet. A board lays out papers, notes and figures for everyone here.</p>
+        !naming && <p className="project-empty">No boards yet. A board lays out papers, notes and figures for everyone here to arrange.</p>
       ) : (
         <ul className="project-boards">
           {boards.map((board) => (

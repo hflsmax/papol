@@ -727,13 +727,14 @@ export default function App({ startupUser = null, startupError = null }) {
         />
       )}
       {route.page === 'discussion' && (
-        <DiscussionPage key={route.uuid} discussionUuid={route.uuid} onBack={goBack} backHref={backHref} />
+        <DiscussionPage key={route.uuid} discussionUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
       )}
       {route.page === 'discuss' && (
         <StartDiscussionPage
           key={`${route.subject.kind}/${route.subject.id}`}
           projectUuid={route.uuid}
           subject={route.subject}
+          currentUser={user}
           onBack={goBack}
           backHref={backHref}
           onOpen={(uuid) => navigate(`/discussion/${uuid}`, { replace: true })}
