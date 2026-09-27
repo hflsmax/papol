@@ -122,6 +122,23 @@ says who may *read this PDF*. Neither moves the other.
 | **Style** | How the leader intends to run it: *A Presentation*, *Bring your questions*, *Guided discussion*, *Deep critique*, or their own free text. | `seminarStyles.js`: keys `walkthrough`, `questions`, `guided`, `critique`; free text in `style_desc`. |
 | **States** | **called** → **planning** → **scheduled** → **finished**. Called is waiting for a leader; planning is a leader in charge; scheduled is a time and platform announced; finished is the leader marking it held. | `rooms.status` is `open`, `planning`, `scheduled`, `finished`. `/announce` schedules, `/finish` finishes. |
 
+### Projects
+
+| Term | Meaning | Notes |
+| --- | --- | --- |
+| **Project** | A few users reading together: the papers they gather, the boards they think on, and the digs about both. | `projects`, `ProjectPage.jsx`, `/project/<uuid>`. Online only, as a cohort is. |
+| **Member** / **Keeper** | Someone in a project; a keeper can also invite, take papers out and make others keepers. | `project_members.is_keeper`. |
+| **Dig** | A conversation, among any number of members, **about one thing**: the project, a paper, a member's thought on it, a board, or a card. Opened from the **dig pin** beside that thing. | Store: `discussions`, `discussion_posts`, keyed by a **subject**. Code: the pin and card are still `TalkPin` and `TalkCard` (`shared/ui/Talk.jsx`); the page is `DiscussionPage.jsx`. |
+| **Subject** | What a dig is about, as a key: `project`, `paper:<sha256>`, `take:<sha256>:<user>`, `board:<uuid>`, `card:<uuid>`. | `subjectKey()`, `subjectOut()`. The server refuses a dig without one. |
+| **Dig into** | Following a drift: a post in one dig becomes the start of a dig about what it is really about, something the project holds or a new idea, which becomes a card on a board. The old dig gets a line pointing to the new one. | `DigChooser` in `Talk.jsx`, `addIdeaCard()`. Offered on a picked post, in the card and on the page. |
+
+**A dig is always about something.** There is no dig about nothing and no
+project-wide chat room: even the project's own dig is about the project.
+When talk wanders onto another thing, Papol does not let it pile up where it
+started; it makes that thing a subject, as a card if it is not one yet, and
+invites the talk to follow it there. Design for that path first: a post can
+always be dug into, and a long dig says so.
+
 ## 8. Handoff to Papol for Mac
 
 | Term | Meaning | Notes |

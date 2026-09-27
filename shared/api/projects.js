@@ -67,6 +67,13 @@ export function createProjectBoard(uuid, name) {
   return jsonRequest(`/projects/${uuid}/boards`, 'POST', { name });
 }
 
+// A new idea someone wants to dig into becomes a card on one of the
+// project's boards, so the dig is about something. Asked of the server
+// directly: the board may be another member's, outside this replica.
+export function addIdeaCard(boardUuid, content) {
+  return jsonRequest(`/boards/${boardUuid}/comments`, 'POST', { content });
+}
+
 // ---------- Discussions ----------
 
 // A discussion can be about anything a project holds, named by a key:

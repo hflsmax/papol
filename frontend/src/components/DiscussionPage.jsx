@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ItemActions from '../../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
+import { TalkCard } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   deleteDiscussionPost, editDiscussionPost, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
@@ -31,11 +33,11 @@ function Subject({ project, subject, action }) {
   const paperHref = subject.paper_sha256 ? appPath(`/paper/${paperName(subject.paper_sha256)}`) : null;
   const boardHref = subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const about = {
-    project: 'Talking about the project',
-    paper: 'Talking about a paper',
-    take: <>Talking about {subject.by ? `${subject.by}’s` : 'a'} thought on <a href={paperHref}>{subject.paper_title ?? 'a paper'}</a></>,
-    board: 'Talking about a board',
-    card: <>Talking about a card on <a href={boardHref}>{subject.board_name}</a></>,
+    project: 'Digging into the project',
+    paper: 'Digging into a paper',
+    take: <>Digging into {subject.by ? `${subject.by}’s` : 'a'} thought on <a href={paperHref}>{subject.paper_title ?? 'a paper'}</a></>,
+    board: 'Digging into a board',
+    card: <>Digging into a card on <a href={boardHref}>{subject.board_name}</a></>,
   }[subject.kind];
   const title = {
     paper: <a className="paper-title-link" href={paperHref}>{subject.label}</a>,
@@ -84,14 +86,17 @@ function Composer({ initial = '', label, placeholder, submitLabel, onSubmit, onC
   );
 }
 
-function Post({ post, canModerate, selected, onSelect, onEdit, onDelete }) {
+function Post({ post, canModerate, selected, onSelect, onEdit, onDelete, onDig }) {
   const [editing, setEditing] = useState(false);
+  const self = useRef(null);
   const actions = [
+    { key: 'dig', label: 'Dig into this', icon: <ActionGlyph name="dig" />, onSelect: () => onDig(self) },
     post.is_mine && { key: 'edit', label: 'Edit', icon: <ActionGlyph name="edit" />, onSelect: () => setEditing(true) },
     (post.is_mine || canModerate) && { key: 'delete', label: 'Delete', danger: true, icon: <ActionGlyph name="trash" />, onSelect: onDelete },
   ].filter(Boolean);
   return (
     <li
+      ref={self}
       className={`discussion-post${selected ? ' is-selected' : ''}`}
       onClick={(e) => { if (!editing && !e.target.closest('a, button, textarea')) onSelect(); }}
     >
@@ -120,6 +125,7 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [digging, setDigging] = useState(null);
   const replyBox = useRef(null);
 
   useEffect(() => {
@@ -196,9 +202,18 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
             onSelect={() => setSelected(post.uuid)}
             onEdit={(body) => act(() => editDiscussionPost(post.uuid, body))}
             onDelete={() => remove(post)}
+            onDig={(anchor) => setDigging({ post, anchor })}
           />
         ))}
       </ol>
+      {digging && createPortal(
+        <TalkCard
+          anchor={digging.anchor} projectUuid={discussion.project.uuid} subject={discussion.subject.key}
+          label={discussion.subject.label} currentUser={currentUser} drift={digging.post}
+          onChanged={(next) => setDiscussion(next)} onClose={() => setDigging(null)}
+        />,
+        document.body,
+      )}
       <section ref={replyBox} className="discussion-reply" aria-label="Reply">
         <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Your reply</h3>
         <Composer label="Your reply" placeholder={INVITE} submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />

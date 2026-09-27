@@ -1,18 +1,24 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { findDiscussion, getDiscussion, replyToDiscussion, startDiscussion, subjectKey } from '../api/projects.js';
+import {
+  addIdeaCard, createProjectBoard, findDiscussion, getDiscussion, getProject, replyToDiscussion, startDiscussion, subjectKey,
+} from '../api/projects.js';
 import { appPath } from '../appUrls.js';
 import appLimits from '../appLimits.js';
+import ActionGlyph from './ActionGlyph.jsx';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-// Talk: one element for discussing anything in a project. A pin, drawn
-// like a note pin in the viewer, sits beside the thing; pressing it opens
-// a talk card, drawn like a card on a board, right where you are. The
-// same pin and card serve the project itself, a paper, a member's thought,
-// a board and a card on it.
+// A dig: a conversation, among any number of members, about one thing the
+// project holds. A pin, drawn like a note pin in the viewer, sits beside
+// the thing; pressing it opens a dig card, drawn like a card on a board,
+// right where you are. The same pin and card serve the project itself, a
+// paper, a member's thought, a board and a card on it. (In code the pin and
+// card keep their first name, Talk; the store calls a dig a discussion.)
 
 const POST_LIMIT = appLimits.text.discussion_post;
+// Long enough that it may have wandered: say how to follow it.
+const DRIFT_HINT_AT = 6;
 
 const KINDS = {
   project: { word: 'Project', invite: 'Anything on your mind for the project?' },
@@ -81,8 +87,8 @@ export function TalkPin({
 
   const captionText = typeof caption === 'function' ? caption(count) : caption;
   const words = count
-    ? `${plural(count, 'post', 'posts')} about ${label}${fresh ? ', new' : ''}. Open the talk`
-    : `Talk about ${label}`;
+    ? `${plural(count, 'post', 'posts')} about ${label}${fresh ? ', new' : ''}. Open the dig`
+    : `Dig into ${label}`;
   return (
     <span className={`talk-pin-wrap talk-${size}${faces && voices.length ? ' has-faces' : ''} ${className}`}>
       <button
@@ -92,7 +98,7 @@ export function TalkPin({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={words}
-        title={title ?? (count ? plural(count, 'post', 'posts') : 'Talk about this')}
+        title={title ?? (count ? plural(count, 'post', 'posts') : 'Dig into this')}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
       >
@@ -199,7 +205,99 @@ function place(anchor, card) {
   };
 }
 
-export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose }) {
+// A dig is always about something: the project, a paper, a member's
+// thought, a board or a card. Nothing here is a free-floating chat room.
+// When a dig drifts onto something else, any post in it can be dug into:
+// say what the new thing is, as something the project already holds or as
+// a new idea (a card on a board), and the card moves to that dig with the
+// post quoted, leaving a pointer behind in the dig it came from.
+const IDEA_LIMIT = 200;
+
+function excerptOf(text, length = 220) {
+  const flat = String(text).replace(/^>.*$/gm, '').replace(/\s+/g, ' ').trim();
+  return flat.length > length ? `${flat.slice(0, length - 1)}…` : flat;
+}
+
+function quoteOf(post) {
+  return `> ${post.user.display_name}: ${excerptOf(post.body, 400)}\n\n`;
+}
+
+function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel }) {
+  const [project, setProject] = useState(null);
+  const [idea, setIdea] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const input = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    getProject(projectUuid).then((next) => { if (active) setProject(next); }).catch(() => { if (active) setProject({ papers: [], boards: [] }); });
+    input.current?.focus({ preventScroll: true });
+    return () => { active = false; };
+  }, [projectUuid]);
+
+  const boards = project?.boards ?? [];
+  const home = boards.find((b) => b.uuid === boardUuid) ?? boards[0] ?? null;
+  const things = [
+    current !== 'project' && { subject: 'project', kind: 'project', label: project?.name ?? 'The project' },
+    ...(project?.papers ?? []).map((p) => ({ subject: `paper:${p.sha256}`, kind: 'paper', label: p.title ?? 'Untitled paper' })),
+    ...boards.map((b) => ({ subject: `board:${b.uuid}`, kind: 'board', label: b.name })),
+  ].filter((t) => t && t.subject !== current);
+
+  const makeIdea = async (e) => {
+    e.preventDefault();
+    const name = idea.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const board = home ?? await createProjectBoard(projectUuid, 'Ideas');
+      const card = await addIdeaCard(board.uuid, name);
+      onPick({ subject: `card:${card.uuid}`, label: name });
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="dig-chooser">
+      <p className="dig-chooser-lead">What is this about?</p>
+      <blockquote className="dig-chooser-quote">{excerptOf(post.body)}</blockquote>
+      <form className="dig-chooser-idea" onSubmit={makeIdea}>
+        <input
+          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea, in a few words" aria-label="The new idea"
+          onChange={(e) => setIdea(e.target.value)}
+        />
+        <button type="submit" className="primary" disabled={!idea.trim() || busy}>Dig in</button>
+      </form>
+      <p className="dig-chooser-note">{project ? `It goes on ${home ? home.name : 'a new board, Ideas'} as a card.` : ' '}</p>
+      {error && <p className="talk-card-error" role="alert">{error}</p>}
+      {things.length > 0 && (
+        <>
+          <p className="dig-chooser-or">Or something the project holds</p>
+          <ul className="dig-chooser-list">
+            {things.map((t) => (
+              <li key={t.subject}>
+                <button type="button" onClick={() => onPick({ subject: t.subject, label: t.label })}>
+                  <span className="dig-chooser-kind">{KINDS[t.kind].word}</span>
+                  <span className="dig-chooser-label">{t.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <button type="button" className="dig-chooser-cancel" onClick={onCancel}>Cancel</button>
+    </div>
+  );
+}
+
+export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null }) {
+  const [topic, setTopic] = useState({ subject, label });
+  const [from, setFrom] = useState(null);
+  const [drift, setDrift] = useState(startDrift);
+  const [picked, setPicked] = useState(null);
   const [discussion, setDiscussion] = useState(undefined);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
@@ -208,22 +306,24 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   const card = useRef(null);
   const list = useRef(null);
   const box = useRef(null);
-  const kind = kindOf(subject);
+  const kind = kindOf(topic.subject);
   const words = KINDS[kind] ?? KINDS.project;
+  const onHome = topic.subject === subject;
 
   useEffect(() => {
     let active = true;
-    findDiscussion(projectUuid, subject)
+    setDiscussion(undefined);
+    findDiscussion(projectUuid, topic.subject)
       .then((found) => (found.discussion_uuid ? getDiscussion(found.discussion_uuid) : null))
       .then((next) => { if (active) setDiscussion(next); })
       .catch((err) => { if (active) { setError(err.message); setDiscussion(null); } });
     return () => { active = false; };
-  }, [projectUuid, subject]);
+  }, [projectUuid, topic.subject]);
 
   const reposition = useCallback(() => {
     if (anchor.current) setSpot(place(anchor.current, card.current));
   }, [anchor]);
-  useLayoutEffect(() => { reposition(); }, [reposition, discussion]);
+  useLayoutEffect(() => { reposition(); }, [reposition, discussion, drift]);
   useEffect(() => {
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
@@ -242,10 +342,27 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   }, [anchor, onClose]);
 
   useEffect(() => {
-    if (discussion === undefined) return;
-    box.current?.focus({ preventScroll: true });
+    if (discussion === undefined || drift) return;
+    const field = box.current;
+    field?.focus({ preventScroll: true });
+    field?.setSelectionRange(field.value.length, field.value.length);
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
-  }, [discussion]);
+  }, [discussion, drift]);
+
+  // Dug into: the card moves to the new thing, with the post quoted to
+  // start from. The pointer back is left once the first post is sent.
+  const dugInto = (next) => {
+    setFrom({ ...topic, uuid: discussion?.uuid ?? null, pending: true });
+    setBody(quoteOf(drift));
+    setDrift(null);
+    setPicked(null);
+    setTopic(next);
+  };
+  const goBack = () => {
+    setTopic({ subject: from.subject, label: from.label });
+    setFrom(null);
+    setBody('');
+  };
 
   const send = async (e) => {
     e?.preventDefault();
@@ -254,10 +371,15 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
     setBusy(true);
     setError(null);
     try {
-      const next = !discussion ? await startDiscussion(projectUuid, subject, text) : await replyToDiscussion(discussion.uuid, text);
+      const next = !discussion ? await startDiscussion(projectUuid, topic.subject, text) : await replyToDiscussion(discussion.uuid, text);
       setDiscussion(next);
       setBody('');
-      onChanged?.(next);
+      if (onHome) onChanged?.(next);
+      if (from?.pending && from.uuid) {
+        const back = await replyToDiscussion(from.uuid, `Dug into [${topic.label.replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
+        setFrom({ ...from, pending: false });
+        if (from.subject === subject) onChanged?.(back);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -277,11 +399,11 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
       className={`talk-card${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
       role="dialog"
-      aria-label={`Talk about ${label}`}
+      aria-label={`Dig into ${topic.label}`}
       {...CONTAINED}
     >
       <header className="talk-card-header">
-        <span className="talk-card-kind"><i><TalkGlyph /></i>Talk · {words.word}</span>
+        <span className="talk-card-kind"><i><TalkGlyph /></i>Dig · {words.word}</span>
         {discussion && discussion.posts.length > 0 && <span className="talk-card-count">{plural(posts.length, 'post', 'posts')}</span>}
         {page && (
           <a className="talk-card-open" href={appPath(page)} title="Open as a page" aria-label="Open as a page">
@@ -290,46 +412,76 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
         )}
         <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>
       </header>
-      <p className="talk-card-subject">{label}</p>
+      {from && (
+        <button type="button" className="talk-card-back" onClick={goBack}>
+          <span aria-hidden="true">←</span> Dug out of {from.label}
+        </button>
+      )}
+      <p className="talk-card-subject">{topic.label}</p>
 
       <div className="talk-card-body" ref={list}>
-        {discussion === undefined ? (
+        {drift ? (
+          <DigChooser
+            projectUuid={projectUuid} post={drift} current={topic.subject} boardUuid={discussion?.subject?.board_uuid}
+            onPick={dugInto} onCancel={() => (startDrift && !from ? onClose() : setDrift(null))}
+          />
+        ) : discussion === undefined ? (
           <p className="talk-card-quiet">Opening…</p>
         ) : posts.length === 0 ? (
           <p className="talk-card-quiet talk-card-invite">Nobody has said anything here yet. Start it off.</p>
         ) : (
-          <ol className="talk-posts">
-            {posts.map((post) => (
-              <li key={post.uuid} className={`talk-post${post.is_mine ? ' is-mine' : ''}`}>
-                <p className="talk-post-head">
-                  <Avatar user={post.user} className="mini-avatar" />
-                  <b>{post.is_mine ? 'You' : post.user.display_name}</b>
-                  <time dateTime={post.created_at}>{when(post.created_at)}</time>
-                </p>
-                <Markdown className="talk-post-body" text={post.body} />
-              </li>
-            ))}
-          </ol>
+          <>
+            <ol className="talk-posts">
+              {posts.map((post) => (
+                <li
+                  key={post.uuid} tabIndex={0}
+                  className={`talk-post${post.is_mine ? ' is-mine' : ''}${picked === post.uuid ? ' is-selected' : ''}`}
+                  onClick={(e) => { if (!e.target.closest('a, button')) setPicked(picked === post.uuid ? null : post.uuid); }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(picked === post.uuid ? null : post.uuid); }
+                  }}
+                >
+                  <p className="talk-post-head">
+                    <Avatar user={post.user} className="mini-avatar" />
+                    <b>{post.is_mine ? 'You' : post.user.display_name}</b>
+                    <time dateTime={post.created_at}>{when(post.created_at)}</time>
+                  </p>
+                  <Markdown className="talk-post-body" text={post.body} />
+                  {picked === post.uuid && (
+                    <div className="talk-post-actions">
+                      <button type="button" onClick={() => setDrift(post)}><ActionGlyph name="dig" />Dig into this</button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {posts.length >= DRIFT_HINT_AT && !picked && (
+              <p className="talk-card-quiet talk-drift-hint">Drifted onto something else? Pick the post and dig into it.</p>
+            )}
+          </>
         )}
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      <form className="talk-compose" onSubmit={send}>
-        {currentUser && <Avatar user={currentUser} className="mini-avatar" />}
-        <textarea
-          ref={box}
-          rows={posts.length ? 2 : 3}
-          value={body}
-          maxLength={POST_LIMIT}
-          placeholder={words.invite}
-          aria-label="Your post"
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
-        />
-        <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-        </button>
-      </form>
+      {!drift && (
+        <form className="talk-compose" onSubmit={send}>
+          {currentUser && <Avatar user={currentUser} className="mini-avatar" />}
+          <textarea
+            ref={box}
+            rows={body ? 4 : posts.length ? 2 : 3}
+            value={body}
+            maxLength={POST_LIMIT}
+            placeholder={words.invite}
+            aria-label="Your post"
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
+          />
+          <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+          </button>
+        </form>
+      )}
     </section>
   );
 }

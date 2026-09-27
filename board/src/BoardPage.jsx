@@ -2127,7 +2127,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           </BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
       {board.project && <a className="board-toolbar-project" href={appPath(`/project/${board.project.uuid}`)} title="Open project">{board.project.name}</a>}
-      {talkPin(`board:${board.uuid}`, board.name, { className: 'board-toolbar-talk', faces: true, caption: (n) => (n ? null : 'Talk') })}
+      {talkPin(`board:${board.uuid}`, board.name, { className: 'board-toolbar-talk', faces: true, caption: (n) => (n ? null : 'Dig') })}
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />

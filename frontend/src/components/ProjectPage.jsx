@@ -130,7 +130,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   ].filter(Boolean).sort().at(-1);
   const newPapers = project.papers.filter((p) => p.is_new).length;
   const newTalk = talkedAbout.filter((d) => d.is_new).length;
-  const since = [newPapers && plural(newPapers, 'paper', 'papers'), newTalk && plural(newTalk, 'conversation', 'conversations')].filter(Boolean);
+  const since = [newPapers && plural(newPapers, 'paper', 'papers'), newTalk && plural(newTalk, 'dig', 'digs')].filter(Boolean);
 
   return (
     <div className={`project-page${project.is_member ? ' is-desk' : ''}`}>
@@ -509,12 +509,12 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
   const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : d.subject.kind === 'project' ? 'var(--accent)' : 'var(--gold)');
   return (
     <aside className={`project-talk${all ? ' is-all' : ''}`} aria-labelledby="project-talk-heading">
-      <SectionHead id="project-talk-heading" title="Talk" count={discussions.length} />
+      <SectionHead id="project-talk-heading" title="Digs" count={discussions.length} />
       <TalkOpener {...opener('project', project.name)} className="project-talk-start">
-        <TalkMark />Say something to the project…
+        <TalkMark />Start a dig on the project…
       </TalkOpener>
       {!discussions.length ? (
-        <p className="project-empty project-talk-hint">Papers, thoughts and boards each have a talk pin <TalkMark />.</p>
+        <p className="project-empty project-talk-hint">Papers, thoughts and boards each have a dig pin <TalkMark />.</p>
       ) : (
         <>
           <ul className="project-talk-list">
@@ -606,7 +606,7 @@ function ProjectBoards({ project, act, pin }) {
               <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
                 <strong className="project-card-title">{board.name}</strong>
                 {board.description && <span className="project-board-description">{board.description}</span>}
-                {newTalk(board) && <span className="project-card-new">New talk</span>}
+                {newTalk(board) && <span className="project-card-new">New dig</span>}
                 <span className="project-board-meta">
                   {[plural(board.item_count ?? 0, 'card', 'cards'), board.owner && firstName(board.owner), `updated ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
                 </span>

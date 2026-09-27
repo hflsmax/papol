@@ -6006,7 +6006,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .talk-card-invite { font-style: italic; font-family: var(--font-serif); font-size: var(--fs-md); }
 .talk-posts { margin: 0; padding: 0 0 var(--space-2); list-style: none; }
-.talk-post { padding: var(--space-3) 0; }
 .talk-post + .talk-post { border-top: 1px solid var(--line); }
 .talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 11px; }
@@ -6016,6 +6015,31 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-post-body > :first-child { margin-top: 0; }
 .talk-post-body > :last-child { margin-bottom: 0; }
 .talk-card-error { margin: 0 var(--space-4) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
+/* Following a drift: pick a post, dig into what it is about. */
+.talk-post { margin: 0 calc(-1 * var(--space-2)); padding: var(--space-3) var(--space-2); border-radius: 6px; cursor: default; }
+.talk-post:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.talk-post.is-selected { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.talk-post-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
+.talk-post-actions button { display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 999px; background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-xs) var(--font-ui); }
+.talk-post-actions button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.talk-post-actions .action-glyph { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.talk-drift-hint { margin-top: 0; }
+.talk-card-back { flex: none; display: flex; align-items: center; gap: var(--space-1); width: 100%; margin: 0; padding: var(--space-2) var(--space-4) 0; overflow: hidden; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.talk-card-back:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
+.dig-chooser { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); }
+.dig-chooser-lead { margin: 0; color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
+.dig-chooser-quote { margin: 0; padding-left: var(--space-3); border-left: 2px solid var(--line-strong); color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.dig-chooser-idea { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); margin-top: var(--space-1); }
+.dig-chooser-idea input { min-width: 0; margin: 0; }
+.dig-chooser-note, .dig-chooser-or { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.dig-chooser-or { margin-top: var(--space-2); }
+.dig-chooser-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
+.dig-chooser-list button { display: flex; min-width: 0; align-items: baseline; gap: var(--space-2); width: 100%; padding: var(--space-2); border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--ink); font: var(--fs-sm) var(--font-ui); text-align: left; }
+.dig-chooser-list button:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--ink); }
+.dig-chooser-kind { flex: none; width: 3.6rem; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.dig-chooser-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dig-chooser-cancel { justify-self: start; padding: var(--space-1) 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.dig-chooser-cancel:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 
 .talk-compose { flex: none; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-top: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 50%, var(--card)); }
 .talk-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }

@@ -170,8 +170,16 @@ export async function discussionsOf(env: Env, projectUuid: string, me: User, mem
   });
 }
 
+// A post as a line of plain words: its own words before any it quotes,
+// links as their labels, and no Markdown marks.
 function excerpt(body: string): string {
-  const flat = body.replace(/\s+/g, " ").trim();
+  const lines = body.split("\n");
+  const own = lines.filter((line) => !/^\s*>/.test(line));
+  const words = (own.join(" ").trim() ? own : lines).join(" ")
+    .replace(/\[([^\]]*)\]\([^)\s]*\)/g, "$1")
+    .replace(/^\s*>\s?/, "")
+    .replace(/(\*\*|__|`)/g, "");
+  const flat = words.replace(/\s+/g, " ").trim();
   return flat.length > 180 ? `${flat.slice(0, 177).trimEnd()}…` : flat;
 }
 
