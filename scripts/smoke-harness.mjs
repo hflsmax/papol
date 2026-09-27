@@ -74,6 +74,38 @@ async function findExecutable(candidates) {
   );
 }
 
+const settles = (promise, ms) => Promise.race([
+  promise.then(() => true),
+  new Promise((resolveLate) => { setTimeout(resolveLate, ms, false).unref(); }),
+]);
+
+/**
+ * Stop a Chromium spawned with `detached: true`, and every process it
+ * started, before its profile is removed. SIGTERM goes to the whole group;
+ * one that has not let go of its pipes in five seconds gets SIGKILL. A
+ * Chromium that ignored SIGTERM used to hold CI's tests job until its
+ * 45-minute timeout.
+ */
+export async function stopBrowser(child) {
+  if (child?.pid === undefined) return;
+  const signal = (name) => {
+    try {
+      process.kill(-child.pid, name);
+      return true;
+    } catch {
+      return false; // the group is gone
+    }
+  };
+  const closed = new Promise((resolveClosed) => child.once('close', resolveClosed));
+  if (signal('SIGTERM') && !(await settles(closed, 5_000))) {
+    signal('SIGKILL');
+    await settles(closed, 5_000);
+  }
+  // Nothing in the group is left to write; a pipe still open is held elsewhere.
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+}
+
 /** One built file from under `dist`, or null when the path leaves it. */
 export async function distFile(dist, relative) {
   const file = resolve(dist, relative);
@@ -135,6 +167,7 @@ export async function runSmoke(pages, respond) {
     let child;
     awaitNextRender();
     try {
+      // Its own process group, so stopBrowser reaches every process it starts.
       child = spawn(chromium, [
         '--headless',
         '--no-sandbox',
@@ -144,7 +177,7 @@ export async function runSmoke(pages, respond) {
         '--enable-logging=stderr',
         '--v=0',
         `http://127.0.0.1:${port}${path}`,
-      ]);
+      ], { detached: true });
 
       child.stderr.on('data', (chunk) => { errors += chunk; });
       const closed = new Promise((resolveClosed) => {
@@ -166,19 +199,8 @@ export async function runSmoke(pages, respond) {
       clearTimeout(timeoutId);
       return { ...outcome, errors };
     } finally {
-      // A Chromium that shrugs off SIGTERM would hold the job until CI's own
-      // timeout, so it gets five seconds and then SIGKILL. Its exit is waited
-      // for, not its pipes' close: a crash handler it spawned can hold stderr
-      // open after it is gone.
-      if (child?.pid !== undefined && child.exitCode === null && child.signalCode === null) {
-        const exited = new Promise((resolveExited) => child.once('exit', resolveExited));
-        child.kill('SIGTERM');
-        const killTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
-        await exited;
-        clearTimeout(killTimer);
-        child.stderr.destroy();
-      }
-      await rm(profile, { recursive: true, force: true });
+      await stopBrowser(child);
+      await rm(profile, { recursive: true, force: true, maxRetries: 5 });
     }
   }
 
