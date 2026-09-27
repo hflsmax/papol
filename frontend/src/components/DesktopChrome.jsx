@@ -131,8 +131,13 @@ const TITLES = {
   profile: 'Settings',
 };
 
-export function desktopTitle(route, user) {
+// A project's pages carry its name, which says more than the word Project.
+export function desktopTitle(route, user, projects = []) {
   if (route.page === 'home') return user ? 'My nook' : 'Sign in';
+  if (['project', 'brief', 'discuss'].includes(route.page)) {
+    const project = projects.find((p) => p.uuid === route.uuid);
+    if (project) return project.name;
+  }
   return TITLES[route.page] || 'Papol';
 }
 

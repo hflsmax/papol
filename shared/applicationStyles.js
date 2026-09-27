@@ -5970,11 +5970,15 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-pin { position: relative; display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
 .talk-sm .talk-pin { width: 24px; height: 24px; }
 .talk-lg .talk-pin { width: 34px; height: 34px; }
+/* The dig bubble: a soft rounded bubble drawn in one line weight; a dig
+   with posts fills it with the accent wash and writes its count inside. */
+.talk-glyph path { fill: var(--accent-soft); stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.talk-glyph.is-outline path { fill: none; }
 .talk-pin .talk-glyph { display: block; width: 100%; height: 100%; overflow: visible; }
 .talk-pin:hover:not(:disabled), .talk-pin:focus-visible { border: 0; background: none; color: var(--accent); }
 .talk-pin:focus-visible { outline: none; }
 .talk-pin:focus-visible::before, .talk-pin.is-open::before { content: ''; position: absolute; inset: -3px; z-index: -1; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--focus-soft); }
-.talk-count { position: absolute; top: 4px; left: 0; right: 0; color: var(--ink-inverse); font: 700 10px/16px var(--font-ui); letter-spacing: -.02em; text-align: center; pointer-events: none; }
+.talk-count { position: absolute; top: 4px; left: 0; right: 0; color: var(--accent-strong); font: 700 10px/16px var(--font-ui); letter-spacing: -.02em; text-align: center; pointer-events: none; }
 .talk-sm .talk-count { top: 2px; font-size: 9px; line-height: 14px; }
 .talk-lg .talk-count { top: 4px; font-size: 12px; line-height: 20px; }
 .talk-plus { position: absolute; top: 1px; left: 0; right: 0; color: currentColor; font: 600 15px/20px var(--font-ui); text-align: center; pointer-events: none; }
@@ -6004,8 +6008,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin { transition: none; } }
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.talk-card-kind i { display: inline-grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--card); color: var(--accent-strong); }
-.talk-card-kind i .talk-glyph { width: 11px; height: 11px; }
+.talk-card-kind i { display: inline-grid; place-items: center; color: var(--accent-strong); }
+.talk-card-kind i .talk-glyph { width: 15px; height: 15px; }
 .talk-card-count { color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
 .talk-card-open, .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-open { margin-left: auto; }
@@ -6066,6 +6070,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .app[data-page='brief']:has(.brief-page) { max-width: 1180px; }
 .app[data-page='brief']:has(.brief-page) > .topnav { max-width: 720px; margin-inline: auto; }
 .desktop-content:has(.brief-page) { max-width: 1240px; }
+/* A brief and a dig page sit on a white sheet, like every other page's
+   panels, so the content stands off the grey ground the nav shares. */
+.brief-page, .discussion-page { padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+@media (max-width: 600px) { .brief-page, .discussion-page { padding: var(--space-4); } }
 .brief-page { container-type: inline-size; }
 .brief-head { margin: var(--space-2) 0 var(--space-6); }
 .brief-head .kicker { margin: 0 0 var(--space-1); }

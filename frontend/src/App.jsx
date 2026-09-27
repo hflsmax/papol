@@ -877,7 +877,7 @@ export default function App({ startupUser = null, startupError = null }) {
             />
           ) : (
             <div className="desktop-pane">
-              <DesktopToolbar title={desktopTitle(route, user)} />
+              <DesktopToolbar title={desktopTitle(route, user, myProjects)} />
               <div className="desktop-scroll">
                 <div className="desktop-content">{pages}</div>
               </div>

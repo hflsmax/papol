@@ -33,14 +33,8 @@ export function kindOf(subject) {
 // The viewer's note glyph: a speech bubble, filled or drawn as an outline.
 export function TalkGlyph({ outline = false }) {
   return (
-    <svg className="talk-glyph" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill={outline ? 'none' : 'currentColor'}
-        stroke={outline ? 'currentColor' : 'none'}
-        strokeWidth={outline ? 1.7 : 0}
-        strokeLinejoin="round"
-        d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.6L6 21.4V17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
-      />
+    <svg className={`talk-glyph${outline ? ' is-outline' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7.5 3.5h9a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5H12l-4.2 3.3c-.4.3-1 .03-1-.5v-2.9A5 5 0 0 1 2.5 11.5v-3a5 5 0 0 1 5-5Z" />
     </svg>
   );
 }
