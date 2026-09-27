@@ -5,7 +5,6 @@ import {
   markNotificationRead,
   markNotificationsRead,
 } from '../../../shared/api/notifications.js';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
@@ -69,17 +68,7 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
           {data.notifications.map((n) => (
             <li
               key={n.uuid}
-              className={n.read ? 'notification-item' : 'notification-item unread'}
-              onContextMenu={contextMenuHandler(() => [
-                { label: expanded[n.uuid] ? 'Collapse' : 'Expand', onSelect: () => handleClick(n) },
-                !n.read && { label: 'Mark as Read', onSelect: () => {
-                  markNotificationRead(n.uuid).catch(() => {});
-                  applyRead([n.uuid]);
-                } },
-                n.room_uuid && { separator: true },
-                n.room_uuid && { label: 'Open Seminar', onSelect: () => onOpenRoom(n.room_uuid) },
-              ])}
-            >
+              className={n.read ? 'notification-item' : 'notification-item unread'}>
               {/* A real button, so a notification can be reached and opened
                   from the keyboard, not only clicked. */}
               <button

@@ -42,6 +42,15 @@ export const RETURN_PILL_HIDDEN = {
   unsetLabel: 'Visible',
 };
 
+export const ANNOTATION_STORAGE_NOTICE_HIDDEN = {
+  key: 'papol_annotation_storage_notice',
+  value: 'hidden',
+  name: 'Annotation storage notice hidden',
+  description: 'The user ticked “Don’t show again” on the viewer notice that annotations are kept apart from the PDF file.',
+  setLabel: 'Hidden',
+  unsetLabel: 'Shown',
+};
+
 export const MAC_HANDOFF_RETIRED = {
   key: RETIRED_KEY,
   value: '1',
@@ -63,6 +72,7 @@ export const MACOS_DOWNLOAD_BANNER_DISMISSED = {
 export const FEATURE_STATES = [
   LINK_NAVIGATION_TIP,
   RETURN_PILL_HIDDEN,
+  ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,
   MACOS_DOWNLOAD_BANNER_DISMISSED,
 ];

@@ -8,7 +8,6 @@ import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 import Effort from './EffortPop';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
@@ -192,19 +191,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
               const pickerUuid = `board:${board.uuid}`;
               return <li
                 key={pickerUuid}
-                className="nook-board-row"
-                onContextMenu={contextMenuHandler(() => [
-                { label: 'Open Board', onSelect: () => onSelectBoard(board.uuid) },
-                isOwn && shelves.length > 0 && { separator: true },
-                isOwn && shelves.length > 0 && {
-                  label: 'Move to Shelf',
-                  submenu: shelves.map((shelf) => ({
-                    label: shelf.name,
-                    checked: board.shelf_uuid === shelf.uuid,
-                    onSelect: () => board.shelf_uuid !== shelf.uuid && handleBoardShelfMove(board, shelf.uuid),
-                  })),
-                },
-              ])}>
+                className="nook-board-row">
                 {isOwn && <span className="hint-anchor bar-anchor shelf-bar" onMouseEnter={() => setOpenShelfPicker(pickerUuid)} onMouseLeave={() => setOpenShelfPicker((current) => current === pickerUuid ? null : current)}>
                   <button className="shelf-current" style={{ '--shelf-color': shelves.find((shelf) => shelf.uuid === board.shelf_uuid)?.color || 'var(--line-strong)' }} onClick={(event) => { event.stopPropagation(); setOpenShelfPicker(openShelfPicker === pickerUuid ? null : pickerUuid); }} title="Move to another shelf" aria-label="Choose shelf" aria-expanded={openShelfPicker === pickerUuid} />
                   {openShelfPicker === pickerUuid && <span className="shelf-palette" onClick={(event) => event.stopPropagation()}>
@@ -219,18 +206,6 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
             return <li
               key={`paper-${paper.sha256}`}
               className={isOwn && !paper.is_public ? 'paper-private' : ''}
-              onContextMenu={contextMenuHandler(() => [
-                { label: 'Open Paper', onSelect: () => onSelectPaper(paper.sha256) },
-                isOwn && shelves.length > 0 && { separator: true },
-                isOwn && shelves.length > 0 && {
-                  label: 'Move to Shelf',
-                  submenu: shelves.map((shelf) => ({
-                    label: shelf.name,
-                    checked: paper.shelf_uuid === shelf.uuid,
-                    onSelect: () => paper.shelf_uuid !== shelf.uuid && handleShelfMove(paper, shelf.uuid),
-                  })),
-                },
-              ])}
             >
               {/* Keep the row quiet: its edge shows the current shelf, and
                   reveals the full shelf palette only on request. */}

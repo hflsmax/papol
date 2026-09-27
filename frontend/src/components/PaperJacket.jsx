@@ -25,7 +25,6 @@ import { authorList } from '../paperFormat';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -451,24 +450,6 @@ export default function PaperJacket({
       }
     }
   };
-  const paperContextMenu = contextMenuHandler(() => [
-    currentUser && viewerHref() && { label: 'Read', onSelect: openViewer },
-    paper.file_path && { label: 'Download PDF', onSelect: () => {
-      if (localPdf) {
-        saveLocalPdf();
-        return;
-      }
-      const link = document.createElement('a');
-      link.href = pdfHref(paper);
-      link.download = pdfFileName(paper);
-      link.click();
-    } },
-    hasEntry && { label: 'Edit Paper…', onSelect: startMetadataEdit },
-    currentUser && { separator: true },
-    currentUser && { label: 'Share…', onSelect: () => setShareOpen(true) },
-    hasEntry && { separator: true },
-    hasEntry && { label: 'Remove from My Nook…', onSelect: handleDelete },
-  ]);
 
   return (
     <div className="paper-jacket">
@@ -588,7 +569,7 @@ export default function PaperJacket({
         </div>
       ) : (
         <div className="paper-info">
-          <div className="detail-title-row" onContextMenu={paperContextMenu}>
+          <div className="detail-title-row">
             <h2>{paper.title}</h2>
             {hasEntry && (
               <div className="detail-toggle">
@@ -671,7 +652,7 @@ export default function PaperJacket({
             )}
           </div>
 
-          <div className="paper-actions" onContextMenu={paperContextMenu}>
+          <div className="paper-actions">
             {/* Reading does not wait for the paper to be taken: the viewer
                 opens one that is not yet theirs as a lean link, and asks
                 for it only when they reach for a note or the ink. Until

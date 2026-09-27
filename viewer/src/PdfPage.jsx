@@ -534,7 +534,6 @@ function PdfPage({
   onSelectClip,
   onSendClip,
   onMoveStroke,
-  onContextNote,
   noteCardFocus = null,
   onRenameNote,
   onWriteNote,
@@ -2388,7 +2387,6 @@ function PdfPage({
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}
               onClick={(e) => pointAt(e, note)}
-              onContextMenu={(e) => onContextNote(e, note)}
             >
               <GlyphFor note={note} />
             </button>

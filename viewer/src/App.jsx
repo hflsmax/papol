@@ -69,6 +69,7 @@ import {
 import {
   LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
+import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
@@ -76,7 +77,7 @@ import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import {
   DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
 } from '../../shared/macHandoff.js';
-import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
+import '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 import { showInNookTarget } from './nookOffer.js';
@@ -1155,7 +1156,35 @@ export default function App() {
     setSignInOffer(true);
   }, [fromALink]);
 
-  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer;
+  // Where annotations are kept, said as each paper opens: not in the PDF.
+  // The tick is only read when the notice is put away, however that is.
+  const [storageNotice, setStorageNotice] = useState(false);
+  const [storageNoticeOptOut, setStorageNoticeOptOut] = useState(false);
+  const offeredStorageNotice = useRef(false);
+  useEffect(() => {
+    if (!firstPageReady || offeredStorageNotice.current) return;
+    offeredStorageNotice.current = true;
+    if (showsAnnotationStorageNotice({ neverAnnotatable })) setStorageNotice(true);
+  }, [firstPageReady, neverAnnotatable]);
+  // Behind any other window the bar hangs, and never put away unseen.
+  const storageNoticeShown = storageNotice && nookStep === 'idle' && !nookPromptOpen
+    && !paperInfoOpen && !signInOffer && !pdfViewerTip;
+  const closeStorageNotice = () => {
+    if (!storageNoticeShown) return;
+    closeAnnotationStorageNotice(storageNoticeOptOut);
+    setStorageNotice(false);
+  };
+  const registerFromStorageNotice = () => {
+    closeStorageNotice();
+    if (!IS_DESKTOP) {
+      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
+      window.location.assign(appPath(`/join?next=${encodeURIComponent(back)}`));
+      return;
+    }
+    requestSignIn({ register: true }).catch(() => {});
+  };
+
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer || storageNoticeShown;
 
   // Everything hung from the paper menu is the same kind of transient
   // window, even though the contents differ. A click beyond the menu puts
@@ -1166,6 +1195,7 @@ export default function App() {
     setNookPromptOpen(false);
     setPdfViewerTip(false);
     setSignInOffer(false);
+    closeStorageNotice();
   }, { escape: false });
 
   useDismiss(learnLinkNavigation, learnLinkTipRef,
@@ -1403,6 +1433,7 @@ export default function App() {
         setNookPromptOpen(false);
         setPdfViewerTip(false);
         setSignInOffer(false);
+        closeStorageNotice();
         return;
       }
       if (e.key === 'Escape' && selectedClipUuid != null) {
@@ -3228,12 +3259,6 @@ export default function App() {
   };
 
   // From the context menu, where what is wanted has already been said.
-  const openNoteCard = (note, field) => {
-    goToNote(note);
-    setActiveNoteUuid(note.uuid);
-    setNoteCardFocus(field);
-  };
-
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
@@ -3325,27 +3350,6 @@ export default function App() {
       setError(e.message);
     }
   };
-
-  // An anchor in a shared reading is somewhere to go, and nothing else.
-  const noteContextMenu = (event, note) => openContextMenu(event, readOnly ? [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-  ] : [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => openNoteCard(note, 'text') },
-    { label: 'Rename Anchor…', onSelect: () => openNoteCard(note, 'name') },
-    { separator: true },
-    { label: 'Delete Anchor', onSelect: () => removeNote(note.uuid) },
-    { separator: true },
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ]);
-
-  const pageContextMenu = contextMenuHandler((event) => (
-    !readOnly && event.target.closest?.('.pdf-page')
-  ) ? [
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ] : []);
 
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
@@ -4209,6 +4213,7 @@ export default function App() {
                 setNookPromptOpen(false);
                 setPdfViewerTip(false);
                 setSignInOffer(false);
+                closeStorageNotice();
               }}
               aria-expanded={paperInfoOpen}
               aria-haspopup="dialog"
@@ -4286,6 +4291,32 @@ export default function App() {
                 <div className="nook-ask-actions">
                   <button type="button" onClick={() => setSignInOffer(false)}>Not now</button>
                   <button type="button" className="primary" onClick={signInFromOffer}>Sign in</button>
+                </div>
+              </div>
+            )}
+            {storageNoticeShown && (
+              <div className="paper-info-pop nook-ask storage-notice" role="dialog" aria-labelledby="storage-notice-title" data-tauri-drag-region="false">
+                <button type="button" className="dismiss-button card-x" onClick={closeStorageNotice} aria-label="Close" title="Close">
+                  ×
+                </button>
+                <strong id="storage-notice-title">Annotations aren’t in the PDF</strong>
+                <p>
+                  Papol keeps your notes, ink and clips separately from the PDF file.
+                  {!signedInHere() && ' Create an account to back them up in the cloud.'}
+                </p>
+                <label className="storage-notice-opt-out">
+                  <input
+                    type="checkbox"
+                    checked={storageNoticeOptOut}
+                    onChange={(event) => setStorageNoticeOptOut(event.target.checked)}
+                  />
+                  Don’t show again
+                </label>
+                <div className="nook-ask-actions">
+                  <button type="button" className={signedInHere() ? 'primary' : undefined} onClick={closeStorageNotice}>OK</button>
+                  {!signedInHere() && (
+                    <button type="button" className="primary" onClick={registerFromStorageNotice}>Create account</button>
+                  )}
                 </div>
               </div>
             )}
@@ -4417,7 +4448,6 @@ export default function App() {
           className="pages"
           ref={scrollerRef}
           aria-busy={!doc}
-          onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
             const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
@@ -4533,7 +4563,6 @@ export default function App() {
               onSelectClip={setSelectedClipUuid}
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
-              onContextNote={noteContextMenu}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}
