@@ -14,6 +14,7 @@ import appLimits from '../../../shared/appLimits.js';
 import { paperName } from '../../../shared/paperName.js';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat.js';
+import { coloursFor } from '../activityView.js';
 import Avatar from './Avatar';
 import { RATING_DIMENSIONS } from './Rating';
 import { keeperNames } from './ProjectMembers';
@@ -99,6 +100,14 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   }
   if (!project) return <div className="loading"><Working label="Loading project…" /></div>;
 
+  // Each paper keeps one hue, the one the activity views give it, on its
+  // card and wherever it is talked about.
+  const colours = coloursFor(project.papers.map((p) => ({ subject: p.sha256 })));
+  const hueOf = (sha256) => {
+    const colour = colours.get(sha256);
+    return !colour ? null : colour === 'other' ? 'var(--line-strong)' : `var(--activity-${colour})`;
+  };
+
   // What is being said, by subject, and how a pin tells the page it spoke.
   const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
   const talked = () => { getProject(project.uuid).then((next) => setProject(show(next))).catch(() => {}); };
@@ -134,16 +143,29 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               {[plural(project.papers.length, 'paper', 'papers'), plural(boards.length, 'board', 'boards'), latest && `active ${when(latest)}`].filter(Boolean).join(' · ')}
             </p>
           )}
-          {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' and ')}</p>}
+          {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' · ')}</p>}
         </div>
         {project.is_member ? (
-          <button
-            type="button" className="project-crowd" aria-expanded={open} aria-controls="project-people"
-            onClick={() => setPeopleOpen(!open)}
-          >
-            <Faces users={people} />
-            <span>{count}</span>
-          </button>
+          <div className="project-seats">
+            <button
+              type="button" className="project-seat-row" aria-expanded={open} aria-controls="project-people"
+              aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
+              onClick={() => setPeopleOpen(!open)}
+            >
+              {people.slice(0, 5).map((user) => (
+                <span className="project-seat" key={user.uuid}>
+                  <Avatar user={user} className="mini-avatar" />
+                  <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
+                </span>
+              ))}
+              {people.length > 5 && <span className="project-seat-more">+{people.length - 5}</span>}
+            </button>
+            {project.is_keeper && (
+              <button type="button" className="project-invite-open" onClick={() => setPeopleOpen(true)}>
+                <ActionGlyph name="plus" />Invite
+              </button>
+            )}
+          </div>
         ) : (
           <p className="project-crowd"><Faces users={people} /><span>{count}</span></p>
         )}
@@ -160,6 +182,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
           <ProjectPapers
             project={project}
             pin={pin}
+            hueOf={hueOf}
             currentUser={currentUser}
             onAddToNook={(paper) => act(async () => { await addToNook(paper.sha256); return getProject(project.uuid); })}
             onRemove={(paper) => act(() => removePaperFromProject(project.uuid, paper.sha256))}
@@ -171,7 +194,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
           />
           <ProjectBoards project={project} act={act} pin={pin} />
           </div>
-          <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} />
+          <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} />
           </div>
         </>
       )}
@@ -275,13 +298,17 @@ function SectionHead({ id, title, count, action }) {
 // Each paper is a title and its citation. Who has it shows as faces; what
 // they think, and how they rated it, opens when the paper is selected, with
 // room for your own thought and the way into its discussion.
-function ProjectPapers({ project, currentUser, pin, onAddToNook, onRemove, onThought }) {
+function ProjectPapers({ project, currentUser, pin, hueOf, onAddToNook, onRemove, onThought }) {
   const [selected, setSelected] = useState(null);
   const [writing, setWriting] = useState(null);
   useEffect(() => {
     if (!selected) return undefined;
-    const away = (e) => { if (!e.target.closest?.('.project-paper')) { setSelected(null); setWriting(null); } };
-    const escape = (e) => { if (e.key === 'Escape') { setSelected(null); setWriting(null); } };
+    const away = (e) => { if (!e.target.closest?.('.project-paper, .item-actions')) { setSelected(null); setWriting(null); } };
+    const escape = (e) => {
+      if (e.key !== 'Escape') return;
+      document.querySelector(`[data-subject="paper:${selected}"]`)?.focus({ preventScroll: true });
+      setSelected(null); setWriting(null);
+    };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
@@ -289,42 +316,63 @@ function ProjectPapers({ project, currentUser, pin, onAddToNook, onRemove, onTho
 
   const nameOf = (user) => (user.uuid === currentUser?.uuid ? 'You' : user.display_name);
   const write = (sha256) => { setSelected(sha256); setWriting(sha256); };
+  const select = (sha256) => {
+    setSelected(sha256);
+    requestAnimationFrame(() => document.querySelector(`[data-subject="paper:${sha256}"]`)?.scrollIntoView({ block: 'nearest' }));
+  };
 
   return (
     <section className="project-section" aria-labelledby="project-papers-heading">
       <SectionHead id="project-papers-heading" title="Papers" count={project.papers.length} />
       {!project.papers.length ? (
-        <p className="project-empty">No papers yet. Open a paper and choose <b>Add to project</b>.</p>
+        <div className="project-paper-empty">
+          <b>No papers yet</b>
+          <span>Open a paper and choose <b>Add to project</b>.</span>
+        </div>
       ) : (
         <ul className="project-papers project-grid">
           {project.papers.map((paper) => {
             const mine = paper.added_by.uuid === currentUser?.uuid;
-            const takes = paper.users.filter((u) => u.thought || TAKE_RATINGS.some((d) => u[d.key]));
+            // Others first, yours last, just above where you would write.
+            const takes = paper.users.filter((u) => u.thought || TAKE_RATINGS.some((d) => u[d.key]))
+              .sort((a, b) => (a.user.uuid === currentUser?.uuid) - (b.user.uuid === currentUser?.uuid));
             const thoughts = paper.users.filter((u) => u.thought).length;
             const myTake = paper.users.find((u) => u.user.uuid === currentUser?.uuid);
             const isSelected = selected === paper.sha256;
             const quoted = takes.find((u) => u.thought && u.user.uuid !== currentUser?.uuid) ?? takes.find((u) => u.thought);
+            const href = appPath(`/paper/${paperName(paper.sha256)}`);
             const actions = [
-              { key: 'thought', label: myTake?.thought ? 'Edit your thought' : 'Add your thought', tone: 'accent', icon: <ActionGlyph name="edit" />, onSelect: () => write(paper.sha256) },
+              { key: 'open', label: 'Open', tone: 'accent', icon: <ActionGlyph name="external" />, onSelect: () => window.location.assign(href) },
+              { key: 'thought', label: myTake?.thought ? 'Edit your thought' : 'Add your thought', icon: <ActionGlyph name="edit" />, onSelect: () => write(paper.sha256) },
               !paper.in_my_nook && { key: 'nook', label: 'Add to my nook', icon: <ActionGlyph name="add" />, onSelect: () => onAddToNook(paper) },
               (project.is_keeper || mine) && { key: 'out', label: 'Take out', danger: true, icon: <ActionGlyph name="take-out" />, onSelect: () => { setSelected(null); onRemove(paper); } },
             ].filter(Boolean);
             return (
               <li
                 key={paper.sha256}
+                data-subject={`paper:${paper.sha256}`}
+                tabIndex={0}
+                aria-label={isSelected ? undefined : `${paper.title}. Press Enter for takes and actions`}
+                style={{ '--hue': hueOf(paper.sha256) }}
                 className={`project-card project-paper talk-host${isSelected ? ' is-selected' : ''}${paper.is_new ? ' is-new' : ''}`}
-                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) setSelected(paper.sha256); }}
-                onFocus={(e) => { if (!e.target.closest('.talk-pin-wrap')) setSelected(paper.sha256); }}
+                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) select(paper.sha256); }}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                  e.preventDefault();
+                  if (isSelected) { setSelected(null); setWriting(null); } else select(paper.sha256);
+                }}
               >
                 <header className="project-card-head">
-                  <span className="project-card-kind">Paper{paper.year ? ` · ${paper.year}` : ''}</span>
-                  {paper.is_new
-                    ? <span className="project-card-new">New</span>
-                    : paper.journal && <span className="project-card-venue">{paper.journal}</span>}
+                  <span className="project-card-kind"><i className="project-card-hue" />Paper{paper.year ? ` · ${paper.year}` : ''}</span>
+                  {isSelected
+                    ? <ItemActions actions={actions} label={`${paper.title}: actions`} placement="above-end" />
+                    : paper.is_new
+                      ? <span className="project-card-new">New</span>
+                      : paper.journal && <span className="project-card-venue">{paper.journal}</span>}
                 </header>
                 <div className="project-card-body">
                   <h4 className="project-card-title">
-                    <a className="paper-title-link" href={appPath(`/paper/${paperName(paper.sha256)}`)}>{paper.title}</a>
+                    <a className="paper-title-link" href={href}>{paper.title}</a>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
                   {!isSelected && quoted && (
@@ -381,7 +429,7 @@ function ProjectPapers({ project, currentUser, pin, onAddToNook, onRemove, onTho
                     <button
                       type="button" className="project-takes-toggle" aria-expanded={isSelected}
                       aria-label={`${paper.users.map((u) => nameOf(u.user)).join(', ')}${thoughts ? `; ${plural(thoughts, 'thought', 'thoughts')}` : ''}. Show takes`}
-                      onClick={() => setSelected(isSelected ? null : paper.sha256)}
+                      onClick={() => (isSelected ? setSelected(null) : select(paper.sha256))}
                     >
                       <Faces users={paper.users.map((u) => u.user)} max={3} />
                       <span>{thoughts ? plural(thoughts, 'thought', 'thoughts') : 'No thoughts yet'}</span>
@@ -389,7 +437,6 @@ function ProjectPapers({ project, currentUser, pin, onAddToNook, onRemove, onTho
                   ) : <span />}
                   {pin(`paper:${paper.sha256}`, paper.title)}
                 </footer>
-                {isSelected && <ItemActions actions={actions} label={`${paper.title}: actions`} placement="below-start" />}
               </li>
             );
           })}
@@ -431,14 +478,14 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
         value={draft}
         maxLength={appLimits.text.paper_thought}
         aria-label="Your thought on this paper"
-        placeholder="Your thought on this paper, in a line"
+        placeholder="Your thought, in a line"
         onChange={(e) => { touched.current = true; setDraft(e.target.value); }}
-        onKeyDown={(e) => { if (e.key === 'Escape' && onCancel) { e.stopPropagation(); onCancel(); } }}
+        onKeyDown={(e) => { if (e.key === 'Escape' && onCancel) { e.nativeEvent.stopImmediatePropagation(); onCancel(); } }}
       />
       {onCancel && <button type="button" className="project-quiet" onClick={onCancel}>Cancel</button>}
       <button type="submit" className="primary" disabled={!draft.trim() || busy}>{busy ? 'Saving…' : 'Share'}</button>
       <p className="project-thought-note">
-        Everyone in the project sees it.{!paper.in_my_nook && ' Sharing adds the paper to your nook.'}
+        Everyone here sees it.{!paper.in_my_nook && ' Sharing adds it to your nook.'}
       </p>
     </form>
   );
@@ -449,51 +496,65 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
 // the project as a whole.
 const SUBJECT_WORDS = { project: 'Project', paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
 
-function ProjectTalk({ project, currentUser, onTalked }) {
+function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
+  const [all, setAll] = useState(false);
   const discussions = project.discussions ?? [];
   const opener = (subject, label) => ({ projectUuid: project.uuid, subject, label, currentUser, onChanged: onTalked });
-  const general = discussions.some((d) => d.subject.key === 'project');
+  // A talk item shows where its subject sits on the desk while it is pointed at.
+  const target = (d) => (d.subject.paper_sha256 ? `paper:${d.subject.paper_sha256}` : d.subject.board_uuid ? `board:${d.subject.board_uuid}` : null);
+  const light = (d, on) => () => {
+    const key = target(d);
+    if (key) document.querySelector(`[data-subject="${key}"]`)?.classList.toggle('is-lit', on);
+  };
+  const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : d.subject.kind === 'project' ? 'var(--accent)' : 'var(--gold)');
   return (
-    <aside className="project-talk" aria-labelledby="project-talk-heading">
+    <aside className={`project-talk${all ? ' is-all' : ''}`} aria-labelledby="project-talk-heading">
       <SectionHead id="project-talk-heading" title="Talk" count={discussions.length} />
-      {!general && (
-        <TalkOpener {...opener('project', project.name)} className="project-talk-start">
-          <TalkMark />Anything on your mind for the project?
-        </TalkOpener>
-      )}
+      <TalkOpener {...opener('project', project.name)} className="project-talk-start">
+        <TalkMark />Say something to the project…
+      </TalkOpener>
       {!discussions.length ? (
-        <p className="project-empty project-talk-hint">
-          Every paper, thought, board and card has a talk pin <TalkMark />. Press one to start.
-        </p>
+        <p className="project-empty project-talk-hint">Papers, thoughts and boards each have a talk pin <TalkMark />.</p>
       ) : (
-        <ul className="project-talk-list">
-          {discussions.map((d) => {
-            const last = d.last_post;
-            const kind = d.subject.kind;
-            return (
-              <li key={d.uuid}>
-                <TalkOpener {...opener(d.subject.key, d.subject.label)} className={`project-talk-card${d.is_new ? ' is-new' : ''}`}>
-                  <span className="project-talk-subject">
-                    <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
-                    {kind !== 'project' && <span className="project-talk-label">{d.subject.label}</span>}
-                  </span>
-                  {last && <span className="project-talk-excerpt">{last.excerpt}</span>}
-                  <span className="project-talk-meta">
-                    {last && <Avatar user={last.user} className="mini-avatar" />}
-                    {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
-                    <span>{when(d.updated_at)}</span>
-                    {d.post_count > 1 && <span>· {plural(d.post_count, 'post', 'posts')}</span>}
-                    {d.is_new && <span className="project-card-new">New</span>}
-                  </span>
-                </TalkOpener>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="project-talk-list">
+            {discussions.map((d) => {
+              const last = d.last_post;
+              const kind = d.subject.kind;
+              return (
+                <li key={d.uuid} onPointerEnter={light(d, true)} onPointerLeave={light(d, false)} onFocus={light(d, true)} onBlur={light(d, false)}>
+                  <TalkOpener {...opener(d.subject.key, d.subject.label)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>
+                    <span className="project-talk-subject">
+                      <i style={{ background: square(d) }} />
+                      <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
+                      {kind !== 'project' && <span className="project-talk-label">{d.subject.label}</span>}
+                    </span>
+                    {last && <span className="project-talk-excerpt">{last.excerpt}</span>}
+                    <span className="project-talk-meta">
+                      {last && <Avatar user={last.user} className="mini-avatar" />}
+                      {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
+                      <span>{when(d.updated_at)}</span>
+                      {d.post_count > 1 && <span className="project-talk-count"><TalkMark />{d.post_count}</span>}
+                      {d.is_new && <span className="visually-hidden">New</span>}
+                    </span>
+                  </TalkOpener>
+                </li>
+              );
+            })}
+          </ul>
+          {discussions.length > TALK_SHOWN && (
+            <button type="button" className="project-takes-toggle project-talk-more" onClick={() => setAll(!all)}>
+              {all ? 'Show fewer' : `Show ${discussions.length - TALK_SHOWN} more`}
+            </button>
+          )}
+        </>
       )}
     </aside>
   );
 }
+
+// In one column, the first few; beside the desk, the column scrolls.
+const TALK_SHOWN = 5;
 
 // The talk pin as a picture, for saying where to press.
 function TalkMark() {
@@ -520,44 +581,56 @@ function ProjectBoards({ project, act, pin }) {
     setBusy(false);
     if (board) window.location.assign(appPath(`/boards/${board.uuid}`));
   };
+  const newTalk = (board) => (project.discussions ?? []).some((d) => d.is_new && d.subject.board_uuid === board.uuid);
   return (
     <section className="project-section" aria-labelledby="project-boards-heading">
-      <SectionHead id="project-boards-heading" title="Boards" count={boards.length} />
-      <ul className="project-boards project-grid">
-        {boards.map((board) => (
-          <li key={board.uuid} className="project-card project-board talk-host">
-            <header className="project-card-head">
-              <span className="project-card-kind">Board</span>
-              {pin(`board:${board.uuid}`, board.name)}
-            </header>
-            <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
-              <strong className="project-card-title">{board.name}</strong>
-              {board.description && <span className="project-board-description">{board.description}</span>}
-              <span className="project-board-meta">{plural(board.item_count ?? 0, 'card', 'cards')} · {day(board.updated_at)}</span>
-            </a>
-          </li>
-        ))}
-        <li className="project-board-new">
-          {naming ? (
-            <form className="project-board-form" onSubmit={create}>
-              <input
-                autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
-              />
-              <span className="project-board-form-actions">
-                <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
-                <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
-              </span>
-            </form>
-          ) : (
-            <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
-              <ActionGlyph name="plus" />New board
-              {!boards.length && <span>Lay out papers, notes and figures for everyone here to arrange.</span>}
-            </button>
+      <SectionHead
+        id="project-boards-heading" title="Boards" count={boards.length}
+        action={boards.length > 0 && !naming && (
+          <button type="button" className="project-board-start" onClick={() => setNaming(true)}><ActionGlyph name="plus" />New board</button>
+        )}
+      />
+      {!boards.length && !naming ? (
+        <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
+          <ActionGlyph name="plus" />New board
+          <span>Lay out papers, notes and figures for everyone here to arrange.</span>
+        </button>
+      ) : (
+        <ul className="project-boards project-grid">
+          {boards.map((board) => (
+            <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board talk-host">
+              <header className="project-card-head">
+                <span className="project-card-kind">Board</span>
+                {pin(`board:${board.uuid}`, board.name)}
+              </header>
+              <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
+                <strong className="project-card-title">{board.name}</strong>
+                {board.description && <span className="project-board-description">{board.description}</span>}
+                {newTalk(board) && <span className="project-card-new">New talk</span>}
+                <span className="project-board-meta">
+                  {[plural(board.item_count ?? 0, 'card', 'cards'), board.owner && firstName(board.owner), `updated ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
+                </span>
+              </a>
+            </li>
+          ))}
+          {naming && (
+            <li className="project-card project-board is-naming">
+              <header className="project-card-head"><span className="project-card-kind">New board</span></header>
+              <form className="project-card-body" onSubmit={create}>
+                <input
+                  className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Name it" aria-label="Board name"
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
+                />
+                <span className="project-board-form-actions">
+                  <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
+                  <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
+                </span>
+              </form>
+            </li>
           )}
-        </li>
-      </ul>
+        </ul>
+      )}
     </section>
   );
 }
@@ -588,6 +661,10 @@ function ProjectTitle({ project, onRename }) {
       />
     </h2>
   );
+}
+
+function firstName(user) {
+  return (user.display_name || '').split(/\s+/)[0] || user.display_name;
 }
 
 function plural(count, one, many) {

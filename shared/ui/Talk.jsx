@@ -183,6 +183,12 @@ function place(anchor, card) {
   const width = Math.min(CARD_WIDTH, window.innerWidth - 16);
   if (window.innerWidth <= 560) return { sheet: true, width: window.innerWidth };
   const height = card?.offsetHeight ?? 320;
+  // Opened from a list at the side, the card sits beside the list, not over it.
+  if (anchor.closest('.project-talk') && pin.left - width - GAP >= 8) {
+    const left = pin.left - width - GAP;
+    const top = Math.max(8, Math.min(pin.top, window.innerHeight - height - 8));
+    return { sheet: false, width, left, top, originX: width, originY: 0 };
+  }
   const left = Math.max(8, Math.min(pin.left + pin.width / 2 - 28, window.innerWidth - width - 8));
   const below = pin.bottom + GAP;
   const above = pin.top - GAP - height;
