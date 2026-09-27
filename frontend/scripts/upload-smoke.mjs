@@ -188,7 +188,8 @@ try {
     if (mode === 'web') {
       // The bytes went to the bucket by the address the server gave, with
       // the headers it listed and no credential; the server was then told,
-      // with the arXiv id the browser read off the first page.
+      // with the arXiv id and the title block the browser read off the
+      // first page.
       const seen = await browser.evaluate('return window.uploadSeen;');
       assert.deepEqual(seen.map((step) => step.step), ['address', 'put', 'uploaded']);
       assert.deepEqual(seen[0].body, { kind: 'paper', sha256: fixtureDigest, size: fixtureSize, name: 'attention.pdf', mime: 'application/pdf' });
@@ -197,6 +198,11 @@ try {
       assert.deepEqual(seen[1].headers, { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' });
       assert.deepEqual(seen[2].body, {
         file_path: `${'b'.repeat(64)}.pdf`, uploaded_name: 'attention.pdf', identifier: { arxiv_id: '1706.03762v7' },
+        title_block: {
+          title: 'Attention Is All You Need',
+          authors: ['Ashish Vaswani', 'Noam Shazeer', 'Niki Parmar', 'Jakob Uszkoreit', 'Llion Jones', 'Aidan N. Gomez', 'Łukasz Kaiser', 'Illia Polosukhin'],
+          journal: null, year: 2017, doi: null, arxiv_id: '1706.03762v7',
+        },
       });
       // The wait was one bar, "Uploading", that reached the end before
       // "Extracting…" took its place (docs/waiting.md).
