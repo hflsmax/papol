@@ -117,6 +117,28 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
       currentUser={currentUser} onChanged={talked} {...extra}
     />
   );
+  // A dig is a conversation, so a card on the desk shows where it stands:
+  // the latest words said about the thing or anything on it, and by whom.
+  const latestDig = (about) => (project.discussions ?? []).find((d) => d.last_post && about(d.subject));
+  const digLine = (d, home) => {
+    const last = d.last_post;
+    const elsewhere = d.subject.key !== home;
+    return (
+      <TalkOpener
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser} onChanged={talked}
+        className={`project-card-dig${d.is_new ? ' is-new' : ''}`} title="Open the dig"
+      >
+        <span className="project-card-dig-text">{last.excerpt}</span>
+        <span className="project-card-dig-meta">
+          <Avatar user={last.user} className="mini-avatar" />
+          <b>{last.user.uuid === currentUser?.uuid ? 'You' : firstName(last.user)}</b>
+          {elsewhere && <span className="project-card-dig-on">on {d.subject.label}</span>}
+          <span>{when(d.updated_at)}</span>
+          {d.is_new && <span className="project-card-new">New</span>}
+        </span>
+      </TalkOpener>
+    );
+  };
 
   // A keeper alone in a project has one thing to do next: invite.
   const open = peopleOpen ?? (project.is_keeper && project.members.length === 1);
@@ -182,6 +204,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
           <ProjectPapers
             project={project}
             pin={pin}
+            latestDig={latestDig}
+            digLine={digLine}
             hueOf={hueOf}
             currentUser={currentUser}
             onAddToNook={(paper) => act(async () => { await addToNook(paper.sha256); return getProject(project.uuid); })}
@@ -192,7 +216,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               return getProject(project.uuid);
             })}
           />
-          <ProjectBoards project={project} act={act} pin={pin} />
+          <ProjectBoards project={project} act={act} pin={pin} latestDig={latestDig} digLine={digLine} />
           </div>
           <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} />
           </div>
@@ -298,7 +322,7 @@ function SectionHead({ id, title, count, action }) {
 // Each paper is a title and its citation. Who has it shows as faces; what
 // they think, and how they rated it, opens when the paper is selected, with
 // room for your own thought and the way into its discussion.
-function ProjectPapers({ project, currentUser, pin, hueOf, onAddToNook, onRemove, onThought }) {
+function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, onAddToNook, onRemove, onThought }) {
   const [selected, setSelected] = useState(null);
   const [writing, setWriting] = useState(null);
   useEffect(() => {
@@ -340,6 +364,7 @@ function ProjectPapers({ project, currentUser, pin, hueOf, onAddToNook, onRemove
             const myTake = paper.users.find((u) => u.user.uuid === currentUser?.uuid);
             const isSelected = selected === paper.sha256;
             const quoted = takes.find((u) => u.thought && u.user.uuid !== currentUser?.uuid) ?? takes.find((u) => u.thought);
+            const dig = latestDig((subject) => subject.paper_sha256 === paper.sha256);
             const href = appPath(`/paper/${paperName(paper.sha256)}`);
             const actions = [
               { key: 'open', label: 'Open', tone: 'accent', icon: <ActionGlyph name="external" />, onSelect: () => window.location.assign(href) },
@@ -375,7 +400,8 @@ function ProjectPapers({ project, currentUser, pin, hueOf, onAddToNook, onRemove
                     <a className="paper-title-link" href={href}>{paper.title}</a>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
-                  {!isSelected && quoted && (
+                  {!isSelected && dig && digLine(dig, `paper:${paper.sha256}`)}
+                  {!isSelected && !dig && quoted && (
                     <blockquote className="project-card-quote">
                       “{quoted.thought}”<cite>{nameOf(quoted.user)}</cite>
                     </blockquote>
@@ -566,7 +592,7 @@ function TalkMark() {
 }
 
 // The project's boards, which every member arranges; one more is a name away.
-function ProjectBoards({ project, act, pin }) {
+function ProjectBoards({ project, act, pin, latestDig, digLine }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -581,7 +607,6 @@ function ProjectBoards({ project, act, pin }) {
     setBusy(false);
     if (board) window.location.assign(appPath(`/boards/${board.uuid}`));
   };
-  const newTalk = (board) => (project.discussions ?? []).some((d) => d.is_new && d.subject.board_uuid === board.uuid);
   return (
     <section className="project-section" aria-labelledby="project-boards-heading">
       <SectionHead
@@ -597,22 +622,25 @@ function ProjectBoards({ project, act, pin }) {
         </button>
       ) : (
         <ul className="project-boards project-grid">
-          {boards.map((board) => (
-            <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board talk-host">
-              <header className="project-card-head">
-                <span className="project-card-kind">Board</span>
-                {pin(`board:${board.uuid}`, board.name)}
-              </header>
-              <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
-                <strong className="project-card-title">{board.name}</strong>
-                {board.description && <span className="project-board-description">{board.description}</span>}
-                {newTalk(board) && <span className="project-card-new">New dig</span>}
-                <span className="project-board-meta">
-                  {[plural(board.item_count ?? 0, 'card', 'cards'), board.owner && firstName(board.owner), `updated ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
-                </span>
-              </a>
-            </li>
-          ))}
+          {boards.map((board) => {
+            const dig = latestDig((subject) => subject.board_uuid === board.uuid);
+            return (
+              <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board talk-host">
+                <header className="project-card-head">
+                  <span className="project-card-kind">Board</span>
+                  {pin(`board:${board.uuid}`, board.name)}
+                </header>
+                <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
+                  <strong className="project-card-title">{board.name}</strong>
+                  {board.description && <span className="project-board-description">{board.description}</span>}
+                  <span className="project-board-meta">
+                    {[plural(board.item_count ?? 0, 'card', 'cards'), board.owner && firstName(board.owner), `updated ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
+                  </span>
+                </a>
+                {dig && <div className="project-board-dig">{digLine(dig, `board:${board.uuid}`)}</div>}
+              </li>
+            );
+          })}
           {naming && (
             <li className="project-card project-board is-naming">
               <header className="project-card-head"><span className="project-card-kind">New board</span></header>

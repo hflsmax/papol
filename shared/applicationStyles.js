@@ -5874,6 +5874,18 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-quote { margin: var(--space-2) 0 0; padding: var(--space-1) 0 var(--space-1) var(--space-3); border-left: 2px solid var(--gold); color: var(--ink); font: var(--fs-sm)/1.45 var(--font-serif); }
 .project-card-quote { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .project-card-quote cite { display: block; margin-top: 2px; color: var(--ink-faint); font: normal var(--fs-2xs) var(--font-ui); }
+.project-card-dig { display: grid; gap: 3px; width: 100%; margin: var(--space-2) 0 0; padding: var(--space-1) 0 var(--space-1) var(--space-3); border: 0; border-left: 2px solid var(--line-strong); border-radius: 0; background: none; box-shadow: none; color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
+.project-card-dig:hover:not(:disabled), .project-card-dig[aria-expanded='true'] { border: 0; border-left: 2px solid var(--accent); background: none; color: var(--ink); }
+.project-card-dig.is-new { border-left-color: var(--gold); }
+.project-card-dig-text { display: -webkit-box; overflow: hidden; font: var(--fs-sm)/1.45 var(--font-serif); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.project-card-dig-meta { display: flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
+.project-card-dig-meta .mini-avatar { width: 16px; height: 16px; font-size: 9px; }
+.project-card-dig-meta b { color: var(--ink-soft); font-weight: 600; }
+.project-card-dig-meta > span { flex: none; white-space: nowrap; }
+.project-card-dig-meta > .project-card-dig-on { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card-dig-meta .project-card-new { margin-left: auto; }
+.project-board-dig { padding: 0 var(--space-3) var(--space-3); }
+.project-board-dig .project-card-dig { margin: 0; }
 .project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
 .project-paper-more { display: grid; gap: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--line); }
 .project-paper-more > * { max-width: 44rem; }
