@@ -1,0 +1,16 @@
+{
+  "name": "papol-analyzer",
+  "private": true,
+  "description": "Papol's reading rules (src/rules/): a paper's sections, references, citation markers, links and title block, read from its pages. The viewer and the upload form run them in the browser; the scripts and tests here run them on PDFs through unpdf.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0",
+    "unpdf": "^1.8.1"
+  }
+}

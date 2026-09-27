@@ -71,7 +71,7 @@ function pdfjsAssets() {
 // source, and of how the viewer shapes what they find. A reading kept on
 // a device (src/readingCache.js) is kept under it, so one made by other
 // rules is never shown.
-const rulesDir = join(dirname(new URL(import.meta.url).pathname), '../host/analyzer/src/rules');
+const rulesDir = join(dirname(new URL(import.meta.url).pathname), '../analyzer/src/rules');
 const rulesVersion = (() => {
   const hash = createHash('sha256');
   for (const name of readdirSync(rulesDir).sort()) hash.update(name).update(readFileSync(join(rulesDir, name)));

@@ -67,7 +67,7 @@
     "mime_type": 255,
     "error_message": 2000,
     "error_traceback": 20000,
-    "analysis_error": 500,
+    "job_error": 500,
     "notification_email_headline": 60,
     "crossref_query": 500
   },

@@ -1,8 +1,10 @@
-// A PDF read whole on the host, through unpdf (pdf.js's build for
-// servers), page by page as page.ts reads each one.
+// A PDF file read in Node, through unpdf (pdf.js's build for servers),
+// page by page as page.ts reads each one: for the scripts and tests that
+// measure the rules on a corpus. The browser reads its own documents
+// (page.ts, readPages).
 
 import { getDocumentProxy, getResolvedPDFJS } from "unpdf";
-import { readPage, type PdfPage } from "./page";
+import { infoOf, readPage, type PdfDocument, type PdfPage } from "./page";
 import type { Doc, Page } from "./page";
 
 export type { Doc, Drawn, Page, Run } from "./page";
@@ -17,10 +19,7 @@ export async function readPdf(bytes: Uint8Array, { pages: limit }: { pages?: num
   const pages: Page[] = [];
   let info = { title: "", author: "" };
   try {
-    try {
-      const meta = (await proxy.getMetadata()).info as { Title?: unknown; Author?: unknown };
-      info = { title: typeof meta?.Title === "string" ? meta.Title.trim() : "", author: typeof meta?.Author === "string" ? meta.Author.trim() : "" };
-    } catch { /* a PDF with no readable Info dictionary has none */ }
+    info = await infoOf(proxy as unknown as PdfDocument);
     for (let number = 1; number <= Math.min(proxy.numPages, limit ?? Infinity); number += 1) {
       const page = await proxy.getPage(number);
       pages.push(await readPage(page as unknown as PdfPage, number, OPS as unknown as Record<string, number>));

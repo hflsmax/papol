@@ -109,33 +109,20 @@ jobs:
           # D1. --legacy-peer-deps because npm's peer resolver crashes on
           # Vitest 5's optional peers while the pool still wants Vitest 4.
           (cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test)
-          # The host's analyzer: its tests, and the checked-in
-          # bundle rebuilt to prove it is what the source says (`check`).
-          (cd host/analyzer && npm ci && npm run typecheck && npm run check && npm test)
-
-      # The analyzer, stood in for: canned answers in the real one's
-      # shapes, told per PDF by the upload suite what to say.
-      - name: Start the stand-in analyzer
-        run: |
-          nohup node scripts/share-e2e/fake-analyzer.mjs > analyzer.log 2>&1 &
-          for _ in $(seq 60); do
-            curl -fsS -o /dev/null -u papol:e2e http://127.0.0.1:8072/health 2>/dev/null && exit 0
-            sleep 1
-          done
-          echo 'the stand-in analyzer never came up'; cat analyzer.log; exit 1
+          # The analyzer's rules, which the viewer and the upload form run.
+          (cd analyzer && npm ci && npm run typecheck && npm test)
 
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.
       # --test-scheduled opens /__scheduled, so the suite can fire the cron
-      # sweep when it chooses; ANALYZER_URL and ANALYZER_AUTH point the
-      # reading of an upload at the stand-in above.
+      # sweep when it chooses.
       - name: Start the Worker on the assembled site
         run: |
           cloudflare/scripts/assemble.sh
           cd cloudflare
           npx wrangler d1 migrations apply papol --local
           nohup npx wrangler dev --ip 127.0.0.1 --port 8010 --show-interactive-dev-session=false \
-            --test-scheduled --var ANALYZER_URL:http://127.0.0.1:8072 --var ANALYZER_AUTH:papol:e2e > ../server.log 2>&1 &
+            --test-scheduled > ../server.log 2>&1 &
           for _ in $(seq 90); do
             curl -fsS -o /dev/null http://127.0.0.1:8010/ 2>/dev/null && exit 0
             sleep 2
@@ -167,4 +154,4 @@ jobs:
 
       - name: Worker log
         if: failure()
-        run: cat server.log analyzer.log || true
+        run: cat server.log || true

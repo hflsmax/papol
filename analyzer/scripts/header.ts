@@ -7,10 +7,10 @@
 // fetch them. A field the row leaves empty is not scored.
 import fs from "node:fs";
 import path from "node:path";
-import { headerWithRules } from "../src/rules/header";
+import { headerWithRules } from "../src/rules/analyze";
 import { normalizeName } from "../src/rules/bibliography";
-import { arxivDoi } from "../../../cloudflare/src/papers/identifiers";
-import type { HeaderMetadata } from "../../../cloudflare/src/papers/reading";
+import { arxivDoi } from "../../cloudflare/src/papers/identifiers";
+import type { HeaderMetadata } from "../../cloudflare/src/papers/reading";
 
 type Truth = { sha256: string; title: string | null; authors: string[]; journal: string | null; year: number | null; doi: string | null };
 

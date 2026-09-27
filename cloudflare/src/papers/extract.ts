@@ -6,19 +6,18 @@
 // button, which still answers in the request: it is a button, not an
 // upload.
 //
-// The browser reads the paper's first pages for a DOI or an arXiv id
-// before the upload is queued (shared/identifiers.js) and sends it
-// along. With one, the job asks the indexes about it — network, of which
-// a Worker has plenty — and never fetches the PDF. Without one, or when
-// no index knows it, the PDF is read on the host, by the analyzer
-// (host/analyzer/): the title block, by rules, and with it the DOI or arXiv
-// id the paper prints. With no analyzer, or one that is down, the form gets
-// the filename.
+// The browser reads the paper's first pages before the upload is queued
+// and sends what it found along: a DOI or an arXiv id
+// (shared/identifiers.js), and the title block, read by rules
+// (analyzer/src/rules/header.ts, through shared/printed.js). With
+// an identifier, the job asks the indexes about it — network, of which a
+// Worker has plenty. Without one, or when no index knows it, the form gets
+// the title block as the browser read it, and with no title block, the
+// filename. The Worker never reads the PDF.
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { byDoi, Unavailable, type Summary } from "./bibliography";
-import * as analyzer from "./analyzer";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
 import type { HeaderMetadata } from "./reading";
 
@@ -26,8 +25,8 @@ export { arxivDoi, extractArxivId, extractDoi };
 
 export const KIND = "extract_metadata";
 
-// A DOI or an arXiv id, as the browser read it off the first pages or the
-// analyzer read it off the title block.
+// A DOI or an arXiv id, as the browser read it off the first pages or
+// out of the title block.
 export interface Identifier {
   doi?: string | null;
   arxiv_id?: string | null;
@@ -47,18 +46,6 @@ export function lookupDoi(identifier: Identifier | null | undefined): string | n
   return identifier.arxiv_id ? arxivDoi(identifier.arxiv_id) : identifier.doi || null;
 }
 
-// The title block, read on the host. Null where there is no analyzer or it
-// could not read the file: nothing printed to go on.
-async function titleBlock(env: Env, fileName: string): Promise<HeaderMetadata | null> {
-  if (!analyzer.configured(env)) return null;
-  try {
-    return await analyzer.header(env, fileName);
-  } catch (error) {
-    console.warn(`The analyzer could not read the header of ${fileName}: ${(error as Error).message}`);
-    return null;
-  }
-}
-
 export interface Extracted {
   doi: string | null;
   title: string;
@@ -72,6 +59,8 @@ export interface Upload {
   uploadedName: string;
   fileName: string;
   identifier?: Identifier | null;
+  // What the browser read of the title block, if it read one.
+  titleBlock?: HeaderMetadata | null;
 }
 
 // The form's fields: what the APIs know of the identifier the browser
@@ -85,12 +74,12 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
   let header: HeaderMetadata | null = null;
   let printed = given;
   if (!known) {
-    header = await titleBlock(env, upload.fileName);
+    header = upload.titleBlock ?? null;
     printed = lookupDoi(header) ?? given;
     known = printed && printed !== given ? await byDoi(env, printed) : null;
   }
   // Known to no index: the form shows the identifier as the browser read
-  // it off the page, before what the analyzer read in the title block.
+  // it off the page, before what it read in the title block.
   metadata.doi = given ?? printed;
   if (known) {
     Object.assign(metadata, knownFields(known, printed!, metadata.title));
@@ -151,8 +140,9 @@ export async function knownVersion(db: D1Database, doi: string | null, digest: s
 export async function extractMetadataJob(env: Env, payload: Row): Promise<Row> {
   const fileName = String(payload.file_path);
   const identifier = payload.identifier && typeof payload.identifier === "object" ? (payload.identifier as Identifier) : null;
+  const titleBlock = payload.title_block && typeof payload.title_block === "object" ? (payload.title_block as HeaderMetadata) : null;
   try {
-    const metadata = await extractedMetadata(env, { uploadedName: String(payload.uploaded_name || fileName), fileName, identifier });
+    const metadata = await extractedMetadata(env, { uploadedName: String(payload.uploaded_name || fileName), fileName, identifier, titleBlock });
     const existing = await knownVersion(env.DB, metadata.doi, fileName.slice(0, 64));
     return existing ? { ...metadata, existing } : { ...metadata };
   } catch (error) {
@@ -169,11 +159,12 @@ export interface Reextracted {
   year: number | null;
 }
 
-// The edit form's re-read: prefer the identifier the file carries over
-// possibly stale or wrongly entered paper data. Null when nothing
-// resolved; Unavailable when the APIs could not answer.
-export async function reextractedMetadata(env: Env, fileName: string, paperDoi: string | null): Promise<Reextracted | null> {
-  const printed = lookupDoi(await titleBlock(env, fileName)) ?? paperDoi;
+// The edit form's re-read: prefer the identifier the file carries, as the
+// browser read it off the title block, over possibly stale or wrongly
+// entered paper data. Null when nothing resolved; Unavailable when the
+// APIs could not answer.
+export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata | null, paperDoi: string | null): Promise<Reextracted | null> {
+  const printed = lookupDoi(titleBlock) ?? paperDoi;
   const known = printed ? await byDoi(env, printed) : null;
   if (!known) return null;
   return {

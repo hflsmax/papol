@@ -16,7 +16,7 @@ import {
   CITE_AUTHOR_YEAR_GROUP, CITE_AUTHOR_YEAR_NARRATIVE, CITE_BRACKET, CITE_LABEL, CITE_PAREN, CITE_SUPERSCRIPT, NOT_A_NAME,
 } from "./registry";
 import type { Trace } from "./trace";
-import type { Citation } from "../../../../cloudflare/src/papers/reading";
+import type { Citation } from "../../../cloudflare/src/papers/reading";
 
 interface Hit { rule: string; entries: Entry[]; label: string; boxes: Box[]; page: number }
 

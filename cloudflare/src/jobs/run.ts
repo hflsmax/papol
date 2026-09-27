@@ -8,7 +8,6 @@
 import limits from "../../../config/app_limits.json";
 import { batch, one, type Row } from "../db";
 import { extractMetadataJob, KIND as EXTRACT } from "../papers/extract";
-import { analyzePaperJob, KIND as ANALYZE } from "../papers/references";
 import { captureWebpageJob, WEBPAGE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
 import { dailyDigest, digestHour, SEND_ANNOUNCEMENT, SEND_EMAIL, sendAnnouncementJob, sendEmailJob } from "./notifications";
@@ -21,10 +20,9 @@ export const HANDLERS: Record<string, Handler> = {
   [SEND_ANNOUNCEMENT]: sendAnnouncementJob,
   [WEBPAGE]: captureWebpageJob,
   [EXTRACT]: extractMetadataJob,
-  [ANALYZE]: analyzePaperJob,
 };
 
-const ERROR_LIMIT = limits.text.analysis_error;
+const ERROR_LIMIT = limits.text.job_error;
 
 export async function runOne(env: Env, job: Job): Promise<boolean> {
   const handler = HANDLERS[job.kind];

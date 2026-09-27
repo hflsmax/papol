@@ -8,21 +8,22 @@
 // the browser looks for them (shared/identifiers.js), so a paper the
 // browser found nothing on is not read differently here.
 
-import type { HeaderMetadata } from "../../../../cloudflare/src/papers/reading";
-import { normalizeTitle } from "../../../../cloudflare/src/papers/reading";
-import { extractArxivId, extractDoi } from "../../../../cloudflare/src/papers/identifiers";
+import type { HeaderMetadata } from "../../../cloudflare/src/papers/reading";
+import { normalizeTitle } from "../../../cloudflare/src/papers/reading";
+import { extractArxivId, extractDoi } from "../../../cloudflare/src/papers/identifiers";
 import { layout, type Line } from "./layout";
-import { readPdf } from "./pdf";
+import { readDoc, type Doc, type PdfDocument } from "./page";
 import {
   HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
   HEADER_SUBTITLE, HEADER_TITLE, HEADER_YEAR, HEADER_YEAR_LATE,
 } from "./registry";
 import { Trace } from "./trace";
 
-// The pages read: the title block is on the first; an identifier may be
+// The pages to read (HEADER_PAGES): the title block is on the first; an identifier may be
 // in a footer a page or two on, as the browser allows for; a running head
 // is on the second and third.
-const PAGES = 3;
+export const HEADER_PAGES = 3;
+const PAGES = HEADER_PAGES;
 const LATEST_YEAR = new Date().getUTCFullYear() + 1;
 
 export interface HeaderResult {
@@ -30,8 +31,14 @@ export interface HeaderResult {
   trace: Trace;
 }
 
-export async function headerWithRules(bytes: Uint8Array): Promise<HeaderResult> {
-  const doc = await readPdf(bytes, { pages: PAGES });
+/** The title block of a document open in the browser (page.ts, PdfDocument). */
+export async function readHeader(doc: PdfDocument, OPS: Record<string, number>): Promise<HeaderMetadata | null> {
+  const read = await readDoc(doc, OPS, { pages: PAGES });
+  return read && headerOf(read).header;
+}
+
+/** The title block of a document's first pages, read (page.ts, readDoc). */
+export function headerOf(doc: Doc): HeaderResult {
   const trace = new Trace();
   const laid = layout(doc);
   const first = laid.pages[0];

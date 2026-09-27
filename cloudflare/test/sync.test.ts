@@ -636,10 +636,10 @@ describe("the client gate", () => {
   it("records the build each replica runs", async () => {
     const account = await register();
     const client = uuid();
-    await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.5.1" } });
+    await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.6.1" } });
     await ok("GET", `/api/sync/pull?client_uuid=${client}`, { headers: { ...account.headers, "User-Agent": "curl/8.4.0" } });
     // The last build that announced one; a caller naming none leaves it.
-    expect(await row("SELECT app_version FROM _server_clients WHERE client_uuid = ?", client)).toEqual({ app_version: "0.5.1" });
+    expect(await row("SELECT app_version FROM _server_clients WHERE client_uuid = ?", client)).toEqual({ app_version: "0.6.1" });
   });
 });
 

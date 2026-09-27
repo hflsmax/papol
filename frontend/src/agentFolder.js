@@ -101,9 +101,10 @@ export function parseManifest(source) {
   return { papers };
 }
 
-// The identifier an upload is sent with: the one the PDF prints when it
-// prints one, else the manifest's. `printed` is what readIdentifier gives,
-// a promise of `{ doi }`, `{ arxiv_id }` or null.
+// What an upload is sent with: the identifier the PDF prints when it
+// prints one, else the manifest's, and the title block it prints.
+// `printed` is what readIdentifier gives, a promise of `{ doi }` or
+// `{ arxiv_id }` with `title_block`, or null.
 export async function identifierFor(printed, entry) {
   let found = null;
   try {
@@ -111,10 +112,11 @@ export async function identifierFor(printed, entry) {
   } catch {
     found = null;
   }
+  const titleBlock = found?.title_block ? { title_block: found.title_block } : {};
   if (found && (found.doi || found.arxiv_id)) return found;
-  if (entry?.doi) return { doi: entry.doi };
-  if (entry?.arxiv_id) return { arxiv_id: entry.arxiv_id };
-  return null;
+  if (entry?.doi) return { doi: entry.doi, ...titleBlock };
+  if (entry?.arxiv_id) return { arxiv_id: entry.arxiv_id, ...titleBlock };
+  return found?.title_block ? titleBlock : null;
 }
 
 // ---------------------------------------------------------------- the folder

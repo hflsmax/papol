@@ -14,8 +14,8 @@ no seminar, no link out and no board card carrying its file.
 
 --list prints every orphan with its title, DOI, hash prefix, age and file
 size. --delete removes those rows, the tombstoned copies that still point
-at them (the database enforces its foreign keys), their paper_links, paper_floats,
-paper_references, paper_citations and paper_citation_works rows, and their bucket objects,
+at them (the database enforces its foreign keys), their paper_references
+rows, and their bucket objects,
 printing what went. Never --delete on production without a --list first,
 and the day's D1 point-in-time restore behind you.
 
@@ -50,9 +50,7 @@ FILE = re.compile(r"^[A-Za-z0-9._-]+$")
 ORPHANS = """
 SELECT p.sha256, p.doi, p.title, p.file_path, p.created_at,
        (SELECT count(*) FROM copies c WHERE c.paper_sha256 = p.sha256) AS tombstones,
-       (SELECT count(*) FROM paper_links l WHERE l.paper_sha256 = p.sha256) AS links,
-       (SELECT count(*) FROM paper_references r WHERE r.paper_sha256 = p.sha256) AS refs,
-       (SELECT count(*) FROM paper_citations t WHERE t.paper_sha256 = p.sha256) AS citations
+       (SELECT count(*) FROM paper_references r WHERE r.paper_sha256 = p.sha256) AS refs
 FROM papers p
 WHERE p.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = p.sha256 AND c.deleted_at IS NULL)
@@ -159,11 +157,7 @@ def delete(env, papers):
         execute_file(env, [
             f"DELETE FROM copy_tags WHERE copy_uuid IN (SELECT uuid FROM copies WHERE paper_sha256 = '{sha256}');",
             f"DELETE FROM copies WHERE paper_sha256 = '{sha256}' AND deleted_at IS NOT NULL;",
-            f"DELETE FROM paper_citation_works WHERE citation_uuid IN (SELECT uuid FROM paper_citations WHERE paper_sha256 = '{sha256}');",
-            f"DELETE FROM paper_citations WHERE paper_sha256 = '{sha256}';",
             f"DELETE FROM paper_references WHERE paper_sha256 = '{sha256}';",
-            f"DELETE FROM paper_links WHERE paper_sha256 = '{sha256}';",
-            f"DELETE FROM paper_floats WHERE paper_sha256 = '{sha256}';",
             f"DELETE FROM papers WHERE sha256 = '{sha256}' AND deleted_at IS NULL"
             f"  AND NOT EXISTS (SELECT 1 FROM copies WHERE paper_sha256 = '{sha256}')"
             f"  AND NOT EXISTS (SELECT 1 FROM annotations WHERE paper_sha256 = '{sha256}');",
@@ -171,7 +165,7 @@ def delete(env, papers):
         if query(env, f"SELECT 1 AS n FROM papers WHERE sha256 = '{sha256}'"):
             print(f"{sha256[:8]}…  kept: something took it up while this ran")
             continue
-        rows = f"{paper['tombstones']} copy tombstone(s), {paper['links']} link(s), {paper['refs']} reference(s), {paper['citations']} citation(s)"
+        rows = f"{paper['tombstones']} copy tombstone(s), {paper['refs']} reference(s)"
         file_path = paper["file_path"] or ""
         shared = query(env, f"SELECT 1 AS n FROM papers WHERE file_path = '{file_path}'") if FILE.match(file_path) else []
         if FILE.match(file_path) and not shared:

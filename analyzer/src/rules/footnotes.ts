@@ -3,7 +3,7 @@
 // whose box is the note, so a link to it is stored and followed like a link
 // to a figure (cloudflare/src/papers/reading.ts).
 
-import type { Box, DocumentLink } from "../../../../cloudflare/src/papers/reading";
+import type { Box, DocumentLink } from "../../../cloudflare/src/papers/reading";
 import type { Found } from "./floats";
 import type { Layout, Line, Placed } from "./layout";
 import { FOOTNOTE_MARKER, FOOTNOTE_NOTE } from "./registry";
