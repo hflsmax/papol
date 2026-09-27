@@ -26,7 +26,22 @@ const isContents = (title: string) => /\s\d{1,4}$/.test(title.trim()) || /\.\s?\
 // lead, once their parent and predecessor are headings. The first line
 // for a number is the section's; `skip` holds lines that are no one's
 // heading (the bibliography's).
-export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<Found>, trace: Trace): Map<string, Found> {
+//
+// The contents (contents.ts) reads with three more allowances, which it
+// guards by the numbering; links keep to what is above. `setApart` is a
+// further way a line is set apart from the text besides bold and size (its
+// own face, capitals). `heads` can turn down a line section.heading would
+// take, leaving its number for a later line. And with `columns`, Roman
+// headings level with each other count as side by side only within one
+// column of the page's type: in two columns, "II." can end the left one
+// level with "III." opening the right.
+export interface SectionOptions {
+  setApart?: (line: Line) => boolean;
+  heads?: (line: Line, title: string) => boolean;
+  columns?: boolean;
+}
+export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<Found>, trace: Trace, options: SectionOptions = {}): Map<string, Found> {
+  const { setApart, heads } = options;
   const sections = new Map<string, Found>();
   const type = typeOf(layout);
   // Nothing inside a float heads a section: a figure's "70 Hz" label.
@@ -71,10 +86,11 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
       // measured to (layout.ts).
       const set = scanned(page)
         ? scannedHeading(line, page, match.groups.title)
-        : letters(line.runs.filter((r) => r.bold)) > letters(line.runs) / 2 || line.size > layout.bodySize + 0.5;
+        : letters(line.runs.filter((r) => r.bold)) > letters(line.runs) / 2 || line.size > layout.bodySize + 0.5 || Boolean(setApart?.(line));
       if (!set) continue;
       const number = match.groups.number;
       if (sections.has(keyOf(number))) continue;
+      if (heads && !heads(line, match.groups.title)) continue;
       if (runningHead(line, page)) { trace.add(SECTION_NOT_RUNNING_HEAD.id, page.number, line.text.slice(0, 80), []); continue; }
       add(page, line, number, SECTION_HEADING.id);
     }
@@ -194,10 +210,12 @@ export function findSections(layout: Layout, skip: Set<Line>, floats: Iterable<F
       const match = ROMAN.exec(line.text.normalize("NFKC"));
       if (!match?.groups || isContents(match.groups.title) || inFloat(line, page) || runningHead(line, page)) continue;
       const set = letters(line.runs.filter((r) => r.bold)) > letters(line.runs) / 2 || line.size > layout.bodySize + 0.5;
-      if (set) romans.push({ page, line, number: match.groups.number });
+      if (set || setApart?.(line)) romans.push({ page, line, number: match.groups.number });
     }
   });
-  const levelWithAnother = (c: (typeof romans)[number]) => romans.some((o) => o !== c && o.page === c.page && Math.abs(o.line.top - c.line.top) <= 2);
+  const columnOf = (l: Line) => type.columns.findIndex((c) => (l.x0 + l.x1) / 2 >= c.x0 && (l.x0 + l.x1) / 2 <= c.x1);
+  const levelWithAnother = (c: (typeof romans)[number]) => romans.some((o) => o !== c && o.page === c.page && Math.abs(o.line.top - c.line.top) <= 2
+    && (!options.columns || !c.page.twoColumn || columnOf(o.line) === columnOf(c.line)));
   const run: typeof romans = [];
   for (const c of romans.filter((c) => !levelWithAnother(c))) if (roman(c.number) === run.length + 1) run.push(c);
   if (run.length >= 3) for (const c of run) if (!known(c.number)) add(c.page, c.line, c.number, SECTION_ROMAN.id);

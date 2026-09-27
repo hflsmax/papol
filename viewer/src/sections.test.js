@@ -14,6 +14,7 @@ import {
   looksLikeContents,
   markParts,
   destinationHeight,
+  printedSections,
   readSections,
   topLevel,
   withoutEndMatter,
@@ -170,6 +171,60 @@ test('the outline is the whole of it', async () => {
 test('a paper with no outline has no sections, and says so quietly', async () => {
   const read = await readSections({ numPages: 20, getOutline: async () => null });
   assert.deepEqual(read.sections, []);
+});
+
+test('a paper with no outline has its printed headings read instead', async () => {
+  const headings = [
+    { number: '', title: 'Abstract', level: 0, page: 1, top: 0.3 },
+    { number: '1', title: 'Introduction', level: 0, page: 1, top: 0.6 },
+    { number: '1.1', title: 'Scope', level: 1, page: 2, top: 0.1 },
+    { number: '2', title: 'Results', level: 0, page: 2, top: 0.5 },
+    { number: '', title: 'References', level: 0, page: 3, top: 0.2 },
+    { number: 'A', title: 'Proofs', level: 0, page: 4, top: 0.1 },
+  ];
+  const asked = [];
+  const read = await readSections({ numPages: 4, getOutline: async () => null }, {
+    readPrinted: async (doc, options) => { asked.push([doc.numPages, typeof options.cancelled]); return headings; },
+  });
+  assert.deepEqual(asked, [[4, 'function']]);
+  assert.equal(read.printed, true);
+  assert.deepEqual(read.sections.map((s) => [s.number, s.title, s.level, s.page, s.appendix]), [
+    ['', 'Abstract', 0, 1, false],
+    ['1', 'Introduction', 0, 1, false],
+    ['1.1', 'Scope', 1, 2, false],
+    ['2', 'Results', 0, 2, false],
+    ['', 'References', 0, 3, false],
+    ['A', 'Proofs', 0, 4, true],
+  ]);
+  // A heading's top, from the top of the page, is the viewer's y from its
+  // bottom.
+  assert.equal(read.sections[1].y, 0.4);
+});
+
+test('an outline that is a contents is used, and the printed headings are never read', async () => {
+  const read = await readSections(outlineDoc([{ title: '1 Introduction', dest: 'a' }, { title: '2 Method', dest: 'b' }]), {
+    readPrinted: async () => { throw new Error('read the page when the outline was fine'); },
+  });
+  assert.deepEqual(read.sections.map((s) => s.title), ['Introduction', 'Method']);
+  assert.equal(read.printed, undefined);
+});
+
+test('fewer than two printed sections is no contents', () => {
+  assert.deepEqual(printedSections([]), []);
+  assert.deepEqual(printedSections(null), []);
+  assert.deepEqual(printedSections([
+    { number: '1', title: 'Introduction', level: 0, page: 1, top: 0.2 },
+    { number: '1.1', title: 'Scope', level: 1, page: 1, top: 0.5 },
+  ]), []);
+});
+
+test('a cancelled read of the printed headings resolves to nothing', async () => {
+  let cancelled = false;
+  const read = await readSections({ numPages: 2, getOutline: async () => [] }, {
+    cancelled: () => cancelled,
+    readPrinted: async () => { cancelled = true; return null; },
+  });
+  assert.equal(read, null);
 });
 
 test('a single bookmark is a cover link, not a table of contents', async () => {

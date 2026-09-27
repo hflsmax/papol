@@ -56,6 +56,7 @@ import { linkHistoryDirection } from './linkHistoryShortcut';
 import { anchorKeyAction, isEditingTarget } from './anchorKeys';
 import { pageAtLine } from './readingPage';
 import { readSections } from './sections';
+import { readPrintedHeadings } from './printedContents.js';
 import ReturnPill from './ReturnPill';
 import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
@@ -505,6 +506,9 @@ export default function App() {
   const [searchWrap, setSearchWrap] = useState(null);
   // The paper's own headings, which the Navigator draws across the bar.
   const [sections, setSections] = useState([]);
+  // How far the printed headings have been read, 0 to 1, while a paper with
+  // no outline is being read for them; null otherwise.
+  const [sectionsReading, setSectionsReading] = useState(null);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -1205,6 +1209,7 @@ export default function App() {
     setSearchFinder(null);
     setSearchResults(NO_RESULTS);
     setSections([]);
+    setSectionsReading(null);
   }, [doc]);
 
   // The paper's headings, read once the document is open.
@@ -1212,20 +1217,26 @@ export default function App() {
   // Reading the outline costs a destination lookup per heading and nothing
   // else, but it still waits for an idle moment rather than competing with
   // the first render: the bar can stand empty for a moment, and the reader
-  // gets their first page sooner.
+  // gets their first page sooner. A paper with no outline has its printed
+  // headings read instead, every page of it, in idle moments too.
   useEffect(() => {
     if (!doc) return undefined;
     let cancelled = false;
     const start = () => {
       if (cancelled) return;
-      readSections(doc, { cancelled: () => cancelled })
+      readSections(doc, {
+        cancelled: () => cancelled,
+        readPrinted: readPrintedHeadings,
+        onProgress: (done) => { if (!cancelled) setSectionsReading(done); },
+      })
         .then((read) => {
           if (cancelled || !read) return;
           setSections(read.sections);
         })
         // A paper whose outline cannot be read is a paper without a
         // Navigator, not a paper that failed to open.
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setSectionsReading(null); });
     };
     const idle = window.requestIdleCallback
       ? window.requestIdleCallback(start, { timeout: 2000 })
@@ -3880,6 +3891,7 @@ export default function App() {
         <Navigator
           pages={doc?.numPages || 0}
           sections={sections}
+          reading={sectionsReading}
           anchors={contentsAnchors}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
