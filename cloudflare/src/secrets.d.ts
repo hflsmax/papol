@@ -11,12 +11,6 @@ interface Secrets {
   // (src/papers/bibliography.ts).
   PAPOL_CONTACT_EMAIL?: string;
   PAPOL_OPENALEX_KEY?: string;
-  // The host's analyzer (host/analyzer/): it reads a
-  // PDF by rules and answers JSON, behind a Cloudflare tunnel with nginx
-  // asking for one credential, "user:password" (src/papers/analyzer.ts).
-  // Unset, references are "unavailable" and uploads get the filename.
-  ANALYZER_URL?: string;
-  ANALYZER_AUTH?: string;
   // An R2 API token for the files bucket, with which the Worker signs the
   // URL a client PUTs a file to directly (src/files.ts). Unset, the
   // Worker gives its own door as the address instead, which a local

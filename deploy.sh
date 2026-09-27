@@ -3,7 +3,6 @@
 #
 #   ./deploy.sh dev            the Worker and the three apps here, live-reloading
 #   ./deploy.sh prod           run the worker workflow for production and follow it
-#   ./deploy.sh host           update the NixOS host: the analyzer and its tunnel
 #   ./deploy.sh macos dev      run the native app with Vite live reload
 #                  [--backend URL] (default: http://127.0.0.1:8787)
 #   ./deploy.sh macos prod     test, build, and install a production-backed app
@@ -20,16 +19,16 @@
 # are workflows (.github/workflows/worker.yml, desktop-macos.yml), and these
 # commands only ask for a run and follow it, so they need gh and nothing of
 # this checkout. What stays here is what is this machine's by nature: the
-# development servers, a local app build, the signing identity in this
-# keychain, and the host, which only this network reaches.
+# development servers, a local app build, and the signing identity in this
+# keychain.
 #
 # Production is the Cloudflare Worker in cloudflare/, at https://papol.io:
 # the API, the jobs, and the three built apps served as its static assets,
 # on D1, R2 and a Queue. Main deploys itself to dev.papol.io (the worker
 # workflow, .github/workflows/worker.yml); `prod` asks that workflow for
-# production, which tests, migrates D1 and deploys. The one thing that is not on Cloudflare is the analyzer
-# (host/analyzer/), which reads papers by rules on a NixOS host and reaches
-# the Worker through a tunnel; `host` updates that machine. Development is wrangler's
+# production, which tests, migrates D1 and deploys. A paper is read by
+# rules (analyzer/src/rules/) in the browser, not on a server.
+# Development is wrangler's
 # local runtime on this machine, with a D1 and an R2 of its own under
 # cloudflare/.wrangler, and the three Vite servers in front of it.
 #
@@ -53,9 +52,6 @@ DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Where the Worker listens in development: wrangler's default, and what the
 # three Vite configs proxy /api and /uploads to.
 WRANGLER_PORT=8787
-# The NixOS host that runs the analyzer, and Papol's checkout on it.
-HOST="${PAPOL_HOST:-congm@nixos}"
-HOST_DIR="${PAPOL_HOST_DIR:-/srv/papol/prod}"
 
 say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
@@ -965,28 +961,10 @@ deploy_prod() {
   say "Deployed, and every link opened the page it names"
 }
 
-# The NixOS host: the analyzer and the tunnel that carries the Worker to it, as
-# module.nix describes them. The host's configuration imports module.nix
-# from its checkout, so updating it is fast-forwarding that checkout to
-# main and rebuilding — passwordless with services.papol.deploy.
-# passwordlessRebuild on. Plain ssh, deliberately: sudo's rule matches the
-# bare command, and the host has nothing of Papol's to build but the system.
-deploy_host() {
-  [ $# -eq 0 ] || die "host takes no options"
-  say "Updating $HOST"
-  note "$HOST_DIR fast-forwards to origin/main, then nixos-rebuild switch, then the analyzer restarts on the new bundle"
-  ssh "$HOST" "cd $HOST_DIR && git fetch origin && git merge --ff-only origin/main && sudo /run/current-system/sw/bin/nixos-rebuild switch"
-  # The analyzer's unit does not change with its bundle, so the rebuild
-  # leaves the old one running; stopped, it is started again (Restart=always).
-  # Matched whole (-x), so the ssh shell's own command line is not.
-  ssh "$HOST" "pkill -u \$(id -u) -x -f '\\S+/bin/node $HOST_DIR/host/analyzer/dist/analyzer.js' || true"
-}
-
 case "${1:-}" in
   dev)    shift; run_dev "$@" ;;
   prod)   shift; deploy_prod "$@" ;;
-  host)   shift; deploy_host "$@" ;;
   macos)  shift; run_macos "$@" ;;
   ""|-h|--help) usage ;;
-  *)      die "unknown target: $1 (try dev, prod, host, macos)" ;;
+  *)      die "unknown target: $1 (try dev, prod, macos)" ;;
 esac

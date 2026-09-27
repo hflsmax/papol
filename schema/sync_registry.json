@@ -59,10 +59,7 @@
         "sha256"
       ],
       "server_columns": [
-        "uploaded_by",
-        "references_status",
-        "references_error",
-        "references_at"
+        "uploaded_by"
       ]
     },
     "annotations": {

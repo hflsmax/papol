@@ -19,7 +19,7 @@ import path from "node:path";
 import { getDocumentProxy, getResolvedPDFJS } from "unpdf";
 import { readContents } from "../src/rules/contents";
 // @ts-expect-error — the viewer is JavaScript
-import { isFrontMatter, printedSections, readSections, topLevel } from "../../../viewer/src/sections.js";
+import { isFrontMatter, printedSections, readSections, topLevel } from "../../viewer/src/sections.js";
 
 type Section = { number: string; title: string; level: number; page: number; y: number; end?: boolean };
 

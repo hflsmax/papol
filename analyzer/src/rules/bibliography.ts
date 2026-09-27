@@ -1,7 +1,7 @@
 // The bibliography: where it is, where each entry begins, and what each
 // entry says about the work it names.
 
-import { extractArxivId } from "../../../../cloudflare/src/papers/identifiers";
+import { extractArxivId } from "../../../cloudflare/src/papers/identifiers";
 import { flowOf, type Layout, type Line } from "./layout";
 import {
   BIB_EDITORIAL, BIB_HEADING, BIB_QUALITY, BIB_STOP, BIB_TRAILING_LIST, ENTRY_BRACKET, ENTRY_GAP, ENTRY_HANGING, ENTRY_LABEL, ENTRY_NUMBER, ENTRY_NUMBER_BARE,

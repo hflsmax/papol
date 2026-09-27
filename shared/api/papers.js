@@ -64,8 +64,8 @@ export async function listPapers() {
 //
 // `uploadPaper` is the first two, `awaitPaperReading` the third. A send
 // that failed is said as such, not as a PDF that could not be read: the
-// one is a fault worth reporting, the other is only a paper the analyzer
-// could make nothing of.
+// one is a fault worth reporting, the other is only a paper nothing
+// could be made of.
 
 // The longest a reading is waited for. The PDF is on the server once the
 // send answers, and the reading — the printed DOI, the bibliographic
@@ -73,15 +73,18 @@ export async function listPapers() {
 // wait gives up, and the paper page has a button that asks again.
 export const PAPER_READING_TIMEOUT_MS = 2 * 60 * 1000;
 
-// The identifier a send carries: what the caller read off the PDF's
-// first pages, given as a value or a promise of one, or nothing.
-async function identifierFor(identifier) {
+// What a send carries: what the caller read off the PDF's first pages
+// (shared/printed.js), given as a value or a promise of one, or nothing.
+// Answers `{ identifier, titleBlock }`, either of them null.
+async function printedFor(printed) {
+  let found = null;
   try {
-    const found = await identifier;
-    return found && (found.doi || found.arxiv_id) ? found : null;
+    found = await printed;
   } catch {
-    return null;
+    found = null;
   }
+  const identifier = found?.arxiv_id ? { arxiv_id: found.arxiv_id } : found?.doi ? { doi: found.doi } : null;
+  return { identifier, titleBlock: found?.title_block || null };
 }
 
 // How long the indexes are waited for once the bytes are in.
@@ -114,10 +117,10 @@ async function lookUp(identifier, name) {
 async function send(file, filename, identifier, onProgress) {
   // The server takes PDFs by their name; an opened file may have none.
   const name = /\.pdf$/i.test(filename || '') ? filename : `${filename || 'paper'}.pdf`;
-  const found = identifierFor(identifier);
-  const looked = found.then((given) => lookUp(given, name));
+  const found = printedFor(identifier);
+  const looked = found.then((given) => lookUp(given.identifier, name));
   const stored = await storeFile('paper', file, { name, mime: 'application/pdf', onProgress });
-  const given = await found;
+  const { identifier: given, titleBlock } = await found;
   // Indexes still silent a moment after the bytes are in are left to the
   // job: the form opens now, and says it is reading, rather than after
   // every index's timeout in turn.
@@ -126,7 +129,10 @@ async function send(file, filename, identifier, onProgress) {
   clearTimeout(late);
   const sent = await request('/papers/uploaded', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_path: stored.file_path, uploaded_name: name, identifier: given, ...(known ? { doi: known.doi } : {}) }),
+    body: JSON.stringify({
+      file_path: stored.file_path, uploaded_name: name, identifier: given,
+      ...(titleBlock ? { title_block: titleBlock } : {}), ...(known ? { doi: known.doi } : {}),
+    }),
   });
   if (!known) return sent;
   const { existing, ...upload } = sent;
@@ -142,8 +148,8 @@ async function send(file, filename, identifier, onProgress) {
 // `sendFailure`, the error the send ended in. On the web a failed send
 // is a failed upload, and throws. `name` is the file name the server
 // records, for a blob that has none of its own. `identifier` is what
-// the caller read off the first pages (shared/identifiers.js), a value
-// or a promise of one. `onProgress` hears the send as it goes.
+// the caller read off the first pages (shared/printed.js), a value or a
+// promise of one. `onProgress` hears the send as it goes.
 export async function uploadPaper(file, { name = file?.name, identifier = null, onProgress } = {}) {
   if (!nativeDataActive()) {
     const sent = await send(file, name, identifier, onProgress);
@@ -184,9 +190,16 @@ export async function discardPaperImport(extractedData) {
   await discardNativeBlob(sha256);
 }
 
-export function reextractPaperMetadata(paperSha256) {
+// Read a paper again. `printed` is its title block read afresh in the
+// browser (shared/printed.js), or a promise of it; the server asks the
+// indexes by the paper's DOI and fills the rest from it.
+export async function reextractPaperMetadata(paperSha256, printed = null) {
+  const { titleBlock } = await printedFor(printed);
   return onServer(
-    () => request(`/papers/${paperName(paperSha256)}/extract-metadata`, { method: 'POST' }),
+    () => request(`/papers/${paperName(paperSha256)}/extract-metadata`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title_block: titleBlock }),
+    }),
     { pull: false },
   );
 }

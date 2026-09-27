@@ -1,30 +1,14 @@
-// A paper's bibliography: read once by the host's analyzer as a job, kept
-// on the paper, and each reference looked up only when a user opens it.
-//
-// A request never waits for the pass. Opening a paper nobody has opened
-// before marks it `pending` and queues `analyze_paper`; the job has the
-// analyzer read the PDF and writes the references, citation markers and
-// document links back; the viewer asks again until the paper says
-// `ready`. The job's key is the paper, so two viewers opening one paper
-// queue one pass.
+// A paper's bibliography as the viewer reads it off the page
+// (analyzer/src/rules/, run in the browser), and each reference
+// looked up only when a user opens it: what was found is kept on the
+// paper by what is printed, so a reference is looked up once for everyone.
 
-import limits from "../../../config/app_limits.json";
 import { all, newUuid, now, one, statement, type Row } from "../db";
 import { refuse } from "../http";
-import { enqueue, JobError, wake } from "../jobs/queue";
-import { UPLOADS } from "../files";
 import { type Summary } from "./bibliography";
 import { type Paper } from "./detail";
-import * as analyzer from "./analyzer";
-import { type Box } from "./reading";
 import { extractArxivId } from "./identifiers";
 import { resolve, type Printed } from "./resolve";
-
-export const KIND = "analyze_paper";
-
-// A pass pending longer than this was interrupted — its Worker died and
-// the job was failed for it — and may be started again.
-const ANALYSIS_STALE_MS = 15 * 60_000;
 
 export interface Reference extends Row, Printed {
   uuid: string;
@@ -38,115 +22,9 @@ export interface Reference extends Row, Printed {
   journal: string | null;
   doi: string | null;
   arxiv_id: string | null;
-  page: number | null;
-  y: number | null;
   resolved_status: string | null;
   resolved_at: string | null;
   resolution: string | null;
-}
-
-// ------------------------------------------------------------- the pass
-
-// Whether this paper wants a pass now. Never for a failure — a PDF the analyzer
-// could not read will not read differently on the next open.
-function mayStart(paper: Paper): boolean {
-  if (paper.references_status === null || paper.references_status === undefined) return true;
-  if (paper.references_status === "pending") {
-    const stamped = paper.references_at as string | null;
-    return !stamped || Date.now() - Date.parse(stamped) > ANALYSIS_STALE_MS;
-  }
-  return false;
-}
-
-// Queue a pass over this paper if it wants one. The paper says `pending`
-// exactly when a job is on the queue to make it say something else.
-export async function requestAnalysis(env: Env, paper: Paper): Promise<boolean> {
-  if (!mayStart(paper)) return false;
-  const job = enqueue(env.DB, KIND, { paper_sha256: paper.sha256 }, { key: `analyze:${paper.sha256}` });
-  paper.references_status = "pending";
-  paper.references_error = null;
-  paper.references_at = now();
-  const results = await env.DB.batch([
-    job.statement,
-    statement(env.DB, "UPDATE papers SET references_status = ?, references_error = NULL, references_at = ? WHERE sha256 = ?", "pending", paper.references_at, paper.sha256),
-  ]);
-  if (results[0].meta.changes) await wake(env, [job.uuid]);
-  return true;
-}
-
-function finishStatement(env: Env, paperSha256: string, status: string, detail: string | null): D1PreparedStatement {
-  return statement(env.DB, "UPDATE papers SET references_status = ?, references_error = ?, references_at = ? WHERE sha256 = ?", status, detail, now(), paperSha256);
-}
-
-// The job: have the analyzer read one paper's references, and store them.
-// Any failure is recorded on the paper rather than left as a job that
-// failed somewhere, so a PDF that cannot be analyzed says so to the
-// viewer instead of being asked about forever.
-export async function analyzePaperJob(env: Env, payload: Row): Promise<Row> {
-  const paperSha256 = String(payload.paper_sha256);
-  const paper = await one<Paper>(env.DB, "SELECT * FROM papers WHERE sha256 = ?", paperSha256);
-  if (!paper) throw new JobError("The paper is gone");
-  // Only whether the PDF is there: the analyzer reads it from the bucket.
-  const object = paper.file_path ? await env.FILES.head(`${UPLOADS}${paper.file_path}`) : null;
-  if (!object) {
-    await finishStatement(env, paperSha256, "failed", "The PDF for this paper is missing").run();
-    throw new JobError("The PDF for this paper is missing");
-  }
-  let analysis;
-  try {
-    analysis = await analyzer.analyze(env, paper.file_path);
-  } catch (error) {
-    const detail = String((error as Error).message ?? error).slice(0, limits.text.analysis_error);
-    console.warn(`The analyzer failed on paper ${paperSha256}: ${detail}`);
-    await finishStatement(env, paperSha256, "failed", detail).run();
-    throw new JobError(detail);
-  }
-  // A re-analysis replaces what was there. Resolutions are lost with it,
-  // which is honest: they were attached to references read a different way.
-  const statements = [
-    statement(env.DB, "DELETE FROM paper_citation_works WHERE citation_uuid IN (SELECT uuid FROM paper_citations WHERE paper_sha256 = ?)", paperSha256),
-    statement(env.DB, "DELETE FROM paper_citations WHERE paper_sha256 = ?", paperSha256),
-    statement(env.DB, "DELETE FROM paper_links WHERE paper_sha256 = ?", paperSha256),
-    statement(env.DB, "DELETE FROM paper_floats WHERE paper_sha256 = ?", paperSha256),
-    statement(env.DB, "DELETE FROM paper_references WHERE paper_sha256 = ?", paperSha256),
-  ];
-  const uuids = new Map<string, string>();
-  for (const ref of analysis.references) {
-    const uuid = newUuid();
-    uuids.set(ref.key, uuid);
-    statements.push(statement(env.DB,
-      `INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw, title, authors, year, journal, doi, arxiv_id, page, y) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      uuid, paperSha256, ref.key, ref.index, ref.raw, ref.title, ref.authors.length ? JSON.stringify(ref.authors) : null, ref.year, ref.journal, ref.doi, ref.arxiv_id, ref.page, ref.y));
-  }
-  // A marker is kept with the works of it that are in the list; one that
-  // names none of them leads nowhere and is not kept.
-  for (const [ordinal, cite] of analysis.citations.entries()) {
-    const referenceUuids = cite.keys.map((key) => uuids.get(key)).filter((uuid): uuid is string => Boolean(uuid));
-    if (!referenceUuids.length || !cite.boxes.length) continue;
-    const citationUuid = newUuid();
-    const boxes: Box[] = cite.boxes.map(({ page, x, y, w, h }) => ({ page, x, y, w, h }));
-    statements.push(statement(env.DB, "INSERT INTO paper_citations (uuid, paper_sha256, label, inferred, boxes, ordinal) VALUES (?, ?, ?, ?, ?, ?)",
-      citationUuid, paperSha256, cite.label, cite.inferred ? 1 : 0, JSON.stringify(boxes), ordinal));
-    referenceUuids.forEach((referenceUuid, position) => statements.push(statement(env.DB,
-      "INSERT INTO paper_citation_works (uuid, citation_uuid, position, reference_uuid) VALUES (?, ?, ?, ?)",
-      newUuid(), citationUuid, position, referenceUuid)));
-  }
-  const floats = new Map<string, string>();
-  for (const float of analysis.floats) {
-    const uuid = newUuid();
-    floats.set(float.key, uuid);
-    statements.push(statement(env.DB, "INSERT INTO paper_floats (uuid, paper_sha256, kind, label, page, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      uuid, paperSha256, float.kind, float.label, float.page, float.x, float.y, float.w, float.h));
-  }
-  for (const link of analysis.links) {
-    const floatUuid = floats.get(link.float);
-    if (!floatUuid) throw new JobError(`A link names float ${link.float}, which the analysis does not have`);
-    statements.push(statement(env.DB, "INSERT INTO paper_links (uuid, paper_sha256, float_uuid, label, page, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      newUuid(), paperSha256, floatUuid, link.label, link.page, link.x, link.y, link.w, link.h));
-  }
-  statements.push(finishStatement(env, paperSha256, "ready", null));
-  await env.DB.batch(statements);
-  return { references: analysis.references.length, citations: analysis.citations.length, floats: analysis.floats.length, links: analysis.links.length };
 }
 
 // ----------------------------------------------------------- the answers
@@ -156,7 +34,7 @@ export function referenceOut(reference: Reference, papolPaperSha256: string | nu
   try { resolution = reference.resolution ? JSON.parse(reference.resolution) : null; } catch { resolution = null; }
   return {
     uuid: reference.uuid, key: reference.key, index: reference.index, raw: reference.raw, title: reference.title, year: reference.year,
-    page: reference.page ?? null, y: reference.y ?? null, resolved_status: reference.resolved_status, resolution, papol_paper_sha256: papolPaperSha256,
+    resolved_status: reference.resolved_status, resolution, papol_paper_sha256: papolPaperSha256,
   };
 }
 
@@ -190,45 +68,6 @@ export async function papolPapersFor(db: D1Database, references: Reference[]): P
     if (match) found.set(reference.uuid, match);
   }
   return found;
-}
-
-// Everything the viewer draws for one paper: the list, the markers, the
-// cross-references. A reading already done is served whatever the
-// analyzer is doing now: references belong to the paper, not to the
-// service that read them.
-export async function paperReferences(env: Env, paper: Paper) {
-  const stored = paper.references_status === "ready";
-  if (!analyzer.configured(env) && !stored) return { paper_sha256: paper.sha256, status: "unavailable", detail: "Reference analysis unavailable", references: [], citations: [], floats: [], links: [] };
-  if (analyzer.configured(env)) await requestAnalysis(env, paper);
-  if (paper.references_status !== "ready") {
-    return { paper_sha256: paper.sha256, status: paper.references_status || "pending", detail: paper.references_error ?? null, references: [], citations: [], floats: [], links: [] };
-  }
-  const references = await all<Reference>(env.DB, `SELECT * FROM paper_references WHERE paper_sha256 = ? ORDER BY "index", uuid`, paper.sha256);
-  const known = await papolPapersFor(env.DB, references);
-  const citations = await all<Row>(env.DB, "SELECT * FROM paper_citations WHERE paper_sha256 = ?", paper.sha256);
-  const works = await all<Row>(env.DB,
-    "SELECT w.citation_uuid, w.reference_uuid FROM paper_citation_works w JOIN paper_citations c ON c.uuid = w.citation_uuid WHERE c.paper_sha256 = ? ORDER BY w.citation_uuid, w.position",
-    paper.sha256);
-  const worksOf = new Map<string, string[]>();
-  for (const work of works) worksOf.set(String(work.citation_uuid), [...(worksOf.get(String(work.citation_uuid)) ?? []), String(work.reference_uuid)]);
-  const floats = await all<Row>(env.DB, "SELECT * FROM paper_floats WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
-  const links = await all<Row>(env.DB, "SELECT * FROM paper_links WHERE paper_sha256 = ? ORDER BY page, y, x, uuid", paper.sha256);
-  return {
-    paper_sha256: paper.sha256, status: "ready", detail: null,
-    references: references.map((r) => referenceOut(r, known.get(r.uuid) ?? null)),
-    citations: citations
-      .map((c) => ({ ordinal: c.ordinal as number | null, reference_uuids: worksOf.get(String(c.uuid)) ?? [], label: c.label ?? null, inferred: Boolean(c.inferred), boxes: JSON.parse(String(c.boxes)) as Box[] }))
-      .filter((c) => c.reference_uuids.length && c.boxes.length)
-      // In reading order, as the analyzer found them: the order the viewer
-      // steps through the places a work is cited. A paper read before
-      // ordinals were kept has none, and is served in page order.
-      .sort((a, b) => (a.ordinal != null && b.ordinal != null
-        ? a.ordinal - b.ordinal
-        : a.boxes[0].page - b.boxes[0].page || a.boxes[0].y - b.boxes[0].y || a.boxes[0].x - b.boxes[0].x))
-      .map(({ ordinal: _ordinal, ...citation }) => citation),
-    floats: floats.map((f) => ({ uuid: f.uuid, kind: f.kind, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
-    links: links.map((l) => ({ float_uuid: l.float_uuid, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h })),
-  };
 }
 
 // Series an index reports as the venue where a bibliography names the
@@ -268,7 +107,7 @@ function urlTitle(url: string | null): string | null {
   return null;
 }
 
-// A useful, honest card when the citation is not an indexed paper. The analyzer
+// A useful, honest card when the citation is not an indexed paper. The viewer
 // has already read the bibliography, so an unavailable index must not
 // turn that local evidence into a broken popup.
 export function bibliographyCard(reference: Reference) {
@@ -313,32 +152,7 @@ export async function openReference(env: Env, reference: Reference) {
   return referenceOut(reference, known.get(reference.uuid) ?? null);
 }
 
-// A citation recovered from a PDF's own link layer, registered so it
-// gets the same cached lookup as an analyzed reference. The viewer names
-// a PDF-native citation by the number printed on the page: "bib0027" is
-// entry 27, which the analyzer calls "b26", counting from zero. Matching
-// on the spelling alone would append a second row for a reference this
-// paper already holds.
-export async function previewReference(env: Env, paper: Paper, key: string, raw: string) {
-  let reference = await one<Reference>(env.DB, `SELECT * FROM paper_references WHERE paper_sha256 = ? AND "key" = ?`, paper.sha256, key);
-  if (!reference && /^\d+$/.test(key)) {
-    reference = await one<Reference>(env.DB, `SELECT * FROM paper_references WHERE paper_sha256 = ? AND "index" = ?`, paper.sha256, Number(key) - 1);
-  }
-  if (!reference) {
-    const last = await one<{ n: number | null }>(env.DB, `SELECT max("index") AS n FROM paper_references WHERE paper_sha256 = ?`, paper.sha256);
-    reference = {
-      uuid: newUuid(), paper_sha256: paper.sha256, key, index: (last?.n ?? -1) + 1, raw, title: null, authors: null, year: null, journal: null,
-      doi: null, arxiv_id: null, page: null, y: null, resolved_status: null, resolved_at: null, resolution: null,
-    };
-    await statement(env.DB, `INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw) VALUES (?, ?, ?, ?, ?)`, reference.uuid, paper.sha256, key, reference.index, raw).run();
-  } else if (!reference.raw) {
-    reference.raw = raw;
-    await statement(env.DB, "UPDATE paper_references SET raw = ? WHERE uuid = ?", raw, reference.uuid).run();
-  }
-  return openReference(env, reference);
-}
-
-// A reference as the viewer read it off the page (host/analyzer's rules,
+// A reference as the viewer read it off the page (the analyzer's rules,
 // run in the browser): what is printed, and what the rules made of it.
 export interface PrintedReference {
   key: string;
@@ -373,7 +187,7 @@ export async function lookUpPrinted(env: Env, paper: Paper, printed: PrintedRefe
     const count = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM paper_references WHERE paper_sha256 = ?", paper.sha256);
     if ((count?.n ?? 0) >= MOST_REFERENCES) refuse(429, "This paper has too many references to look up another");
     reference = {
-      uuid: newUuid(), paper_sha256: paper.sha256, raw: printed.raw, ...fields, page: null, y: null,
+      uuid: newUuid(), paper_sha256: paper.sha256, raw: printed.raw, ...fields,
       resolved_status: null, resolved_at: null, resolution: null,
     };
     await statement(env.DB,
@@ -387,8 +201,4 @@ export async function lookUpPrinted(env: Env, paper: Paper, printed: PrintedRefe
       fields.key, fields.index, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id, reference.uuid).run();
   }
   return openReference(env, reference);
-}
-
-export function referenceOr404(reference: Reference | null): Reference {
-  return reference ?? refuse(404, "Reference not found");
 }

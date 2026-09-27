@@ -13,10 +13,11 @@ import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import { documentWorker, pdfjsReady, pdfViewerReady } from './pdfRuntime.js';
 import { downloadPdf } from './pdfDownload.js';
 import {
-  pdfHref, pdfLoadInput, getViewerPaperInfo, lookUpViewerReference, resolveViewerReference,
+  pdfHref, pdfLoadInput, getViewerPaperInfo, lookUpViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
 } from './api';
-import { identifierInDocument, identifierWithin } from '../../shared/identifiers.js';
+import { identifierWithin } from '../../shared/identifiers.js';
+import { printedInDocument } from '../../shared/printed.js';
 import { annotationKinds } from './annotationKinds.js';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
@@ -1623,10 +1624,9 @@ export default function App() {
     });
     setReference(known);
     setReferenceError(null);
-    // A PDF-native `cite.*` destination is recognizable before server-side
-    // analysis has assigned it a database uuid. Read the printed bibliography
-    // entry straight from the PDF so its card is useful without waiting for
-    // that analysis or an external metadata service.
+    // A PDF-native `cite.*` destination names its entry before the reading
+    // is done. Read the printed bibliography entry straight from the PDF so
+    // its card is useful without waiting for the reading or an index.
     if (String(referenceUuid).startsWith('pdf:')) {
       if (doc && inlineReference?.dest) {
         readNamedReference(doc, inlineReference.dest)
@@ -1642,16 +1642,16 @@ export default function App() {
               ? { ...current, raw, resolved_status: 'resolving' }
               : current);
             if (!paper?.sha256) return;
-            // Registering a citation read off the page writes to the
-            // paper. The card already shows what is printed there, which
-            // is what a shared reading can offer.
-            if (readOnly) return;
-            const pdfHash = paper.sha256;
-            const full = await resolveViewerReference(pdfHash, {
-              key: inlineReference.key,
-              raw,
+            // Looked up like any reference read off the page, by what is
+            // printed; "27" is entry 27, the 27th of the list.
+            const key = String(inlineReference.key ?? '');
+            const ask = source?.references?.lookUp || lookUpViewerReference;
+            const full = await ask(paper.sha256, {
+              key: key || raw.slice(0, 40),
+              index: /^\d+$/.test(key) ? Math.max(0, Number(key) - 1) : 0,
+              raw: raw.split(/\s+/).filter(Boolean).join(' '),
             });
-            setReference((current) => current?.uuid === referenceUuid ? full : current);
+            setReference((current) => current?.uuid === referenceUuid ? { ...current, ...full, uuid: referenceUuid } : current);
           })
           .catch(() => {
             // The card is already open. An unusual PDF text layout should
@@ -3582,9 +3582,9 @@ export default function App() {
     setNookPromptOpen(false);
     setNookProgress(null);
     try {
-      // The DOI or arXiv id the open document prints goes with the PDF,
-      // as the upload form's does, and the reading starts from it.
-      const identifier = source.openedFile && doc ? identifierWithin(identifierInDocument(doc)) : null;
+      // What the open document prints — its DOI or arXiv id, its title
+      // block — goes with the PDF, as the upload form's does.
+      const identifier = source.openedFile && doc ? identifierWithin(pdfjsReady.then((lib) => printedInDocument(doc, lib.OPS))) : null;
       const added = await source.addToNook({ onProgress: setNookProgress, identifier });
       // Where the paper now is. A file opened from disk becomes the
       // ordinary nook URL it was always destined for; a shared paper

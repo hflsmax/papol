@@ -114,8 +114,7 @@ says so at its head).
 
 `./deploy.sh prod` runs the worker workflow for production (its suite, D1's
 migrations, the deploy, a read-only smoke) and then runs the link check
-itself; `check.sh` is the probe module.nix's timer runs every minute. Both
-can be run by hand.
+itself; `check.sh` is a probe of its own. Both can be run by hand.
 
     cloudflare/scripts/smoke.sh https://papol.io   # what a person does, end to end
     health/links.sh https://papol.io <digest-of-a-real-paper>

@@ -105,9 +105,9 @@ export default function ReferenceCard({
   const looking = !reference || (!work && !reference.resolved_status && !error);
   const status = reference?.resolved_status;
   const waiting = !requiresNook && (
-    looking || status === 'pending_analysis' || status === 'resolving'
+    looking || status === 'reading' || status === 'resolving'
   );
-  const waitingMessage = status === 'pending_analysis'
+  const waitingMessage = status === 'reading'
     ? 'Preparing this reference’s details…'
     : status === 'resolving'
       ? 'Looking up abstract and citation data…'

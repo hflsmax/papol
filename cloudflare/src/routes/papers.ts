@@ -9,6 +9,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
 import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
 import { KIND as EXTRACT, indexedMetadata, knownVersion, reextractedMetadata, type Identifier } from "../papers/extract";
+import type { HeaderMetadata } from "../papers/reading";
 import { Unavailable } from "../papers/bibliography";
 import { ARXIV_ID_FORM, DOI_FORM } from "../papers/identifiers";
 import { keptPaper, paperReading, viewerPaper } from "../papers/sharables";
@@ -56,6 +57,31 @@ function givenIdentifier(given: unknown): Identifier | null {
   if (foundDoi) identifier.doi = foundDoi;
   if (foundArxiv) identifier.arxiv_id = foundArxiv;
   return foundDoi || foundArxiv ? identifier : null;
+}
+
+// The title block the browser read off the PDF's first pages
+// (analyzer/src/rules/header.ts), held to the paper's own limits. A
+// hint too: a field out of bounds is dropped, and a block with nothing in
+// it is none.
+function givenTitleBlock(given: unknown): HeaderMetadata | null {
+  if (!given || typeof given !== "object") return null;
+  const block = given as Record<string, unknown>;
+  const text = (value: unknown, max: number): string | null =>
+    typeof value === "string" && value.trim() && value.length <= max ? value.trim() : null;
+  const authors = Array.isArray(block.authors)
+    ? block.authors.filter((a): a is string => typeof a === "string" && a.trim().length > 0 && a.length <= 200).map((a) => a.trim()).slice(0, 100)
+    : [];
+  const year = typeof block.year === "number" && Number.isInteger(block.year) && block.year >= 1000 && block.year <= 3000 ? block.year : null;
+  const identifier = givenIdentifier({ doi: block.doi, arxiv_id: block.arxiv_id });
+  const found: HeaderMetadata = {
+    title: text(block.title, limits.text.paper_title),
+    authors: JSON.stringify(authors).length <= limits.text.paper_authors ? authors : [],
+    journal: text(block.journal, limits.text.paper_journal),
+    year,
+    doi: identifier?.doi ?? null,
+    arxiv_id: identifier?.arxiv_id ?? null,
+  };
+  return found.title || found.authors.length || found.journal || found.year || found.doi || found.arxiv_id ? found : null;
 }
 
 async function ownTags(env: Env, user: User, tagUuids: unknown): Promise<string[]> {
@@ -135,6 +161,7 @@ export function paperRoutes(router: Router) {
     const filePath = check.string("file_path", data.file_path, { pattern: /^[0-9a-f]{64}\.pdf$/ })!;
     const uploadedName = check.string("uploaded_name", data.uploaded_name, { max: limits.text.uploaded_filename, optional: true }) ?? filePath;
     const identifier = givenIdentifier(data.identifier);
+    const titleBlock = givenTitleBlock(data.title_block);
     const knownDoi = check.string("doi", data.doi, { max: limits.text.paper_doi, pattern: DOI_FORM, optional: true });
     check.done();
     if (!uploadedName.toLowerCase().endsWith(".pdf")) refuse(400, "Only PDF files are allowed");
@@ -146,6 +173,7 @@ export function paperRoutes(router: Router) {
     }
     const payload: Row = { file_path: filePath, uploaded_name: uploadedName };
     if (identifier) payload.identifier = identifier;
+    if (titleBlock) payload.title_block = titleBlock;
     const job = enqueue(env.DB, EXTRACT, payload, { userUuid: user.uuid });
     await job.statement.run();
     await wake(env, [job.uuid]);
@@ -182,8 +210,7 @@ export function paperRoutes(router: Router) {
       // The uploader reviewed the metadata; shared metadata takes the edit.
       Object.assign(paper, metadata);
     } else {
-      paper = { sha256: digest, ...metadata, file_path: filePath, uploaded_by: user.uuid, created_at: at, updated_at: at, revision: 1, deleted_at: null,
-        references_status: null, references_error: null, references_at: null } as Paper;
+      paper = { sha256: digest, ...metadata, file_path: filePath, uploaded_by: user.uuid, created_at: at, updated_at: at, revision: 1, deleted_at: null } as Paper;
     }
     const tagUuids = await ownTags(env, user, data.tag_uuids);
     const shelf = await ownShelf(env, user, data.shelf_uuid);
@@ -222,7 +249,7 @@ export function paperRoutes(router: Router) {
     if (!object) refuse(404, "PDF for this paper is missing");
     let found;
     try {
-      found = await reextractedMetadata(env, paper.file_path, paper.doi);
+      found = await reextractedMetadata(env, givenTitleBlock((await readJson<Row>(request).catch(() => ({} as Row))).title_block), paper.doi);
     } catch (error) {
       if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
       throw error;

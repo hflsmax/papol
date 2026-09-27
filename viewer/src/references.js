@@ -388,7 +388,7 @@ function namedCitation(dest, box) {
       key,
       dest,
       raw: null,
-      resolved_status: 'pending_analysis',
+      resolved_status: 'reading',
     },
     ...box,
     exact: true,

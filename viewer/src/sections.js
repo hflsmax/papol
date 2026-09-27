@@ -8,7 +8,7 @@
  * walk the same `/Outlines` tree.
  *
  * Where a file has none, the headings are read off the printed page by the
- * analyzer's rules (host/analyzer/src/rules/contents.ts): a numbered line
+ * analyzer's rules (analyzer/src/rules/contents.ts): a numbered line
  * set apart from the text and continuing the paper's numbering, and an
  * unnumbered line alone on its row that names one of the sections papers
  * have, or is set in exactly the style of those. Papol once tried harder
@@ -17,7 +17,7 @@
  * returned thirty-seven display equations. These rules ask for a number in
  * sequence or a known name before they believe a style, and they are
  * measured against the papers that do carry an outline
- * (host/analyzer/scripts/contents.ts). A contents that is wrong is worse
+ * (analyzer/scripts/contents.ts). A contents that is wrong is worse
  * than a contents that is absent, so where they find fewer than two
  * sections the paper still has no Navigator.
  *

@@ -12,7 +12,7 @@ import * as esbuild from "esbuild";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(os.tmpdir(), `papol-rules-layout-${process.pid}.mjs`);
 await esbuild.build({
-  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf } from "./pdf";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
+  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
   outfile: out, bundle: true, platform: "node", format: "esm", logLevel: "error",
 });
 const { boxesOf, offsetsOf } = await import(pathToFileURL(out).href);

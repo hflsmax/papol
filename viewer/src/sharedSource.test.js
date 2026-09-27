@@ -79,11 +79,6 @@ global.fetch = async (url, options = {}) => {
       status: 200, headers: { 'Content-Type': 'application/json' },
     });
   }
-  if (path === `/api/viewer-references/${HASH}`) {
-    return new Response(JSON.stringify({ paper_sha256: PAPER, status: 'ready', references: [] }), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    });
-  }
   return new Response('{"detail":"Not found"}', { status: 404 });
 };
 
