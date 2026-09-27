@@ -13,7 +13,7 @@ import { appPath } from '../../shared/appUrls.js';
 import { DESKTOP, DOCUMENT_WINDOW, focusDesktopDeskWindow, openDesktopDocumentWindow } from '../../shared/desktopShell.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
 import DesktopSyncingStatus from '../../shared/ui/DesktopSyncingStatus.jsx';
-import { openContextMenu } from '../../shared/contextMenu.js';
+import '../../shared/contextMenu.js';
 import { nativeDataActive, subscribeNativeData } from '../../shared/nativeData.js';
 import { inOfflineMode } from '../../shared/connectivity.js';
 import { videoLink } from '../../shared/videos.js';
@@ -2020,10 +2020,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   const groupHeadingRight = (layout) => layout.kind === 'collection'
     ? layout.x + 12 + clamp(layout.width - 24, 0, 420)
     : layout.x + clamp(layout.width - 14, 0, 420);
-  const historyEntries = () => [
-    { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
-  ];
   const downloadItem = async (item) => {
     setError(null);
     try {
@@ -2044,26 +2040,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     if (suppressBookletClick.current === booklet.uuid) { suppressBookletClick.current = null; return; }
     setSelectedItems([]);
     setSelectedBooklet((current) => current === booklet.uuid ? null : booklet.uuid);
-  };
-  const handleCanvasContextMenu = (event) => {
-    if (event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging, .board-youtube-loading')) return;
-    // Only what the board shows no control for: a thought where you
-    // clicked (otherwise a double-click), zoom (otherwise a pinch), and
-    // history (otherwise ⌘Z). Tidy has its button in the bar.
-    // Zoom about the point that was clicked, as a pinch there would.
-    const bounds = viewportRef.current?.getBoundingClientRect();
-    const at = { x: event.clientX - (bounds?.left || 0), y: event.clientY - (bounds?.top || 0) };
-    const spot = { clientX: event.clientX, clientY: event.clientY, target: event.target };
-    const zoom = viewRef.current.zoom;
-    openContextMenu(event, [
-      board.can_edit && { label: 'New Thought', disabled: busy, onSelect: () => createNoteAt(spot) },
-      board.can_edit && { separator: true },
-      { label: 'Zoom In', disabled: zoom >= 3, onSelect: () => zoomAt(1.25, at.x, at.y) },
-      { label: 'Zoom Out', disabled: zoom <= 0.25, onSelect: () => zoomAt(1 / 1.25, at.x, at.y) },
-      { label: 'Actual Size', disabled: zoom === 1, onSelect: () => zoomAt(1 / zoom, at.x, at.y) },
-      board.can_edit && { separator: true },
-      ...(board.can_edit ? historyEntries() : []),
-    ]);
   };
   const handleBoardPointerDownCapture = (event) => {
     const editing = editingText != null || editingDescription != null || editingBooklet != null || editingBookletHeader != null;
@@ -2141,7 +2117,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     {error && <div className="board-canvas-error">{error}</div>}
     {notice && <div key={notice.id} className="board-notice" role="status"><span>{notice.message}</span>{notice.action && undoStack.current.at(-1) === notice.action && <button type="button" disabled={busy} onClick={() => { setNotice(null); applyHistory('undo'); }}>Undo</button>}</div>}
     {board.can_edit && selectedItems.length > 1 && <div className="board-selection-menu"><span>{selectedItems.length} selected</span><button type="button" disabled={busy} onClick={() => tidyUp(selectedItems)}>Tidy up</button><button type="button" disabled={busy} onClick={() => resetSizes(selectedItems)}>Reset size</button>{canGroupSelection && <><button type="button" disabled={busy} onClick={() => groupAsCollection()}>Make collection</button><button type="button" disabled={busy} onClick={() => groupAsBooklet()}>Make booklet</button></>}</div>}
-    <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} onContextMenu={handleCanvasContextMenu} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
+    <main ref={viewportRef} aria-label="Board canvas" className={`board-viewport${draggingFiles ? ' file-dragging' : ''}`} style={{ '--board-grid-size': `${24 * view.zoom}px`, '--board-grid-dot': `${Math.max(.55, .75 * view.zoom)}px`, '--board-grid-x': `${view.x}px`, '--board-grid-y': `${view.y}px` }} onDoubleClick={createNoteAt} onPointerDown={startPan} onPointerMove={(event) => { updateGripProximity(event); move(event); }} onPointerLeave={() => { setVisibleGrip(null); setForegroundGrip(null); }} onPointerUp={endGesture} onPointerCancel={cancelGesture}>
       {draggingFiles && <div className="board-drop-target">Drop files anywhere on the board</div>}
       {board.can_edit && board.staged_items?.length > 0 && (
         <aside className="board-staging" aria-label="Staging area">

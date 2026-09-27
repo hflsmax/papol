@@ -104,7 +104,7 @@ nothing stay where they are.
 
 ### Reset size (card and selection)
 
-- A card's actions and its context menu gain **Reset size**, shown only
+- A card's actions gain **Reset size**, shown only
   when the card is not already 300 px.
 - The selection pill offers **Tidy up** (the gentle kind) and **Reset
   size**.
@@ -138,7 +138,6 @@ nothing stay where they are.
 | Selection pill | ✓ (the selection) | | ✓ |
 | Group options bar | | ✓ (Freeform collections) | |
 | Card actions | | | ✓ |
-| Desktop context menus | ✓ on the canvas and on a selection | ✓ on a group | ✓ on a card or selection |
 
 ## Keeping it tidy
 

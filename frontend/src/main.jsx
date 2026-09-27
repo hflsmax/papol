@@ -2,8 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './configurePlatform.js'
 import '../../shared/desktopShell'
-// Its document-wide listener gives Papol macOS a native app's quiet
-// right-click wherever no menu of its own is offered.
+// Papol macOS stays quiet on right-click, as a native app does.
 import '../../shared/contextMenu'
 import App from './App.jsx'
 import { hydrateCredential } from '../../shared/credentials.js'

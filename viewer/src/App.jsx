@@ -76,7 +76,7 @@ import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import {
   DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
 } from '../../shared/macHandoff.js';
-import { contextMenuHandler } from '../../shared/contextMenu.js';
+import '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 import { showInNookTarget } from './nookOffer.js';
@@ -3320,21 +3320,6 @@ export default function App() {
     }
   };
 
-  // The page offers only what the bar has no button for: Find, which
-  // is otherwise ⌘F, and history, which is otherwise ⌘Z. Anchors, clips
-  // and paint each open their own card or bar when clicked.
-  const pageContextMenu = contextMenuHandler((event) => (
-    event.target.closest?.('.pdf-page')
-  ) ? [
-    { label: 'Find…', shortcut: '⌘F', onSelect: () => {
-      setSearchOpen(true);
-      window.requestAnimationFrame(() => searchInputRef.current?.select());
-    } },
-    !readOnly && { separator: true },
-    !readOnly && { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    !readOnly && { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ] : []);
-
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
@@ -4405,7 +4390,6 @@ export default function App() {
           className="pages"
           ref={scrollerRef}
           aria-busy={!doc}
-          onContextMenu={pageContextMenu}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
             const pages = [...e.currentTarget.querySelectorAll('.pdf-page')];
