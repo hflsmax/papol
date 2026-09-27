@@ -17,15 +17,13 @@ import Markdown from './Markdown.jsx';
 // card keep their first name, Talk; the store calls a dig a discussion.)
 
 const POST_LIMIT = appLimits.text.discussion_post;
-// Long enough that it may have wandered: say how to follow it.
-const DRIFT_HINT_AT = 6;
 
 const KINDS = {
-  project: { word: 'Project', invite: 'Anything on your mind for the project?' },
-  paper: { word: 'Paper', invite: 'What stands out in this paper?' },
-  take: { word: 'Thought', invite: 'Ask about this thought, or answer it.' },
-  board: { word: 'Board', invite: 'Anything about this board?' },
-  card: { word: 'Card', invite: 'What do you make of this card?' },
+  project: { word: 'Project' },
+  paper: { word: 'Paper' },
+  take: { word: 'Thought' },
+  board: { word: 'Board' },
+  card: { word: 'Card' },
 };
 
 export function kindOf(subject) {
@@ -60,11 +58,16 @@ export function when(iso) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', ...(thisYear ? {} : { year: 'numeric' }) });
 }
 
-// The pin. Empty, it is an outline that fills in when you reach for the
-// thing it sits on; with talk, it carries the count, and a gold dot when
-// others have written since you looked.
+// The pin: the one mark for a dig, and the one way to attach a dig to
+// anything. Every thing that can hold a dig wears one, at the right end of
+// its header line. Empty, it is a faint outline with a plus that shows when
+// you reach for its thing; with a dig, it is filled and carries the count,
+// and a gold dot when others have written since you looked. Pressing it
+// opens the dig card beside it. Anything else that opens a dig (a row in a
+// list, the latest words on a card) opens the same card, with no mark of
+// its own.
 export function TalkPin({
-  projectUuid, subject, label, summary, currentUser, onChanged, faces = false, size = 'md', className = '', title, caption,
+  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title,
 }) {
   const [open, setOpen] = useState(false);
   const [local, setLocal] = useState(null);
@@ -73,7 +76,6 @@ export function TalkPin({
   const state = local ?? summary ?? null;
   const count = state?.post_count ?? 0;
   const fresh = !local && Boolean(summary?.is_new);
-  const voices = state?.voices ?? [];
 
   useEffect(() => { setLocal(null); }, [summary?.post_count, summary?.uuid]);
 
@@ -85,12 +87,11 @@ export function TalkPin({
     onChanged?.(key, next, discussion);
   }, [key, onChanged]);
 
-  const captionText = typeof caption === 'function' ? caption(count) : caption;
   const words = count
     ? `${plural(count, 'post', 'posts')} about ${label}${fresh ? ', new' : ''}. Open the dig`
     : `Dig into ${label}`;
   return (
-    <span className={`talk-pin-wrap talk-${size}${faces && voices.length ? ' has-faces' : ''} ${className}`}>
+    <span className={`talk-pin-wrap talk-${size} ${className}`}>
       <button
         ref={pin}
         type="button"
@@ -107,20 +108,6 @@ export function TalkPin({
           ? <span className="talk-count">{count > 99 ? '99+' : count}</span>
           : <span className="talk-plus" aria-hidden="true">+</span>}
       </button>
-      {captionText && (
-        <button
-          type="button" className="talk-caption" tabIndex={-1} aria-hidden="true"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
-        >
-          {captionText}
-        </button>
-      )}
-      {faces && voices.length > 0 && (
-        <span className="talk-faces" aria-hidden="true">
-          {voices.slice(0, 3).map((user) => <Avatar key={user.uuid} user={user} className="mini-avatar" />)}
-        </span>
-      )}
       {open && createPortal(
         <TalkCard
           anchor={pin}
@@ -266,16 +253,15 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
       <blockquote className="dig-chooser-quote">{excerptOf(post.body)}</blockquote>
       <form className="dig-chooser-idea" onSubmit={makeIdea}>
         <input
-          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea, in a few words" aria-label="The new idea"
+          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea" aria-label="The new idea"
           onChange={(e) => setIdea(e.target.value)}
         />
         <button type="submit" className="primary" disabled={!idea.trim() || busy}>Dig in</button>
       </form>
-      <p className="dig-chooser-note">{project ? `It goes on ${home ? home.name : 'a new board, Ideas'} as a card.` : ' '}</p>
       {error && <p className="talk-card-error" role="alert">{error}</p>}
       {things.length > 0 && (
         <>
-          <p className="dig-chooser-or">Or something the project holds</p>
+          <p className="dig-chooser-or">In the project</p>
           <ul className="dig-chooser-list">
             {things.map((t) => (
               <li key={t.subject}>
@@ -431,9 +417,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
           />
         ) : discussion === undefined ? (
           <p className="talk-card-quiet">Opening…</p>
-        ) : posts.length === 0 ? (
-          <p className="talk-card-quiet talk-card-invite">Nobody has said anything here yet. Start it off.</p>
-        ) : (
+        ) : posts.length === 0 ? null : (
           <>
             <ol className="talk-posts">
               {posts.map((post) => (
@@ -460,9 +444,6 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
                 </li>
               ))}
             </ol>
-            {posts.length >= DRIFT_HINT_AT && !picked && (
-              <p className="talk-card-quiet talk-drift-hint">Drifted onto something else? Pick the post and dig into it.</p>
-            )}
           </>
         )}
       </div>
@@ -476,7 +457,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
             rows={body ? 4 : posts.length ? 2 : 3}
             value={body}
             maxLength={POST_LIMIT}
-            placeholder={words.invite}
+            placeholder={posts.length ? 'Reply' : 'Start the dig'}
             aria-label="Your post"
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}

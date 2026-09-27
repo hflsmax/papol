@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkOpener, TalkPin, when } from '../../../shared/ui/Talk.jsx';
+import { TalkGlyph, TalkOpener, TalkPin, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -141,9 +141,12 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   return (
     <div className={`project-page${project.is_member ? ' is-desk' : ''}`}>
       <BackLink className="back-button" href={backHref} onBack={onBack} />
-      <header className="project-head">
+      <header className="project-head talk-host">
         <div className="project-head-main">
-          <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />
+          <div className="project-title-row">
+            <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />
+            {project.is_member && pin('project', project.name, { size: 'lg' })}
+          </div>
           {project.is_member && (
             <p className="project-tally">
               {[plural(project.papers.length, 'paper', 'papers'), plural(boards.length, 'board', 'boards'), latest && `active ${when(latest)}`].filter(Boolean).join(' · ')}
@@ -179,7 +182,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
       {notice && <div className="error" role="alert">{notice}</div>}
 
       {!project.is_member ? (
-        <p className="project-closed">Joining is by invitation. Ask {keeperNames(project.members)} for a link.</p>
+        <p className="project-closed">By invitation. Kept by {keeperNames(project.members)}.</p>
       ) : (
         <>
           {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} />}
@@ -259,7 +262,6 @@ function Invitation({ project, act }) {
   if (!link) {
     return (
       <div className="project-invite">
-        <span className="project-invite-note">Invite with a link.</span>
         <button
           type="button" className="primary"
           onClick={() => act(async () => {
@@ -308,7 +310,6 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
       {!project.papers.length ? (
         <div className="project-paper-empty">
           <b>No papers yet</b>
-          <span>Open a paper and choose <b>Add to project</b>.</span>
         </div>
       ) : (
         <ul className="project-papers project-grid">
@@ -331,6 +332,7 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
                   {paper.is_new
                     ? <span className="project-card-new">New</span>
                     : paper.journal && <span className="project-card-venue">{paper.journal}</span>}
+                  {pin(`paper:${paper.sha256}`, paper.title)}
                 </header>
                 <div className="project-card-body">
                   <h4 className="project-card-title">
@@ -349,8 +351,7 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
                       <Faces users={paper.users.map((u) => u.user)} max={3} />
                       <span>{takes.length ? plural(takes.length, 'thought', 'thoughts') : 'No thoughts yet'}</span>
                     </span>
-                  ) : <span />}
-                  {pin(`paper:${paper.sha256}`, paper.title)}
+                  ) : null}
                 </footer>
               </li>
             );
@@ -380,12 +381,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
   return (
     <aside className={`project-talk${all ? ' is-all' : ''}`} aria-labelledby="project-talk-heading">
       <SectionHead id="project-talk-heading" title="Digs" count={discussions.length} />
-      <TalkOpener {...opener('project', project.name)} className="project-talk-start">
-        <TalkMark />Start a dig on the project…
-      </TalkOpener>
-      {!discussions.length ? (
-        <p className="project-empty project-talk-hint">Papers, thoughts and boards each have a dig pin <TalkMark />.</p>
-      ) : (
+      {discussions.length > 0 && (
         <>
           <ul className="project-talk-list">
             {discussions.map((d) => {
@@ -404,7 +400,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
                       {last && <Avatar user={last.user} className="mini-avatar" />}
                       {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
                       <span>{when(d.updated_at)}</span>
-                      {d.post_count > 1 && <span className="project-talk-count"><TalkMark />{d.post_count}</span>}
+                      {d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
                       {d.is_new && <span className="visually-hidden">New</span>}
                     </span>
                   </TalkOpener>
@@ -425,15 +421,6 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
 
 // In one column, the first few; beside the desk, the column scrolls.
 const TALK_SHOWN = 5;
-
-// The talk pin as a picture, for saying where to press.
-function TalkMark() {
-  return (
-    <svg className="project-talk-mark" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.6L6 21.4V17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-    </svg>
-  );
-}
 
 // The project's boards, which every member arranges; one more is a name away.
 function ProjectBoards({ project, act, pin, latestDig, digLine }) {
@@ -462,7 +449,6 @@ function ProjectBoards({ project, act, pin, latestDig, digLine }) {
       {!boards.length && !naming ? (
         <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
           <ActionGlyph name="plus" />New board
-          <span>Lay out papers, notes and figures for everyone here to arrange.</span>
         </button>
       ) : (
         <ul className="project-boards project-grid">
@@ -490,7 +476,7 @@ function ProjectBoards({ project, act, pin, latestDig, digLine }) {
               <header className="project-card-head"><span className="project-card-kind">New board</span></header>
               <form className="project-card-body" onSubmit={create}>
                 <input
-                  className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Name it" aria-label="Board name"
+                  className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
                 />
@@ -521,9 +507,9 @@ function ProjectTitle({ project, onRename }) {
     if (!(await onRename(next))) setName(project.name);
   };
   return (
-    <h2 className="project-title">
+    <h2 className="project-title project-title-sizer" data-value={name}>
       <input
-        className="project-title-input" value={name} maxLength={80} aria-label="Project name" title="Rename"
+        className="project-title-input" value={name} size={1} maxLength={80} aria-label="Project name" title="Rename"
         onChange={(e) => setName(e.target.value)}
         onBlur={keep}
         onKeyDown={(e) => {

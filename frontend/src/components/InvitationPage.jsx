@@ -53,7 +53,6 @@ export default function InvitationPage({ code, currentUser, onOpenProject, onCha
         {closed ? (
           <>
             <h2>Invitation closed</h2>
-            <p className="hint project-invitation-note">Ask a keeper for a new link.</p>
           </>
         ) : (
           <>
@@ -62,11 +61,7 @@ export default function InvitationPage({ code, currentUser, onOpenProject, onCha
               Kept by {joinNames(keepers)} · {count} {count === 1 ? 'member' : 'members'}
             </p>
             <ProjectMembers members={project.members} currentUser={currentUser} />
-            <p className="hint project-invitation-note">
-              {project.is_member
-                ? 'You’re a member.'
-                : 'Members see one another’s copies of its papers, with thought and ratings.'}
-            </p>
+            {project.is_member && <p className="hint project-invitation-note">You’re a member.</p>}
             {error && <div className="error" role="alert">{error}</div>}
             {project.is_member ? (
               <button type="button" className="primary full-width" onClick={() => onOpenProject(project.uuid, { replace: true })}>

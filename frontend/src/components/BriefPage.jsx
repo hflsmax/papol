@@ -123,7 +123,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                 <button type="button" className="project-board-start" onClick={() => setWriting(true)}><ActionGlyph name="edit" />Edit your thought</button>
               )}
             />
-            {takes.length > 0 ? (
+            {takes.length > 0 && (
               <ul className="project-takes">
                 {takes.map((entry) => {
                   if (isMe(entry.user) && writing) return null;
@@ -148,8 +148,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                   );
                 })}
               </ul>
-            ) : (
-              <p className="project-empty">No takes yet. Yours can be the first.</p>
             )}
             {(!myTake?.thought || writing) && (
               <ThoughtComposer
@@ -248,15 +246,13 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
         value={draft}
         maxLength={appLimits.text.paper_thought}
         aria-label="Your thought on this paper"
-        placeholder="Your thought, in a line"
+        placeholder="Your thought"
         onChange={(e) => { touched.current = true; setDraft(e.target.value); }}
         onKeyDown={(e) => { if (e.key === 'Escape' && onCancel) { e.nativeEvent.stopImmediatePropagation(); onCancel(); } }}
       />
       {onCancel && <button type="button" className="project-quiet" onClick={onCancel}>Cancel</button>}
       <button type="submit" className="primary" disabled={!draft.trim() || busy}>{busy ? 'Saving…' : 'Share'}</button>
-      <p className="project-thought-note">
-        Everyone here sees it.{!paper.in_my_nook && ' Sharing adds it to your nook.'}
-      </p>
+      {!paper.in_my_nook && <p className="project-thought-note">Adds the paper to your nook.</p>}
     </form>
   );
 }

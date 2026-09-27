@@ -66,7 +66,7 @@ export default function ProjectPicker({ paper, onThought }) {
           {!projects && !error && <Working className="project-picker-wait" label="Loading…" />}
           {projects?.length === 0 && (
             <p className="share-note">
-              You have no projects yet. <a href={appPath('/projects')}>Start a project</a>
+              <a href={appPath('/projects')}>New project</a>
             </p>
           )}
           {projects?.length > 0 && !paper.thought && (
@@ -76,10 +76,9 @@ export default function ProjectPicker({ paper, onThought }) {
                 id="project-picker-why"
                 value={why}
                 maxLength={appLimits.text.paper_thought}
-                placeholder="One line, optional"
+                placeholder="Optional"
                 onChange={(e) => setWhy(e.target.value)}
               />
-              <p className="share-note">Saved as your thought. Members read it beside the paper.</p>
             </div>
           )}
           {projects?.length > 0 && <span className="share-menu-heading">My projects</span>}

@@ -17,7 +17,6 @@ import AutoTextarea from './AutoTextarea';
 import Markdown, { MarkdownHint } from './Markdown';
 
 const POST_LIMIT = appLimits.text.discussion_post;
-const INVITE = 'Take your time: what does it show, what doesn’t hold up, and what should we do about it?';
 
 function when(iso) {
   const date = new Date(iso);
@@ -216,7 +215,7 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
       )}
       <section ref={replyBox} className="discussion-reply" aria-label="Reply">
         <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Your reply</h3>
-        <Composer label="Your reply" placeholder={INVITE} submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
+        <Composer label="Your reply" placeholder="Reply" submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
       </section>
     </div>
   );
@@ -256,11 +255,10 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
       <BackLink className="back-button" href={backHref} onBack={onBack} />
       <Subject project={found.project} subject={found.subject} />
       {notice && <div className="error" role="alert">{notice}</div>}
-      <section className="discussion-start" aria-label="Start the discussion">
-        <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Start the discussion</h3>
-        <p className="discussion-start-note">Everyone in {found.project.name} can read and reply.</p>
+      <section className="discussion-start" aria-label="Start the dig">
+        <h3 className="discussion-reply-heading">{currentUser && <Avatar user={currentUser} className="mini-avatar" />}Start the dig</h3>
         <Composer
-          label="First post" placeholder={INVITE} submitLabel="Start discussion"
+          label="First post" placeholder="Start the dig" submitLabel="Start dig"
           onSubmit={async (body) => {
             setNotice(null);
             try {

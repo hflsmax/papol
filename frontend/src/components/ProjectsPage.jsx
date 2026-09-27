@@ -77,7 +77,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) 
                   autoFocus
                   value={name}
                   maxLength={80}
-                  placeholder="What is the project about?"
+                  placeholder="Project name"
                   aria-label="Project name"
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Escape') stopNaming(); }}

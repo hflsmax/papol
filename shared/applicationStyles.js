@@ -5829,6 +5829,15 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-6); }
 .project-head-main { flex: 1 1 22rem; min-width: 0; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
+.project-title-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.project-title-row .project-title { min-width: 0; }
+/* The name input takes its text's width: a hidden copy of the name sizes
+   the cell both share. */
+.project-title-sizer { display: inline-grid; max-width: 100%; }
+.project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; margin-left: calc(-1 * var(--space-2)); padding: 0 var(--space-2); border: 1px solid transparent; }
+.project-title-sizer::after, .project-title-sizer > .project-title-input { grid-area: 1 / 1; min-width: 0; }
+.project-title-sizer > .project-title-input { text-overflow: ellipsis; }
+.board-toolbar-title:has(~ .board-toolbar-talk) { field-sizing: content; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .project-since { margin: var(--space-1) 0 0; color: var(--gold-ink); font: 600 var(--fs-sm) var(--font-ui); }
 
@@ -5865,6 +5874,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-paper.is-new .project-card-head { border-bottom-color: var(--gold-line); background: var(--gold-soft); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-hue { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--hue, var(--line-strong)); }
+.project-card-head .project-card-venue, .project-card-head .project-card-new { margin-left: auto; }
 .project-card-venue { overflow: hidden; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .project-card-new { color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
@@ -5921,10 +5931,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 
 .project-talk .project-section-head { margin-bottom: var(--space-3); }
-.project-talk-start { display: flex; align-items: center; gap: var(--space-2); width: 100%; margin-bottom: var(--space-3); padding: var(--space-3); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-serif); text-align: left; }
-.project-talk-start:hover:not(:disabled), .project-talk-start[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
-.project-talk-mark { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; }
-.project-talk-hint .project-talk-mark { margin: 0 1px; vertical-align: -3px; }
 .project-talk-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .project-talk-item { display: grid; gap: var(--space-1); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
 .project-talk-item:hover:not(:disabled), .project-talk-item[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
@@ -5937,7 +5943,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-talk-meta b { color: var(--ink-soft); font-weight: 600; }
 .project-talk-count { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
-.project-talk-count .project-talk-mark { width: 13px; height: 13px; stroke: currentColor; }
+.project-talk-count .talk-glyph { width: 13px; height: 13px; }
 .project-talk-more { margin-top: var(--space-2); }
 @container (max-width: 879px) {
   .project-talk:not(.is-all) .project-talk-list > li:nth-child(n + 6) { display: none; }
@@ -5973,23 +5979,16 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-lg .talk-count { top: 4px; font-size: 12px; line-height: 20px; }
 .talk-plus { position: absolute; top: 1px; left: 0; right: 0; color: currentColor; font: 600 15px/20px var(--font-ui); text-align: center; pointer-events: none; }
 .talk-sm .talk-plus { font-size: 13px; line-height: 17px; }
-.talk-pin.is-empty { color: var(--accent); opacity: .38; }
+/* An empty pin shows when you reach for its thing, the same everywhere. */
+.talk-pin.is-empty { color: var(--accent); opacity: 0; }
 .talk-pin.is-empty:hover, .talk-pin.is-empty:focus-visible, .talk-pin.is-empty.is-open { opacity: 1; }
-.talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty { opacity: .9; }
-@media (hover: none) { .talk-pin.is-empty { opacity: .7; } }
+.talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty, .talk-host.selected .talk-pin.is-empty, .talk-host.is-selected .talk-pin.is-empty { opacity: .9; }
+@media (hover: none) { .talk-pin.is-empty { opacity: .6; } }
 .talk-pin.is-new::after { content: ''; position: absolute; top: -1px; right: -2px; width: 9px; height: 9px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); }
-.talk-caption { padding: var(--space-1) var(--space-2) var(--space-1) 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); white-space: nowrap; }
-.talk-caption:hover:not(:disabled) { border: 0; background: none; color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
-.talk-pin-wrap:has(.talk-caption:hover) .talk-pin { color: var(--accent); opacity: 1; }
-.talk-faces { display: inline-flex; padding-left: var(--space-1); }
 .board-card-talk { margin-left: auto; }
 .board-card-talk + .board-card-action-menu { margin-left: var(--space-1); }
-.board-canvas-card .talk-pin.is-empty { opacity: 0; }
-.board-canvas-card:hover .talk-pin.is-empty, .board-canvas-card.selected .talk-pin.is-empty, .board-canvas-card .talk-pin.is-empty:focus-visible, .board-canvas-card .talk-pin.is-empty.is-open { opacity: .9; }
 .board-toolbar-talk { margin-left: var(--space-1); }
 .board-toolbar .talk-pin { padding: 0; }
-.board-toolbar .talk-caption { padding: 4px 6px 4px 0; font-size: var(--fs-sm); }
-.talk-faces .mini-avatar { width: 18px; height: 18px; margin-left: -5px; box-shadow: 0 0 0 2px var(--paper); font-size: 10px; }
 
 
 /* The first word on something: a few sparks fly off the pin. */
@@ -6018,7 +6017,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
 .talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.talk-card-invite { font-style: italic; font-family: var(--font-serif); font-size: var(--fs-md); }
 .talk-posts { margin: 0; padding: 0 0 var(--space-2); list-style: none; }
 .talk-post + .talk-post { border-top: 1px solid var(--line); }
 .talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
@@ -6037,7 +6035,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-post-actions button { display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 999px; background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-xs) var(--font-ui); }
 .talk-post-actions button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .talk-post-actions .action-glyph { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-.talk-drift-hint { margin-top: 0; }
 .talk-card-back { flex: none; display: flex; align-items: center; gap: var(--space-1); width: 100%; margin: 0; padding: var(--space-2) var(--space-4) 0; overflow: hidden; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); text-align: left; white-space: nowrap; text-overflow: ellipsis; }
 .talk-card-back:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 .dig-chooser { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); }
@@ -6045,7 +6042,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .dig-chooser-quote { margin: 0; padding-left: var(--space-3); border-left: 2px solid var(--line-strong); color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .dig-chooser-idea { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); margin-top: var(--space-1); }
 .dig-chooser-idea input { min-width: 0; margin: 0; }
-.dig-chooser-note, .dig-chooser-or { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.dig-chooser-or { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .dig-chooser-or { margin-top: var(--space-2); }
 .dig-chooser-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
 .dig-chooser-list button { display: flex; min-width: 0; align-items: baseline; gap: var(--space-2); width: 100%; padding: var(--space-2); border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--ink); font: var(--fs-sm) var(--font-ui); text-align: left; }
@@ -6118,7 +6115,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* Your turn: a card with your face on it, below the last post. */
 .discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
 .discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
-.discussion-start-note { margin: 0 0 var(--space-3); color: var(--ink-soft); font-size: var(--fs-sm); }
 .discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
 .discussion-composer-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .discussion-composer-foot .md-hint { margin: 0 auto 0 0; }
