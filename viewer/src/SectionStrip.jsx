@@ -160,7 +160,7 @@ export default function SectionStrip({
         <span
           className="strip-reading"
           role="progressbar"
-          aria-label="Finding sections"
+          aria-label="Initializing"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(reading * 100)}

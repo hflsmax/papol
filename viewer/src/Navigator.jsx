@@ -482,14 +482,14 @@ export default function Navigator({
           <div
             className="navigator-reading"
             role="progressbar"
-            aria-label="Finding sections"
+            aria-label="Initializing"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(reading * 100)}
             data-tip="Finding the sections in this paper"
           >
             <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
-            <span className="navigator-reading-name">Finding sections…</span>
+            <span className="navigator-reading-name">Initializing…</span>
           </div>
         )}
         {segments.map((segment, index) => {
