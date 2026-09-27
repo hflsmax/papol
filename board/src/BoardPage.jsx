@@ -2024,65 +2024,12 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     { label: 'Undo', shortcut: '⌘Z', disabled: busy || undoStack.current.length === 0, onSelect: () => applyHistory('undo') },
     { label: 'Redo', shortcut: '⇧⌘Z', disabled: busy || redoStack.current.length === 0, onSelect: () => applyHistory('redo') },
   ];
-  const beginEditingItem = (item) => {
-    setSelectedItems([]);
-    setSelectedBooklet(null);
-    if (item.source_url || item.kind === 'image') {
-      setDescriptionDraft(item.content || '');
-      setEditingDescription(item.uuid);
-    } else {
-      setTextDraft(item.content || '');
-      setEditingText(item.uuid);
-    }
-  };
   const downloadItem = async (item) => {
     setError(null);
     try {
       await downloadBoardFile(item);
     } catch (failure) {
       setError(failure?.message || 'This file is not available right now.');
-    }
-  };
-  const handleCardContextMenu = (event, item) => {
-    const itemUuids = selectedItems.length > 1 && selectedItems.includes(item.uuid)
-      ? [...selectedItems]
-      : [item.uuid];
-    const isSelection = itemUuids.length > 1;
-    const selectionCanGroup = itemUuids.every((uuid) => (
-      board.items.find((candidate) => candidate.uuid === uuid)?.group_uuid == null
-    ));
-    const opened = openContextMenu(event, [
-      !isSelection && item.source_url && {
-        label: VIDEO_KINDS.includes(item.kind) ? 'Open Video' : 'Open source in viewer',
-        onSelect: () => openSource(item.source_url),
-      },
-      !isSelection && item.kind !== 'comment' && {
-        label: 'Download', onSelect: () => downloadItem(item),
-      },
-      !isSelection && board.can_edit && { label: item.kind === 'comment' ? 'Edit Thought…' : 'Edit Description…', onSelect: () => beginEditingItem(item) },
-      !isSelection && board.can_edit && {
-        label: 'Text Alignment',
-        submenu: ['left', 'center', 'right'].map((alignment) => ({
-          label: alignment[0].toUpperCase() + alignment.slice(1),
-          checked: item.text_align === alignment,
-          onSelect: () => alignText(item, alignment),
-        })),
-      },
-      isSelection && board.can_edit && { label: 'Tidy Up', onSelect: () => tidyUp(itemUuids) },
-      board.can_edit && itemUuids.some((uuid) => board.items.find((candidate) => candidate.uuid === uuid)?.width !== DEFAULT_CARD_WIDTH) && {
-        label: 'Reset Size', onSelect: () => resetSizes(itemUuids),
-      },
-      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Collection', onSelect: () => groupAsCollection(itemUuids) },
-      isSelection && board.can_edit && selectionCanGroup && { label: 'Make Booklet', onSelect: () => groupAsBooklet(itemUuids) },
-      board.can_edit && { separator: true },
-      board.can_edit && { label: isSelection ? `Remove ${itemUuids.length} Cards` : 'Remove Card…', disabled: busy, onSelect: () => isSelection ? removeItems(itemUuids) : removeItem(item) },
-      board.can_edit && { separator: true },
-      board.can_edit && historyEntries()[0],
-      board.can_edit && historyEntries()[1],
-    ]);
-    if (opened) {
-      setSelectedItems(itemUuids);
-      setSelectedBooklet(null);
     }
   };
   const beginRenamingGroup = (booklet) => {
@@ -2100,6 +2047,9 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   };
   const handleCanvasContextMenu = (event) => {
     if (event.target.closest?.('.board-canvas-card, .board-booklet, .board-group-options, .board-staging, .board-youtube-loading')) return;
+    // Only what the board shows no control for: a thought where you
+    // clicked (otherwise a double-click), zoom (otherwise a pinch), and
+    // history (otherwise ⌘Z). Tidy has its button in the bar.
     // Zoom about the point that was clicked, as a pinch there would.
     const bounds = viewportRef.current?.getBoundingClientRect();
     const at = { x: event.clientX - (bounds?.left || 0), y: event.clientY - (bounds?.top || 0) };
@@ -2107,7 +2057,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     const zoom = viewRef.current.zoom;
     openContextMenu(event, [
       board.can_edit && { label: 'New Thought', disabled: busy, onSelect: () => createNoteAt(spot) },
-      board.can_edit && { label: 'Tidy Up', disabled: busy || !board.items.length, onSelect: () => tidyUp() },
       board.can_edit && { separator: true },
       { label: 'Zoom In', disabled: zoom >= 3, onSelect: () => zoomAt(1.25, at.x, at.y) },
       { label: 'Zoom Out', disabled: zoom <= 0.25, onSelect: () => zoomAt(1 / 1.25, at.x, at.y) },
@@ -2115,29 +2064,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       board.can_edit && { separator: true },
       ...(board.can_edit ? historyEntries() : []),
     ]);
-  };
-  const handleGroupContextMenu = (event, booklet) => {
-    const opened = openContextMenu(event, [
-      board.can_edit && { label: `Rename ${booklet.kind === 'collection' ? 'Collection' : 'Booklet'}…`, onSelect: () => beginRenamingGroup(booklet) },
-      board.can_edit && { label: booklet.header ? 'Edit Header…' : 'Add Header…', onSelect: () => beginEditingGroupHeader(booklet) },
-      board.can_edit && booklet.kind === 'collection' && {
-        label: 'Arrange',
-        submenu: [
-          { label: 'Auto-arrange', checked: Boolean(booklet.auto_arrange), onSelect: () => arrangeCollection(booklet, true) },
-          { label: 'Freeform', checked: !booklet.auto_arrange, onSelect: () => arrangeCollection(booklet, false) },
-        ],
-      },
-      board.can_edit && booklet.kind === 'collection' && !booklet.auto_arrange && { label: 'Arrange into Columns', onSelect: () => arrangeIntoColumns(booklet) },
-      board.can_edit && { separator: true },
-      board.can_edit && { label: 'Ungroup', disabled: busy, onSelect: () => ungroupBooklet(booklet) },
-      board.can_edit && { separator: true },
-      board.can_edit && historyEntries()[0],
-      board.can_edit && historyEntries()[1],
-    ]);
-    if (opened) {
-      setSelectedItems([]);
-      setSelectedBooklet(booklet.uuid);
-    }
   };
   const handleBoardPointerDownCapture = (event) => {
     const editing = editingText != null || editingDescription != null || editingBooklet != null || editingBookletHeader != null;
@@ -2255,7 +2181,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       )}
       {marquee && <div ref={marqueeRef} className="board-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }} />}
       <div ref={stageRef} className="board-stage" style={{ '--board-ui-scale': 1 / view.zoom, '--board-card-paint-state': 'visible', transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
-        {bookletLayouts.map((booklet) => <div key={booklet.uuid} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onContextMenu={(event) => handleGroupContextMenu(event, booklet)} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
+        {bookletLayouts.map((booklet) => <div key={booklet.uuid} data-group-uuid={booklet.uuid} className={`board-booklet ${booklet.kind}${booklet.auto_arrange ? ' auto-arrange' : ''}${selectedBooklet === booklet.uuid ? ' selected' : ''}${dropBooklet === booklet.uuid ? ' drop-active' : ''}`} style={{ transform: `translate(${booklet.x}px, ${booklet.y}px)`, width: booklet.kind === 'collection' ? booklet.width : undefined, height: booklet.height }} onPointerDown={(event) => { if (booklet.kind === 'collection' && event.target === event.currentTarget) startBookletMove(event, booklet); }}>
           {board.can_edit && <button type="button" className="board-booklet-spine" aria-label={`Move or select ${booklet.kind === 'collection' ? 'collection' : 'booklet'}${booklet.title ? ` ${booklet.title}` : ''}`} aria-pressed={selectedBooklet === booklet.uuid} onPointerDown={(event) => startBookletMove(event, booklet)} onClick={() => toggleGroupSelection(booklet)} />}
           <div className={`board-booklet-heading${board.can_edit ? ' has-options' : ''}`} style={{ width: Math.max(0, booklet.width - 14) }}>
             {board.can_edit && editingBooklet !== booklet.uuid && <button type="button" className="board-group-more" aria-label={`${booklet.kind === 'collection' ? 'Collection' : 'Booklet'} options`} title="Options" aria-expanded={selectedBooklet === booklet.uuid} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={() => toggleGroupSelection(booklet)}><BoardGlyph name="more" /></button>}
@@ -2282,7 +2208,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           />
         </div>}
         {urlLoading.map((item) => <div key={item.uuid} className="board-youtube-loading" style={{ transform: `translate(${item.x}px, ${item.y}px)` }} onPointerDown={(event) => startLoadingDrag(event, item)}><PlaceholderWait item={item} /></div>)}
-        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onContextMenu={(event) => handleCardContextMenu(event, item)} onPointerDown={(e) => startDrag(e, item)}>
+        {[...board.items].sort((a, b) => a.position - b.position || compareUuid(a.uuid, b.uuid)).map((item) => <article key={item.uuid} data-item-uuid={item.uuid} className={`board-canvas-card ${item.kind}${selectedItems.includes(item.uuid) ? ' selected' : ''}`} style={{ zIndex: item.position + 1, width: item.width, transform: `translate(${item.x}px, ${item.y}px)`, backfaceVisibility: 'var(--board-card-paint-state)' }} onPointerDown={(e) => startDrag(e, item)}>
           {board.can_edit && <button type="button" className={`board-card-drag-handle${visibleGrip === item.uuid ? ' grip-visible' : ''}${foregroundGrip === item.uuid ? ' grip-foreground' : ''}${draggingGrip === item.uuid ? ' grip-dragging' : ''}`} aria-label="Move card to another group" title="Drag to reorder or change group" onPointerEnter={() => { showGrip(item.uuid); setForegroundGrip(item.uuid); }} onPointerDown={(event) => startMembershipDrag(event, item)}><span aria-hidden="true" /></button>}
           <header className="board-card-header">
             <span className="board-card-kind"><i aria-hidden="true">{itemTypeIcons[item.kind]}</i>{itemTypeLabels[item.kind]}</span>

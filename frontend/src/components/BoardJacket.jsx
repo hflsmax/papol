@@ -6,7 +6,6 @@ import { boardSourcePapers } from '../../../shared/boardPapers.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 import appLimits from '../../../shared/appLimits.js';
 import Avatar from './Avatar';
 import AutoTextarea from './AutoTextarea';
@@ -174,22 +173,6 @@ export default function BoardJacket({
   const facts = boardFacts(board);
   const papers = boardSourcePapers(board);
   const staged = mine ? (board.staged_items || []) : [];
-  const boardContextMenu = contextMenuHandler(() => [
-    { label: 'Open Board', onSelect: open },
-    mine && { separator: true },
-    mine && { label: 'Rename Board…', onSelect: () => beginEditing('name') },
-    mine && { label: board.description ? 'Edit Description…' : 'Add Description…', onSelect: () => beginEditing('description') },
-    mine && shelves.length > 0 && {
-      label: 'Move to Shelf',
-      submenu: shelves.map((shelf) => ({
-        label: shelf.name,
-        checked: shelf.uuid === board.shelf_uuid,
-        onSelect: () => shelf.uuid !== board.shelf_uuid && moveToShelf(shelf.uuid),
-      })),
-    },
-    mine && { separator: true },
-    mine && { label: 'Delete Board…', onSelect: remove },
-  ]);
 
   return (
     <div className="board-jacket">
@@ -197,7 +180,7 @@ export default function BoardJacket({
       {error && <div className="error" role="alert">{error}</div>}
 
       <div className="panel">
-        <div className="detail-title-row board-jacket-title-row" onContextMenu={boardContextMenu}>
+        <div className="detail-title-row board-jacket-title-row">
           <div className="board-jacket-heading">
             {editing === 'name' ? (
               <input
@@ -296,7 +279,7 @@ export default function BoardJacket({
           </p>
         ) : board.description && <p className="board-jacket-description">{board.description}</p>}
 
-        <div className="paper-actions" onContextMenu={boardContextMenu}>
+        <div className="paper-actions">
           <button type="button" className="primary" onClick={open}>Open board</button>
         </div>
 

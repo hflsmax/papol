@@ -16,7 +16,6 @@ import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
-import { openContextMenu } from '../../shared/contextMenu.js';
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -394,7 +393,7 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
   };
 
   const toggleFloating = (event) => {
-    event?.stopPropagation();
+    event.stopPropagation();
     const floating = !clip.floating;
     const element = rootRef.current.getBoundingClientRect();
     const destination = clip.floating
@@ -427,19 +426,6 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
       }
     : boxStyle(liveFrame);
 
-  const sendToBoard = () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png');
-
-  // The same three things as its bar, for a clip that has not been clicked.
-  const openMenu = (event) => {
-    const opened = openContextMenu(event, [
-      { label: 'Float with Viewport', checked: Boolean(clip.floating), onSelect: () => toggleFloating() },
-      { label: 'Send to Board…', onSelect: sendToBoard },
-      { separator: true },
-      { label: 'Remove Clip', onSelect: onRemove },
-    ]);
-    if (opened) onSelect();
-  };
-
   const actions = selected && (
     <span className="clip-actions">
       <ItemActions
@@ -457,7 +443,7 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
             label: 'Send clipped content to a board',
             icon: <ActionGlyph name="send" />,
             tone: 'accent',
-            onSelect: sendToBoard,
+            onSelect: () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png'),
           },
           { label: 'Remove clipped view', title: 'Remove', icon: <ActionGlyph name="trash" />, danger: true, onSelect: onRemove },
         ]}
@@ -478,7 +464,6 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
       onPointerCancel={readOnly ? undefined : finish}
-      onContextMenu={readOnly ? undefined : openMenu}
       onClick={readOnly ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
@@ -549,8 +534,6 @@ function PdfPage({
   onSelectClip,
   onSendClip,
   onMoveStroke,
-  onContextNote,
-  onContextInk,
   noteCardFocus = null,
   onRenameNote,
   onWriteNote,
@@ -2170,7 +2153,6 @@ function PdfPage({
                       onPointerMove={moveInkDrag}
                       onPointerUp={endInkDrag}
                       onPointerCancel={endInkDrag}
-                      onContextMenu={(e) => onContextInk?.(e, stroke)}
                       {...strokeProps}
                     />
                   )}
@@ -2405,7 +2387,6 @@ function PdfPage({
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}
               onClick={(e) => pointAt(e, note)}
-              onContextMenu={(e) => onContextNote(e, note)}
             >
               <GlyphFor note={note} />
             </button>

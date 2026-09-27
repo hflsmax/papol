@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { createShelf, updateShelf, deleteShelf, createTag, deleteTag } from '../../../shared/api/papers.js';
 import { confirmAction } from '../../../shared/confirmAction';
-import { contextMenuHandler } from '../../../shared/contextMenu';
 import appLimits from '../../../shared/appLimits.js';
 import { useModalDialog } from '../../../shared/useModalDialog.js';
 
@@ -24,29 +23,6 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
     }
   };
 
-  const removeShelf = async (shelf) => {
-    setError(null);
-    if (nook.shelves.length === 1) {
-      setError('Keep at least one shelf.');
-      return;
-    }
-    const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;
-    if (!(await confirmAction(`Delete ${shelf.name}? Its ${papers} will move to another shelf.`, { confirmLabel: 'Delete', destructive: true }))) return;
-    try {
-      await deleteShelf(shelf.uuid);
-      onChanged();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const removeTag = async (tag) => {
-    if (!(await confirmAction(`Delete #${tag.name} from every paper?`, { confirmLabel: 'Delete', destructive: true }))) return;
-    await deleteTag(tag.uuid);
-    onTagDeleted?.(tag.uuid);
-    onChanged();
-  };
-
   return (
     <div className="modal-overlay shelf-manager-overlay" onMouseDown={() => onClose()}>
       <div ref={dialogRef} className="modal-box shelf-manager" role="dialog" aria-modal="true" aria-labelledby="shelf-manager-title" tabIndex="-1" onMouseDown={(event) => event.stopPropagation()}>
@@ -62,25 +38,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
         {error && <p className="nook-manager-error" role="alert">{error}</p>}
         <div className="shelf-manager-list">
           {nook.shelves.map((shelf) => (
-            <div
-              className="shelf-manager-row"
-              key={shelf.uuid}
-              onContextMenu={contextMenuHandler((event) => {
-                const row = event.currentTarget;
-                return [
-                  { label: 'Rename Shelf', onSelect: () => {
-                    const name = row.querySelector('.shelf-name-input');
-                    name?.focus();
-                    name?.select();
-                  } },
-                  { separator: true },
-                  { label: 'Public', checked: shelf.is_public, onSelect: () => attempt(() => updateShelf(shelf.uuid, { is_public: !shelf.is_public })) },
-                  { label: 'Default Shelf', checked: shelf.is_default, disabled: shelf.is_default, onSelect: () => attempt(() => updateShelf(shelf.uuid, { is_default: true })) },
-                  { separator: true },
-                  { label: 'Delete Shelf…', disabled: nook.shelves.length === 1, onSelect: () => removeShelf(shelf) },
-                ];
-              })}
-            >
+            <div className="shelf-manager-row" key={shelf.uuid}>
               <label className="shelf-color-control" title="Shelf color">
                 <input
                   className="shelf-color-input"
@@ -125,7 +83,21 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
                 className="icon-button shelf-delete-button"
                 title={`Delete ${shelf.name}`}
                 aria-label={`Delete shelf ${shelf.name}`}
-                onClick={() => removeShelf(shelf)}
+                onClick={async () => {
+                  setError(null);
+                  if (nook.shelves.length === 1) {
+                    setError('Keep at least one shelf.');
+                    return;
+                  }
+                  const papers = shelf.paper_count === 1 ? '1 paper' : `${shelf.paper_count} papers`;
+                  if (!(await confirmAction(`Delete ${shelf.name}? Its ${papers} will move to another shelf.`, { confirmLabel: 'Delete', destructive: true }))) return;
+                  try {
+                    await deleteShelf(shelf.uuid);
+                    onChanged();
+                  } catch (err) {
+                    setError(err.message);
+                  }
+                }}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
               </button>
@@ -148,19 +120,18 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
           {nook.tags.length > 0 && (
             <div className="manage-tag-list">
               {nook.tags.map((tag) => (
-                <div
-                  className="manage-tag-row"
-                  key={tag.uuid}
-                  onContextMenu={contextMenuHandler(() => [
-                    { label: 'Delete Tag…', onSelect: () => removeTag(tag) },
-                  ])}
-                >
+                <div className="manage-tag-row" key={tag.uuid}>
                   <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
                   <button
                     className="icon-button tag-delete-button"
                     title={`Delete ${tag.name}`}
                     aria-label={`Delete tag ${tag.name}`}
-                    onClick={() => removeTag(tag)}
+                    onClick={async () => {
+                      if (!(await confirmAction(`Delete #${tag.name} from every paper?`, { confirmLabel: 'Delete', destructive: true }))) return;
+                      await deleteTag(tag.uuid);
+                      onTagDeleted?.(tag.uuid);
+                      onChanged();
+                    }}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
                   </button>

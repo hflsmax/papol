@@ -70,14 +70,13 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
             <li
               key={n.uuid}
               className={n.read ? 'notification-item' : 'notification-item unread'}
+              // Opening a notification reads it; this reads one without
+              // opening it, which nothing on the page offers.
               onContextMenu={contextMenuHandler(() => [
-                { label: expanded[n.uuid] ? 'Collapse' : 'Expand', onSelect: () => handleClick(n) },
                 !n.read && { label: 'Mark as Read', onSelect: () => {
                   markNotificationRead(n.uuid).catch(() => {});
                   applyRead([n.uuid]);
                 } },
-                n.room_uuid && { separator: true },
-                n.room_uuid && { label: 'Open Seminar', onSelect: () => onOpenRoom(n.room_uuid) },
               ])}
             >
               {/* A real button, so a notification can be reached and opened

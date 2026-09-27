@@ -76,7 +76,7 @@ import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import {
   DOWNLOAD_URL, attemptHandoff, handoffAddressAt, handoffCapableMac,
 } from '../../shared/macHandoff.js';
-import { contextMenuHandler, openContextMenu } from '../../shared/contextMenu.js';
+import { contextMenuHandler } from '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 import { showInNookTarget } from './nookOffer.js';
@@ -3228,12 +3228,6 @@ export default function App() {
   };
 
   // From the context menu, where what is wanted has already been said.
-  const openNoteCard = (note, field) => {
-    goToNote(note);
-    setActiveNoteUuid(note.uuid);
-    setNoteCardFocus(field);
-  };
-
   const updateNoteContent = async (uuid, content) => {
     const real = await settledUuid(uuid);
     if (real == null) return null;
@@ -3326,50 +3320,12 @@ export default function App() {
     }
   };
 
-  // An anchor in a shared reading is somewhere to go, and nothing else.
-  const noteContextMenu = (event, note) => openContextMenu(event, readOnly ? [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-  ] : [
-    { label: 'Go to Anchor', onSelect: () => goToNote(note) },
-    { label: note.content ? 'Edit Note…' : 'Add Note…', onSelect: () => openNoteCard(note, 'text') },
-    { label: 'Rename Anchor…', onSelect: () => openNoteCard(note, 'name') },
-    { separator: true },
-    { label: 'Delete Anchor', onSelect: () => removeNote(note.uuid) },
-    { separator: true },
-    { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-    { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-  ]);
-
-  // Paint is taken in hand as it is offered, so the menu is plainly about
-  // the stroke under the pointer and not another one already selected.
-  const inkContextMenu = (event, stroke) => {
-    if (readOnly) return;
-    const opened = openContextMenu(event, [
-      { label: 'Remove Paint', shortcut: '⌫', onSelect: () => {
-        setSelectedInk(null);
-        eraseStroke(stroke.uuid);
-      } },
-      { separator: true },
-      { label: 'Undo', shortcut: '⌘Z', disabled: history.current.running || history.current.undo.length === 0, onSelect: () => runHistory('undo') },
-      { label: 'Redo', shortcut: '⇧⌘Z', disabled: history.current.running || history.current.redo.length === 0, onSelect: () => runHistory('redo') },
-    ]);
-    if (opened) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
-  };
-
-  // The page: the tools in the bar, with their keys, find, and history.
+  // The page offers only what the bar has no button for: Find, which
+  // is otherwise ⌘F, and history, which is otherwise ⌘Z. Anchors, clips
+  // and paint each open their own card or bar when clicked.
   const pageContextMenu = contextMenuHandler((event) => (
     event.target.closest?.('.pdf-page')
   ) ? [
-    {
-      label: 'Tool',
-      submenu: availableTools.map((candidate) => ({
-        label: candidate.label,
-        shortcut: candidate.badge,
-        checked: tool === candidate.id,
-        // Only a change: taking the tool in hand again opens its sheet.
-        onSelect: () => tool !== candidate.id && takeTool(candidate.id),
-      })),
-    },
     { label: 'Find…', shortcut: '⌘F', onSelect: () => {
       setSearchOpen(true);
       window.requestAnimationFrame(() => searchInputRef.current?.select());
@@ -3719,7 +3675,6 @@ export default function App() {
   const pageCommitClip = useEvent(commitClip);
   const pageRemoveClip = useEvent(removeClip);
   const pageSendClip = useEvent(openSendClip);
-  const pageContextInk = useEvent(inkContextMenu);
   const pageMoveStroke = useEvent(moveStroke);
   const pageDropAnimal = useEvent(dropAnimal);
   const pageMoveAnimal = useEvent(moveAnimal);
@@ -4566,8 +4521,6 @@ export default function App() {
               onSelectClip={setSelectedClipUuid}
               onSendClip={pageSendClip}
               onMoveStroke={pageMoveStroke}
-              onContextNote={noteContextMenu}
-              onContextInk={pageContextInk}
               animal={animal}
               animalSpeed={animalSpeed}
               animalActivity={animalActivity}

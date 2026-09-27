@@ -26,18 +26,18 @@ test('a submenu is tidied the same way and kept when it has entries', () => {
 });
 
 test('a menu for someone who may only look keeps what they can do, with no stray separators', () => {
-  // The shape of the board detail menu for a board that is not yours: every
-  // owner's entry and the separators between them fall away.
-  const mine = false;
+  // The shape of the board canvas menu on a board that is not yours: the
+  // editor's entries and the separators between them fall away.
+  const canEdit = false;
   const entries = menuEntries([
-    { label: 'Open Board' },
-    mine && { separator: true },
-    mine && { label: 'Rename Board…' },
-    mine && { label: 'Move to Shelf', submenu: [] },
-    { separator: true },
-    mine && { label: 'Delete Board…' },
+    canEdit && { label: 'New Thought' },
+    canEdit && { separator: true },
+    { label: 'Zoom In' },
+    { label: 'Zoom Out' },
+    canEdit && { separator: true },
+    canEdit && { label: 'Undo' },
   ]);
-  assert.deepEqual(labels(entries), ['Open Board']);
+  assert.deepEqual(labels(entries), ['Zoom In', 'Zoom Out']);
 });
 
 test('an empty submenu goes, and so does the separator it leaves behind', () => {
