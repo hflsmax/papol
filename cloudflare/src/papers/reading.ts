@@ -1,8 +1,8 @@
-// What the host's analyzer reads off a paper (host/analyzer/src/rules/), in the
-// shapes the Worker stores: the reference list, the in-text markers that
-// point at it, the cross-references to figures, tables and boxes, and the
-// title block. The analyzer imports these types too, so the two can never
-// disagree about them.
+// What the rules read off a paper (analyzer/src/rules/, run in the
+// browser): the reference list, the in-text markers that point at it, the
+// cross-references to figures, tables and boxes, and the title block the
+// Worker is sent with an upload. The rules import these types too, so the
+// two can never disagree about them.
 
 export interface Reference {
   key: string; // the entry's id, e.g. "b11" — what markers target
@@ -29,7 +29,7 @@ export interface Box { page: number; x: number; y: number; w: number; h: number 
 export interface Citation {
   keys: string[]; // the references it points at, in the order printed
   label: string; // what is printed, e.g. "[13]"
-  // True when the analyzer found the marker but could not say which entry
+  // True when the rules found the marker but could not say which entry
   // it meant, and Papol read the number instead: a guess.
   inferred: boolean;
   boxes: Box[]; // one a printed line, in reading order

@@ -1,24 +1,22 @@
 // Uploading a paper, driven through the library's form against a real
 // Worker, and the queue that reads it.
 //
-//     node scripts/share-e2e/fake-analyzer.mjs &    # the host's analyzer, stood in for
-//     npx wrangler dev --test-scheduled \
-//       --var ANALYZER_URL:http://127.0.0.1:8072 --var ANALYZER_AUTH:papol:e2e
+//     npx wrangler dev --test-scheduled
 //     node scripts/share-e2e/upload.mjs
 //
 // frontend/scripts/upload-smoke.mjs drives the same form against a faked
 // server, which is how it can say what every answer looks like; this says
-// the real answers come. The bytes reach the bucket, the reading is queued
-// and woken, the Worker sends the PDF to the analyzer with its credential,
-// what the analyzer read reaches the form, and the paper saved is in the
-// library. Then the queue's other half: a job nobody woke is run by the
-// cron sweep, triggered here through `wrangler dev --test-scheduled`.
+// the real answers come. The browser reads the title block off the PDF
+// (shared/printed.js), the bytes reach the bucket, the reading is queued
+// with what the browser read and woken, what was read reaches the form,
+// and the paper saved is in the library. Then the queue's other half: a
+// job nobody woke is run by the cron sweep, triggered here through
+// `wrangler dev --test-scheduled`.
 //
-// The analyzer is the stand-in (fake-analyzer.mjs), told per PDF what to
-// answer, so every outcome is known before the upload: nothing read (the
-// filename's title stands), a title block read, and an analyzer that fails.
-// No PDF here carries a DOI or an arXiv id, so nothing is asked of
-// CrossRef and the run needs no network beyond the machine.
+// Two PDFs, each written here: one line of text, which is no title block
+// (the filename's title stands), and a title page the rules read. No PDF
+// here carries a DOI or an arXiv id, so nothing is asked of CrossRef and
+// the run needs no network beyond the machine.
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -29,7 +27,6 @@ import { fileURLToPath } from 'node:url';
 import { Browser, checker } from './cdp.mjs';
 import { account, BASE, call, freshPdf, storePdf } from './papol.mjs';
 
-const ANALYZER = (process.env.PAPOL_FAKE_ANALYZER || 'http://127.0.0.1:8072').replace(/\/$/, '');
 const CLOUDFLARE = fileURLToPath(new URL('../../cloudflare/', import.meta.url));
 const suffix = randomBytes(3).toString('hex');
 const files = mkdtempSync(join(tmpdir(), 'papol-upload-e2e-'));
@@ -43,14 +40,6 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // (frontend/src/uploadReview.js, cloudflare/src/papers/extract.ts).
 const titleFromFilename = (name) => name.replace(/\.[^.]*$/, '').replace(/[_-]/g, ' ')
   .replace(/\S+/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
-
-const analyzer = async (path, body) => {
-  const response = await fetch(ANALYZER + path, body === undefined ? {} : {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`the stand-in analyzer answered ${response.status} for ${path}`);
-  return response.json();
-};
 
 // The local D1, as the running Worker has it: wrangler reads and writes
 // the same files under cloudflare/.wrangler/state.
@@ -67,9 +56,32 @@ function d1(sql) {
 
 const job = async (token, uuid) => (await call('GET', `/api/jobs/${uuid}`, { token }))[1];
 
-// A PDF of this run's, written where the file chooser can be pointed at it.
+// A title page, line by line in Helvetica: the title large, the authors
+// under it, and a date at the foot (analyzer/test/paper.test.mjs).
+function titlePage({ title, authors, published }) {
+  const lines = [[60, 740, title, 20], [60, 712, authors.join(', '), 11], [60, 698, 'Institute of Examples, Nowhere', 9],
+    [60, 660, 'Abstract', 11], [60, 645, 'This paper is written by the upload check, to be read by the rules.', 10],
+    [60, 120, `Published online: ${published}.`, 8]];
+  const content = lines.map(([x, y, text, size]) => `BT /F1 ${size} Tf ${x} ${y} Td (${text.replace(/[()\\]/g, '\\$&')}) Tj ET`).join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${body}\nendobj\n`; return at; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+// A PDF of this run's, written where the file chooser can be pointed at it:
+// one line of words, or the bytes given.
 function pdfFile(name, words) {
-  const bytes = freshPdf(`${words} ${suffix}`);
+  const bytes = typeof words === 'string' ? freshPdf(`${words} ${suffix}`) : words;
   const path = join(files, name);
   writeFileSync(path, bytes);
   return { name, path, bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
@@ -120,7 +132,8 @@ const cancel = async () => {
 };
 
 const unread = () => browser.evaluate("return document.body.innerText.includes('could not read the PDF');");
-const sentToAnalyzer = async (file) => (await analyzer('/__seen')).filter((r) => r.sha256 === file.sha256 && r.path === '/header');
+// What the upload told the Worker the browser had read: the job's payload.
+const payloadOf = (uuid) => JSON.parse(d1(`SELECT payload FROM jobs WHERE uuid = '${uuid}'`)[0]?.payload ?? 'null');
 
 try {
   const me = await account(`uploader-${suffix}@papol.test`, 'Una Uploader');
@@ -130,7 +143,7 @@ try {
   await browser.signIn({ token: me.token, accountUuid: me.uuid, origin: BASE });
   await browser.navigate(`${BASE}/library`);
 
-  console.log('\n== A PDF the analyzer reads nothing from ==');
+  console.log('\n== A PDF with no title block ==');
   const plain = pdfFile(`e2e-upload-${suffix}.pdf`, 'A paper for the upload check');
   const expected = titleFromFilename(plain.name);
   let uuid = await choose(plain);
@@ -140,10 +153,8 @@ try {
   let outcome = uuid ? await job(me.token, uuid) : null;
   check('the reading was woken and done', outcome?.status === 'done', JSON.stringify(outcome));
   check('and it answered the filename title', outcome?.result?.title === expected, JSON.stringify(outcome?.result));
-  let sent = await sentToAnalyzer(plain);
-  check('the Worker sent the analyzer the PDF itself, with its credential',
-    sent.length === 1 && sent[0].type === 'application/pdf' && sent[0].pdf && sent[0].authorized && sent[0].size === plain.bytes.length,
-    JSON.stringify(sent));
+  let payload = uuid ? payloadOf(uuid) : null;
+  check('the upload carried no title block', payload && !('title_block' in payload), JSON.stringify(payload));
 
   // What the user adds is what is saved: an author and a year typed in.
   await type('upload-paper-authors', 'Grace Hopper');
@@ -164,41 +175,18 @@ try {
     saved?.title === expected && /Grace Hopper/.test(String(saved?.authors)) && saved?.year === 2026,
     JSON.stringify(saved && { title: saved.title, authors: saved.authors, year: saved.year }));
 
-  console.log('\n== A PDF whose title block the analyzer reads ==');
-  const read = pdfFile(`e2e-read-${suffix}.pdf`, 'A paper the stand-in reads');
-  const header = {
-    title: `What the Stand-in Read ${suffix}`, authors: ['Ada Lovelace', 'Alan Turing'],
-    journal: 'Journal of Stand-ins', year: 2024,
-  };
-  await analyzer('/__plan', { sha256: read.sha256, header });
+  console.log('\n== A PDF whose title block the browser reads ==');
+  const header = { title: `What the Rules Read ${suffix}`, authors: ['Ada Lovelace', 'Alan Turing'], published: '3 March 2024' };
+  const read = pdfFile(`e2e-read-${suffix}.pdf`, titlePage(header));
   await browser.navigate(`${BASE}/library`);
   uuid = await choose(read);
-  check('the title is what the analyzer read', await field('upload-paper-title') === header.title,
+  check('the title is what the browser read', await field('upload-paper-title') === header.title,
     String(await field('upload-paper-title')));
   check('and the authors', await field('upload-paper-authors') === 'Ada Lovelace, Alan Turing',
     String(await field('upload-paper-authors')));
-  check('and the journal and the year',
-    await field('upload-paper-journal') === header.journal && await field('upload-paper-year') === '2024',
-    `${await field('upload-paper-journal')} / ${await field('upload-paper-year')}`);
-  sent = await sentToAnalyzer(read);
-  check('from the PDF it was sent', sent.length === 1 && sent[0].pdf, JSON.stringify(sent));
-  await cancel();
-
-  console.log('\n== A PDF the analyzer fails on ==');
-  const broken = pdfFile(`e2e-broken-${suffix}.pdf`, 'A paper the stand-in fails on');
-  await analyzer('/__plan', { sha256: broken.sha256, status: 422, detail: 'The PDF could not be read: Invalid PDF structure.' });
-  uuid = await choose(broken);
-  // The analyzer is asked for the title block only as the last word, so one
-  // that is down is a paper nothing was read from, not a reading that
-  // failed (extract.ts, `titleBlock`): the form keeps the filename's title
-  // and says nothing. "Papol could not read the PDF" is for a job that
-  // failed — the indexes all down — which upload-smoke.mjs shows.
-  check('the analyzer was asked, and failed', (await sentToAnalyzer(broken)).length === 1);
-  check('the form keeps the title its filename gives',
-    await field('upload-paper-title') === titleFromFilename(broken.name), String(await field('upload-paper-title')));
-  outcome = uuid ? await job(me.token, uuid) : null;
-  check('and the reading is done all the same', outcome?.status === 'done', JSON.stringify(outcome));
-  check('with no line saying it failed', !(await unread()));
+  check('and the year', await field('upload-paper-year') === '2024', String(await field('upload-paper-year')));
+  payload = uuid ? payloadOf(uuid) : null;
+  check('sent with the upload, not read by the Worker', payload?.title_block?.title === header.title, JSON.stringify(payload));
   await cancel();
 
   console.log('\n== A job nobody woke is run by the sweep ==');
@@ -209,9 +197,9 @@ try {
   const stored = await storePdf(me.token, swept.bytes, swept.name);
   const lost = crypto.randomUUID();
   const at = new Date(Date.now() - 1000).toISOString();
-  const payload = JSON.stringify({ file_path: stored.file_path, uploaded_name: swept.name });
+  const lostPayload = JSON.stringify({ file_path: stored.file_path, uploaded_name: swept.name });
   d1(`INSERT INTO jobs (uuid, kind, "key", payload, status, user_uuid, attempts, run_at, created_at)
-      VALUES ('${lost}', 'extract_metadata', NULL, '${payload}', 'queued', '${me.uuid}', 0, '${at}', '${at}')`);
+      VALUES ('${lost}', 'extract_metadata', NULL, '${lostPayload}', 'queued', '${me.uuid}', 0, '${at}', '${at}')`);
   await wait(1500);
   outcome = await job(me.token, lost);
   check('the job waits, queued, with nothing to wake it', outcome?.status === 'queued', JSON.stringify(outcome));

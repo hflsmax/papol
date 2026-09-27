@@ -9,15 +9,21 @@ got wrong what it was not trained on: it took lines of body text for figure
 captions (and so dropped the mentions in them), merged two captions into
 one, and pointed "Figure 21" at Figure 2. GROBID was removed on 2026-09-25.
 
-It runs on the NixOS host (`host/analyzer/`, `POST /analyze` and
-`POST /header` at `ANALYZER_URL`), not in the Worker: reading a PDF is CPU
-the Worker should not spend.
+It runs in the browser, not in the Worker: reading a PDF is CPU the Worker
+does not have. The viewer reads each paper it opens in a Web Worker
+(`viewer/src/paperReading.js`, `readingWorker.js`) and keeps the reading on
+the device; the upload form and "Add to nook" read the title block
+(`shared/printed.js`) and send it with the upload. Until 2026-09-27 it ran
+on the NixOS host as a service the Worker called (`POST /analyze`,
+`POST /header`); that service and what the Worker stored of its answers are
+gone.
 
 ## How it reads
 
-`host/analyzer/src/rules/`, one layer a file:
+`analyzer/src/rules/`, one layer a file:
 
-- `pdf.ts` — the PDF's text as positioned runs, through pdf.js (unpdf):
+- `page.ts` — the PDF's text as positioned runs, through pdf.js (in the
+  browser, the page's own; `pdf.ts` opens a file with unpdf for the scripts):
   each run's box, font size, and whether its font's name says bold or italic.
 - `layout.ts` — runs into lines (clustered by baseline, then cut at gutters;
   superscripts and subscripts joined to their line; list labels set in a
@@ -67,9 +73,10 @@ the Worker should not spend.
   names, in print order, and a box for each line it is printed on — so
   "[3–5]" is one citation of three entries, and "Matsuda et al. 2007"
   broken over a line is one citation with two boxes.
-- `analyze.ts` — the whole, answering `Analysis` and a trace.
-- `header.ts` — the title block, for the upload form (`POST /header`,
-  `HeaderMetadata`): below.
+- `paper.ts` — the whole, answering `Analysis` and a trace (`analyze.ts`
+  reads a file with it, for the scripts and tests).
+- `header.ts` — the title block, for the upload form (`HeaderMetadata`):
+  below.
 
 In the viewer (`viewer/src/references.js`), the analyzer's citations and
 links come first; a PDF's own links fill in only where the analyzer found
@@ -93,10 +100,10 @@ the rule until its examples pass, and rerun the corpus.
 ## The corpus
 
 Every production PDF, read and drawn, is how a change is judged. It lives
-in `host/analyzer/.corpus/` (not committed): `pdf/` the papers, `rules/`
+in `analyzer/.corpus/` (not committed): `pdf/` the papers, `rules/`
 the analyzer's answers, `shots/` the drawings.
 
-    cd host/analyzer
+    cd analyzer
     node scripts/run-script.mjs .corpus/pdf .corpus/rules            # a table: references, citations, links
     CHROME=… node scripts/overlay/render.mjs .corpus/pdf .corpus/rules .corpus/shots [sha…]   # body, floats and bibliography sheets
     node scripts/run-script.mjs lines <pdf> [pages] [grep]           # lines as the analyzer sees them
@@ -129,11 +136,11 @@ is not found; unusual citation wording ("Plate 3") is not recognized.
 
 ## The title block
 
-Written 2026-09-25. The upload form asks the analyzer for a paper's title,
-authors, journal, year, DOI and arXiv id when the browser read no
-identifier off the first pages, or one no index knows
-(`cloudflare/src/papers/extract.ts`). `header.ts` reads them (`/header`)
-from the first three pages:
+Written 2026-09-25. The upload form reads a paper's title, authors,
+journal, year, DOI and arXiv id off its first three pages in the browser
+and sends them with the upload; the Worker takes them when the browser read
+no identifier, or one no index knows (`cloudflare/src/papers/extract.ts`).
+`header.ts` reads them:
 
 - the title is the first page's largest text in its top two thirds, with
   the lines of that size under it and an ACM subtitle; not a banner, a
@@ -158,7 +165,7 @@ found one.)
 Judged against the papers' rows in production, which are mostly what
 Crossref says (`truth.json`, exported from D1):
 
-    cd host/analyzer
+    cd analyzer
     node scripts/run-script.mjs header .corpus/pdf [sha-prefix]     # ✓/✗ per field
     VERBOSE=1 node scripts/run-script.mjs header .corpus/pdf        # with every answer
 

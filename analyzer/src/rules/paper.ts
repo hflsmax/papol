@@ -5,7 +5,7 @@
 // viewer runs it in the browser (viewer/src/readingWorker.js) as the host
 // does on a PDF (analyze.ts). See registry.ts for how the rules are kept.
 
-import type { Analysis } from "../../../../cloudflare/src/papers/reading";
+import type { Analysis } from "../../../cloudflare/src/papers/reading";
 import { findBibliography } from "./bibliography";
 import { findContents, type Heading } from "./contents";
 import { findCitations } from "./citations";

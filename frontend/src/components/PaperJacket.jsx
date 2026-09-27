@@ -10,6 +10,7 @@ import {
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
+import { readPrintedAt } from '../pdfIdentifier.js';
 import CommentSection from './CommentSection';
 import RoomSection from './RoomSection';
 import HintPop from './HintPop';
@@ -344,7 +345,12 @@ export default function PaperJacket({
     setError(null);
     setIsExtractingMetadata(true);
     try {
-      const extracted = await reextractPaperMetadata(paper.sha256);
+      // The title block is read here, off the PDF this jacket shows: the
+      // Mac's own copy, else the file on the server.
+      const href = localPdf ? await nativeBlobUrl(paper.sha256, 'application/pdf').catch(() => null) : pdfHref(paper);
+      const printed = href ? readPrintedAt(href) : null;
+      const extracted = await reextractPaperMetadata(paper.sha256, printed);
+      if (localPdf && href) URL.revokeObjectURL(href);
       setEditData((current) => ({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),

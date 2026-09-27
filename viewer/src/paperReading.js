@@ -3,7 +3,7 @@ import { keepReading, keptReading } from './readingCache.js';
 
 /**
  * A paper read in the browser by the analyzer's rules
- * (host/analyzer/src/rules/paper.ts): its references, the citations that
+ * (analyzer/src/rules/paper.ts): its references, the citations that
  * point at them, the links to its figures, tables, sections and footnotes,
  * and its printed headings, which the Navigator falls back on when the PDF
  * has no outline.
@@ -31,7 +31,7 @@ export async function readPaper(doc, { cancelled = () => false, onProgress } = {
     return kept;
   }
   const [{ readPages }, pdfjs] = await Promise.all([
-    import('../../host/analyzer/src/rules/page.ts'),
+    import('../../analyzer/src/rules/page.ts'),
     pdfjsReady,
   ]);
   if (cancelled()) return null;

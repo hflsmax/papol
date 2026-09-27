@@ -32,21 +32,22 @@ describe("client requirements", () => {
     expect((await ask({ "User-Agent": "Papol macOS/0.2.0" })).verdict).toBe("incompatible");
   });
 
-  it("refuses a desktop build older than the one that speaks to the bucket itself, whatever schema it announces", async () => {
-    expect(MINIMUM_DESKTOP_VERSION).toBe("0.5.0");
+  it("refuses a desktop build older than the one whose viewer reads papers itself, whatever schema it announces", async () => {
+    expect(MINIMUM_DESKTOP_VERSION).toBe("0.6.0");
     const desktop = (version: string) => ask({ [SCHEMA_HEADER]: CURRENT, "User-Agent": `Papol macOS/${version}` });
     expect((await desktop("0.4.1")).verdict).toBe("incompatible");
     expect((await desktop("0.4.10")).verdict).toBe("incompatible");
-    expect((await desktop("0.5.0")).verdict).toBe("supported");
-    expect((await desktop("0.5.1")).verdict).toBe("supported");
+    expect((await desktop("0.5.6")).verdict).toBe("incompatible");
+    expect((await desktop("0.6.0")).verdict).toBe("supported");
+    expect((await desktop("0.6.1")).verdict).toBe("supported");
     expect((await desktop("0.10.0")).verdict).toBe("supported");
     expect((await desktop("1.0")).verdict).toBe("supported");
     expect((await desktop("soon")).verdict).toBe("incompatible");
-    expect((await desktop("0.5.0")).minimum_desktop_version).toBe("0.5.0");
+    expect((await desktop("0.6.0")).minimum_desktop_version).toBe("0.6.0");
     // The sync routes refuse the same build, so it stops and says so.
-    const pull = await SELF.fetch("https://papol.test/api/sync/snapshot", { headers: { [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.4.1", Authorization: "Bearer none" } });
+    const pull = await SELF.fetch("https://papol.test/api/sync/snapshot", { headers: { [SCHEMA_HEADER]: CURRENT, "User-Agent": "Papol macOS/0.5.6", Authorization: "Bearer none" } });
     expect(pull.status).toBe(426);
-    expect(await pull.json()).toMatchObject({ detail: { error: "client_incompatible", minimum_desktop_version: "0.5.0" } });
+    expect(await pull.json()).toMatchObject({ detail: { error: "client_incompatible", minimum_desktop_version: "0.6.0" } });
   });
 
   it("judges the app's windows by the version they announce, as it judges the synchronizer", async () => {
@@ -54,9 +55,9 @@ describe("client requirements", () => {
     // the startup check told a refused build it was supported.
     const window = (version: string) => ask({ [SCHEMA_HEADER]: CURRENT, [DESKTOP_VERSION_HEADER]: version });
     expect((await window("0.4.1")).verdict).toBe("incompatible");
-    expect((await window("0.5.0")).verdict).toBe("supported");
+    expect((await window("0.6.0")).verdict).toBe("supported");
     // The User-Agent, where there is one, is the synchronizer's and wins.
-    expect((await ask({ [SCHEMA_HEADER]: CURRENT, [DESKTOP_VERSION_HEADER]: "0.5.0", "User-Agent": "Papol macOS/0.4.1" })).verdict).toBe("incompatible");
+    expect((await ask({ [SCHEMA_HEADER]: CURRENT, [DESKTOP_VERSION_HEADER]: "0.6.0", "User-Agent": "Papol macOS/0.4.1" })).verdict).toBe("incompatible");
   });
 
   it("says where the files are: the bucket's own address, or nowhere when this Worker serves them", async () => {
@@ -79,8 +80,7 @@ describe("client requirements", () => {
     expect(results.map((row) => row.name)).toEqual([
       "_server_change_log", "_server_clients", "activity", "admin_message_deliveries", "admin_messages",
       "annotations", "applied_mutations", "auth_tokens", "board_groups", "board_items", "boards",
-      "copies", "copy_tags", "error_logs", "feedback", "jobs", "notifications", "paper_citation_works", "paper_citations",
-      "paper_floats", "paper_links", "paper_references", "papers", "room_availabilities", "room_messages",
+      "copies", "copy_tags", "error_logs", "feedback", "jobs", "notifications", "paper_references", "papers", "room_availabilities", "room_messages",
       "room_participants", "rooms", "settings", "sharables", "shelves", "tags", "users",
     ]);
   });

@@ -28,13 +28,13 @@ async function aPaper(digest = A_PAPER, title = "A paper by its name") {
 // An upload as the browser makes one: the bytes into the bucket under
 // their digest by the address it was given (files.test.ts), then the word
 // that they are in.
-async function upload(account: Account, name: string, bytes: string) {
+async function upload(account: Account, name: string, bytes: string, block: TitleBlock | null = null) {
   const digest = await sha256(bytes);
   await env.FILES.put(`uploads/${digest}.pdf`, bytes, { httpMetadata: { contentType: "application/pdf" } });
-  return call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: name } });
+  return call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: name, title_block: block } });
 }
 
-// The bibliographic APIs and the host's analyzer, stood in for by host.
+// The bibliographic APIs, stood in for by host.
 function apis(answers: Record<string, (url: URL) => Response>) {
   vi.stubGlobal("fetch", async (input: string | URL | Request) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
@@ -42,9 +42,9 @@ function apis(answers: Record<string, (url: URL) => Response>) {
     return answer ? answer(url) : new Response("no such host", { status: 502 });
   });
 }
-// What the analyzer reads off the title block (analyzer.test/header).
+// What the browser reads off the title block and sends with the upload.
 type TitleBlock = { title: string | null; authors: string[]; journal: string | null; year: number | null; doi: string | null; arxiv_id: string | null };
-const titleBlock = (read: Partial<TitleBlock> = {}) => Response.json({ title: null, authors: [], journal: null, year: null, doi: null, arxiv_id: null, ...read });
+const titleBlock = (read: Partial<TitleBlock> = {}): TitleBlock => ({ title: null, authors: [], journal: null, year: null, doi: null, arxiv_id: null, ...read });
 const crossrefWork = { message: { DOI: "10.1145/2984511.2984540", title: ["Metamaterial Mechanisms"], "container-title": ["Proceedings of UIST '16"],
   issued: { "date-parts": [[2016]] }, author: [{ given: "Alexandra", family: "Ion" }, { given: "Patrick", family: "Baudisch" }] } };
 
@@ -98,15 +98,16 @@ describe("what a PDF says about itself", () => {
     const account = await register();
     const pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF";
     const digest = await sha256(pdf);
-    const first = await upload(account, "Some-Paper.pdf", pdf);
+    const printed = titleBlock({ title: "METAMATERIAL MECHANISMS", doi: "10.1145/2984511.2984540" });
+    const first = await upload(account, "Some-Paper.pdf", pdf, printed);
     expect(first.status, await first.clone().text()).toBe(202);
     const ticket = await first.json<any>();
     expect(ticket).toMatchObject({ file_path: `${digest}.pdf`, sha256: digest });
-    expect((await upload(account, "Some-Paper.pdf", pdf)).status).toBe(202);
+    expect((await upload(account, "Some-Paper.pdf", pdf, printed)).status).toBe(202);
     expect((await env.FILES.list({ prefix: "uploads/" })).objects.map((o) => o.key)).toEqual([`uploads/${digest}.pdf`]);
     expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).status).toBe("queued");
 
-    apis({ "analyzer.test": () => titleBlock({ title: "METAMATERIAL MECHANISMS", doi: "10.1145/2984511.2984540" }), "api.crossref.org": () => Response.json(crossrefWork) });
+    apis({ "api.crossref.org": () => Response.json(crossrefWork) });
     await woken(ticket.job);
     const done = await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers });
     expect(done.status).toBe("done");
@@ -114,22 +115,22 @@ describe("what a PDF says about itself", () => {
       journal: "Proceedings of UIST '16", year: 2016, file_path: `${digest}.pdf` });
   });
 
-  it("takes the title block when no index answers, the filename when the analyzer is down, and fails with a sentence when the indexes do not answer", async () => {
+  it("takes the title block when no index answers, the filename when the browser read none, and fails with a sentence when the indexes do not answer", async () => {
     const account = await register();
     const ticket = await (await upload(account, "Some-Paper.pdf", "%PDF-1.4 unresolved")).json<any>();
-    apis({ "analyzer.test": () => new Response("Bad Gateway", { status: 502 }) });
+    apis({});
     await woken(ticket.job);
     expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result.title).toBe("Some Paper");
 
     // No identifier on the page: what the paper says of itself, as read.
-    const untitled = await (await upload(account, "scan.pdf", "%PDF-1.4 no identifier")).json<any>();
-    apis({ "analyzer.test": () => titleBlock({ title: "What the Paper Says", authors: ["A. Author"], journal: "A Venue", year: 2021 }) });
+    const untitled = await (await upload(account, "scan.pdf", "%PDF-1.4 no identifier",
+      titleBlock({ title: "What the Paper Says", authors: ["A. Author"], journal: "A Venue", year: 2021 }))).json<any>();
     await woken(untitled.job);
     expect((await ok("GET", `/api/jobs/${untitled.job}`, { headers: account.headers })).result)
       .toMatchObject({ doi: null, title: "What the Paper Says", authors: JSON.stringify(["A. Author"]), journal: "A Venue", year: 2021 });
 
-    const second = await (await upload(account, "other.pdf", "%PDF-1.4 unreachable")).json<any>();
-    apis({ "analyzer.test": () => titleBlock({ doi: "10.1234/unreachable" }), "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
+    const second = await (await upload(account, "other.pdf", "%PDF-1.4 unreachable", titleBlock({ doi: "10.1234/unreachable" }))).json<any>();
+    apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
     await woken(second.job);
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
   });
@@ -217,18 +218,22 @@ describe("what a PDF says about itself", () => {
     expect(both).toMatchObject({ venue: "Lecture Notes in Computer Science", host: "HAL" });
   });
 
-  it("re-reads a paper's PDF for the edit form, preferring what the file prints over a stale DOI", async () => {
+  it("re-reads a paper for the edit form, preferring what the file prints over a stale DOI", async () => {
     const account = await register();
     const digest = "4".repeat(64);
     await paperWithCopy(account, digest, "Incorrect imported title", { filePath: "countersnapping.pdf" });
     await exec("UPDATE papers SET doi = '10.0000/stale-doi' WHERE sha256 = ?", digest);
     await env.FILES.put("uploads/countersnapping.pdf", "%PDF-1.4\n%%EOF");
     const asked: string[] = [];
-    apis({ "analyzer.test": () => titleBlock({ doi: "10.1073/pnas.2423301122" }), "api.crossref.org": (url) => { asked.push(url.pathname); return Response.json({ message: { DOI: "10.1073/pnas.2423301122", title: ["Exotic mechanical properties"],
+    apis({ "api.crossref.org": (url) => { asked.push(url.pathname); return Response.json({ message: { DOI: "10.1073/pnas.2423301122", title: ["Exotic mechanical properties"],
       author: [{ given: "Paul", family: "Ducarme" }], "container-title": ["PNAS"], issued: { "date-parts": [[2025]] } } }); } });
-    const found = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
+    const found = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: titleBlock({ doi: "10.1073/pnas.2423301122" }) } });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1073/pnas.2423301122")}`]);
     expect(found).toEqual({ doi: "10.1073/pnas.2423301122", title: "Exotic mechanical properties", authors: JSON.stringify(["Paul Ducarme"]), journal: "PNAS", year: 2025 });
+    // With nothing read off the file, the paper's own DOI is asked about.
+    asked.length = 0;
+    await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.0000/stale-doi")}`]);
   });
 });
 
@@ -257,16 +262,24 @@ describe("an upload that went straight to the bucket", () => {
         .toEqual({ file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf" });
     }
     expect((await call("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, identifier: { arxiv_id: "1706.03762v5" } } })).status).toBe(202);
+    // The title block goes with the job, held to the paper's limits; one
+    // with nothing usable in it is none.
+    const block = { title: "  As Printed ", authors: ["A. Author", 7, "x".repeat(300)], journal: "j".repeat(5000), year: 99, doi: "not a doi", arxiv_id: null };
+    const read = await ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", title_block: block } });
+    expect(JSON.parse((await row<{ payload: string }>("SELECT payload FROM jobs WHERE uuid = ?", read.job))!.payload).title_block)
+      .toEqual({ title: "As Printed", authors: ["A. Author"], journal: null, year: null, doi: null, arxiv_id: null });
+    const empty = await ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", title_block: { title: 3, authors: "A" } } });
+    expect(JSON.parse((await row<{ payload: string }>("SELECT payload FROM jobs WHERE uuid = ?", empty.job))!.payload).title_block).toBeUndefined();
   });
 
-  it("asks the indexes about a given identifier and never fetches the PDF, and turns to the analyzer only when they do not know it", async () => {
+  it("asks the indexes about a given identifier and never fetches the PDF, and turns to the title block only when they do not know it", async () => {
     const account = await register();
     const digest = await sha256(pdf);
     await env.FILES.put(`uploads/${digest}.pdf`, pdf);
-    const queue = (identifier: unknown) => ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier } });
+    const printed = titleBlock({ title: "As Printed", authors: ["P. Rinted"], journal: "The Page", year: 2020 });
+    const queue = (identifier: unknown, block: TitleBlock = printed) => ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: `${digest}.pdf`, uploaded_name: "Some-Paper.pdf", identifier, title_block: block } });
     const asked: string[] = [];
     const answers = (known: boolean) => apis({
-      "analyzer.test": () => { asked.push("analyzer"); return titleBlock({ title: "As Printed", authors: ["P. Rinted"], journal: "The Page", year: 2020 }); },
       "api.crossref.org": (url) => { asked.push(url.pathname); return known ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
       "api.openalex.org": () => { asked.push("openalex"); return new Response("", { status: 404 }); },
       "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 404 }); },
@@ -279,7 +292,7 @@ describe("an upload that went straight to the bucket", () => {
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
 
     // An arXiv id is asked about through its DataCite DOI, of DataCite,
-    // which registers it: neither CrossRef nor the host is asked.
+    // which registers it: CrossRef is not asked.
     asked.length = 0;
     apis({
       "api.datacite.org": (url) => { asked.push(url.pathname); return Response.json({ data: { attributes: {
@@ -287,7 +300,6 @@ describe("an upload that went straight to the bucket", () => {
         creators: [{ name: "Vaswani, Ashish", givenName: "Ashish", familyName: "Vaswani" }, { name: "Shazeer, Noam", givenName: "Noam", familyName: "Shazeer" }],
       } } }); },
       "api.crossref.org": (url) => { asked.push(url.pathname); return new Response("", { status: 404 }); },
-      "analyzer.test": () => { asked.push("analyzer"); return titleBlock(); },
     });
     const arxiv = await queue({ arxiv_id: "1706.03762v5" });
     await woken(arxiv.job);
@@ -295,22 +307,21 @@ describe("an upload that went straight to the bucket", () => {
       doi: "10.48550/arxiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani", "Noam Shazeer"]), journal: null, year: 2017,
     });
     expect(asked).toEqual([`/dois/${encodeURIComponent("10.48550/arxiv.1706.03762")}`]);
-    // DataCite down: the host reads the title block; OpenAlex is not asked.
+    // DataCite down: the title block as read; OpenAlex is not asked.
     asked.length = 0;
     apis({
       "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 503 }); },
       "api.crossref.org": () => { asked.push("crossref"); return Response.json(crossrefWork); },
       "api.openalex.org": () => { asked.push("openalex"); return Response.json({ display_name: "A wrong title" }); },
-      "analyzer.test": () => { asked.push("analyzer"); return titleBlock({ title: "Attention Is All You Need", authors: ["Ashish Vaswani"], year: 2017 }); },
     });
-    const fallback = await queue({ arxiv_id: "1706.03762v5" });
+    const fallback = await queue({ arxiv_id: "1706.03762v5" }, titleBlock({ title: "Attention Is All You Need", authors: ["Ashish Vaswani"], year: 2017 }));
     await woken(fallback.job);
     expect((await ok("GET", `/api/jobs/${fallback.job}`, { headers: account.headers })).result)
       .toMatchObject({ doi: "10.48550/arXiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani"]), year: 2017 });
-    expect(asked).toEqual(["datacite", "analyzer"]);
+    expect(asked).toEqual(["datacite"]);
 
-    // Unknown to the indexes: the analyzer reads the title block, and the
-    // given identifier stays on the form.
+    // Unknown to the indexes: the title block as read, and the given
+    // identifier stays on the form.
     asked.length = 0;
     answers(false);
     const unknown = await queue({ doi: "10.9999/nobody-knows" });
@@ -318,7 +329,7 @@ describe("an upload that went straight to the bucket", () => {
     expect((await ok("GET", `/api/jobs/${unknown.job}`, { headers: account.headers })).result)
       .toMatchObject({ doi: "10.9999/nobody-knows", title: "As Printed", authors: JSON.stringify(["P. Rinted"]), journal: "The Page", year: 2020 });
     // CrossRef has never heard of it: DataCite is asked, not OpenAlex.
-    expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "datacite", "analyzer"]);
+    expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "datacite"]);
   });
 
   it("asks the indexes about an identifier while the PDF goes up, and an upload that has its reading queues no job", async () => {
@@ -328,7 +339,6 @@ describe("an upload that went straight to the bucket", () => {
     apis({
       "api.crossref.org": (url) => { asked.push(url.pathname); return url.pathname.includes("2984511") ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
       "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 404 }); },
-      "analyzer.test": () => { asked.push("analyzer"); return titleBlock(); },
     });
     // Known: the form's fields, from the index alone; the PDF is not read.
     const known = await lookup({ doi: "10.1145/2984511.2984540" });
@@ -338,7 +348,6 @@ describe("an upload that went straight to the bucket", () => {
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
     // Known to none: 404, and the upload's job reads the PDF as ever.
     expect((await lookup({ doi: "10.9999/nobody-knows" })).status).toBe(404);
-    expect(asked).not.toContain("analyzer");
     // Nothing to look up is a bad request, not a paper nobody knows.
     expect((await lookup({ doi: "not a doi" })).status).toBe(422);
     expect((await lookup(null)).status).toBe(422);
@@ -380,8 +389,9 @@ describe("an upload that went straight to the bucket", () => {
     await env.FILES.put(`uploads/${digest}.pdf`, another);
     // Known to no index: the DOI stays as the browser read it, and is
     // compared without regard to case or the spaces around it.
-    apis({ "analyzer.test": () => titleBlock({ title: "As Printed" }), "api.crossref.org": () => new Response("", { status: 404 }), "api.openalex.org": () => new Response("", { status: 404 }) });
-    const queue = (filePath: string) => ok("POST", "/api/papers/uploaded", { headers: account.headers, json: { file_path: filePath, uploaded_name: "preprint.pdf", identifier: { doi: "10.1234/abc.def" } } });
+    apis({ "api.crossref.org": () => new Response("", { status: 404 }), "api.openalex.org": () => new Response("", { status: 404 }) });
+    const queue = (filePath: string) => ok("POST", "/api/papers/uploaded", { headers: account.headers,
+      json: { file_path: filePath, uploaded_name: "preprint.pdf", identifier: { doi: "10.1234/abc.def" }, title_block: titleBlock({ title: "As Printed" }) } });
     const preprint = await queue(`${digest}.pdf`);
     await woken(preprint.job);
     const read = await ok("GET", `/api/jobs/${preprint.job}`, { headers: account.headers });

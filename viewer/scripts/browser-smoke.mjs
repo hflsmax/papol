@@ -47,7 +47,7 @@ function smokePdf(contents) {
 
 // What the rules need to believe a page is a paper's: prose to learn its
 // text from, three entries under a References heading, and three markers
-// at least of the one way the paper cites (host/analyzer/src/rules).
+// at least of the one way the paper cites (analyzer/src/rules).
 const PROSE = [
   'Smoke rises from every fire that burns in the open air, and it carries',
   'with it the fine particles that the flame could not consume. It drifts',

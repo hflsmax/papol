@@ -2,7 +2,7 @@
 // the places in the text that point at it.
 
 import { least, most } from "./numbers";
-import type { DocumentLink, Float } from "../../../../cloudflare/src/papers/reading";
+import type { DocumentLink, Float } from "../../../cloudflare/src/papers/reading";
 import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {

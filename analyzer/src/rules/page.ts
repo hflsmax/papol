@@ -215,8 +215,10 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   return { number, width: right - left, height: top - bottom, runs, drawn, text };
 }
 
-export interface PdfDocument { numPages: number; getPage(number: number): Promise<unknown> }
+export interface PdfDocument { numPages: number; getPage(number: number): Promise<unknown>; getMetadata?(): Promise<{ info?: unknown }> }
 export interface ReadOptions {
+  // Only this many pages from the front: a title block is on the first.
+  pages?: number;
   cancelled?: () => boolean;
   pause?: () => Promise<void>;
   onPage?: (read: number, of: number) => void;
@@ -233,16 +235,17 @@ export interface ReadOptions {
 export async function readPages(
   doc: PdfDocument,
   OPS: Record<string, number>,
-  { cancelled = () => false, pause = async () => {}, onPage }: ReadOptions = {},
+  { pages: limit, cancelled = () => false, pause = async () => {}, onPage }: ReadOptions = {},
 ): Promise<Page[] | null> {
   const pages: Page[] = [];
-  for (let number = 1; number <= doc.numPages; number += 1) {
+  const last = Math.min(doc.numPages, limit ?? Infinity);
+  for (let number = 1; number <= last; number += 1) {
     await pause();
     if (cancelled()) return null;
     const page = (await doc.getPage(number)) as PdfPage & { cleanup?: () => void };
     pages.push(boundDrawn(await readPage(page, number, OPS)));
     page.cleanup?.();
-    onPage?.(number, doc.numPages);
+    onPage?.(number, last);
   }
   return cancelled() ? null : pages;
 }
@@ -260,4 +263,21 @@ function boundDrawn(page: Page): Page {
     x0 = Math.min(x0, d.x); y0 = Math.min(y0, d.y); x1 = Math.max(x1, d.x + d.w); y1 = Math.max(y1, d.y + d.h);
   }
   return { ...page, drawn: [{ x: x0, y: y0, w: x1 - x0, h: y1 - y0, image: false }] };
+}
+
+/** The PDF's own Info dictionary, where its maker filled it in. */
+export async function infoOf(doc: PdfDocument): Promise<Doc["info"]> {
+  try {
+    const meta = (await doc.getMetadata?.())?.info as { Title?: unknown; Author?: unknown } | undefined;
+    return { title: typeof meta?.Title === "string" ? meta.Title.trim() : "", author: typeof meta?.Author === "string" ? meta.Author.trim() : "" };
+  } catch {
+    // A PDF with no readable Info dictionary has none.
+    return { title: "", author: "" };
+  }
+}
+
+/** A document read as the rules read it: its pages and its Info. */
+export async function readDoc(doc: PdfDocument, OPS: Record<string, number>, options: ReadOptions = {}): Promise<Doc | null> {
+  const pages = await readPages(doc, OPS, options);
+  return pages && { pages, info: await infoOf(doc) };
 }

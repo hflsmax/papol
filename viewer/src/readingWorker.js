@@ -1,4 +1,4 @@
-import { analyzePages } from '../../host/analyzer/src/rules/paper.ts';
+import { analyzePages } from '../../analyzer/src/rules/paper.ts';
 
 // The analyzer's rules, off the page's own thread: laying out a whole paper
 // and finding its references, citations, figures and headings is the one

@@ -43,7 +43,7 @@ with a Cloudflare Queue as its wake-up and a cron sweep as its guarantee),
 and the consumer runs what the routes queued with nothing of the HTTP
 application involved. A job's handler is a domain function; the runner
 names every kind it knows in one table, and a route queues by kind. Work
-that takes longer than a request should — the reference analyzer, a
-browser, the mail API — is a job, and a route that needs it writes the job
+that takes longer than a request should — the indexes asked about an
+upload, a browser, the mail API — is a job, and a route that needs it writes the job
 in the same batch as its own rows and answers with the job's uuid for
 `GET /api/jobs/{uuid}`.

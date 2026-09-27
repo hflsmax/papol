@@ -356,10 +356,6 @@ export function lookUpViewerReference(paperSha256, reference, share = null) {
   return jsonRequest(`/viewer-references/${paperSha256}/resolve${on}`, 'POST', printedOf(reference));
 }
 
-export function resolveViewerReference(pdfHash, { key, raw }) {
-  return jsonRequest(`/viewer-references/${pdfHash}/preview`, 'POST', { key, raw });
-}
-
 // ---- Feedback ----
 
 export function submitFeedback({ content, page, contact }) {

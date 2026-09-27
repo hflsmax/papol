@@ -33,11 +33,11 @@ At rest, before any step:
 
 | Places | Row reads | Controls |
 |---|---|---|
-| 1 | *Cited only here* | none |
+| 1 | no row | none |
 | 2 or more | *Cited 4 times in this paper* | ↑ ↓ |
 
-*Cited only here* is worth saying: it tells the reader the work is mentioned
-in passing, which is itself an answer.
+A work cited once has no row: with nowhere else to go, the line only took
+room on the card (Cong, 2026-09-27).
 
 At rest the arrow keys scroll the page as ever; once exploring, ↑ and ↓ step
 (below).
@@ -174,6 +174,10 @@ while the reader is on page 3.
 
 ### Reading order: one server change
 
+Since 2026-09-27 the viewer reads the paper itself (`docs/rule-analyzer.md`)
+and takes the markers in the analyzer's order as they come; the server
+change below, and the tables it touched, are gone (migration 0011).
+
 The analyzer finds markers in reading order — it walks the text flows, and
 each page's lines, in the order they are read — but the Worker sorted them
 by `page, y, x`, which on a two-column page puts the top of the right column
@@ -232,8 +236,6 @@ exploration and its starting point: Back still goes home.
   analysis's order, a grouped marker counts for each work, a marker over a
   line and a page is one place where it begins; the clicked marker is found
   among them, or put in at its page.
-- Worker (`cloudflare/test/references.test.ts`): markers read in columns are
-  served in the analyzer's order; without ordinals, in page order.
 - Browser (`viewer/scripts/browser-smoke.mjs`, hermetic): a work cited on
   pages 1, 3 and 4. Stepping round and back and closing leaves no way back;
   ↓ keeps the card where it was, lights the marker on page 3, frames the

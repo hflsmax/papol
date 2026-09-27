@@ -12,8 +12,9 @@
 // predating this schema.
 //
 // The desktop app also names its version in that User-Agent, and a build
-// older than MINIMUM_DESKTOP_VERSION is refused too: it would send its
-// files through routes this Worker no longer has (phase 5, step 15).
+// older than MINIMUM_DESKTOP_VERSION is refused too: its viewer asks this
+// Worker for a reading of each paper, which the viewer now does itself,
+// and the routes that answered are gone.
 
 import registry from "../../schema/sync_registry.json";
 
@@ -22,7 +23,7 @@ export const AGENT_PREFIX = "Papol macOS/";
 // What the desktop's windows send, whose requests cannot set a User-Agent.
 export const DESKTOP_VERSION_HEADER = "X-Papol-Desktop-Version";
 export const DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases";
-export const MINIMUM_DESKTOP_VERSION = "0.5.0";
+export const MINIMUM_DESKTOP_VERSION = "0.6.0";
 
 export const SUPPORTED = "supported";
 export const INCOMPATIBLE = "incompatible";

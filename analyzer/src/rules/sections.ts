@@ -4,7 +4,7 @@
 // is set in, so a link to it is stored and followed like a link to a
 // figure (cloudflare/src/papers/reading.ts).
 
-import type { DocumentLink } from "../../../../cloudflare/src/papers/reading";
+import type { DocumentLink } from "../../../cloudflare/src/papers/reading";
 import { typeOf, type Found } from "./floats";
 import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
