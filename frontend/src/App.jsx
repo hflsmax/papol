@@ -154,6 +154,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [projectsRevision, setProjectsRevision] = useState(0);
   const [projectNewCount, setProjectNewCount] = useState(0);
+  const [myProjects, setMyProjects] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
   const [deskFileDrag, setDeskFileDrag] = useState(null);
@@ -378,12 +379,15 @@ export default function App({ startupUser = null, startupError = null }) {
   useEffect(() => {
     if (!user) {
       setProjectNewCount(0);
+      setMyProjects([]);
       return;
     }
     listProjects()
-      .then((projects) => setProjectNewCount(
-        projects.reduce((sum, project) => sum + (project.is_member ? project.new_count || 0 : 0), 0),
-      ))
+      .then((projects) => {
+        const mine = projects.filter((project) => project.is_member);
+        setMyProjects(mine);
+        setProjectNewCount(mine.reduce((sum, project) => sum + (project.new_count || 0), 0));
+      })
       .catch(() => {});
   }, [user, route, projectsRevision]);
 
@@ -468,7 +472,7 @@ export default function App({ startupUser = null, startupError = null }) {
     lastShown: lastShownListing(),
   });
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, projectNewCount, nook: nookState.nook, listing: desktopListing,
+    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing,
   });
   useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 

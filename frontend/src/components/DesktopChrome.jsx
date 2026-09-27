@@ -22,7 +22,7 @@ const MOD = MAC ? '⌘' : 'Ctrl+';
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
 // are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, projectNewCount, nook, listing }) {
+export function desktopNavigation({ user, route, unreadCount, projects = [], nook, listing }) {
   const page = route.page;
   if (!user) {
     return [
@@ -74,11 +74,33 @@ export function desktopNavigation({ user, route, unreadCount, projectNewCount, n
         active: at(`tag:${tag.uuid}`),
       })),
     }] : []),
+    // Each project is a place of its own, like a shelf; the last row leads
+    // to all of them, and to starting one.
+    {
+      label: 'Projects',
+      items: [
+        ...projects.map((project) => ({
+          key: `project:${project.uuid}`,
+          label: project.name,
+          path: `/project/${project.uuid}`,
+          glyph: 'folder',
+          active: ['project', 'discuss'].includes(page) && route.uuid === project.uuid,
+          count: project.new_count,
+          unread: true,
+        })),
+        {
+          key: 'projects',
+          label: projects.length ? 'All projects' : 'Projects',
+          path: '/projects',
+          glyph: projects.length ? 'projects' : 'folder',
+          active: ['projects', 'invitation'].includes(page),
+        },
+      ],
+    },
     {
       label: 'Papol',
       items: [
         { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
-        { key: 'projects', label: 'Projects', path: '/projects', glyph: 'folder', active: ['projects', 'project', 'invitation', 'discussion', 'discuss'].includes(page), count: projectNewCount, unread: true },
         { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
         { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
         ...(user.is_admin
