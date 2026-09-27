@@ -21,6 +21,6 @@
     "build:dev": "node scripts/write-info-plist.mjs src-tauri/tauri.dev.conf.json && APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY:--} tauri build --config src-tauri/tauri.dev.conf.json"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.8.5"
+    "@tauri-apps/cli": "^2.11.5"
   }
 }
