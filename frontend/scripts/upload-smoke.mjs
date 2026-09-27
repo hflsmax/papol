@@ -195,9 +195,15 @@ try {
       assert.equal(seen[1].method, 'PUT');
       assert.equal(seen[1].size, fixtureSize);
       assert.deepEqual(seen[1].headers, { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' });
-      assert.deepEqual(seen[2].body, {
+      // With the title block the browser read off the first page by the
+      // analyzer's rules (shared/printed.js).
+      const { title_block: titleBlock, ...told } = seen[2].body;
+      assert.deepEqual(told, {
         file_path: `${'b'.repeat(64)}.pdf`, uploaded_name: 'attention.pdf', identifier: { arxiv_id: '1706.03762v7' },
       });
+      assert.equal(titleBlock?.title, 'Attention Is All You Need');
+      assert.equal(titleBlock.authors[0], 'Ashish Vaswani');
+      assert.equal(titleBlock.year, 2017);
       // The wait was one bar, "Uploading", that reached the end before
       // "Extracting…" took its place (docs/waiting.md).
       const values = await browser.evaluate('return window.barSeen;');
