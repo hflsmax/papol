@@ -102,11 +102,28 @@ jobs:
         id: rust
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
+      # The pinned Rust, kept rather than fetched: rustup's download and
+      # unpacking took about 10 s of every Mac job. Saved by whichever
+      # run finds it missing, so a pin change costs one download.
+      - id: rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-lint
       # The version comes from rust-toolchain.toml; see its head for why.
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
           components: clippy, rustfmt
+      - if: steps.rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-lint
 
       # Saved from main only: every PR branch writing its own target/
       # would push the repository past GitHub's 10 GB and evict the rest.
@@ -158,9 +175,23 @@ jobs:
       - name: Read the pinned Rust
         id: rust
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - id: rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
+      - if: steps.rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       # One target/ for the three jobs: `cargo run` here and `tauri build
       # --debug` there compile the same dependencies. Saved from main
       # only, and by the app job alone, so none of them races for the key.
@@ -206,9 +237,23 @@ jobs:
       - name: Read the pinned Rust
         id: rust
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - id: rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
+      - if: steps.rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
@@ -256,9 +301,23 @@ jobs:
       - name: Read the pinned Rust
         id: rust
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - id: rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
+      - if: steps.rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+            ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
