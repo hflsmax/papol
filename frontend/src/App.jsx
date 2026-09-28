@@ -25,7 +25,7 @@ import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects } from '../../shared/api/projects.js';
-import { BAZAAR, WayBar, WayFoot } from './components/Way';
+import { BAZAAR, WayBar, WayFoot, WayShown } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
@@ -1051,7 +1051,7 @@ export default function App({ startupUser = null, startupError = null }) {
             </button>
           )}
         </header>}
-        {pages}
+        <WayShown.Provider value={hasWay}>{pages}</WayShown.Provider>
         {hasWay && !insideProject && <WayFoot user={user} macDownloadUrl={MACOS_DOWNLOAD_URL} />}
       </div>
     </>

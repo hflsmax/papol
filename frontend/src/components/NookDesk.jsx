@@ -9,6 +9,7 @@ import { RatingDots } from './Rating';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { InWay } from './Way';
 
 const added = (at) => {
   const day = new Date(at);
@@ -193,16 +194,16 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             onOpen={onOpenCanvas}
             paperLink={(p) => paperPlace(p.sha256, { board })}
             hideBack
+            held={Boolean(paper)}
             onChanged={onChanged}
             onDeleted={() => { onChanged?.(); onSelectBoard(null); }}
           />
         </section>
       )}
       <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
-        <div className="desk-main-head">
-          <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
-          <div className="desk-actions">{adding}</div>
-        </div>
+        {!(project || paper || board || reviewing) && (
+          <InWay><h2 id="desk-papers" className="desk-main-title">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2></InWay>
+        )}
         <div ref={filterRef} className="desk-filter">
           {nook.papers.length > 0 && (
             <input
@@ -225,6 +226,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               </div>
             )}
           </div>
+          <div className="desk-actions">{adding}</div>
         </div>
         {papers.length > 0 && (
           <table className={showMerit ? 'desk-table' : 'desk-table no-merit'}>

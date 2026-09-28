@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { appPath } from '../base';
 import Avatar from './Avatar';
@@ -17,7 +17,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
-        <a className="way-mark" href={appPath('/')}>Papol</a>
+        <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/favicon.svg')} alt="Papol" width="28" height="28" /></a>
         <span className="way-trail" id="way-slot" />
         <span className="way-trail way-default">
           {trail.map(({ path, label }) => <a key={path} href={appPath(path)}>{label}</a>)}
@@ -43,11 +43,18 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   );
 }
 
-// What a page adds to the bar's trail: the steps between Papol and the
-// page itself, each a link. It takes the place of the bar's own guess.
-export function InWay({ children }) {
+// Whether this page is drawn under the bar: a signed-in member on the web.
+export const WayShown = createContext(false);
+
+// What a page puts on the bar's line: its title and the controls beside it,
+// or the steps between Papol and the page. It takes the place of the bar's
+// own guess. Where there is no bar (a visitor, the Mac app), or while the
+// page is kept hidden behind another (`held`), it stays where the page put it.
+export function InWay({ children, held = false }) {
+  const shown = useContext(WayShown) && !held;
   const [slot, setSlot] = useState(null);
-  useEffect(() => { setSlot(document.getElementById('way-slot')); }, []);
+  useLayoutEffect(() => { setSlot(shown ? document.getElementById('way-slot') : null); }, [shown]);
+  if (!shown) return children;
   return slot ? createPortal(children, slot) : null;
 }
 
