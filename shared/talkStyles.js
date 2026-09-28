@@ -70,7 +70,8 @@ export const talkStyles = `
 .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
-.talk-post.is-new .talk-post-head time::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
+.talk-post.is-new .talk-post-head time { display: inline-flex; align-items: center; }
+.talk-post.is-new .talk-post-head time::after { content: ''; flex: none; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); }
 .talk-post-head .item-actions { margin-left: auto; visibility: hidden; }
 .talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
 @media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }
@@ -85,8 +86,8 @@ export const talkStyles = `
 .talk-dig-new textarea:focus { min-height: 96px; border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
 /* A folded box: one quiet word that opens it. */
-.talk-unfold { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 28px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-sm) var(--font-ui); }
-.talk-unfold:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
+.talk-unfold { display: inline-flex; align-self: flex-start; width: max-content; align-items: center; gap: 6px; box-sizing: border-box; min-height: 30px; padding: 0 12px; font: 500 var(--fs-sm)/1 var(--font-ui); }
+.talk-unfold:has(.mini-avatar) { padding-left: 5px; }
 .talk-unfold .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p { margin: 0 0 3px; }

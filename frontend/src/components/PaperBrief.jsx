@@ -79,9 +79,9 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             Read
           </a>
           {!paper.in_my_nook && (
-            <button type="button" className="paper-brief-quiet" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
+            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
           )}
-          {canTakeOut && <button type="button" className="paper-brief-quiet paper-brief-take-out" onClick={takeOut}>Take out</button>}
+          {canTakeOut && <button type="button" className="paper-brief-take-out" onClick={takeOut}>Take out</button>}
         </div>
       </header>
       {notice && <div className="error" role="alert">{notice}</div>}

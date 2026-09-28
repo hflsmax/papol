@@ -5395,13 +5395,12 @@ ${talkStyles}
 .paper-brief-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); text-wrap: balance; }
 .paper-brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .paper-brief-authors { font: italic var(--fs-md) var(--font-serif); }
-.paper-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
-.paper-brief-actions .button { font-family: var(--font-ui); }
-.paper-brief-quiet { display: inline-flex; align-items: center; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
-.paper-brief-quiet:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.paper-brief-quiet .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.paper-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+/* Every action is a button of one size; Read alone is filled. */
+.paper-brief-actions :is(.button, button) { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; min-height: 32px; padding: 0 14px; font: 500 var(--fs-sm)/1 var(--font-ui); }
+.paper-brief-actions .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .paper-brief-take-out { margin-left: auto; }
-.paper-brief-take-out:hover:not(:disabled) { color: var(--red); }
+.paper-brief-take-out:hover:not(:disabled) { border-color: var(--red-line); background: var(--red-soft); color: var(--red); }
 .paper-brief .project-paper-added { margin-top: calc(-1 * var(--space-2)); }
 /* The paper's digs, each on a sheet of its own: parted by space and tone,
    everything in a sheet on one left edge, the posts a step in from the dig. */
@@ -5432,7 +5431,7 @@ ${talkStyles}
 .paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 36px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
-.paper-brief-dig .talk-unfold.is-post { margin: var(--space-1) 0 0 28px; }
+.paper-brief-dig .talk-unfold.is-post { margin: var(--space-2) 0 0 28px; }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: var(--space-1) var(--space-4) 0; background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }

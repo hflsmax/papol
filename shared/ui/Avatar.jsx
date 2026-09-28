@@ -16,7 +16,7 @@ export default function Avatar({ user, className }) {
   }
   return (
     <span className={`avatar-initial avatar-tint-${tintOf(user)} ${className}`}>
-      {user.display_name.charAt(0).toUpperCase()}
+      <span className="avatar-letter">{user.display_name.charAt(0).toUpperCase()}</span>
     </span>
   );
 }
