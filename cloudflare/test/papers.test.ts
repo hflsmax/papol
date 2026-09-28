@@ -5,9 +5,11 @@ import { createExecutionContext, createMessageBatch, env } from "cloudflare:test
 import { describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
+import { enqueue } from "../src/jobs/queue";
 import type { Wakeup } from "../src/jobs/run";
 import { byDoi, summarizeCrossref, summarizeOpenalex } from "../src/papers/bibliography";
 import { extractDoi, extractArxivId, titleFromFilename } from "../src/papers/extract";
+import { VENUES } from "../src/papers/venues";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
 const A_PAPER = "a1b2c3d4" + "0".repeat(24) + "f".repeat(32);
@@ -234,6 +236,36 @@ describe("what a PDF says about itself", () => {
     asked.length = 0;
     await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.0000/stale-doi")}`]);
+  });
+});
+
+describe("every paper's venue, asked again", () => {
+  it("rewrites a venue from the paper's DOI, or from its title when it has an arXiv DOI or none", async () => {
+    const pacmpl = "Proceedings of the ACM on Programming Languages";
+    const at = new Date().toISOString();
+    const paper = (digest: string, title: string, doi: string | null, journal: string | null) =>
+      exec("INSERT INTO papers (sha256, doi, title, authors, journal, year, file_path, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 2024, ?, ?, ?, 1)",
+        digest, doi, title, JSON.stringify(["Yuting Wang", "Zhong Shao"]), journal, `${digest}.pdf`, at, at);
+    const [byDoi, preprint, unknown] = ["a", "b", "c"].map((c) => c.repeat(64));
+    await paper(byDoi, "Linear Haskell", "10.1145/3158093", pacmpl);
+    await paper(preprint, "An Abstract Stack Based Approach to Verified Compositional Compilation to Machine Code", "10.48550/arXiv.2311.12345", null);
+    await paper(unknown, "Nobody Has Heard Of This", null, "The Page");
+    apis({
+      "api.crossref.org": (url) => url.pathname.startsWith("/works/")
+        ? Response.json({ message: { DOI: "10.1145/3158093", title: ["Linear Haskell"], "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2018]] } } })
+        : Response.json({ message: { items: [{ DOI: "10.1145/3632925", title: ["An Abstract Stack Based Approach to Verified Compositional Compilation to Machine Code"],
+          "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2024]] }, author: [{ given: "Yuting", family: "Wang" }] }] } }),
+      "api.openalex.org": () => Response.json({ results: [] }),
+    });
+    const job = enqueue(env.DB, VENUES);
+    await job.statement.run();
+    await woken(job.uuid);
+    expect(await rows("SELECT sha256, journal, revision FROM papers ORDER BY sha256")).toEqual([
+      { sha256: byDoi, journal: "POPL", revision: 2 },
+      { sha256: preprint, journal: "POPL", revision: 2 },
+      { sha256: unknown, journal: "The Page", revision: 1 },
+    ]);
+    expect(await row("SELECT status FROM jobs WHERE uuid = ?", job.uuid)).toEqual({ status: "done" });
   });
 });
 
