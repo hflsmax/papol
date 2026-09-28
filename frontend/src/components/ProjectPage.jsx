@@ -11,6 +11,7 @@ import {
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { InToolbar } from './DesktopChrome';
+import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { formatAuthors } from '../paperFormat.js';
 import { coloursFor } from '../activityView.js';
 import Avatar from './Avatar';
@@ -184,6 +185,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         <InToolbar>
           <div className="project-toolbar talk-host" data-toolbar-title>
             {title}
+            <ExperimentalBadge />
           </div>
           {tabs}
           {seats}
@@ -195,6 +197,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             <div className="project-head-main">
               <div className="project-title-row">
                 {title}
+                <ExperimentalBadge />
               </div>
               {project.is_member && active && <p className="project-tally">{active}</p>}
             </div>

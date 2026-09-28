@@ -5668,6 +5668,8 @@ ${desktopStyles}
   margin-bottom: var(--space-5);
 }
 .projects-head h2 { font-size: var(--fs-2xl); }
+.projects-head .experimental-badge { margin-right: auto; }
+.project-title-row .experimental-badge, .project-toolbar .experimental-badge { flex: none; }
 .projects-kicker { margin: var(--space-5) 0 var(--space-2); }
 .projects-head + .projects-kicker { margin-top: 0; }
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }

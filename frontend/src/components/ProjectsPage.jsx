@@ -4,6 +4,7 @@ import { createProject, listProjects } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
 import ProjectMembers, { keeperNames } from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
+import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 
 const SHOWN = 5;
 
@@ -60,6 +61,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) 
     <div className="projects-page">
       <div className="projects-head">
         <h2>Projects</h2>
+        <ExperimentalBadge />
         {projects && !naming && (
           <button type="button" onClick={() => setNaming(true)}>New project</button>
         )}
