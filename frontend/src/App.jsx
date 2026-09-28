@@ -128,6 +128,14 @@ function openShelfInNook(uuid) {
 function openProjectInNook(uuid) {
   navigate(uuid ? `/?project=${uuid}` : '/');
 }
+// A paper opens its jacket beside the rail, the shelf it was picked from
+// still chosen there.
+function openPaperInNook(sha256, shelf = null) {
+  const query = new URLSearchParams();
+  if (shelf) query.set('shelf', shelf);
+  query.set('paper', paperName(sha256));
+  navigate(`/?${query}`);
+}
 
 // The way in, from the jacket. The canvas is a separate application, so this
 // leaves the Desk — on the desktop into a document window beside it, on
@@ -677,6 +685,18 @@ export default function App({ startupUser = null, startupError = null }) {
             shelf={hasWay ? new URLSearchParams(window.location.search).get('shelf') : null}
             onSelectShelf={openShelfInNook}
             project={hasWay ? new URLSearchParams(window.location.search).get('project') : null}
+            paper={hasWay ? new URLSearchParams(window.location.search).get('paper') : null}
+            onOpenPaper={openPaperInNook}
+            renderPaper={(name) => (
+              <PaperJacket
+                key={name}
+                paperSha256={name}
+                currentUser={user}
+                hideBack
+                onSelectPaper={(sha256) => openPaperInNook(sha256)}
+                onReportableError={offerErrorReport}
+              />
+            )}
             onSelectProject={openProjectInNook}
             renderProject={(uuid) => (
               <ProjectPage

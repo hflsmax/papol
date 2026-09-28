@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { paperHref } from '../../../shared/api/papers.js';
+import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import BoardCreateForm from './BoardCreateForm';
@@ -26,8 +26,9 @@ function Faces({ users, max }) {
 
 // A member's own nook on the web: a rail of places beside the main area.
 // Every place in the rail opens in the main area: a project its desk, a
-// shelf (or all papers) its papers, a board its jacket. Search and tags narrow what the main area shows.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, onSelectProject, renderProject, onOpenCanvas, onChanged }) {
+// shelf (or all papers) its papers, a board its jacket; and a paper picked
+// from a shelf's papers its jacket, the shelf still chosen. Search and tags narrow what the main area shows.
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, onSelectProject, renderProject, paper = null, onOpenPaper, renderPaper, onOpenCanvas, onChanged }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
@@ -144,6 +145,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
 
       {project ? (
         <section className="desk-main desk-project-view">{renderProject(project)}</section>
+      ) : paper && !board ? (
+        <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>
       ) : board ? (
         <section className="desk-main desk-board">
           <BoardJacket
@@ -201,7 +204,11 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                 return (
                   <tr key={paper.sha256} style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}>
                     <td className="desk-col-title">
-                      <a className="desk-title" href={paperHref(paper)}>{paper.title}</a>
+                      <a
+                        className="desk-title"
+                        href={appPath(`/?${new URLSearchParams([...(shelf ? [['shelf', shelf]] : []), ['paper', paperName(paper.sha256)]])}`)}
+                        onClick={(event) => { event.preventDefault(); onOpenPaper(paper.sha256, shelf); }}
+                      >{paper.title}</a>
                       {paper.room_status && <StatePill status={paper.room_status} />}
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
