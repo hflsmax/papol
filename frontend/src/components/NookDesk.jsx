@@ -194,6 +194,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             onOpen={onOpenCanvas}
             paperLink={(p) => paperPlace(p.sha256, { board })}
             hideBack
+            held={Boolean(paper)}
             onChanged={onChanged}
             onDeleted={() => { onChanged?.(); onSelectBoard(null); }}
           />

@@ -16,6 +16,7 @@ import { authorList } from '../paperFormat';
 import { appPath } from '../base';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { keep, kept } from '../lastMember';
+import { InWay } from './Way';
 
 /**
  * A board's jacket: what is known about it, and the way in.
@@ -54,7 +55,7 @@ const paperByline = (paper) => {
 
 export default function BoardJacket({
   boardUuid, onOpen, onBack, backHref, backLabel = 'Back',
-  hideBack = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
+  hideBack = false, held = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
 }) {
   const [board, setBoard] = useState(() => kept(`board:${boardUuid}`));
   const [error, setError] = useState(null);
@@ -186,63 +187,65 @@ export default function BoardJacket({
       {error && <div className="error" role="alert">{error}</div>}
 
       <div className="panel">
-        <div className="detail-title-row board-jacket-title-row">
-          <div className="board-jacket-heading">
-            {editing === 'name' ? (
-              <input
-                className="board-jacket-name-input"
-                value={draft}
-                maxLength={appLimits.text.board_name}
-                aria-label="Board name"
-                autoFocus
-                onFocus={(event) => event.target.select()}
-                onChange={(event) => setDraft(event.target.value)}
-                onBlur={finishEditing}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') { event.preventDefault(); finishEditing(); }
-                  if (event.key === 'Escape') cancelEditing();
-                }}
-              />
-            ) : (
-              <h2
-                className={mine ? 'board-jacket-editable' : undefined}
-                {...(mine ? {
-                  tabIndex: 0,
-                  title: 'Rename this board',
-                  onClick: () => beginEditing('name'),
-                  onKeyDown: beginWithKeyboard('name'),
-                } : {})}
-              >
-                {board.name}
-              </h2>
-            )}
-            <ExperimentalBadge />
-          </div>
-          {mine && (
-            <div className="detail-toggle">
-              {shelves.length > 0 && (
-                <span className="hint-anchor paper-shelf-picker">
-                  <label htmlFor="board-shelf">Shelf:</label>
-                  <select id="board-shelf" value={board.shelf_uuid || ''} onChange={(event) => moveToShelf(event.target.value)}>
-                    {shelves.map((shelf) => (
-                      <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
-                    ))}
-                  </select>
-                  {shelfWarning && <HintPop text={shelfWarning} onClose={() => setShelfWarning(null)} />}
-                </span>
+        <InWay held={held}>
+          <div className="detail-title-row board-jacket-title-row">
+            <div className="board-jacket-heading">
+              {editing === 'name' ? (
+                <input
+                  className="board-jacket-name-input"
+                  value={draft}
+                  maxLength={appLimits.text.board_name}
+                  aria-label="Board name"
+                  autoFocus
+                  onFocus={(event) => event.target.select()}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onBlur={finishEditing}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') { event.preventDefault(); finishEditing(); }
+                    if (event.key === 'Escape') cancelEditing();
+                  }}
+                />
+              ) : (
+                <h2
+                  className={mine ? 'board-jacket-editable' : undefined}
+                  {...(mine ? {
+                    tabIndex: 0,
+                    title: 'Rename this board',
+                    onClick: () => beginEditing('name'),
+                    onKeyDown: beginWithKeyboard('name'),
+                  } : {})}
+                >
+                  {board.name}
+                </h2>
               )}
-              <button
-                type="button"
-                className="icon-button danger-icon"
-                onClick={remove}
-                title="Delete this board — its cards go with it"
-                aria-label="Delete this board"
-              >
-                <TrashGlyph />
-              </button>
+              <ExperimentalBadge />
             </div>
-          )}
-        </div>
+            {mine && (
+              <div className="detail-toggle">
+                {shelves.length > 0 && (
+                  <span className="hint-anchor paper-shelf-picker">
+                    <label htmlFor="board-shelf">Shelf:</label>
+                    <select id="board-shelf" value={board.shelf_uuid || ''} onChange={(event) => moveToShelf(event.target.value)}>
+                      {shelves.map((shelf) => (
+                        <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                      ))}
+                    </select>
+                    {shelfWarning && <HintPop text={shelfWarning} onClose={() => setShelfWarning(null)} />}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="icon-button danger-icon"
+                  onClick={remove}
+                  title="Delete this board — its cards go with it"
+                  aria-label="Delete this board"
+                >
+                  <TrashGlyph />
+                </button>
+              </div>
+            )}
+          </div>
+        </InWay>
 
         <p className="board-jacket-facts" aria-label="About this board">
           {facts.map((fact) => (

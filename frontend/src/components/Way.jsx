@@ -46,13 +46,14 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
 // Whether this page is drawn under the bar: a signed-in member on the web.
 export const WayShown = createContext(false);
 
-// What a page puts on the bar's line: its title, or the steps between Papol
-// and the page. It takes the place of the bar's own guess. Where there is no
-// bar (a visitor, the Mac app) it stays where the page put it.
-export function InWay({ children }) {
-  const shown = useContext(WayShown);
+// What a page puts on the bar's line: its title and the controls beside it,
+// or the steps between Papol and the page. It takes the place of the bar's
+// own guess. Where there is no bar (a visitor, the Mac app), or while the
+// page is kept hidden behind another (`held`), it stays where the page put it.
+export function InWay({ children, held = false }) {
+  const shown = useContext(WayShown) && !held;
   const [slot, setSlot] = useState(null);
-  useLayoutEffect(() => { if (shown) setSlot(document.getElementById('way-slot')); }, [shown]);
+  useLayoutEffect(() => { setSlot(shown ? document.getElementById('way-slot') : null); }, [shown]);
   if (!shown) return children;
   return slot ? createPortal(children, slot) : null;
 }

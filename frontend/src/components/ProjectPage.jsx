@@ -203,9 +203,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 {title}
                 <ExperimentalBadge />
               </div>
+              {seats}
             </InWay>
             {tabs}
-            {seats}
           </header>
         </>
       )}

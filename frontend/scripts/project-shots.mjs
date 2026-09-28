@@ -62,15 +62,15 @@ const SHOTS = {
   'nook-effort': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop-total')", size: wide },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
-  'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket-heading')", size: wide },
+  'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket') && document.querySelector('.board-jacket-heading')", size: wide },
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
   'nook-project-rail': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", hover: '.desk-strip-mark', size: wide },
-  'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
-  'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
+  'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2')", size: wide },
+  'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2')", size: wide },
   // Everyone's projects in the Bazaar, one the member is not in.
   'bazaar-projects': { path: '/projects?shell=web', ready: "document.querySelector('.projects-row.closed')", size: wide },
   library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
-  paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: wide },
+  paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2')", size: wide },
   you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
   'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
@@ -86,7 +86,7 @@ const SHOTS = {
   'nook-return': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: [`/users/${ME}/nook`], then: "document.querySelector('.way-aside a').click(); return new Promise((done) => setTimeout(() => { document.querySelector('.way-mark').click(); done(true); }, 1000));", settled: "document.querySelector('.nook .desk-title')", size: wide },
   'nook-loading': { path: '/?shell=web', hold: [`/users/${ME}/nook`], ready: "document.querySelector('.nook, .loading')", size: wide },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
-  'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: phone },
+  'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2')", size: phone },
   // On a phone the brief opens under its row.
   'phone-paper': { ...desk('papers', '.project-paper-open .talk-post', `if (!document.querySelector('.project-paper-open')) document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=web'), size: phone },
 };

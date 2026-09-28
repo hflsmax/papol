@@ -164,15 +164,21 @@ ${commonStyles}
 .way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .way-default a::before, #way-slot > a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
 
-/* A page's own title stands on the bar's line, on its baseline, so the page
-   starts at the top of the window. In the nook "Papol" takes the rail's
-   width, so the title starts where the page does. */
-#way-slot { flex: 1; color: var(--ink); }
+/* A page's own title stands on the bar's line, on its baseline, at the
+   size a project's name had, with the page's own controls (a project's
+   people, a shelf, the trash) at the line's end; the page starts under it.
+   In the nook "Papol" takes the rail's width, so the title starts where the
+   page does. */
+#way-slot { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); color: var(--ink); }
+#way-slot:empty { display: none; }
 #way-slot > h2,
-#way-slot .project-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); }
+#way-slot .project-title,
+#way-slot .detail-title-row h2 { margin: 0; font: 600 var(--fs-hero)/1.15 var(--font-serif); color: var(--ink); }
 #way-slot > h2 { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
-#way-slot .project-title-row { align-items: baseline; }
-#way-slot .project-title-row .experimental-badge { align-self: center; }
+#way-slot > h2 .desk-count { font: 400 var(--fs-md) var(--font-ui); }
+#way-slot > .project-title-row { flex: 1 1 auto; }
+#way-slot > .project-seats { margin-left: auto; }
+#way-slot > .detail-title-row { flex: 1; min-width: 0; margin: 0; }
 .app:has(.nook-desk) .way { gap: 0; }
 .app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
 .app:has(.nook-desk.is-folded) .way-mark { width: calc(2.25rem + var(--space-5)); }
@@ -218,6 +224,7 @@ ${commonStyles}
   .app:has(.nook-desk) .way-mark { flex: 1; width: auto; }
   .app:has(.nook-desk) #way-slot { order: 1; flex: 1 1 100%; min-width: 0; }
   .app:has(.nook-desk) #way-slot:empty { display: none; }
+  .app:has(.nook-desk) #way-slot > .project-seats { margin-left: calc(-1 * var(--space-1)); }
 }
 
 /* About, Learn and the Mac app, for a member: at the foot of the page.

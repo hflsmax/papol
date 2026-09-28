@@ -10,6 +10,7 @@ import {
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
+import { InWay } from './Way';
 import { readPrintedAt } from '../pdfIdentifier.js';
 import CommentSection from './CommentSection';
 import HintPop from './HintPop';
@@ -589,50 +590,52 @@ export default function PaperJacket({
         </div>
       ) : (
         <div className="paper-info">
-          <div className="detail-title-row">
-            <h2><PaperTitle title={paper.title} /></h2>
-            {hasEntry && (
-              <div className="detail-toggle">
-                <span className="hint-anchor paper-shelf-picker">
-                  <label htmlFor="paper-shelf">Shelf:</label>
-                  <select id="paper-shelf" value={paper.shelf_uuid || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.uuid) === e.target.value)?.uuid)}>
-                    {shelves.map((shelf) => (
-                      <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
-                    ))}
-                  </select>
-                  {toggleWarning && (
-                    <HintPop
-                      text={toggleWarning}
-                      onClose={() => setToggleWarning(null)}
-                    />
-                  )}
-                </span>
-                <button
-                  className="icon-button danger-icon"
-                  onClick={handleDelete}
-                  title="Remove this paper from my nook — my ratings and notes go with it"
-                  aria-label="Remove from my nook"
-                >
-                  <svg
-                    width="19"
-                    height="19"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
+          <InWay>
+            <div className="detail-title-row">
+              <h2><PaperTitle title={paper.title} /></h2>
+              {hasEntry && (
+                <div className="detail-toggle">
+                  <span className="hint-anchor paper-shelf-picker">
+                    <label htmlFor="paper-shelf">Shelf:</label>
+                    <select id="paper-shelf" value={paper.shelf_uuid || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.uuid) === e.target.value)?.uuid)}>
+                      {shelves.map((shelf) => (
+                        <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+                      ))}
+                    </select>
+                    {toggleWarning && (
+                      <HintPop
+                        text={toggleWarning}
+                        onClose={() => setToggleWarning(null)}
+                      />
+                    )}
+                  </span>
+                  <button
+                    className="icon-button danger-icon"
+                    onClick={handleDelete}
+                    title="Remove this paper from my nook — my ratings and notes go with it"
+                    aria-label="Remove from my nook"
                   >
-                    <path d="M2.6 4h10.8" />
-                    <path d="M6.2 4V2.7h3.6V4" />
-                    <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
-                    <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
+                    <svg
+                      width="19"
+                      height="19"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.6 4h10.8" />
+                      <path d="M6.2 4V2.7h3.6V4" />
+                      <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
+                      <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          </InWay>
 
           {authors.length > 0 && (
             <div className="detail-authors-row">

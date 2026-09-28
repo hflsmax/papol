@@ -181,8 +181,10 @@ sidebar, toolbar and document windows.
   letter each, and the project takes the width; resting on the strip lays
   the whole rail over the project's edge. A phone shows no rail there.
 - **The bar carries the page's title.** Over a member's pages sits one line:
-  Papol, the page's own title (Papers, a shelf, a project's name) on the
-  same baseline, then the Bazaar and the member. In the nook the title
+  Papol, the page's own title (Papers, a shelf, a project, a board, a paper)
+  at a project name's size on the same baseline, the page's own controls
+  beside it (a project's people and Invite, a shelf picker and the trash),
+  then the Bazaar and the member. In the nook the title
   starts where the page does, so the page begins at the top of the window;
   on a narrow window the title takes the line under it. A page puts its
   title there with `InWay`; without the bar (a visitor, the Mac app) the
