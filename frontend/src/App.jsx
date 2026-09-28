@@ -65,6 +65,9 @@ import {
 } from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
+// Where a member works inside one project.
+export const PROJECT_PAGES = new Set(['project', 'brief', 'discussion', 'discuss']);
+
 const SIGN_IN_PAGES = new Set([
   'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
   'projects', 'project', 'brief', 'invitation', 'discussion', 'discuss',
@@ -888,6 +891,10 @@ export default function App({ startupUser = null, startupError = null }) {
     );
   }
 
+  // The pages inside a project fill the window, with no masthead above
+  // them: a member at work in a project is not browsing Papol. Each page
+  // keeps a small way back to Papol and to the project.
+  const insideProject = user && PROJECT_PAGES.has(route.page);
   return (
     <>
       <style>{applicationStyles}</style>
@@ -908,8 +915,8 @@ export default function App({ startupUser = null, startupError = null }) {
       {/* Which page this URL opened, said out loud. The browser smoke
           test and the health probe read it to tell a link that arrived
           from one that quietly fell through to the home page. */}
-      <div className="app" data-page={route.page} onClickCapture={routeAppLinks}>
-        <header className="topnav">
+      <div className={`app${insideProject ? ' is-project' : ''}`} data-page={route.page} onClickCapture={routeAppLinks}>
+        {!insideProject && <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
             {user ? (
@@ -1001,7 +1008,7 @@ export default function App({ startupUser = null, startupError = null }) {
               Sign in
             </button>
           ) : null}
-        </header>
+        </header>}
         {pages}
       </div>
     </>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -54,6 +54,19 @@ export function Faces({ users, max = 4 }) {
       {shown.map((user) => <Avatar key={user.uuid} user={user} className="mini-avatar" />)}
       {more > 0 && <span className="project-faces-more">+{more}</span>}
     </span>
+  );
+}
+
+// The way out of a project's pages on the web, where no masthead sits
+// above them: Papol, its projects, and (from a brief or a dig) the project.
+export function ProjectWay({ project }) {
+  if (DESKTOP) return null;
+  return (
+    <nav className="project-way" aria-label="Where this is">
+      <a className="project-way-mark" href={appPath('/')}>Papol</a>
+      <a href={appPath('/projects')}>Projects</a>
+      {project && <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>}
+    </nav>
   );
 }
 
@@ -137,23 +150,20 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
 
   const talkedAbout = project.discussions ?? [];
   const boards = project.boards ?? [];
-  const latest = [
-    ...project.papers.map((p) => p.added_at), ...talkedAbout.map((d) => d.updated_at), ...boards.map((b) => b.updated_at),
-  ].filter(Boolean).sort().at(-1);
   const newPapers = project.papers.filter((p) => p.is_new).length;
   const newTalk = talkedAbout.filter((d) => d.is_new).length;
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
-  const active = latest && `active ${when(latest)}`;
   const tabs = project.is_member && (
     <DeskTabs
       view={view} onView={setView}
       counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
-      fresh={{ papers: newPapers > 0, digs: newTalk > 0 }}
+      fresh={{ papers: newPapers, digs: newTalk }}
     />
   );
   const seats = project.is_member ? (
     <div className="project-seats">
+      {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
       <button
         type="button" className="project-seat-row" aria-expanded={open} aria-controls="project-people"
         aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
@@ -194,14 +204,13 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         </InToolbar>
       ) : (
         <>
-          <BackLink className="back-button" href={backHref} onBack={onBack} />
+          <ProjectWay />
           <header className="project-head talk-host">
             <div className="project-head-main">
               <div className="project-title-row">
                 {title}
                 <ExperimentalBadge />
               </div>
-              {project.is_member && active && <p className="project-tally">{active}</p>}
             </div>
             {seats}
           </header>
@@ -214,7 +223,6 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         <p className="project-closed">By invitation. Kept by {keeperNames(project.members)}.</p>
       ) : (
         <>
-          {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} />}
           <div className="project-desk" role="tabpanel" id="project-view" aria-labelledby={`project-tab-${view}`}>
             {view === 'papers' && (
               <ProjectPapers
@@ -225,7 +233,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 onOpenBrief={onOpenBrief}
               />
             )}
-            {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} />}
+            {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} currentUser={currentUser} />}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} onRead={readDig} />}
           </div>
         </>
@@ -234,9 +242,18 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   );
 }
 
-// Who is in it, the one invitation link for a keeper, and leaving.
-function People({ project, currentUser, act, onLeft }) {
+// Who is in it, the one invitation link for a keeper, and leaving: a
+// card under the seats, so the desk stays where the eye was.
+function People({ project, currentUser, act, onLeft, onClose }) {
   const alone = project.members.length === 1;
+  const self = useRef(null);
+  useEffect(() => {
+    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-seat-row, .project-invite-open')) onClose(); };
+    const escape = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
+  }, [onClose]);
   const leave = async () => {
     const ok = await confirmAction(
       alone ? `Leave ${project.name}? It ends when its last member leaves.` : `Leave ${project.name}?`,
@@ -245,7 +262,7 @@ function People({ project, currentUser, act, onLeft }) {
     if (ok && await act(() => removeMember(project.uuid, currentUser.uuid))) onLeft?.();
   };
   return (
-    <section id="project-people" className="project-people" aria-label="Members">
+    <section id="project-people" className="project-people" aria-label="Members" ref={self}>
       {project.is_keeper && <Invitation project={project} act={act} />}
       <ul className="project-people-list">
         {project.members.map((member) => {
@@ -259,7 +276,11 @@ function People({ project, currentUser, act, onLeft }) {
               {(me || member.is_keeper) && (
                 <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
               )}
-              {project.is_keeper && !me && (
+              {me ? (
+                <span className="project-person-actions">
+                  <button type="button" className="project-quiet project-danger" onClick={leave}>Leave</button>
+                </span>
+              ) : project.is_keeper && (
                 <span className="project-person-actions">
                   <button type="button" className="project-quiet" onClick={() => act(() => setKeeper(project.uuid, member.user.uuid, !member.is_keeper))}>
                     {member.is_keeper ? 'Not keeper' : 'Make keeper'}
@@ -273,7 +294,6 @@ function People({ project, currentUser, act, onLeft }) {
           );
         })}
       </ul>
-      <button type="button" className="project-quiet project-danger project-leave" onClick={leave}>Leave project</button>
     </section>
   );
 }
@@ -310,7 +330,6 @@ function Invitation({ project, act }) {
       <button type="button" className="project-quiet" onClick={() => act(async () => { setCopied(false); await revokeInvitation(project.uuid); return getProject(project.uuid); })}>
         Stop link
       </button>
-      <span className="project-invite-note">Anyone with the link can join.</span>
     </div>
   );
 }
@@ -342,8 +361,8 @@ function useView(projectUuid) {
   return [VIEWS.some(([v]) => v === view) ? view : 'papers', choose];
 }
 
-// Papers, Boards, Digs: each with its count, and a dot when something in it
-// is new since the last visit.
+// Papers, Boards, Digs: each with its count, and in gold how many in it
+// are new since the last visit.
 function DeskTabs({ view, onView, counts, fresh }) {
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -364,69 +383,59 @@ function DeskTabs({ view, onView, counts, fresh }) {
         >
           {label}
           {counts[v] > 0 && <span className="project-tab-count">{counts[v]}</span>}
-          {fresh[v] && <i className="project-tab-new" aria-label="New" />}
+          {fresh[v] > 0 && <span className="project-tab-new" aria-label={`${fresh[v]} new`}>{fresh[v]}</span>}
         </button>
       ))}
     </nav>
   );
 }
 
-// Each paper is a card: its title and citation, who has it, and the latest
-// words said about it. The card opens the paper's brief, where the takes,
-// the dig and the rest of what the project knows about it are.
+// Each paper is a row of a list, the way a bibliography reads: its hue,
+// title and authors, where it appeared, who has a take, the boards it is
+// on, who brought it in, and what is unread about it. The row opens the
+// paper's brief, where the takes, the dig and the rest of what the
+// project knows about it are.
 function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
+  if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
   return (
     <section className="project-section" aria-label="Papers">
-      {!project.papers.length ? (
-        <div className="project-paper-empty">
-          <b>No papers yet</b>
-        </div>
-      ) : (
-        <ul className="project-papers project-grid">
-          {project.papers.map((paper) => {
-            const takes = paper.users.filter((u) => u.thought);
-            const boardCount = (paper.board_uuids ?? []).length;
-            const href = appPath(briefPath(project.uuid, paper.sha256));
-            const open = (e) => { e.preventDefault(); onOpenBrief(paper.sha256); };
-            return (
-              <li
-                key={paper.sha256}
-                data-subject={`paper:${paper.sha256}`}
-                style={{ '--hue': hueOf(paper.sha256) }}
-                className={`project-card project-paper talk-host${paper.is_new ? ' is-new' : ''}`}
-                onClick={(e) => { if (!e.target.closest('a, button, input, textarea') && !e.defaultPrevented) open(e); }}
-              >
-                <header className="project-card-head">
-                  <span className="project-card-kind"><i className="project-card-hue" />{paper.year || 'Paper'}</span>
-                  {paper.is_new && <span className="project-card-new">New</span>}
-                  {alert((subject) => subject.paper_sha256 === paper.sha256)}
-                </header>
-                <div className="project-card-body">
-                  <h4 className="project-card-title">
-                    <a className="paper-title-link" href={href} onClick={open}>{paper.title}</a>
-                  </h4>
-                  <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
-                  {paper.is_new && paper.added_by && (
-                    <p className="project-card-added">{firstName(paper.added_by)} added · {when(paper.added_at)}</p>
-                  )}
-                </div>
-                {(takes.length > 0 || boardCount > 0) && (
-                  <footer className="project-card-foot">
-                    {takes.length > 0 && (
-                      <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
-                        <Faces users={takes.map((u) => u.user)} max={4} />
-                        <span>{plural(takes.length, 'take', 'takes')}</span>
-                      </span>
-                    )}
-                    {boardCount > 0 && <span className="project-card-boards">{plural(boardCount, 'board', 'boards')}</span>}
-                  </footer>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="project-papers project-rows">
+        {project.papers.map((paper) => {
+          const takes = paper.users.filter((u) => u.thought);
+          const href = appPath(briefPath(project.uuid, paper.sha256));
+          const open = (e) => { e.preventDefault(); onOpenBrief(paper.sha256); };
+          const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
+          return (
+            <li
+              key={paper.sha256}
+              data-subject={`paper:${paper.sha256}`}
+              style={{ '--hue': hueOf(paper.sha256) }}
+              className={`project-row project-paper talk-host${paper.is_new ? ' is-new' : ''}`}
+              onClick={(e) => { if (!e.target.closest('a, button, input, textarea') && !e.defaultPrevented) open(e); }}
+            >
+              <i className="project-card-hue" />
+              <div className="project-row-text">
+                <h4 className="project-card-title">
+                  <a className="paper-title-link" href={href} onClick={open}>{paper.title}</a>
+                </h4>
+                <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
+              </div>
+              <span className="project-row-facts">
+                <span className="project-row-cite">{where}</span>
+                <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
+                  {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
+                </span>
+                <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
+              </span>
+              <span className="project-row-end">
+                {paper.is_new && <span className="project-card-new">New</span>}
+                {alert((subject) => subject.paper_sha256 === paper.sha256)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -436,45 +445,113 @@ export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', 
 
 function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
+  const wide = useWide();
+  // On a wide window the list stays put and the dig opens beside it: on
+  // arrival the first unread one, else the latest; read when the selection
+  // moves on.
+  const [picked, setPicked] = useState(() => (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null);
+  const shown = discussions.find((d) => d.uuid === picked) ?? discussions[0] ?? null;
+  const pick = (uuid) => {
+    if (shown && shown.uuid !== uuid) onRead(shown.uuid);
+    setPicked(uuid);
+  };
+  useEffect(() => () => { if (wide && shown) onRead(shown.uuid); }, [wide, shown?.uuid]);
   const opener = (d) => ({
     projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
   });
   const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : 'var(--gold)');
+  const move = (e) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step || !shown) return;
+    e.preventDefault();
+    const at = discussions.findIndex((d) => d.uuid === shown.uuid);
+    const next = discussions[Math.max(0, Math.min(discussions.length - 1, at + step))];
+    pick(next.uuid);
+    e.currentTarget.querySelector(`[data-dig="${next.uuid}"]`)?.focus();
+  };
+  const row = (d) => {
+    const last = d.last_post;
+    const kind = d.subject.kind;
+    return (
+      <>
+        <span className="project-talk-subject">
+          <i style={{ background: square(d) }} />
+          <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
+          <span className="project-talk-label">{d.subject.label}</span>
+        </span>
+        <span className="project-talk-meta">
+          {last && <Avatar user={last.user} className="mini-avatar" />}
+          {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
+          <span>{when(d.updated_at)}</span>
+          {!d.is_new && d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
+        </span>
+        {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
+      </>
+    );
+  };
   return (
-    <section className="project-talk" aria-label="Digs">
+    <section className={`project-talk${wide ? ' is-wide' : ''}`} aria-label="Digs">
       {discussions.length > 0 && (
-          <ul className="project-talk-list">
-            {discussions.map((d) => {
-              const last = d.last_post;
-              const kind = d.subject.kind;
-              return (
-                <li key={d.uuid}>
-                  <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>
-                    <span className="project-talk-subject">
-                      <i style={{ background: square(d) }} />
-                      <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
-                      <span className="project-talk-label">{d.subject.label}</span>
-                    </span>
-                    {last && <span className="project-talk-excerpt">{last.excerpt}</span>}
-                    <span className="project-talk-meta">
-                      {last && <Avatar user={last.user} className="mini-avatar" />}
-                      {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
-                      <span>{when(d.updated_at)}</span>
-                      {d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
-                      {d.is_new && <span className="visually-hidden">New</span>}
-                    </span>
-                  </TalkOpener>
-                </li>
-              );
-            })}
-          </ul>
+        <ul className="project-talk-list" onKeyDown={wide ? move : undefined}>
+          {discussions.map((d) => (
+            <li key={d.uuid}>
+              {wide ? (
+                <button
+                  type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
+                  className={`project-talk-item${d.is_new ? ' is-new' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
+                  onClick={() => pick(d.uuid)}
+                >
+                  {row(d)}
+                </button>
+              ) : (
+                <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>{row(d)}</TalkOpener>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {wide && shown && (
+        <div className="project-talk-panel">
+          <h3 className="project-talk-subject-line">
+            <span className="project-card-kind">{SUBJECT_WORDS[shown.subject.kind]}</span>
+            {subjectHome(project, shown.subject)
+              ? <a href={appPath(subjectHome(project, shown.subject))}>{shown.subject.label}</a>
+              : <span>{shown.subject.label}</span>}
+          </h3>
+          <TalkCard
+            key={shown.uuid} inline
+            projectUuid={project.uuid} subject={shown.subject.key} label={shown.subject.label} currentUser={currentUser} onChanged={onTalked}
+          />
+        </div>
       )}
     </section>
   );
 }
 
-// The project's boards, which every member arranges; one more is a name away.
-function ProjectBoards({ project, act, alert }) {
+// Where a dig's subject lives: a paper's brief, a board; a thought or a
+// card has no page of its own.
+function subjectHome(project, subject) {
+  if (subject.paper_sha256) return briefPath(project.uuid, subject.paper_sha256);
+  if (subject.board_uuid) return `/boards/${subject.board_uuid}`;
+  return null;
+}
+
+// Whether the window is wide enough for a list and a dig side by side.
+function useWide(query = '(min-width: 1000px)') {
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setWide(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [query]);
+  return wide;
+}
+
+// The project's boards, which every member arranges; a board is known by
+// its shape, so its map is the card. The last tile is the one way to make
+// one more.
+function ProjectBoards({ project, act, alert, currentUser }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -491,54 +568,52 @@ function ProjectBoards({ project, act, alert }) {
   };
   return (
     <section className="project-section" aria-label="Boards">
-      {boards.length > 0 && !naming && (
-        <div className="project-section-actions">
-          <button type="button" className="project-board-start" onClick={() => setNaming(true)}><ActionGlyph name="plus" />New board</button>
-        </div>
-      )}
-      {!boards.length && !naming ? (
-        <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
-          <ActionGlyph name="plus" />New board
-        </button>
-      ) : (
-        <ul className="project-boards project-grid">
-          {boards.map((board) => {
-            const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
-            const href = appPath(`/boards/${board.uuid}`);
-            return (
-              <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
-                <header className="project-card-head">
-                  <span className="project-card-kind">{papers ? `Board · ${plural(papers, 'paper', 'papers')}` : 'Board'}</span>
-                  {alert((subject) => subject.board_uuid === board.uuid)}
-                </header>
-                <a className="project-card-body project-board-link" href={href}>
-                  <BoardMap boxes={board.boxes} />
-                  <strong className="project-card-title">{board.name}</strong>
-                </a>
-                <footer className="project-card-foot project-board-meta">
-                  {board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards'} · edited {when(board.updated_at)}
-                </footer>
-              </li>
-            );
-          })}
-          {naming && (
-            <li className="project-card project-board is-naming">
-              <header className="project-card-head"><span className="project-card-kind">New board</span></header>
-              <form className="project-card-body" onSubmit={create}>
-                <input
-                  className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
-                />
-                <span className="project-board-form-actions">
-                  <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
-                  <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
-                </span>
-              </form>
+      <ul className="project-boards project-grid">
+        {boards.map((board) => {
+          const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
+          const href = appPath(`/boards/${board.uuid}`);
+          const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
+          return (
+            <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
+              <a className="project-card-body project-board-link" href={href}>
+                <BoardMap boxes={board.boxes} />
+                <strong className="project-card-title">{board.name}</strong>
+              </a>
+              {alert((subject) => subject.board_uuid === board.uuid)}
+              <footer className="project-card-foot project-board-meta">
+                {[
+                  board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',
+                  papers ? plural(papers, 'paper', 'papers') : null,
+                  owner,
+                  `edited ${when(board.updated_at)}`,
+                ].filter(Boolean).join(' · ')}
+              </footer>
             </li>
-          )}
-        </ul>
-      )}
+          );
+        })}
+        {naming ? (
+          <li className="project-card project-board is-naming">
+            <header className="project-card-head"><span className="project-card-kind">New board</span></header>
+            <form className="project-card-body" onSubmit={create}>
+              <input
+                className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
+              />
+              <span className="project-board-form-actions">
+                <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
+                <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
+              </span>
+            </form>
+          </li>
+        ) : (
+          <li className="project-board-tile">
+            <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
+              <ActionGlyph name="plus" />New board
+            </button>
+          </li>
+        )}
+      </ul>
     </section>
   );
 }
@@ -546,7 +621,7 @@ function ProjectBoards({ project, act, alert }) {
 // A board from a distance: its cards as plain boxes where they sit, fitted
 // to a fixed strip so the cards in a row line up.
 function BoardMap({ boxes = [] }) {
-  if (!boxes.length) return null;
+  if (!boxes.length) return <svg className="project-board-map" aria-hidden="true" />;
   const left = Math.min(...boxes.map((b) => b.x));
   const top = Math.min(...boxes.map((b) => b.y));
   const right = Math.max(...boxes.map((b) => b.x + b.w));

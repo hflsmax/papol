@@ -5772,9 +5772,10 @@ button.project-quiet.project-danger { color: var(--red); }
 button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red-soft); color: var(--red); }
 
 /* Members panel: flat, between two hairlines. */
-.project-people { margin: calc(-1 * var(--space-3)) 0 var(--space-6); padding: var(--space-2) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: var(--fs-sm); }
+.project-people { position: absolute; z-index: 300; top: calc(100% + var(--space-1)); right: 0; width: min(380px, calc(100vw - 2 * var(--space-4))); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); font: var(--fs-sm) var(--font-ui); text-align: left; cursor: auto; }
+.desktop-toolbar .project-people { top: calc(100% + var(--space-2)); }
 .project-people button:not(.project-quiet) { padding: var(--space-1) var(--space-3); font-size: var(--fs-xs); }
-.project-invite { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) 0 var(--space-3); }
+.project-invite { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
 .project-invite-note { color: var(--ink-faint); font-size: var(--fs-xs); }
 .project-invite-link + button + button + .project-invite-note { flex-basis: 100%; }
 .project-invite-link { flex: 1 1 10rem; min-width: 0; overflow: hidden; padding: var(--space-1) var(--space-2); border-radius: var(--radius); background: var(--paper-sunken); color: var(--ink-soft); font: var(--fs-xs) var(--font-mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; }
@@ -5784,10 +5785,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-person-name:hover { color: var(--accent); }
 .project-person-role { color: var(--ink-faint); font-size: var(--fs-xs); }
 .project-person-actions { display: flex; gap: var(--space-1); margin-left: auto; opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.project-people .project-person-name { font-weight: 500; }
 .project-person:hover .project-person-actions,
 .project-person:focus-within .project-person-actions { opacity: 1; }
 @media (hover: none) { .project-person-actions { opacity: 1; } }
-.project-leave { display: block; margin: var(--space-1) 0 0 auto; }
 
 .project-closed { margin: 0; color: var(--ink-soft); font-size: var(--fs-md); }
 
@@ -5802,10 +5803,20 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
    card's anatomy: a header strip with an uppercase kind, a serif title. */
 .app[data-page='project']:has(.project-page.is-desk) { max-width: 1180px; }
 .app[data-page='project']:has(.project-page.is-desk) > .topnav { max-width: 720px; margin-inline: auto; }
-.desktop-content:has(.project-page.is-desk) { max-width: 1240px; }
+.desktop-content:has(.project-page.is-desk) { max-width: none; }
 .project-page.is-desk { max-width: none; container-type: inline-size; }
+/* The pages inside a project fill the window: no masthead, no measure. */
+.app.is-project { max-width: none; padding: var(--space-4) var(--space-5) var(--space-7); }
+@media (max-width: 640px) { .app.is-project { padding: var(--space-3) var(--space-4) var(--space-7); } }
+.project-way { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+.project-way a { color: var(--ink-soft); text-decoration: none; }
+.project-way a + a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
+.project-way a:hover { color: var(--accent); }
+.project-way-mark { font: 600 var(--fs-md) var(--font-serif); letter-spacing: .02em; }
+.project-way a.project-way-mark { color: var(--ink); }
+.project-way a.project-way-mark:hover { color: var(--accent); }
 
-.project-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-6); }
+.project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-4); }
 .project-head-main { flex: 1 1 22rem; min-width: 0; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
 .project-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
@@ -5819,32 +5830,62 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .board-toolbar-title:has(~ .board-toolbar-talk) { field-sizing: content; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
-.project-seats { display: flex; align-items: flex-start; gap: var(--space-2); }
+.project-seats { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); }
 .project-seat-row { display: flex; gap: var(--space-2); padding: var(--space-1); border-color: transparent; background: none; box-shadow: none; }
 .project-seat-row:hover:not(:disabled), .project-seat-row[aria-expanded='true'] { border-color: transparent; background: var(--fill); }
 .project-seat { display: grid; justify-items: center; gap: 2px; width: 44px; }
 .project-seat .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
 .project-seat small { max-width: 100%; overflow: hidden; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .project-seat-more { align-self: center; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-invite-open, .project-board-start { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-3); border-color: var(--accent-line); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+/* Quiet at rest: the header's only emphasis is what is new. */
+.project-invite-open, .project-board-start { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-3); border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-invite-open { align-self: center; }
-.project-board-start { margin-left: auto; border-color: transparent; background: none; }
-.project-invite-open:hover:not(:disabled), .project-board-start:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.project-board-start { margin-left: auto; }
+.project-invite-open:hover:not(:disabled), .project-board-start:hover:not(:disabled), .project-invite-open:focus-visible, .project-board-start:focus-visible { background: var(--accent-soft); color: var(--accent); }
 .project-invite-open .action-glyph, .project-board-start .action-glyph, .project-board-add .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .is-desk .project-people { max-width: 36rem; margin: 0 0 var(--space-6); padding: var(--space-2) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); }
 
 .project-desk { min-width: 0; margin-top: var(--space-4); }
 [data-shell='desktop'] .project-desk { margin-top: 0; }
 /* The desk's three views: quiet words, the one shown on a soft pill. */
-.project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-4); }
+.project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .project-tab-count { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-tab-new { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+/* New items on a tab: a number alone. Unread posts on an item are the spade pill (.project-card-alert). */
+.project-tab-new { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
-.is-desk .project-section + .project-section { margin-top: var(--space-6); }
-
+/* Papers as rows: a bibliography with the project's facts beside each entry. */
+.project-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.project-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) 190px 150px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-row:hover { background: var(--paper-sunken); }
+.project-row.is-new { background: var(--gold-soft); }
+.project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 70%, var(--paper-sunken)); }
+.project-row .project-card-hue { margin: 0; }
+.project-row-text { min-width: 0; }
+.project-row .project-card-title { display: block; font-size: var(--fs-base); -webkit-line-clamp: unset; }
+.project-row:hover .project-card-title, .project-row:focus-within .project-card-title { color: var(--accent); }
+.project-row .project-card-authors { margin-top: 1px; font-size: var(--fs-sm); }
+.project-row-cite { display: -webkit-box; overflow: hidden; color: var(--ink-soft); font: var(--fs-sm)/1.3 var(--font-ui); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.project-row-facts { display: contents; }
+.project-row .project-card-readers, .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
+.project-row .project-card-readers { overflow: hidden; }
+.project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.project-row .project-card-alert { margin-left: 0; }
+@container (max-width: 1099px) {
+  .project-row { grid-template-columns: 8px minmax(0, 1fr) auto; grid-template-areas: 'hue text end' 'hue facts end'; row-gap: 2px; column-gap: var(--space-3); }
+  .project-row .project-card-hue { grid-area: hue; align-self: start; margin-top: 8px; }
+  /* The facts share one line and one left edge whatever a row lacks. */
+  .project-row-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-3); grid-area: facts; font-size: var(--fs-xs); }
+  .project-row-text { grid-area: text; }
+  .project-row-end { grid-area: end; }
+  .project-row-cite { display: block; font-size: var(--fs-xs); white-space: nowrap; }
+  .project-row-cite:empty, .project-row .project-card-readers:empty { display: none; }
+}
+@container (max-width: 559px) {
+  .project-row-cite { display: none; }
+}
 .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); align-items: stretch; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 .project-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-card:hover { border-color: var(--accent); }
@@ -5865,16 +5906,16 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-alert:hover:not(:disabled), .project-card-alert[aria-expanded='true'] { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
 .project-card-alert .talk-glyph { width: 14px; height: 14px; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-card-boards { margin-left: auto; padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); white-space: nowrap; }
-.project-board-map { display: block; width: 100%; height: 72px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
+.project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
 .project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .project-card-readers { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-paper-empty, .project-board-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); width: 100%; min-height: 96px; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); text-align: center; }
+.project-board-tile { display: grid; min-height: 160px; }
+.project-board-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); width: 100%; min-height: 96px; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); text-align: center; }
 .project-paper-empty span, .project-board-add span { color: var(--ink-faint); font-size: var(--fs-xs); font-weight: 400; }
-.project-board-add { color: var(--accent); font-weight: 500; }
-.project-board-add:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.project-board-add { font-weight: 500; }
+.project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
 .project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
@@ -5896,24 +5937,47 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-thought-note { grid-column: 2 / -1; margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 
 .project-board-link { color: inherit; text-decoration: none; }
+/* The whole card opens the board; the alert stays its own button above it. */
+.project-board .project-board-link::after { content: ''; position: absolute; inset: 0; }
+.project-board > .project-card-alert { position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; margin: 0; }
 
 .project-board-link:hover .project-card-title { color: var(--accent); }
 .project-board-meta { justify-content: flex-start; margin-top: auto; padding: var(--space-1) var(--space-3) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-boards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+.project-boards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
 .project-board.is-naming { border-color: var(--accent); }
 .project-board-name { font-weight: 600; }
 .project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 
 .project-talk-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+/* Wide: the list stays put and the dig opens beside it. */
+.project-talk.is-wide { display: grid; grid-template-columns: minmax(360px, 460px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
+.project-talk.is-wide .project-talk-list { grid-template-columns: minmax(0, 1fr); gap: 0; border-top: 1px solid var(--line); }
+.project-talk.is-wide .project-talk-item { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-2) var(--space-3); border: 0; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; border-radius: 0; box-shadow: none; }
+.project-talk.is-wide .project-talk-item .project-talk-subject { grid-column: 1; }
+.project-talk.is-wide .project-talk-item .project-talk-meta { grid-column: 1; }
+.project-talk.is-wide .project-talk-item .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.project-talk.is-wide .project-talk-item:hover:not(:disabled) { background: var(--paper-sunken); }
+.project-talk.is-wide .project-talk-item.is-new, .project-talk.is-wide .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
+.project-talk.is-wide .project-talk-item.is-selected, .project-talk.is-wide .project-talk-item.is-selected:hover:not(:disabled) { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.project-talk.is-wide .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.project-talk-panel { position: sticky; top: var(--space-4); padding-left: var(--space-5); border-left: 1px solid var(--line); }
+.project-talk-panel .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: calc(100vh - 2 * var(--space-4) - 56px); }
+.project-talk-panel .talk-card.is-inline .talk-card-header { padding-left: 0; background: none; }
+.project-talk-subject-line { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); padding-top: 5px; font: 600 var(--fs-md)/1.35 var(--font-serif); }
+.project-talk-subject-line a { color: inherit; }
+.project-talk-subject-line a:hover { color: var(--accent); }
+[data-shell='desktop'] .project-talk-panel .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
+.project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
-.project-talk-item { display: grid; gap: var(--space-1); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
+.project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
 .project-talk-item:hover:not(:disabled), .project-talk-item[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
 .project-talk-item.is-new { border-color: var(--gold-line); background: var(--gold-soft); }
 .project-talk-item.is-new:hover:not(:disabled) { border-color: var(--accent); background: var(--gold-soft); }
-.project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; grid-column: 1; }
+.project-talk-meta { grid-column: 1; }
+.project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-subject i { flex: none; width: 8px; height: 8px; border-radius: 2px; }
 .project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
-.project-talk-excerpt { display: -webkit-box; overflow: hidden; font: var(--fs-sm)/1.4 var(--font-serif); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-talk-meta b { color: var(--ink-soft); font-weight: 600; }
 .project-talk-count { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
@@ -5980,6 +6044,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-card-close { margin-left: auto; }
 .talk-card-open + .talk-card-close { margin-left: 0; }
 .talk-card-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.talk-card-open span { display: none; }
+.talk-card.is-inline .talk-card-open { display: inline-flex; align-items: center; gap: var(--space-1); width: auto; padding: 0 var(--space-2); border-radius: 999px; font: 500 var(--fs-xs) var(--font-ui); }
+.talk-card.is-inline .talk-card-open span { display: inline; }
 .talk-card-open:hover, .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
 
@@ -5991,6 +6058,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
+.talk-post.is-new .talk-post-head time::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p, .discussion-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }
@@ -6009,9 +6077,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-card-back { flex: none; display: flex; align-items: center; gap: var(--space-1); width: 100%; margin: 0; padding: var(--space-2) var(--space-4) 0; overflow: hidden; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); text-align: left; white-space: nowrap; text-overflow: ellipsis; }
 .talk-card-back:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 .dig-chooser { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); }
-.dig-chooser-lead { margin: 0; color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
 .dig-chooser-quote { margin: 0; padding-left: var(--space-3); border-left: 2px solid var(--line-strong); color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.dig-chooser-idea { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); margin-top: var(--space-1); }
+.dig-chooser-idea { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); margin-top: var(--space-2); }
 .dig-chooser-idea input { min-width: 0; margin: 0; }
 .dig-chooser-or { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .dig-chooser-or { margin-top: var(--space-2); }
@@ -6034,19 +6101,17 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 /* A paper's brief: the paper as the project sees it, its takes and the
    rest on the left, and its dig open on the right once there is room. */
-.app[data-page='brief']:has(.brief-page) { max-width: 1180px; }
-.app[data-page='brief']:has(.brief-page) > .topnav { max-width: 720px; margin-inline: auto; }
-.desktop-content:has(.brief-page) { max-width: 1240px; }
-/* A brief and a dig page sit on a white sheet, like every other page's
-   panels, so the content stands off the grey ground the nav shares. */
-.brief-page, .discussion-page { padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-@media (max-width: 600px) { .brief-page, .discussion-page { padding: var(--space-4); } }
-.brief-page { container-type: inline-size; }
+.desktop-content:has(.brief-page) { max-width: 1480px; }
+/* A brief is the window: the paper's facts stay in view on the left, and
+   the dig, the long thing, flows with the page on the right. */
+.brief-page { width: 100%; max-width: 1440px; margin: 0 auto; container-type: inline-size; }
 .brief-head { margin: 0 0 var(--space-5); }
-.brief-head .kicker { margin: 0 0 var(--space-1); }
-.brief-head .kicker a { color: inherit; }
-.brief-head .kicker a:hover { color: var(--accent); }
-.brief-title { max-width: 46rem; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); }
+.brief-title-row { display: flex; align-items: flex-start; gap: var(--space-2); }
+.brief-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); }
+.brief-title-row .talk-pin-wrap { flex: none; margin-top: 2px; }
+.project-take-options { display: none; margin-left: auto; }
+.project-take:hover .project-take-options, .project-take:focus-within .project-take-options { display: inline-flex; }
+.project-take-options .project-quiet { padding: 0 var(--space-1); font-size: var(--fs-xs); }
 .brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: var(--space-2) 0 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .brief-authors { font: italic var(--fs-md) var(--font-serif); }
 .brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
@@ -6055,8 +6120,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-jacket:hover { color: var(--accent); }
 .brief-nook { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; box-shadow: none; }
 .brief-nook:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.brief-take-out { padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-faint); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
-.brief-take-out:hover:not(:disabled) { border: 0; background: none; color: var(--red); }
+.brief-take-out { padding: 0; border: 0; background: none; box-shadow: none; color: var(--red); font: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--red) 45%, transparent); text-underline-offset: 2px; }
+.brief-take-out:hover:not(:disabled) { border: 0; background: none; color: var(--red); text-decoration-color: var(--red); }
 .brief-foot { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
 .brief-foot p { margin: 0; }
 .project-take-thought.is-mine { display: block; width: auto; padding: 0; border: 0; background: none; box-shadow: none; text-align: left; cursor: text; }
@@ -6064,59 +6129,84 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-layout { display: grid; gap: var(--space-5); }
 .brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .brief-main .project-takes { margin-bottom: var(--space-2); }
-.brief-main { max-width: 42rem; }
-.brief-dig-start { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid transparent; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
-.brief-dig-start:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--accent-soft); color: var(--accent); }
-.brief-dig-start .talk-glyph { width: 19px; height: 19px; }
-.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; }
+.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; }
+.brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
+.brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; }
+.brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); font-variant: small-caps; letter-spacing: .04em; text-transform: none; }
+.brief-dig .talk-post.is-mine .talk-post-head b { color: var(--ink); }
+.brief-dig .talk-compose textarea { background: var(--card); }
+.brief-dig .talk-card.is-inline .talk-card-subject { padding-left: 0; }
+.brief-dig .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--paper); }
+.brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
 .brief-dig-choices { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
 .brief-dig-choice { padding: 3px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
 .brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
-.brief-boards { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.brief-boards a { color: var(--ink-soft); }
-.brief-boards a:hover { color: var(--accent); }
 @container (min-width: 760px) {
-  /* The paper and its takes on the left, the dig as a rail beside them
-     from the top, parted by a rule; leftover width stays between them. */
-  .brief-layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; column-gap: var(--space-6); }
-  .brief-dig { position: sticky; top: var(--space-4); padding-left: var(--space-5); border-left: 1px solid var(--line); }
+  /* The paper's facts on the left, in view while the dig scrolls; the
+     dig beside them, parted by a rule, in a reading measure. */
+  .brief-layout { grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr); align-items: start; column-gap: var(--space-7); }
+  .brief-main { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); overflow: clip; overflow-clip-margin: 4px; }
+  .brief-dig { max-width: 44rem; min-width: 0; padding-top: 2px; padding-left: var(--space-5); border-left: 1px solid var(--line); }
   .brief-dig.is-empty { align-self: stretch; }
-  /* Room below for the Feedback button in the corner. */
-  .brief-dig .talk-card.is-inline { max-height: calc(100vh - 2 * var(--space-4) - 56px); }
-  [data-shell='desktop'] .brief-dig .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 }
-/* In one column the dig flows with the page: no scroll inside a scroll. */
 @container (max-width: 759px) {
   .brief-dig { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-  .brief-dig .talk-card.is-inline { max-height: none; }
-  .brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; }
   .brief-page { margin-bottom: 56px; }
 }
 
-/* One discussion: its subject, its posts, and room to write at length. */
-.discussion-page { max-width: 46rem; margin: 0 auto; }
-.discussion-head { margin: var(--space-2) 0 var(--space-5); }
-.discussion-head .kicker { margin: 0 0 var(--space-1); }
-.discussion-head .kicker a { color: inherit; }
-.discussion-head .kicker a:hover { color: var(--accent); }
-.discussion-title { margin: 0; font-size: var(--fs-2xl); line-height: 1.25; }
+/* One dig as a page: what it is about in a rail that stays put, the
+   posts in a reading measure beside it, and the reply bar at their foot. */
+.dig-page { display: grid; grid-template-columns: 15rem minmax(0, 38rem); justify-content: center; column-gap: var(--space-7); max-width: none; margin: 0; }
+.dig-rail { position: sticky; top: var(--space-4); align-self: start; display: grid; gap: var(--space-2); }
+/* The way back stacks in the rail: three lines, no chevrons to orphan. */
+.dig-rail .project-way { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: var(--space-3); }
+.dig-rail .project-way a + a::before { content: none; }
+.dig-kind { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
+.dig-kind .talk-glyph { width: 15px; height: 15px; color: var(--accent-strong); }
+.dig-subject-title { margin: 0; font: 600 var(--fs-lg)/1.3 var(--font-serif); overflow-wrap: anywhere; }
+.dig-subject-title a { color: inherit; text-decoration: none; }
+.dig-subject-title a:hover { color: var(--accent); }
+.dig-subject-open { width: 12px; height: 12px; margin-left: 4px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-faint); }
+.dig-subject-title a:hover .dig-subject-open { color: inherit; }
+.dig-subject-under { margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.dig-subject-under a { color: var(--ink); }
+.dig-subject-under a:hover { color: var(--accent); }
+.dig-voices { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.dig-main { min-width: 0; }
 .discussion-card-label { font-style: italic; }
 .discussion-posts { margin: 0; padding: 0; list-style: none; }
 .discussion-post { position: relative; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); border-left: 2px solid var(--line); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
-.discussion-post + .discussion-post { margin-top: var(--space-2); }
+.discussion-post + .discussion-post { margin-top: var(--space-3); }
 .discussion-post.is-selected { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
-.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px; padding-right: calc(var(--space-7) + var(--space-6)); }
-.discussion-post-head .item-actions { position: absolute; top: var(--space-1); right: var(--space-2); }
+.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; margin-bottom: 2px; }
+/* A post's options bar is where the hand already is: on hover, focus or selection. */
+.discussion-post-head .item-actions { margin-left: auto; visibility: hidden; }
+.discussion-post:hover .item-actions, .discussion-post:focus-within .item-actions, .discussion-post.is-selected .item-actions { visibility: visible; }
+@media (hover: none) { .discussion-post:hover:not(.is-selected):not(:focus-within) .item-actions { visibility: hidden; } }
+.discussion-post.is-mine .discussion-post-author { color: var(--accent); }
 .discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
 .discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.discussion-post-body { font-size: var(--fs-sm); line-height: 1.32; }
-.discussion-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: end; }
-.discussion-head .kicker, .discussion-title { grid-column: 1; }
-.discussion-jump { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
-.discussion-jump:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.discussion-jump .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.discussion-post-body { font-size: var(--fs-sm); line-height: 1.4; }
+.discussion-post-drift { margin: var(--space-2) 0 var(--space-1); }
+.discussion-post-drift .talk-card.is-inline { max-height: none; }
+.discussion-post-drift .talk-card-body { overflow: visible; }
+/* The reply bar, docked at the foot of the posts. */
+.dig-compose { position: sticky; bottom: 0; z-index: 1; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-3) 0 var(--space-4); border-top: 1px solid var(--line); background: var(--paper); }
+.dig-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }
+.dig-compose textarea { width: 100%; max-height: 45vh; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); resize: vertical; }
+.dig-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.dig-compose .talk-send { margin-bottom: 1px; }
+.discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
+.discussion-composer-foot { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+@media (max-width: 759px) {
+  .dig-page { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+  .dig-rail { position: static; padding: 0 0 var(--space-3); border-bottom: 1px solid var(--line); }
+  .dig-compose { padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom)); }
+}
+[data-shell='desktop'] .desktop-content:has(.dig-page) { max-width: none; }
+[data-shell='desktop'] .dig-rail { top: 0; }
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people;
@@ -6124,7 +6214,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-toolbar { display: flex; flex: 1 1 0; align-items: center; gap: var(--space-2); min-width: 0; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
 .discussion-toolbar-where { min-width: 0; overflow: hidden; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.desktop-toolbar .project-tabs { flex: none; margin: 0; }
+.desktop-toolbar .project-tabs { flex: none; margin: 0; padding-top: 0; border-top: 0; }
 .desktop-toolbar .project-tab { padding: 3px var(--space-3); }
 .desktop-toolbar .project-seats { flex: 1 1 0; justify-content: flex-end; align-items: center; gap: var(--space-1); }
 .desktop-toolbar .project-seat-row { gap: 0; padding: 2px; }
@@ -6136,7 +6226,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-toolbar-where { flex: 1; margin: 0; color: var(--ink-soft); }
 .discussion-toolbar-where a { color: var(--ink); font-weight: 600; text-decoration: none; }
 .discussion-toolbar-where a:hover { color: var(--accent); }
-.desktop-toolbar .discussion-jump { flex: none; padding: 2px var(--space-2); }
 /* Your turn: a card with your face on it, below the last post. */
 .discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
 .discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
