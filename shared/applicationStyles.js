@@ -198,15 +198,31 @@ ${commonStyles}
   .way-aside { gap: var(--space-3); }
 }
 
-/* About, Learn and the Mac app, for a member: at the foot of the page. */
+/* About, Learn and the Mac app, for a member: at the foot of the page.
+   The page is at least the window tall, so a short page leaves the foot on
+   the window's bottom edge and a long one carries it down after its end.
+   Its line sits level with the feedback button, and the foot itself keeps
+   that button off the page's last line. */
+.app.has-way:not(.is-project) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: 0;
+}
+.app.has-way:not(.is-project) > .main-content { padding-bottom: 0; }
 .way-foot {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-7);
-  font: var(--fs-sm) var(--font-ui);
+  gap: 0 var(--space-4);
+  margin-top: auto;
+  padding: var(--space-7) 0 20px;
+  font: var(--fs-sm)/30px var(--font-ui);
 }
+/* On a phone the centred links would run into the button; they start
+   from the left edge and leave it the right. */
+@media (max-width: 640px) { .way-foot { justify-content: flex-start; } }
 .way-foot a { color: var(--ink-faint); text-decoration: none; }
 .way-foot a:hover { color: var(--accent); }
 
