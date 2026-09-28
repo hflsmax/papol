@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-// The pages inside a project (the desk, a brief, a dig), as the real app
+// The pages inside a project (the desk and its tabs, a dig), as the real app
 // renders them at their real addresses, over a pretend server: a Vite
 // server for the frontend that answers `/api/…` itself with one made-up
 // project, and signs the tab in as one of its members before the app

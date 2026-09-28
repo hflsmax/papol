@@ -2626,14 +2626,14 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 /* The anchor equivalent of button.primary: reading the paper is the action
    this page exists for. */
 .paper-actions .button.primary,
-.brief-actions .button.primary {
+.paper-brief-actions .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
 }
 
 .paper-actions .button.primary:hover,
-.brief-actions .button.primary:hover {
+.paper-brief-actions .button.primary:hover {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
   color: var(--ink-inverse);
@@ -5349,6 +5349,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-subject-line { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); padding-top: 5px; font: 600 var(--fs-md)/1.35 var(--font-serif); }
 .project-talk-subject-line a { color: inherit; }
 .project-talk-subject-line a:hover { color: var(--accent); }
+.project-talk-subject-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.project-talk-subject-open:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 [data-shell='desktop'] .project-talk-panel .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 .project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
@@ -5378,87 +5380,59 @@ ${talkStyles}
 .board-card-talk + .board-card-action-menu { margin-left: var(--space-1); }
 .board-toolbar .talk-pin { padding: 0; }
 
-/* A paper's brief: the paper as the project sees it, its takes and the
-   rest on the left, and its dig open on the right once there is room. */
-.desktop-content:has(.brief-page) { max-width: 1480px; }
-/* A brief is the window: the paper's facts stay in view on the left, and
-   the dig, the long thing, flows with the page on the right. */
-.brief-page { width: 100%; max-width: 1440px; margin: 0 auto; container-type: inline-size; }
-.brief-head { margin: 0 0 var(--space-5); }
-.brief-title-row { display: flex; align-items: flex-start; gap: var(--space-2); }
-.brief-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); text-wrap: balance; }
-.brief-title-row .talk-pin-wrap { flex: none; margin-top: 2px; }
-/* With no dig yet, the empty pin is the way to start one, so it shows. */
-.brief-title-row .talk-pin.is-empty { opacity: .6; }
+/* The Papers tab: the list, and the picked paper's brief beside it on a
+   wide window, laid out as the Digs tab lays out a dig. */
+.project-papers-view.is-wide { display: grid; grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
+/* The list reads its own width, so its rows fold as they do on a phone. */
+.project-papers-view.is-wide .project-papers { container-type: inline-size; }
+.project-row-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; }
+.project-row-open:hover:not(:disabled) { border: 0; background: none; color: inherit; }
+.project-row { border-left: 2px solid transparent; }
+.project-row.is-selected, .project-row.is-selected:hover { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.project-row.is-selected .project-card-title { color: var(--ink); }
+.project-papers-panel { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); padding: 2px 4px 0 var(--space-5); border-left: 1px solid var(--line); overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
+[data-shell='desktop'] .project-papers-panel { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
+.project-paper-open { padding: var(--space-4) var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); border-left: 2px solid var(--accent); }
+
 .project-take-options { display: none; margin-left: auto; }
 .project-take:hover .project-take-options, .project-take:focus-within .project-take-options { display: inline-flex; }
 .project-take-options .project-quiet { padding: 0 var(--space-1); font-size: var(--fs-xs); }
-.brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: var(--space-2) 0 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
-.brief-authors { font: italic var(--fs-md) var(--font-serif); }
-.brief-actions .button { font-family: var(--font-ui); }
-.brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
-.brief-actions .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
-.brief-jacket { color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
-.brief-jacket:hover { color: var(--accent); }
-.brief-nook { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; box-shadow: none; }
-.brief-nook:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.brief-take-out { padding: 0; border: 0; background: none; box-shadow: none; color: var(--red); font: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--red) 45%, transparent); text-underline-offset: 2px; }
-.brief-take-out:hover:not(:disabled) { border: 0; background: none; color: var(--red); text-decoration-color: var(--red); }
-.brief-foot { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
-.brief-foot p { margin: 0; }
 .project-take-thought.is-mine { display: block; width: auto; padding: 0; border: 0; background: none; box-shadow: none; text-align: left; cursor: text; }
 @media (hover: hover) { .project-take-thought.is-mine:hover:not(:disabled) { border: 0; background: none; color: var(--ink); text-decoration: underline dotted var(--line-strong); text-underline-offset: 4px; } }
-.brief-layout { display: grid; gap: var(--space-5); }
-.brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
-.brief-main .project-takes { margin-bottom: var(--space-2); }
-.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
-.brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
-.brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; }
-/* The dig's head is a section head, like Takes beside it. */
-.brief-dig .talk-card.is-inline .talk-card-header { align-items: baseline; }
-.brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); letter-spacing: 0; text-transform: none; }
-.brief-dig .talk-card.is-inline .talk-card-kind i { display: none; }
+
+/* A paper's brief: the paper, the ways to act on it, the members' takes,
+   then its dig, in one reading column. */
+.paper-brief { display: grid; gap: var(--space-4); max-width: 44rem; }
+.paper-brief-head { display: grid; gap: var(--space-2); }
+.paper-brief-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); text-wrap: balance; }
+.paper-brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.paper-brief-authors { font: italic var(--fs-md) var(--font-serif); }
+.paper-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
+.paper-brief-actions .button { font-family: var(--font-ui); }
+.paper-brief-quiet { display: inline-flex; align-items: center; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.paper-brief-quiet:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
+.paper-brief-quiet .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.paper-brief-take-out { margin-left: auto; }
+.paper-brief-take-out:hover:not(:disabled) { color: var(--red); }
+.paper-brief .project-paper-added { margin-top: var(--space-3); }
+.paper-brief-dig { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.paper-brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
+.paper-brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; align-items: baseline; }
+.paper-brief-dig .talk-card.is-inline .talk-card-subject { padding-left: 0; }
+.paper-brief-dig .talk-card.is-inline .talk-card-owners { padding-left: 0; }
 /* Posts are read, not skimmed: body size and leading, parted by space. */
-.brief-dig .talk-post { padding-top: var(--space-3); padding-bottom: var(--space-3); }
-.brief-dig .talk-post + .talk-post { border-top: 0; }
-.brief-dig .talk-post-head { margin-bottom: var(--space-1); }
-.brief-dig .talk-post-head .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
-.brief-dig .talk-post-body { max-width: 38rem; font-size: var(--fs-md); line-height: 1.5; }
-.brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .5em; }
-.brief-dig .talk-post.is-mine .talk-post-head b { color: var(--ink); }
-.brief-dig .talk-compose textarea { background: var(--card); }
-.brief-dig .talk-card.is-inline .talk-card-subject { padding-left: 0; }
-.brief-dig .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--paper); }
-.brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
-.brief-dig-choices { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
-.brief-dig-choice { padding: 3px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
-.brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
-.brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
-.brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
-@container (min-width: 960px) {
-  /* The paper's facts on the left, in view while the dig scrolls, and
-     scrolling on their own when they outgrow the window; the dig beside
-     them, parted by a rule, in a reading measure; the pair centred. */
-  .brief-layout { grid-template-columns: minmax(20rem, 26rem) minmax(0, 40rem); justify-content: center; align-items: start; column-gap: var(--space-7); }
-  .brief-main { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); margin: -4px; padding: 4px; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
-  [data-shell='desktop'] .brief-main { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
-  .brief-dig { min-width: 0; padding-top: 2px; padding-left: var(--space-5); border-left: 1px solid var(--line); }
-  .brief-dig.is-empty { align-self: stretch; }
-  /* The dig is open beside the title, so the title's pin would repeat it. */
-  .brief-page.has-dig .brief-title-row .talk-pin-wrap { display: none; }
-}
-/* Until the pair is centred clear of it, the reply bar stands above the
-   Feedback button in the window's corner. */
-@container (min-width: 960px) and (max-width: 1299px) {
-  :root:not([data-shell='desktop']) .brief-dig .talk-card.is-inline .talk-compose { padding-bottom: 56px; }
-}
-@container (max-width: 959px) {
-  .brief-dig { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-  .brief-dig.is-empty { display: none; }
-  /* Under the paper the reply bar stays at the dig's foot. */
-  .brief-dig .talk-card.is-inline .talk-compose { position: static; }
-  .brief-page { margin-bottom: 56px; }
-}
+.paper-brief-dig .talk-post { padding: var(--space-3) 0; }
+.paper-brief-dig .talk-post + .talk-post { border-top: 0; }
+.paper-brief-dig .talk-post-head { margin-bottom: var(--space-1); }
+.paper-brief-dig .talk-post-head .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
+.paper-brief-dig .talk-post-body { font-size: var(--fs-md); line-height: 1.5; }
+.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .5em; }
+.paper-brief-dig .talk-compose { padding-left: 0; padding-right: 0; }
+.paper-brief-dig .talk-compose textarea { background: var(--card); }
+.paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
+/* Beside the list, the reply bar stays at the foot of the pane. */
+.project-papers-panel .paper-brief-dig .talk-compose { position: sticky; bottom: 0; z-index: 1; margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); background: var(--paper); }
 
 /* One dig as a page: what it is about in a rail that stays put, the
    posts in a reading measure beside it, and the reply bar at their foot. */

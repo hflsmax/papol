@@ -190,7 +190,8 @@ sidebar, toolbar and document windows.
   Back brings the member to the place they left.
 - **Sign-in returns to the path asked for,** whichever of the above it is.
 - **Full pages that stay full pages:** Bazaar, the member's own page, and a
-  project's brief and dig.
+  dig. A paper's brief is not a page: it opens beside the list in the
+  project's Papers tab, as a dig does in the Digs tab.
 
 ## Digs
 

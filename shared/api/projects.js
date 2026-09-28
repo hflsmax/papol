@@ -1,6 +1,5 @@
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
-import { paperName } from '../paperName.js';
 
 // ---------- Projects ----------
 
@@ -134,10 +133,6 @@ export function annotationViewerPath(projectUuid, paperSha256, page = null) {
   return `/viewer/?pdf=${paperSha256}&project=${projectUuid}${page ? `&page=${page}` : ''}`;
 }
 
-// A paper as a project sees it: its brief.
-export function briefPath(projectUuid, paperSha256) {
-  return `/project/${projectUuid}/paper/${paperName(paperSha256)}`;
-}
 
 // Where an invitation link leads, on this deployment.
 export function invitationPath(code) {

@@ -23,9 +23,8 @@ import ProjectsPage from './components/ProjectsPage';
 import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import { DigPage } from './components/DigPage';
-import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
-import { briefPath, listProjects } from '../../shared/api/projects.js';
+import { listProjects } from '../../shared/api/projects.js';
 import { BAZAAR, WayBar, WayFoot } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
@@ -66,11 +65,11 @@ import {
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 // Where a member works inside one project.
-export const PROJECT_PAGES = new Set(['project', 'brief', 'dig']);
+export const PROJECT_PAGES = new Set(['project', 'dig']);
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'shelf', 'papers', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'brief', 'invitation', 'dig',
+  'projects', 'project', 'invitation', 'dig',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -717,7 +716,6 @@ export default function App({ startupUser = null, startupError = null }) {
                 currentUser={user}
                 onChanged={() => setProjectsRevision((r) => r + 1)}
                 onLeft={() => navigate('/', { replace: true })}
-                onOpenBrief={(sha256) => navigate(briefPath(uuid, sha256))}
               />
             )}
             onOpenCanvas={openBoardCanvas}
@@ -808,19 +806,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
-          onOpenBrief={(sha256) => navigate(briefPath(route.uuid, sha256))}
-        />
-      )}
-      {route.page === 'brief' && (
-        <BriefPage
-          key={`${route.uuid}/${route.paper}`}
-          projectUuid={route.uuid}
-          paper={route.paper}
-          currentUser={user}
-          onBack={goBack}
-          backHref={backHref}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
-          onRemoved={() => navigate(`/project/${route.uuid}`, { replace: true })}
         />
       )}
       {route.page === 'dig' && (

@@ -4,7 +4,8 @@ import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 import { DIG_PAPER, P_ERROR, PROJECT, projectServer } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
-// pull request or a letter: the desk's three tabs, a brief and a dig, on
+// pull request or a letter: the desk's three tabs, a paper's brief in the
+// Papers tab and a dig, on
 // the web and in the Mac shell, wide and on a phone; and the member's
 // places around it (their nook, the Library, a paper) with the bar over
 // every page.
@@ -28,14 +29,15 @@ const SHOTS = {
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
   'desk-invite': { ...desk('papers', '#project-people .project-invite', "document.querySelector('.project-invite-open').click(); return true;"), size: wide },
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
-  brief: { path: `/project/${PROJECT}/paper/${paper}`, ready: "document.querySelector('.brief-page .talk-post')", size: wide },
+  // A paper picked in the Papers tab: its brief beside the list.
+  'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   dig: { path: `/dig/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },
   // A member's face on a paper's row, and where it leads: their nook.
   'face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   'mac-face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;", '?shell=desktop'), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   'mac-desk-papers': { ...desk('papers', '.project-paper', null, '?shell=desktop'), size: wide },
   'mac-desk-digs': { ...desk('digs', '.project-talk-item', null, '?shell=desktop'), size: wide },
-  'mac-brief': { path: `/project/${PROJECT}/paper/${paper}?shell=desktop`, ready: "document.querySelector('.brief-page .talk-post')", size: wide },
+  'mac-desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=desktop'), size: wide },
   'mac-dig': { path: `/dig/${DIG_PAPER}?shell=desktop`, ready: "document.querySelector('.discussion-post')", size: wide },
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
@@ -60,7 +62,8 @@ const SHOTS = {
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: phone },
-  'phone-brief': { path: `/project/${PROJECT}/paper/${paper}?shell=web`, ready: "document.querySelector('.brief-page .talk-post')", size: phone },
+  // On a phone the brief opens under its row.
+  'phone-paper': { ...desk('papers', '.project-paper-open .talk-post', `if (!document.querySelector('.project-paper-open')) document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=web'), size: phone },
 };
 
 const [outDir, ...asked] = process.argv.slice(2);

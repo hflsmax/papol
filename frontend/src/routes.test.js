@@ -93,8 +93,8 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
   assert.equal(parseRoute('/projects/join/short').page, 'home');
   const NAME = 'ab'.repeat(16);
-  assert.deepEqual(parseRoute(`/project/${UUID}/paper/${NAME}`), { page: 'brief', uuid: UUID, paper: NAME });
-  assert.equal(parseRoute(`/project/${UUID}/paper/${'ab'.repeat(32)}`).page, 'home');
+  // A paper's brief is in the project's Papers tab, not a place of its own.
+  assert.equal(parseRoute(`/project/${UUID}/paper/${NAME}`).page, 'home');
 });
 
 test('a dig has a page', () => {
