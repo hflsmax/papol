@@ -420,12 +420,14 @@ export function TalkCard({
               {d.owner && <Face user={d.owner} />}{d.is_mine ? 'You' : d.owner?.display_name}
             </button>
           ))}
-          {!digs.some((d) => d.is_mine) && (
+          {/* Yours, not yet written: the same chip as the others', marked
+              only by its dashed edge. */}
+          {!digs.some((d) => d.is_mine) && currentUser && (
             <button
-              type="button" className={`talk-card-dig${!discussion ? ' is-on' : ''}`} aria-pressed={!discussion} aria-label="Your dig" title="Dig"
+              type="button" className={`talk-card-yours${!discussion ? ' is-on' : ''}`} aria-pressed={!discussion}
               onClick={() => setTopic({ ...topic, dig: 'mine' })}
             >
-              <TalkGlyph outline={Boolean(discussion)} />
+              <Face user={currentUser} />You
             </button>
           )}
           {pickerWithOwners && picker}
