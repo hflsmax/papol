@@ -53,9 +53,6 @@ export async function gather(db: D1Database, user: User) {
   }
   const annotations = await all<Row>(db, `SELECT a.*, p.sha256, p.title, p.authors, p.journal, p.year, p.doi FROM annotations a LEFT JOIN papers p ON p.sha256 = a.paper_sha256
     WHERE a.user_uuid = ? AND a.deleted_at IS NULL ORDER BY a.paper_sha256, a.page, a.created_at, a.uuid`, user.uuid);
-  const rooms = await all<Row>(db, `SELECT r.*, p.title AS paper_title FROM rooms r JOIN room_participants rp ON rp.room_uuid = r.uuid JOIN papers p ON p.sha256 = r.paper_sha256
-    WHERE rp.user_uuid = ? ORDER BY r.created_at, r.uuid`, user.uuid);
-  const messages = await all<Row>(db, "SELECT * FROM room_messages WHERE user_uuid = ? ORDER BY created_at, uuid", user.uuid);
   const notifications = await all<Row>(db, "SELECT * FROM notifications WHERE user_uuid = ? ORDER BY created_at, uuid", user.uuid);
   const uploads = await all<Row>(db, "SELECT * FROM papers WHERE uploaded_by = ? ORDER BY created_at, sha256", user.uuid);
   const boards = await all<Row>(db, "SELECT * FROM boards WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY created_at, uuid", user.uuid);
@@ -86,11 +83,6 @@ export async function gather(db: D1Database, user: User) {
     // Fractions of the page, y from the bottom — the same coordinates a
     // note's anchor uses.
     ink: annotations.filter((a) => a.kind === "ink").map((i) => ({ uuid: i.uuid, paper: paperOf(i), page: i.page, ...bodyOf(i), drawn: i.created_at })),
-    seminars: rooms.map((r) => ({
-      uuid: r.uuid, paper_title: r.paper_title, status: r.status, scheduled_time: r.scheduled_time, platform: r.platform,
-      i_started_it: r.created_by === user.uuid, i_am_leading: r.leader_uuid === user.uuid,
-      my_messages: messages.filter((m) => m.room_uuid === r.uuid).map((m) => ({ content: m.content, sent: m.created_at })),
-    })),
     notifications: notifications.map((n) => ({ content: n.content, read: Boolean(n.read), received: n.created_at })),
     pdfs_i_uploaded: uploads.map((p) => ({ paper: paperRef(p), file: p.file_path, uploaded: p.created_at })),
     boards: boards.map((b) => ({
@@ -153,7 +145,6 @@ Everything Papol holds about you, as of {date}.
   notes.md            The same notes, written out to be read.
   ink.json            What you drew on the page with the brush, as points on
                       the page rather than as a picture.
-  seminars.json       The seminar cohorts you joined, and what you said in them.
   notifications.json  What Papol has told you.
   uploads.json        The PDFs you contributed.
   boards.json         Your private boards and the position of every item.
@@ -277,7 +268,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
 
       await text("README.txt", README.replace("{date}", stamp).replace("{avatar}", avatarLine));
       const files: [string, unknown][] = [
-        ["profile", data.profile], ["nook", data.nook], ["notes", data.notes], ["ink", data.ink], ["seminars", data.seminars],
+        ["profile", data.profile], ["nook", data.nook], ["notes", data.notes], ["ink", data.ink],
         ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards], ["activity", data.activity], ["files", located],
       ];
       for (const [name, payload] of files) await text(`${name}.json`, JSON.stringify(payload, null, 2));

@@ -35,7 +35,7 @@ private shelves. All operations on the user's own boards are supported too,
 including board creation, cards, files, notes, groups, layout, staging, and
 sending excerpts or clips from the viewer. These rows use permanent UUIDs and
 the same synchronized schema locally and remotely.
-Shared actions—seminars, public shelf/profile changes, feedback, and administration—show an
+Shared actions—projects, public shelf/profile changes, feedback, and administration—show an
 online-required message instead of being queued.
 
 Synchronization is a permanent control at the bottom of the desktop sidebar.

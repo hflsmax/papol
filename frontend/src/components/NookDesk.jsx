@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
-import StatePill from './StatePill';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
@@ -213,7 +212,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                         className="desk-title"
                         href={paperPlace(paper.sha256, { shelf })}
                       ><PaperTitle title={paper.title} /></a>
-                      {paper.room_status && <StatePill status={paper.room_status} />}
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                         {paper.journal && <> · <i>{paper.journal}</i></>}

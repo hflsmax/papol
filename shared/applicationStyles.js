@@ -594,15 +594,6 @@ button.full-width {
   display: inline-block;
 }
 
-.compose-row .hint-anchor {
-  display: flex;
-  align-items: stretch;
-}
-
-.compose-row .hint-anchor button {
-  align-self: stretch;
-}
-
 .hint-pop {
   position: absolute;
   top: calc(100% + 8px);
@@ -2382,25 +2373,12 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 }
 
 .paper-title-row h4 {
-  /* Shrink but never grow. The pill is about this paper's seminar and
-     reads as part of the title, so it stays against it; the free space
-     goes to the chips' auto margin below instead of to the heading. A
-     long title still gives way rather than pushing anything off the
-     line. */
+  /* Shrink but never grow: the free space goes to the chips' auto margin
+     below instead of to the heading. A long title still gives way rather
+     than pushing anything off the line. */
   flex: 0 1 auto;
   min-width: 0;
   line-height: 1.3;
-}
-
-/* The state pill and the user chips are the same kind of thing here:
-   something sitting beside the title, on the title's first line. Giving
-   them the same box is what makes them agree with each other and with the
-   line — the pill used to be inside the heading, riding the text baseline,
-   which left it low against a serif line. */
-.title-state {
-  display: flex;
-  align-items: center;
-  flex: none;
 }
 
 .title-chips {
@@ -2461,8 +2439,8 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 
 /* A user who wrote the paper. Authors are squared off while every
    other user stays round, so the distinction survives without colour;
-   gold is the app's "this person holds a role here" hue, as on the
-   seminar leader's chip. */
+   gold is the app's "this person holds a role here" hue, as on a
+   project keeper's chip. */
 .avatar-chip.author {
   border-radius: var(--radius);
   border-color: var(--gold);
@@ -2737,115 +2715,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   font-size: var(--fs-sm);
 }
 
-/* ---------- Seminar / interest ---------- */
-
-.discussion-card {
-  background: var(--paper);
-  border-left: 4px solid var(--accent);
-  padding: 20px 24px;
-  margin-bottom: 20px;
-}
-
-.seminar-head {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 8px 12px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.seminar-head h4 {
-  font-size: var(--fs-lg);
-}
-
-/* The one seminar-state chip, used identically everywhere */
-.state-pill {
-  display: inline-block;
-  font-size: var(--fs-2xs);
-  font-family: var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 500;
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  vertical-align: middle;
-}
-
-.state-pill.called {
-  background: var(--accent);
-  color: var(--ink-inverse);
-}
-
-.state-pill.planning {
-  background: var(--gold);
-  color: var(--ink-inverse);
-}
-
-.state-pill.scheduled {
-  background: var(--green);
-  color: var(--ink-inverse);
-}
-
-.state-pill.finished {
-  background: var(--grey);
-  color: var(--ink-inverse);
-}
-
-.state-pill.none {
-  background: transparent;
-  color: var(--ink-faint);
-  border: 1px solid var(--line);
-}
-
-button.state-pill {
-  border: none;
-  box-shadow: none;
-  cursor: pointer;
-  line-height: inherit;
-  transition: filter 0.15s, border-color 0.15s;
-}
-
-button.state-pill:hover:not(:disabled) {
-  filter: brightness(0.92);
-}
-
-button.state-pill.called,
-button.state-pill.called:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--ink-inverse);
-}
-
-button.state-pill.planning,
-button.state-pill.planning:hover:not(:disabled) {
-  background: var(--gold);
-  color: var(--ink-inverse);
-}
-
-button.state-pill.scheduled,
-button.state-pill.scheduled:hover:not(:disabled) {
-  background: var(--green);
-  color: var(--ink-inverse);
-}
-
-button.state-pill.finished,
-button.state-pill.finished:hover:not(:disabled) {
-  background: var(--grey);
-  color: var(--ink-inverse);
-}
-
-button.state-pill.none {
-  background: transparent;
-  color: var(--ink-faint);
-  border: 1px solid var(--line);
-}
-
-button.state-pill.none:hover:not(:disabled) {
-  filter: none;
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -2990,16 +2859,6 @@ button.state-pill.none:hover:not(:disabled) {
   }
 }
 
-h4 .state-pill {
-  margin-left: 8px;
-}
-
-.interest-count-note {
-  font-size: var(--fs-md);
-  color: var(--ink-soft);
-  margin: 8px 0;
-}
-
 .inline-edit {
   display: flex;
   flex-direction: column;
@@ -3072,7 +2931,6 @@ h4 .state-pill {
   color: var(--ink-soft);
 }
 
-
 .comment-actions {
   display: inline-flex;
   gap: 12px;
@@ -3086,106 +2944,14 @@ h4 .state-pill {
   margin: 10px 0 4px;
 }
 
-.nooks-label,
-.cohort-label {
+.nooks-label {
   font-size: var(--fs-sm);
   color: var(--ink-soft);
-}
-
-.cohort-chips {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.cohort-chips .cohort-label {
-  margin-right: 4px;
-}
-
-.seminar-card {
-  border-left-width: 3px;
-  padding: 12px 16px;
-  margin: 12px 0;
-}
-
-.seminar-card.open {
-  border-left-color: var(--accent);
-}
-
-.seminar-card.planning {
-  border-left-color: var(--gold);
-}
-
-.seminar-card.scheduled {
-  border-color: var(--green-line);
-  border-left-color: var(--green);
-  background: var(--green-soft);
-}
-
-.seminar-card.finished {
-  border-left-color: var(--grey);
-  background: var(--paper);
-  color: var(--ink-faint);
-}
-
-.seminar-card.collapsed {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 16px;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  box-shadow: none;
-}
-
-.seminar-card.collapsed:hover {
-  border-color: var(--ink-faint);
-  background: var(--paper);
-}
-
-.collapsed-meta {
-  color: var(--ink-faint);
-  font-size: var(--fs-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0; /* let the flex item shrink so the ellipsis can kick in */
-}
-
-.collapsed-caret {
-  margin-left: auto;
-  color: var(--ink-faint);
-}
-
-.collapse-button {
-  margin-left: 10px;
-  padding: 0 8px;
-  font-size: var(--fs-2xl);
-  line-height: 1;
-  vertical-align: middle;
-  color: var(--ink-soft);
-}
-
-.collapse-button:hover:not(:disabled) {
-  color: var(--accent);
-  background: none;
-  border: none;
-}
-
-/* The announce/edit form is UI, not prose — use the interface font */
-.announce-card,
-.announce-card input,
-.announce-card label {
-  font-family: var(--font-ui);
 }
 
 /* The profile page is settings from top to bottom: nothing on it is prose
    the user wrote, it is all structured configuration, which the type
-   roles put in the interface font. Same reasoning as .announce-card above,
+   roles put in the interface font. Same reasoning as the forms above,
    over a whole page rather than one card — and the reason the page read as
    a jumble was that its chrome was borrowing the prose face and then
    distinguishing itself with italics, small-caps and five sizes instead.
@@ -3753,7 +3519,6 @@ h4 .state-pill {
 .effort-pop-time { text-align: right; color: var(--ink); }
 .effort-pop-link { display: inline-block; margin-top: var(--space-3); font-size: var(--fs-sm); }
 
-
 /* The author line as two items, the prose and the effort, centred on each
    other: on the baseline, the smaller upright face rode low beside the
    serif italic. It wraps under the authors when they fill the line. */
@@ -3763,8 +3528,6 @@ h4 .state-pill {
   align-items: center;
   column-gap: var(--space-2);
 }
-
-
 
 .local-setting-row {
   display: grid;
@@ -3844,107 +3607,7 @@ h4 .state-pill {
   gap: 12px;
 }
 
-.stage-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.style-custom {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  flex: 1;
-}
-
-.style-custom-input {
-  flex: 1;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font: inherit;
-  font-size: var(--fs-sm);
-}
-
-.style-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.style-option {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-}
-
-.style-option.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.style-option .style-desc {
-  display: block;
-  color: var(--ink-soft);
-  font-size: var(--fs-sm);
-}
-
-.style-tag {
-  margin-left: 10px;
-  padding: 1px 9px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  color: var(--ink-soft);
-  background: var(--card);
-  vertical-align: middle;
-}
-
-.stage-style {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  margin-top: 6px;
-}
-
-.seminar-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.seminar-person {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: var(--fs-base);
-  margin: 4px 0;
-}
-
-.seminar-when {
-  font-size: var(--fs-lg);
-  margin: 4px 0;
-}
-
-.seminar-where {
-  color: var(--ink-soft);
-}
-
-.seminar-card h6 {
-  font-size: var(--fs-sm);
-  font-variant: small-caps;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  margin: 14px 0 6px;
-}
-
-/* ---------- Rooms & inbox ---------- */
+/* ---------- Buttons & inbox ---------- */
 
 a.button {
   display: inline-block;
@@ -3962,350 +3625,6 @@ a.button:hover {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
-}
-
-.room-kicker-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 2px;
-}
-
-/* In a row, the kicker's spacing comes from the row. */
-.room-kicker-row .kicker {
-  margin-bottom: 0;
-}
-
-.room-title {
-  font-size: var(--fs-2xl);
-}
-
-.room-title a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.room-title a:hover {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.stage-card {
-  padding: 16px 18px;
-  margin: 12px 0 16px;
-}
-
-.stage-card h5 {
-  font-size: var(--fs-lg);
-  margin-bottom: 4px;
-}
-
-.stage-card.open {
-  background: var(--accent-soft);
-  border-left: 4px solid var(--accent);
-}
-
-.stage-card.planning {
-  background: var(--gold-soft);
-  border-left: 4px solid var(--gold);
-}
-
-.stage-card.scheduled {
-  background: var(--green-soft);
-  border-left: 4px solid var(--green);
-  border-color: var(--green-line);
-}
-
-.stage-card.finished {
-  background: var(--paper);
-  border-left: 4px solid var(--grey);
-}
-
-.stage-when {
-  font-size: var(--fs-xl);
-  font-weight: 600;
-  margin-top: 4px;
-}
-
-.stage-where {
-  color: var(--ink-soft);
-}
-
-.stage-hint {
-  font-size: var(--fs-sm);
-  font-style: italic;
-  margin-top: 6px;
-}
-
-.stage-action {
-  margin-top: 10px;
-}
-
-.join-chip {
-  border: 0;
-  padding: 6px 18px;
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--ink-inverse);
-  background: var(--accent);
-  box-shadow: 0 1px 3px rgba(29, 33, 41, 0.25);
-}
-
-.join-chip:hover:not(:disabled) {
-  background: var(--accent);
-  filter: brightness(0.93);
-}
-
-.participant-chip .chip-x {
-  padding: 0 2px;
-  margin-left: 2px;
-  line-height: 1;
-  font-size: var(--fs-base);
-  color: var(--ink-faint);
-  cursor: pointer;
-}
-
-.participant-chip .chip-x:hover:not(:disabled) {
-  color: var(--red);
-  background: none;
-}
-
-.leave-handoff {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  font-size: var(--fs-md);
-}
-
-.leave-handoff select {
-  padding: 5px 30px 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background-color: var(--card);
-  font: inherit;
-  color: inherit;
-}
-
-.room-participants {
-  margin-top: 14px;
-}
-
-.room-block {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.participant-chips {
-  display: flex;
-  flex-wrap: wrap;
-  /* Centred, not stretched. The chips and the Join button are not the same
-     height — a user chip carries an avatar and the button does not — and
-     stretching lines up their tops, which is the one thing about them that
-     should not have to agree. Worse, the button sits inside .hint-anchor,
-     so stretching the anchor left the button itself at the anchor's top
-     rather than the row's middle. */
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.participant-chip {
-  gap: 8px;
-  padding: 4px 12px 4px 5px;
-  font-size: var(--fs-md);
-}
-
-.participant-chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.participant-chip.leader {
-  background: var(--gold-soft);
-  border-color: var(--gold);
-  color: var(--ink);
-}
-
-.participant-chip.leader:hover {
-  border-color: var(--gold);
-  color: var(--ink);
-}
-
-.participant-chip.leader .entry-avatar {
-  background: var(--gold);
-  color: var(--ink-inverse);
-}
-
-.leader-star {
-  color: var(--gold);
-  font-size: var(--fs-xs);
-}
-
-.room-enter {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-/* Open is an anchor and Uncall is a button. Give the paired controls an
-   explicit shared leading so their boxes have the same height despite the
-   body line-height inherited by the anchor. */
-.room-enter .button,
-.room-enter button {
-  line-height: 1.5;
-}
-
-.call-block {
-  margin-top: 4px;
-}
-
-.call-block .interest-count-note {
-  margin-top: 8px;
-}
-
-.compose-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.compose-row .room-textarea {
-  flex: 1;
-  margin-bottom: 0;
-  resize: none;
-  min-height: 44px;
-  line-height: 1.45;
-  padding: 10px 12px;
-}
-
-.compose-row button {
-  align-self: stretch;
-  flex-shrink: 0;
-}
-
-.availability-all {
-  list-style: none;
-  margin-bottom: 4px;
-}
-
-.availability-all li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: var(--fs-md);
-  padding: 6px 0;
-}
-
-.availability-all li .entry-avatar {
-  margin-top: 2px;
-}
-
-.availability-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.availability-text {
-  color: var(--ink);
-}
-
-.availability-none {
-  color: var(--ink-faint);
-  font-style: italic;
-}
-
-.availability-edit {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.availability-edit input {
-  flex: 1;
-  padding: 7px 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font-size: var(--fs-md);
-  font-family: inherit;
-  background: var(--card);
-  color: var(--ink);
-}
-
-.availability-edit input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.availability-edit button {
-  flex-shrink: 0;
-  padding: 6px 16px;
-}
-
-.announce-card {
-  margin: 12px 0 16px;
-  border-left: 3px solid var(--accent);
-  padding: 14px 16px;
-}
-
-.announce-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 14px;
-}
-
-.room-messages {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
-  padding: 0;
-  list-style: none;
-}
-
-.room-message {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-}
-
-.room-message-body {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.room-message-meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: 2px;
-  color: var(--ink-soft);
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  line-height: 1.4;
-}
-
-.room-message-time {
-  font-weight: normal;
-}
-
-.room-message-content {
-  font-size: var(--fs-base);
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 /* ---------- Home ---------- */
@@ -4623,8 +3942,6 @@ a.button:hover {
 }
 .landing-thought-form input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .landing-thought-form button { padding: 6px 14px; }
-.landing-jacket-seminar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink-soft); font: var(--fs-xs) var(--font-ui); }
-.landing-call { padding: 3px 12px; font-size: var(--fs-xs); }
 
 .landing-close { display: grid; justify-items: center; padding: 40px 24px 28px; border-radius: var(--radius-lg); background: var(--accent-soft); text-align: center; }
 .landing-close h2 { color: var(--ink); font-size: var(--fs-hero); font-weight: 600; }
@@ -4689,87 +4006,6 @@ a.button:hover {
 
 @media (max-width: 560px) {
   .about-story { padding: 24px 20px 28px; }
-}
-
-/* ---------- Seminar flow diagram ---------- */
-
-.flow-list {
-  list-style: none;
-  margin-top: 6px;
-}
-
-.flow-list li {
-  display: flex;
-  gap: 16px;
-  padding: 10px 0;
-  position: relative;
-}
-
-.flow-list li:not(:last-child)::before {
-  content: '';
-  position: absolute;
-  left: 14px;
-  top: 40px;
-  bottom: -12px;
-  width: 1px;
-  background: var(--line);
-}
-
-.flow-dot {
-  width: 29px;
-  height: 29px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-sm);
-  background: var(--card);
-  border: 1px solid var(--line-strong);
-  color: var(--ink-soft);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-}
-
-.flow-dot.live {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--ink-inverse);
-}
-
-.flow-dot.gold {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--ink-inverse);
-}
-
-.flow-dot.done {
-  background: var(--green);
-  border-color: var(--green);
-  color: var(--ink-inverse);
-}
-
-.flow-body {
-  flex: 1;
-  min-width: 0;
-  padding-top: 3px;
-}
-
-.flow-step-title {
-  font-weight: 600;
-  font-size: var(--fs-base);
-  /* The pill is the whole line here, so let it be the line rather than an
-     inline-block sitting on a baseline inside a taller one — that leading
-     is what left it two points low against the step's numbered dot. */
-  display: flex;
-  align-items: center;
-}
-
-.flow-step-desc {
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-  margin-top: 2px;
-  line-height: 1.55;
 }
 
 .inbox-badge {
@@ -4849,11 +4085,6 @@ a.button:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.notification-room-link {
-  margin-top: 4px;
-  font-size: var(--fs-md);
 }
 
 .notification-date {
@@ -5718,15 +4949,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     flex-wrap: wrap;
   }
 
-  /* Rows wrap uniformly: the trailing element (paper status pill, user
-     affiliation) always sits on its own line instead of wrapping only
-     when the title or name happens to be long */
-  h4 .state-pill {
-    display: block;
-    width: fit-content;
-    margin: 4px 0 2px;
-  }
-
   .paper-title-row {
     flex-wrap: wrap; /* only here, and only so the chips below can wrap */
   }
@@ -5882,7 +5104,7 @@ a.projects-row-name:hover { color: var(--accent); text-decoration: underline; te
 }
 
 /* SHARED (optional; affects the project and invitation pages too): a keeper
-   holds a role, and gold is Papol's hue for that, as on a seminar leader. */
+   holds a role, and gold is Papol's hue for that, as on a paper's author. */
 .avatar-chip.project-keeper { border-color: var(--gold); background: var(--gold-soft); }
 .project-keeper .mini-avatar { box-shadow: none; }
 
@@ -5896,7 +5118,6 @@ a.projects-row-name:hover { color: var(--accent); text-decoration: underline; te
   flex-wrap: wrap;
   gap: var(--space-1);
 }
-
 
 /* One project: a calm single column. Rows sit on the page; only the
    selected paper rises into a card. */
@@ -6428,7 +5649,6 @@ ${talkStyles}
 .desk-table td.desk-col-title::before { content: ""; position: absolute; left: var(--space-2); top: var(--space-2); bottom: var(--space-2); width: 3px; border-radius: 2px; background: var(--shelf-color, var(--line-strong)); }
 .desk-title { color: var(--ink); font: 400 var(--fs-md) var(--font-serif); line-height: 1.3; text-decoration: none; }
 .desk-title:hover, .desk-title:focus-visible { color: var(--accent); text-decoration: underline; }
-.desk-col-title .state-pill { margin-left: var(--space-2); vertical-align: middle; }
 .desk-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .desk-meta i { font-family: var(--font-serif); }
 .desk-meta-tag { margin-left: var(--space-2); color: var(--ink-soft); }

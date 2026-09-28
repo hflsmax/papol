@@ -103,26 +103,6 @@ export function annotationOut(row: Row) {
   };
 }
 
-// A seminar as a paper page or a nook lists it: its state, who called
-// it, who hosts it, who is in the cohort.
-export async function roomSummary(db: D1Database, room: Row) {
-  const creator = await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.created_by);
-  const leader = room.leader_uuid ? await one<Row>(db, "SELECT * FROM users WHERE uuid = ?", room.leader_uuid) : null;
-  const participants = await all<Row>(db,
-    "SELECT u.* FROM room_participants p JOIN users u ON u.uuid = p.user_uuid WHERE p.room_uuid = ? ORDER BY p.created_at, p.uuid", room.uuid);
-  return {
-    uuid: room.uuid, status: room.status, scheduled_time: room.scheduled_time ?? null, platform: room.platform ?? null,
-    style: room.style ?? null, style_desc: room.style_desc ?? null, created_at: room.created_at,
-    creator: creator ? userPublic(creator) : null, leader: leader ? userPublic(leader) : null,
-    participants: participants.map(userPublic),
-  };
-}
-
-async function roomSummaries(db: D1Database, paperSha256: string) {
-  const rooms = await all<Row>(db, "SELECT * FROM rooms WHERE paper_sha256 = ? ORDER BY created_at DESC, uuid DESC", paperSha256);
-  return Promise.all(rooms.map((room) => roomSummary(db, room)));
-}
-
 // The canonical paper, merged with the viewer's own copy — summary,
 // ratings, display, private notes — when they have one. `file_url` is
 // where the PDF is fetched from, beside the `file_path` that names it:
@@ -137,7 +117,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     summary: null, thought: null, is_public: null, is_author: null,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     thought_public: null, ratings_public: null, summary_public: null, tags_public: null,
-    notes: [], also_read_by: [], rooms: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
+    notes: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {
     const shelf = copy.shelf_uuid ? await one<{ is_public: number }>(db, "SELECT is_public FROM shelves WHERE uuid = ?", copy.shelf_uuid) : null;
@@ -159,6 +139,5 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     detail.sharable_uuid = (await liveReadingLink(db, viewer.uuid, paper.sha256))?.uuid ?? null;
   }
   detail.also_read_by = (await displayedCopies(db, [paper.sha256])).get(paper.sha256) ?? [];
-  detail.rooms = await roomSummaries(db, paper.sha256);
   return detail;
 }

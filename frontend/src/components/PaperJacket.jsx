@@ -12,7 +12,6 @@ import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
 import { readPrintedAt } from '../pdfIdentifier.js';
 import CommentSection from './CommentSection';
-import RoomSection from './RoomSection';
 import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput } from './Rating';
@@ -1175,12 +1174,6 @@ export default function PaperJacket({
         </div>
       )}
       </div>
-
-      {editMode !== 'metadata' && (
-        <div className="discussion-card">
-          <RoomSection paper={paper} currentUser={currentUser} onChanged={loadPaper} />
-        </div>
-      )}
     </div>
   );
 }

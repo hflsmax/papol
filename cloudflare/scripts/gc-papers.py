@@ -6,7 +6,7 @@ the Library, and nothing removes them by itself: that is a decision, and
 this is the hand that carries it out (docs/cloud-migration.md, phase 5,
 step 13). An orphan is a paper with no live copy by anyone, no annotation
 by anyone (a soft-deleted one still counts: a replica may still hold it),
-no seminar, no link out and no board card carrying its file.
+no link out and no board card carrying its file.
 
     python3 cloudflare/scripts/gc-papers.py --list              # production
     python3 cloudflare/scripts/gc-papers.py --list --env dev
@@ -55,7 +55,6 @@ FROM papers p
 WHERE p.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = p.sha256 AND c.deleted_at IS NULL)
   AND NOT EXISTS (SELECT 1 FROM annotations a WHERE a.paper_sha256 = p.sha256)
-  AND NOT EXISTS (SELECT 1 FROM rooms r WHERE r.paper_sha256 = p.sha256)
   AND NOT EXISTS (SELECT 1 FROM sharables s WHERE s.paper_sha256 = p.sha256)
   AND NOT EXISTS (SELECT 1 FROM board_items b WHERE b.sha256 = p.sha256)
 ORDER BY p.created_at, p.sha256

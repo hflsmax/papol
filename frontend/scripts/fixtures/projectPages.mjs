@@ -159,7 +159,7 @@ const listed = (p, mine = false) => {
     doi: p.doi, title: p.title, authors: p.authors, journal: p.journal, year: p.year, file_path: `papers/${p.sha256}.pdf`, sha256: p.sha256,
     created_at: p.added_at, summary: null, thought: mine ? own?.thought ?? null : null, is_public: mine ? true : null, is_author: mine ? false : null,
     rating_expertise: null, rating_reading: mine ? own?.rating_reading ?? null : null, rating_liking: mine ? own?.rating_liking ?? null : null,
-    room_status: null, tags: [], shelf_uuid: mine ? SHELF.uuid : null, copy_uuid: mine ? `ac${p.sha256.slice(2, 8)}-0000-4000-8000-000000000001` : null, effort: null,
+    tags: [], shelf_uuid: mine ? SHELF.uuid : null, copy_uuid: mine ? `ac${p.sha256.slice(2, 8)}-0000-4000-8000-000000000001` : null, effort: null,
     users: p.users.map((u) => ({ user: u.user, is_author: false, thought: u.thought, rating_reading: u.rating_reading, rating_liking: u.rating_liking, rating_expertise: null, summary: null, tags: [] })),
   };
 };
@@ -168,7 +168,7 @@ const listed = (p, mine = false) => {
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
   if (path === '/notifications') {
-    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, room_uuid: null });
+    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
     return {
       notifications: [
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
@@ -196,7 +196,7 @@ function answer(method, path, search) {
   }
   if (path === `/users/${ME}/nook`) {
     return {
-      user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4, seminars: 0 },
+      user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4 },
       papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({ ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [] })),
       boards: NOOK_BOARDS,
       projects: [summary, other],

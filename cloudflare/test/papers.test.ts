@@ -536,18 +536,6 @@ describe("saving, opening and editing", () => {
     expect(await count("_server_change_log", "table_name = 'copies'")).toBe(2);
   });
 
-  it("keeps a paper on display while a seminar about it is on", async () => {
-    const account = await register();
-    const digest = "7".repeat(64);
-    await paperWithCopy(account, digest, "Discussed", { shelfUuid: await defaultShelf(account) });
-    const at = new Date().toISOString(), room = uuid();
-    await exec("INSERT INTO rooms (uuid, paper_sha256, created_by, status, created_at) VALUES (?, ?, ?, 'called', ?)", room, digest, account.uuid, at);
-    await exec("INSERT INTO room_participants (uuid, room_uuid, user_uuid, created_at) VALUES (?, ?, ?, ?)", uuid(), room, account.uuid, at);
-    expect((await call("PUT", `/api/papers/${digest.slice(0, 32)}`, { headers: account.headers, json: { is_public: false } })).status).toBe(400);
-    const page = await ok("GET", `/api/papers/${digest.slice(0, 32)}`, { headers: account.headers });
-    expect(page.rooms.map((r: any) => [r.status, r.creator.uuid, r.participants.length])).toEqual([["called", account.uuid, 1]]);
-  });
-
   it("opens the viewer's paper only for a user who keeps it", async () => {
     const keeper = await register(), other = await register();
     const digest = "5".repeat(64);

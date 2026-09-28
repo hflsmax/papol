@@ -4,7 +4,7 @@ import { paperName } from '../paperName.js';
 
 // ---------- Projects ----------
 
-// Projects are shared, online-only state, as seminars are: Papol macOS asks
+// Projects are shared, online-only state: Papol macOS asks
 // the server for them rather than keeping them in its private replica.
 
 // Every project, the viewer's own first. Given a paper, each of the viewer's

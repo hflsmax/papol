@@ -520,11 +520,6 @@ export const desktopStyles = `
   opacity: 0.5;
 }
 
-.desktop-row .state-pill {
-  flex: none;
-  margin-top: 2px;
-}
-
 .desktop-list-empty {
   padding: 32px 16px;
   color: var(--ink-faint);

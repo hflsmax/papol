@@ -10,7 +10,7 @@ import { batch, one, type Row } from "../db";
 import { extractMetadataJob, KIND as EXTRACT } from "../papers/extract";
 import { captureWebpageJob, WEBPAGE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
-import { dailyDigest, digestHour, SEND_ANNOUNCEMENT, SEND_EMAIL, sendAnnouncementJob, sendEmailJob } from "./notifications";
+import { SEND_ANNOUNCEMENT, SEND_EMAIL, sendAnnouncementJob, sendEmailJob } from "./notifications";
 import { enqueue } from "./queue";
 
 export type Handler = (env: Env, payload: Row) => Promise<unknown>;
@@ -58,10 +58,8 @@ export async function consume(batchOf: MessageBatch<Wakeup>, env: Env): Promise<
   }
 }
 
-// The two cron triggers, as wrangler.toml declares them; the entry
-// module tells them apart by the expression the runtime hands it.
+// The cron trigger, as wrangler.toml declares it.
 export const SWEEP_CRON = "*/2 * * * *";
-export const HOURLY_CRON = "0 * * * *";
 
 // The sweep, every couple of minutes: claim what is due and was not
 // woken, and run it here — the sweep is a Worker invocation like any
@@ -70,22 +68,4 @@ export async function sweep(env: Env): Promise<string[]> {
   const jobs = await claimDue(env.DB, "cron:sweep");
   for (const job of jobs) await runOne(env, job);
   return jobs.map((job) => job.uuid);
-}
-
-// The hourly cron: at the digest hour, the day's mail. The digest row is
-// the record that the day's mail was queued, so a day that has one is
-// done with, whatever hour asks again.
-export async function digestIfDue(env: Env, at = new Date()): Promise<{ queued: number; users: number } | null> {
-  if (at.getUTCHours() !== await digestHour(env)) return null;
-  const day = at.toISOString().slice(0, 10);
-  const key = `daily_digest:${day}`;
-  if (await one(env.DB, "SELECT 1 FROM jobs WHERE kind = 'daily_digest' AND \"key\" = ?", key)) return null;
-  const digest = enqueue(env.DB, "daily_digest", { day }, { key });
-  const { statements, uuids, users } = await dailyDigest(env);
-  await batch(env.DB, [digest.statement, ...statements]);
-  // The digest row itself is the record that this day's mail was queued;
-  // it is done the moment it is written.
-  await finish(env.DB, digest.uuid, { emails_queued: uuids.length, users_with_news: users });
-  await wake(env, uuids);
-  return { queued: uuids.length, users };
 }

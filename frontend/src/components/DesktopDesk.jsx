@@ -15,7 +15,6 @@ import ErrorBoundary from '../../../shared/ui/ErrorBoundary.jsx';
 import PaperUpload from './PaperUpload';
 import FolderImport from './FolderImport';
 import BoardCreateForm from './BoardCreateForm';
-import StatePill from './StatePill';
 import Glyph from './DesktopGlyph';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
@@ -486,9 +485,6 @@ export function DesktopBrowser({
                       </span>
                     )}
                   </span>
-                  {/* A label here, not the explainer button: a button inside
-                      the row's link would be a control inside a control. */}
-                  {paper.room_status && <StatePill status={paper.room_status} link={false} />}
                 </a>
               );
             })

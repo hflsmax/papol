@@ -3,7 +3,6 @@
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
-import { inActiveCohort } from "../cohorts";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
@@ -275,7 +274,6 @@ export function paperRoutes(router: Router) {
       const mine = await touchCopy();
       validate.copyFields(personal);
       const { is_public: wantedVisibility, ...rest } = personal;
-      if (wantedVisibility === false && await inActiveCohort(env.DB, user.uuid, paper.sha256)) refuse(400, "Leave the seminar before hiding this paper");
       if (wantedVisibility !== undefined && wantedVisibility !== null) {
         // Visibility lives on the shelf: the copy moves to one that says so.
         const target = await one<Row>(env.DB, "SELECT uuid FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL AND is_public = ? ORDER BY is_default DESC, position LIMIT 1",
@@ -294,10 +292,6 @@ export function paperRoutes(router: Router) {
       const mine = await touchCopy();
       const shelf = await one<Row>(env.DB, "SELECT * FROM shelves WHERE uuid = ? AND user_uuid = ?", String(data.shelf_uuid), user.uuid);
       if (!shelf) refuse(400, "Shelf does not belong to you");
-      const current = mine.shelf_uuid ? await one<{ is_public: number }>(env.DB, "SELECT is_public FROM shelves WHERE uuid = ?", mine.shelf_uuid) : null;
-      if (!shelf.is_public && current?.is_public && await inActiveCohort(env.DB, user.uuid, paper.sha256)) {
-        refuse(400, "Leave the seminar before moving this paper to a private shelf");
-      }
       mine.shelf_uuid = shelf.uuid as string;
     }
     if (copy) statements.push(...await writeSynced(env.DB, "copies", copy, user.uuid, false));

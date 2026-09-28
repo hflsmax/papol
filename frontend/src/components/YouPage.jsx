@@ -9,7 +9,7 @@ const VIEWS = [['inbox', 'Inbox'], ['activity', 'Activity'], ['account', 'Accoun
 // A member's own page on the web, reached by their avatar: who they are,
 // then one of what has come for them, what they have read, and their
 // account. What has come for them is first; it is why they came.
-export default function YouPage({ user, unreadCount, onUnread, onOpenRoom, onUserUpdated, onLogout, onSync }) {
+export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, onLogout, onSync }) {
   const [view, setView] = useState('inbox');
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -45,7 +45,7 @@ export default function YouPage({ user, unreadCount, onUnread, onOpenRoom, onUse
         ))}
       </nav>
       <div className="you-view" id="you-view" role="tabpanel" aria-labelledby={`you-tab-${view}`}>
-        {view === 'inbox' && <InboxPage bare onOpenRoom={onOpenRoom} onUnread={onUnread} />}
+        {view === 'inbox' && <InboxPage bare onUnread={onUnread} />}
         {view === 'activity' && <ActivityPanel />}
         {view === 'account' && (
           <ProfilePage user={user} withActivity={false} inTab onUserUpdated={onUserUpdated} onLogout={onLogout} onSync={onSync} />

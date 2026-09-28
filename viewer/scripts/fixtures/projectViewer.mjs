@@ -32,7 +32,7 @@ const paper = {
   sha256: PAPER, title: 'Attention Is All You Need', authors: '["A. Vaswani", "N. Shazeer", "N. Parmar"]',
   journal: 'NeurIPS', year: 2017, doi: null, file_path: `${PAPER}.pdf`, file_url: '/uploads/attention.pdf',
   copy_uuid: 'c0000000-0000-4000-8000-000000000001', shelf_uuid: 'ab000000-0000-4000-8000-000000000001', is_public: true,
-  summary: null, thought: null, tags: [], notes: [], also_read_by: [], rooms: [], sharable_uuid: null, created_at: daysAgo(30),
+  summary: null, thought: null, tags: [], notes: [], also_read_by: [], sharable_uuid: null, created_at: daysAgo(30),
 };
 
 // A line of paint across a page: PDF-space fractions, y up. `at` is the

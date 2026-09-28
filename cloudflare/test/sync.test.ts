@@ -473,7 +473,7 @@ describe("the nook", () => {
     expect(rejected.status).toBe(422);
   });
 
-  it("publishes and hides a paper by the shelf it is moved to, unless a seminar is on", async () => {
+  it("publishes and hides a paper by the shelf it is moved to", async () => {
     const account = await register();
     const at = new Date().toISOString();
     const publicShelf = uuid(), privateShelf = uuid();
@@ -490,13 +490,6 @@ describe("the nook", () => {
     expect((await move(privateShelf, 1)).status).toBeLessThan(400);
     expect(await onShelf()).toBe(privateShelf);
     expect((await move(publicShelf, 2)).status).toBeLessThan(400);
-    expect(await onShelf()).toBe(publicShelf);
-
-    const room = uuid();
-    await exec("INSERT INTO rooms (uuid, paper_sha256, created_by, status, created_at) VALUES (?, ?, ?, 'called', ?)", room, digest, account.uuid, at);
-    await exec("INSERT INTO room_participants (uuid, room_uuid, user_uuid, created_at) VALUES (?, ?, ?, ?)", uuid(), room, account.uuid, at);
-    const refused = await move(privateShelf, 3);
-    expect(refused.status).toBe(422);
     expect(await onShelf()).toBe(publicShelf);
   });
 

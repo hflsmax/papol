@@ -8,7 +8,7 @@ const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
-const TRIES = ['cite', 'figure', 'paint', 'drag', 'line', 'seminar'];
+const TRIES = ['cite', 'figure', 'paint', 'drag', 'line'];
 
 // What a visitor sees: what Papol is in a line, the way in for someone who
 // already knows it, and for someone who does not, Papol itself to try — a

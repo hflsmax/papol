@@ -41,7 +41,7 @@ const isJacket = (route) => route.page === 'paper' || route.page === 'board';
  * Only a move *onto* a jacket changes it. From a nook or the library, that
  * place becomes the origin. From another jacket — a reference followed, a
  * related paper opened, a board opened from a paper — the trail keeps the
- * place it started from. From anywhere else (a seminar, the inbox) there is
+ * place it started from. From anywhere else (a project, the inbox) there is
  * no such place, and a stale one would be a wrong answer given confidently,
  * so it is forgotten and the default below applies.
  */

@@ -17,7 +17,6 @@
 // snapshot every reconciliation fetches first settles it.
 
 import { currentUser, type User } from "../auth";
-import { inActiveCohort } from "../cohorts";
 import { all, batch, insert, newUuid, now, one, update, type Row } from "../db";
 import { json, readJson, refuse, type RouteContext } from "../http";
 import * as validate from "../validate";
@@ -341,13 +340,6 @@ async function assignValues(work: Working, env: Env, entry: Entry, values: Recor
       if ("shelf_uuid" in values) {
         const shelf = await ownedShelf(work, values.shelf_uuid);
         // Visibility belongs to the shelf, so the move is the whole of it.
-        // A paper still being discussed in a seminar stays on display.
-        if (shelf && !shelf.row.is_public) {
-          const current = row.shelf_uuid ? await work.load("shelves", row.shelf_uuid as string) : null;
-          if (current?.row.is_public && await inActiveCohort(work.db, user.uuid, row.paper_sha256 as string)) {
-            refuse(422, "Leave the seminar before moving this paper to a private shelf");
-          }
-        }
         row.shelf_uuid = shelf?.row.uuid ?? null;
       }
       setAll(row, values, new Set(["paper_sha256", "shelf_uuid", "deleted_at"]));

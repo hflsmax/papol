@@ -3,7 +3,7 @@
 
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
-import { consume, digestIfDue, HOURLY_CRON, sweep, type Wakeup } from "./jobs/run";
+import { consume, sweep, type Wakeup } from "./jobs/run";
 import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
 import { adminRoutes } from "./routes/admin";
@@ -18,7 +18,6 @@ import { paperRoutes } from "./routes/papers";
 import { discussionRoutes } from "./routes/discussions";
 import { projectRoutes } from "./routes/projects";
 import { referenceRoutes } from "./routes/references";
-import { roomRoutes } from "./routes/rooms";
 import { sharableRoutes } from "./routes/sharables";
 import { getBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
@@ -53,7 +52,6 @@ projectRoutes(router);
 discussionRoutes(router);
 paperRoutes(router);
 annotationRoutes(router);
-roomRoutes(router);
 inboxRoutes(router);
 sharableRoutes(router);
 adminRoutes(router);
@@ -78,10 +76,8 @@ export default {
     return consume(batch, env);
   },
 
-  // Every two minutes, what nobody was woken for; every hour, the digest
-  // if it is its hour.
-  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === HOURLY_CRON) await digestIfDue(env, new Date(controller.scheduledTime));
-    else await sweep(env);
+  // Every two minutes, what nobody was woken for.
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await sweep(env);
   },
 } satisfies ExportedHandler<Env, Wakeup>;

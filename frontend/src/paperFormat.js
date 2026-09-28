@@ -14,11 +14,3 @@ export function formatAuthors(authorsJson) {
 }
 
 export const newestFirst = (a, b) => new Date(b.created_at) - new Date(a.created_at);
-
-// Live calls first, then scheduled seminars, then everything else.
-export const seminarRank = (paper) =>
-  paper.room_status === 'open' || paper.room_status === 'planning'
-    ? 0
-    : paper.room_status === 'scheduled'
-      ? 1
-      : 2;
