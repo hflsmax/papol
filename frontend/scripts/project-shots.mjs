@@ -26,10 +26,16 @@ const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
+  // The Digs tab with its buried band unfolded.
+  'desk-digs-buried': { ...desk('digs', '.project-talk-band.is-buried .project-talk-item', "const go = () => { const b = document.querySelector('.project-talk-band.is-buried .project-talk-band-head'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;"), size: wide },
   'desk-invite': { ...desk('papers', '#project-people .project-invite', "document.querySelector('.project-invite-open').click(); return true;"), size: wide },
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
   // A paper picked in the Papers tab: its brief beside the list.
   'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
+  // A dig's phase in a brief, pressed: the four phases open in its place.
+  'desk-paper-phase': { ...desk('papers', '.project-papers-panel .dig-phase', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const w = document.querySelector('.project-papers-panel .dig-phase-word'); if (w) w.click(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
+  // A buried dig in a brief, folded to its owner's line.
+  'desk-paper-buried': { ...desk('papers', '.project-papers-panel .paper-brief-dig-folded', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .paper-brief-dig-folded'); if (f) f.scrollIntoView({ block: 'center' }); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // A member's face in a paper's dig, and where it leads: their nook.

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, TalkGlyph, TalkOpener, phaseWord, when } from '../../../shared/ui/Talk.jsx';
+import { PHASES, TalkCard, phaseRank, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   annotationViewerPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -500,19 +500,39 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
 // Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', card: 'Card', annotation: 'Annotation' };
 
-// Digs still digging lead; stashed, gold and buried ones follow, each by
-// latest writing.
-const PHASE_ORDER = { digging: 0, stashed: 1, gold: 2, buried: 3 };
+// Digs still digging lead, unheaded; stashed, gold and buried ones follow
+// in bands of their own, each by latest writing. Buried starts folded; how
+// each band is folded is kept per viewer and project.
+const foldKey = (projectUuid) => `papol:dig-bands:${projectUuid}`;
+
+function useFolded(projectUuid) {
+  const [folded, setFolded] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(foldKey(projectUuid))) ?? { buried: true }; } catch { return { buried: true }; }
+  });
+  const toggle = (phase, to = !folded[phase]) => {
+    const next = { ...folded, [phase]: to };
+    setFolded(next);
+    try { localStorage.setItem(foldKey(projectUuid), JSON.stringify(next)); } catch { /* folded for this visit */ }
+  };
+  return [folded, toggle];
+}
 
 function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
-  const discussions = [...(project.digs ?? [])].sort((a, b) => (PHASE_ORDER[a.phase] ?? 0) - (PHASE_ORDER[b.phase] ?? 0));
+  const all = [...(project.digs ?? [])].sort((a, b) => phaseRank(a.phase) - phaseRank(b.phase));
+  const [folded, fold] = useFolded(project.uuid);
+  const phaseOf = (d) => d.phase ?? 'digging';
+  // The digs in view: those in open bands. Keys walk these alone.
+  const discussions = all.filter((d) => !folded[phaseOf(d)]);
   const wide = useWide();
   // A dig opens right here, never on a page of its own. On a wide window
   // the list stays put and the dig opens beside it: on arrival the first
   // unread one, else the latest. Narrower, it opens under its row, and a
   // second press folds it. Read when the selection moves on.
   const [picked, setPicked] = useState(() => (wide ? (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null : null));
-  const shown = discussions.find((d) => d.uuid === picked) ?? (wide ? discussions[0] : null) ?? null;
+  const shown = all.find((d) => d.uuid === picked) ?? (wide ? discussions[0] : null) ?? null;
+  // A dig moved into a folded band keeps its band open.
+  const shownPhase = shown && phaseOf(shown);
+  useEffect(() => { if (shownPhase && folded[shownPhase]) fold(shownPhase, false); }, [shown?.uuid, shownPhase]);
   const pick = (uuid) => setPicked(wide || shown?.uuid !== uuid ? uuid : null);
   useEffect(() => () => { if (shown) onRead(shown.uuid); }, [shown?.uuid]);
   const move = (e) => {
@@ -538,7 +558,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
       </h3>
       <TalkCard
         key={d.uuid} inline
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single phaseBar
       />
     </>
   );
@@ -554,30 +574,42 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
         <span className="project-talk-meta">
           {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
           <span>{d.is_mine ? 'You' : d.owner?.display_name}</span>
-          {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
           <span>· {when(d.updated_at)}</span>
         </span>
         {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
       </>
     );
   };
+  const item = (d) => (
+    <li key={d.uuid}>
+      <button
+        type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
+        className={`project-talk-item${d.is_new ? ' is-new' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
+        onClick={() => pick(d.uuid)}
+      >
+        {row(d)}
+      </button>
+      {!wide && shown?.uuid === d.uuid && <div className="project-talk-panel">{pane(d)}</div>}
+    </li>
+  );
+  const bands = PHASES.map((p) => [p, all.filter((d) => phaseOf(d) === p.key)]).filter(([, digs]) => digs.length);
   return (
     <section className={`project-talk${wide ? ' is-wide' : ''}`} aria-label="Digs">
-      {discussions.length > 0 && (
-        <ul className="project-talk-list" onKeyDown={wide ? move : undefined}>
-          {discussions.map((d) => (
-            <li key={d.uuid}>
-              <button
-                type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
-                className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
-                onClick={() => pick(d.uuid)}
-              >
-                {row(d)}
-              </button>
-              {!wide && shown?.uuid === d.uuid && <div className="project-talk-panel">{pane(d)}</div>}
-            </li>
+      {all.length > 0 && (
+        <div className="project-talk-bands" onKeyDown={wide ? move : undefined}>
+          {bands.map(([p, digs]) => (
+            <section key={p.key} className={`project-talk-band is-${p.key}`} aria-label={p.word}>
+              {p.key !== 'digging' && (
+                <button type="button" className="project-talk-band-head" aria-expanded={!folded[p.key]} onClick={() => fold(p.key)}>
+                  <svg className="project-talk-band-fold" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 2 6.5 5 3.5 8" /></svg>
+                  {p.word}
+                  <span className="project-talk-band-count">{digs.length}</span>
+                </button>
+              )}
+              {!folded[p.key] && <ul className="project-talk-list">{digs.map(item)}</ul>}
+            </section>
           ))}
-        </ul>
+        </div>
       )}
       {wide && shown && <div className="project-talk-panel">{pane(shown)}</div>}
     </section>

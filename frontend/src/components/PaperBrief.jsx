@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
+import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { annotationViewerPath, findDigs, removePaperFromProject } from '../../../shared/api/projects.js';
 import { addToNook } from '../../../shared/api/papers.js';
@@ -23,6 +24,8 @@ function day(iso) {
 export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead }) {
   const [notice, setNotice] = useState(null);
   const [digs, setDigs] = useState(null);
+  // Buried digs fold to their owner's line until one is opened.
+  const [unfolded, setUnfolded] = useState(() => new Set());
   const subject = `paper:${paper.sha256}`;
 
   const loadDigs = useCallback(() => findDigs(project.uuid, subject)
@@ -89,15 +92,27 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
 
       {digs && (
         <section className="paper-brief-digs" aria-label="Digs">
-          {/* Yours first, then the others' as they came. */}
-          {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine)).map((d) => (
-            <div className="paper-brief-dig" key={d.uuid}>
-              <TalkCard
-                inline single unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
-                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
-                onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
-              />
-            </div>
+          {/* Yours first, then the others' by phase, as the Digs tab lists them. */}
+          {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
+            d.phase === 'buried' && !unfolded.has(d.uuid) ? (
+              <button
+                type="button" className="paper-brief-dig-folded" key={d.uuid} aria-expanded="false"
+                onClick={() => setUnfolded((was) => new Set(was).add(d.uuid))}
+              >
+                {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
+                <span className="paper-brief-dig-owner">{d.is_mine ? 'You' : d.owner?.display_name}</span>
+                <span className="dig-phase-word is-buried">Buried</span>
+                <span>{day(d.updated_at)}</span>
+              </button>
+            ) : (
+              <div className="paper-brief-dig" key={d.uuid}>
+                <TalkCard
+                  inline single unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                  projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
+                  onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
+                />
+              </div>
+            )
           ))}
           {currentUser && !digs.some((d) => d.is_mine) && (
             <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
