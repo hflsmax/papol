@@ -164,10 +164,17 @@ def require_fixture_host():
         )
 
 
+# The app's own crate without debug information, which it spends most of
+# its compile and link on; its dependencies keep theirs, so the ones already
+# built are used as they are. The same on the build and every run, or each
+# run would build again.
+NO_DEBUG = ["--config", "profile.dev.package.papol-desktop.debug=0"]
+
+
 def build_probe():
     subprocess.run(
         ["cargo", "build", "--quiet", "--locked", "--manifest-path", str(MANIFEST),
-         "--example", "capture_probe"],
+         *NO_DEBUG, "--example", "capture_probe"],
         check=True,
     )
 
@@ -176,7 +183,7 @@ def probe(url, output):
     """The probe's verdict: its exit status and everything it said."""
     completed = subprocess.run(
         ["cargo", "run", "--quiet", "--locked", "--manifest-path", str(MANIFEST),
-         "--example", "capture_probe", "--", url, str(output)],
+         *NO_DEBUG, "--example", "capture_probe", "--", url, str(output)],
         capture_output=True, text=True, timeout=120,
     )
     return completed.returncode, (completed.stdout + completed.stderr).strip()
