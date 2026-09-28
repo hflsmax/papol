@@ -29,7 +29,7 @@ test('shared application styles reference only declared or runtime tokens', () =
   const runtime = new Set([
     'active-shelf-color', 'activity-days', 'board-card-paint-state', 'board-grid-dot', 'hue',
     'board-grid-size', 'board-grid-x', 'board-grid-y', 'board-ui-scale',
-    'preview-ratio', 'shelf-color',
+    'desk-filter-h', 'preview-ratio', 'shelf-color',
   ]);
   const unresolved = [...new Set(
     [...applicationStyles.matchAll(/var\(--([\w-]+)/g)].map((match) => match[1]),
