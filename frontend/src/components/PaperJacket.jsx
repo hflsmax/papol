@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Progress, Working } from '../../../shared/ui/Waiting.js';
 import {
   getPaper, updatePaper, deletePaper, createTag, listTags, listShelves,
@@ -10,7 +10,7 @@ import {
 } from '../../../shared/api/sharables.js';
 import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
-import { InWay } from './Way';
+import { InWay, WayShown } from './Way';
 import { readPrintedAt } from '../pdfIdentifier.js';
 import CommentSection from './CommentSection';
 import HintPop from './HintPop';
@@ -33,6 +33,8 @@ export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   hideBack = false, backLabel = 'Back', onReportableError,
 }) {
+  // Under the bar the paper's title, authors and venue stand on it.
+  const inBar = useContext(WayShown);
   const [paper, setPaper] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
@@ -472,6 +474,65 @@ export default function PaperJacket({
     }
   };
 
+  // What is the member's own about the paper: its shelf, its removal, and
+  // whether they wrote it.
+  const shelfControls = hasEntry && (
+    <div className="detail-toggle">
+      <span className="hint-anchor paper-shelf-picker">
+        <label htmlFor="paper-shelf">Shelf:</label>
+        <select id="paper-shelf" value={paper.shelf_uuid || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.uuid) === e.target.value)?.uuid)}>
+          {shelves.map((shelf) => (
+            <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
+          ))}
+        </select>
+        {toggleWarning && (
+          <HintPop
+            text={toggleWarning}
+            onClose={() => setToggleWarning(null)}
+          />
+        )}
+      </span>
+      <button
+        className="icon-button danger-icon"
+        onClick={handleDelete}
+        title="Remove this paper from my nook — my ratings and notes go with it"
+        aria-label="Remove from my nook"
+      >
+        <svg
+          width="19"
+          height="19"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2.6 4h10.8" />
+          <path d="M6.2 4V2.7h3.6V4" />
+          <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
+          <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
+        </svg>
+      </button>
+    </div>
+  );
+  const authorCheck = hasEntry && (
+    <label
+      className="checkbox-row inline"
+      title="Marks your chip on this paper as an author"
+    >
+      <input
+        type="checkbox"
+        checked={paper.is_author === true}
+        onChange={(e) =>
+          handleInlineRating('is_author', e.target.checked)
+        }
+      />
+      <span>I am an author</span>
+    </label>
+  );
+
   return (
     <div className="paper-jacket">
       {/* Editing the details takes over the page, and its Cancel is the
@@ -590,90 +651,61 @@ export default function PaperJacket({
         </div>
       ) : (
         <div className="paper-info">
-          <InWay>
-            <div className="detail-title-row">
-              <h2><PaperTitle title={paper.title} /></h2>
-              {hasEntry && (
-                <div className="detail-toggle">
-                  <span className="hint-anchor paper-shelf-picker">
-                    <label htmlFor="paper-shelf">Shelf:</label>
-                    <select id="paper-shelf" value={paper.shelf_uuid || ''} onChange={(e) => handleShelfChange(shelves.find((shelf) => String(shelf.uuid) === e.target.value)?.uuid)}>
-                      {shelves.map((shelf) => (
-                        <option key={shelf.uuid} value={shelf.uuid}>{shelf.name} · {shelf.is_public ? 'Public' : 'Private'}</option>
-                      ))}
-                    </select>
-                    {toggleWarning && (
-                      <HintPop
-                        text={toggleWarning}
-                        onClose={() => setToggleWarning(null)}
-                      />
-                    )}
-                  </span>
-                  <button
-                    className="icon-button danger-icon"
-                    onClick={handleDelete}
-                    title="Remove this paper from my nook — my ratings and notes go with it"
-                    aria-label="Remove from my nook"
-                  >
-                    <svg
-                      width="19"
-                      height="19"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M2.6 4h10.8" />
-                      <path d="M6.2 4V2.7h3.6V4" />
-                      <path d="M4.1 4l.5 9.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L11.9 4" />
-                      <path d="M6.7 6.6v5.2M9.3 6.6v5.2" />
-                    </svg>
-                  </button>
+          {inBar ? (
+            <>
+              {/* On the bar, what the paper is; in the jacket, what is the
+                  member's own about it. */}
+              <InWay>
+                <div className="paper-way-head">
+                  <h2><PaperTitle title={paper.title} /></h2>
+                  {authors.length > 0 && <p className="authors">{authors.join(', ')}</p>}
+                  {(paper.journal || paper.year) && (
+                    <p className="metadata">
+                      {paper.journal && <span className="journal">{paper.journal}</span>}
+                      {paper.year && <span className="year">{paper.year}</span>}
+                    </p>
+                  )}
+                </div>
+              </InWay>
+              {hasEntry && <div className="paper-own-row">{authorCheck}{shelfControls}</div>}
+              {paper.doi && (
+                <div className="metadata">
+                  <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="doi">
+                    {paper.doi}
+                  </a>
                 </div>
               )}
-            </div>
-
-            {authors.length > 0 && (
-              <div className="detail-authors-row">
-                <p className="authors">{authors.join(', ')}</p>
-                {/* Sits level with the names it refers to, however many lines
-                    they run to — as the display controls do with the title. */}
-                {hasEntry && (
-                  <label
-                    className="checkbox-row inline"
-                    title="Marks your chip on this paper as an author"
+            </>
+          ) : (
+            <>
+              <div className="detail-title-row">
+                <h2><PaperTitle title={paper.title} /></h2>
+                {shelfControls}
+              </div>
+              {authors.length > 0 && (
+                <div className="detail-authors-row">
+                  <p className="authors">{authors.join(', ')}</p>
+                  {/* Sits level with the names it refers to, however many lines
+                      they run to — as the display controls do with the title. */}
+                  {authorCheck}
+                </div>
+              )}
+              <div className="metadata">
+                {paper.journal && <span className="journal">{paper.journal}</span>}
+                {paper.year && <span className="year">{paper.year}</span>}
+                {paper.doi && (
+                  <a
+                    href={`https://doi.org/${paper.doi}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="doi"
                   >
-                    <input
-                      type="checkbox"
-                      checked={paper.is_author === true}
-                      onChange={(e) =>
-                        handleInlineRating('is_author', e.target.checked)
-                      }
-                    />
-                    <span>I am an author</span>
-                  </label>
+                    {paper.doi}
+                  </a>
                 )}
               </div>
-            )}
-          </InWay>
-
-          <div className="metadata">
-            {paper.journal && <span className="journal">{paper.journal}</span>}
-            {paper.year && <span className="year">{paper.year}</span>}
-            {paper.doi && (
-              <a
-                href={`https://doi.org/${paper.doi}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="doi"
-              >
-                {paper.doi}
-              </a>
-            )}
-          </div>
+            </>
+          )}
 
           <div className="paper-actions">
             {/* Reading does not wait for the paper to be taken: the viewer

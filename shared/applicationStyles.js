@@ -176,10 +176,18 @@ ${commonStyles}
 #way-slot > .project-title-row { flex: 1 1 auto; }
 #way-slot > .project-seats { margin-left: auto; }
 #way-slot > .detail-title-row { flex: 1; min-width: 0; margin: 0; }
-/* A paper's title runs long, so it is set smaller, its authors under it. */
-#way-slot > .detail-title-row h2 { font-size: var(--fs-2xl); line-height: 1.25; }
-#way-slot > .detail-authors-row { flex: 1 1 100%; margin: calc(-1 * var(--space-1)) 0 0; font-size: var(--fs-md); }
-#way-slot > .detail-authors-row .authors { margin: 0; color: var(--ink-soft); font: italic var(--fs-md) var(--font-serif); }
+/* A paper's title runs long, so it is set smaller, with its authors and
+   its venue and year under it. What is the member's own about the paper
+   stays in its jacket. */
+#way-slot > .paper-way-head { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.paper-way-head h2 { margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); color: var(--ink); }
+.paper-way-head .authors { margin: 0; color: var(--ink-soft); font: italic var(--fs-md) var(--font-serif); }
+.paper-way-head .metadata { gap: var(--space-1); margin: 0; }
+.paper-way-head .metadata span { font-size: var(--fs-sm); }
+.paper-way-head .metadata span + span::before { content: '·'; margin-right: var(--space-1); }
+.paper-own-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
+.paper-own-row > .detail-toggle { margin-left: auto; }
+.paper-own-row > .checkbox-row.inline { margin: 0; }
 .app:has(.nook-desk) .way { gap: 0; }
 .app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
 .app:has(.nook-desk.is-folded) .way-mark { width: calc(2.25rem + var(--space-5)); }
