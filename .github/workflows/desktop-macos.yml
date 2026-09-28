@@ -168,6 +168,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
+          key: ${{ hashFiles('.github/workflows/desktop-macos.yml') }}
           save-if: false
       # The installed dependencies, which the app job saves from main;
       # installed afresh only when a lockfile has changed.
@@ -212,6 +213,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
+          key: ${{ hashFiles('.github/workflows/desktop-macos.yml') }}
           save-if: false
 
       # The capture refuses a local link and WebKit's rules refuse any
@@ -261,6 +263,10 @@ jobs:
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
+          # rust-cache saves only under a key it has not saved yet, and its
+          # own key moves with the lockfiles alone; this one also moves when
+          # the jobs start building something new (the capture probe).
+          key: ${{ hashFiles('.github/workflows/desktop-macos.yml') }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # The accessibility API answers only a process the user has trusted,
