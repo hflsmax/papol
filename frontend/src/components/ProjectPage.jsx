@@ -143,8 +143,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
       </TalkOpener>
     );
   };
-  // The people stay folded until asked for, even for a keeper alone in
-  // the project: entering a project shows its work, not its members.
+  // Folded until asked for, even for a keeper alone in the project:
+  // entering a project shows its work. The faces open who is in it, and
+  // Invite opens the invitation link; each is its own card.
   const open = peopleOpen;
   const people = project.members.map((m) => m.user);
   const count = plural(people.length, 'member', 'members');
@@ -164,11 +165,11 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   );
   const seats = project.is_member ? (
     <div className="project-seats">
-      {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
+      {open && <People project={project} showing={open} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
       <button
-        type="button" className="project-seat-row" aria-expanded={open} aria-controls="project-people"
+        type="button" className="project-seat-row" aria-expanded={open === 'people'} aria-controls="project-people"
         aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
-        onClick={() => setPeopleOpen(!open)}
+        onClick={() => setPeopleOpen(open === 'people' ? false : 'people')}
       >
         {people.slice(0, 5).map((user) => (
           <span className="project-seat" key={user.uuid}>
@@ -179,7 +180,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         {people.length > 5 && <span className="project-seat-more">+{people.length - 5}</span>}
       </button>
       {project.is_keeper && (
-        <button type="button" className="project-invite-open" onClick={() => setPeopleOpen(true)}>
+        <button
+          type="button" className="project-invite-open" aria-expanded={open === 'invite'} aria-controls="project-people"
+          onClick={() => setPeopleOpen(open === 'invite' ? false : 'invite')}
+        >
           <ActionGlyph name="plus" />Invite
         </button>
       )}
@@ -243,9 +247,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   );
 }
 
-// Who is in it, the one invitation link for a keeper, and leaving: a
-// card under the seats, so the desk stays where the eye was.
-function People({ project, currentUser, act, onLeft, onClose }) {
+// A card under the seats, so the desk stays where the eye was: who is in
+// it and leaving (the faces), or the one invitation link (a keeper's Invite).
+function People({ project, showing, currentUser, act, onLeft, onClose }) {
   const alone = project.members.length === 1;
   const self = useRef(null);
   useEffect(() => {
@@ -263,9 +267,9 @@ function People({ project, currentUser, act, onLeft, onClose }) {
     if (ok && await act(() => removeMember(project.uuid, currentUser.uuid))) onLeft?.();
   };
   return (
-    <section id="project-people" className="project-people" aria-label="Members" ref={self}>
-      {project.is_keeper && <Invitation project={project} act={act} />}
-      <ul className="project-people-list">
+    <section id="project-people" className="project-people" aria-label={showing === 'invite' ? 'Invite' : 'Members'} ref={self}>
+      {showing === 'invite' && project.is_keeper && <Invitation project={project} act={act} />}
+      {showing === 'people' && <ul className="project-people-list">
         {project.members.map((member) => {
           const me = member.user.uuid === currentUser?.uuid;
           return (
@@ -294,7 +298,7 @@ function People({ project, currentUser, act, onLeft, onClose }) {
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </section>
   );
 }
