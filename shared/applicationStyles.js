@@ -6433,6 +6433,47 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
+/* A member's own nook on the web: no face or name, only their work. Their
+   projects lead; below, their papers take the width and their boards and
+   shelves stand in a narrow column beside them (under them on a phone).
+   Each part is headed by its name, with its count, and the one thing you
+   add to it. */
+.nook.is-home > .nook-desk-projects { margin-top: 0; }
+.nook-home { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: var(--space-6) var(--space-5); align-items: start; margin-top: var(--space-6); }
+.nook-home-head { display: flex; align-items: center; gap: var(--space-3); min-height: 32px; margin-bottom: var(--space-3); }
+.nook-home-head h3 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
+.nook-home-head .upload-section.compact { flex: 1 1 auto; min-width: 0; margin-left: var(--space-3); }
+.nook-home-head .upload-section.compact .dropzone { min-height: 32px; padding: 4px 12px; }
+.nook-home-head .upload-section.compact .dropzone p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nook-home-head .manage-nook-gear, .nook-home-add { margin-left: auto; }
+.nook-home-add { padding: 2px 10px; font-size: var(--fs-xs); }
+.nook-home-count { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
+.nook-home-papers > .paper-list { margin-top: 0; }
+.nook-home-side { display: grid; gap: var(--space-6); }
+.nook-home-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.nook-home-board, .nook-home-shelf {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; box-sizing: border-box;
+  padding: var(--space-2) var(--space-2); border: 0; border-radius: var(--radius); background: transparent; box-shadow: none;
+  color: var(--ink); font: 400 var(--fs-sm) var(--font-ui); text-align: left; text-decoration: none;
+}
+.nook-home-board:hover, .nook-home-board:focus-visible, .nook-home-shelf:hover, .nook-home-shelf:focus-visible { background: var(--paper-sunken); color: var(--ink); }
+.nook-home-shelf.is-on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.nook-home-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nook-home-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.nook-home-lock { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--ink-faint); stroke-width: 1.4; }
+.nook-home-side .nook-inline-board-create { margin-bottom: var(--space-3); }
+.upload-review-mode .nook-home { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
+.upload-review-mode .nook-home-side,
+.upload-review-mode .nook-home-papers > .paper-list,
+.upload-review-mode .nook-home-head h3 { display: none; }
+.upload-review-mode .nook-home-head { display: block; }
+@media (max-width: 760px) {
+  .nook-home { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); margin-top: var(--space-5); }
+  .nook-home-head { flex-wrap: wrap; }
+  .nook-home-side { order: -1; gap: var(--space-5); }
+  .nook-home-head .upload-section.compact { flex: 1 1 100%; margin-left: 0; }
+}
+
 /* Product-wide motion preference. Component media rules can remove layout
    transitions more selectively, while this guarantees that no newly added
    animation escapes the user's operating-system preference. */

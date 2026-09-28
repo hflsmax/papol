@@ -148,6 +148,9 @@ const discussion = (uuid) => {
 // A paper as the Library and a nook list it: the members' takes are the
 // users shown against it, and a nook's own copy sits on its one shelf.
 const SHELF = { uuid: 'ab000000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 3, board_count: 0 };
+const DRAWER = { uuid: 'ab000000-0000-4000-8000-000000000002', name: 'Drafts', color: '#b07a4f', is_public: false, is_default: false, position: 1, paper_count: 0, board_count: 1 };
+// The member's own boards, outside any project.
+const nookBoard = (n, name, count, shelf, at) => ({ uuid: `ad000000-0000-4000-8000-00000000000${n}`, name, description: null, item_count: count, shelf_uuid: shelf.uuid, updated_at: at, owner: me, can_edit: true, items: [] });
 const listed = (p, mine = false) => {
   const own = p.users.find((u) => u.user.uuid === ME);
   return {
@@ -185,9 +188,10 @@ function answer(method, path, search) {
   if (dig) return discussion(dig[1]);
   if (path === `/users/${ME}/nook`) {
     return {
-      user: me, shelves: [SHELF], tags: [], stats: { papers: 3, displayed: 3, notes: 4, seminars: 0 },
+      user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: [], stats: { papers: 3, displayed: 3, notes: 4, seminars: 0 },
       papers: papers.filter((p) => p.in_my_nook).map((p) => listed(p, true)),
-      boards: [], projects: [summary, other],
+      boards: [nookBoard(1, 'Thesis chapter 3 outline', 18, DRAWER, hoursAgo(5)), nookBoard(2, 'Wavefront sensors compared', 7, SHELF, daysAgo(3))],
+      projects: [summary, other],
     };
   }
   if (path === '/papers') return papers.map((p) => listed(p));
