@@ -76,7 +76,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const [project, setProject] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [peopleOpen, setPeopleOpen] = useState(null);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [view, setView] = useView(projectUuid);
   const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
 
@@ -143,8 +143,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
       </TalkOpener>
     );
   };
-  // A keeper alone in a project has one thing to do next: invite.
-  const open = peopleOpen ?? (project.is_keeper && project.members.length === 1);
+  // The people stay folded until asked for, even for a keeper alone in
+  // the project: entering a project shows its work, not its members.
+  const open = peopleOpen;
   const people = project.members.map((m) => m.user);
   const count = plural(people.length, 'member', 'members');
 
