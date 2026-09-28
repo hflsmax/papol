@@ -49,6 +49,9 @@ export const talkStyles = `
 .dig-phase button.is-on, .dig-phase button.is-on:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); }
 .dig-phase.is-busy button.is-on { opacity: .6; }
 .dig-phase button:focus-visible, .dig-phase-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.phase-glyph { flex: none; width: 15px; height: 15px; overflow: visible; }
+.phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dig-phase button, .dig-phase-word { display: inline-flex; align-items: center; gap: 5px; }
 .dig-phase-word { flex: none; margin-left: auto; background: var(--paper-sunken); color: var(--ink-soft); }
 .dig-phase-word:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink); }
 @media (pointer: coarse) { .dig-phase button, .dig-phase-word { height: 32px; line-height: 32px; } }

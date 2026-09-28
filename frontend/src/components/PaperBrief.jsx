@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
+import { PhaseGlyph, TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { annotationViewerPath, findDigs, removePaperFromProject } from '../../../shared/api/projects.js';
@@ -101,7 +101,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
               >
                 {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
                 <span className="paper-brief-dig-owner">{d.is_mine ? 'You' : d.owner?.display_name}</span>
-                <span className="dig-phase-word is-buried">Buried</span>
+                <span className="dig-phase-word is-buried"><PhaseGlyph phase="buried" />Buried</span>
                 <span>{day(d.updated_at)}</span>
               </button>
             ) : (

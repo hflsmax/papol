@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { PHASES, TalkCard, phaseRank, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
+import { PHASES, PhaseGlyph, TalkCard, phaseRank, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   annotationViewerPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -602,7 +602,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
               {p.key !== 'digging' && (
                 <button type="button" className="project-talk-band-head" aria-expanded={!folded[p.key]} onClick={() => fold(p.key)}>
                   <svg className="project-talk-band-fold" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 2 6.5 5 3.5 8" /></svg>
-                  {p.word}
+                  <PhaseGlyph phase={p.key} />{p.word}
                   <span className="project-talk-band-count">{digs.length}</span>
                 </button>
               )}

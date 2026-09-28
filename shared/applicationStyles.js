@@ -5339,7 +5339,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* One dig, so its phase sits at the end of the subject line. */
 .project-talk-panel .talk-card.is-inline { position: static; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { position: absolute; top: var(--space-2); right: var(--space-5); min-height: 0; padding: 0; background: none; }
-.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 17rem; }
+.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 22rem; }
 /* Narrow, the phases take their own line under the subject. */
 .project-talk:not(.is-wide) .project-talk-panel .talk-card.is-inline .talk-card-header { position: static; margin: var(--space-1) 0 var(--space-2); }
 .project-talk:not(.is-wide) .project-talk-panel .dig-phase { margin-left: 0; }
@@ -5422,6 +5422,9 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
 .paper-brief-dig .talk-post-head .dig-phase-word.is-gold { color: var(--accent-strong); }
 .paper-brief-dig .talk-post-head .dig-phase { margin-left: var(--space-1); }
+/* The phases, opened, wrap under the owner's line rather than squeeze it. */
+.paper-brief-dig .talk-post-head { flex-wrap: wrap; }
+.paper-brief-dig .talk-post-head :is(b, time) { white-space: nowrap; }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller
    while it is being written in. */
 .paper-brief-dig .talk-compose { grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-2); padding: 0 0 0 28px; background: none; }
