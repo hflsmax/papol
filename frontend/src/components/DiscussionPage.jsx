@@ -6,7 +6,7 @@ import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard, TalkGlyph, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  deleteDiscussionPost, editDiscussionPost, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
+  deleteDiscussionPost, editDiscussionPost, editDig, removeDig, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
 } from '../../../shared/api/projects.js';
 import { annotationViewerPath, briefPath } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -23,7 +23,7 @@ const POST_LIMIT = appLimits.text.discussion_post;
 
 // What the dig is about, and the ways out of it: the project, and the
 // thing itself, at its brief or on its board.
-function Subject({ project, subject, posts = [] }) {
+function Subject({ project, subject, posts = [], count = 0 }) {
   const projectHref = appPath(`/project/${project.uuid}`);
   const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
     : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
@@ -58,7 +58,7 @@ function Subject({ project, subject, posts = [] }) {
         {posts.length > 0 && (
           <p className="dig-voices">
             <span className="project-faces">{voices.slice(0, 5).map((u) => <Face key={u.uuid} user={u} />)}</span>
-            <span>{posts.length === 1 ? '1 post' : `${posts.length} posts`}</span>
+            {count > 0 && <span>{count === 1 ? '1 post' : `${count} posts`}</span>}
           </p>
         )}
       </aside>
@@ -214,13 +214,21 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
   }
   if (!discussion) return <div className="loading"><Working label="Loading discussion…" /></div>;
 
+  // The dig's own words come first, then every post in it. Removing the
+  // dig takes its posts with it; taking back a post leaves the dig.
+  const own = {
+    uuid: discussion.uuid, user: discussion.owner, body: discussion.text, is_mine: discussion.is_mine,
+    created_at: discussion.created_at, edited_at: discussion.edited_at,
+  };
+  const entries = [own, ...discussion.posts];
+  const isDig = (post) => post.uuid === discussion.uuid;
   const remove = async (post) => {
-    const last = discussion.posts.length === 1;
-    const ok = await confirmAction(last ? 'Delete this post? The discussion ends with it.' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true });
+    const ok = await confirmAction(isDig(post) ? 'Remove this dig and its posts?' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true });
     if (!ok) return;
     setSelected(null);
-    const done = await act(() => deleteDiscussionPost(post.uuid));
-    if (done && last) window.location.replace(appPath(`/project/${discussion.project.uuid}`));
+    if (!isDig(post)) { await act(() => deleteDiscussionPost(post.uuid)); return; }
+    const done = await act(async () => { await removeDig(post.uuid); return null; });
+    if (done) window.location.replace(appPath(`/project/${discussion.project.uuid}`));
   };
 
   // Dug into: the card opens under the post, where the drift happened.
@@ -235,25 +243,25 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
   );
   return (
     <div className="discussion-page dig-page">
-      <Subject project={discussion.project} subject={discussion.subject} posts={discussion.posts} />
+      <Subject project={discussion.project} subject={discussion.subject} posts={entries} count={discussion.posts.length} />
       <div className="dig-main">
         {notice && <div className="error" role="alert">{notice}</div>}
         <ol className="discussion-posts">
-          {discussion.posts.map((post) => (
+          {entries.map((post) => (
             <Post
               key={post.uuid}
               post={post}
               canModerate={discussion.can_moderate}
               selected={selected === post.uuid}
               onSelect={() => setSelected(post.uuid)}
-              onEdit={(body) => act(() => editDiscussionPost(post.uuid, body))}
+              onEdit={(body) => act(() => (isDig(post) ? editDig(post.uuid, body) : editDiscussionPost(post.uuid, body)))}
               onDelete={() => remove(post)}
               onDig={() => setDigging(post.uuid)}
               digging={digging === post.uuid ? drift(post) : null}
             />
           ))}
         </ol>
-        <ReplyBar currentUser={currentUser} placeholder="Reply" submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
+        <ReplyBar currentUser={currentUser} placeholder="Post" submitLabel="Post" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
       </div>
     </div>
   );
@@ -294,7 +302,7 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
       <div className="dig-main">
         {notice && <div className="error" role="alert">{notice}</div>}
         <ReplyBar
-          tall currentUser={currentUser} placeholder="Post" submitLabel="Start dig"
+          tall currentUser={currentUser} placeholder="Dig" submitLabel="Dig"
           onSubmit={async (body) => {
             setNotice(null);
             try {

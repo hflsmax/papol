@@ -64,6 +64,7 @@ export async function gather(db: D1Database, user: User) {
     FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 WHERE pp.added_by = ? ORDER BY pp.added_at, pp.uuid`, user.uuid);
   const posts = await all<Row>(db, `SELECT dp.dig_uuid, dp.body, dp.created_at, dp.edited_at, d.project_uuid
     FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid WHERE dp.user_uuid = ? ORDER BY dp.created_at, dp.uuid`, user.uuid);
+  const digs = await all<Row>(db, `SELECT uuid, project_uuid, subject, text, created_at, edited_at FROM digs WHERE user_uuid = ? ORDER BY created_at, uuid`, user.uuid);
   const activity = await all<Row>(db, `SELECT a.subject, a.started_at, a.ended_at, a.seconds, p.title
     FROM activity a LEFT JOIN papers p ON p.sha256 = a.subject WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
 
@@ -100,6 +101,7 @@ export async function gather(db: D1Database, user: User) {
     projects: projects.map((p) => ({
       uuid: p.uuid, name: p.name, i_keep_it: Boolean(p.is_keeper), joined: p.joined_at,
       papers_i_added: projectPapers.filter((pp) => pp.project_uuid === p.uuid).map((pp) => ({ paper: paperRef(pp), added: pp.added_at })),
+      my_digs: digs.filter((d) => d.project_uuid === p.uuid).map((d) => ({ dig: d.uuid, about: d.subject, text: d.text, written: d.created_at, edited: d.edited_at })),
       what_i_wrote: posts.filter((d) => d.project_uuid === p.uuid).map((d) => ({ dig: d.dig_uuid, text: d.body, written: d.created_at, edited: d.edited_at })),
     })),
     // Every stretch of time spent reading a paper.

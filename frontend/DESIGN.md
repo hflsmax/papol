@@ -202,8 +202,13 @@ is a dig: one person's writing about one thing, under the one spade pin.
   everywhere. An anchor, ink and a clip stand on their own and can be dug
   when someone wants to; nothing makes a dig for them. No speech bubbles: a dig is one person's
   inquiry, not a chat.
-- **Owned, open to post.** A dig is the member's who started it, and a
-  thing holds one per member. Anyone who can see a dig can post in it.
+- **Dig with words.** A dig carries its own text: pressing the spade on a
+  thing you have not dug opens the box to write your dig, and sending it
+  is digging. There is no empty dig to post into afterwards.
+- **Owned, open to post.** A dig is the member's who wrote it, and a
+  thing holds one per member. Anyone can post in any dig.
+- **What can be dug.** A paper, a card, and an anchor, ink or a clip on a
+  page. Not a board as a whole, not the project.
 - **A dig is never dug.** Digs are about things, not about each other.
 - **Choosing whose.** When a thing holds several digs, the card opens on
   yours, else the latest, with the owners' faces to switch between.

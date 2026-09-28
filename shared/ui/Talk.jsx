@@ -13,9 +13,10 @@ import { plainTitle } from '../texTitle.js';
 
 // A dig: one member's writing about one thing the project holds, which
 // anyone in the project can post in. A thing holds one dig per member who
-// started one. A pin sits beside the thing; pressing it opens a dig card,
-// drawn like a card on a board, right where you are, on your own dig if
-// you have one. The same pin and card serve a paper, a member's thought, a
+// dug it. Digging and posting are two acts: a dig is written as its own
+// text, and a post is added to a dig that is there. The pin opens the
+// card, drawn like a card on a board, right where you are, on your own dig
+// if you have one. The same pin and card serve a paper, a member's thought, a
 // board, a card on it and an annotation; never the project as a whole,
 // which is no one thing, and never another dig. (In code the pin
 // and card keep their first name, Talk.)
@@ -75,36 +76,38 @@ export function TalkPin({
   const pin = useRef(null);
   const key = subjectKey(subject);
   const state = local ?? summary ?? null;
-  const count = state?.post_count ?? 0;
+  // Every dig on the thing and every post in them.
+  const count = (state?.dig_count ?? (state?.uuid ? 1 : 0)) + (state?.post_count ?? 0);
+  const dug = count > 0;
   const fresh = !local && Boolean(summary?.is_new);
 
   useEffect(() => { setLocal(null); }, [summary?.post_count, summary?.uuid]);
 
   const changed = useCallback((discussion, total) => {
     const next = discussion
-      ? { uuid: discussion.uuid, post_count: total ?? discussion.posts.length, is_new: false, voices: uniqueVoices(discussion.posts) }
+      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false, voices: uniqueVoices([{ user: discussion.owner }, ...discussion.posts]) }
       : { uuid: null, post_count: 0, is_new: false, voices: [] };
     setLocal(next);
     onChanged?.(key, next, discussion);
   }, [key, onChanged]);
 
-  const words = count
-    ? `${plural(count, 'post', 'posts')} about ${plainTitle(label)}${fresh ? ', new' : ''}. Open the dig`
-    : `Dig into ${plainTitle(label)}`;
+  const words = dug
+    ? `${plural(count, 'piece', 'pieces')} of writing about ${plainTitle(label)}${fresh ? ', new' : ''}. Open the dig`
+    : `Dig ${plainTitle(label)}`;
   return (
     <span className={`talk-pin-wrap talk-${size} ${className}`}>
       <button
         ref={pin}
         type="button"
-        className={`talk-pin${count ? '' : ' is-empty'}${fresh ? ' is-new' : ''}${open ? ' is-open' : ''}`}
+        className={`talk-pin${dug ? '' : ' is-empty'}${fresh ? ' is-new' : ''}${open ? ' is-open' : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={words}
-        title={title ?? (count ? plural(count, 'post', 'posts') : 'Dig into this')}
+        title={title ?? 'Dig'}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
       >
-        <TalkGlyph outline={!count} />
+        <TalkGlyph outline={!dug} />
         {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
       </button>
       {open && createPortal(
@@ -226,7 +229,6 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
   const home = boards.find((b) => b.uuid === boardUuid) ?? boards[0] ?? null;
   const things = [
     ...(project?.papers ?? []).map((p) => ({ subject: `paper:${p.sha256}`, kind: 'paper', label: p.title ?? 'Untitled paper' })),
-    ...boards.map((b) => ({ subject: `board:${b.uuid}`, kind: 'board', label: b.name })),
   ].filter((t) => t.subject !== current);
 
   const makeIdea = async (e) => {
@@ -303,7 +305,7 @@ export function TalkCard({
     let active = true;
     setDiscussion(undefined);
     // The dig asked for, else the reader's own, else the latest; a thing
-    // nobody has dug opens empty, to start the reader's own.
+    // nobody has dug opens on the reader's own, to be written.
     findDiscussion(projectUuid, topic.subject)
       .then((found) => {
         if (active) setDigs(found.digs ?? []);
@@ -387,8 +389,10 @@ export function TalkCard({
       setDigs((all) => (all.some((d) => d.uuid === next.uuid) ? all : [...all, { uuid: next.uuid, owner: next.owner, is_mine: next.is_mine }]));
       setBody('');
       toEnd();
-      // The pin counts every dig on its thing, this one as it now stands.
-      if (onHome) onChanged?.(next, digs.filter((d) => d.uuid !== next.uuid).reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length));
+      // The pin counts every dig on its thing and every post, this dig as
+      // it now stands.
+      const others = digs.filter((d) => d.uuid !== next.uuid);
+      if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
       if (from?.pending && from.uuid) {
         const back = await replyToDiscussion(from.uuid, `Dug into [${plainTitle(topic.label).replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
         setFrom({ ...from, pending: false });
@@ -401,7 +405,10 @@ export function TalkCard({
     }
   };
 
-  const posts = discussion?.posts ?? [];
+  // The dig's own words come first, then every post in it.
+  const posts = discussion
+    ? [{ uuid: discussion.uuid, user: discussion.owner, body: discussion.text, created_at: discussion.created_at, edited_at: discussion.edited_at, is_mine: discussion.is_mine }, ...discussion.posts]
+    : [];
   const style = spot && !spot.sheet
     ? { left: spot.left, top: spot.top, width: spot.width, transformOrigin: `${spot.originX}px ${spot.originY}px` }
     : undefined;
@@ -417,7 +424,7 @@ export function TalkCard({
     >
       <header className="talk-card-header">
         <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
-        {discussion && posts.length > 0 && <span className="talk-card-count">{inline ? posts.length : plural(posts.length, 'post', 'posts')}</span>}
+        {discussion?.posts.length > 0 && <span className="talk-card-count">{inline ? discussion.posts.length : plural(discussion.posts.length, 'post', 'posts')}</span>}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       {from && (
@@ -437,9 +444,12 @@ export function TalkCard({
               {d.owner && <Face user={d.owner} />}{d.is_mine ? 'You' : d.owner?.display_name}
             </button>
           ))}
-          {!digs.some((d) => d.is_mine) && (
-            <button type="button" aria-pressed={!discussion} className={!discussion ? 'is-on' : ''} onClick={() => setTopic({ ...topic, dig: 'mine' })}>
-              {currentUser && <Face user={currentUser} />}You
+          {!digs.some((d) => d.is_mine) && !topic.subject.startsWith('take:') && (
+            <button
+              type="button" className={`talk-card-dig${!discussion ? ' is-on' : ''}`} aria-pressed={!discussion} aria-label="Your dig" title="Dig"
+              onClick={() => setTopic({ ...topic, dig: 'mine' })}
+            >
+              <TalkGlyph outline={Boolean(discussion)} />
             </button>
           )}
         </nav>
@@ -494,12 +504,12 @@ export function TalkCard({
             rows={body ? 4 : posts.length ? 2 : 3}
             value={body}
             maxLength={POST_LIMIT}
-            placeholder={posts.length ? 'Reply' : 'Post'}
-            aria-label="Your post"
+            placeholder={discussion ? 'Post' : 'Dig'}
+            aria-label={discussion ? 'Your post' : 'Your dig'}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
           />
-          <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">
+          <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label={discussion ? 'Post' : 'Dig'} title={`${discussion ? 'Post' : 'Dig'} (⌘↩)`}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
           </button>
         </form>

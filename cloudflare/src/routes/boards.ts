@@ -127,7 +127,7 @@ async function boardTalk(env: Env, projectUuid: string, boardUuid: string, viewe
   const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", projectUuid, viewer.uuid);
   if (!member) return {};
   const cards = await all<{ uuid: string }>(env.DB, "SELECT uuid FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL", boardUuid);
-  return pinsOf(env, projectUuid, viewer, member, [`board:${boardUuid}`, ...cards.map((c) => `card:${c.uuid}`)]);
+  return pinsOf(env, projectUuid, viewer, member, cards.map((c) => `card:${c.uuid}`));
 }
 
 export async function boardProject(env: Env, boardUuid: string): Promise<{ uuid: string; name: string } | null> {

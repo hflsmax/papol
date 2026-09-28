@@ -77,8 +77,15 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const canTakeOut = project.is_keeper || isMe(paper.added_by);
   // The paper opens with this project on: every member's marks on it.
   const viewer = appPath(annotationViewerPath(project.uuid, paper.sha256));
-  const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
-  const onThoughts = (project.discussions ?? []).filter((d) => d.subject.kind === 'take' && d.subject.paper_sha256 === paper.sha256 && d.last_post);
+  // Every member's dig on a thing folds into one summary of it.
+  const talk = new Map();
+  (project.discussions ?? []).forEach((d) => {
+    const had = talk.get(d.subject.key);
+    talk.set(d.subject.key, had ? {
+      ...had, count: had.count + 1 + Number(d.post_count ?? 0), unread: had.unread + Number(d.unread ?? 0), is_new: had.is_new || d.is_new,
+    } : { ...d, count: 1 + Number(d.post_count ?? 0), unread: Number(d.unread ?? 0) });
+  });
+  const onThoughts = [...talk.values()].filter((d) => d.subject.kind === 'take' && d.subject.paper_sha256 === paper.sha256);
   // One dig shows at a time beside the takes: the paper's, or a thought's
   // picked by its pin. The column appears once there is a dig to show.
   const paperKey = `paper:${paper.sha256}`;
@@ -86,7 +93,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const takeLabel = (entry) => (entry.thought ? `“${entry.thought}”` : `${nameOf(entry.user)}’s take on ${paper.title}`);
   const whose = (key) => paper.users.find((u) => takeKey(u.user) === key);
   const labelOf = (key) => (key === paperKey ? paper.title : takeLabel(whose(key)));
-  const hasDig = (key) => (talk.get(key)?.post_count ?? 0) > 0;
+  const hasDig = (key) => talk.has(key);
   // Until one is picked, the paper's own dig, or else the first thought's.
   const shown = digOn ?? (hasDig(paperKey) || digOpen || !onThoughts.length ? paperKey : onThoughts[0].subject.key);
   const withDig = hasDig(paperKey) || digOpen || digOn !== null || onThoughts.length > 0;
@@ -104,11 +111,11 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       if (box && (box.top > window.innerHeight || box.bottom < 0)) aside.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
   };
-  // The pin at the end of a name line: the paper's, or a take's. Pressing
-  // it shows that dig in the dig column.
+  // The pin at the end of the paper's name line. Pressing it shows the
+  // paper's digs in the dig column.
   const pin = (key, about, size = 'sm') => {
     const summary = talk.get(key);
-    const count = summary?.post_count ?? 0;
+    const count = summary?.count ?? 0;
     // The pressed ring only where it tells digs apart; the gold dot only on
     // a dig that is not the one in view.
     const on = shown === key && withDig && choices.length > 1;
@@ -119,8 +126,8 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
           type="button"
           className={`talk-pin${count ? '' : ' is-empty'}${fresh ? ' is-new' : ''}${on ? ' is-open' : ''}`}
           aria-pressed={on}
-          aria-label={count ? `${plural(count, 'post', 'posts')} about ${about}. Open the dig` : `Dig into ${about}`}
-          title={count ? plural(count, 'post', 'posts') : 'Dig into this'}
+          aria-label={count ? `Digs on ${about}` : `Dig into ${about}`}
+          title="Dig"
           onClick={() => openDig(key)}
         >
           <TalkGlyph outline={!count} />
@@ -129,7 +136,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       </span>
     );
   };
-  const pinFor = (entry) => pin(takeKey(entry.user), takeLabel(entry));
   const talked = () => { load().catch(() => {}); };
   // Beside the paper, the dig opens on what is new; stacked under it, the
   // page opens on the paper.
@@ -193,7 +199,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                       {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
                         <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
                       ))}
-                      {!composing && pinFor(entry)}
                       {!composing && mine && entry.thought && (
                         <span className="project-take-options">
                           <button type="button" className="project-quiet" onClick={() => setWriting(true)}>Edit</button>

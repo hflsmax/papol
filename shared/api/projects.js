@@ -103,10 +103,19 @@ export function findDiscussion(projectUuid, subject) {
   return request(`/projects/${projectUuid}/digs?subject=${encodeURIComponent(subjectKey(subject))}`);
 }
 
-// A post under a subject, in the writer's own dig on it, which the first
-// one opens.
-export function startDiscussion(projectUuid, subject, body) {
-  return jsonRequest(`/projects/${projectUuid}/digs`, 'POST', { subject: subjectKey(subject), body });
+// Digging a subject: the member's own dig on it, with its text.
+export function startDiscussion(projectUuid, subject, text) {
+  return jsonRequest(`/projects/${projectUuid}/digs`, 'POST', { subject: subjectKey(subject), text });
+}
+
+// Its owner rewords a dig.
+export function editDig(uuid, text) {
+  return jsonRequest(`/digs/${uuid}`, 'PUT', { text });
+}
+
+// Its owner, or a keeper, removes a dig and all posted in it.
+export function removeDig(uuid) {
+  return request(`/digs/${uuid}`, { method: 'DELETE' });
 }
 
 export function getDiscussion(uuid) {

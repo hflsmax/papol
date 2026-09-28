@@ -98,8 +98,9 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
      JOIN digs d ON d.project_uuid = m.project_uuid
-     JOIN dig_posts dp ON dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid
-     WHERE m.user_uuid = ? GROUP BY m.project_uuid`, user.uuid, user.uuid);
+     WHERE m.user_uuid = ? AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
+       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
+     GROUP BY m.project_uuid`, user.uuid, user.uuid);
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.project_uuid, (counts.get(r.project_uuid) ?? 0) + r.n);
   return counts;
@@ -174,16 +175,17 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
 }
 
 // A dig as a line in a list: whose it is, its subject, how long it has
-// run, and whether others have written since this member looked.
+// run, and whether others have written since this member looked, the dig
+// itself counting as the first thing written.
 export async function digsOf(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
   const rows = await all<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
-            (SELECT group_concat(user_uuid) FROM (SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+            (d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
+            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d ${SUBJECT_JOINS}
      WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
-    member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
+    member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
   const lasts = rows.length ? await all<Row>(env.DB,
     `SELECT dp.dig_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
      FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
@@ -195,14 +197,16 @@ export async function digsOf(env: Env, projectUuid: string, me: User, member: Me
     `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${peopleUuids.map(() => "?").join(",")})`,
     ...peopleUuids)).map((u) => [u.uuid as string, userPublic(u)]) : []);
   return rows.map((d) => {
-    const last = lasts.find((l) => l.dig_uuid === d.uuid);
+    const posted = lasts.find((l) => l.dig_uuid === d.uuid);
+    const last = posted ?? { ...(people.get(String(d.user_uuid)) as Row ?? {}), body: d.text, created_at: d.created_at };
     return {
       uuid: d.uuid, project_uuid: d.project_uuid, created_at: d.created_at, updated_at: d.updated_at,
       owner: people.get(String(d.user_uuid)) ?? null, is_mine: d.user_uuid === me.uuid,
+      text: d.text, excerpt: excerpt(String(d.text)),
       subject: subjectOut(d),
       post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0,
       voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => people.get(uuid)).filter(Boolean),
-      last_post: last ? { user: userPublic(last), excerpt: excerpt(String(last.body)), created_at: last.created_at } : null,
+      last_post: { user: posted ? userPublic(last) : people.get(String(d.user_uuid)) ?? null, excerpt: excerpt(String(last.body)), created_at: last.created_at },
     };
   });
 }

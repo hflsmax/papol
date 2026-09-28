@@ -81,39 +81,38 @@ describe("papers on boards", () => {
 });
 
 describe("digs", () => {
-  it("holds one dig per person on a thing, which anyone in the project writes in, and lists it with what is new", async () => {
+  it("holds one dig per person on a thing, with its own text, which anyone in the project posts in", async () => {
     const { dana, ana, sam, project } = await group();
     await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
 
     const before = await ok("GET", `/api/projects/${project.uuid}/digs?subject=paper:${A_PAPER}`, { headers: ana.headers });
     expect(before).toMatchObject({ mine: null, digs: [], subject: { kind: "paper", label: "Error dynamics" } });
+    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}` } })).status).toBe(422);
 
-    const opened = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, body: "Figure 3 disagrees with the model in section 2." } });
-    expect(opened).toMatchObject({ is_mine: true, owner: { uuid: ana.uuid } });
-    const again = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, body: "And figure 4." } });
-    expect(again.uuid).toBe(opened.uuid);
-    // Dana writes in Ana's dig; her own dig on the paper is another.
-    const answered = await ok("POST", `/api/digs/${opened.uuid}/posts`, { headers: dana.headers, json: { body: "It assumes a static turbulence profile." } });
+    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "Figure 3 disagrees with the model in section 2." } });
+    expect(dug).toMatchObject({ is_mine: true, owner: { uuid: ana.uuid }, text: "Figure 3 disagrees with the model in section 2.", posts: [] });
+    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "Again" } })).status).toBe(409);
+    // Dana posts in Ana's dig; her own dig on the paper is another.
+    const answered = await ok("POST", `/api/digs/${dug.uuid}/posts`, { headers: dana.headers, json: { body: "It assumes a static turbulence profile." } });
     expect(answered).toMatchObject({ is_mine: false, owner: { uuid: ana.uuid } });
-    expect(answered.posts.map((p: { body: string }) => p.body)).toHaveLength(3);
-    const danas = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, body: "Worth a replication." } });
-    expect(danas.uuid).not.toBe(opened.uuid);
+    expect(answered.posts.map((p: { body: string }) => p.body)).toEqual(["It assumes a static turbulence profile."]);
+    const danas = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Worth a replication." } });
+    expect(danas.uuid).not.toBe(dug.uuid);
 
     const listed = await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers });
     expect(listed.discussions).toHaveLength(2);
-    const anas = listed.discussions.find((d: { uuid: string }) => d.uuid === opened.uuid);
-    expect(anas).toMatchObject({ post_count: 3, is_new: true, is_mine: true, owner: { uuid: ana.uuid }, subject: { kind: "paper" } });
+    const anas = listed.discussions.find((d: { uuid: string }) => d.uuid === dug.uuid);
+    expect(anas).toMatchObject({ post_count: 1, is_new: true, is_mine: true, owner: { uuid: ana.uuid }, excerpt: "Figure 3 disagrees with the model in section 2.", subject: { kind: "paper" } });
     expect(anas.last_post.excerpt).toBe("It assumes a static turbulence profile.");
+    expect(listed.discussions.find((d: { uuid: string }) => d.uuid === danas.uuid)).toMatchObject({ unread: 1, last_post: { excerpt: "Worth a replication.", user: { uuid: dana.uuid } } });
     const onPaper = await ok("GET", `/api/projects/${project.uuid}/digs?subject=paper:${A_PAPER}`, { headers: ana.headers });
-    expect(onPaper.mine).toBe(opened.uuid);
-    expect(onPaper.digs.map((d: { uuid: string }) => d.uuid).sort()).toEqual([opened.uuid, danas.uuid].sort());
-    // What older builds ask still leads to the reader's own dig.
-    expect((await ok("GET", `/api/projects/${project.uuid}/discussion?paper=${A_PAPER}`, { headers: dana.headers })).discussion_uuid).toBe(danas.uuid);
+    expect(onPaper.mine).toBe(dug.uuid);
+    expect(onPaper.digs.map((d: { uuid: string }) => d.uuid).sort()).toEqual([dug.uuid, danas.uuid].sort());
 
-    expect((await call("GET", `/api/digs/${opened.uuid}`, { headers: sam.headers })).status).toBe(403);
-    expect((await call("POST", `/api/digs/${opened.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(403);
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, body: "x" } })).status).toBe(404);
+    expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(403);
+    expect((await call("POST", `/api/digs/${dug.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(403);
+    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, text: "x" } })).status).toBe(404);
   });
 
   // Following a drift: the new idea becomes a card on another member's
@@ -121,86 +120,91 @@ describe("digs", () => {
   // dig points to it. Lists show each as plain words.
   it("digs into a drift as a new card, and lists posts as plain words", async () => {
     const { dana, ana, project } = await group();
+    await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
     const board = await boardIn(dana, project.uuid);
-    const first = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `board:${board.uuid}`, body: "Sparse attention might fix the lag." } });
+    const first = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Sparse attention might fix the lag." } });
     const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: ana.headers, json: { content: "Sparse attention" } });
-    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `card:${card.uuid}`, body: "> Dana: Sparse attention might fix the lag.\n\nWho has **tried** it?" } });
+    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `card:${card.uuid}`, text: "> Dana: Sparse attention might fix the lag.\n\nWho has **tried** it?" } });
     await ok("POST", `/api/digs/${first.uuid}/posts`, { headers: ana.headers, json: { body: `Dug into [Sparse attention](/discussion/${dug.uuid})` } });
 
     const listed = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
     const excerpts = Object.fromEntries(listed.discussions.map((d: { subject: { key: string }; last_post: { excerpt: string } }) => [d.subject.key, d.last_post.excerpt]));
-    expect(excerpts).toEqual({ [`board:${board.uuid}`]: "Dug into Sparse attention", [`card:${card.uuid}`]: "Who has tried it?" });
+    expect(excerpts).toEqual({ [`paper:${A_PAPER}`]: "Dug into Sparse attention", [`card:${card.uuid}`]: "Who has tried it?" });
   });
 
   it("digs a card on a project board and marks it on the board, every member's dig in one pin", async () => {
     const { dana, ana, project } = await group();
     const board = await boardIn(dana, project.uuid);
     const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "Adaptive optics for retinal imaging" } });
-    const opened = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { board_item_uuid: card.uuid, body: "Who has tried this?" } });
-    expect(opened.subject).toMatchObject({ kind: "card", board_uuid: board.uuid, label: "Adaptive optics for retinal imaging" });
+    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { board_item_uuid: card.uuid, text: "Who has tried this?" } });
+    expect(dug.subject).toMatchObject({ kind: "card", board_uuid: board.uuid, label: "Adaptive optics for retinal imaging" });
     const shown = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
     expect(shown.discussions).toEqual({
-      [`card:${card.uuid}`]: { uuid: opened.uuid, mine: null, dig_count: 1, post_count: 1, unread: 1, is_new: true, voices: [expect.objectContaining({ uuid: ana.uuid })] },
+      [`card:${card.uuid}`]: { uuid: dug.uuid, mine: null, dig_count: 1, post_count: 0, unread: 1, is_new: true, voices: [expect.objectContaining({ uuid: ana.uuid })] },
     });
-    const own = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `card:${card.uuid}`, body: "Me." } });
+    const own = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `card:${card.uuid}`, text: "Me." } });
+    await ok("POST", `/api/digs/${dug.uuid}/posts`, { headers: dana.headers, json: { body: "And me." } });
     const again = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
-    expect(again.discussions[`card:${card.uuid}`]).toMatchObject({ uuid: own.uuid, mine: own.uuid, dig_count: 2, post_count: 2, unread: 1 });
+    expect(again.discussions[`card:${card.uuid}`]).toMatchObject({ uuid: own.uuid, mine: own.uuid, dig_count: 2, post_count: 1, unread: 1 });
   });
 
-  it("digs into a board and a member's thought on a paper, never the project itself", async () => {
+  it("digs a paper and a card, never a thought, a board, the project itself, another dig or a post", async () => {
     const { dana, ana, sam, project } = await group();
     await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
     const board = await boardIn(dana, project.uuid, "Bench plan");
+    const nope = async (subject: string, account = ana) => (await call("POST", `/api/projects/${project.uuid}/digs`, { headers: account.headers, json: { subject, text: "x" } })).status;
 
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: "project", body: "Weekly sync on Friday?" } })).status).toBe(422);
-    // Nor another dig, nor a post in one.
-    const other = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, body: "Mine." } });
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `dig:${other.uuid}`, body: "x" } })).status).toBe(422);
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `post:${other.posts[0].uuid}`, body: "x" } })).status).toBe(422);
-    const onBoard = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `board:${board.uuid}`, body: "Too many cards." } });
-    expect(onBoard.subject).toMatchObject({ key: `board:${board.uuid}`, kind: "board", board_uuid: board.uuid, label: "Bench plan" });
-    const take = `take:${A_PAPER}:${dana.uuid}`;
-    const onTake = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: take, body: "Why only 3/5?" } });
-    expect(onTake.subject).toMatchObject({ key: take, kind: "take", paper_sha256: A_PAPER, user_uuid: dana.uuid });
-    // A thought and its paper are two subjects.
-    const onPaper = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, body: "Section 3." } });
-    expect(onPaper.uuid).not.toBe(onTake.uuid);
-
-    const found = await ok("GET", `/api/projects/${project.uuid}/digs?subject=${encodeURIComponent(take)}`, { headers: dana.headers });
-    expect(found).toMatchObject({ mine: null, discussion_uuid: onTake.uuid });
-    const shown = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
-    expect(Object.keys(shown.discussions)).toEqual([`board:${board.uuid}`]);
-
-    // Only members, and only about what the project holds.
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `take:${A_PAPER}:${sam.uuid}`, body: "x" } })).status).toBe(404);
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: "shelf:1", body: "x" } })).status).toBe(422);
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: sam.headers, json: { subject: `board:${board.uuid}`, body: "x" } })).status).toBe(403);
+    expect(await nope("project")).toBe(422);
+    expect(await nope(`board:${board.uuid}`)).toBe(422);
+    expect(await nope(`take:${A_PAPER}:${dana.uuid}`)).toBe(422);
+    const other = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Mine." } });
+    await ok("POST", `/api/digs/${other.uuid}/posts`, { headers: ana.headers, json: { body: "Yours." } });
+    expect(await nope(`dig:${other.uuid}`)).toBe(422);
+    expect(await nope(`post:${other.uuid}`)).toBe(422);
+    expect(await nope("shelf:1")).toBe(422);
+    expect(await nope(`paper:${A_PAPER}`, sam)).toBe(403);
   });
 
-  it("lets a writer edit, and a writer or keeper take back; the last post closes it", async () => {
+  it("lets its owner reword or remove a dig, a writer edit a post, and a writer or keeper take one back", async () => {
     const { dana, ana, project } = await group();
     await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
-    const opened = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, body: "First" } });
-    const post = opened.posts[0].uuid;
+    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "First" } });
+    expect((await call("PUT", `/api/digs/${dug.uuid}`, { headers: dana.headers, json: { text: "Nope" } })).status).toBe(403);
+    expect(await ok("PUT", `/api/digs/${dug.uuid}`, { headers: ana.headers, json: { text: "First, at more length" } })).toMatchObject({ text: "First, at more length", edited_at: expect.any(String) });
+
+    const post = (await ok("POST", `/api/digs/${dug.uuid}/posts`, { headers: ana.headers, json: { body: "More" } })).posts[0].uuid;
     expect((await call("PUT", `/api/dig-posts/${post}`, { headers: dana.headers, json: { body: "Nope" } })).status).toBe(403);
-    const edited = await ok("PUT", `/api/dig-posts/${post}`, { headers: ana.headers, json: { body: "First, at more length" } });
-    expect(edited.posts[0]).toMatchObject({ body: "First, at more length", edited_at: expect.any(String) });
-    await ok("DELETE", `/api/dig-posts/${post}`, { headers: dana.headers });
-    expect(await row("SELECT 1 FROM digs WHERE uuid = ?", opened.uuid)).toBeNull();
+    expect((await ok("PUT", `/api/dig-posts/${post}`, { headers: ana.headers, json: { body: "More still" } })).posts[0]).toMatchObject({ body: "More still", edited_at: expect.any(String) });
+    expect((await ok("DELETE", `/api/dig-posts/${post}`, { headers: dana.headers })).posts).toEqual([]);
+    expect(await row("SELECT 1 FROM digs WHERE uuid = ?", dug.uuid)).not.toBeNull();
+
+    const danas = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Hers" } });
+    expect((await call("DELETE", `/api/digs/${danas.uuid}`, { headers: ana.headers })).status).toBe(403);
+    expect((await call("DELETE", `/api/digs/${dug.uuid}`, { headers: ana.headers })).status).toBe(204);
+    expect(await row("SELECT 1 FROM digs WHERE uuid = ?", dug.uuid)).toBeNull();
   });
 
-  // The paths older Mac builds ask at lead to the same digs.
+  // The paths older Mac builds ask at lead to the same digs, the dig's own
+  // text standing first among its posts.
   it("answers at the old discussion paths", async () => {
     const { dana, ana, project } = await group();
-    const board = await boardIn(dana, project.uuid);
-    const opened = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `board:${board.uuid}`, body: "First" } });
-    await ok("POST", `/api/discussions/${opened.uuid}/posts`, { headers: dana.headers, json: { body: "Second" } });
-    const post = (await ok("GET", `/api/discussions/${opened.uuid}`, { headers: ana.headers })).posts[0].uuid;
-    await ok("PUT", `/api/discussion-posts/${post}`, { headers: ana.headers, json: { body: "First!" } });
-    const left = await ok("DELETE", `/api/discussion-posts/${post}`, { headers: ana.headers });
-    expect(left.posts.map((p: { body: string }) => p.body)).toEqual(["Second"]);
+    await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const opened = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { paper_sha256: A_PAPER, body: "First" } });
+    expect(opened.posts.map((p: { body: string }) => p.body)).toEqual(["First"]);
+    expect((await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { paper_sha256: A_PAPER, body: "Second" } })).uuid).toBe(opened.uuid);
+    await ok("POST", `/api/discussions/${opened.uuid}/posts`, { headers: dana.headers, json: { body: "Third" } });
+    const seen = await ok("GET", `/api/discussions/${opened.uuid}`, { headers: ana.headers });
+    expect(seen.posts.map((p: { body: string }) => p.body)).toEqual(["First", "Second", "Third"]);
+    await ok("PUT", `/api/discussion-posts/${seen.posts[0].uuid}`, { headers: ana.headers, json: { body: "First!" } });
+    expect((await ok("GET", `/api/digs/${opened.uuid}`, { headers: ana.headers })).text).toBe("First!");
+    const left = await ok("DELETE", `/api/discussion-posts/${seen.posts[1].uuid}`, { headers: ana.headers });
+    expect(left.posts.map((p: { body: string }) => p.body)).toEqual(["First!", "Third"]);
+    expect((await call("DELETE", `/api/discussion-posts/${opened.uuid}`, { headers: ana.headers })).status).toBe(204);
   });
 });
+
 

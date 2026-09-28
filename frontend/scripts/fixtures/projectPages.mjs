@@ -18,7 +18,6 @@ const BOARD_MAP = 'c1b2c3d4-0000-4000-8000-000000000021';
 const CARD_SPARSE = 'd1b2c3d4-0000-4000-8000-000000000030';
 export const DIG_PAPER = 'e1b2c3d4-0000-4000-8000-000000000040';
 const DIG_CARD = 'e1b2c3d4-0000-4000-8000-000000000041';
-const DIG_BOARD = 'e1b2c3d4-0000-4000-8000-000000000042';
 const DIG_TAKE = 'e1b2c3d4-0000-4000-8000-000000000043';
 const DIG_SURVEY = 'e1b2c3d4-0000-4000-8000-000000000044';
 const DIG_PAPER_BEN = 'e1b2c3d4-0000-4000-8000-000000000045';
@@ -117,12 +116,11 @@ I added "Measure the loop delay" to the Bench plan board. Let's do that before a
 ];
 
 const discussions = [
-  { uuid: DIG_PAPER, owner: ana, is_mine: false, subject: subject.paperError, post_count: 3, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
-  { uuid: DIG_PAPER_BEN, owner: ben, is_mine: false, subject: subject.paperError, post_count: 1, unread: 0, is_new: false, voices: [ben], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ben, excerpt: 'The appendix has the raw delay traces; worth plotting against ours.', created_at: daysAgo(1) } },
-  { uuid: DIG_TAKE, owner: mia, is_mine: false, subject: subject.take, post_count: 2, unread: 2, is_new: true, voices: [mia, ana], updated_at: hoursAgo(4), created_at: hoursAgo(5), last_post: { user: mia, excerpt: 'This month? We have not measured the delay yet.', created_at: hoursAgo(4) } },
-  { uuid: DIG_CARD, owner: me, is_mine: true, subject: subject.card, post_count: 4, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
-  { uuid: DIG_BOARD, owner: ana, is_mine: false, subject: subject.board, post_count: 1, unread: 0, is_new: false, voices: [ana], updated_at: daysAgo(3), created_at: daysAgo(3), last_post: { user: ana, excerpt: 'Should this board be in the order we will run things?', created_at: daysAgo(3) } },
-  { uuid: DIG_SURVEY, owner: me, is_mine: true, subject: subject.paperSurvey, post_count: 5, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
+  { uuid: DIG_PAPER, owner: ana, is_mine: false, text: errorPosts[0].body, subject: subject.paperError, post_count: 2, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
+  { uuid: DIG_PAPER_BEN, owner: ben, is_mine: false, text: 'The appendix has the raw delay traces; worth plotting against ours.', subject: subject.paperError, post_count: 0, unread: 0, is_new: false, voices: [ben], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ben, excerpt: 'The appendix has the raw delay traces; worth plotting against ours.', created_at: daysAgo(1) } },
+  { uuid: DIG_TAKE, owner: mia, is_mine: false, text: 'We could try this on the bench this month.', subject: subject.take, post_count: 1, unread: 2, is_new: true, voices: [mia, ana], updated_at: hoursAgo(4), created_at: hoursAgo(5), last_post: { user: ana, excerpt: 'This month? We have not measured the delay yet.', created_at: hoursAgo(4) } },
+  { uuid: DIG_CARD, owner: me, is_mine: true, text: 'Their few-shot result is why this card goes first.', subject: subject.card, post_count: 3, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
+  { uuid: DIG_SURVEY, owner: me, is_mine: true, text: 'The best map of the field so far; the taxonomy in section 2 is worth keeping.', subject: subject.paperSurvey, post_count: 4, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
 ];
 
 const project = {
@@ -143,8 +141,9 @@ const other = { uuid: 'b1b2c3d4-0000-4000-8000-000000000011', name: 'Reading gro
 const discussion = (uuid) => {
   const d = discussions.find((x) => x.uuid === uuid);
   if (!d) return null;
-  const posts = uuid === DIG_PAPER ? errorPosts : [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)];
-  return { uuid, created_at: d.created_at, updated_at: d.updated_at, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, can_moderate: true, posts };
+  const posts = uuid === DIG_PAPER ? errorPosts.slice(1)
+    : d.post_count ? [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)] : [];
+  return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, can_moderate: true, posts };
 };
 
 // A paper as the Library and a nook list it: the members' takes are the
