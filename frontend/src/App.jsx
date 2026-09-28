@@ -125,6 +125,9 @@ function openBoardInNook(uuid) {
 function openShelfInNook(uuid) {
   navigate(uuid ? `/?shelf=${uuid}` : '/');
 }
+function openProjectInNook(uuid) {
+  navigate(uuid ? `/?project=${uuid}` : '/');
+}
 
 // The way in, from the jacket. The canvas is a separate application, so this
 // leaves the Desk — on the desktop into a document window beside it, on
@@ -673,6 +676,18 @@ export default function App({ startupUser = null, startupError = null }) {
             board={hasWay ? new URLSearchParams(window.location.search).get('board') : null}
             shelf={hasWay ? new URLSearchParams(window.location.search).get('shelf') : null}
             onSelectShelf={openShelfInNook}
+            project={hasWay ? new URLSearchParams(window.location.search).get('project') : null}
+            onSelectProject={openProjectInNook}
+            renderProject={(uuid) => (
+              <ProjectPage
+                key={uuid}
+                projectUuid={uuid}
+                currentUser={user}
+                onChanged={() => setProjectsRevision((r) => r + 1)}
+                onLeft={() => openProjectInNook(null)}
+                onOpenBrief={(sha256) => navigate(briefPath(uuid, sha256))}
+              />
+            )}
             onOpenCanvas={openBoardCanvas}
           />
         ) : DESKTOP ? (

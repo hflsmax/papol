@@ -25,10 +25,10 @@ function Faces({ users, max }) {
 }
 
 // A member's own nook on the web: a rail of places beside the main area.
-// Every place in the rail is shown by going there: a project leaves for
-// its desk; a shelf (or all papers) shows its papers in the main area, and
-// a board its jacket. Search and tags narrow what the main area shows.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board = null, shelf: shelfAsked = null, onOpenCanvas, onChanged }) {
+// Every place in the rail opens in the main area: a project its desk, a
+// shelf (or all papers) its papers, a board its jacket. Search and tags narrow what the main area shows.
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, onSelectProject, renderProject, onOpenCanvas, onChanged }) {
+  const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
@@ -55,13 +55,18 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
           <section className="desk-rail-part" aria-labelledby="desk-projects">
             <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
             <ul className="desk-rail-list">
-              {nook.projects.map((project) => (
-                <li key={project.uuid}>
-                  <a className={project.new_count > 0 ? 'desk-project has-new' : 'desk-project'} href={appPath(`/project/${project.uuid}`)}>
-                    <span className="desk-project-name">{project.name}</span>
+              {nook.projects.map((p) => (
+                <li key={p.uuid}>
+                  <a
+                    className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
+                    href={appPath(`/?project=${p.uuid}`)}
+                    aria-current={p.uuid === project ? 'page' : undefined}
+                    onClick={(event) => { event.preventDefault(); onSelectProject(p.uuid); }}
+                  >
+                    <span className="desk-project-name">{p.name}</span>
                     <span className="desk-project-foot">
-                      <Faces users={(project.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
-                      {project.new_count > 0 && <span className="desk-project-new">{project.new_count} new</span>}
+                      <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
+                      {p.new_count > 0 && <span className="desk-project-new">{p.new_count} new</span>}
                     </span>
                   </a>
                 </li>
@@ -77,7 +82,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
           </div>
           <ul className="desk-rail-list">
             {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
-              const on = !board && shelf === s.uuid;
+              const on = !board && !project && shelf === s.uuid;
               return (
                 <li key={s.uuid ?? 'all'}>
                   <a
@@ -137,7 +142,9 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
 
       </aside>
 
-      {board ? (
+      {project ? (
+        <section className="desk-main desk-project-view">{renderProject(project)}</section>
+      ) : board ? (
         <section className="desk-main desk-board">
           <BoardJacket
             key={board}

@@ -60,11 +60,12 @@ export function Faces({ users, max = 4 }) {
 
 // The way home from a brief or a dig on the web, in the bar over every
 // page: the project it belongs to. The desk itself leads straight home.
+// The way back to a project on the web is to it in the member's nook.
 export function ProjectWay({ project }) {
   if (DESKTOP || !project) return null;
   return (
     <InWay>
-      <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
+      <a href={appPath(`/?project=${project.uuid}`)}>{project.name}</a>
     </InWay>
   );
 }

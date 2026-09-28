@@ -6464,6 +6464,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 }
 .desk-project:hover, .desk-project:focus-visible { background: var(--paper-sunken); color: var(--ink); }
 .desk-project.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
+.desk-project.is-on { border-color: var(--accent); }
 .desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
 .desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
 .desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
