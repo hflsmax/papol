@@ -9,7 +9,6 @@ import { addToNook, getPaper, updatePaper } from '../../../shared/api/papers.js'
 import appLimits from '../../../shared/appLimits.js';
 import { paperName } from '../../../shared/paperName.js';
 import { appPath } from '../base';
-import { DESKTOP } from '../../../shared/desktopShell';
 import { formatAuthors } from '../paperFormat.js';
 import Face from '../../../shared/ui/Face.jsx';
 import { RATING_DIMENSIONS } from './Rating';
@@ -160,7 +159,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
               >
                 Read
               </a>
-              <a className="brief-jacket" href={appPath(`/paper/${name}`)}>{DESKTOP ? 'In the Library' : 'In the Bazaar'}</a>
               {!paper.in_my_nook && (
                 <button type="button" className="brief-jacket brief-nook" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
               )}
