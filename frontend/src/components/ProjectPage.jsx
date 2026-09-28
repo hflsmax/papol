@@ -522,26 +522,24 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
       </h3>
       <TalkCard
         key={d.uuid} inline
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked}
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single
       />
     </>
   );
+  // A row is one member's dig: whose it is first, then what it is about.
   const row = (d) => {
-    const last = d.last_post;
     const kind = d.subject.kind;
     return (
       <>
-        <span className="project-talk-subject">
-          <span className="project-card-kind">
-            {SUBJECT_WORDS[kind]}{d.owner && !d.is_mine && <> · {d.owner.display_name}</>}
-            {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
-          </span>
-          <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
-        </span>
         <span className="project-talk-meta">
-          {last && <Avatar user={last.user} className="mini-avatar" />}
-          {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
+          {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
+          <b>{d.is_mine ? 'You' : d.owner?.display_name}</b>
+          {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
           <span>{when(d.updated_at)}</span>
+        </span>
+        <span className="project-talk-subject">
+          <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
+          <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
         </span>
         {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
       </>

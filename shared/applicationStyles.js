@@ -5325,10 +5325,13 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-panel { position: sticky; top: var(--space-4); padding: var(--space-2) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
 /* One scroller: the page. The pane stays put beside a long list and
    scrolls with the page when it is the longer one. */
-.project-talk:not(.is-wide) .project-talk-panel { position: static; margin: var(--space-1) 0 var(--space-3); padding-inline: var(--space-4); }
+.project-talk:not(.is-wide) .project-talk-panel { position: relative; margin: var(--space-1) 0 var(--space-3); padding-inline: var(--space-4); }
 .project-talk-panel .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .project-talk-panel .talk-card.is-inline .talk-card-body { overflow: visible; }
-.project-talk-panel .talk-card.is-inline .talk-card-header { padding-left: 0; background: none; }
+/* One dig, so its phase sits at the end of the subject line. */
+.project-talk-panel .talk-card.is-inline { position: static; }
+.project-talk-panel .talk-card.is-inline .talk-card-header { position: absolute; top: var(--space-2); right: var(--space-5); min-height: 0; padding: 0; background: none; }
+.project-talk-panel .project-talk-subject-line { padding-right: 8rem; }
 .project-talk-panel .talk-card.is-inline :is(.talk-card-owners, .talk-card-body) { padding-left: 0; padding-right: 0; }
 .project-talk-panel .talk-post { margin-inline: 0; padding-inline: 0; }
 .project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--card); }
@@ -5346,7 +5349,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-talk-meta b { color: var(--ink-soft); font-weight: 600; }
+.project-talk-meta b { color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
+.project-talk-meta .project-talk-phase { margin-left: 0; }
 @container (max-width: 559px) {
   .project-head { align-items: flex-start; }
   .project-seat small { display: none; }
