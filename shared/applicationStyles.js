@@ -1523,6 +1523,52 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   cursor: pointer;
 }
 
+/* The once-only card saying a copy's parts can each be private or public,
+   hung from the first chip. It sits in a kicker heading, so it puts back
+   plain text. */
+.visibility-lesson-anchor { position: relative; display: inline-block; }
+.learn-papol {
+  position: absolute;
+  z-index: 42;
+  top: calc(100% + 12px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: min(270px, calc(100vw - 24px));
+  padding: 14px 16px;
+  border-color: var(--accent);
+  color: var(--ink-soft);
+  font: var(--fs-sm) / 1.4 var(--font-ui);
+  font-variant: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+.learn-papol::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+  background: var(--card);
+  transform: rotate(45deg);
+}
+.learn-papol strong { color: var(--ink); font-size: var(--fs-md); }
+.learn-papol .learn-papol-kicker { color: var(--accent); font-variant: small-caps; letter-spacing: 0.04em; }
+.learn-papol .learn-papol-close {
+  align-self: flex-end;
+  margin-top: 2px;
+  padding: 4px 9px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+
 /* Keeps its own colours on hover, where every other button turns blue:
    a public chip that went blue would be saying private. */
 .visibility-toggle.public:hover:not(:disabled),

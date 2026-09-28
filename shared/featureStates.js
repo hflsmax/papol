@@ -33,6 +33,15 @@ export const LINK_NAVIGATION_TIP = {
   unsetLabel: 'Not shown',
 };
 
+export const VISIBILITY_TIP = {
+  key: 'papol_learn_visibility',
+  value: 'seen',
+  name: 'Visibility tip',
+  description: 'The Learn Papol card that says each part of a paper in the nook can be private or public, shown the first time a user opens one of their own papers.',
+  setLabel: 'Shown',
+  unsetLabel: 'Not shown',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -71,6 +80,7 @@ export const MACOS_DOWNLOAD_BANNER_DISMISSED = {
 
 export const FEATURE_STATES = [
   LINK_NAVIGATION_TIP,
+  VISIBILITY_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,

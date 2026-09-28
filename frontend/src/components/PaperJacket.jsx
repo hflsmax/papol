@@ -26,6 +26,7 @@ import { authorList } from '../paperFormat';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
+import { VISIBILITY_TIP, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates.js';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -68,6 +69,19 @@ export default function PaperJacket({
   const shareControlRef = useRef(null);
   const readingUrlRef = useRef(null);
   const menuReadingUrlRef = useRef(null);
+
+  // Shown once, the first time one of the user's own papers opens: each
+  // part of it can be kept private or made public. Remembered as soon as it
+  // appears, so leaving the page any way at all still counts as seen.
+  const [learnVisibility, setLearnVisibility] = useState(false);
+  const learnVisibilityRef = useRef(null);
+  const ownPaperOpen = Boolean(currentUser && paper?.copy_uuid);
+  useEffect(() => {
+    if (!ownPaperOpen || isFeatureStateSet(VISIBILITY_TIP)) return;
+    setFeatureState(VISIBILITY_TIP, true);
+    setLearnVisibility(true);
+  }, [ownPaperOpen]);
+  useDismiss(learnVisibility, learnVisibilityRef, () => setLearnVisibility(false));
 
   useDismiss(readMenuOpen, readControlRef, () => setReadMenuOpen(false));
 
@@ -942,7 +956,19 @@ export default function PaperJacket({
             <div className={`inline-ratings ${tint('ratings_public')}`}>
               <h4 className="kicker">
                 My ratings
-                {visibilityChip('ratings_public')}
+                <span className="visibility-lesson-anchor">
+                  {visibilityChip('ratings_public')}
+                  {learnVisibility && (
+                    <span ref={learnVisibilityRef} className="learn-papol" role="dialog" aria-labelledby="learn-visibility-title">
+                      <span className="learn-papol-kicker">Learn Papol</span>
+                      <strong id="learn-visibility-title">Private or public</strong>
+                      <span>Each part of this paper can be kept to yourself or shown to others. Press its badge to switch.</span>
+                      <button type="button" className="learn-papol-close" onClick={() => setLearnVisibility(false)}>
+                        Got it
+                      </button>
+                    </span>
+                  )}
+                </span>
               </h4>
               <RatingInput values={paper} onChange={handleInlineRating} />
             </div>
