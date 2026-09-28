@@ -6,6 +6,7 @@ import FolderImport from './FolderImport';
 import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import NookManager from './NookManager';
 import NookDesk from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
@@ -113,7 +114,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);
           return (
             <li key={project.uuid}>
-              <a className={project.new_count > 0 ? 'nook-project-card has-new' : 'nook-project-card'} href={appPath(`/project/${project.uuid}`)}>
+              <a className="nook-project-card" href={appPath(`/project/${project.uuid}`)}>
                 <span className="nook-project-card-name">{project.name}</span>
                 <span className="nook-project-card-foot">
                   <span className="nook-projects-faces">
@@ -123,7 +124,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
                     {others.length > 4 && <span className="nook-projects-more">+{others.length - 4}</span>}
                     {others.length === 0 && <span className="nook-projects-more">Just you</span>}
                   </span>
-                  {project.new_count > 0 && <span className="nook-project-card-new">{project.new_count} new</span>}
+                  {project.new_count > 0 && <NewsDot />}
                 </span>
               </a>
             </li>
