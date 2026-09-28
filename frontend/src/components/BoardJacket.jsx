@@ -52,7 +52,7 @@ const paperByline = (paper) => {
 
 export default function BoardJacket({
   boardUuid, onOpen, onBack, backHref, backLabel = 'Back',
-  hideBack = false, onChanged, onDeleted, refreshKey, paperLink = paperHref, onOpenPaper,
+  hideBack = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
 }) {
   const [board, setBoard] = useState(null);
   const [error, setError] = useState(null);
@@ -291,10 +291,7 @@ export default function BoardJacket({
             <ul className="board-jacket-papers">
               {papers.slice(0, SHOWN_PAPERS).map((paper) => (
                 <li key={paper.sha256}>
-                  <a
-                    href={paperLink(paper)}
-                    onClick={onOpenPaper && ((event) => { event.preventDefault(); onOpenPaper(paper.sha256); })}
-                  >{paper.title}</a>
+                  <a href={paperLink(paper)}>{paper.title}</a>
                   {paperByline(paper) && <span>{paperByline(paper)}</span>}
                 </li>
               ))}

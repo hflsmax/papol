@@ -15,8 +15,10 @@ const added = (at) => {
   return day.toLocaleDateString('en', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', year: 'numeric' });
 };
 
-// Where a paper opens beside the rail, the shelf or board it came from kept.
-const paperPlace = (sha256, from) => appPath(`/?${new URLSearchParams([...Object.entries(from).filter(([, v]) => v), ['paper', paperName(sha256)]])}`);
+// Where a paper opens beside the rail, the shelf or board it came from kept
+// in front of it (frontend/DESIGN.md, Navigation).
+const paperPlace = (sha256, { shelf = null, board = null }) =>
+  appPath(`${board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
 
 function Faces({ users, max }) {
   return (
@@ -31,8 +33,10 @@ function Faces({ users, max }) {
 // Every place in the rail opens in the main area: a project its desk, a
 // shelf (or all papers) its papers, a board its jacket; and a paper picked
 // from a shelf's papers or a board's jacket its jacket, the shelf or board
-// still chosen. Search and tags narrow what the main area shows.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, onSelectProject, renderProject, paper = null, onOpenPaper, renderPaper, onOpenCanvas, onChanged }) {
+// still chosen. Search and tags narrow what the main area shows. Every place
+// is a link the app follows without reloading; the papers stay mounted
+// behind whatever opens, so Back finds them filtered and scrolled as left.
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
@@ -64,9 +68,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                 <li key={p.uuid}>
                   <a
                     className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
-                    href={appPath(`/?project=${p.uuid}`)}
+                    href={appPath(`/project/${p.uuid}`)}
                     aria-current={p.uuid === project ? 'page' : undefined}
-                    onClick={(event) => { event.preventDefault(); onSelectProject(p.uuid); }}
                   >
                     <span className="desk-project-name">{p.name}</span>
                     <span className="desk-project-foot">
@@ -92,9 +95,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                 <li key={s.uuid ?? 'all'}>
                   <a
                     className={on ? 'desk-row is-on' : 'desk-row'}
-                    href={appPath(s.uuid ? `/?shelf=${s.uuid}` : '/')}
+                    href={appPath(s.uuid ? `/shelf/${s.uuid}` : '/')}
                     aria-current={on ? 'page' : undefined}
-                    onClick={(event) => { event.preventDefault(); onSelectShelf(s.uuid); }}
                   >
                     <span className="desk-dot" style={s.color ? { background: s.color } : undefined} aria-hidden="true" />
                     <span className="desk-row-name">{s.name}</span>
@@ -131,9 +133,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                 <li key={b.uuid}>
                   <a
                     className={b.uuid === board ? 'desk-row is-on' : 'desk-row'}
-                    href={appPath(`/?board=${b.uuid}`)}
+                    href={appPath(`/board/${b.uuid}`)}
                     aria-current={b.uuid === board ? 'page' : undefined}
-                    onClick={(event) => { event.preventDefault(); onSelectBoard(b.uuid); }}
                   >
                     <span className="desk-dot" style={{ background: shelfOf(b.shelf_uuid)?.color }} aria-hidden="true" />
                     <span className="desk-row-name">{b.name}</span>
@@ -147,25 +148,22 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
 
       </aside>
 
-      {project ? (
-        <section className="desk-main desk-project-view">{renderProject(project)}</section>
-      ) : paper ? (
-        <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>
-      ) : board ? (
-        <section className="desk-main desk-board">
+      {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
+      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>}
+      {board && (
+        <section className="desk-main desk-board" hidden={Boolean(paper)}>
           <BoardJacket
             key={board}
             boardUuid={board}
             onOpen={onOpenCanvas}
             paperLink={(p) => paperPlace(p.sha256, { board })}
-            onOpenPaper={(sha256) => onOpenPaper(sha256, { board })}
             hideBack
             onChanged={onChanged}
             onDeleted={() => { onChanged?.(); onSelectBoard(null); }}
           />
         </section>
-      ) : (
-      <section className="desk-main" aria-labelledby="desk-papers">
+      )}
+      <section className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
         <div className="desk-main-head">
           <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
           <div className="desk-actions">{adding}</div>
@@ -213,7 +211,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                       <a
                         className="desk-title"
                         href={paperPlace(paper.sha256, { shelf })}
-                        onClick={(event) => { event.preventDefault(); onOpenPaper(paper.sha256, { shelf }); }}
                       >{paper.title}</a>
                       {paper.room_status && <StatePill status={paper.room_status} />}
                       <span className="desk-meta">
@@ -234,7 +231,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
         )}
         {nook.papers.length > 0 && papers.length === 0 && <p className="desk-none">No papers match.</p>}
       </section>
-      )}
     </div>
   );
 }

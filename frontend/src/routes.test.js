@@ -112,3 +112,13 @@ test('a discussion has a page, and talking about anything in a project leads to 
   assert.equal(parseRoute(`/project/${UUID}/discuss/project`).page, 'home');
   assert.equal(parseRoute(`/project/${UUID}/discuss/paper/abc`).page, 'home');
 });
+
+test('a shelf has a page of its own', () => {
+  assert.deepEqual(parseRoute(`/shelf/${UUID}`), { page: 'shelf', uuid: UUID });
+});
+
+test('a paper picked from a shelf or a board is that paper, the place kept', () => {
+  assert.deepEqual(parseRoute(`/shelf/${UUID}/paper/${NAME}`), { page: 'paper', uuid: NAME, shelf: UUID });
+  assert.deepEqual(parseRoute(`/board/${UUID}/paper/${NAME}/`), { page: 'paper', uuid: NAME, board: UUID });
+  assert.equal(parseRoute(`/shelf/${UUID}/paper/${DIGEST}`).page, 'home');
+});

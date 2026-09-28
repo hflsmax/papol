@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Working } from '../../shared/ui/Waiting.js';
 import {
   getMe, getToken, logout, pendingLocalChanges,
@@ -70,7 +70,7 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 export const PROJECT_PAGES = new Set(['project', 'brief', 'discussion', 'discuss']);
 
 const SIGN_IN_PAGES = new Set([
-  'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'nook', 'shelf', 'papers', 'room', 'inbox', 'admin', 'profile',
   'projects', 'project', 'brief', 'invitation', 'discussion', 'discuss',
 ]);
 
@@ -102,13 +102,16 @@ function navigate(path, { replace = false } = {}) {
       mountedDestination,
     );
   } else {
+    // Back returns to this page as it was left, scrolled where it was.
+    window.history.replaceState({ ...(window.history.state || {}), papolScroll: window.scrollY }, '');
     window.history.pushState(
-      { ...(window.history.state || {}), papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
+      { papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
       '',
       mountedDestination,
     );
   }
   window.dispatchEvent(new PopStateEvent('popstate'));
+  if (!replace) window.scrollTo(0, 0);
 }
 
 // A board row opens the board's jacket, as a paper row opens a paper's: the
@@ -117,28 +120,18 @@ function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
-// On the web a member's own board opens in their nook, its jacket in place
-// of the papers; a shelf shows the papers on it; neither, all the papers.
-function openBoardInNook(uuid) {
-  navigate(uuid ? `/?board=${uuid}` : '/');
-}
-function openShelfInNook(uuid) {
-  navigate(uuid ? `/?shelf=${uuid}` : '/');
-}
-function openProjectInNook(uuid) {
-  navigate(uuid ? `/?project=${uuid}` : '/');
-}
-// A paper opens its jacket beside the rail, the shelf or board it was
-// picked from still chosen there.
-function nookPaperPath(sha256, { shelf = null, board = null } = {}) {
-  const query = new URLSearchParams();
-  if (board) query.set('board', board);
-  else if (shelf) query.set('shelf', shelf);
-  query.set('paper', paperName(sha256));
-  return `/?${query}`;
-}
-function openPaperInNook(sha256, from) {
-  navigate(nookPaperPath(sha256, from));
+// On the web every thing has one path (frontend/DESIGN.md, Navigation), and
+// a signed-in member sees these ones inside their nook, beside its rail.
+const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
+
+// Links from before things had paths: /?shelf=…&paper=… and the like.
+function nookPathFromQuery(search) {
+  const query = new URLSearchParams(search);
+  const [shelf, board, project, paper] = ['shelf', 'board', 'project', 'paper'].map((key) => query.get(key));
+  if (project) return `/project/${project}`;
+  const place = board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : '';
+  if (paper) return `${place}/paper/${paper}`;
+  return place || null;
 }
 
 // The way in, from the jacket. The canvas is a separate application, so this
@@ -354,11 +347,28 @@ export default function App({ startupUser = null, startupError = null }) {
     };
   }, [mode]);
 
+  // Back and Forward return a page scrolled where it was left; a move
+  // within the app (navigate) starts the next page at its top.
+  const restoreScroll = useRef(null);
   useEffect(() => {
-    const onRouteChange = () => setRoute(parseRoute());
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    const onRouteChange = (event) => {
+      restoreScroll.current = event.isTrusted ? window.history.state?.papolScroll ?? 0 : null;
+      setRoute(parseRoute());
+    };
     window.addEventListener('popstate', onRouteChange);
     return () => window.removeEventListener('popstate', onRouteChange);
   }, []);
+  useLayoutEffect(() => {
+    if (restoreScroll.current == null) return;
+    window.scrollTo(0, restoreScroll.current);
+    restoreScroll.current = null;
+  }, [route]);
+  useEffect(() => {
+    if (route.page !== 'home') return;
+    const path = nookPathFromQuery(window.location.search);
+    if (path) navigate(path, { replace: true });
+  }, [route]);
 
   useEffect(() => {
     const initialRoute = parseRoute();
@@ -510,9 +520,8 @@ export default function App({ startupUser = null, startupError = null }) {
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
     // still theirs to add.
-    const returnTo = candidate.startsWith('/paper/')
-      || candidate.startsWith('/boards/')
-      || candidate.startsWith('/viewer/')
+    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/discussion/', '/room/', '/boards/', '/viewer/']
+      .some((start) => candidate.startsWith(start))
       ? candidate
       : '/';
     // login/register already persisted the credential for this account.
@@ -600,6 +609,8 @@ export default function App({ startupUser = null, startupError = null }) {
     const control = event.target.closest?.('button, input, select, textarea');
     if (control && anchor?.contains(control)) return;
     if (
+      // Cmd-, Ctrl-, Shift- or middle-click: the browser opens a tab.
+      event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey ||
       !href ||
       // A place on this page: the browser scrolls to it.
       href.startsWith('#') ||
@@ -663,6 +674,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // A signed-in member on the web finds their way by one bar over every
   // page (Way.jsx), which carries each page's way back as well.
   const hasWay = Boolean(user) && !DESKTOP;
+  // Those pages all draw the one nook, kept mounted as a member moves
+  // through it so its list, filters and scroll are there on the way Back.
+  const inNook = hasWay && NOOK_PAGES.has(route.page);
 
   // Keyed by identity: changing accounts remounts every page so no nook or
   // private paper state can survive an identity boundary.
@@ -670,7 +684,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // raised it and leaving that page starts clean.
   const pages = (
     <ErrorBoundary
-      key={`${route.page}:${route.uuid ?? ''}`}
+      key={inNook ? 'nook' : `${route.page}:${route.uuid ?? ''}`}
       area={`the ${route.page} page`}
     >
     <main className="main-content" key={`${mode}:${user?.uuid ?? 'none'}`}>
@@ -678,41 +692,45 @@ export default function App({ startupUser = null, startupError = null }) {
         <AuthPage onAuth={handleAuth} initialMode="login" />
       ) : (
       <>
-      {route.page === 'home' &&
-        (user ? (
+      {inNook ? (
           <Nook
             userUuid={user.uuid}
             currentUser={user}
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
-            onSelectBoard={hasWay ? openBoardInNook : openBoard}
-            board={hasWay ? new URLSearchParams(window.location.search).get('board') : null}
-            shelf={hasWay ? new URLSearchParams(window.location.search).get('shelf') : null}
-            onSelectShelf={openShelfInNook}
-            project={hasWay ? new URLSearchParams(window.location.search).get('project') : null}
-            paper={hasWay ? new URLSearchParams(window.location.search).get('paper') : null}
-            onOpenPaper={openPaperInNook}
+            onSelectBoard={(uuid) => navigate(uuid ? `/board/${uuid}` : '/')}
+            shelf={route.page === 'shelf' ? route.uuid : route.shelf ?? null}
+            board={route.page === 'board' ? route.uuid : route.board ?? null}
+            project={route.page === 'project' ? route.uuid : null}
+            paper={route.page === 'paper' ? route.uuid : null}
             renderPaper={(name) => (
               <PaperJacket
                 key={name}
                 paperSha256={name}
                 currentUser={user}
                 hideBack
-                onSelectPaper={(sha256) => openPaperInNook(sha256)}
+                onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
                 onReportableError={offerErrorReport}
               />
             )}
-            onSelectProject={openProjectInNook}
             renderProject={(uuid) => (
               <ProjectPage
                 key={uuid}
                 projectUuid={uuid}
                 currentUser={user}
                 onChanged={() => setProjectsRevision((r) => r + 1)}
-                onLeft={() => openProjectInNook(null)}
+                onLeft={() => navigate('/', { replace: true })}
                 onOpenBrief={(sha256) => navigate(briefPath(uuid, sha256))}
               />
             )}
             onOpenCanvas={openBoardCanvas}
+          />
+      ) : route.page === 'home' &&
+        (user ? (
+          <Nook
+            userUuid={user.uuid}
+            currentUser={user}
+            onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
+            onSelectBoard={openBoard}
           />
         ) : DESKTOP ? (
           // The desktop app opens on signing in, not on a pitch for Papol.
@@ -732,7 +750,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={backHref}
         />
       )}
-      {route.page === 'paper' && (
+      {!inNook && route.page === 'paper' && (
         <PaperJacket
           paperSha256={route.uuid}
           currentUser={user}
@@ -745,7 +763,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onReportableError={offerErrorReport}
         />
       )}
-      {route.page === 'board' && (
+      {!inNook && route.page === 'board' && (
         <BoardJacket
           boardUuid={route.uuid}
           onOpen={openBoardCanvas}
@@ -783,7 +801,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onChanged={() => setProjectsRevision((r) => r + 1)}
         />
       )}
-      {route.page === 'project' && (
+      {!inNook && route.page === 'project' && (
         <ProjectPage
           key={route.uuid}
           projectUuid={route.uuid}
@@ -971,11 +989,11 @@ export default function App({ startupUser = null, startupError = null }) {
 
   // The pages inside a project fill the window: a member at work in a
   // project is not browsing Papol.
-  const insideProject = user && PROJECT_PAGES.has(route.page);
+  const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   // Where a page leads back to on its way home to the nook, unless it
   // says so itself: a jacket to the place it was opened from, a nook of
   // someone else's to the Library their papers are found in.
-  const wayTrail = (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
+  const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
     ? [jacketBack.path === '/library' ? { path: '/bazaar', label: BAZAAR } : jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
       ? [{ path: '/bazaar', label: BAZAAR }]

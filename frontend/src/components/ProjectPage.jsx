@@ -65,7 +65,7 @@ export function ProjectWay({ project }) {
   if (DESKTOP || !project) return null;
   return (
     <InWay>
-      <a href={appPath(`/?project=${project.uuid}`)}>{project.name}</a>
+      <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
     </InWay>
   );
 }
