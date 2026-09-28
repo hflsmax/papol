@@ -156,13 +156,12 @@ def stop(process):
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return
-    # A disposable backend: whatever it has written is committed to its
-    # SQLite files already, so it is not given long to wind down.
+    # wrangler stops the runtime it started only when it winds down itself:
+    # killed outright, it leaves workerd holding the port.
     try:
-        process.wait(timeout=2)
+        process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
 
 
 def register(url, display_name, password="testing-password"):

@@ -294,6 +294,7 @@ class Backend:
     def stop(self):
         backend_service.stop(self.process)
         self.process = None
+        say("The backend exited; waiting for its port")
         # wrangler's runtime lets go of the port a moment after it exits.
         eventually("the backend's port coming free", lambda: backend_service.port_is_free(PORT), 30)
 
