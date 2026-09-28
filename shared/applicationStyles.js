@@ -5373,8 +5373,8 @@ ${talkStyles}
 
 /* A paper's brief: the paper, the ways to act on it, the members' takes,
    then its dig, in one reading column. */
-.paper-brief { display: grid; gap: var(--space-4); max-width: 44rem; }
-.paper-brief-head { display: grid; gap: var(--space-2); }
+.paper-brief { display: grid; gap: var(--space-3); max-width: 44rem; }
+.paper-brief-head { display: grid; gap: var(--space-1); }
 .paper-brief-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); text-wrap: balance; }
 .paper-brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .paper-brief-authors { font: italic var(--fs-md) var(--font-serif); }
@@ -5382,23 +5382,25 @@ ${talkStyles}
 /* Every action is a button of one size; Read alone is filled. */
 .paper-brief-actions :is(.button, button) { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; min-height: 32px; padding: 0 14px; font: 500 var(--fs-sm)/1 var(--font-ui); }
 .paper-brief-actions .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.paper-brief-take-out { margin-left: auto; }
 .paper-brief-take-out:hover:not(:disabled) { border-color: var(--red-line); background: var(--red-soft); color: var(--red); }
-.paper-brief .project-paper-added { margin-top: calc(-1 * var(--space-2)); }
+.paper-brief-actions .project-paper-added { margin-left: auto; }
 /* The paper's digs, each on a sheet of its own: parted by space and tone,
    everything in a sheet on one left edge, the posts a step in from the dig. */
-.paper-brief-digs { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding-bottom: var(--space-2); }
-.paper-brief-dig { padding: var(--space-3) var(--space-4) var(--space-4); border-radius: 10px; background: var(--paper-sunken); }
-.paper-brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.paper-brief-digs { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
+.paper-brief-dig { padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--paper-sunken); }
+.paper-brief-dig .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 .paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
-.paper-brief-dig .talk-post { margin: 0; padding: var(--space-2) 0; }
+.paper-brief-dig .talk-post { margin: 0; padding: var(--space-1) 0; }
 .paper-brief-dig .talk-post:hover { background: none; }
-.paper-brief-dig .talk-post + .talk-post { margin-top: 0; padding-left: 28px; }
-.paper-brief-dig .talk-post-head { margin-bottom: var(--space-1); }
-.paper-brief-dig .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
-.paper-brief-dig .talk-post:first-child .talk-post-body { font-size: var(--fs-md); line-height: 1.5; }
-.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .4em; }
+.paper-brief-dig .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.paper-brief-dig .talk-post-head { margin-bottom: 2px; }
+.paper-brief-dig .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.paper-brief-dig .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
+.paper-brief-dig .talk-post:first-child .talk-post-body { font-size: var(--fs-md); line-height: 1.45; }
+.paper-brief-dig .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.paper-brief-dig .talk-post-body > :last-child { margin-bottom: 0; }
 /* The phase is a word on the dig's own line, after its date. */
 .paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
 .paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
@@ -5407,16 +5409,18 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase { margin-left: var(--space-1); }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller
    while it is being written in. */
-.paper-brief-dig .talk-compose { grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-2); padding: 0 0 0 28px; background: none; }
-.paper-brief-dig .talk-compose .mini-avatar { width: 20px; height: 20px; margin-top: 8px; font-size: 10px; }
-.paper-brief-dig .talk-compose textarea { min-height: 36px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
+.paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
+.paper-brief-dig .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
+.paper-brief-dig .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
 .paper-brief-dig .talk-compose textarea:focus { min-height: 88px; }
-.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 36px; overflow: hidden; }
+.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 32px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
-.paper-brief-dig .talk-unfold.is-post { margin: var(--space-2) 0 0 28px; }
+/* Post waits at the end of the owner's line, not on a row of its own. */
+.paper-brief-dig .talk-unfold.is-post { position: absolute; top: 1px; right: 0; min-height: 26px; margin: 0; padding: 0 10px; }
+.paper-brief-dig .talk-card:has(.talk-unfold.is-post) .talk-post:first-child .talk-post-head { padding-right: 64px; }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
-.paper-brief-dig.is-yours { padding: var(--space-1) var(--space-4) 0; background: none; }
+.paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
 /* A buried dig folds to its owner's line; pressing it opens the dig. */
 .paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
