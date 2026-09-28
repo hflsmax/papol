@@ -479,6 +479,11 @@ export function DesktopBrowser({
                     {paper.journal && (
                       <span className="desktop-row-sub">{paper.journal}</span>
                     )}
+                    {!libraryView && paper.tags?.length > 0 && (
+                      <span className="desktop-row-sub desktop-row-tags">
+                        {paper.tags.map((t) => <span key={t.uuid}><span aria-hidden="true">#</span>{t.name}</span>)}
+                      </span>
+                    )}
                     {libraryView && users > 0 && (
                       <span className="desktop-row-sub">
                         {users} {users === 1 ? 'user' : 'users'}

@@ -228,8 +228,16 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                         {paper.journal && <> · <i>{paper.journal}</i></>}
-                        {paper.tags.map((t) => <span key={t.uuid} className="desk-meta-tag"><span aria-hidden="true">#</span>{t.name}</span>)}
                       </span>
+                      {paper.tags.length > 0 && (
+                        <span className="desk-row-tags">
+                          {paper.tags.map((t) => (
+                            <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-row-tag is-on' : 'desk-row-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>
+                              <span aria-hidden="true">#</span>{t.name}
+                            </button>
+                          ))}
+                        </span>
+                      )}
                     </td>
                     <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
                     {showMerit && <td className="desk-col-dots">{paper.rating_liking ? <RatingDots value={paper.rating_liking} /> : null}</td>}
