@@ -6433,8 +6433,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
-/* A member's own nook on the web: a rail of their places (projects,
-   boards, shelves) beside one table of their papers. One row grid and one
+/* A member's own nook on the web: a rail of the places they go to
+   (projects, boards) beside one table of their papers, with what narrows
+   the table (search, shelves, tags) on the line above it. One row grid and one
    left edge throughout; the only fill is gold, for what is new, and the
    soft accent of the shelf being shown. */
 .app:has(.nook.is-desk) { max-width: 1180px; }
@@ -6482,8 +6483,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .desk-actions .upload-section.is-trigger .error { position: absolute; right: 0; z-index: 10; width: min(360px, 80vw); margin-top: 6px; }
 .desk-filter { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
 .desk-search { flex: 0 1 15rem; min-width: 8rem; height: 32px; box-sizing: border-box; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font: 400 var(--fs-sm) var(--font-ui); }
+.desk-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); min-width: 0; }
 .desk-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.desk-tag { padding: 2px 8px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
+.desk-manage { margin-left: auto; }
+.desk-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 .desk-tag:hover, .desk-tag:focus-visible { background: var(--paper-sunken); }
 .desk-tag.is-on { background: var(--accent-soft); color: var(--accent); }
 .desk-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }

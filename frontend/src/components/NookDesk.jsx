@@ -23,10 +23,10 @@ function Faces({ users, max }) {
   );
 }
 
-// A member's own nook on the web: a rail of their places (projects,
-// boards, shelves) beside one table of their papers. Every row on the
-// page keeps to one grid and one left edge; a shelf chosen in the rail
-// narrows the table.
+// A member's own nook on the web: a rail of the places they go to
+// (projects, boards) beside one table of their papers. What narrows the
+// table (search, shelves, tags) sits on the line above it, so a click in
+// the rail always goes somewhere and a click on that line never does.
 export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage }) {
   const [shelf, setShelf] = useState(null);
   const [tag, setTag] = useState(null);
@@ -101,36 +101,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           )}
         </section>
 
-        <section className="desk-rail-part" aria-labelledby="desk-shelves">
-          <div className="desk-rail-head">
-            <h3 id="desk-shelves">Shelves</h3>
-            <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>
-          </div>
-          <ul className="desk-rail-list">
-            <li>
-              <button type="button" className={shelf == null ? 'desk-row is-on' : 'desk-row'} aria-pressed={shelf == null} onClick={() => setShelf(null)}>
-                <span className="desk-dot" aria-hidden="true" />
-                <span className="desk-row-name">All papers</span>
-                <span className="desk-count">{nook.papers.length}</span>
-              </button>
-            </li>
-            {nook.shelves.map((s) => (
-              <li key={s.uuid}>
-                <button type="button" className={shelf === s.uuid ? 'desk-row is-on' : 'desk-row'} aria-pressed={shelf === s.uuid} onClick={() => setShelf(shelf === s.uuid ? null : s.uuid)}>
-                  <span className="desk-dot" style={{ background: s.color }} aria-hidden="true" />
-                  <span className="desk-row-name">{s.name}</span>
-                  {!s.is_public && (
-                    <svg className="desk-lock" viewBox="0 0 16 16" aria-label="Private">
-                      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
-                      <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
-                    </svg>
-                  )}
-                  <span className="desk-count">{s.paper_count}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
       </aside>
 
       <section className="desk-main" aria-labelledby="desk-papers">
@@ -138,8 +108,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
           <div className="desk-actions">{adding}</div>
         </div>
-        {nook.papers.length > 0 && (
-          <div className="desk-filter">
+        <div className="desk-filter">
+          {nook.papers.length > 0 && (
             <input
               type="search"
               className="desk-search"
@@ -148,16 +118,36 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               aria-label="Filter papers"
               onChange={(e) => setSearch(e.target.value)}
             />
+          )}
+          <div className="desk-chips">
+            {nook.shelves.length > 1 && (
+              <div className="desk-tags" role="group" aria-label="Shelves">
+                {nook.shelves.map((s) => (
+                  <button key={s.uuid} type="button" className={shelf === s.uuid ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={shelf === s.uuid} onClick={() => setShelf(shelf === s.uuid ? null : s.uuid)}>
+                    <span className="desk-dot" style={{ background: s.color }} aria-hidden="true" />
+                    {s.name}
+                    {!s.is_public && (
+                      <svg className="desk-lock" viewBox="0 0 16 16" aria-label="Private">
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+                        <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
             {nook.tags.length > 0 && (
               <div className="desk-tags" role="group" aria-label="Tags">
-                <button type="button" className={tag == null ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={tag == null} onClick={() => setTag(null)}>All</button>
                 {nook.tags.map((t) => (
-                  <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>{t.name}</button>
+                  <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>
+                    <span aria-hidden="true">#</span>{t.name}
+                  </button>
                 ))}
               </div>
             )}
           </div>
-        )}
+          <button type="button" className="desk-quiet desk-manage" onClick={onManage}>Manage</button>
+        </div>
         {papers.length > 0 && (
           <table className={showMerit ? 'desk-table' : 'desk-table no-merit'}>
             <thead>
