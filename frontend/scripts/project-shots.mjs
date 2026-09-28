@@ -52,14 +52,14 @@ const SHOTS = {
   // A dig opened under its row on a phone.
   'phone-digs': { ...desk('digs', '.project-talk-panel .talk-post', "const go = () => { const d = document.querySelector('.project-talk-item'); if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
-  // A face under Also read, and where it leads: that reader's nook.
-  'nook-face': { path: '/?shell=web', ready: "document.querySelector('.desk-col-faces .face-link')", then: "document.querySelector('.desk-col-faces .face-link').click(); return true;", settled: "document.body.innerText.includes(\"'s nook\")", size: wide },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
   'phone-their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: phone },
   'mac-their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=desktop', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
   'nook-add': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.upload-section.is-trigger > button').click(); return true;", settled: "document.querySelector('.upload-menu')", size: wide },
   'nook-scrolled': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const body = document.querySelector('.desk-table tbody'); const rows = [...body.children]; for (let i = 0; i < 4; i += 1) rows.forEach((row) => body.append(row.cloneNode(true))); window.scrollTo(0, 700); return true;", size: { width: 1440, height: 560 } },
+  // A paper's Effort in the nook, pressed: the time spent on it.
+  'nook-effort': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop-total')", size: wide },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket-heading')", size: wide },
