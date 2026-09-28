@@ -26,6 +26,7 @@ const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
+  'desk-invite': { ...desk('papers', '#project-people .project-invite', "document.querySelector('.project-invite-open').click(); return true;"), size: wide },
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
   brief: { path: `/project/${PROJECT}/paper/${paper}`, ready: "document.querySelector('.brief-page .talk-post')", size: wide },
   dig: { path: `/discussion/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },

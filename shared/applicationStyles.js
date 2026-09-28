@@ -5148,6 +5148,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-people button:not(.project-quiet) { padding: var(--space-1) var(--space-3); font-size: var(--fs-xs); }
 .project-invite { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
 .project-invite-note { color: var(--ink-faint); font-size: var(--fs-xs); }
+.project-invite:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
 .project-invite-link + button + button + .project-invite-note { flex-basis: 100%; }
 .project-invite-link { flex: 1 1 10rem; min-width: 0; overflow: hidden; padding: var(--space-1) var(--space-2); border-radius: var(--radius); background: var(--paper-sunken); color: var(--ink-soft); font: var(--fs-xs) var(--font-mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; }
 .project-people-list { margin: 0; padding: 0; list-style: none; }
