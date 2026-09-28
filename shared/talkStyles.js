@@ -84,6 +84,10 @@ export const talkStyles = `
 .talk-dig-new textarea { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; transition: min-height var(--motion-fast) var(--ease-out); }
 .talk-dig-new textarea:focus { min-height: 96px; border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
+/* A folded box: one quiet word that opens it. */
+.talk-unfold { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 28px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-sm) var(--font-ui); }
+.talk-unfold:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
+.talk-unfold .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }

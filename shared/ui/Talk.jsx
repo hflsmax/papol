@@ -259,15 +259,21 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // the one that says what the dig is about. With phaseBar the four phases
 // stand open (the dig open in the Digs tab); else only the current one.
 // With phaseInHead the phase word sits on the dig's own line, after its date.
+// With tucked the writing box stays folded to one word until it is pressed.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
-  single = false, phaseBar = false, phaseInHead = false,
+  single = false, phaseBar = false, phaseInHead = false, tucked = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
   const [discussion, setDiscussion] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.discussion);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
+  const [unfolded, setUnfolded] = useState(false);
+  const folded = tucked && !unfolded && !body;
+  useEffect(() => { if (unfolded) box.current?.focus(); }, [unfolded]);
+  // An emptied box folds away again when it is left.
+  const leave = () => { if (!body.trim()) setUnfolded(false); };
   const [busy, setBusy] = useState(false);
   const [spot, setSpot] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -364,6 +370,7 @@ export function TalkCard({
       setDiscussion(next);
       setDigs((all) => (all.some((d) => d.uuid === next.uuid) ? all : [...all, { uuid: next.uuid, owner: next.owner, is_mine: next.is_mine }]));
       setBody('');
+      setUnfolded(false);
       toEnd();
       // The pin counts every dig on its thing and every post, this dig as
       // it now stands.
@@ -499,12 +506,14 @@ export function TalkCard({
       )}
 
       <div className="talk-card-body" ref={list}>
-        {discussion === undefined ? null : writing ? (
+        {discussion === undefined ? null : writing && folded ? (
+          <button type="button" className="talk-unfold" onClick={() => setUnfolded(true)}><Face user={currentUser} />Dig</button>
+        ) : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
             <Face user={currentUser} />
             <textarea
               ref={box} rows={1} value={body} maxLength={POST_LIMIT} placeholder="Your dig" aria-label="Your dig"
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) => setBody(e.target.value)} onBlur={leave}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
             />
             {/* The button comes with the words: nothing to press before. */}
@@ -563,7 +572,10 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {discussion && (
+      {discussion && folded && (
+        <button type="button" className="talk-unfold is-post" onClick={() => setUnfolded(true)}>Post</button>
+      )}
+      {discussion && !folded && (
         <form className="talk-compose" onSubmit={send}>
           {currentUser && <Face user={currentUser} />}
           <textarea
@@ -573,7 +585,7 @@ export function TalkCard({
             maxLength={POST_LIMIT}
             placeholder={`Post to ${whose} dig`}
             aria-label={`Post to ${whose} dig`}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => setBody(e.target.value)} onBlur={tucked ? leave : undefined}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
           />
           <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">

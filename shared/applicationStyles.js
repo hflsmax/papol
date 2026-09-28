@@ -5432,6 +5432,7 @@ ${talkStyles}
 .paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 36px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
+.paper-brief-dig .talk-unfold.is-post { margin: var(--space-1) 0 0 28px; }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: var(--space-1) var(--space-4) 0; background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
