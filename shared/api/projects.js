@@ -78,14 +78,22 @@ export function addIdeaCard(boardUuid, content) {
 // ---------- Discussions ----------
 
 // A discussion can be about anything a project holds, named by a key:
-// "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>" or
-// "card:<uuid>". Never the project itself.
+// "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>",
+// "card:<uuid>" or "annotation:<uuid>". Never the project itself.
 export function subjectKey(subject) {
   if (typeof subject === 'string') return subject;
   if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
   if (subject.paper) return `paper:${subject.paper}`;
   if (subject.card) return `card:${subject.card}`;
+  if (subject.annotation) return `annotation:${subject.annotation}`;
   return `board:${subject.board}`;
+}
+
+// A paper with the project on: every member's annotations on it, whose
+// each is, and the digs open on them. What the viewer reads once a
+// project is chosen.
+export function listProjectAnnotations(uuid, paperSha256) {
+  return request(`/projects/${uuid}/papers/${paperSha256}/annotations`);
 }
 
 // A subject's discussion, if it has one, and what it is about.
@@ -117,6 +125,11 @@ export function deleteDiscussionPost(uuid) {
 // Where talking about a subject leads, as a page of its own.
 export function discussPath(projectUuid, subject) {
   return `/project/${projectUuid}/discuss/${subjectKey(subject).replace(/:/g, '/')}`;
+}
+
+// The viewer with the project on, open at an annotation's page.
+export function annotationViewerPath(projectUuid, paperSha256, page = null) {
+  return `/viewer/?pdf=${paperSha256}&project=${projectUuid}${page ? `&page=${page}` : ''}`;
 }
 
 // A paper as a project sees it: its brief.

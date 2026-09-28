@@ -11,6 +11,8 @@ import {
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   getToken,
 } from './api.js';
+import { listProjectAnnotations } from '../../shared/api/projects.js';
+import { projectParam } from './project.js';
 
 /**
  * Where this document and its notes come from — decided once, from the URL,
@@ -18,6 +20,8 @@ import {
  *
  *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol;
  *                          for anyone else, the PDF alone, as a lean link
+ *   &project=<uuid>        the same, with one of the user's projects on: every
+ *                          member's annotations on the pages (project.js)
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<code>          someone's reading of a PDF, handed over by link
  *
@@ -40,7 +44,7 @@ export function resolveSource() {
   // The digest is a lean link in itself: a visitor, or a user who does not
   // keep this PDF, reads the paper alone. Only someone signed in can keep
   // it, so only they are asked first.
-  return signedIn() ? apiSource(pdf) : paperLinkSource(pdf);
+  return signedIn() ? apiSource(pdf, undefined, undefined, projectParam()) : paperLinkSource(pdf);
 }
 
 export function nookViewerHref(href = window.location.href) {
@@ -65,6 +69,7 @@ function apiSource(
   pdfHash,
   loadPaper = () => getPaperByPdf(pdfHash),
   loadPaperNotes = (paper) => getPaperNotes(paper),
+  project = null,
 ) {
   let paperReady = null;
   const paper = () => {
@@ -99,6 +104,13 @@ function apiSource(
       update: (uuid, changes) => updateAnnotation(uuid, changes),
       remove: (uuid) => deleteAnnotation(uuid),
     },
+    // The project on, if one is: its name and members, and what every
+    // member left on this paper. Read from the service, as projects always
+    // are; the reader's own annotations still come from the list above,
+    // which on the Mac is the replica, and are told from the others' by
+    // who wrote them.
+    project,
+    loadProject: project ? () => listProjectAnnotations(project, pdfHash) : null,
   };
   return source;
 }

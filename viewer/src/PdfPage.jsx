@@ -16,6 +16,27 @@ import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
+import Avatar from '../../shared/ui/Avatar.jsx';
+import { TalkPin } from '../../shared/ui/Talk.jsx';
+import { memberInk } from './project.js';
+
+// With a project on, any annotation the project can see can hold a dig:
+// the pin for it, on the annotation's card. Never on one still being
+// saved, which has no name the project could know it by.
+function DigPin({ project, annotation, label, size = 'sm' }) {
+  if (!project || typeof annotation.uuid !== 'string' || annotation.uuid.startsWith('wet-')) return null;
+  return (
+    <TalkPin
+      projectUuid={project.uuid}
+      subject={{ annotation: annotation.uuid }}
+      label={label}
+      summary={project.digs[annotation.uuid]}
+      currentUser={project.me}
+      onChanged={project.onDigChanged}
+      size={size}
+    />
+  );
+}
 
 /**
  * One rendered page, plus the pins that live on it.
@@ -148,7 +169,7 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, onSelect, onSend }) {
+function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const renderRef = useRef(null);
@@ -451,26 +472,38 @@ function ClipBox({ clip, doc, selected, readOnly, onChange, onCommit, onRemove, 
     </span>
   );
 
+  // With a project on, a clip picked out says whose it is and can be dug
+  // into — another member's as much as the reader's own.
+  const who = project && selected && (
+    <span className={`clip-who${clip.theirs ? ' theirs' : ''}`} style={clip.user ? { '--who': memberInk(clip.user) } : undefined}>
+      {clip.user && <Avatar user={clip.user} className="mini-avatar" />}
+      {clip.user && <span>{clip.user.display_name}</span>}
+      <DigPin project={project} annotation={clip} label={`a clip on page ${clip.page}`} />
+    </span>
+  );
+
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}`}
       style={positionStyle}
       aria-label="Clipped paper content"
       // Someone else's clip is a view they cut and placed. It is theirs to
-      // move, so here it is simply part of the page.
-      title={readOnly ? 'A clipped view of this paper' : 'Drag clipped view'}
+      // move, so here it is simply part of the page — picked out, with a
+      // project on, only to say whose it is.
+      title={readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
       onPointerDown={readOnly ? undefined : (event) => begin(event, 'move')}
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
       onPointerCancel={readOnly ? undefined : finish}
-      onClick={readOnly ? undefined : (event) => {
+      onClick={readOnly && !project ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
         draggedRef.current = false;
       }}
     >
       <canvas ref={canvasRef} className="clip-canvas" />
+      {who}
       {!readOnly && actions}
       {selected && !readOnly && (
         <span
@@ -507,6 +540,7 @@ function PdfPage({
   onSelectNote,
   onMoveNote,
   readOnly = false,
+  project = null,
   tool,
   ink,
   provenanceHighlights = [],
@@ -1169,7 +1203,7 @@ function PdfPage({
   const startDrag = (e, note) => {
     // An anchor in a shared reading was placed by the user who shared it.
     // It can be pressed to go there, and not picked up.
-    if (readOnly || e.button !== 0) return;
+    if (readOnly || note.theirs || e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     // Where the pointer sits relative to the anchor's own point, so the
@@ -1394,6 +1428,7 @@ function PdfPage({
     const found = { ink: [], notes: [], animals: [] };
     const inkObjects = new Set();
     for (const stroke of ink) {
+      if (stroke.theirs) continue;
       if (nearStroke(stroke.points, at, ERASE_REACH)) {
         inkObjects.add(stroke.group_uuid ? `group:${stroke.group_uuid}` : `stroke:${stroke.uuid}`);
       }
@@ -1403,7 +1438,7 @@ function PdfPage({
       if (inkObjects.has(object)) found.ink.push(stroke.uuid);
     }
     for (const note of notes) {
-      if (note.content || !note.anchor) continue;
+      if (note.content || !note.anchor || note.theirs) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.uuid);
     }
     for (const animalRecord of animals) {
@@ -1412,8 +1447,11 @@ function PdfPage({
     return { ...found, inkObjects: [...inkObjects] };
   };
 
+  // Another member's ink and anchors are not the reader's to rub out, so
+  // the eraser passes over them.
   const eraseUnder = (at) => {
     for (const stroke of ink) {
+      if (stroke.theirs) continue;
       if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.uuid);
     }
     // An anchor is an annotation on the page, so the eraser takes it. What it does
@@ -1421,7 +1459,7 @@ function PdfPage({
     // writing, there is no undo here, and a swipe of the hand is no way to
     // lose it. Those are still deleted from the pin's own menu.
     for (const note of notes) {
-      if (note.content || !note.anchor) continue;
+      if (note.content || !note.anchor || note.theirs) continue;
       if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.uuid);
     }
     for (const animalRecord of animals) {
@@ -2149,10 +2187,14 @@ function PdfPage({
                       stroke="transparent"
                       strokeWidth={Math.max(stroke.width * size.width * 3, GRAB_WIDTH)}
                       strokeLinecap="square"
-                      onPointerDown={(e) => startInkDrag(e, stroke)}
-                      onPointerMove={moveInkDrag}
-                      onPointerUp={endInkDrag}
-                      onPointerCancel={endInkDrag}
+                      // Another member's stroke can be picked out, to see
+                      // whose it is and dig into it, and not carried.
+                      onPointerDown={stroke.theirs
+                        ? (e) => { if (e.button !== 0) return; e.stopPropagation(); onSelectInk(stroke); }
+                        : (e) => startInkDrag(e, stroke)}
+                      onPointerMove={stroke.theirs ? undefined : moveInkDrag}
+                      onPointerUp={stroke.theirs ? undefined : endInkDrag}
+                      onPointerCancel={stroke.theirs ? undefined : endInkDrag}
                       {...strokeProps}
                     />
                   )}
@@ -2370,7 +2412,7 @@ function PdfPage({
                 note.uuid === activeNoteUuid ? ' active' : ''
               }${note.content ? '' : ' bare'}${
                 drag?.uuid === note.uuid && drag.moved ? ' dragging' : ''
-              }`}
+              }${note.theirs ? ' theirs' : ''}`}
               style={drag?.uuid === note.uuid && drag.moved ? {
                 position: 'fixed',
                 left: drag.screen.x,
@@ -2381,8 +2423,12 @@ function PdfPage({
                 // drawn from the top in CSS.
                 left: `${(drag?.uuid === note.uuid ? drag.anchor : note.anchor).x * 100}%`,
                 top: `${(1 - (drag?.uuid === note.uuid ? drag.anchor : note.anchor).y) * 100}%`,
+                // Another member's pin wears their colour, as their ink does.
+                ...(note.theirs ? { '--who': memberInk(note.user) } : {}),
               }}
-              title={note.content || 'An anchor with no note yet'}
+              title={note.theirs
+                ? `${note.user.display_name}: ${note.content || 'an anchor'}`
+                : note.content || 'An anchor with no note yet'}
               onPointerDown={(e) => startDrag(e, note)}
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}
@@ -2400,7 +2446,9 @@ function PdfPage({
             <NoteCard
               key={note._cardKey || note.uuid}
               note={note}
-              readOnly={readOnly}
+              readOnly={readOnly || Boolean(note.theirs)}
+              by={note.theirs ? note.user : null}
+              pin={<DigPin project={project} annotation={note} label={note.name || note.content || `an anchor on page ${note.page}`} />}
               focusField={noteCardFocus}
               onRename={onRenameNote}
               onWrite={onWriteNote}
@@ -2415,7 +2463,8 @@ function PdfPage({
           key={clip._renderKey || clip.uuid}
           clip={clip}
           doc={doc}
-          readOnly={readOnly}
+          readOnly={readOnly || Boolean(clip.theirs)}
+          project={project}
           selected={selectedClipUuid === clip.uuid}
           onChange={(change) => onUpdateClip(clip.uuid, change)}
           onCommit={(frame) => onCommitClip(clip.uuid, frame)}

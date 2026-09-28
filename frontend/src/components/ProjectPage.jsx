@@ -5,7 +5,7 @@ import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
+  annotationViewerPath, briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
@@ -441,7 +441,7 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
 }
 
 // Every dig, latest first. Each is a card that opens its dig right there.
-export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
+export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation' };
 
 function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
@@ -531,6 +531,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
 // Where a dig's subject lives: a paper's brief, a board; a thought or a
 // card has no page of its own.
 function subjectHome(project, subject) {
+  if (subject.kind === 'annotation') return annotationViewerPath(project.uuid, subject.paper_sha256, subject.page);
   if (subject.paper_sha256) return briefPath(project.uuid, subject.paper_sha256);
   if (subject.board_uuid) return `/boards/${subject.board_uuid}`;
   return null;

@@ -4,7 +4,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard, TalkGlyph } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
-import { getProject, removePaperFromProject } from '../../../shared/api/projects.js';
+import { annotationViewerPath, getProject, removePaperFromProject } from '../../../shared/api/projects.js';
 import { addToNook, getPaper, updatePaper } from '../../../shared/api/papers.js';
 import appLimits from '../../../shared/appLimits.js';
 import { paperName } from '../../../shared/paperName.js';
@@ -73,7 +73,8 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
     .sort((a, b) => isMe(a.user) - isMe(b.user));
   const myTake = paper.users.find((u) => isMe(u.user));
   const canTakeOut = project.is_keeper || isMe(paper.added_by);
-  const viewer = appPath(`/viewer/?pdf=${paper.sha256}`);
+  // The paper opens with this project on: every member's marks on it.
+  const viewer = appPath(annotationViewerPath(project.uuid, paper.sha256));
   const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
   const onThoughts = (project.discussions ?? []).filter((d) => d.subject.kind === 'take' && d.subject.paper_sha256 === paper.sha256 && d.last_post);
   // One dig shows at a time beside the takes: the paper's, or a thought's
