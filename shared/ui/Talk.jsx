@@ -16,8 +16,8 @@ import { plainTitle } from '../texTitle.js';
 // started one. A pin sits beside the thing; pressing it opens a dig card,
 // drawn like a card on a board, right where you are, on your own dig if
 // you have one. The same pin and card serve a paper, a member's thought, a
-// board, a card on it, an annotation and a post in another member's dig;
-// never the project as a whole, which is no one thing. (In code the pin
+// board, a card on it and an annotation; never the project as a whole,
+// which is no one thing, and never another dig. (In code the pin
 // and card keep their first name, Talk.)
 
 const POST_LIMIT = appLimits.text.discussion_post;
@@ -28,7 +28,6 @@ const KINDS = {
   board: { word: 'Board' },
   card: { word: 'Card' },
   annotation: { word: 'Annotation' },
-  post: { word: 'Post' },
 };
 
 export function kindOf(subject) {
@@ -370,14 +369,6 @@ export function TalkCard({
     setPicked(null);
     setTopic(next);
   };
-  // Digging a post: the card moves to the reader's dig about it. The post
-  // itself is the link back, so nothing is left behind.
-  const digPost = (post) => {
-    setFrom({ ...topic, dig: discussion?.uuid ?? topic.dig, uuid: discussion?.uuid ?? null, pending: false });
-    setBody('');
-    setPicked(null);
-    setTopic({ subject: `post:${post.uuid}`, label: `“${excerptOf(post.body, 120)}”`, dig: post.digs?.mine ?? 'mine' });
-  };
   const goBack = () => {
     setTopic({ subject: from.subject, label: from.label, dig: from.dig });
     setFrom(null);
@@ -480,18 +471,6 @@ export function TalkCard({
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
                     <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
-                    {post.can_dig && (
-                      <button
-                        type="button"
-                        className={`talk-pin talk-post-pin${post.digs?.post_count ? '' : ' is-empty'}${post.digs?.is_new ? ' is-new' : ''}`}
-                        aria-label={post.digs?.post_count ? `${plural(post.digs.post_count, 'post', 'posts')} about this post. Open the dig` : 'Dig this post'}
-                        title={post.digs?.post_count ? plural(post.digs.post_count, 'post', 'posts') : 'Dig this post'}
-                        onClick={(e) => { e.stopPropagation(); digPost(post); }}
-                      >
-                        <TalkGlyph outline={!post.digs?.post_count} />
-                        {post.digs?.post_count > 0 && <span className="talk-count">{post.digs.post_count > 99 ? '99+' : post.digs.post_count}</span>}
-                      </button>
-                    )}
                   </p>
                   <Markdown className="talk-post-body" text={post.body} />
                   {picked === post.uuid && (

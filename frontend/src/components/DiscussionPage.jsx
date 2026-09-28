@@ -25,14 +25,12 @@ const POST_LIMIT = appLimits.text.discussion_post;
 // thing itself, at its brief or on its board.
 function Subject({ project, subject, posts = [] }) {
   const projectHref = appPath(`/project/${project.uuid}`);
-  const home = subject.kind === 'post' ? (subject.dig_uuid ? appPath(`/discussion/${subject.dig_uuid}`) : null)
-    : subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
+  const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
     : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
       : subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const under = {
     take: subject.by && <>{subject.by}’s thought on <a href={home}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
     card: subject.board_name && <>On <a href={home}>{subject.board_name}</a></>,
-    post: subject.by && <>{subject.by}’s post</>,
     annotation: subject.by && <>{subject.by}’s, on <a href={appPath(briefPath(project.uuid, subject.paper_sha256))}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
   }[subject.kind];
   const voices = [];

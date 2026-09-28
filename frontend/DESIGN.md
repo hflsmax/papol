@@ -204,10 +204,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   inquiry, not a chat.
 - **Owned, open to post.** A dig is the member's who started it, and a
   thing holds one per member. Anyone who can see a dig can post in it.
-- **Dig a post, one hop.** A post in someone else's dig carries its own pin
-  at the end of its name line; digging it starts your dig about that post.
-  The posts of a dig about a post carry no pin, your own posts carry none,
-  and lists stay flat: no tree anywhere.
+- **A dig is never dug.** Digs are about things, not about each other.
 - **Choosing whose.** When a thing holds several digs, the card opens on
   yours, else the latest, with the owners' faces to switch between.
 

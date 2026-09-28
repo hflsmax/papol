@@ -37,11 +37,9 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
   const goneTalk = `board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR ${inBoards} OR take_user_uuid = ?`;
   // A dig about a board that goes, or a card on it, or their own thought
-  // on a paper or an annotation of theirs, goes too; and with its posts
-  // the digs others started about them.
+  // on a paper or an annotation of theirs, goes too.
   const goneDigs = (await all<{ uuid: string }>(db,
-    `WITH gone AS (SELECT uuid FROM digs WHERE ${goneTalk} OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?))
-     SELECT uuid FROM gone UNION SELECT d.uuid FROM digs d JOIN dig_posts dp ON dp.uuid = d.post_uuid WHERE dp.dig_uuid IN (SELECT uuid FROM gone)`,
+    `SELECT uuid FROM digs WHERE ${goneTalk} OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)`,
     ...boardUuids, ...boardUuids, user.uuid, user.uuid)).map((d) => d.uuid);
   const inDigs = goneDigs.length ? goneDigs.map(() => "?").join(",") : "NULL";
   const files = await boardFiles(env, boardUuids);

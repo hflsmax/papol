@@ -225,17 +225,14 @@ export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
   coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name,
   an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name,
-  an.user_uuid AS annotation_user, au.display_name AS annotation_by,
-  pp.body AS post_body, pp.user_uuid AS post_user, pu.display_name AS post_by, pp.dig_uuid AS post_dig`;
+  an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
   LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
   LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
   LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
-  LEFT JOIN users au ON au.uuid = an.user_uuid
-  LEFT JOIN dig_posts pp ON pp.uuid = d.post_uuid
-  LEFT JOIN users pu ON pu.uuid = pp.user_uuid`;
+  LEFT JOIN users au ON au.uuid = an.user_uuid`;
 
 // What a dig is about, said the way the project page says it.
 export function subjectOut(d: Row) {
@@ -250,12 +247,6 @@ export function subjectOut(d: Row) {
     };
   }
   if (base.kind === "board") return { ...base, board_uuid: d.board_uuid, board_name: d.board_name, label: d.board_name ?? "A board" };
-  if (base.kind === "post") {
-    return {
-      ...base, post_uuid: d.post_uuid, dig_uuid: d.post_dig ?? null, user_uuid: d.post_user ?? null, by: d.post_by ?? null,
-      label: d.post_body ? `“${excerpt(String(d.post_body)).slice(0, 120)}”` : "A post taken back",
-    };
-  }
   if (base.kind === "annotation") {
     return {
       ...base, annotation_uuid: d.annotation_uuid, paper_sha256: d.paper_sha256, paper_title: d.paper_title,

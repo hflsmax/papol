@@ -116,30 +116,6 @@ describe("digs", () => {
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, body: "x" } })).status).toBe(404);
   });
 
-  // Digging a post: someone else's post starts a dig of your own about
-  // it, and that is as deep as it goes.
-  it("digs someone else's post, one hop deep", async () => {
-    const { dana, ana, project } = await group();
-    const board = await boardIn(dana, project.uuid);
-    const first = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `board:${board.uuid}`, body: "Sparse attention might fix the lag." } });
-    const claim = first.posts[0];
-    expect(claim).toMatchObject({ is_mine: true, can_dig: false, digs: null });
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `post:${claim.uuid}`, body: "x" } })).status).toBe(422);
-
-    const seen = await ok("GET", `/api/digs/${first.uuid}`, { headers: ana.headers });
-    expect(seen.posts[0]).toMatchObject({ can_dig: true });
-    const dug = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `post:${claim.uuid}`, body: "Only at long context." } });
-    expect(dug.subject).toMatchObject({ kind: "post", post_uuid: claim.uuid, dig_uuid: first.uuid, user_uuid: dana.uuid, label: "“Sparse attention might fix the lag.”" });
-    // Its own posts are not dug again, by anyone.
-    expect((await ok("GET", `/api/digs/${dug.uuid}`, { headers: dana.headers })).posts[0]).toMatchObject({ can_dig: false });
-    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `post:${dug.posts[0].uuid}`, body: "x" } })).status).toBe(422);
-
-    // The dug post counts the digs on it, and cannot be taken back.
-    const back = await ok("GET", `/api/digs/${first.uuid}`, { headers: dana.headers });
-    expect(back.posts[0].digs).toMatchObject({ uuid: dug.uuid, dig_count: 1, post_count: 1, is_new: true });
-    expect((await call("DELETE", `/api/dig-posts/${claim.uuid}`, { headers: dana.headers })).status).toBe(409);
-  });
-
   // Following a drift: the new idea becomes a card on another member's
   // project board, its dig opens with the drifting post quoted, and the old
   // dig points to it. Lists show each as plain words.
@@ -178,6 +154,10 @@ describe("digs", () => {
     const board = await boardIn(dana, project.uuid, "Bench plan");
 
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: "project", body: "Weekly sync on Friday?" } })).status).toBe(422);
+    // Nor another dig, nor a post in one.
+    const other = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, body: "Mine." } });
+    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `dig:${other.uuid}`, body: "x" } })).status).toBe(422);
+    expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `post:${other.posts[0].uuid}`, body: "x" } })).status).toBe(422);
     const onBoard = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `board:${board.uuid}`, body: "Too many cards." } });
     expect(onBoard.subject).toMatchObject({ key: `board:${board.uuid}`, kind: "board", board_uuid: board.uuid, label: "Bench plan" });
     const take = `take:${A_PAPER}:${dana.uuid}`;

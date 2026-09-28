@@ -79,15 +79,14 @@ export function addIdeaCard(boardUuid, content) {
 
 // A dig can be about anything a project holds, named by a key:
 // "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>",
-// "card:<uuid>", "annotation:<uuid>" or "post:<uuid>". Never the project
-// itself.
+// "card:<uuid>" or "annotation:<uuid>". Never the project itself, nor
+// another dig.
 export function subjectKey(subject) {
   if (typeof subject === 'string') return subject;
   if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
   if (subject.paper) return `paper:${subject.paper}`;
   if (subject.card) return `card:${subject.card}`;
   if (subject.annotation) return `annotation:${subject.annotation}`;
-  if (subject.post) return `post:${subject.post}`;
   return `board:${subject.board}`;
 }
 

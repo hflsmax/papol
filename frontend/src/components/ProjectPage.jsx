@@ -437,7 +437,7 @@ function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
 }
 
 // Every dig, latest first. Each is a card that opens its dig right there.
-export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation', post: 'Post' };
+export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation' };
 
 function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
