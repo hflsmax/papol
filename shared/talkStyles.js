@@ -44,7 +44,6 @@ export const talkStyles = `
 .talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .talk-card-kind i { display: inline-grid; place-items: center; color: var(--accent-strong); }
 .talk-card-kind i .talk-glyph { width: 15px; height: 15px; }
-.talk-card-count { color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
 .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
 .dig-phase { margin-left: auto; text-transform: none; letter-spacing: 0; min-height: 24px; padding: 1px 26px 1px 9px; border: 1px solid var(--line); border-radius: 999px; background-color: transparent; background-position: right 8px center; color: var(--ink-soft); font: 600 var(--fs-2xs) var(--font-ui); cursor: pointer; }

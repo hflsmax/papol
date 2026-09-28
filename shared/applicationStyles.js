@@ -5363,8 +5363,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-talk-meta b { color: var(--ink-soft); font-weight: 600; }
-.project-talk-count { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
-.project-talk-count .talk-glyph { width: 13px; height: 13px; }
 @container (max-width: 559px) {
   .project-head { align-items: flex-start; }
   .project-seat small { display: none; }
@@ -5420,7 +5418,6 @@ ${talkStyles}
 .brief-dig .talk-card.is-inline .talk-card-header { align-items: baseline; }
 .brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); letter-spacing: 0; text-transform: none; }
 .brief-dig .talk-card.is-inline .talk-card-kind i { display: none; }
-.brief-dig .talk-card.is-inline .talk-card-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 /* Posts are read, not skimmed: body size and leading, parted by space. */
 .brief-dig .talk-post { padding-top: var(--space-3); padding-bottom: var(--space-3); }
 .brief-dig .talk-post + .talk-post { border-top: 0; }
