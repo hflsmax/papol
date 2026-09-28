@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
+import Face from '../../../shared/ui/Face.jsx';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
@@ -20,10 +21,14 @@ const added = (at) => {
 const paperPlace = (sha256, { shelf = null, board = null }) =>
   appPath(`${board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
 
-function Faces({ users, max }) {
+// Who else is here. Each face leads to its person's nook, except inside a
+// link of its own (a project's card), where the card is the one way in.
+function Faces({ users, max, linked = false }) {
   return (
     <span className="desk-faces">
-      {users.slice(0, max).map((u) => <Avatar key={u.uuid} user={u} className="desk-face" />)}
+      {users.slice(0, max).map((u) => (linked
+        ? <Face key={u.uuid} user={u} className="desk-face" />
+        : <Avatar key={u.uuid} user={u} className="desk-face" />))}
       {users.length > max && <span className="desk-more">+{users.length - max}</span>}
     </span>
   );
@@ -233,7 +238,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                     </td>
                     <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
                     {showMerit && <td className="desk-col-dots">{paper.rating_liking ? <RatingDots value={paper.rating_liking} /> : null}</td>}
-                    <td className="desk-col-faces">{others.length > 0 && <Faces users={others} max={3} />}</td>
+                    <td className="desk-col-faces">{others.length > 0 && <Faces users={others} max={3} linked />}</td>
                     <td className="desk-col-date">{added(paper.created_at)}</td>
                   </tr>
                 );

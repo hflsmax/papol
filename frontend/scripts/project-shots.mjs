@@ -39,6 +39,8 @@ const SHOTS = {
   'mac-dig': { path: `/discussion/${DIG_PAPER}?shell=desktop`, ready: "document.querySelector('.discussion-post')", size: wide },
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
+  // A face under Also read, and where it leads: that reader's nook.
+  'nook-face': { path: '/?shell=web', ready: "document.querySelector('.desk-col-faces .face-link')", then: "document.querySelector('.desk-col-faces .face-link').click(); return true;", settled: "document.body.innerText.includes(\"'s nook\")", size: wide },
   'nook-add': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.upload-section.is-trigger > button').click(); return true;", settled: "document.querySelector('.upload-menu')", size: wide },
   'nook-scrolled': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const body = document.querySelector('.desk-table tbody'); const rows = [...body.children]; for (let i = 0; i < 4; i += 1) rows.forEach((row) => body.append(row.cloneNode(true))); window.scrollTo(0, 700); return true;", size: { width: 1440, height: 560 } },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
