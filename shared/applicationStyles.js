@@ -6433,11 +6433,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
-/* A member's own nook on the web: a rail of the places they go to
-   (projects, boards) beside one table of their papers, with what narrows
-   the table (search, shelves, tags) on the line above it. One row grid and one
-   left edge throughout; the only fill is gold, for what is new, and the
-   soft accent of the shelf being shown. */
+/* A member's own nook on the web: a rail of places (projects, shelves,
+   boards), each opening in the main area beside it. One row grid and one
+   left edge throughout; the only fill is the soft accent of the place
+   being shown, and what is new says so in gold words, not paint. */
 .app:has(.nook.is-desk) { max-width: 1180px; }
 .nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .desk-rail { display: grid; gap: var(--space-5); position: sticky; top: var(--space-4); }
@@ -6463,8 +6462,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   color: var(--ink); text-decoration: none;
 }
 .desk-project:hover, .desk-project:focus-visible { background: var(--paper-sunken); color: var(--ink); }
-.desk-project.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
-.desk-project.is-on { border-color: var(--accent); }
+.desk-project.is-on { background: var(--accent-soft); }
 .desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
 .desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
 .desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
