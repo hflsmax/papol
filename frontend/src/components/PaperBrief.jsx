@@ -82,13 +82,12 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
           )}
           {canTakeOut && <button type="button" className="paper-brief-take-out" onClick={takeOut}>Take out</button>}
+          {paper.added_by && (
+            <span className="project-paper-added">Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}</span>
+          )}
         </div>
       </header>
       {notice && <div className="error" role="alert">{notice}</div>}
-
-      {paper.added_by && (
-        <p className="project-paper-added">Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}</p>
-      )}
 
       {digs && (
         <section className="paper-brief-digs" aria-label="Digs">

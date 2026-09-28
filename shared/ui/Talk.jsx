@@ -258,7 +258,8 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about. With phaseBar the four phases
 // stand open (the dig open in the Digs tab); else only the current one.
-// With phaseInHead the phase word sits on the dig's own line, after its date.
+// With phaseInHead the phase word sits on the dig's own line, after its date,
+// and dates name only the day (the time shows on hover).
 // With tucked the writing box stays folded to one word until it is pressed.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
@@ -534,7 +535,7 @@ export function TalkCard({
                   <p className="talk-post-head">
                     <Face user={post.user} />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
-                    <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
+                    <time dateTime={post.created_at} title={phaseInHead ? when(post.created_at, { time: true }) : undefined}>{when(post.created_at, { time: !phaseInHead })}</time>
                     {phaseInHead && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                     {editing?.uuid !== post.uuid && (post.is_mine || discussion.can_moderate) && (
