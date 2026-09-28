@@ -160,6 +160,12 @@ jobs:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
           save-if: false
+      # npm's download cache, which the app job saves from main.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
 
       - name: Install desktop and bundled UI dependencies
         run: cd desktop && npm ci && npm run install:web
@@ -244,6 +250,20 @@ jobs:
           done
           sudo killall tccd || true
           xcrun swift desktop/scripts/papol-ui.swift windows
+
+      # npm's download cache: saved from main only, as the Rust one is.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref != 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
 
       - name: Install desktop and bundled UI dependencies
         run: cd desktop && npm ci && npm run install:web

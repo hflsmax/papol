@@ -299,8 +299,8 @@ export interface Piece extends Rect { image: boolean; thin: boolean; text?: Line
 export function piecesOf(graphics: (Rect & { image: boolean })[], bounds: Rect[]): Piece[] {
   const touching = (a: Rect, b: Rect) => a.x0 <= b.x1 + 0.5 && b.x0 <= a.x1 + 0.5 && a.y0 <= b.y1 + 0.5 && b.y0 <= a.y1 + 0.5;
   const thin = (g: Rect) => g.x1 - g.x0 < 1.5 || g.y1 - g.y0 < 1.5;
-  const loose = graphics.filter((g) => bounds.some((b) => touching(g, b)));
-  const joinable = graphics.filter((g) => !loose.includes(g)).sort((a, b) => a.x0 - b.x0);
+  const loose = new Set(graphics.filter((g) => bounds.some((b) => touching(g, b))));
+  const joinable = graphics.filter((g) => !loose.has(g)).sort((a, b) => a.x0 - b.x0);
   const parent = joinable.map((_, i) => i);
   // Iterative: a long chain of touching strokes would recurse too deep.
   const find = (i: number): number => {
@@ -315,10 +315,14 @@ export function piecesOf(graphics: (Rect & { image: boolean })[], bounds: Rect[]
     }
   }
   const groups = new Map<number, (Rect & { image: boolean })[]>();
-  joinable.forEach((g, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), g]));
+  joinable.forEach((g, i) => {
+    const root = find(i);
+    const group = groups.get(root);
+    if (group) group.push(g); else groups.set(root, [g]);
+  });
   return [
     ...[...groups.values()].map((gs) => ({ ...union(gs), image: gs.some((g) => g.image), thin: gs.every(thin) })),
-    ...loose.map((g) => ({ ...g, thin: thin(g) })),
+    ...[...loose].map((g) => ({ ...g, thin: thin(g) })),
   ];
 }
 

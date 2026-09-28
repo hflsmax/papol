@@ -29,10 +29,48 @@ concurrency:
 permissions:
   contents: read
 
+# Two jobs side by side, since neither needs the other: the Worker's and
+# the analyzer's suites in one, the pages' suites and the browser suite
+# over the assembled site in the other. `tests` below answers for both
+# under the name branch protection requires.
 jobs:
-  tests:
-    # Branch protection requires this name; keep it stable.
-    name: tests
+  # The Worker's suite spends most of its time starting the Workers
+  # runtime, and the analyzer's needs nothing but Node; neither needs a
+  # browser or the built pages.
+  worker:
+    name: tests-worker
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # Restored only: the pages job saves the npm cache for both, from main.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: false
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      # The Worker: its suite runs in the Workers runtime against a local
+      # D1. --legacy-peer-deps because npm's peer resolver crashes on
+      # Vitest 5's optional peers while the pool still wants Vitest 4.
+      - name: The Worker's suite
+        working-directory: cloudflare
+        run: npm ci --legacy-peer-deps && npm run typecheck && npm test
+
+      # The analyzer's rules, which the viewer and the upload form run.
+      - name: The analyzer's suite
+        if: ${{ !cancelled() }}
+        working-directory: analyzer
+        run: npm ci && npm run typecheck && npm test
+
+  pages:
+    name: tests-pages
     if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
     # Pinned rather than -latest: the sysctl below is an Ubuntu 24 answer,
     # and an image that moved under it would fail as a browser that will
@@ -97,7 +135,7 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       # The browser is the runner's own Google Chrome, found on PATH.
-      - name: Unit tests, all four surfaces
+      - name: Unit tests and smokes, all three pages
         env:
           # The upload smoke (frontend `npm test`) keeps the page here if it fails.
           PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
@@ -105,12 +143,11 @@ jobs:
           (cd viewer   && npm ci && npm test)
           (cd board    && npm ci && npm test)
           (cd frontend && npm ci && npm test)
-          # The Worker: its suite runs in the Workers runtime against a local
-          # D1. --legacy-peer-deps because npm's peer resolver crashes on
-          # Vitest 5's optional peers while the pool still wants Vitest 4.
-          (cd cloudflare && npm ci --legacy-peer-deps && npm run typecheck && npm test)
-          # The analyzer's rules, which the viewer and the upload form run.
-          (cd analyzer && npm ci && npm run typecheck && npm test)
+
+      # wrangler, for the Worker below; its suite is the worker job's.
+      - name: Install the Worker's dependencies
+        working-directory: cloudflare
+        run: npm ci --legacy-peer-deps
 
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.
@@ -155,3 +192,20 @@ jobs:
       - name: Worker log
         if: failure()
         run: cat server.log || true
+
+  # The check branch protection requires: both halves passed, or were
+  # skipped together (a `hotfix` pull request, where a skipped check passes).
+  tests:
+    # Branch protection requires this name; keep it stable.
+    name: tests
+    needs: [worker, pages]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Both halves of the tests check
+        run: |
+          echo "worker: ${{ needs.worker.result }}, pages: ${{ needs.pages.result }}"
+          for result in "${{ needs.worker.result }}" "${{ needs.pages.result }}"; do
+            [ "$result" = success ] || [ "$result" = skipped ] || exit 1
+          done
