@@ -5,6 +5,7 @@ import Face from '../../../shared/ui/Face.jsx';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
+import Effort from './EffortPop';
 import { RatingDots } from './Rating';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
@@ -236,6 +237,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                 <th scope="col" className="desk-col-title">Title</th>
                 <th scope="col" className="desk-col-dots">Depth</th>
                 {showMerit && <th scope="col" className="desk-col-dots">Merit</th>}
+                <th scope="col" className="desk-col-effort">Effort</th>
                 <th scope="col" className="desk-col-faces">Also read</th>
                 <th scope="col" className="desk-col-date">Added</th>
               </tr>
@@ -266,6 +268,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                     </td>
                     <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
                     {showMerit && <td className="desk-col-dots">{paper.rating_liking ? <RatingDots value={paper.rating_liking} /> : null}</td>}
+                    <td className="desk-col-effort"><Effort effort={paper.effort} subject={paper.sha256} compact /></td>
                     <td className="desk-col-faces">{others.length > 0 && <Faces users={others} max={3} linked />}</td>
                     <td className="desk-col-date">{added(paper.created_at)}</td>
                   </tr>
