@@ -104,6 +104,14 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
 }
 
 // The whole project, as a member sees it.
+// A card's height as the board's miniature draws it (as BoardPreview does).
+function previewHeight(kind: string) {
+  if (["image", "youtube", "bilibili", "webpage"].includes(kind)) return 180;
+  if (kind === "excerpt") return 145;
+  if (kind === "file") return 82;
+  return 112;
+}
+
 async function projectOut(env: Env, project: Project, me: User, member: Member) {
   const members = await membersOf(env, [project.uuid]);
   const entries = await all<Row>(env.DB,
@@ -127,6 +135,18 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
      JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
      JOIN board_items bi ON bi.board_uuid = pb.board_uuid AND bi.deleted_at IS NULL AND NOT bi.staged AND bi.source_url IS NOT NULL
      WHERE pp.project_uuid = ? AND instr(lower(bi.source_url), substr(pp.paper_sha256, 1, 32)) > 0`, project.uuid) : [];
+  // Each board seen from a distance: where its cards sit, at their size,
+  // which the desk draws as a small map.
+  const placedCards = boards.length ? await all<Row>(env.DB,
+    `SELECT board_uuid, kind, x, y, width FROM board_items
+     WHERE board_uuid IN (${boards.map(() => "?").join(",")}) AND deleted_at IS NULL AND NOT staged
+     ORDER BY position, created_at`, ...boards.map((b) => b.uuid)) : [];
+  const boxes = new Map<string, { x: number; y: number; w: number; h: number; kind: string }[]>();
+  for (const c of placedCards) {
+    const list = boxes.get(c.board_uuid as string) ?? [];
+    if (list.length < 120) list.push({ x: Number(c.x), y: Number(c.y), w: Number(c.width) || 300, h: previewHeight(String(c.kind)), kind: String(c.kind) });
+    boxes.set(c.board_uuid as string, list);
+  }
   const onBoards = new Map<string, string[]>();
   for (const r of placed) onBoards.set(r.paper_sha256, [...(onBoards.get(r.paper_sha256) ?? []), r.board_uuid]);
   return {
@@ -134,7 +154,10 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     invite_code: member.is_keeper ? project.invite_code : null,
     boards: await Promise.all(boards.map(async (b) => {
       const out = await boardOut(env, b as never, { canEdit: true });
-      return { uuid: out.uuid, name: out.name, description: out.description, owner: out.owner, item_count: out.item_count, updated_at: out.updated_at };
+      return {
+        uuid: out.uuid, name: out.name, description: out.description, owner: out.owner, item_count: out.item_count, updated_at: out.updated_at,
+        boxes: boxes.get(b.uuid as string) ?? [],
+      };
     })),
     discussions: await discussionsOf(env, project.uuid, me, member),
     papers: entries.map((e) => ({
@@ -174,7 +197,7 @@ export async function discussionsOf(env: Env, projectUuid: string, me: User, mem
     return {
       uuid: d.uuid, project_uuid: d.project_uuid, created_at: d.created_at, updated_at: d.updated_at,
       subject: subjectOut(d),
-      post_count: d.post_count, is_new: Number(d.unread) > 0,
+      post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0,
       voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => voices.get(uuid)).filter(Boolean),
       last_post: last ? { user: userPublic(last), excerpt: excerpt(String(last.body)), created_at: last.created_at } : null,
     };

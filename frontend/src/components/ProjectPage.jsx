@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkGlyph, TalkOpener, TalkPin, when } from '../../../shared/ui/Talk.jsx';
+import { TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -21,17 +21,28 @@ import { keeperNames } from './ProjectMembers';
 // calls nothing new, and this page may be fetched more than once as the app
 // settles. What was new on arriving stays marked until another project, or
 // the list of projects, is opened.
-let arrivals = { project: null, papers: new Set() };
+let arrivals = { project: null, papers: new Set(), digs: new Map() };
 
 export function forgetArrivals() {
-  arrivals = { project: null, papers: new Set() };
+  arrivals = { project: null, papers: new Set(), digs: new Map() };
+}
+
+// A dig stays unread for the visit until it is opened, though the project
+// counts as seen as soon as it loads.
+export function readDigs(uuids) {
+  uuids.forEach((uuid) => arrivals.digs.delete(uuid));
 }
 
 export function markArrivals(projectUuid, project) {
   if (!project?.papers) return project;
-  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set() };
+  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), digs: new Map() };
   project.papers.forEach((paper) => { if (paper.is_new) arrivals.papers.add(paper.sha256); });
-  return { ...project, papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })) };
+  (project.discussions ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
+  return {
+    ...project,
+    papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })),
+    discussions: (project.discussions ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
+  };
 }
 
 // Overlapping faces, a few then a count: who is here without a row of chips.
@@ -96,38 +107,29 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
     return !colour ? null : colour === 'other' ? 'var(--line-strong)' : `var(--activity-${colour})`;
   };
 
-  // What is being said, by subject, and how a pin tells the page it spoke.
-  const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
+  // How a dig card tells the page it spoke.
   const talked = () => { getProject(project.uuid).then((next) => setProject(show(next))).catch(() => {}); };
-  const pin = (subject, label, extra = {}) => (
-    <TalkPin
-      projectUuid={project.uuid} subject={subject} label={label} summary={talk.get(subject)}
-      currentUser={currentUser} onChanged={talked} {...extra}
-    />
-  );
-  // A dig is a conversation, so a card on the desk shows where it stands:
-  // the latest words said about the thing or anything on it, and by whom.
-  const latestDig = (about) => (project.discussions ?? []).find((d) => d.last_post && about(d.subject));
-  const digLine = (d, home) => {
-    const last = d.last_post;
-    const elsewhere = d.subject.key !== home;
+  // On a desk card, digs speak up only when there is something unread: the
+  // spade and the count of posts others wrote since you looked, gold, like a
+  // notification. It opens the latest unread dig.
+  const readDig = (uuid) => {
+    readDigs([uuid]);
+    setProject((p) => ({ ...p, discussions: p.discussions.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
+  };
+  const alert = (about) => {
+    const unread = (project.discussions ?? []).filter((d) => d.is_new && about(d.subject));
+    if (!unread.length) return null;
+    const count = unread.reduce((sum, d) => sum + (d.unread || 1), 0);
+    const d = unread[0];
     return (
       <TalkOpener
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser} onChanged={talked}
-        className={`project-card-dig${d.is_new ? ' is-new' : ''}`} title="Open the dig"
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser} onChanged={talked} onClosed={() => readDig(d.uuid)}
+        className="project-card-alert" title={`${plural(count, 'unread post', 'unread posts')}`}
       >
-        <span className="project-card-dig-text">{last.excerpt}</span>
-        <span className="project-card-dig-meta">
-          <Avatar user={last.user} className="mini-avatar" />
-          <b>{last.user.uuid === currentUser?.uuid ? 'You' : firstName(last.user)}</b>
-          {elsewhere && <span className="project-card-dig-on">on {d.subject.label}</span>}
-          <span>{when(d.updated_at)}</span>
-          {d.is_new && <span className="project-card-new">New</span>}
-        </span>
+        <TalkGlyph /><span>{count > 99 ? '99+' : count}</span>
       </TalkOpener>
     );
   };
-
   // A keeper alone in a project has one thing to do next: invite.
   const open = peopleOpen ?? (project.is_keeper && project.members.length === 1);
   const people = project.members.map((m) => m.user);
@@ -217,16 +219,14 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             {view === 'papers' && (
               <ProjectPapers
                 project={project}
-                pin={pin}
-                latestDig={latestDig}
-                digLine={digLine}
+                alert={alert}
                 hueOf={hueOf}
                 currentUser={currentUser}
                 onOpenBrief={onOpenBrief}
               />
             )}
-            {view === 'boards' && <ProjectBoards project={project} act={act} pin={pin} latestDig={latestDig} digLine={digLine} />}
-            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} />}
+            {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} />}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} onRead={readDig} />}
           </div>
         </>
       )}
@@ -374,7 +374,7 @@ function DeskTabs({ view, onView, counts, fresh }) {
 // Each paper is a card: its title and citation, who has it, and the latest
 // words said about it. The card opens the paper's brief, where the takes,
 // the dig and the rest of what the project knows about it are.
-function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, onOpenBrief }) {
+function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   return (
     <section className="project-section" aria-label="Papers">
@@ -386,8 +386,7 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
         <ul className="project-papers project-grid">
           {project.papers.map((paper) => {
             const takes = paper.users.filter((u) => u.thought);
-            const quoted = takes.find((u) => !isMe(u.user)) ?? takes[0];
-            const dig = latestDig((subject) => subject.paper_sha256 === paper.sha256);
+            const boardCount = (paper.board_uuids ?? []).length;
             const href = appPath(briefPath(project.uuid, paper.sha256));
             const open = (e) => { e.preventDefault(); onOpenBrief(paper.sha256); };
             return (
@@ -399,31 +398,30 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
                 onClick={(e) => { if (!e.target.closest('a, button, input, textarea') && !e.defaultPrevented) open(e); }}
               >
                 <header className="project-card-head">
-                  <span className="project-card-kind"><i className="project-card-hue" />Paper{paper.year ? ` · ${paper.year}` : ''}</span>
-                  {paper.is_new
-                    ? <span className="project-card-new">New</span>
-                    : paper.journal && <span className="project-card-venue">{paper.journal}</span>}
-                  {pin(`paper:${paper.sha256}`, paper.title)}
+                  <span className="project-card-kind"><i className="project-card-hue" />{paper.year || 'Paper'}</span>
+                  {paper.is_new && <span className="project-card-new">New</span>}
+                  {alert((subject) => subject.paper_sha256 === paper.sha256)}
                 </header>
                 <div className="project-card-body">
                   <h4 className="project-card-title">
                     <a className="paper-title-link" href={href} onClick={open}>{paper.title}</a>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
-                  {dig ? digLine(dig, `paper:${paper.sha256}`) : quoted && (
-                    <blockquote className="project-card-quote">
-                      “{quoted.thought}”<cite>{isMe(quoted.user) ? 'You' : quoted.user.display_name}</cite>
-                    </blockquote>
+                  {paper.is_new && paper.added_by && (
+                    <p className="project-card-added">{firstName(paper.added_by)} added · {when(paper.added_at)}</p>
                   )}
                 </div>
-                <footer className="project-card-foot">
-                  {paper.users.length > 0 ? (
-                    <span className="project-card-readers">
-                      <Faces users={paper.users.map((u) => u.user)} max={3} />
-                      <span>{takes.length ? plural(takes.length, 'thought', 'thoughts') : 'No thoughts yet'}</span>
-                    </span>
-                  ) : null}
-                </footer>
+                {(takes.length > 0 || boardCount > 0) && (
+                  <footer className="project-card-foot">
+                    {takes.length > 0 && (
+                      <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
+                        <Faces users={takes.map((u) => u.user)} max={4} />
+                        <span>{plural(takes.length, 'take', 'takes')}</span>
+                      </span>
+                    )}
+                    {boardCount > 0 && <span className="project-card-boards">{plural(boardCount, 'board', 'boards')}</span>}
+                  </footer>
+                )}
               </li>
             );
           })}
@@ -436,9 +434,11 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
 // Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
 
-function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
+function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
-  const opener = (subject, label) => ({ projectUuid: project.uuid, subject, label, currentUser, onChanged: onTalked });
+  const opener = (d) => ({
+    projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
+  });
   const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : 'var(--gold)');
   return (
     <section className="project-talk" aria-label="Digs">
@@ -449,7 +449,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
               const kind = d.subject.kind;
               return (
                 <li key={d.uuid}>
-                  <TalkOpener {...opener(d.subject.key, d.subject.label)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>
+                  <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>
                     <span className="project-talk-subject">
                       <i style={{ background: square(d) }} />
                       <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
@@ -474,7 +474,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
 }
 
 // The project's boards, which every member arranges; one more is a name away.
-function ProjectBoards({ project, act, pin, latestDig, digLine }) {
+function ProjectBoards({ project, act, alert }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -503,21 +503,21 @@ function ProjectBoards({ project, act, pin, latestDig, digLine }) {
       ) : (
         <ul className="project-boards project-grid">
           {boards.map((board) => {
-            const dig = latestDig((subject) => subject.board_uuid === board.uuid);
+            const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
+            const href = appPath(`/boards/${board.uuid}`);
             return (
-              <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board talk-host">
+              <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
                 <header className="project-card-head">
-                  <span className="project-card-kind">Board</span>
-                  {pin(`board:${board.uuid}`, board.name)}
+                  <span className="project-card-kind">{papers ? `Board · ${plural(papers, 'paper', 'papers')}` : 'Board'}</span>
+                  {alert((subject) => subject.board_uuid === board.uuid)}
                 </header>
-                <a className="project-card-body project-board-link" href={appPath(`/boards/${board.uuid}`)}>
+                <a className="project-card-body project-board-link" href={href}>
+                  <BoardMap boxes={board.boxes} />
                   <strong className="project-card-title">{board.name}</strong>
-                  {board.description && <span className="project-board-description">{board.description}</span>}
-                  <span className="project-board-meta">
-                    {[plural(board.item_count ?? 0, 'card', 'cards'), board.owner && firstName(board.owner), `updated ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
-                  </span>
                 </a>
-                {dig && <div className="project-board-dig">{digLine(dig, `board:${board.uuid}`)}</div>}
+                <footer className="project-card-foot project-board-meta">
+                  {board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards'} · edited {when(board.updated_at)}
+                </footer>
               </li>
             );
           })}
@@ -540,6 +540,25 @@ function ProjectBoards({ project, act, pin, latestDig, digLine }) {
         </ul>
       )}
     </section>
+  );
+}
+
+// A board from a distance: its cards as plain boxes where they sit, fitted
+// to a fixed strip so the cards in a row line up.
+function BoardMap({ boxes = [] }) {
+  if (!boxes.length) return null;
+  const left = Math.min(...boxes.map((b) => b.x));
+  const top = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.w));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+  const margin = Math.max(24, 0.04 * Math.max(right - left, bottom - top));
+  return (
+    <svg
+      className="project-board-map" aria-hidden="true" preserveAspectRatio="xMidYMid meet"
+      viewBox={`${left - margin} ${top - margin} ${right - left + 2 * margin} ${bottom - top + 2 * margin}`}
+    >
+      {boxes.map((b, i) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx="10" className={`is-${b.kind}`} />)}
+    </svg>
   );
 }
 

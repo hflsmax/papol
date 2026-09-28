@@ -120,7 +120,7 @@ export function TalkPin({
 
 // Anything can open a talk card, not only a pin: a row in a list of what
 // is being said opens the same card beside itself.
-export function TalkOpener({ projectUuid, subject, label, currentUser, onChanged, className = '', title, children }) {
+export function TalkOpener({ projectUuid, subject, label, currentUser, onChanged, onClosed, className = '', title, children }) {
   const [open, setOpen] = useState(false);
   const self = useRef(null);
   const key = subjectKey(subject);
@@ -137,7 +137,7 @@ export function TalkOpener({ projectUuid, subject, label, currentUser, onChanged
       {open && createPortal(
         <TalkCard
           anchor={self} projectUuid={projectUuid} subject={key} label={label} currentUser={currentUser}
-          onChanged={changed} onClose={() => { setOpen(false); self.current?.focus({ preventScroll: true }); }}
+          onChanged={changed} onClose={() => { setOpen(false); self.current?.focus({ preventScroll: true }); onClosed?.(); }}
         />,
         document.body,
       )}
