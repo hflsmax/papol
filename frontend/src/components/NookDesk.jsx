@@ -180,7 +180,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                         {paper.journal && <> · <i>{paper.journal}</i></>}
-                        {paper.tags.map((t) => <span key={t.uuid} className="desk-meta-tag">{t.name}</span>)}
+                        {paper.tags.map((t) => <span key={t.uuid} className="desk-meta-tag"><span aria-hidden="true">#</span>{t.name}</span>)}
                       </span>
                     </td>
                     <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
