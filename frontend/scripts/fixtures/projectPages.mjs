@@ -135,6 +135,8 @@ const project = {
 
 const summary = { uuid: PROJECT, name: project.name, created_at: project.created_at, members: project.members, is_member: true, is_keeper: true, new_count: 3 };
 const other = { uuid: 'b1b2c3d4-0000-4000-8000-000000000011', name: 'Reading group', created_at: daysAgo(60), members: [{ user: me, is_keeper: false, joined_at: daysAgo(60) }, { user: mia, is_keeper: true, joined_at: daysAgo(60) }], is_member: true, is_keeper: false, new_count: 0 };
+// A project the member is not in, as the Bazaar lists it.
+const closed = { uuid: 'b1b2c3d4-0000-4000-8000-000000000012', name: 'Wavefront sensing', created_at: daysAgo(40), members: [{ user: mia, is_keeper: true, joined_at: daysAgo(40) }], is_member: false, is_keeper: false, new_count: 0 };
 
 const digOf = (uuid) => {
   const d = digs.find((x) => x.uuid === uuid);
@@ -212,7 +214,7 @@ function answer(method, path, search) {
     };
   }
   if (path === '/admin-messages/pending') return [];
-  if (path === '/projects') return [summary, other];
+  if (path === '/projects') return [summary, other, closed];
   if (path === `/projects/${PROJECT}`) return project;
   if (path === `/projects/${PROJECT}/digs`) {
     const key = search.get('subject');
