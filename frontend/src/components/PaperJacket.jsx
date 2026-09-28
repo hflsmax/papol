@@ -27,6 +27,7 @@ import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { VISIBILITY_TIP, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates.js';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -590,7 +591,7 @@ export default function PaperJacket({
       ) : (
         <div className="paper-info">
           <div className="detail-title-row">
-            <h2>{paper.title}</h2>
+            <h2><PaperTitle title={paper.title} /></h2>
             {hasEntry && (
               <div className="detail-toggle">
                 <span className="hint-anchor paper-shelf-picker">

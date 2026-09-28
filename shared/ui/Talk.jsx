@@ -8,6 +8,8 @@ import appLimits from '../appLimits.js';
 import ActionGlyph from './ActionGlyph.jsx';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
+import PaperTitle from './PaperTitle.jsx';
+import { plainTitle } from '../texTitle.js';
 
 // A dig: a conversation, among any number of members, about one thing the
 // project holds. A pin, drawn like a note pin in the viewer, sits beside
@@ -86,8 +88,8 @@ export function TalkPin({
   }, [key, onChanged]);
 
   const words = count
-    ? `${plural(count, 'post', 'posts')} about ${label}${fresh ? ', new' : ''}. Open the dig`
-    : `Dig into ${label}`;
+    ? `${plural(count, 'post', 'posts')} about ${plainTitle(label)}${fresh ? ', new' : ''}. Open the dig`
+    : `Dig into ${plainTitle(label)}`;
   return (
     <span className={`talk-pin-wrap talk-${size} ${className}`}>
       <button
@@ -253,7 +255,7 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
               <li key={t.subject}>
                 <button type="button" onClick={() => onPick({ subject: t.subject, label: t.label })}>
                   <span className="dig-chooser-kind">{KINDS[t.kind].word}</span>
-                  <span className="dig-chooser-label">{t.label}</span>
+                  <span className="dig-chooser-label"><PaperTitle title={t.label} /></span>
                 </button>
               </li>
             ))}
@@ -370,7 +372,7 @@ export function TalkCard({
       toEnd();
       if (onHome) onChanged?.(next);
       if (from?.pending && from.uuid) {
-        const back = await replyToDiscussion(from.uuid, `Dug into [${topic.label.replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
+        const back = await replyToDiscussion(from.uuid, `Dug into [${plainTitle(topic.label).replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
         setFrom({ ...from, pending: false });
         if (from.subject === subject) onChanged?.(back);
       }
@@ -393,7 +395,7 @@ export function TalkCard({
       className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
       role={inline ? 'region' : 'dialog'}
-      aria-label={`Dig into ${topic.label}`}
+      aria-label={`Dig into ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
       <header className="talk-card-header">
@@ -409,10 +411,10 @@ export function TalkCard({
       </header>
       {from && (
         <button type="button" className="talk-card-back" onClick={goBack}>
-          <span aria-hidden="true">←</span> Dug out of {from.label}
+          <span aria-hidden="true">←</span> Dug out of <PaperTitle title={from.label} />
         </button>
       )}
-      {(!inline || !onHome) && <p className="talk-card-subject">{topic.label}</p>}
+      {(!inline || !onHome) && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
 
       <div className="talk-card-body" ref={list}>
         {drift ? (

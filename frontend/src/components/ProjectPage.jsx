@@ -17,6 +17,7 @@ import { formatAuthors } from '../paperFormat.js';
 import { coloursFor } from '../activityView.js';
 import Avatar from './Avatar';
 import { keeperNames } from './ProjectMembers';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 // Opening a project marks what others added as seen, so every later answer
 // calls nothing new, and this page may be fetched more than once as the app
@@ -417,7 +418,7 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
               <i className="project-card-hue" />
               <div className="project-row-text">
                 <h4 className="project-card-title">
-                  <a className="paper-title-link" href={href} onClick={open}>{paper.title}</a>
+                  <a className="paper-title-link" href={href} onClick={open}><PaperTitle title={paper.title} /></a>
                 </h4>
                 <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
               </div>
@@ -477,7 +478,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
         <span className="project-talk-subject">
           <i style={{ background: square(d) }} />
           <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
-          <span className="project-talk-label">{d.subject.label}</span>
+          <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
         </span>
         <span className="project-talk-meta">
           {last && <Avatar user={last.user} className="mini-avatar" />}
@@ -515,8 +516,8 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
           <h3 className="project-talk-subject-line">
             <span className="project-card-kind">{SUBJECT_WORDS[shown.subject.kind]}</span>
             {subjectHome(project, shown.subject)
-              ? <a href={appPath(subjectHome(project, shown.subject))}>{shown.subject.label}</a>
-              : <span>{shown.subject.label}</span>}
+              ? <a href={appPath(subjectHome(project, shown.subject))}><PaperTitle title={shown.subject.label} /></a>
+              : <span><PaperTitle title={shown.subject.label} /></span>}
           </h3>
           <TalkCard
             key={shown.uuid} inline

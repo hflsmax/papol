@@ -36,6 +36,7 @@ import { hasCardPreview } from './cardPreview.js';
 import { fillPictures } from './pictureRound.js';
 import { browserDate, lastEdited as formatLastEdit } from '../../shared/lastEdited.js';
 import { localViewerBacklink } from './sourceLink.js';
+import PaperTitle from '../../shared/ui/PaperTitle.jsx';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const compareUuid = (a, b) => String(a).localeCompare(String(b));
@@ -2171,7 +2172,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
                     : <blockquote>{item.excerpt_text}</blockquote>}
                 {item.content && <p className="board-staging-comment">{item.content}</p>}
                 <footer>
-                  <a href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}>{item.source_label}</a>
+                  <a href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()}><PaperTitle title={item.source_label} /></a>
                   <button type="button" aria-label="Remove staged item" title="Remove" onPointerDown={(event) => event.stopPropagation()} onClick={async () => { await deleteBoardItem(item.uuid); load(); }}>×</button>
                 </footer>
               </article>
@@ -2261,7 +2262,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
           {(item.source_url || item.kind === 'image') && (item.content || board.can_edit) && (board.can_edit && editingDescription === item.uuid
             ? <div className="board-inline-text-editor" onPointerDown={(event) => event.stopPropagation()}><div className="board-inline-format" role="group" aria-label="Text alignment"><button type="button" className={item.text_align === 'left' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'left')} title="Align left"><AlignGlyph align="left" /></button><button type="button" className={item.text_align === 'center' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'center')} title="Align center"><AlignGlyph align="center" /></button><button type="button" className={item.text_align === 'right' ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => alignText(item, 'right')} title="Align right"><AlignGlyph align="right" /></button></div><textarea className="board-inline-description" style={{ textAlign: item.text_align }} autoFocus value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => saveDescription(item)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.blur(); }} rows="3" maxLength={appLimits.text.board_content} /></div>
             : <p className={`board-youtube-description${item.content ? '' : ' empty'}`} style={{ textAlign: item.text_align }} onPointerDown={prepareCardTextPointerDown} onClick={(event) => { if (!board.can_edit) return; if (event.shiftKey || event.metaKey || event.ctrlKey) { setSelectedItems(mergeSelection(selectedItems, [item.uuid], selectionMode(event))); return; } setSelectedItems([]); setSelectedBooklet(null); setDescriptionDraft(item.content || ''); setEditingDescription(item.uuid); }}>{item.content || 'Add description'}</p>)}
-          {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!DESKTOP || !localViewerBacklink(item.source_url, appPath)) return; event.preventDefault(); openSource(item.source_url); }}>{item.source_label || 'Open source'}</a>}
+          {['excerpt', 'image'].includes(item.kind) && item.source_url && <a className="board-excerpt-source" href={item.source_url} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { if (!DESKTOP || !localViewerBacklink(item.source_url, appPath)) return; event.preventDefault(); openSource(item.source_url); }}><PaperTitle title={item.source_label || 'Open source'} /></a>}
           </div>
           {board.can_edit && <button className="board-resize-handle" aria-label="Resize card" title="Resize card" onPointerDown={(event) => startResize(event, item)} />}
         </article>)}

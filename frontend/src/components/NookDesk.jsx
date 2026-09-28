@@ -7,6 +7,7 @@ import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 const added = (at) => {
   const day = new Date(at);
@@ -211,7 +212,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       <a
                         className="desk-title"
                         href={paperPlace(paper.sha256, { shelf })}
-                      >{paper.title}</a>
+                      ><PaperTitle title={paper.title} /></a>
                       {paper.room_status && <StatePill status={paper.room_status} />}
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
