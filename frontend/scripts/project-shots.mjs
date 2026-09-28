@@ -35,6 +35,7 @@ const SHOTS = {
   'mac-dig': { path: `/discussion/${DIG_PAPER}?shell=desktop`, ready: "document.querySelector('.discussion-post')", size: wide },
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
+  'nook-add': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.upload-section.is-trigger > button').click(); return true;", settled: "document.querySelector('.upload-menu')", size: wide },
   library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
   paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: wide },
   you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },

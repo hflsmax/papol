@@ -6476,6 +6476,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .desk-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .desk-actions button { padding: 5px 12px; font: 500 var(--fs-sm) var(--font-ui); }
 .desk-actions .upload-section.is-trigger { position: relative; margin: 0; }
+.upload-menu { position: absolute; right: 0; z-index: 20; display: grid; min-width: 10rem; margin-top: 4px; padding: var(--space-1); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-md); }
+.upload-menu button { padding: 6px var(--space-3); border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink); font: 400 var(--fs-sm) var(--font-ui); text-align: left; }
+.upload-menu button:hover, .upload-menu button:focus-visible { background: var(--paper-sunken); }
 .desk-actions .upload-section.is-trigger .error { position: absolute; right: 0; z-index: 10; width: min(360px, 80vw); margin-top: 6px; }
 .desk-filter { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
 .desk-search { flex: 0 1 15rem; min-width: 8rem; height: 32px; box-sizing: border-box; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font: 400 var(--fs-sm) var(--font-ui); }

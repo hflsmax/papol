@@ -116,12 +116,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
 
   // A member's own nook on the web: what they work in, not who they are.
   if (isOwn && !DESKTOP) {
-    const addingOnDesk = folderRequest ? adding : (
-      <>
-        <button type="button" onClick={() => { setFolderRequest({}); setReviewingUpload(true); }}>Add folder</button>
-        {React.cloneElement(adding, { trigger: true, compact: false })}
-      </>
-    );
+    const addingOnDesk = folderRequest ? adding : React.cloneElement(adding, { trigger: true, compact: false });
     return (
       <div className={reviewingUpload ? 'nook is-desk upload-review-mode' : 'nook is-desk'}>
         <NookDesk

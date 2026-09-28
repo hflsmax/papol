@@ -46,6 +46,17 @@ export default function PaperUpload({
   const [shelves, setShelves] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   const fileInputRef = useRef(null);
+  // The trigger's two ways in: PDF files, or a folder.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const away = (event) => { if (!menuRef.current?.contains(event.target)) setMenuOpen(false); };
+    const escape = (event) => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', escape); };
+  }, [menuOpen]);
   const handledIncomingFile = useRef(null);
   // The fields the user has typed in since the form opened: the reading
   // leaves those alone.
@@ -477,11 +488,24 @@ export default function PaperUpload({
 
   if (trigger) {
     return (
-      <div className="upload-section is-trigger">
+      <div className="upload-section is-trigger" ref={menuRef}>
         {picker}
-        <button type="button" className="primary" disabled={isLoading} onClick={() => fileInputRef.current?.click()}>
+        <button
+          type="button"
+          className="primary"
+          disabled={isLoading}
+          aria-haspopup={onAddFolder ? 'menu' : undefined}
+          aria-expanded={onAddFolder ? menuOpen : undefined}
+          onClick={() => (onAddFolder ? setMenuOpen((open) => !open) : fileInputRef.current?.click())}
+        >
           {isLoading ? 'Adding…' : 'Add papers'}
         </button>
+        {menuOpen && (
+          <div className="upload-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); fileInputRef.current?.click(); }}>PDF files</button>
+            <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onAddFolder(null); }}>A folder</button>
+          </div>
+        )}
         {error && <div className="error" role="alert">{error}</div>}
       </div>
     );
