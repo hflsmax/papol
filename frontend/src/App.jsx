@@ -117,6 +117,12 @@ function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
+// On the web a member's own board opens in their nook, its jacket in place
+// of the papers; none, the papers again.
+function openBoardInNook(uuid) {
+  navigate(uuid ? `/?board=${uuid}` : '/');
+}
+
 // The way in, from the jacket. The canvas is a separate application, so this
 // leaves the Desk — on the desktop into a document window beside it, on
 // the web by going there.
@@ -660,7 +666,9 @@ export default function App({ startupUser = null, startupError = null }) {
             userUuid={user.uuid}
             currentUser={user}
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
-            onSelectBoard={openBoard}
+            onSelectBoard={hasWay ? openBoardInNook : openBoard}
+            board={hasWay ? new URLSearchParams(window.location.search).get('board') : null}
+            onOpenCanvas={openBoardCanvas}
           />
         ) : DESKTOP ? (
           // The desktop app opens on signing in, not on a pitch for Papol.

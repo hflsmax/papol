@@ -3,6 +3,7 @@ import { paperHref } from '../../../shared/api/papers.js';
 import Avatar from './Avatar';
 import StatePill from './StatePill';
 import BoardCreateForm from './BoardCreateForm';
+import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
@@ -27,7 +28,7 @@ function Faces({ users, max }) {
 // (projects, boards) beside one table of their papers. What narrows the
 // table (search, shelves, tags) sits on the line above it, so a click in
 // the rail always goes somewhere and a click on that line never does.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage }) {
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board = null, onOpenCanvas, onChanged }) {
   const [shelf, setShelf] = useState(null);
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
@@ -69,6 +70,18 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           </section>
         )}
 
+        <section className="desk-rail-part" aria-label="Papers">
+          <a
+            className={board ? 'desk-row' : 'desk-row is-on'}
+            href={appPath('/')}
+            aria-current={board ? undefined : 'page'}
+            onClick={(event) => { event.preventDefault(); onSelectBoard(null); }}
+          >
+            <span className="desk-row-name">Papers</span>
+            <span className="desk-count">{nook.papers.length}</span>
+          </a>
+        </section>
+
         <section className="desk-rail-part" aria-labelledby="desk-boards">
           <div className="desk-rail-head">
             <h3 id="desk-boards">Boards</h3>
@@ -84,16 +97,17 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           )}
           {nook.boards.length > 0 && (
             <ul className="desk-rail-list">
-              {nook.boards.map((board) => (
-                <li key={board.uuid}>
+              {nook.boards.map((b) => (
+                <li key={b.uuid}>
                   <a
-                    className="desk-row"
-                    href={appPath(`/board/${board.uuid}`)}
-                    onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}
+                    className={b.uuid === board ? 'desk-row is-on' : 'desk-row'}
+                    href={appPath(`/?board=${b.uuid}`)}
+                    aria-current={b.uuid === board ? 'page' : undefined}
+                    onClick={(event) => { event.preventDefault(); onSelectBoard(b.uuid); }}
                   >
-                    <span className="desk-dot" style={{ background: shelfOf(board.shelf_uuid)?.color }} aria-hidden="true" />
-                    <span className="desk-row-name">{board.name}</span>
-                    <span className="desk-count">{board.item_count}</span>
+                    <span className="desk-dot" style={{ background: shelfOf(b.shelf_uuid)?.color }} aria-hidden="true" />
+                    <span className="desk-row-name">{b.name}</span>
+                    <span className="desk-count">{b.item_count}</span>
                   </a>
                 </li>
               ))}
@@ -103,6 +117,18 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
 
       </aside>
 
+      {board ? (
+        <section className="desk-main desk-board">
+          <BoardJacket
+            key={board}
+            boardUuid={board}
+            onOpen={onOpenCanvas}
+            hideBack
+            onChanged={onChanged}
+            onDeleted={() => { onChanged?.(); onSelectBoard(null); }}
+          />
+        </section>
+      ) : (
       <section className="desk-main" aria-labelledby="desk-papers">
         <div className="desk-main-head">
           <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
@@ -185,6 +211,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
         )}
         {nook.papers.length > 0 && papers.length === 0 && <p className="desk-none">No papers match.</p>}
       </section>
+      )}
     </div>
   );
 }
