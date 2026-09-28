@@ -6024,9 +6024,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
-.talk-post-body { color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); overflow-wrap: anywhere; }
-.talk-post-body p, .discussion-post-body p { margin: 0 0 var(--space-1); }
-.talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 var(--space-1); padding-left: 1.3em; }
+.talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
+.talk-post-body p, .discussion-post-body p { margin: 0 0 3px; }
+.talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }
+.talk-post-body li, .discussion-post-body li { margin-bottom: 0; }
 .talk-post-body > :first-child { margin-top: 0; }
 .talk-post-body > :last-child { margin-bottom: 0; }
 .talk-card-error { margin: 0 var(--space-4) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
@@ -6113,7 +6114,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-post-head .item-actions { position: absolute; top: var(--space-1); right: var(--space-2); }
 .discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
 .discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.discussion-post-body { font-size: var(--fs-sm); line-height: 1.4; }
+.discussion-post-body { font-size: var(--fs-sm); line-height: 1.32; }
 .discussion-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: end; }
 .discussion-head .kicker, .discussion-title { grid-column: 1; }
 .discussion-jump { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
