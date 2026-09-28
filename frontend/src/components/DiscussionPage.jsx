@@ -3,7 +3,7 @@ import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ItemActions from '../../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, TalkGlyph } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, TalkGlyph, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   deleteDiscussionPost, editDiscussionPost, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
@@ -19,14 +19,6 @@ import Markdown from './Markdown';
 import { ProjectWay, SUBJECT_WORDS } from './ProjectPage';
 
 const POST_LIMIT = appLimits.text.discussion_post;
-
-function when(iso) {
-  const date = new Date(iso);
-  const thisYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...(thisYear ? {} : { year: 'numeric' }),
-  });
-}
 
 // What the dig is about, and the ways out of it: the project, and the
 // thing itself, at its brief or on its board.
@@ -45,14 +37,19 @@ function Subject({ project, subject, posts = [] }) {
     <>
       {DESKTOP && (
         <InToolbar>
-          <p className="discussion-toolbar-where" data-toolbar-title><a href={projectHref}>{project.name}</a>{' · '}{word}</p>
+          <p className="discussion-toolbar-where" data-toolbar-title><a href={projectHref}>{project.name}</a></p>
         </InToolbar>
       )}
       <aside className="dig-rail">
         <ProjectWay project={project} />
         <p className="dig-kind"><TalkGlyph />{word}</p>
         <h2 className="dig-subject-title">
-          {home && subject.kind !== 'take' ? <a href={home}>{subject.label}</a> : <span className="discussion-card-label">{subject.label}</span>}
+          {home && subject.kind !== 'take' ? (
+            <a href={home}>
+              {subject.label}
+              <svg className="dig-subject-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
+            </a>
+          ) : <span className="discussion-card-label">{subject.label}</span>}
         </h2>
         {under && <p className="dig-subject-under">{under}</p>}
         {posts.length > 0 && (
@@ -108,14 +105,14 @@ function Post({ post, canModerate, selected, onSelect, onEdit, onDelete, onDig, 
   return (
     <li
       ref={self}
-      className={`discussion-post${selected ? ' is-selected' : ''}`}
+      className={`discussion-post${post.is_mine ? ' is-mine' : ''}${selected ? ' is-selected' : ''}`}
       onClick={(e) => { if (!editing && !e.target.closest('a, button, textarea')) onSelect(); }}
     >
       <div className="discussion-post-head">
         <Avatar user={post.user} className="mini-avatar" />
         <span className="discussion-post-author">{post.is_mine ? 'You' : post.user.display_name}</span>
-        <time className="discussion-post-time" dateTime={post.created_at}>{when(post.created_at)}{post.edited_at && ' · edited'}</time>
-        {selected && !editing && !digging && actions.length > 0 && <ItemActions actions={actions} label="Post actions" placement="below-end" />}
+        <time className="discussion-post-time" dateTime={post.created_at}>{when(post.created_at, { time: true })}{post.edited_at && ' · edited'}</time>
+        {!editing && !digging && actions.length > 0 && <ItemActions actions={actions} label="Post actions" placement="below-end" />}
       </div>
       {editing ? (
         <Composer
@@ -150,7 +147,7 @@ function ReplyBar({ currentUser, placeholder, submitLabel, onSubmit, tall = fals
     <form className={`dig-compose${open ? ' is-open' : ''}`} onSubmit={submit} aria-label={submitLabel}>
       {currentUser && <Avatar user={currentUser} className="mini-avatar" />}
       <AutoTextarea
-        rows={open ? 6 : 2}
+        rows={open ? 6 : 1}
         value={body}
         maxLength={POST_LIMIT}
         aria-label={placeholder}

@@ -276,7 +276,11 @@ function People({ project, currentUser, act, onLeft, onClose }) {
               {(me || member.is_keeper) && (
                 <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
               )}
-              {project.is_keeper && !me && (
+              {me ? (
+                <span className="project-person-actions">
+                  <button type="button" className="project-quiet project-danger" onClick={leave}>Leave</button>
+                </span>
+              ) : project.is_keeper && (
                 <span className="project-person-actions">
                   <button type="button" className="project-quiet" onClick={() => act(() => setKeeper(project.uuid, member.user.uuid, !member.is_keeper))}>
                     {member.is_keeper ? 'Not keeper' : 'Make keeper'}
@@ -290,7 +294,6 @@ function People({ project, currentUser, act, onLeft, onClose }) {
           );
         })}
       </ul>
-      <button type="button" className="project-quiet project-danger project-leave" onClick={leave}>Leave project</button>
     </section>
   );
 }
@@ -419,12 +422,14 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
                 </h4>
                 <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
               </div>
-              <span className="project-row-cite">{where}</span>
-              <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
-                {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
+              <span className="project-row-facts">
+                <span className="project-row-cite">{where}</span>
+                <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
+                  {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
+                </span>
+                <span className="project-card-boards">{boardCount > 0 && plural(boardCount, 'board', 'boards')}</span>
+                <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
               </span>
-              <span className="project-card-boards">{boardCount > 0 && plural(boardCount, 'board', 'boards')}</span>
-              <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
               <span className="project-row-end">
                 {paper.is_new && <span className="project-card-new">New</span>}
                 {alert((subject) => subject.paper_sha256 === paper.sha256)}
@@ -443,9 +448,10 @@ export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', 
 function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
   const wide = useWide();
-  // On a wide window the list stays put and the dig opens beside it, the
-  // latest first on arrival; read when the selection moves on.
-  const [picked, setPicked] = useState(() => discussions[0]?.uuid ?? null);
+  // On a wide window the list stays put and the dig opens beside it: on
+  // arrival the first unread one, else the latest; read when the selection
+  // moves on.
+  const [picked, setPicked] = useState(() => (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null);
   const shown = discussions.find((d) => d.uuid === picked) ?? discussions[0] ?? null;
   const pick = (uuid) => {
     if (shown && shown.uuid !== uuid) onRead(shown.uuid);
@@ -479,7 +485,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
           {last && <Avatar user={last.user} className="mini-avatar" />}
           {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
           <span>{when(d.updated_at)}</span>
-          {d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
+          {!d.is_new && d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
         </span>
         {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
       </>
@@ -508,6 +514,12 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
       )}
       {wide && shown && (
         <div className="project-talk-panel">
+          <h3 className="project-talk-subject-line">
+            <span className="project-card-kind">{SUBJECT_WORDS[shown.subject.kind]}</span>
+            {subjectHome(project, shown.subject)
+              ? <a href={appPath(subjectHome(project, shown.subject))}>{shown.subject.label}</a>
+              : <span>{shown.subject.label}</span>}
+          </h3>
           <TalkCard
             key={shown.uuid} inline
             projectUuid={project.uuid} subject={shown.subject.key} label={shown.subject.label} currentUser={currentUser} onChanged={onTalked}
@@ -516,6 +528,14 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
       )}
     </section>
   );
+}
+
+// Where a dig's subject lives: a paper's brief, a board; a thought or a
+// card has no page of its own.
+function subjectHome(project, subject) {
+  if (subject.paper_sha256) return briefPath(project.uuid, subject.paper_sha256);
+  if (subject.board_uuid) return `/boards/${subject.board_uuid}`;
+  return null;
 }
 
 // Whether the window is wide enough for a list and a dig side by side.
@@ -557,16 +577,18 @@ function ProjectBoards({ project, act, alert, currentUser }) {
           const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
           return (
             <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
-              <header className="project-card-head">
-                <span className="project-card-kind">{papers ? `Board · ${plural(papers, 'paper', 'papers')}` : 'Board'}</span>
-                {alert((subject) => subject.board_uuid === board.uuid)}
-              </header>
               <a className="project-card-body project-board-link" href={href}>
                 <BoardMap boxes={board.boxes} />
                 <strong className="project-card-title">{board.name}</strong>
               </a>
+              {alert((subject) => subject.board_uuid === board.uuid)}
               <footer className="project-card-foot project-board-meta">
-                {[board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards', owner, `edited ${when(board.updated_at)}`].filter(Boolean).join(' · ')}
+                {[
+                  board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',
+                  papers ? plural(papers, 'paper', 'papers') : null,
+                  owner,
+                  `edited ${when(board.updated_at)}`,
+                ].filter(Boolean).join(' · ')}
               </footer>
             </li>
           );

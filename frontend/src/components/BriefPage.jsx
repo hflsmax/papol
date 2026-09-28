@@ -106,12 +106,15 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const pin = (key, about, size = 'sm') => {
     const summary = talk.get(key);
     const count = summary?.post_count ?? 0;
-    const on = shown === key && withDig;
+    // The pressed ring only where it tells digs apart; the gold dot only on
+    // a dig that is not the one in view.
+    const on = shown === key && withDig && choices.length > 1;
+    const fresh = summary?.is_new && shown !== key;
     return (
       <span className={`talk-pin-wrap talk-${size}`}>
         <button
           type="button"
-          className={`talk-pin${count ? '' : ' is-empty'}${summary?.is_new ? ' is-new' : ''}${on ? ' is-open' : ''}`}
+          className={`talk-pin${count ? '' : ' is-empty'}${fresh ? ' is-new' : ''}${on ? ' is-open' : ''}`}
           aria-pressed={on}
           aria-label={count ? `${plural(count, 'post', 'posts')} about ${about}. Open the dig` : `Dig into ${about}`}
           title={count ? plural(count, 'post', 'posts') : 'Dig into this'}
@@ -144,7 +147,10 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       <div className="brief-layout">
         <div className="brief-main">
           <header className="brief-head">
-            <h1 className="brief-title talk-host">{paper.title}{pin(paperKey, paper.title, 'md')}</h1>
+            <div className="brief-title-row talk-host">
+              <h1 className="brief-title">{paper.title}</h1>
+              {pin(paperKey, paper.title, 'md')}
+            </div>
             <p className="brief-cite">
               <span className="brief-authors">{formatAuthors(paper.authors)}</span>
               {[paper.journal, paper.year].filter(Boolean).length > 0 && <span>{[paper.journal, paper.year].filter(Boolean).join(' · ')}</span>}
@@ -243,7 +249,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                 {choices.map((key) => (
                   <button
                     key={key} type="button" aria-pressed={shown === key}
-                    className={`brief-dig-choice${shown === key ? ' is-on' : ''}${talk.get(key)?.is_new ? ' is-new' : ''}`}
+                    className={`brief-dig-choice${shown === key ? ' is-on' : ''}${talk.get(key)?.is_new && shown !== key ? ' is-new' : ''}`}
                     onClick={() => openDig(key)}
                   >
                     {choiceName(key)}
@@ -252,7 +258,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
               </nav>
             )}
             <TalkCard
-              key={shown} inline focus={digOpen && !hasDig(shown)}
+              key={shown} inline focus={digOpen && !hasDig(shown)} unread={talk.get(shown)?.unread ?? 0}
               projectUuid={project.uuid} subject={shown} label={labelOf(shown)} currentUser={currentUser} onChanged={talked}
             />
           </aside>

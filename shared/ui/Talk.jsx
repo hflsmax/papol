@@ -45,13 +45,14 @@ function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-export function when(iso) {
+// One clock everywhere: a date for a fact, the time as well on a post, so
+// nothing on a page counts minutes beside a neighbour that names a day.
+export function when(iso, { time = false } = {}) {
   const date = new Date(iso);
-  const minutes = Math.round((Date.now() - date) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
   const thisYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', ...(thisYear ? {} : { year: 'numeric' }) });
+  return date.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', ...(thisYear ? {} : { year: 'numeric' }), ...(time ? { hour: 'numeric', minute: '2-digit' } : {}),
+  });
 }
 
 // The pin: the one mark for a dig, and the one way to attach a dig to
@@ -242,16 +243,7 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
 
   return (
     <div className="dig-chooser">
-      <p className="dig-chooser-lead">What is this about?</p>
       <blockquote className="dig-chooser-quote">{excerptOf(post.body)}</blockquote>
-      <form className="dig-chooser-idea" onSubmit={makeIdea}>
-        <input
-          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea" aria-label="The new idea"
-          onChange={(e) => setIdea(e.target.value)}
-        />
-        <button type="submit" className="primary" disabled={!idea.trim() || busy}>Dig in</button>
-      </form>
-      {error && <p className="talk-card-error" role="alert">{error}</p>}
       {things.length > 0 && (
         <>
           <p className="dig-chooser-or">In the project</p>
@@ -267,6 +259,14 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
           </ul>
         </>
       )}
+      <form className="dig-chooser-idea" onSubmit={makeIdea}>
+        <input
+          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea" aria-label="The new idea"
+          onChange={(e) => setIdea(e.target.value)}
+        />
+        <button type="submit" className="primary" disabled={!idea.trim() || busy}>Dig in</button>
+      </form>
+      {error && <p className="talk-card-error" role="alert">{error}</p>}
       <button type="button" className="dig-chooser-cancel" onClick={onCancel}>Cancel</button>
     </div>
   );
@@ -275,7 +275,9 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about.
-export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false }) {
+export function TalkCard({
+  anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false, unread = 0,
+}) {
   const [topic, setTopic] = useState({ subject, label });
   const [from, setFrom] = useState(null);
   const [drift, setDrift] = useState(startDrift);
@@ -331,6 +333,11 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
     if (!inline || body || focus) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
     if (list.current && !inline) list.current.scrollTop = list.current.scrollHeight;
+    // In a page, the reader lands on the first post they have not read.
+    if (inline && discussion && unread > 0) {
+      const fresh = list.current?.querySelector('.talk-post.is-new');
+      if (fresh && fresh.getBoundingClientRect().top > window.innerHeight) fresh.scrollIntoView({ block: 'center' });
+    }
   }, [discussion, drift]);
   const toEnd = () => requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight; });
 
@@ -389,11 +396,12 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
       {...CONTAINED}
     >
       <header className="talk-card-header">
-        <span className="talk-card-kind"><i><TalkGlyph /></i>Dig · {words.word}</span>
-        {discussion && discussion.posts.length > 0 && <span className="talk-card-count">{plural(posts.length, 'post', 'posts')}</span>}
+        <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
+        {!inline && discussion && discussion.posts.length > 0 && <span className="talk-card-count">{plural(posts.length, 'post', 'posts')}</span>}
         {page && (
           <a className="talk-card-open" href={appPath(page)} title="Open as a page" aria-label="Open as a page">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
+            {inline && <span>Open as a page</span>}
           </a>
         )}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
@@ -416,10 +424,10 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
         ) : posts.length === 0 ? null : (
           <>
             <ol className="talk-posts">
-              {posts.map((post) => (
+              {posts.map((post, index) => (
                 <li
                   key={post.uuid} tabIndex={0}
-                  className={`talk-post${post.is_mine ? ' is-mine' : ''}${picked === post.uuid ? ' is-selected' : ''}`}
+                  className={`talk-post${post.is_mine ? ' is-mine' : ''}${picked === post.uuid ? ' is-selected' : ''}${unread > 0 && index >= posts.length - unread ? ' is-new' : ''}`}
                   onClick={(e) => { if (!e.target.closest('a, button')) setPicked(picked === post.uuid ? null : post.uuid); }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;
@@ -429,7 +437,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
                   <p className="talk-post-head">
                     <Avatar user={post.user} className="mini-avatar" />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
-                    <time dateTime={post.created_at}>{when(post.created_at)}</time>
+                    <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
                   </p>
                   <Markdown className="talk-post-body" text={post.body} />
                   {picked === post.uuid && (
