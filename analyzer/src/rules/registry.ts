@@ -626,6 +626,19 @@ export const HEADER_JOURNAL_ABBREVIATION = rule({
   matches: ["Proc. ACM Program. Lang., Vol. 3, No. POPL, Article 62. Publication date: January 2019.", "Phys. Rev. Lett. 122, 155501 — Published 19 April 2019", "PNAS 2025 Vol. 122 No. 24"],
   rejects: ["Proceedings of the ACM on Programming Languages"],
 });
+export const HEADER_JOURNAL_ISSUE = rule({
+  id: "header.journal-issue", stage: "header",
+  summary: "An issue a \"Proc. ACM …\" citation line names by a word, not a number — \"Vol. 4, No. ICFP\", \"4, OOPSLA2,\" — is the conference whose papers fill it, and part of the venue.",
+  why: "PACMPL publishes ICFP, OOPSLA, POPL and PLDI as issues of one journal; the issue is the name a reader knows the paper's venue by, and Crossref keeps it as the issue.",
+  pattern: /\bProc\. ACM [A-Z][A-Za-z.\s-]*?[.,]?\s+(?:Vol\.\s*)?\d+,\s*(?:No\.\s*)?(?<issue>[A-Z][A-Za-z]*\d?)\s*,\s*Article\b/,
+  matches: [
+    "Proc. ACM Program. Lang., Vol. 4, No. ICFP, Article 109. Publication date: August 2020.",
+    "Proc. ACM Program. Lang. 4, ICFP, Article 109 (August 2020), 31 pages.",
+    "Proc. ACM Program. Lang., Vol. 7, No. OOPSLA2, Article 250. Publication date: October 2023.",
+    "Proc. ACM Hum.-Comput. Interact., Vol. 5, No. CSCW1, Article 12. Publication date: April 2021.",
+  ],
+  rejects: ["Proc. ACM Meas. Anal. Comput. Syst., Vol. 6, No. 2, Article 31. Publication date: June 2022.", "ACM Trans. Graph., Vol. 38, No. 4, Article 62."],
+});
 export const HEADER_YEAR_LATE = rule({
   id: "header.year-late", stage: "header",
   summary: "Where no date of publication is printed, the year of a \"YYYY, Vol.\" line or, last, of acceptance.",

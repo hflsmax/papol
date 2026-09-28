@@ -91,14 +91,15 @@ async function printedFor(printed) {
 export const LOOKUP_GRACE_MS = 3000;
 
 // What the indexes know of an identifier, asked while the bytes are
-// still going up: the form's fields, or null — none knows it, none could
+// still going up, with the title block for what they leave out (a
+// preprint's venue): the form's fields, or null — none knows it, none could
 // answer, or there was nothing to ask. Null leaves it to the job.
-async function lookUp(identifier, name) {
+async function lookUp(identifier, name, titleBlock) {
   if (!identifier) return null;
   try {
     const known = await request('/papers/lookup', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, uploaded_name: name }),
+      body: JSON.stringify({ identifier, uploaded_name: name, ...(titleBlock ? { title_block: titleBlock } : {}) }),
     });
     return known && typeof known.title === 'string' && known.doi ? known : null;
   } catch {
@@ -118,7 +119,7 @@ async function send(file, filename, identifier, onProgress) {
   // The server takes PDFs by their name; an opened file may have none.
   const name = /\.pdf$/i.test(filename || '') ? filename : `${filename || 'paper'}.pdf`;
   const found = printedFor(identifier);
-  const looked = found.then((given) => lookUp(given.identifier, name));
+  const looked = found.then((given) => lookUp(given.identifier, name, given.titleBlock));
   const stored = await storeFile('paper', file, { name, mime: 'application/pdf', onProgress });
   const { identifier: given, titleBlock } = await found;
   // Indexes still silent a moment after the bytes are in are left to the

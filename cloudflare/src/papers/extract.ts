@@ -82,25 +82,37 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
   // it off the page, before what it read in the title block.
   metadata.doi = given ?? printed;
   if (known) {
-    Object.assign(metadata, knownFields(known, printed!, metadata.title));
+    Object.assign(metadata, knownFields(known, printed!, metadata.title, upload.titleBlock));
   } else if (header) {
     // No identifier the indexes could answer: the title block as read.
     metadata.title = header.title ?? metadata.title;
     metadata.authors = header.authors.length ? JSON.stringify(header.authors) : null;
-    metadata.journal = header.journal;
+    metadata.journal = paperVenue(header.journal);
     metadata.year = header.year;
   }
   return metadata;
 }
 
+// The venue a paper is known by. The Proceedings of the ACM journals
+// publish conferences as issues — "Proceedings of the ACM on Programming
+// Languages (ICFP)" — and a reader knows the paper as an ICFP paper; an
+// issue numbered within its year ("OOPSLA2", "CSCW1") is still that
+// conference.
+export function paperVenue(venue: string | null | undefined): string | null {
+  const issue = /^Proceedings of the ACM on .+ \((?<issue>[^()]+)\)$/.exec(venue?.trim() ?? "")?.groups!.issue;
+  return issue ? issue.replace(/(?<=\p{L})\d$/u, "") : venue || null;
+}
+
 // The form's fields as an index knows the work, `asked` being the DOI it
-// was asked about.
-function knownFields(known: Summary, asked: string, title: string): Omit<Extracted, "file_path"> {
+// was asked about. A preprint's index (arXiv, through DataCite) knows no
+// venue; the title block may, when the preprint is the published paper
+// as its journal typeset it.
+function knownFields(known: Summary, asked: string, title: string, titleBlock?: HeaderMetadata | null): Omit<Extracted, "file_path"> {
   return {
     doi: known.doi ?? asked,
     title: known.title ?? title,
     authors: known.authors.length ? JSON.stringify(known.authors) : null,
-    journal: known.venue,
+    journal: paperVenue(known.venue ?? titleBlock?.journal),
     year: known.year,
   };
 }
@@ -108,12 +120,13 @@ function knownFields(known: Summary, asked: string, title: string): Omit<Extract
 // What the indexes know of an identifier, as the form's fields. The
 // browser asks as soon as it has read one off the first pages, while the
 // PDF is still going up, so the form has its fields when the bytes are
-// in (routes/papers.ts, /api/papers/lookup). Null when no index knows
+// in (routes/papers.ts, /api/papers/lookup), with the title block for
+// what they leave out. Null when no index knows
 // it; throws Unavailable when none could answer.
-export async function indexedMetadata(env: Env, identifier: Identifier, uploadedName: string): Promise<Omit<Extracted, "file_path"> | null> {
+export async function indexedMetadata(env: Env, identifier: Identifier, uploadedName: string, titleBlock?: HeaderMetadata | null): Promise<Omit<Extracted, "file_path"> | null> {
   const asked = lookupDoi(identifier);
   const known = asked ? await byDoi(env, asked) : null;
-  return known ? knownFields(known, asked!, titleFromFilename(uploadedName)) : null;
+  return known ? knownFields(known, asked!, titleFromFilename(uploadedName), titleBlock) : null;
 }
 
 // A paper Papol holds already of the same work: one carrying the DOI the
@@ -167,8 +180,5 @@ export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata |
   const printed = lookupDoi(titleBlock) ?? paperDoi;
   const known = printed ? await byDoi(env, printed) : null;
   if (!known) return null;
-  return {
-    doi: known.doi ?? printed, title: known.title, authors: known.authors.length ? JSON.stringify(known.authors) : null,
-    journal: known.venue, year: known.year,
-  };
+  return { ...knownFields(known, printed!, known.title ?? "", titleBlock), title: known.title };
 }

@@ -61,6 +61,29 @@ describe("the title block", () => {
 
 });
 
+// PACMPL's first page, as acmart sets it: the venue is only in the
+// ACM reference paragraph and the page foot, and the issue is the
+// conference.
+const PACMPL_PAGE = writtenPdf([
+  [60, 740, "Sparcl: A Language for Partially-Invertible Computation", 16],
+  [60, 715, "KAZUTAKA MATSUDA, Tohoku University, Japan", 9],
+  [60, 700, "MENG WANG, University of Bristol, UK", 9],
+  [60, 670, "Invertibility is a fundamental concept in computer science, with various manifestations."],
+  [60, 180, "ACM Reference Format:", 8],
+  [60, 170, "Kazutaka Matsuda and Meng Wang. 2020. Sparcl: A Language for Partially-Invertible Computation. Proc. ACM", 8],
+  [60, 160, "Program. Lang. 4, ICFP, Article 118 (August 2020), 31 pages. https://doi.org/10.1145/3408990", 8],
+  [60, 60, "Proc. ACM Program. Lang., Vol. 4, No. ICFP, Article 118. Publication date: August 2020.", 7],
+]);
+
+describe("the venue", () => {
+  it("reads a PACMPL paper's issue as its conference, as Crossref keeps it", async () => {
+    const { header } = await headerWithRules(PACMPL_PAGE);
+    assert.equal(header.journal, "Proceedings of the ACM on Programming Languages (ICFP)");
+    assert.equal(header.year, 2020);
+    assert.equal(header.doi, "10.1145/3408990");
+  });
+});
+
 describe("the paper", () => {
   it("reads the references, citations and figure links", async () => {
     const pdf = writtenPdf([
