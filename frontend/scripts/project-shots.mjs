@@ -64,7 +64,10 @@ const SHOTS = {
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket-heading')", size: wide },
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
-  'nook-project-rail': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", hover: '.desk-strip-mark', size: wide },
+  'nook-project-rail': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", pointer: [['move', '.desk-strip-mark']], size: wide },
+  // A project picked from the opened rail, then the pointer gone: the rail
+  // folds back.
+  'nook-project-picked': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", pointer: [['move', '.desk-strip-mark'], ['click', '.desk-project.is-on'], ['move', { x: 1000, y: 600 }]], settled: "document.querySelector('.desk-project-view .project-tabs')", size: wide },
   'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
   'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
   // Everyone's projects in the Bazaar, one the member is not in.
@@ -118,9 +121,17 @@ try {
     for (const path of shot.holdThen ?? []) held.add(path);
     if (shot.then) { await browser.evaluate(shot.then); await new Promise((done) => setTimeout(done, 300)); }
     if (shot.settled) await browser.waitFor(shot.settled, { what: `${name} to settle` });
-    if (shot.hover) {
-      const { x, y } = await browser.evaluate(`const box = document.querySelector('${shot.hover}').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 };`);
+    // A real pointer: it moves to (or clicks) the middle of each selector in
+    // turn, or moves to a point, waiting a little after each step.
+    for (const [act, at] of shot.pointer ?? []) {
+      const { x, y } = typeof at === 'string'
+        ? await browser.evaluate(`const box = document.querySelector('${at}').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 };`)
+        : at;
       await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      if (act === 'click') {
+        await browser.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+      }
       await new Promise((done) => setTimeout(done, 400));
     }
     await browser.evaluate(`return ${settled};`);
