@@ -52,6 +52,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [peopleOpen, setPeopleOpen] = useState(null);
+  const [view, setView] = useView(projectUuid);
   const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
 
   const load = useCallback(() => {
@@ -138,10 +139,16 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   ].filter(Boolean).sort().at(-1);
   const newPapers = project.papers.filter((p) => p.is_new).length;
   const newTalk = talkedAbout.filter((d) => d.is_new).length;
-  const since = [newPapers && plural(newPapers, 'paper', 'papers'), newTalk && plural(newTalk, 'dig', 'digs')].filter(Boolean);
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
-  const tally = [plural(project.papers.length, 'paper', 'papers'), plural(boards.length, 'board', 'boards'), latest && `active ${when(latest)}`].filter(Boolean).join(' · ');
+  const active = latest && `active ${when(latest)}`;
+  const tabs = project.is_member && (
+    <DeskTabs
+      view={view} onView={setView}
+      counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
+      fresh={{ papers: newPapers > 0, digs: newTalk > 0 }}
+    />
+  );
   const seats = project.is_member ? (
     <div className="project-seats">
       <button
@@ -167,8 +174,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
     <p className="project-crowd"><Faces users={people} /><span>{count}</span></p>
   );
 
-  // In the Mac app a member's desk has no header: its name, pin, counts and
-  // people sit in the window's toolbar, and the sidebar is the way back.
+  // In the Mac app a member's desk has no header: its name, its three views
+  // and its people sit in the window's toolbar, and the sidebar is the way back.
   const inToolbar = DESKTOP && project.is_member;
 
   return (
@@ -177,9 +184,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         <InToolbar>
           <div className="project-toolbar talk-host" data-toolbar-title>
             {title}
-            <span className="project-toolbar-tally">{tally}</span>
-            {since.length > 0 && <span className="project-toolbar-since">{since.join(' · ')} new</span>}
           </div>
+          {tabs}
           {seats}
         </InToolbar>
       ) : (
@@ -190,11 +196,11 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               <div className="project-title-row">
                 {title}
               </div>
-              {project.is_member && <p className="project-tally">{tally}</p>}
-              {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' · ')}</p>}
+              {project.is_member && active && <p className="project-tally">{active}</p>}
             </div>
             {seats}
           </header>
+          {tabs}
         </>
       )}
       {notice && <div className="error" role="alert">{notice}</div>}
@@ -204,20 +210,20 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
       ) : (
         <>
           {open && <People project={project} currentUser={currentUser} act={act} onLeft={onLeft} />}
-          <div className="project-desk">
-          <div className="project-desk-main">
-          <ProjectPapers
-            project={project}
-            pin={pin}
-            latestDig={latestDig}
-            digLine={digLine}
-            hueOf={hueOf}
-            currentUser={currentUser}
-            onOpenBrief={onOpenBrief}
-          />
-          <ProjectBoards project={project} act={act} pin={pin} latestDig={latestDig} digLine={digLine} />
-          </div>
-          <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} />
+          <div className="project-desk" role="tabpanel" id="project-view" aria-labelledby={`project-tab-${view}`}>
+            {view === 'papers' && (
+              <ProjectPapers
+                project={project}
+                pin={pin}
+                latestDig={latestDig}
+                digLine={digLine}
+                hueOf={hueOf}
+                currentUser={currentUser}
+                onOpenBrief={onOpenBrief}
+              />
+            )}
+            {view === 'boards' && <ProjectBoards project={project} act={act} pin={pin} latestDig={latestDig} digLine={digLine} />}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} />}
           </div>
         </>
       )}
@@ -317,14 +323,58 @@ export function SectionHead({ id, title, count, action }) {
   );
 }
 
+const VIEWS = [['papers', 'Papers'], ['boards', 'Boards'], ['digs', 'Digs']];
+
+// The desk shows one of its three things at a time. The view is kept for
+// the visit, so coming back from a brief or a board lands where you were.
+function useView(projectUuid) {
+  const key = `papol:project-view:${projectUuid}`;
+  const [view, setView] = useState(() => {
+    try { return sessionStorage.getItem(key) || 'papers'; } catch { return 'papers'; }
+  });
+  const choose = (next) => {
+    setView(next);
+    try { sessionStorage.setItem(key, next); } catch { /* the view lasts until the page is left */ }
+  };
+  return [VIEWS.some(([v]) => v === view) ? view : 'papers', choose];
+}
+
+// Papers, Boards, Digs: each with its count, and a dot when something in it
+// is new since the last visit.
+function DeskTabs({ view, onView, counts, fresh }) {
+  const move = (e) => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    const at = VIEWS.findIndex(([v]) => v === view);
+    const next = VIEWS[(at + step + VIEWS.length) % VIEWS.length][0];
+    onView(next);
+    e.currentTarget.parentElement.querySelector(`#project-tab-${next}`)?.focus();
+  };
+  return (
+    <nav className="project-tabs" role="tablist" aria-label="Project">
+      {VIEWS.map(([v, label]) => (
+        <button
+          key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
+          aria-selected={view === v} tabIndex={view === v ? 0 : -1}
+          className={`project-tab${view === v ? ' is-on' : ''}`}
+          onClick={() => onView(v)} onKeyDown={move}
+        >
+          {label}
+          {counts[v] > 0 && <span className="project-tab-count">{counts[v]}</span>}
+          {fresh[v] && <i className="project-tab-new" aria-label="New" />}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 // Each paper is a card: its title and citation, who has it, and the latest
 // words said about it. The card opens the paper's brief, where the takes,
 // the dig and the rest of what the project knows about it are.
 function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, onOpenBrief }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   return (
-    <section className="project-section" aria-labelledby="project-papers-heading">
-      <SectionHead id="project-papers-heading" title="Papers" count={project.papers.length} />
+    <section className="project-section" aria-label="Papers">
       {!project.papers.length ? (
         <div className="project-paper-empty">
           <b>No papers yet</b>
@@ -380,33 +430,22 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
   );
 }
 
-// Everything being talked about, latest first, beside the desk. Each is a
-// card that opens its talk right there; the first line starts talk about
-// the project as a whole.
+// Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
 
 function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
-  const [all, setAll] = useState(false);
   const discussions = project.discussions ?? [];
   const opener = (subject, label) => ({ projectUuid: project.uuid, subject, label, currentUser, onChanged: onTalked });
-  // A talk item shows where its subject sits on the desk while it is pointed at.
-  const target = (d) => (d.subject.paper_sha256 ? `paper:${d.subject.paper_sha256}` : d.subject.board_uuid ? `board:${d.subject.board_uuid}` : null);
-  const light = (d, on) => () => {
-    const key = target(d);
-    if (key) document.querySelector(`[data-subject="${key}"]`)?.classList.toggle('is-lit', on);
-  };
   const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : 'var(--gold)');
   return (
-    <aside className={`project-talk${all ? ' is-all' : ''}`} aria-labelledby="project-talk-heading">
-      <SectionHead id="project-talk-heading" title="Digs" count={discussions.length} />
+    <section className="project-talk" aria-label="Digs">
       {discussions.length > 0 && (
-        <>
           <ul className="project-talk-list">
             {discussions.map((d) => {
               const last = d.last_post;
               const kind = d.subject.kind;
               return (
-                <li key={d.uuid} onPointerEnter={light(d, true)} onPointerLeave={light(d, false)} onFocus={light(d, true)} onBlur={light(d, false)}>
+                <li key={d.uuid}>
                   <TalkOpener {...opener(d.subject.key, d.subject.label)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>
                     <span className="project-talk-subject">
                       <i style={{ background: square(d) }} />
@@ -426,19 +465,10 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
               );
             })}
           </ul>
-          {discussions.length > TALK_SHOWN && (
-            <button type="button" className="project-takes-toggle project-talk-more" onClick={() => setAll(!all)}>
-              {all ? 'Show fewer' : `Show ${discussions.length - TALK_SHOWN} more`}
-            </button>
-          )}
-        </>
       )}
-    </aside>
+    </section>
   );
 }
-
-// In one column, the first few; beside the desk, the column scrolls.
-const TALK_SHOWN = 5;
 
 // The project's boards, which every member arranges; one more is a name away.
 function ProjectBoards({ project, act, pin, latestDig, digLine }) {
@@ -457,13 +487,12 @@ function ProjectBoards({ project, act, pin, latestDig, digLine }) {
     if (board) window.location.assign(appPath(`/boards/${board.uuid}`));
   };
   return (
-    <section className="project-section" aria-labelledby="project-boards-heading">
-      <SectionHead
-        id="project-boards-heading" title="Boards" count={boards.length}
-        action={boards.length > 0 && !naming && (
+    <section className="project-section" aria-label="Boards">
+      {boards.length > 0 && !naming && (
+        <div className="project-section-actions">
           <button type="button" className="project-board-start" onClick={() => setNaming(true)}><ActionGlyph name="plus" />New board</button>
-        )}
-      />
+        </div>
+      )}
       {!boards.length && !naming ? (
         <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
           <ActionGlyph name="plus" />New board
