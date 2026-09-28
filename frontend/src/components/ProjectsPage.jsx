@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { createProject, listProjects } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
-import ProjectMembers, { keeperNames } from './ProjectMembers';
+import ProjectMembers from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { keep, kept } from '../lastMember';
@@ -125,7 +125,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                     <li key={project.uuid} className="projects-row closed">
                       <div className="projects-row-text">
                         <span className="projects-row-name">{project.name}</span>
-                        <span className="projects-row-note">Ask {keeperNames(project.members)} for a link</span>
+                        <span className="projects-row-note">Ask an invitation to join</span>
                       </div>
                       <Crowd members={project.members} currentUser={currentUser} />
                     </li>
