@@ -42,6 +42,7 @@ describe("a nook", () => {
     expect(own.tags.map((t: any) => t.name)).toEqual(["favourite", "favourite reads"]);
     expect(own.shelves.map((s: any) => [s.name, s.paper_count, s.board_count])).toEqual([["Display", 1, 1], ["Personal", 1, 1]]);
     expect(own.boards.map((b: any) => b.can_edit)).toEqual([true, true]);
+    expect(own.boards[0]).toMatchObject({ name: "Private board", item_count: 0, project: null, owner: { uuid: keeper.uuid }, items: [] });
 
     const theirs = await ok("GET", `/api/users/${keeper.uuid}/nook`, { headers: other.headers });
     expect(theirs.papers.map((p: any) => p.sha256)).toEqual([shown]);

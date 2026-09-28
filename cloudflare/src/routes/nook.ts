@@ -3,13 +3,12 @@
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
-import { all, batch, newUuid, now, one, type Row } from "../db";
+import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { paperListEntries } from "../papers/list";
 import { writeSynced } from "../sync/write";
-import { effortByPaper } from "./activity";
 import * as validate from "../validate";
-import { boardOut, userPublic } from "./boards";
+import { userPublic } from "./boards";
 import { projectsOfUser } from "./projects";
 
 interface Shelf extends Row {
@@ -61,8 +60,10 @@ export function nookRoutes(router: Router) {
   // A user's nook. Signed-in users only; of another's copies, only what
   // each lets be seen.
   router.on("GET", "/api/users/:uuid/nook", async ({ request, env, params }) => {
-    // The reads below depend only on who asks and whose nook it is, so
-    // they go to the database together rather than one after another.
+    // Every trip to the database costs the same however little it asks,
+    // so the nook is read in as few as can be: who asks and whose nook it
+    // is, together; then everything of the nook in one batch; then what
+    // the papers' rows need.
     const [me, user] = await Promise.all([
       currentUser(request, env),
       one<User>(env.DB, "SELECT * FROM users WHERE uuid = ?", params.uuid),
@@ -71,45 +72,57 @@ export function nookRoutes(router: Router) {
     // A tombstone has no nook — the copies went with the account.
     if (user.deleted_at) refuse(404, "This user has left Papol");
     const hidePrivate = me.uuid !== user.uuid;
+    const own = (sql: string) => statement(env.DB, sql, user.uuid);
     // On display means sitting on a public shelf, so the shelf is what the
     // question is put to; the shelfless are shown to nobody but their user.
-    const [copies, paperRows, boards, allShelves, notes, tags, effort, projects] = await Promise.all([
-      all<Row>(env.DB,
-        `SELECT c.*, coalesce(s.is_public, 0) AS shelf_public FROM copies c LEFT JOIN shelves s ON s.uuid = c.shelf_uuid
-         WHERE c.user_uuid = ? AND c.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY c.created_at DESC`, user.uuid),
-      all<Row>(env.DB,
-        `SELECT * FROM papers WHERE sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL)`, user.uuid),
-      all<Row>(env.DB,
-        `SELECT b.* FROM boards b LEFT JOIN shelves s ON s.uuid = b.shelf_uuid
-         WHERE b.user_uuid = ? AND b.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""}
-         AND b.uuid NOT IN (SELECT board_uuid FROM project_boards) ORDER BY b.updated_at DESC, b.uuid DESC`, user.uuid),
-      liveShelves(env, user.uuid),
-      hidePrivate ? null : one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM annotations WHERE user_uuid = ? AND kind = 'note' AND deleted_at IS NULL", user.uuid),
-      hidePrivate ? [] : all<{ uuid: string; name: string }>(env.DB,
-        "SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)", user.uuid),
-      // The time spent on each paper is its user's alone: how long someone
-      // spends on a paper says nothing a shelf was asked to show.
-      hidePrivate ? null : effortByPaper(env.DB, user.uuid),
-      projectsOfUser(env, user.uuid, me),
-    ]);
+    // A nook's boards are its user's own and in no project, so their owner
+    // is the user and their project none.
+    const reads = [
+      own(`SELECT c.*, coalesce(s.is_public, 0) AS shelf_public FROM copies c LEFT JOIN shelves s ON s.uuid = c.shelf_uuid
+           WHERE c.user_uuid = ? AND c.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY c.created_at DESC`),
+      own(`SELECT * FROM papers WHERE sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL)`),
+      own(`SELECT b.*, (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count
+           FROM boards b LEFT JOIN shelves s ON s.uuid = b.shelf_uuid
+           WHERE b.user_uuid = ? AND b.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""}
+           AND b.uuid NOT IN (SELECT board_uuid FROM project_boards) ORDER BY b.updated_at DESC, b.uuid DESC`),
+      own(`SELECT s.*,
+             (SELECT count(*) FROM copies c WHERE c.shelf_uuid = s.uuid AND c.deleted_at IS NULL) AS paper_count,
+             (SELECT count(*) FROM boards b WHERE b.shelf_uuid = s.uuid AND b.deleted_at IS NULL) AS board_count
+           FROM shelves s WHERE s.user_uuid = ? AND s.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY s.position, s.created_at`),
+      ...(hidePrivate ? [] : [
+        own("SELECT count(*) AS n FROM annotations WHERE user_uuid = ? AND kind = 'note' AND deleted_at IS NULL"),
+        own("SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)"),
+        // The time spent on each paper is its user's alone: how long someone
+        // spends on a paper says nothing a shelf was asked to show.
+        own("SELECT subject, sum(seconds) AS seconds, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? GROUP BY subject"),
+      ]),
+    ];
+    const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
+    const [copies, paperRows, boards, shelves, notes, tags, effortRows] = results.map((r) => r.results);
     const papers = new Map(paperRows.map((p) => [p.sha256, p]));
-    const shelves = allShelves.filter((s) => !hidePrivate || s.is_public);
-    const stats = hidePrivate ? null : {
-      papers: copies.length,
-      displayed: copies.filter((c) => c.shelf_public).length,
-      notes: notes!.n,
-    };
-    const [entries, outBoards, outShelves] = await Promise.all([
-      paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate),
-      Promise.all(boards.map((b) => boardOut(env, b as never, { canEdit: !hidePrivate }))),
-      Promise.all(shelves.map((s) => shelfOut(env, s))),
-    ]);
+    const effort = effortRows && new Map(effortRows.map((r) => [r.subject as string, { seconds: r.seconds, last_at: r.last_at }]));
+    const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
+    const owner = userPublic(user);
     return json({
-      user: userPublic(user),
+      user: owner,
       papers: entries.map((p) => ({ ...p, effort: effort?.get(p.sha256 as string) ?? null })),
-      boards: outBoards,
-      stats, tags, projects,
-      shelves: outShelves,
+      boards: boards.map((b) => ({
+        uuid: b.uuid, revision: b.revision, user_uuid: b.user_uuid, owner, project: null, digs: {},
+        shelf_uuid: b.shelf_uuid, can_edit: !hidePrivate, name: b.name, description: b.description,
+        created_at: b.created_at, updated_at: b.updated_at, item_count: b.item_count,
+        items: [], staged_items: [], papers: [], groups: [],
+      })),
+      stats: hidePrivate ? null : {
+        papers: copies.length,
+        displayed: copies.filter((c) => c.shelf_public).length,
+        notes: (notes[0] as { n: number }).n,
+      },
+      tags: tags ?? [],
+      projects,
+      shelves: shelves.map((s) => ({
+        uuid: s.uuid, name: s.name, color: s.color, is_public: Boolean(s.is_public),
+        is_default: Boolean(s.is_default), position: s.position, paper_count: s.paper_count, board_count: s.board_count,
+      })),
     });
   });
 
