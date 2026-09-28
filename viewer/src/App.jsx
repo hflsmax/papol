@@ -19,7 +19,7 @@ import {
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
 import { annotationKinds, clipsIn, inkIn, notesIn } from './annotationKinds.js';
-import { inMemberInk, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
+import { annotationDown, inMemberInk, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import { TalkPin } from '../../shared/ui/Talk.jsx';
@@ -483,6 +483,12 @@ export default function App() {
 
   // Papol's Notes list links straight to one note: ?paper=9&note=42.
   const wantedNoteUuid = new URLSearchParams(window.location.search).get('note');
+  // A project's link to a dig on an annotation, ?annotation=<uuid>&dig=<uuid>:
+  // the annotation, whichever kind, picked out in the middle of the view
+  // with that dig open beside it.
+  const wantedAnnotationUuid = new URLSearchParams(window.location.search).get('annotation');
+  const wantedDigUuid = new URLSearchParams(window.location.search).get('dig');
+  const [landing, setLanding] = useState(null);
   const wantedPage = numberParam('page');
   const wantedY = fractionParam('y');
   const wantedSelection = useMemo(selectionParam, []);
@@ -1638,8 +1644,8 @@ export default function App() {
   // What PdfPage needs to pin a dig on an annotation, and nothing else of
   // the project: one object, so the pages are not redrawn for the bar.
   const pageProject = useMemo(() => (projectView ? {
-    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged,
-  } : null), [projectView?.uuid, projectView?.me, projectView?.digs]);
+    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing,
+  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing]);
   // Whether an annotation is another member's: theirs to keep, not the
   // reader's to move, reword or erase.
   const theirs = (uuid) => Boolean(projectView) && (
@@ -3448,7 +3454,7 @@ export default function App() {
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
   useLayoutEffect(() => {
-    if (readingViewRestored.current || wantedNoteUuid || wantedPage || !doc || !scale) return;
+    if (readingViewRestored.current || wantedNoteUuid || wantedAnnotationUuid || wantedPage || !doc || !scale) return;
     const saved = readingView.current.view;
     if (!saved) {
       readingViewRestored.current = true;
@@ -3485,7 +3491,7 @@ export default function App() {
       cancelled = true;
       if (frame != null) cancelAnimationFrame(frame);
     };
-  }, [doc, scale, wantedNoteUuid, wantedPage]);
+  }, [doc, scale, wantedNoteUuid, wantedAnnotationUuid, wantedPage]);
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
@@ -3529,7 +3535,7 @@ export default function App() {
     if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
     const save = () => {
-      if (!readingViewRestored.current && !wantedNoteUuid) return;
+      if (!readingViewRestored.current && !wantedNoteUuid && !wantedAnnotationUuid) return;
       const box = scroller.getBoundingClientRect();
       const cx = box.left + box.width / 2;
       const cy = box.top + box.height / 2;
@@ -3561,7 +3567,7 @@ export default function App() {
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, hasScale, wantedNoteUuid]);
+  }, [doc, hasScale, wantedNoteUuid, wantedAnnotationUuid]);
 
   // Arriving from a link to one note: show it, once the pages exist.
   useEffect(() => {
@@ -3569,6 +3575,44 @@ export default function App() {
     const note = notes.find((n) => String(n.uuid) === wantedNoteUuid);
     if (note) goToNoteWhenLaid(note);
   }, [wantedNoteUuid, doc, notes]);
+
+  // Arriving from a project's link to a dig on an annotation: once the
+  // annotation is known and its page laid, bring it to the middle of the
+  // view, pick it out as a press would, and open the dig on it. Once.
+  const landed = useRef(false);
+  useEffect(() => {
+    if (!wantedAnnotationUuid || landed.current || !doc || !scale) return;
+    const note = shownNotes.find((n) => n.uuid === wantedAnnotationUuid);
+    const stroke = note ? null : shownInk.find((s) => s.uuid === wantedAnnotationUuid);
+    const clip = note || stroke ? null : shownClips.find((c) => c.uuid === wantedAnnotationUuid);
+    const found = note ?? stroke ?? clip;
+    if (!found) return;
+    landed.current = true;
+    const down = annotationDown(found);
+    const land = (tries = 0) => {
+      const scroller = scrollerRef.current;
+      const pageEl = scroller?.querySelector(`[data-page="${found.page}"]`);
+      if (!pageEl || pageEl.getBoundingClientRect().height < 10) {
+        if (tries < 60) requestAnimationFrame(() => land(tries + 1));
+        return;
+      }
+      const page = pageEl.getBoundingClientRect();
+      const box = scroller.getBoundingClientRect();
+      scroller.scrollTo({ top: scroller.scrollTop + page.top + down * page.height - box.top - box.height / 2 });
+      setLanding({ annotation: found.uuid, dig: wantedDigUuid });
+      if (note) setActiveNoteUuid(note.uuid);
+      if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
+      if (clip) setSelectedClipUuid(clip.uuid);
+    };
+    land();
+  }, [wantedAnnotationUuid, doc, scale, shownNotes, shownInk, shownClips]);
+  // The landing opens its dig once: when the reader moves off the
+  // annotation, picking it again later opens its pin as any press does.
+  useEffect(() => {
+    if (!landing) return;
+    const still = activeNoteUuid === landing.annotation || selectedInk?.uuid === landing.annotation || selectedClipUuid === landing.annotation;
+    if (!still) setLanding(null);
+  }, [activeNoteUuid, selectedInk?.uuid, selectedClipUuid]);
 
   // Each page learns its size from pdf.js a moment after the document
   // opens, so scrolling to a note on load has to wait for the page to have
@@ -4815,6 +4859,7 @@ export default function App() {
                   currentUser={projectView.me}
                   onChanged={digChanged}
                   size="sm"
+                  openOn={landing?.annotation === selectedStrokes[0].uuid ? landing.dig : null}
                 />
               )}
               {!selectedStrokes[0]?.theirs && <ItemActions

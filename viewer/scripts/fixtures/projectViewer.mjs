@@ -74,8 +74,17 @@ const digSubject = {
 };
 const dig = {
   uuid: DIG, created_at: hoursAgo(20), updated_at: hoursAgo(3), project: { uuid: PROJECT, name: 'Adaptive optics control' },
-  subject: digSubject, can_moderate: true, posts: digPosts,
+  subject: digSubject, owner: ana, is_mine: false, phase: 'digging', text: digPosts[0].body, can_moderate: true, posts: digPosts.slice(1),
 };
+// Ben's dig on his own paint, the one a project's link lands on.
+const INK_DIG = 'e1b2c3d4-0000-4000-8000-000000000051';
+const inkDig = {
+  uuid: INK_DIG, created_at: hoursAgo(6), updated_at: hoursAgo(2), project: dig.project,
+  subject: { key: `annotation:${id(8)}`, kind: 'annotation', annotation_uuid: id(8), paper_sha256: PAPER, paper_title: paper.title, annotation_kind: 'ink', page: 1, user_uuid: BEN, by: 'Ben Hall', label: 'Ink on page 1' },
+  owner: ben, is_mine: false, phase: 'digging', text: '3.5 days on eight GPUs is the number to beat for our budget.', can_moderate: true,
+  posts: [{ uuid: 'f0000000-0000-4000-8000-000000000013', user: me, body: 'We have two. Call it a week.', created_at: hoursAgo(2), edited_at: null, is_mine: true }],
+};
+const allDigs = [dig, inkDig];
 
 const members = [
   { user: me, is_keeper: true, joined_at: daysAgo(20) },
@@ -102,19 +111,24 @@ function answer(method, path, search) {
       project: { uuid: PROJECT, name: 'Adaptive optics control', members },
       me: ME,
       annotations: [...mine, ...theirs],
-      digs: { [id(7)]: { uuid: DIG, post_count: 2, is_new: true, voices: [me, ana] } },
+      digs: {
+        [id(7)]: { uuid: DIG, post_count: 1, is_new: true, voices: [me, ana] },
+        [id(8)]: { uuid: INK_DIG, post_count: 1, is_new: false, voices: [ben, me] },
+      },
     };
   }
   if (path === `/projects/${PROJECT}`) return { ...projects[0], boards: [], discussions: [], papers: [] };
-  if (path === `/projects/${PROJECT}/discussion`) {
+  if (path === `/projects/${PROJECT}/digs`) {
     const key = search.get('subject');
-    if (key === digSubject.key) return { discussion_uuid: DIG, project: dig.project, subject: digSubject };
+    const on = allDigs.filter((d) => d.subject.key === key);
+    if (on.length) return { mine: null, digs: on.map(({ posts, ...d }) => ({ ...d, post_count: posts.length })), project: dig.project, subject: on[0].subject };
     const [, uuid] = key.split(':');
     const about = [...mine, ...theirs].find((a) => a.uuid === uuid);
     const label = about?.kind === 'ink' ? `Ink on page ${about.page}` : about?.name || about?.content || `An anchor on page ${about?.page}`;
-    return { discussion_uuid: null, project: dig.project, subject: { key, kind: 'annotation', annotation_uuid: uuid, paper_sha256: PAPER, page: about?.page, annotation_kind: about?.kind, by: about?.user.display_name, label } };
+    return { mine: null, digs: [], project: dig.project, subject: { key, kind: 'annotation', annotation_uuid: uuid, paper_sha256: PAPER, page: about?.page, annotation_kind: about?.kind, by: about?.user.display_name, label } };
   }
-  if (path === `/discussions/${DIG}`) return dig;
+  const asked = allDigs.find((d) => path === `/digs/${d.uuid}`);
+  if (asked) return asked;
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };
   return method === 'GET' ? {} : { ok: true };
 }

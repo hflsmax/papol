@@ -128,9 +128,10 @@ export function deletePost(uuid) {
   return request(`/dig-posts/${uuid}`, { method: 'DELETE' });
 }
 
-// The viewer with the project on, open at an annotation's page.
-export function annotationViewerPath(projectUuid, paperSha256, page = null) {
-  return `/viewer/?pdf=${paperSha256}&project=${projectUuid}${page ? `&page=${page}` : ''}`;
+// The viewer with the project on: the paper, or one annotation on it with
+// a dig on that annotation open beside it.
+export function annotationViewerPath(projectUuid, paperSha256, { annotation = null, dig = null } = {}) {
+  return `/viewer/?pdf=${paperSha256}&project=${projectUuid}${annotation ? `&annotation=${annotation}` : ''}${annotation && dig ? `&dig=${dig}` : ''}`;
 }
 
 

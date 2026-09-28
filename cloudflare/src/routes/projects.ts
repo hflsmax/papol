@@ -258,7 +258,7 @@ function excerpt(body: string): string {
 export const SUBJECT_COLUMNS = `p.title AS paper_title,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
   bi.board_uuid AS card_board, b.name AS board_name,
-  an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name,
+  an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name, an.body AS annotation_body,
   an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
@@ -274,7 +274,7 @@ export function subjectOut(d: Row) {
   if (base.kind === "annotation") {
     return {
       ...base, annotation_uuid: d.annotation_uuid, paper_sha256: d.paper_sha256, paper_title: d.paper_title,
-      annotation_kind: d.annotation_kind ?? null, page: d.annotation_page ?? null, user_uuid: d.annotation_user ?? null, by: d.annotation_by ?? null,
+      annotation_kind: d.annotation_kind ?? null, page: d.annotation_page ?? null, down: annotationDown(d), user_uuid: d.annotation_user ?? null, by: d.annotation_by ?? null,
       label: annotationLabel(d),
     };
   }
@@ -283,6 +283,20 @@ export function subjectOut(d: Row) {
     ...base, board_item_uuid: d.board_item_uuid, board_uuid: d.card_board, board_name: d.board_name,
     card_kind: d.card_kind, label: text ? excerpt(text).slice(0, 120) : `A card on ${d.board_name ?? "a board"}`,
   };
+}
+
+// How far down its page an annotation sits, as a fraction from the top, so
+// the digs inside a paper can run in reading order. An anchor's point and
+// ink's points are PDF-space (y up); a clip's frame is measured from the top.
+export function annotationDown(d: Row): number | null {
+  let body: { anchor?: { y?: number }; points?: { y?: number }[]; frame?: { y?: number; h?: number } };
+  try { body = JSON.parse(String(d.annotation_body ?? "{}")); } catch { return null; }
+  const ys = (body.points ?? []).map((p) => Number(p.y)).filter(Number.isFinite);
+  const down = typeof body.anchor?.y === "number" ? 1 - body.anchor.y
+    : ys.length ? 1 - Math.max(...ys)
+    : typeof body.frame?.y === "number" ? body.frame.y
+    : null;
+  return down == null ? null : Math.min(1, Math.max(0, down));
 }
 
 // An annotation named in a line: a note by what it says, ink and a clip by

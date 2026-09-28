@@ -538,8 +538,8 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
           <button type="button" className="project-talk-subject-open" onClick={() => onOpenPaper(d.subject.paper_sha256)}>
             <PaperTitle title={d.subject.label} />
           </button>
-        ) : subjectHome(project, d.subject)
-          ? <a href={appPath(subjectHome(project, d.subject))}><PaperTitle title={d.subject.label} /></a>
+        ) : subjectHome(project, d.subject, d.uuid)
+          ? <a href={appPath(subjectHome(project, d.subject, d.uuid))} data-document={d.subject.kind === 'annotation' || undefined}><PaperTitle title={d.subject.label} /></a>
           : <span><PaperTitle title={d.subject.label} /></span>}
       </h3>
       <TalkCard
@@ -603,9 +603,10 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
 }
 
 // Where a card's or an annotation's dig subject lives: the board a card is
-// on, the viewer at an annotation. A paper's is its brief, on this page.
-function subjectHome(project, subject) {
-  if (subject.kind === 'annotation') return annotationViewerPath(project.uuid, subject.paper_sha256, subject.page);
+// on, the viewer at an annotation with the dig open. A paper's is its
+// brief, on this page.
+function subjectHome(project, subject, dig) {
+  if (subject.kind === 'annotation') return annotationViewerPath(project.uuid, subject.paper_sha256, { annotation: subject.annotation_uuid, dig });
   if (subject.board_uuid) return `/boards/${subject.board_uuid}`;
   return null;
 }
