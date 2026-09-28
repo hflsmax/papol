@@ -5,7 +5,9 @@ import { DIG_PAPER, P_ERROR, PROJECT, projectServer } from './fixtures/projectPa
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a brief and a dig, on
-// the web and in the Mac shell, wide and on a phone.
+// the web and in the Mac shell, wide and on a phone; and the member's
+// places around it (their nook, the Library, a paper) with the bar over
+// every page.
 //
 //   node scripts/project-shots.mjs <out dir> [name ...]
 const paper = P_ERROR.slice(0, 32);
@@ -32,6 +34,11 @@ const SHOTS = {
   'mac-brief': { path: `/project/${PROJECT}/paper/${paper}?shell=desktop`, ready: "document.querySelector('.brief-page .talk-post')", size: wide },
   'mac-dig': { path: `/discussion/${DIG_PAPER}?shell=desktop`, ready: "document.querySelector('.discussion-post')", size: wide },
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
+  nook: { path: '/?shell=web', ready: "document.querySelector('.nook .paper-item')", size: wide },
+  library: { path: '/library?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
+  paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: wide },
+  'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .paper-item')", size: phone },
+  'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: phone },
   'phone-brief': { path: `/project/${PROJECT}/paper/${paper}?shell=web`, ready: "document.querySelector('.brief-page .talk-post')", size: phone },
 };
 

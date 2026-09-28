@@ -101,6 +101,103 @@ ${commonStyles}
   stroke-linejoin: round;
 }
 
+/* ---------- The way bar ----------
+   A signed-in member's one bar on the web: Papol and its three places (or,
+   deeper, the trail back), then the inbox and the member. Small UI type on
+   one row with no rule under it, so the page's own title leads. */
+
+.way-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 32px;
+  margin: 0 0 var(--space-5);
+  font: var(--fs-sm) var(--font-ui);
+}
+
+.way {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-faint);
+}
+
+.way a,
+.way-inbox {
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.way a:hover,
+.way-inbox:hover { color: var(--accent); }
+
+.way a.way-mark {
+  color: var(--ink);
+  font: 600 var(--fs-md) var(--font-serif);
+  letter-spacing: .02em;
+}
+
+.way-places {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-left: var(--space-3);
+}
+
+.way a[aria-current],
+.way-inbox[aria-current] { color: var(--ink); font-weight: 600; }
+
+/* The trail: each step after Papol follows a chevron; the last may be
+   long (a project, a paper) and gives way before the bar wraps. */
+.way-trail {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.way-trail:empty,
+#way-slot:not(:empty) + .way-default { display: none; }
+.way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.way-trail a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
+
+.way-inbox { display: inline-flex; align-items: center; }
+
+.way-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--ink-inverse);
+  font: 600 var(--fs-2xs)/18px var(--font-ui);
+  text-align: center;
+}
+
+.way-self { display: inline-flex; border-radius: 50%; }
+.way-self .nav-avatar { margin: 0; vertical-align: 0; }
+.way-self[aria-current] .nav-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
+
+@media (max-width: 640px) {
+  .way-bar { gap: var(--space-3); }
+  .way-places { gap: var(--space-3); margin-left: var(--space-1); }
+}
+
+/* About, Learn and the Mac app, for a member: at the foot of the page. */
+.way-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-7);
+  font: var(--fs-sm) var(--font-ui);
+}
+.way-foot a { color: var(--ink-faint); text-decoration: none; }
+.way-foot a:hover { color: var(--accent); }
+
 /* ---------- Learn ---------- */
 
 .learn-page {
@@ -5173,6 +5270,8 @@ a.button:hover {
 body.board-workspace-open { overflow: hidden; }
 body.board-workspace-open .app { max-width: none; padding: 0; }
 body.board-workspace-open .app > .topnav,
+body.board-workspace-open .app > .way-bar,
+body.board-workspace-open .app > .way-foot,
 body.board-workspace-open .feedback-button { display: none; }
 body.board-workspace-open .main-content { display: block; padding: 0; }
 .infinite-board { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--paper-sunken); font-family: var(--font-serif); }
@@ -5802,19 +5901,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
    column beside them once the page is wide enough. Cards share a board
    card's anatomy: a header strip with an uppercase kind, a serif title. */
 .app[data-page='project']:has(.project-page.is-desk) { max-width: 1180px; }
-.app[data-page='project']:has(.project-page.is-desk) > .topnav { max-width: 720px; margin-inline: auto; }
 .desktop-content:has(.project-page.is-desk) { max-width: none; }
 .project-page.is-desk { max-width: none; container-type: inline-size; }
 /* The pages inside a project fill the window: no masthead, no measure. */
 .app.is-project { max-width: none; padding: var(--space-4) var(--space-5) var(--space-7); }
 @media (max-width: 640px) { .app.is-project { padding: var(--space-3) var(--space-4) var(--space-7); } }
-.project-way { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-way a { color: var(--ink-soft); text-decoration: none; }
-.project-way a + a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
-.project-way a:hover { color: var(--accent); }
-.project-way-mark { font: 600 var(--fs-md) var(--font-serif); letter-spacing: .02em; }
-.project-way a.project-way-mark { color: var(--ink); }
-.project-way a.project-way-mark:hover { color: var(--accent); }
 
 .project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-4); }
 .project-head-main { flex: 1 1 22rem; min-width: 0; }
@@ -6161,8 +6252,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .dig-page { display: grid; grid-template-columns: 15rem minmax(0, 38rem); justify-content: center; column-gap: var(--space-7); max-width: none; margin: 0; }
 .dig-rail { position: sticky; top: var(--space-4); align-self: start; display: grid; gap: var(--space-2); }
 /* The way back stacks in the rail: three lines, no chevrons to orphan. */
-.dig-rail .project-way { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: var(--space-3); }
-.dig-rail .project-way a + a::before { content: none; }
 .dig-kind { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .dig-kind .talk-glyph { width: 15px; height: 15px; color: var(--accent-strong); }
 .dig-subject-title { margin: 0; font: 600 var(--fs-lg)/1.3 var(--font-serif); overflow-wrap: anywhere; }

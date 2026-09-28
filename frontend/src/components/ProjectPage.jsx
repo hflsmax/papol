@@ -11,6 +11,7 @@ import {
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { InToolbar } from './DesktopChrome';
+import { InWay } from './Way';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { formatAuthors } from '../paperFormat.js';
 import { coloursFor } from '../activityView.js';
@@ -57,16 +58,15 @@ export function Faces({ users, max = 4 }) {
   );
 }
 
-// The way out of a project's pages on the web, where no masthead sits
-// above them: Papol, its projects, and (from a brief or a dig) the project.
+// The way out of a project's pages on the web, in the bar over every page:
+// Papol, its projects, and (from a brief or a dig) the project.
 export function ProjectWay({ project }) {
   if (DESKTOP) return null;
   return (
-    <nav className="project-way" aria-label="Where this is">
-      <a className="project-way-mark" href={appPath('/')}>Papol</a>
+    <InWay>
       <a href={appPath('/projects')}>Projects</a>
       {project && <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>}
-    </nav>
+    </InWay>
   );
 }
 

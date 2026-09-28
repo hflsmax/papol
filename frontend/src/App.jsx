@@ -26,7 +26,7 @@ import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage
 import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
 import { briefPath, listProjects } from '../../shared/api/projects.js';
-import Avatar from './components/Avatar';
+import { WayBar, WayFoot } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
@@ -638,6 +638,10 @@ export default function App({ startupUser = null, startupError = null }) {
     />
   );
 
+  // A signed-in member on the web finds their way by one bar over every
+  // page (Way.jsx), which carries each page's way back as well.
+  const hasWay = Boolean(user) && !DESKTOP;
+
   // Keyed by identity: changing accounts remounts every page so no nook or
   // private paper state can survive an identity boundary.
   // The boundary is keyed by the route, so a crash stays on the page that
@@ -674,7 +678,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
           initialSection={route.section}
-          onBack={goBack}
+          onBack={hasWay ? undefined : goBack}
           backHref={backHref}
         />
       )}
@@ -683,6 +687,7 @@ export default function App({ startupUser = null, startupError = null }) {
           paperSha256={route.uuid}
           currentUser={user}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
+          hideBack={hasWay}
           onBack={goBackFromJacket}
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
@@ -694,6 +699,7 @@ export default function App({ startupUser = null, startupError = null }) {
         <BoardJacket
           boardUuid={route.uuid}
           onOpen={openBoardCanvas}
+          hideBack={hasWay}
           onBack={goBackFromJacket}
           onDeleted={() => navigate(jacketBack.path, { replace: true })}
           backHref={mountedPath(jacketBack.path)}
@@ -766,7 +772,7 @@ export default function App({ startupUser = null, startupError = null }) {
         />
       )}
       {route.page === 'room' && (
-        <RoomPage roomUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
+        <RoomPage roomUuid={route.uuid} currentUser={user} hideBack={hasWay} onBack={goBack} backHref={backHref} />
       )}
       {route.page === 'inbox' && (
         <InboxPage
@@ -891,10 +897,19 @@ export default function App({ startupUser = null, startupError = null }) {
     );
   }
 
-  // The pages inside a project fill the window, with no masthead above
-  // them: a member at work in a project is not browsing Papol. Each page
-  // keeps a small way back to Papol and to the project.
+  // The pages inside a project fill the window: a member at work in a
+  // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page);
+  // Where a page deeper than a place leads back to, unless it says so
+  // itself: a jacket to the place it was opened from, a nook of someone
+  // else's to the Library their papers are found in.
+  const wayTrail = route.page === 'paper' || route.page === 'board'
+    ? [jacketBack]
+    : route.page === 'nook'
+      ? [{ path: '/library', label: 'Library' }]
+      : PROJECT_PAGES.has(route.page) || route.page === 'invitation'
+        ? [{ path: '/projects', label: 'Projects' }]
+        : [];
   return (
     <>
       <style>{applicationStyles}</style>
@@ -915,36 +930,22 @@ export default function App({ startupUser = null, startupError = null }) {
       {/* Which page this URL opened, said out loud. The browser smoke
           test and the health probe read it to tell a link that arrived
           from one that quietly fell through to the home page. */}
-      <div className={`app${insideProject ? ' is-project' : ''}`} data-page={route.page} onClickCapture={routeAppLinks}>
-        {!insideProject && <header className="topnav">
+      <div className={`app${insideProject ? ' is-project' : ''}${hasWay ? ' has-way' : ''}`} data-page={route.page} onClickCapture={routeAppLinks}>
+        {hasWay && (
+          <WayBar
+            user={user}
+            route={route}
+            trail={wayTrail}
+            unreadCount={unreadCount}
+            projectNewCount={projectNewCount}
+          />
+        )}
+        {!hasWay && <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
-            {user ? (
-              <a
-                href={appPath('/')}
-                className={
-                  route.page === 'home' || route.page === 'board' ||
-                  (route.page === 'nook' && route.uuid === user.uuid)
-                    ? 'active'
-                    : ''
-                }
-              >
-                My nook
-              </a>
-            ) : null}
-            {user ? (
-              <a
-                href={appPath('/projects')}
-                className={['projects', 'project', 'brief', 'invitation', 'discussion', 'discuss'].includes(route.page) ? 'active' : ''}
-              >
-                Projects
-                {projectNewCount > 0 && <span className="badge inbox-badge" title={`${projectNewCount} new papers`}>{projectNewCount}</span>}
-              </a>
-            ) : (
-              <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
-                Home
-              </a>
-            )}
+            <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
+              Home
+            </a>
             <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
               Library
             </a>
@@ -969,47 +970,14 @@ export default function App({ startupUser = null, startupError = null }) {
             </a>
           </nav>
           <span className="spacer" />
-          {user ? (
-            <>
-              <a
-                href={appPath('/inbox')}
-                className={
-                  route.page === 'inbox' ? 'inbox-link active' : 'inbox-link'
-                }
-              >
-                Inbox
-                {unreadCount > 0 && (
-                  <span className="badge inbox-badge">{unreadCount}</span>
-                )}
-              </a>
-              <a
-                className={route.page === 'profile' ? 'whoami whoami-link active' : 'whoami whoami-link'}
-                href={appPath('/profile')}
-                title="Edit profile"
-              >
-                <Avatar user={user} className="nav-avatar" />
-                <span className="whoami-name">
-                  {user.display_name.split(' ')[0]}
-                </span>
-              </a>
-              {user.is_admin && (
-                <a
-                  href={appPath('/admin')}
-                  className={
-                    route.page === 'admin' ? 'inbox-link active' : 'inbox-link'
-                  }
-                >
-                  Admin
-                </a>
-              )}
-            </>
-          ) : mode === 'guest' ? (
+          {mode === 'guest' && (
             <button className="primary" onClick={() => navigate('/signin')}>
               Sign in
             </button>
-          ) : null}
+          )}
         </header>}
         {pages}
+        {hasWay && !insideProject && <WayFoot user={user} macDownloadUrl={MACOS_DOWNLOAD_URL} />}
       </div>
     </>
   );
