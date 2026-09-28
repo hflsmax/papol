@@ -21,12 +21,6 @@ import { plainTitle } from '../texTitle.js';
 
 const POST_LIMIT = appLimits.text.dig_post;
 
-const KINDS = {
-  paper: { word: 'Paper' },
-  card: { word: 'Card' },
-  annotation: { word: 'Annotation' },
-};
-
 // Where a dig stands. Anyone in the project moves it; nothing else does.
 export const PHASES = [
   { key: 'digging', word: 'Digging' },
@@ -228,8 +222,6 @@ export function TalkCard({
   const card = useRef(null);
   const list = useRef(null);
   const box = useRef(null);
-  const kind = kindOf(topic.subject);
-  const words = KINDS[kind] ?? KINDS.paper;
   const onHome = topic.subject === subject;
 
   useEffect(() => {
@@ -333,8 +325,8 @@ export function TalkCard({
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
+      {(discussion || !inline) && (
       <header className="talk-card-header">
-        <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
         {discussion && (
           <PhasePicker
             dig={discussion}
@@ -347,6 +339,7 @@ export function TalkCard({
         )}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
+      )}
       {(!inline || !onHome) && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
       {discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine))) && (
         <nav className="talk-card-owners" aria-label="Whose dig">
