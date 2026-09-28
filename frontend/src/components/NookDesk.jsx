@@ -251,7 +251,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       ><PaperTitle title={paper.title} /></a>
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
-                        {paper.journal && <> · <i>{paper.journal}</i></>}
+                        {paper.journal && ` · ${paper.journal}`}
                       </span>
                       {paper.tags.length > 0 && (
                         <span className="desk-row-tags">

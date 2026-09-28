@@ -188,7 +188,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
                 <a className="their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
                 <span className="their-meta">
                   {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
-                  {paper.journal && <> · <i>{paper.journal}</i></>}
+                  {paper.journal && ` · ${paper.journal}`}
                 </span>
                 {paper.thought && <span className="their-thought">“{paper.thought}”</span>}
               </li>
