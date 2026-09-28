@@ -137,43 +137,36 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   // back, so the page starts with the paper.
   return (
     <div className="brief-page">
-      {!DESKTOP && <BackLink className="back-button" href={backHref} onBack={onBack} />}
-      <header className="brief-head">
-        {!DESKTOP && <p className="kicker"><a href={appPath(`/project/${project.uuid}`)}>{project.name}</a> · Brief</p>}
-        <h1 className="brief-title">{paper.title}</h1>
-        <p className="brief-cite">
-          <span className="brief-authors">{formatAuthors(paper.authors)}</span>
-          {[paper.journal, paper.year].filter(Boolean).length > 0 && <span>{[paper.journal, paper.year].filter(Boolean).join(' · ')}</span>}
-        </p>
-        <div className="brief-actions">
-          <a
-            className="button primary" href={viewer} data-document
-            onClick={(e) => {
-              if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              onRead(viewer);
-            }}
-          >
-            Read
-          </a>
-          {!paper.in_my_nook && (
-            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
-          )}
-          <a className="brief-jacket" href={appPath(`/paper/${name}`)}>In the Library</a>
-          {canTakeOut && <button type="button" className="project-quiet project-danger brief-take-out" onClick={takeOut}>Take out</button>}
-        </div>
-      </header>
-      {notice && <div className="error" role="alert">{notice}</div>}
-
-      <div className={`brief-layout${withDig ? '' : ' is-single'}`}>
+      <div className="brief-layout">
         <div className="brief-main">
-          <section className="project-section" aria-labelledby="brief-takes-heading">
-            <SectionHead
-              id="brief-takes-heading" title="Takes" count={takes.length}
-              action={myTake?.thought && !writing && (
-                <button type="button" className="project-board-start" onClick={() => setWriting(true)}><ActionGlyph name="edit" />Edit your thought</button>
+          <header className="brief-head">
+            {!DESKTOP && <p className="kicker"><a href={appPath(`/project/${project.uuid}`)}>{project.name}</a> · Brief</p>}
+            <h1 className="brief-title">{paper.title}</h1>
+            <p className="brief-cite">
+              <span className="brief-authors">{formatAuthors(paper.authors)}</span>
+              {[paper.journal, paper.year].filter(Boolean).length > 0 && <span>{[paper.journal, paper.year].filter(Boolean).join(' · ')}</span>}
+            </p>
+            <div className="brief-actions">
+              <a
+                className="button primary" href={viewer} data-document
+                onClick={(e) => {
+                  if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onRead(viewer);
+                }}
+              >
+                Read
+              </a>
+              <a className="brief-jacket" href={appPath(`/paper/${name}`)}>In the Library</a>
+              {!paper.in_my_nook && (
+                <button type="button" className="brief-jacket brief-nook" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
               )}
-            />
+            </div>
+          </header>
+          {notice && <div className="error" role="alert">{notice}</div>}
+
+          <section className="project-section" aria-labelledby="brief-takes-heading">
+            <SectionHead id="brief-takes-heading" title="Takes" count={takes.length} />
             <ul className="project-takes">
               {takes.map((entry) => {
                 const mine = isMe(entry.user);
@@ -197,7 +190,9 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                         onCancel={writing ? () => setWriting(false) : null}
                         onSave={async (thought) => { const ok = await share(thought); if (ok) setWriting(false); return ok; }}
                       />
-                    ) : entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
+                    ) : entry.thought && (mine ? (
+                      <button type="button" className="project-take-thought is-mine" title="Edit" onClick={() => setWriting(true)}>“{entry.thought}”</button>
+                    ) : <p className="project-take-thought">“{entry.thought}”</p>)}
                   </li>
                 );
               })}
@@ -214,30 +209,30 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                 </li>
               )}
             </ul>
-            {!withDig && (
-              <button type="button" className="brief-dig-start" onClick={() => openDig(paperKey)}>
-                <TalkGlyph outline />Dig
-              </button>
-            )}
           </section>
 
-          {boards.length > 0 && (
-            <section className="project-section" aria-labelledby="brief-boards-heading">
-              <SectionHead id="brief-boards-heading" title="On boards" count={boards.length} />
-              <ul className="brief-boards">
-                {boards.map((board) => (
-                  <li key={board.uuid}><a href={appPath(`/boards/${board.uuid}`)}>{board.name}</a></li>
+          <footer className="brief-foot">
+            {boards.length > 0 && (
+              <p className="brief-boards">
+                On {boards.map((board, i) => (
+                  <React.Fragment key={board.uuid}>{i > 0 && ', '}<a href={appPath(`/boards/${board.uuid}`)}>{board.name}</a></React.Fragment>
                 ))}
-              </ul>
-            </section>
-          )}
-
-          <p className="project-paper-added">
-            Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
-          </p>
+              </p>
+            )}
+            <p className="project-paper-added">
+              Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
+              {canTakeOut && <> · <button type="button" className="brief-take-out" onClick={takeOut}>Take out</button></>}
+            </p>
+          </footer>
         </div>
 
-        {withDig && (
+        {!withDig ? (
+          <aside className="brief-dig is-empty" aria-label="Dig" ref={aside}>
+            <button type="button" className="brief-dig-start" onClick={() => openDig(paperKey)}>
+              <TalkGlyph outline />Dig
+            </button>
+          </aside>
+        ) : (
           <aside className="brief-dig" aria-label="Dig" ref={aside}>
             {choices.length > 1 && (
               <nav className="brief-dig-choices" aria-label="Which dig">

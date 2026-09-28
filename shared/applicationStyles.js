@@ -6069,7 +6069,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-page, .discussion-page { padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 @media (max-width: 600px) { .brief-page, .discussion-page { padding: var(--space-4); } }
 .brief-page { container-type: inline-size; }
-.brief-head { margin: var(--space-2) 0 var(--space-6); }
+.brief-head { margin: 0 0 var(--space-5); }
 .brief-head .kicker { margin: 0 0 var(--space-1); }
 .brief-head .kicker a { color: inherit; }
 .brief-head .kicker a:hover { color: var(--accent); }
@@ -6080,30 +6080,43 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-actions .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
 .brief-jacket { color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .brief-jacket:hover { color: var(--accent); }
-.brief-take-out { margin-left: auto; }
-.brief-layout { display: grid; gap: var(--space-6); }
+.brief-nook { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; box-shadow: none; }
+.brief-nook:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
+.brief-take-out { padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-faint); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+.brief-take-out:hover:not(:disabled) { border: 0; background: none; color: var(--red); }
+.brief-foot { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
+.brief-foot p { margin: 0; }
+.project-take-thought.is-mine { display: block; width: auto; padding: 0; border: 0; background: none; box-shadow: none; text-align: left; cursor: text; }
+@media (hover: hover) { .project-take-thought.is-mine:hover:not(:disabled) { border: 0; background: none; color: var(--ink); text-decoration: underline dotted var(--line-strong); text-underline-offset: 4px; } }
+.brief-layout { display: grid; gap: var(--space-5); }
 .brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
-.brief-main .project-takes { margin-bottom: var(--space-4); }
+.brief-main .project-takes { margin-bottom: var(--space-2); }
+.brief-main { max-width: 42rem; }
 .brief-dig-start { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid transparent; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
 .brief-dig-start:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--accent-soft); color: var(--accent); }
 .brief-dig-start .talk-glyph { width: 19px; height: 19px; }
+.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; }
 .brief-dig-choices { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
 .brief-dig-choice { padding: 3px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
 .brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
-.brief-boards { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.brief-boards a { display: inline-block; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-ui); text-decoration: none; }
-.brief-boards a:hover { border-color: var(--accent); color: var(--accent); }
+.brief-boards { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.brief-boards a { color: var(--ink-soft); }
+.brief-boards a:hover { color: var(--accent); }
 @container (min-width: 760px) {
-  .brief-layout:not(.is-single) { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
-  .brief-dig { position: sticky; top: var(--space-4); }
+  /* The paper and its takes on the left, the dig as a rail beside them
+     from the top, parted by a rule; leftover width stays between them. */
+  .brief-layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; column-gap: var(--space-6); }
+  .brief-dig { position: sticky; top: var(--space-4); padding-left: var(--space-5); border-left: 1px solid var(--line); }
+  .brief-dig.is-empty { align-self: stretch; }
   /* Room below for the Feedback button in the corner. */
   .brief-dig .talk-card.is-inline { max-height: calc(100vh - 2 * var(--space-4) - 56px); }
   [data-shell='desktop'] .brief-dig .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 }
 /* In one column the dig flows with the page: no scroll inside a scroll. */
 @container (max-width: 759px) {
+  .brief-dig { padding-top: var(--space-4); border-top: 1px solid var(--line); }
   .brief-dig .talk-card.is-inline { max-height: none; }
   .brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; }
   .brief-page { margin-bottom: 56px; }
