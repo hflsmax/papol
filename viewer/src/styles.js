@@ -3,6 +3,7 @@ import { designTokens } from '../../shared/designTokens.js';
 import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
 import { compatibilityStyles } from '../../shared/compatibilityStyles.js';
 import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
+import { talkStyles } from '../../shared/talkStyles.js';
 
 // Where a window stops being a desktop's and becomes a phone's. One
 // measure, used by the styles below and by the Navigator, which draws the
@@ -52,6 +53,69 @@ button {
 ${macHandoffStyles}
 
 ${compatibilityStyles}
+
+${talkStyles}
+
+/* ---------- A project on ----------
+
+   The pages carry every member's annotations, each in its author's colour
+   (project.js), and the bar says which project is on. The switch sits with
+   the paper's own controls, since whose marks are shown is a fact about
+   this paper; with a project on, the whole bar takes the project's wash so
+   the state is read before any one control is. */
+.viewer-bar.in-project {
+  background: var(--accent-soft);
+  border-bottom-color: var(--accent-line);
+}
+.project-switch { position: relative; display: flex; align-items: center; min-width: 0; }
+.viewer-bar .bar-link.project-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.viewer-bar .bar-link.project-pill.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+.viewer-bar .bar-link.project-pill.on:hover { color: var(--ink-inverse); background: var(--accent-strong); }
+.project-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.project-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+/* Who has marked the paper, each ringed in the colour their ink is drawn
+   in, so the ring on the page and the face in the bar say the same name. */
+.project-faces { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; }
+.project-faces .who { display: inline-flex; border-radius: 50%; box-shadow: 0 0 0 2px var(--who); }
+.project-faces .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
+.viewer-bar .paper-info-pop.project-menu { right: 0; left: auto; width: max-content; min-width: 160px; max-width: min(320px, calc(100vw - 24px)); padding: 6px 6px 6px 6px; display: flex; flex-direction: column; }
+.project-menu a { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 26px; border-radius: 6px; color: var(--ink); font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+.project-menu a:hover { background: var(--accent-soft); }
+.project-menu a[aria-checked='true'] { font-weight: 600; }
+.project-menu a[aria-checked='true']::before { content: ''; position: absolute; left: 10px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); }
+
+/* Another member's pin wears their colour, as their ink does. */
+.pin.theirs { color: var(--who); cursor: pointer; }
+.pin.theirs.bare { color: var(--who); }
+/* The card of another member's note names them where the glyph would be. */
+.note-pop .note-pop-avatar { width: 18px; height: 18px; font-size: 10px; flex: none; }
+.note-pop-by { margin: -2px 0 0 5px; color: var(--ink-faint); font-size: var(--fs-xs); }
+/* With a project on, a card wears its dig pin in plain sight: a card is
+   already the reader reaching for the thing. */
+.note-pop .talk-pin.is-empty, .ink-who ~ .talk-pin-wrap .talk-pin.is-empty, .ink-actions .talk-pin.is-empty, .clip-who .talk-pin.is-empty { opacity: .9; }
+.note-pop .talk-pin-wrap { margin-left: auto; }
+/* Whose ink is picked out, beside the way to dig into it. */
+.ink-actions { align-items: center; gap: 4px; }
+.ink-who { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: 500 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+.ink-who .mini-avatar { width: 18px; height: 18px; font-size: 10px; box-shadow: 0 0 0 2px var(--who); }
+.ink-actions .talk-pin-wrap { padding: 2px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); }
+/* A clip picked out with a project on: whose it is, and its pin. */
+.paper-clip.theirs { cursor: default; }
+.clip-who { position: absolute; z-index: 2; left: -1px; top: -30px; display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: 500 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+.clip-who .mini-avatar { width: 18px; height: 18px; font-size: 10px; box-shadow: 0 0 0 2px var(--who); }
 
 .shell { max-width: 480px; margin: 18vh auto 80px; padding: 0 16px; }
 /* Why there is nothing to read. The title is the reason itself. */
@@ -759,7 +823,7 @@ ${compatibilityStyles}
    the ×'s own: nothing scrolls under it, so no line is ever read through
    it. And the scroller keeps the wheel to itself, so reaching the end of an
    abstract does not start turning the pages behind it. */
-.paper-info-pop:not(.nook-ask) { padding-top: 26px; padding-right: 6px; }
+.paper-info-pop:not(.nook-ask):not(.project-menu) { padding-top: 26px; padding-right: 6px; }
 
 .paper-info-scroll {
   max-height: min(60vh, 480px);

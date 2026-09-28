@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { GlyphFor } from './glyphs';
+import Avatar from '../../shared/ui/Avatar.jsx';
 
 /**
  * An anchor's card: what it is called and what is written on it, opened on
@@ -28,6 +29,12 @@ const FLIP_BELOW = 0.38;
 export default function NoteCard({
   note,
   readOnly = false,
+  // Whose note this is, when it is not the reader's own: another member's,
+  // with a project on. Named on the card, since the card is where it is read.
+  by = null,
+  // The dig pin, when the project can dig into this note. At the end of
+  // the head line, where every dig pin sits.
+  pin = null,
   focusField = null,
   onRename,
   onWrite,
@@ -150,9 +157,13 @@ export default function NoteCard({
       }}
     >
       <div className="note-pop-head">
-        <span className="note-pop-glyph" aria-hidden="true">
-          <GlyphFor note={{ content: text.trim() }} />
-        </span>
+        {by ? (
+          <Avatar user={by} className="note-pop-avatar" />
+        ) : (
+          <span className="note-pop-glyph" aria-hidden="true">
+            <GlyphFor note={{ content: text.trim() }} />
+          </span>
+        )}
         {readOnly ? (
           <span className="note-pop-name">{note.name || place}</span>
         ) : (
@@ -178,6 +189,7 @@ export default function NoteCard({
             }}
           />
         )}
+        {pin}
         {!readOnly && (
           <button
             type="button"
@@ -195,6 +207,7 @@ export default function NoteCard({
           </button>
         )}
       </div>
+      {by && <p className="note-pop-by">{by.display_name}</p>}
       {readOnly ? (
         note.content && <p className="note-pop-text">{note.content}</p>
       ) : (

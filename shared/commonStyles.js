@@ -423,6 +423,23 @@ button:disabled {
   color: var(--ink-inverse);
 }
 
+/* A user without a picture shows their initial on a colour of their
+   own, so two initials are told apart at a glance. Two classes, so these
+   beat the plain size classes but still yield to role colouring such as
+   the leader's gold below. */
+.avatar-initial.avatar-tint-0 { background: var(--identity-0); }
+.avatar-initial.avatar-tint-1 { background: var(--identity-1); }
+.avatar-initial.avatar-tint-2 { background: var(--identity-2); }
+.avatar-initial.avatar-tint-3 { background: var(--identity-3); }
+.avatar-initial.avatar-tint-4 { background: var(--identity-4); }
+.avatar-initial.avatar-tint-5 { background: var(--identity-5); }
+
+.mini-avatar {
+  width: 22px;
+  height: 22px;
+  font-size: var(--fs-2xs);
+}
+
 /* A meta line: when or by whom, quiet under the thing it describes. */
 .meta, .comment-date, .notification-date, .room-message-time,
 .seminar-card-date {

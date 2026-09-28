@@ -18,7 +18,11 @@ import {
 } from './api';
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
-import { annotationKinds } from './annotationKinds.js';
+import { annotationKinds, clipsIn, inkIn, notesIn } from './annotationKinds.js';
+import { inMemberInk, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
+import { listProjects } from '../../shared/api/projects.js';
+import Avatar from '../../shared/ui/Avatar.jsx';
+import { TalkPin } from '../../shared/ui/Talk.jsx';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
@@ -622,6 +626,16 @@ export default function App() {
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
+  // The project on, once it has answered (project.js): its name and
+  // members, the reader among them, what the other members left on this
+  // paper, and the digs open on any of it. Null while no project is on,
+  // and again if the one in the URL will not open for this reader.
+  const [projectView, setProjectView] = useState(null);
+  // The reader's projects that hold this paper: the ones the bar offers.
+  const [projectsHolding, setProjectsHolding] = useState([]);
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const projectSwitchRef = useRef(null);
+  useDismiss(projectMenuOpen, projectSwitchRef, () => setProjectMenuOpen(false));
   const clipSaving = useRef(new Map());
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
   // 'idle' | 'trying' | 'missing': the info window's own way to Papol for Mac.
@@ -1586,6 +1600,60 @@ export default function App() {
     };
   }, [paper, source]);
 
+  // What the project on reads: asked for once the paper is known, as the
+  // ink is. A project that will not open (left, ended, or never this
+  // reader's) leaves the paper as it opens alone, and the URL says so.
+  useEffect(() => {
+    if (!paper || !source?.loadProject) return undefined;
+    let cancelled = false;
+    source.loadProject()
+      .then((read) => {
+        if (cancelled) return;
+        const members = read.project.members.map((m) => m.user);
+        const { theirs } = sortAnnotations(read);
+        setProjectView({
+          uuid: read.project.uuid, name: read.project.name, members,
+          me: members.find((u) => u.uuid === read.me) ?? null,
+          digs: read.digs ?? {},
+          notes: notesIn(theirs), ink: inkIn(theirs), clips: clipsIn(theirs),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProjectView(null);
+        window.history.replaceState(null, '', withProject(window.location.href, null));
+      });
+    return () => { cancelled = true; };
+  }, [paper?.sha256, source]);
+
+  // Which of the reader's projects hold this paper, so the bar can offer
+  // them. Only a paper of the reader's own has a project to be read in.
+  useEffect(() => {
+    if (!paper?.sha256 || source?.project === undefined) return undefined;
+    let cancelled = false;
+    listProjects({ paperSha256: paper.sha256 })
+      .then((list) => { if (!cancelled) setProjectsHolding(list.filter((p) => p.is_member && p.has_paper)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [paper?.sha256, source]);
+
+  // A dig opened or grown from the viewer shows on its pin at once.
+  const digChanged = useEvent((key, next) => {
+    const uuid = key.slice('annotation:'.length);
+    setProjectView((view) => (view ? { ...view, digs: { ...view.digs, [uuid]: next.post_count ? next : undefined } } : view));
+  });
+  // What PdfPage needs to pin a dig on an annotation, and nothing else of
+  // the project: one object, so the pages are not redrawn for the bar.
+  const pageProject = useMemo(() => (projectView ? {
+    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged,
+  } : null), [projectView?.uuid, projectView?.me, projectView?.digs]);
+  // Whether an annotation is another member's: theirs to keep, not the
+  // reader's to move, reword or erase.
+  const theirs = (uuid) => Boolean(projectView) && (
+    projectView.notes.some((n) => n.uuid === uuid)
+    || projectView.ink.some((s) => s.uuid === uuid)
+    || projectView.clips.some((c) => c.uuid === uuid));
+
   const referencesByUuid = useMemo(
     () => new Map((analysis?.references || []).map((r) => [r.uuid, r])),
     [analysis]
@@ -2038,19 +2106,35 @@ export default function App() {
   // made. A note with no place in the PDF has no page to sort by, so it
   // sits at the end; it has no pin and no mark, and is kept on the paper's
   // own page in Papol, where it was written.
+  // With a project on, what the other members left joins the reader's own
+  // on the pages, and every stroke is drawn in its author's colour.
+  const shownNotes = useMemo(
+    () => (projectView ? [...notes, ...projectView.notes] : notes),
+    [notes, projectView],
+  );
+  const shownInk = useMemo(
+    () => (projectView
+      ? [...ink.map((stroke) => inMemberInk(stroke, projectView.me)), ...projectView.ink.map((stroke) => inMemberInk(stroke, null))]
+      : ink),
+    [ink, projectView],
+  );
+  const shownClips = useMemo(
+    () => (projectView ? [...clips, ...projectView.clips] : clips),
+    [clips, projectView],
+  );
   const numbered = useMemo(
-    () => [...notes].sort(
+    () => [...shownNotes].sort(
       (a, b) =>
         (a.page ?? Infinity) - (b.page ?? Infinity) ||
         String(a.created_at).localeCompare(String(b.created_at)) ||
         String(a.uuid).localeCompare(String(b.uuid))
     ),
-    [notes]
+    [shownNotes]
   );
 
   const notesByPage = usePageGroups(numbered, hasAnchor);
-  const inkByPage = usePageGroups(ink);
-  const clipsByPage = usePageGroups(clips);
+  const inkByPage = usePageGroups(shownInk);
+  const clipsByPage = usePageGroups(shownClips);
 
 
   // A stroke appears the instant the pointer lifts and is saved behind it.
@@ -2243,10 +2327,10 @@ export default function App() {
 
   // Every stroke of the ink stroke in hand, and the pages they lie on.
   const selectedStrokes = useMemo(() => (selectedInk
-    ? ink.filter((stroke) => (
+    ? shownInk.filter((stroke) => (
       selectedInk.groupUuid ? stroke.group_uuid === selectedInk.groupUuid : stroke.uuid === selectedInk.uuid
     ))
-    : []), [ink, selectedInk]);
+    : []), [shownInk, selectedInk]);
   const selectedInkPages = useMemo(
     () => new Set(selectedStrokes.map((stroke) => stroke.page)), [selectedStrokes],
   );
@@ -3180,10 +3264,12 @@ export default function App() {
   };
 
   const updateClip = (uuid, change) => {
+    if (theirs(uuid)) return;
     setClips((all) => all.map((clip) => (clip.uuid === uuid ? { ...clip, ...change } : clip)));
   };
 
   const commitClip = async (uuid, change) => {
+    if (theirs(uuid)) return;
     try {
       const realUuid = await settledClipUuid(uuid);
       const current = clips.find((clip) => clip.uuid === uuid || clip.uuid === realUuid);
@@ -3200,6 +3286,7 @@ export default function App() {
   };
 
   const removeClip = async (uuid) => {
+    if (theirs(uuid)) return;
     setSelectedClipUuid((selected) => (selected === uuid ? null : selected));
     setClips((all) => all.filter((clip) => clip.uuid !== uuid));
     try {
@@ -3242,6 +3329,7 @@ export default function App() {
 
   // Dragging a pin moves the anchor; the words it carries are untouched.
   const moveNote = async (uuid, spot, record = true) => {
+    if (theirs(uuid)) return;
     const was = notesRef.current.find((note) => note.uuid === uuid);
     setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, ...spot } : n)));
     try {
@@ -3269,6 +3357,7 @@ export default function App() {
 
   // From the context menu, where what is wanted has already been said.
   const updateNoteContent = async (uuid, content) => {
+    if (theirs(uuid)) return null;
     const real = await settledUuid(uuid);
     if (real == null) return null;
     const updated = await annotations.notes.update(real, content);
@@ -3280,6 +3369,7 @@ export default function App() {
   };
 
   const renameNote = async (uuid, name, record = false) => {
+    if (theirs(uuid)) return null;
     const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
     if (note && (note.name || '') === name) return note;
     setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, name } : n)));
@@ -3335,6 +3425,7 @@ export default function App() {
   };
 
   const removeNote = async (uuid, record = true) => {
+    if (theirs(uuid)) return;
     const gone = notesRef.current.find((note) => note.uuid === uuid);
     setNotes((prev) => prev.filter((n) => n.uuid !== uuid));
     // Let go of it everywhere. SQLite hands out a deleted row's uuid again,
@@ -3830,7 +3921,7 @@ export default function App() {
       <CompatibilityGate />
       <MacHandoffBar />
       <header
-        className="viewer-bar"
+        className={`viewer-bar${projectView ? ' in-project' : ''}`}
         // Empty stretches of the bar move the window in Papol macOS;
         // everywhere else the attribute is inert.
         data-tauri-drag-region="deep"
@@ -4215,6 +4306,48 @@ export default function App() {
                 {userName ? `Showing ${userName}’s annotations` : 'Showing shared annotations'}
               </span>
             )}
+            {/* Whose annotations the pages carry: the reader's own, or a
+                project's. Only where the reader has a project holding this
+                paper is there anything to choose, so only then is it here;
+                with a project on, it names the project and shows who has
+                marked the paper, each in the colour their ink is drawn in. */}
+            {(projectView || projectsHolding.length > 0) && (
+              <span className="project-switch" ref={projectSwitchRef}>
+                <button
+                  type="button"
+                  className={`bar-link project-pill${projectView ? ' on' : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={projectMenuOpen}
+                  title={projectView ? `Reading in ${projectView.name}` : 'Read with a project on'}
+                  onClick={() => { setProjectMenuOpen((open) => !open); setPaperInfoOpen(false); }}
+                >
+                  <svg className="project-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="8.5" cy="9" r="3.2" /><circle cx="16.5" cy="9" r="3.2" />
+                    <path d="M3 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5M11 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5" />
+                  </svg>
+                  <span className="project-pill-name">{projectView ? projectView.name : 'Yours'}</span>
+                  {projectView && (
+                    <span className="project-faces">
+                      {whoMarked([...projectView.notes, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (
+                        <span key={user.uuid} className="who" style={{ '--who': memberInk(user) }} title={user.display_name}>
+                          <Avatar user={user} className="mini-avatar" />
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </button>
+                {projectMenuOpen && (
+                  <div className="paper-info-pop project-menu" role="menu" data-tauri-drag-region="false">
+                    <a role="menuitemradio" aria-checked={!projectView} href={withProject(window.location.href, null)}>Yours</a>
+                    {projectsHolding.map((p) => (
+                      <a key={p.uuid} role="menuitemradio" aria-checked={projectView?.uuid === p.uuid} href={withProject(window.location.href, p.uuid)}>
+                        {p.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </span>
+            )}
             <button
               type="button"
               className="bar-link paper-info-button"
@@ -4563,6 +4696,7 @@ export default function App() {
               onHover={pageHover}
               onDropAnchor={pageDropAnchor}
               clips={clipsByPage.get(n) || EMPTY_INK}
+              project={pageProject}
               onCreateClip={pageCreateClip}
               onUpdateClip={pageUpdateClip}
               onCommitClip={pageCommitClip}
@@ -4672,7 +4806,27 @@ export default function App() {
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
             >
-              <ItemActions
+              {/* Another member's ink, picked out: whose it is, and the
+                  way to dig into it. It is theirs, so nothing here
+                  sends or removes it. */}
+              {selectedStrokes[0]?.theirs && (
+                <span className="ink-who" style={{ '--who': memberInk(selectedStrokes[0].user) }}>
+                  <Avatar user={selectedStrokes[0].user} className="mini-avatar" />
+                  <span>{selectedStrokes[0].user.display_name}</span>
+                </span>
+              )}
+              {projectView && typeof selectedStrokes[0]?.uuid === 'string' && !selectedStrokes[0].uuid.startsWith('wet-') && (
+                <TalkPin
+                  projectUuid={projectView.uuid}
+                  subject={{ annotation: selectedStrokes[0].uuid }}
+                  label={`ink on page ${selectedStrokes[0].page}`}
+                  summary={projectView.digs[selectedStrokes[0].uuid]}
+                  currentUser={projectView.me}
+                  onChanged={digChanged}
+                  size="sm"
+                />
+              )}
+              {!selectedStrokes[0]?.theirs && <ItemActions
                 label="Paint actions"
                 placement="above-end"
                 actions={[
@@ -4694,7 +4848,7 @@ export default function App() {
                     onSelect: removeSelectedInk,
                   },
                 ]}
-              />
+              />}
             </span>
           )}
         </div>
