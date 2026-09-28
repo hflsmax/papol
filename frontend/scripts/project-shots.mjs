@@ -1,12 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { DIG_PAPER, ME, P_ERROR, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
-// Papers tab and a dig, on
-// the web and in the Mac shell, wide and on a phone; and the member's
+// Papers tab and a dig in the Digs tab, on the web and in the Mac shell, wide and on a phone; and the member's
 // places around it (their nook, the Library, a paper) with the bar over
 // every page.
 //
@@ -33,15 +32,15 @@ const SHOTS = {
   'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
-  dig: { path: `/dig/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },
   // A member's face in a paper's dig, and where it leads: their nook.
   'face-nook': { ...desk('papers', '.project-paper', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .talk-post .face-link[href$="0002"]'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   'mac-face-nook': { ...desk('papers', '.project-paper', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .talk-post .face-link[href$="0002"]'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`, '?shell=desktop'), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   'mac-desk-papers': { ...desk('papers', '.project-paper', null, '?shell=desktop'), size: wide },
   'mac-desk-digs': { ...desk('digs', '.project-talk-item', null, '?shell=desktop'), size: wide },
   'mac-desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=desktop'), size: wide },
-  'mac-dig': { path: `/dig/${DIG_PAPER}?shell=desktop`, ready: "document.querySelector('.discussion-post')", size: wide },
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
+  // A dig opened under its row on a phone.
+  'phone-digs': { ...desk('digs', '.project-talk-panel .talk-post', "const go = () => { const d = document.querySelector('.project-talk-item'); if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
   // A face under Also read, and where it leads: that reader's nook.
   'nook-face': { path: '/?shell=web', ready: "document.querySelector('.desk-col-faces .face-link')", then: "document.querySelector('.desk-col-faces .face-link').click(); return true;", settled: "document.body.innerText.includes(\"'s nook\")", size: wide },
