@@ -1497,11 +1497,11 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   // Talk about the board or a card on it happens right here, in a talk
   // card over the canvas; the pin keeps the board's own counts current.
   const talked = (key, summary) => {
-    setBoard((current) => current && ({ ...current, discussions: { ...(current.discussions ?? {}), [key]: summary } }));
+    setBoard((current) => current && ({ ...current, digs: { ...(current.digs ?? {}), [key]: summary } }));
   };
   const talkPin = (subject, label, extra = {}) => (board.project && board.can_edit ? (
     <TalkPin
-      projectUuid={board.project.uuid} subject={subject} label={label} summary={board.discussions?.[subject]}
+      projectUuid={board.project.uuid} subject={subject} label={label} summary={board.digs?.[subject]}
       currentUser={me} onChanged={talked} {...extra}
     />
   ) : null);
@@ -2127,7 +2127,6 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
             </svg>
           </BackLink>}
       <input className="board-toolbar-title" value={board.name} size={Math.max(1, Math.min(48, board.name.length + 1))} aria-label="Board name" maxLength={appLimits.text.board_name} readOnly={!board.can_edit} onChange={(e) => setBoard({ ...board, name: e.target.value })} onBlur={(e) => board.can_edit && e.target.value.trim() && updateBoard(board.uuid, { name: e.target.value.trim() })} />
-      {talkPin(`board:${board.uuid}`, board.name, { className: 'board-toolbar-talk' })}
       {board.project && <a className="board-toolbar-project" href={appPath(`/project/${board.project.uuid}`)} title="Open project">{board.project.name}</a>}
       <time className="board-toolbar-edited" dateTime={board.updated_at}>Last edited {formatLastEdit(board.updated_at)}</time>
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}

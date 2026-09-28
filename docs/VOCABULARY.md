@@ -117,8 +117,9 @@ says who may *read this PDF*. Neither moves the other.
 | **Project** | A few users reading together: the papers they gather, the boards they think on, and the digs about both. | `projects`, `ProjectPage.jsx`, `/project/<uuid>`. Online only. |
 | **Member** / **Keeper** | Someone in a project; a keeper can also invite, take papers out and make others keepers. | `project_members.is_keeper`. |
 | **Brief** | A paper as one project sees it: members' takes, the paper's dig, the digs on their thoughts, the boards it is on, who added it. The jacket says what a paper is; the brief says what this group makes of it. | `BriefPage.jsx`, `briefPath()`, `route.page === 'brief'` at `/project/<uuid>/paper/<name>`. A desk card opens it. |
-| **Dig** | A conversation, among any number of members, **about one thing**: a paper, a member's thought on it, a board, or a card; never the project as a whole. Opened from the **dig pin**, the one mark for a dig: a spade, tipped as if in use. Every thing that can hold one wears the pin at the end of its name line (a card's header strip, a board's name), hidden until you reach for the thing, and showing its post count once there is a dig. Every other way into a dig opens the same card, with no mark of its own. | Store: `discussions`, `discussion_posts`, keyed by a **subject**. Code: the pin and card are still `TalkPin` and `TalkCard` (`shared/ui/Talk.jsx`); the page is `DiscussionPage.jsx`. |
-| **Subject** | What a dig is about, as a key: `paper:<sha256>`, `take:<sha256>:<user>`, `board:<uuid>`, `card:<uuid>`, `annotation:<uuid>`. | `subjectKey()`, `subjectOut()`. The server refuses a dig without one. |
+| **Dig** | One person's writing **about one thing**: a paper, a card, or an annotation (an anchor, ink or a clip); never the project, a board as a whole, another dig or a post in one. A dig **carries its own words**: digging is writing, in one act. It is its **owner's**, the member who wrote it, and a thing holds one dig per member; **anyone** can post in it. Its owner rewords it; its owner or a keeper removes it, posts and all. Opened from the **dig pin**, the one mark for a dig: a spade, tipped as if in use. Every thing that can hold one wears the pin at the end of its name line (a card's header strip), hidden until you reach for the thing, and counting every dig and post on it once there is one. The card opens on your own dig, else the latest, with the owners to switch between when there are several. | Store: `digs` (its words in `digs.text`) and `dig_posts` (migration 0016, which replaced `discussions`), keyed by a **subject** and an owner, `digs.user_uuid`. API: `/api/projects/<uuid>/digs`, `/api/digs/<uuid>`, `/api/dig-posts/<uuid>`. Page: `/dig/<uuid>`, `DigPage.jsx`. Code: the pin and card are still `TalkPin` and `TalkCard` (`shared/ui/Talk.jsx`). |
+| **Post** | One piece of writing in someone's dig, after its own words; anyone can post in any dig. Its writer edits it; its writer or a keeper takes it back, and the dig stays. | `dig_posts`. |
+| **Subject** | What a dig is about, as a key: `paper:<sha256>`, `card:<uuid>`, `annotation:<uuid>`. | `subjectKey()`, `subjectOut()`. The server refuses a dig without one. |
 | **Project on** | The viewer's optional project: a paper opened with one of the reader's projects on (`?project=<uuid>`) shows every member's notes, ink and clips on it, each in its author's colour, the reader's own included. The reader's own are theirs to change; the others' can be read, followed and dug into. Off, the paper shows the reader's own alone. | `viewer/src/project.js`, `GET /api/projects/<uuid>/papers/<sha256>/annotations`, the project pill in the viewer bar (`.project-pill`), `annotationViewerPath()`. A brief opens the viewer with its project on. |
 | **Dig into** | Following a drift: a post in one dig becomes the start of a dig about what it is really about, something the project holds or a new idea, which becomes a card on a board. The old dig gets a line pointing to the new one. | `DigChooser` in `Talk.jsx`, `addIdeaCard()`. Offered on a picked post, in the card and on the page. |
 
@@ -128,6 +129,14 @@ When talk wanders onto another thing, Papol does not let it pile up where it
 started; it makes that thing a subject, as a card if it is not one yet, and
 invites the talk to follow it there. Design for that path first: a post can
 always be dug into, and a long dig says so.
+
+**Everything written about a thing is a dig** (decided 2026-09-28). Most of
+what a reader leaves in Papol moves into digs, one step at a time: a
+member's **thought** on a paper becomes their dig on the paper, its words
+the line on their chip; the words of a **note** on a page become a
+dig on its **anchor**. An anchor, ink and a clip each stand on their own,
+and each can be dug when someone wants to. *Discussion* has left the vocabulary; when the rest lands, *thought*,
+*take* and *note* follow. Until then they name what the code still holds.
 
 ## 8. Handoff to Papol for Mac
 

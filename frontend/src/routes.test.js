@@ -97,16 +97,8 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.equal(parseRoute(`/project/${UUID}/paper/${'ab'.repeat(32)}`).page, 'home');
 });
 
-test('a discussion has a page, and talking about anything in a project leads to one', () => {
-  const DIGEST64 = 'ab'.repeat(32);
-  assert.deepEqual(parseRoute(`/discussion/${UUID}`), { page: 'discussion', uuid: UUID });
-  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/paper/${DIGEST64}`), { page: 'discuss', uuid: UUID, subject: `paper:${DIGEST64}` });
-  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/card/${UUID}`), { page: 'discuss', uuid: UUID, subject: `card:${UUID}` });
-  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/board/${UUID}`), { page: 'discuss', uuid: UUID, subject: `board:${UUID}` });
-  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/take/${DIGEST64}/${UUID}`), { page: 'discuss', uuid: UUID, subject: `take:${DIGEST64}:${UUID}` });
-  // A project has no dig of its own.
-  assert.equal(parseRoute(`/project/${UUID}/discuss/project`).page, 'home');
-  assert.equal(parseRoute(`/project/${UUID}/discuss/paper/abc`).page, 'home');
+test('a dig has a page', () => {
+  assert.deepEqual(parseRoute(`/dig/${UUID}`), { page: 'dig', uuid: UUID });
 });
 
 test('a shelf has a page of its own', () => {

@@ -6,7 +6,7 @@ import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard, TalkGlyph, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  deleteDiscussionPost, editDiscussionPost, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
+  deletePost, editPost, editDig, removeDig, getDig, postInDig,
 } from '../../../shared/api/projects.js';
 import { annotationViewerPath, briefPath } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -19,17 +19,16 @@ import Markdown from './Markdown';
 import { ProjectWay, SUBJECT_WORDS } from './ProjectPage';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
-const POST_LIMIT = appLimits.text.discussion_post;
+const POST_LIMIT = appLimits.text.dig_post;
 
 // What the dig is about, and the ways out of it: the project, and the
 // thing itself, at its brief or on its board.
-function Subject({ project, subject, posts = [] }) {
+function Subject({ project, subject, posts = [], count = 0 }) {
   const projectHref = appPath(`/project/${project.uuid}`);
   const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
     : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
       : subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const under = {
-    take: subject.by && <>{subject.by}’s thought on <a href={home}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
     card: subject.board_name && <>On <a href={home}>{subject.board_name}</a></>,
     annotation: subject.by && <>{subject.by}’s, on <a href={appPath(briefPath(project.uuid, subject.paper_sha256))}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
   }[subject.kind];
@@ -47,7 +46,7 @@ function Subject({ project, subject, posts = [] }) {
         <ProjectWay project={project} />
         <p className="dig-kind"><TalkGlyph />{word}</p>
         <h2 className="dig-subject-title">
-          {home && subject.kind !== 'take' ? (
+          {home ? (
             <a href={home}>
               <PaperTitle title={subject.label} />
               <svg className="dig-subject-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
@@ -58,7 +57,7 @@ function Subject({ project, subject, posts = [] }) {
         {posts.length > 0 && (
           <p className="dig-voices">
             <span className="project-faces">{voices.slice(0, 5).map((u) => <Face key={u.uuid} user={u} />)}</span>
-            <span>{posts.length === 1 ? '1 post' : `${posts.length} posts`}</span>
+            {count > 0 && <span>{count === 1 ? '1 post' : `${count} posts`}</span>}
           </p>
         )}
       </aside>
@@ -168,7 +167,7 @@ function ReplyBar({ currentUser, placeholder, submitLabel, onSubmit, tall = fals
 }
 
 // One discussion: its subject, every post in order, and room to write more.
-export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }) {
+export function DigPage({ digUuid, currentUser, onBack, backHref }) {
   const [discussion, setDiscussion] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -177,11 +176,11 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
 
   useEffect(() => {
     let active = true;
-    getDiscussion(discussionUuid)
+    getDig(digUuid)
       .then((next) => { if (active) setDiscussion(next); })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
-  }, [discussionUuid]);
+  }, [digUuid]);
 
   useEffect(() => {
     if (!selected) return undefined;
@@ -214,13 +213,21 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
   }
   if (!discussion) return <div className="loading"><Working label="Loading discussion…" /></div>;
 
+  // The dig's own words come first, then every post in it. Removing the
+  // dig takes its posts with it; taking back a post leaves the dig.
+  const own = {
+    uuid: discussion.uuid, user: discussion.owner, body: discussion.text, is_mine: discussion.is_mine,
+    created_at: discussion.created_at, edited_at: discussion.edited_at,
+  };
+  const entries = [own, ...discussion.posts];
+  const isDig = (post) => post.uuid === discussion.uuid;
   const remove = async (post) => {
-    const last = discussion.posts.length === 1;
-    const ok = await confirmAction(last ? 'Delete this post? The discussion ends with it.' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true });
+    const ok = await confirmAction(isDig(post) ? 'Remove this dig and its posts?' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true });
     if (!ok) return;
     setSelected(null);
-    const done = await act(() => deleteDiscussionPost(post.uuid));
-    if (done && last) window.location.replace(appPath(`/project/${discussion.project.uuid}`));
+    if (!isDig(post)) { await act(() => deletePost(post.uuid)); return; }
+    const done = await act(async () => { await removeDig(post.uuid); return null; });
+    if (done) window.location.replace(appPath(`/project/${discussion.project.uuid}`));
   };
 
   // Dug into: the card opens under the post, where the drift happened.
@@ -235,78 +242,25 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
   );
   return (
     <div className="discussion-page dig-page">
-      <Subject project={discussion.project} subject={discussion.subject} posts={discussion.posts} />
+      <Subject project={discussion.project} subject={discussion.subject} posts={entries} count={discussion.posts.length} />
       <div className="dig-main">
         {notice && <div className="error" role="alert">{notice}</div>}
         <ol className="discussion-posts">
-          {discussion.posts.map((post) => (
+          {entries.map((post) => (
             <Post
               key={post.uuid}
               post={post}
               canModerate={discussion.can_moderate}
               selected={selected === post.uuid}
               onSelect={() => setSelected(post.uuid)}
-              onEdit={(body) => act(() => editDiscussionPost(post.uuid, body))}
+              onEdit={(body) => act(() => (isDig(post) ? editDig(post.uuid, body) : editPost(post.uuid, body)))}
               onDelete={() => remove(post)}
               onDig={() => setDigging(post.uuid)}
               digging={digging === post.uuid ? drift(post) : null}
             />
           ))}
         </ol>
-        <ReplyBar currentUser={currentUser} placeholder="Reply" submitLabel="Post reply" onSubmit={(body) => act(() => replyToDiscussion(discussion.uuid, body))} />
-      </div>
-    </div>
-  );
-}
-
-// "Discuss" on a subject: its discussion if it has one, and otherwise the
-// first post to open it with.
-export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack, backHref, onOpen }) {
-  const [found, setFound] = useState(null);
-  const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    findDiscussion(projectUuid, subject)
-      .then((next) => {
-        if (!active) return;
-        if (next.discussion_uuid) onOpen(next.discussion_uuid);
-        else setFound(next);
-      })
-      .catch((err) => { if (active) setError(err.message); });
-    return () => { active = false; };
-  }, [projectUuid, subject]);
-
-  if (error) {
-    return (
-      <div className="panel">
-        <div className="error" role="alert">{error}</div>
-        <BackLink href={backHref} onBack={onBack}>Back</BackLink>
-      </div>
-    );
-  }
-  if (!found) return <div className="loading"><Working label="Loading…" /></div>;
-
-  return (
-    <div className="discussion-page dig-page">
-      <Subject project={found.project} subject={found.subject} />
-      <div className="dig-main">
-        {notice && <div className="error" role="alert">{notice}</div>}
-        <ReplyBar
-          tall currentUser={currentUser} placeholder="Post" submitLabel="Start dig"
-          onSubmit={async (body) => {
-            setNotice(null);
-            try {
-              const next = await startDiscussion(projectUuid, subject, body);
-              onOpen(next.uuid);
-              return true;
-            } catch (err) {
-              setNotice(err.message);
-              return false;
-            }
-          }}
-        />
+        <ReplyBar currentUser={currentUser} placeholder="Post" submitLabel="Post" onSubmit={(body) => act(() => postInDig(discussion.uuid, body))} />
       </div>
     </div>
   );

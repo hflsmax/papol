@@ -17,7 +17,8 @@ import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "..
 import { rowSnapshot } from "../sync/rows";
 import { writeSynced } from "../sync/write";
 import * as validate from "../validate";
-import { discussionsOf, type Member } from "./projects";
+import { pinsOf } from "./digs";
+import { type Member } from "./projects";
 
 const COORDINATE = limits.board.coordinate_abs_max;
 
@@ -106,10 +107,10 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
   const project = await boardProject(env, board.uuid);
   // What is being said about the board and its cards, for the members who
   // can see them, keyed by subject.
-  const discussions = includeItems && project && canEdit && viewer ? await boardTalk(env, project.uuid, board.uuid, viewer) : {};
+  const digs = includeItems && project && canEdit && viewer ? await boardTalk(env, project.uuid, board.uuid, viewer) : {};
   return {
     uuid: board.uuid, revision: board.revision, user_uuid: board.user_uuid, owner: owner ? userPublic(owner) : null,
-    project, discussions,
+    project, digs,
     shelf_uuid: board.shelf_uuid, can_edit: canEdit, name: board.name, description: board.description,
     created_at: board.created_at, updated_at: board.updated_at, item_count: active.length,
     items: includeItems ? await Promise.all(active.map((i) => itemOut(env, i))) : [],
@@ -125,10 +126,8 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
 async function boardTalk(env: Env, projectUuid: string, boardUuid: string, viewer: User) {
   const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", projectUuid, viewer.uuid);
   if (!member) return {};
-  const talk = await discussionsOf(env, projectUuid, viewer, member);
-  return Object.fromEntries(talk
-    .filter((d) => (d.subject as { board_uuid?: string }).board_uuid === boardUuid)
-    .map((d) => [d.subject.key, { uuid: d.uuid, post_count: d.post_count, is_new: d.is_new, voices: d.voices }]));
+  const cards = await all<{ uuid: string }>(env.DB, "SELECT uuid FROM board_items WHERE board_uuid = ? AND deleted_at IS NULL", boardUuid);
+  return pinsOf(env, projectUuid, viewer, member, cards.map((c) => `card:${c.uuid}`));
 }
 
 export async function boardProject(env: Env, boardUuid: string): Promise<{ uuid: string; name: string } | null> {

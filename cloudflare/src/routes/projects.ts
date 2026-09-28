@@ -16,6 +16,7 @@ import { membersCopies } from "../papers/list";
 import { isShareCode, newShareCode } from "../papers/sharables";
 import * as validate from "../validate";
 import { boardOut, userPublic } from "./boards";
+import { pinsOf } from "./digs";
 import { writeSynced } from "../sync/write";
 
 export interface Project extends Row {
@@ -96,9 +97,10 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      WHERE m.user_uuid = ? GROUP BY m.project_uuid
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
-     JOIN discussions d ON d.project_uuid = m.project_uuid
-     JOIN discussion_posts dp ON dp.discussion_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid
-     WHERE m.user_uuid = ? GROUP BY m.project_uuid`, user.uuid, user.uuid);
+     JOIN digs d ON d.project_uuid = m.project_uuid
+     WHERE m.user_uuid = ? AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
+       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
+     GROUP BY m.project_uuid`, user.uuid, user.uuid);
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.project_uuid, (counts.get(r.project_uuid) ?? 0) + r.n);
   return counts;
@@ -160,7 +162,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
         boxes: boxes.get(b.uuid as string) ?? [],
       };
     })),
-    discussions: await discussionsOf(env, project.uuid, me, member),
+    digs: await digsOf(env, project.uuid, me, member),
     papers: entries.map((e) => ({
       sha256: e.paper_sha256, title: e.title, authors: e.authors, journal: e.journal, year: e.year, doi: e.doi,
       added_by: userPublic({ ...e, uuid: e.added_by }), added_at: e.added_at,
@@ -172,35 +174,39 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
   };
 }
 
-// A discussion as a line in a list: its subject, who opened it, how long
-// it has run, and whether others have written since this member looked.
-export async function discussionsOf(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
+// A dig as a line in a list: whose it is, its subject, how long it has
+// run, and whether others have written since this member looked, the dig
+// itself counting as the first thing written.
+export async function digsOf(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
   const rows = await all<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
-            (SELECT count(*) FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid) AS post_count,
-            (SELECT count(*) FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
-            (SELECT group_concat(user_uuid) FROM (SELECT DISTINCT dp.user_uuid FROM discussion_posts dp WHERE dp.discussion_uuid = d.uuid)) AS voices
-     FROM discussions d ${SUBJECT_JOINS}
+            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
+            (d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
+            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+     FROM digs d ${SUBJECT_JOINS}
      WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
-    member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
+    member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
   const lasts = rows.length ? await all<Row>(env.DB,
-    `SELECT dp.discussion_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
-     FROM discussion_posts dp JOIN users u ON u.uuid = dp.user_uuid
-     WHERE dp.discussion_uuid IN (${rows.map(() => "?").join(",")})
-     AND dp.created_at = (SELECT max(created_at) FROM discussion_posts x WHERE x.discussion_uuid = dp.discussion_uuid)`,
+    `SELECT dp.dig_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
+     FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
+     WHERE dp.dig_uuid IN (${rows.map(() => "?").join(",")})
+     AND dp.created_at = (SELECT max(created_at) FROM dig_posts x WHERE x.dig_uuid = dp.dig_uuid)`,
     ...rows.map((r) => r.uuid)) : [];
-  const voiceUuids = [...new Set(rows.flatMap((d) => String(d.voices ?? "").split(",").filter(Boolean)))];
-  const voices = new Map(voiceUuids.length ? (await all<Row>(env.DB,
-    `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${voiceUuids.map(() => "?").join(",")})`,
-    ...voiceUuids)).map((u) => [u.uuid as string, userPublic(u)]) : []);
+  const peopleUuids = [...new Set(rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]))];
+  const people = new Map(peopleUuids.length ? (await all<Row>(env.DB,
+    `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${peopleUuids.map(() => "?").join(",")})`,
+    ...peopleUuids)).map((u) => [u.uuid as string, userPublic(u)]) : []);
   return rows.map((d) => {
-    const last = lasts.find((l) => l.discussion_uuid === d.uuid);
+    const posted = lasts.find((l) => l.dig_uuid === d.uuid);
+    const last = posted ?? { ...(people.get(String(d.user_uuid)) as Row ?? {}), body: d.text, created_at: d.created_at };
     return {
       uuid: d.uuid, project_uuid: d.project_uuid, created_at: d.created_at, updated_at: d.updated_at,
+      owner: people.get(String(d.user_uuid)) ?? null, is_mine: d.user_uuid === me.uuid,
+      text: d.text, excerpt: excerpt(String(d.text)),
       subject: subjectOut(d),
       post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0,
-      voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => voices.get(uuid)).filter(Boolean),
-      last_post: last ? { user: userPublic(last), excerpt: excerpt(String(last.body)), created_at: last.created_at } : null,
+      voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => people.get(uuid)).filter(Boolean),
+      last_post: { user: posted ? userPublic(last) : people.get(String(d.user_uuid)) ?? null, excerpt: excerpt(String(last.body)), created_at: last.created_at },
     };
   });
 }
@@ -219,32 +225,22 @@ function excerpt(body: string): string {
 }
 
 // Everything subjectOut needs to name a subject.
-export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_name, tc.thought AS take_thought, tc.thought_public AS take_public,
+export const SUBJECT_COLUMNS = `p.title AS paper_title,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
-  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name,
+  bi.board_uuid AS card_board, b.name AS board_name,
   an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name,
   an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
-  LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
-  LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
-  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
+  LEFT JOIN boards b ON b.uuid = bi.board_uuid
   LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
   LEFT JOIN users au ON au.uuid = an.user_uuid`;
 
-// What a discussion is about, said the way the project page says it.
+// What a dig is about, said the way the project page says it.
 export function subjectOut(d: Row) {
   const key = String(d.subject);
   const base = { key, kind: key.split(":")[0] };
   if (base.kind === "paper") return { ...base, paper_sha256: d.paper_sha256, label: d.paper_title ?? "A paper" };
-  if (base.kind === "take") {
-    const thought = d.take_public && d.take_thought ? `“${excerpt(String(d.take_thought)).slice(0, 120)}”` : null;
-    return {
-      ...base, paper_sha256: d.paper_sha256, user_uuid: d.take_user_uuid, paper_title: d.paper_title,
-      label: thought ?? `${d.take_name ?? "A member"}’s take on ${d.paper_title ?? "a paper"}`, by: d.take_name ?? null,
-    };
-  }
-  if (base.kind === "board") return { ...base, board_uuid: d.board_uuid, board_name: d.board_name, label: d.board_name ?? "A board" };
   if (base.kind === "annotation") {
     return {
       ...base, annotation_uuid: d.annotation_uuid, paper_sha256: d.paper_sha256, paper_title: d.paper_title,
@@ -498,13 +494,12 @@ export function projectRoutes(router: Router) {
       `SELECT a.* FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
        WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL ORDER BY a.created_at, a.uuid`, project.uuid, digest);
     const people = new Map(members.map((m) => [m.user_uuid, userPublic({ ...m, uuid: m.user_uuid })]));
-    const digs = (await discussionsOf(env, project.uuid, me, member))
-      .filter((d) => d.subject.kind === "annotation" && Number(d.post_count) > 0);
+    const pins = await pinsOf(env, project.uuid, me, member, rows.map((a) => `annotation:${a.uuid}`));
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
       me: me.uuid,
       annotations: rows.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
-      digs: Object.fromEntries(digs.map((d) => [d.subject.key.slice("annotation:".length), { uuid: d.uuid, post_count: d.post_count, is_new: d.is_new, voices: d.voices }])),
+      digs: Object.fromEntries(Object.entries(pins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
     });
   });
 

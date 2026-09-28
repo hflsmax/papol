@@ -18,9 +18,8 @@ const BOARD_MAP = 'c1b2c3d4-0000-4000-8000-000000000021';
 const CARD_SPARSE = 'd1b2c3d4-0000-4000-8000-000000000030';
 export const DIG_PAPER = 'e1b2c3d4-0000-4000-8000-000000000040';
 const DIG_CARD = 'e1b2c3d4-0000-4000-8000-000000000041';
-const DIG_BOARD = 'e1b2c3d4-0000-4000-8000-000000000042';
-const DIG_TAKE = 'e1b2c3d4-0000-4000-8000-000000000043';
 const DIG_SURVEY = 'e1b2c3d4-0000-4000-8000-000000000044';
+const DIG_PAPER_BEN = 'e1b2c3d4-0000-4000-8000-000000000045';
 
 const user = (uuid, display_name, affiliation) => ({ uuid, display_name, affiliation, avatar_path: null, email: null });
 const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
@@ -91,8 +90,6 @@ const subject = {
   paperError: { key: `paper:${P_ERROR}`, kind: 'paper', paper_sha256: P_ERROR, label: 'Error dynamics in adaptive optics loops' },
   paperSurvey: { key: `paper:${P_SURVEY}`, kind: 'paper', paper_sha256: P_SURVEY, label: 'A survey of predictive control for telescopes' },
   card: { key: `card:${CARD_SPARSE}`, kind: 'card', board_item_uuid: CARD_SPARSE, board_uuid: BOARD_PLAN, board_name: 'Bench plan', card_kind: 'comment', label: 'Sparse attention at long context' },
-  board: { key: `board:${BOARD_PLAN}`, kind: 'board', board_uuid: BOARD_PLAN, board_name: 'Bench plan', label: 'Bench plan' },
-  take: { key: `take:${P_LEARN}:${BEN}`, kind: 'take', paper_sha256: P_LEARN, user_uuid: BEN, paper_title: 'Learning wavefront control from few examples', label: '“Worth trying on the bench this month.”', by: 'Ben Hall' },
 };
 
 const post = (uuid, u, body, at, mine = false) => ({ uuid, user: u, body, created_at: at, edited_at: null, is_mine: mine });
@@ -115,12 +112,11 @@ I added "Measure the loop delay" to the Bench plan board. Let's do that before a
   post('f0000000-0000-4000-8000-000000000003', ben, 'Agreed on measuring first. I can run the delay sweep on Thursday if someone books the bench.', hoursAgo(3)),
 ];
 
-const discussions = [
-  { uuid: DIG_PAPER, subject: subject.paperError, post_count: 3, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
-  { uuid: DIG_TAKE, subject: subject.take, post_count: 2, unread: 2, is_new: true, voices: [mia, ana], updated_at: hoursAgo(4), created_at: hoursAgo(5), last_post: { user: mia, excerpt: 'This month? We have not measured the delay yet.', created_at: hoursAgo(4) } },
-  { uuid: DIG_CARD, subject: subject.card, post_count: 4, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
-  { uuid: DIG_BOARD, subject: subject.board, post_count: 1, unread: 0, is_new: false, voices: [ana], updated_at: daysAgo(3), created_at: daysAgo(3), last_post: { user: ana, excerpt: 'Should this board be in the order we will run things?', created_at: daysAgo(3) } },
-  { uuid: DIG_SURVEY, subject: subject.paperSurvey, post_count: 5, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
+const digs = [
+  { uuid: DIG_PAPER, owner: ana, is_mine: false, text: errorPosts[0].body, subject: subject.paperError, post_count: 2, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
+  { uuid: DIG_PAPER_BEN, owner: ben, is_mine: false, text: 'The appendix has the raw delay traces; worth plotting against ours.', subject: subject.paperError, post_count: 0, unread: 0, is_new: false, voices: [ben], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ben, excerpt: 'The appendix has the raw delay traces; worth plotting against ours.', created_at: daysAgo(1) } },
+  { uuid: DIG_CARD, owner: me, is_mine: true, text: 'Their few-shot result is why this card goes first.', subject: subject.card, post_count: 3, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
+  { uuid: DIG_SURVEY, owner: me, is_mine: true, text: 'The best map of the field so far; the taxonomy in section 2 is worth keeping.', subject: subject.paperSurvey, post_count: 4, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
 ];
 
 const project = {
@@ -132,17 +128,18 @@ const project = {
     { user: mia, is_keeper: false, joined_at: daysAgo(2) },
   ],
   is_member: true, is_keeper: true, invite_code: 'Ab3dE5gH7j',
-  boards, discussions, papers,
+  boards, digs, papers,
 };
 
 const summary = { uuid: PROJECT, name: project.name, created_at: project.created_at, members: project.members, is_member: true, is_keeper: true, new_count: 3 };
 const other = { uuid: 'b1b2c3d4-0000-4000-8000-000000000011', name: 'Reading group', created_at: daysAgo(60), members: [{ user: me, is_keeper: false, joined_at: daysAgo(60) }, { user: mia, is_keeper: true, joined_at: daysAgo(60) }], is_member: true, is_keeper: false, new_count: 0 };
 
-const discussion = (uuid) => {
-  const d = discussions.find((x) => x.uuid === uuid);
+const digOf = (uuid) => {
+  const d = digs.find((x) => x.uuid === uuid);
   if (!d) return null;
-  const posts = uuid === DIG_PAPER ? errorPosts : [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)];
-  return { uuid, created_at: d.created_at, updated_at: d.updated_at, project: { uuid: PROJECT, name: project.name }, subject: d.subject, can_moderate: true, posts };
+  const posts = uuid === DIG_PAPER ? errorPosts.slice(1)
+    : d.post_count ? [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)] : [];
+  return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, can_moderate: true, posts };
 };
 
 // A paper as the Library and a nook list it: the members' takes are the
@@ -215,18 +212,19 @@ function answer(method, path, search) {
   if (path === '/admin-messages/pending') return [];
   if (path === '/projects') return [summary, other];
   if (path === `/projects/${PROJECT}`) return project;
-  if (path === `/projects/${PROJECT}/discussion`) {
+  if (path === `/projects/${PROJECT}/digs`) {
     const key = search.get('subject');
-    const d = discussions.find((x) => x.subject.key === key);
-    return { discussion_uuid: d?.uuid ?? null, project: { uuid: PROJECT, name: project.name }, subject: d?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
+    const on = digs.filter((x) => x.subject.key === key);
+    const mine = on.find((x) => x.is_mine)?.uuid ?? null;
+    return { mine, digs: on, project: { uuid: PROJECT, name: project.name }, subject: on[0]?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
   }
-  const dig = path.match(/^\/discussions\/([0-9a-f-]+)$/);
-  if (dig) return discussion(dig[1]);
+  const dig = path.match(/^\/digs\/([0-9a-f-]+)$/);
+  if (dig) return digOf(dig[1]);
   const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
   if (nookBoardAsked) {
     const onIt = nookBoardAsked === NOOK_BOARDS[1] ? papers.slice(0, 2) : [];
     const items = onIt.map((p, i) => ({ uuid: `ae00000${i}-0000-4000-8000-000000000001`, kind: 'excerpt', source_url: `https://papol.io/viewer/?pdf=${p.sha256}`, source_label: p.title, excerpt_text: null, content: null, x: 40 + i * 260, y: 60 + i * 40, width: 220, height: 140 }));
-    return { ...nookBoardAsked, items, project: null, discussions: {}, staged_items: [], papers: onIt.map(({ sha256, title, authors, year }) => ({ sha256, title, authors, year })), groups: [], revision: 1, user_uuid: ME, created_at: daysAgo(9) };
+    return { ...nookBoardAsked, items, project: null, digs: {}, staged_items: [], papers: onIt.map(({ sha256, title, authors, year }) => ({ sha256, title, authors, year })), groups: [], revision: 1, user_uuid: ME, created_at: daysAgo(9) };
   }
   if (path === `/users/${ME}/nook`) {
     return {

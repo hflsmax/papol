@@ -5211,7 +5211,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 var(--space-2); border: 1px solid transparent; }
 .project-title-sizer::after, .project-title-sizer > .project-title-input { grid-area: 1 / 1; min-width: 0; }
 .project-title-sizer > .project-title-input { text-overflow: ellipsis; }
-.board-toolbar-title:has(~ .board-toolbar-talk) { field-sizing: content; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
 .project-seats { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); }
@@ -5375,7 +5374,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 ${talkStyles}
 .board-card-talk { margin-left: auto; }
 .board-card-talk + .board-card-action-menu { margin-left: var(--space-1); }
-.board-toolbar-talk { margin-left: var(--space-1); }
 .board-toolbar .talk-pin { padding: 0; }
 
 /* A paper's brief: the paper as the project sees it, its takes and the

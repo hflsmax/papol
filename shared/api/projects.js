@@ -75,18 +75,15 @@ export function addIdeaCard(boardUuid, content) {
   return jsonRequest(`/boards/${boardUuid}/comments`, 'POST', { content });
 }
 
-// ---------- Discussions ----------
+// ---------- Digs ----------
 
-// A discussion can be about anything a project holds, named by a key:
-// "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>",
-// "card:<uuid>" or "annotation:<uuid>". Never the project itself.
+// A dig is about a paper, a card or an annotation, named by a key:
+// "paper:<sha256>", "card:<uuid>" or "annotation:<uuid>".
 export function subjectKey(subject) {
   if (typeof subject === 'string') return subject;
-  if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
   if (subject.paper) return `paper:${subject.paper}`;
   if (subject.card) return `card:${subject.card}`;
-  if (subject.annotation) return `annotation:${subject.annotation}`;
-  return `board:${subject.board}`;
+  return `annotation:${subject.annotation}`;
 }
 
 // A paper with the project on: every member's annotations on it, whose
@@ -96,35 +93,42 @@ export function listProjectAnnotations(uuid, paperSha256) {
   return request(`/projects/${uuid}/papers/${paperSha256}/annotations`);
 }
 
-// A subject's discussion, if it has one, and what it is about.
-export function findDiscussion(projectUuid, subject) {
-  return request(`/projects/${projectUuid}/discussion?subject=${encodeURIComponent(subjectKey(subject))}`);
+// Every dig on a subject (one per member who started one), the reader's
+// own among them, and what it is about.
+export function findDigs(projectUuid, subject) {
+  return request(`/projects/${projectUuid}/digs?subject=${encodeURIComponent(subjectKey(subject))}`);
 }
 
-// The first post on a subject, or the next one if it has a discussion.
-export function startDiscussion(projectUuid, subject, body) {
-  return jsonRequest(`/projects/${projectUuid}/discussions`, 'POST', { subject: subjectKey(subject), body });
+// Digging a subject: the member's own dig on it, with its text.
+export function startDig(projectUuid, subject, text) {
+  return jsonRequest(`/projects/${projectUuid}/digs`, 'POST', { subject: subjectKey(subject), text });
 }
 
-export function getDiscussion(uuid) {
-  return request(`/discussions/${uuid}`);
+// Its owner rewords a dig.
+export function editDig(uuid, text) {
+  return jsonRequest(`/digs/${uuid}`, 'PUT', { text });
 }
 
-export function replyToDiscussion(uuid, body) {
-  return jsonRequest(`/discussions/${uuid}/posts`, 'POST', { body });
+// Its owner, or a keeper, removes a dig and all posted in it.
+export function removeDig(uuid) {
+  return request(`/digs/${uuid}`, { method: 'DELETE' });
 }
 
-export function editDiscussionPost(uuid, body) {
-  return jsonRequest(`/discussion-posts/${uuid}`, 'PUT', { body });
+export function getDig(uuid) {
+  return request(`/digs/${uuid}`);
 }
 
-export function deleteDiscussionPost(uuid) {
-  return request(`/discussion-posts/${uuid}`, { method: 'DELETE' });
+// A post in any dig, whoever's it is.
+export function postInDig(uuid, body) {
+  return jsonRequest(`/digs/${uuid}/posts`, 'POST', { body });
 }
 
-// Where talking about a subject leads, as a page of its own.
-export function discussPath(projectUuid, subject) {
-  return `/project/${projectUuid}/discuss/${subjectKey(subject).replace(/:/g, '/')}`;
+export function editPost(uuid, body) {
+  return jsonRequest(`/dig-posts/${uuid}`, 'PUT', { body });
+}
+
+export function deletePost(uuid) {
+  return request(`/dig-posts/${uuid}`, { method: 'DELETE' });
 }
 
 // The viewer with the project on, open at an annotation's page.
