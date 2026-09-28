@@ -13,16 +13,21 @@ const { ANNOTATION_STORAGE_NOTICE_HIDDEN, FEATURE_STATES, setFeatureState } = aw
 
 test('the notice shows on every opening until the reader opts out', () => {
   stored.clear();
-  assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: false }), true);
+  assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: false }), true);
   closeAnnotationStorageNotice(false);
-  assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: false }), true);
+  assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: false }), true);
   closeAnnotationStorageNotice(true);
-  assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: false }), false);
+  assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: false }), false);
 });
 
 test('a paper nobody can write on has no notice', () => {
   stored.clear();
-  assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: true }), false);
+  assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: true }), false);
+});
+
+test('a visitor without an account is not shown the notice', () => {
+  stored.clear();
+  assert.equal(showsAnnotationStorageNotice({ signedIn: false, neverAnnotatable: false }), false);
 });
 
 test('Admin can bring the notice back', () => {
@@ -30,14 +35,14 @@ test('Admin can bring the notice back', () => {
   assert.ok(FEATURE_STATES.includes(ANNOTATION_STORAGE_NOTICE_HIDDEN));
   closeAnnotationStorageNotice(true);
   setFeatureState(ANNOTATION_STORAGE_NOTICE_HIDDEN, false);
-  assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: false }), true);
+  assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: false }), true);
 });
 
 test('storage that cannot be read still shows the notice', () => {
   const kept = globalThis.localStorage;
   globalThis.localStorage = { getItem() { throw new Error('blocked'); } };
   try {
-    assert.equal(showsAnnotationStorageNotice({ neverAnnotatable: false }), true);
+    assert.equal(showsAnnotationStorageNotice({ signedIn: true, neverAnnotatable: false }), true);
   } finally {
     globalThis.localStorage = kept;
   }
