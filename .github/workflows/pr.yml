@@ -29,10 +29,10 @@ concurrency:
 permissions:
   contents: read
 
-# Two jobs side by side, since neither needs the other: the Worker's and
-# the analyzer's suites in one, the pages' suites and the browser suite
-# over the assembled site in the other. `tests` below answers for both
-# under the name branch protection requires.
+# Jobs side by side, since none needs another: the Worker's and the
+# analyzer's suites, each page's suites, and the browser suite over the
+# assembled site. `tests` below answers for all of them under the name
+# branch protection requires.
 jobs:
   # The Worker's suite spends most of its time starting the Workers
   # runtime, and the analyzer's needs nothing but Node; neither needs a
@@ -68,6 +68,52 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: analyzer
         run: npm ci && npm run typecheck && npm test
+
+  # Each page's unit tests, build and browser smokes, one page to a
+  # runner: side by side on one, two Chromes starving each other made the
+  # frontend smoke time out.
+  page:
+    name: tests-page-${{ matrix.app }}
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [viewer, board, frontend]
+    # Pinned for the sysctl below; see the pages job.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: false
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      # Ubuntu 24 confines unprivileged user namespaces, which is how
+      # Chrome builds its sandbox.
+      - name: Let Chrome sandbox itself
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The browser is the runner's own Google Chrome, found on PATH.
+      - name: Unit tests and smokes
+        working-directory: ${{ matrix.app }}
+        env:
+          # The upload smoke (frontend `npm test`) keeps the page here if it fails.
+          PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
+        run: npm ci && npm test
+
+      - name: Pages as the failing smokes left them
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.app }}
+          path: e2e-artifacts/
+          if-no-files-found: ignore
 
   pages:
     name: tests-pages
@@ -134,20 +180,15 @@ jobs:
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      # The browser is the runner's own Google Chrome, found on PATH.
-      - name: Unit tests and smokes, all three pages
-        env:
-          # The upload smoke (frontend `npm test`) keeps the page here if it fails.
-          PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
+      # What the assembled site and wrangler need; the pages' own suites
+      # are the page job's. Four installs that share nothing, side by side.
+      - name: Install the pages' and the Worker's dependencies
         run: |
-          (cd viewer   && npm ci && npm test)
-          (cd board    && npm ci && npm test)
-          (cd frontend && npm ci && npm test)
-
-      # wrangler, for the Worker below; its suite is the worker job's.
-      - name: Install the Worker's dependencies
-        working-directory: cloudflare
-        run: npm ci --legacy-peer-deps
+          (cd viewer && npm ci) &
+          (cd board && npm ci) &
+          (cd frontend && npm ci) &
+          (cd cloudflare && npm ci --legacy-peer-deps) &
+          for job in $(jobs -p); do wait "$job"; done
 
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.
@@ -198,14 +239,14 @@ jobs:
   tests:
     # Branch protection requires this name; keep it stable.
     name: tests
-    needs: [worker, pages]
+    needs: [worker, page, pages]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Both halves of the tests check
+      - name: Every part of the tests check
         run: |
-          echo "worker: ${{ needs.worker.result }}, pages: ${{ needs.pages.result }}"
-          for result in "${{ needs.worker.result }}" "${{ needs.pages.result }}"; do
+          echo "worker: ${{ needs.worker.result }}, page: ${{ needs.page.result }}, pages: ${{ needs.pages.result }}"
+          for result in "${{ needs.worker.result }}" "${{ needs.page.result }}" "${{ needs.pages.result }}"; do
             [ "$result" = success ] || [ "$result" = skipped ] || exit 1
           done
