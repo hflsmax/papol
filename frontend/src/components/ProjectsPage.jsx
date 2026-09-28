@@ -125,7 +125,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                     <li key={project.uuid} className="projects-row closed">
                       <div className="projects-row-text">
                         <span className="projects-row-name">{project.name}</span>
-                        <span className="projects-row-note">Ask an invitation to join</span>
+                        <span className="projects-row-note">Ask for an invitation to join</span>
                       </div>
                       <Crowd members={project.members} currentUser={currentUser} />
                     </li>
