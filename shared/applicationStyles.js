@@ -5654,7 +5654,10 @@ ${talkStyles}
 .desk-title:hover, .desk-title:focus-visible { color: var(--accent); text-decoration: underline; }
 .desk-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .desk-meta i { font-family: var(--font-serif); }
-.desk-meta-tag { margin-left: var(--space-2); color: var(--ink-soft); }
+.desk-row-tags { display: flex; flex-wrap: wrap; gap: 2px var(--space-2); margin-top: 3px; }
+.desk-row-tag { padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); cursor: pointer; }
+.desk-row-tag:hover, .desk-row-tag:focus-visible { color: var(--accent); }
+.desk-row-tag.is-on { color: var(--accent); }
 .desk-col-dots { width: 6rem; white-space: nowrap; }
 .desk-col-faces { width: 6.5rem; white-space: nowrap; }
 .desk-col-date { width: 4.5rem; white-space: nowrap; }

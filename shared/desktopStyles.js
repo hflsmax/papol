@@ -502,6 +502,10 @@ export const desktopStyles = `
   color: var(--ink-faint);
 }
 
+.desktop-row-tags > span + span {
+  margin-left: var(--space-2);
+}
+
 .desktop-row-sub:empty {
   display: none;
 }
