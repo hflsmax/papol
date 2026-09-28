@@ -199,7 +199,7 @@ jobs:
     # Branch protection requires this name; keep it stable.
     name: tests
     needs: [worker, pages]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

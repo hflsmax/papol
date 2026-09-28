@@ -328,7 +328,7 @@ jobs:
   end-to-end:
     name: macos-end-to-end
     needs: [end-to-end-replica, end-to-end-capture, end-to-end-app]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
