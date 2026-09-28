@@ -1531,7 +1531,9 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   position: absolute;
   z-index: 42;
   top: calc(100% + 12px);
-  left: 0;
+  /* Centred on the chip, which sits 8px into the anchor. */
+  left: calc(50% + 4px);
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1549,7 +1551,7 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 .learn-papol::before {
   content: '';
   position: absolute;
-  left: 18px;
+  left: calc(50% - 6px);
   top: -7px;
   width: 12px;
   height: 12px;
