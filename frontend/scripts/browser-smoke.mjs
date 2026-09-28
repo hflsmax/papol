@@ -6,9 +6,11 @@ import { tmpdir } from 'node:os';
 import {
   delimiter, extname, isAbsolute, join, relative as pathRelative, resolve,
 } from 'node:path';
+import { stopBrowser } from '../../scripts/smoke-harness.mjs';
 
 // Desktop builds can point this check at the exact web payload Tauri bundled.
 // Standalone frontend checks retain the conventional frontend/dist default.
+const RENDER_BUDGET_MS = 60_000;
 const dist = resolve(process.env.PAPOL_SMOKE_DIST || 'dist');
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -339,7 +341,8 @@ async function openLink(path) {
       '--enable-logging=stderr',
       '--v=0',
       `http://127.0.0.1:${port}/papol${path}`,
-    ]);
+      // Its own process group, so stopBrowser reaches every process it starts.
+    ], { detached: true });
 
     child.stderr.on('data', (chunk) => { errors += chunk; });
     const closed = new Promise((resolveClosed) => {
@@ -350,7 +353,9 @@ async function openLink(path) {
     });
     let timeoutId;
     const timeout = new Promise((resolveTimeout) => {
-      timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), 20_000);
+      // Chrome alone can take a quarter of a minute to start on a busy or
+      // freshly booted runner, and the budget counts from its launch.
+      timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), RENDER_BUDGET_MS);
     });
     const outcome = await Promise.race([
       rendered.then((result) => ({ kind: 'rendered', ...result })),
@@ -361,12 +366,8 @@ async function openLink(path) {
     clearTimeout(timeoutId);
     return { ...outcome, errors };
   } finally {
-    if (child?.exitCode === null) {
-      const closed = new Promise((resolveClosed) => child.once('close', resolveClosed));
-      child.kill('SIGTERM');
-      await closed;
-    }
-    await rm(profile, { recursive: true, force: true });
+    await stopBrowser(child);
+    await rm(profile, { recursive: true, force: true, maxRetries: 5 });
   }
 }
 
@@ -376,7 +377,7 @@ try {
     const outcome = await openLink(path);
     if (outcome.kind === 'error') throw outcome.error;
     if (outcome.kind === 'timeout') {
-      throw new Error(`${link} did not render within 20 seconds.\n${outcome.errors}`);
+      throw new Error(`${link} did not render within ${RENDER_BUDGET_MS / 1000} seconds.\n${outcome.errors}`);
     }
     if (outcome.kind === 'closed') {
       throw new Error(
@@ -405,7 +406,7 @@ try {
     const outcome = await openLink(path);
     if (outcome.kind === 'error') throw outcome.error;
     if (outcome.kind === 'timeout') {
-      throw new Error(`${link} did not render within 20 seconds.\n${outcome.errors}`);
+      throw new Error(`${link} did not render within ${RENDER_BUDGET_MS / 1000} seconds.\n${outcome.errors}`);
     }
     if (outcome.kind === 'closed') {
       throw new Error(
