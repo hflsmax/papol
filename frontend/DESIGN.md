@@ -174,7 +174,8 @@ sidebar, toolbar and document windows.
   state lives in the query: query links get lost across sign-in and can't
   hand off to the Mac app.
 - **The nook is the frame, not the URL.** A signed-in member on the web sees
-  these paths inside their nook, the rail beside the main area. Anyone else
+  these paths, all but a project's, inside their nook, the rail beside the
+  main area. Anyone else
   opening the same link, signed out or not the owner, gets the plain page.
   The layout follows who is looking; the link never shows the sender's nook.
 - **In-app moves never reload.** Links are real `<a href>`s (so Cmd-click
