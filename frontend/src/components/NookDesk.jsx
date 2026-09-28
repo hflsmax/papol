@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
 import BoardCreateForm from './BoardCreateForm';
@@ -40,6 +40,19 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
+  // The column heads stick just under the filter bar, whose height changes
+  // as its tags wrap.
+  const papersRef = useRef(null);
+  const filterRef = useRef(null);
+  useEffect(() => {
+    const filter = filterRef.current;
+    if (!filter || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      papersRef.current?.style.setProperty('--desk-filter-h', `${filter.getBoundingClientRect().height}px`);
+    });
+    observer.observe(filter);
+    return () => observer.disconnect();
+  }, []);
   const [creatingBoard, setCreatingBoard] = useState(false);
   const me = nook.user.uuid;
   const shelfOf = (uuid) => nook.shelves.find((s) => s.uuid === uuid);
@@ -162,12 +175,12 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           />
         </section>
       )}
-      <section className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
+      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
         <div className="desk-main-head">
           <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
           <div className="desk-actions">{adding}</div>
         </div>
-        <div className="desk-filter">
+        <div ref={filterRef} className="desk-filter">
           {nook.papers.length > 0 && (
             <input
               type="search"

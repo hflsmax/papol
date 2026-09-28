@@ -5624,7 +5624,7 @@ ${talkStyles}
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
 
 .desk-main { min-width: 0; }
-.desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-3); }
+.desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-1); }
 .desk-main-head h2 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; font: 600 var(--fs-xl) var(--font-serif); }
 .desk-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .desk-actions button { padding: 5px 12px; font: 500 var(--fs-sm) var(--font-ui); }
@@ -5633,7 +5633,9 @@ ${talkStyles}
 .upload-menu button { padding: 6px var(--space-3); border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink); font: 400 var(--fs-sm) var(--font-ui); text-align: left; }
 .upload-menu button:hover, .upload-menu button:focus-visible { background: var(--paper-sunken); }
 .desk-actions .upload-section.is-trigger .error { position: absolute; right: 0; z-index: 10; width: min(360px, 80vw); margin-top: 6px; }
-.desk-filter { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+/* The filter and the column heads stay at the top of the window while the
+   rows scroll under them; NookDesk measures the filter into --desk-filter-h. */
+.desk-filter { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0 var(--space-3); background: var(--paper); }
 .desk-search { flex: 0 1 15rem; min-width: 8rem; height: 32px; box-sizing: border-box; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font: 400 var(--fs-sm) var(--font-ui); }
 .desk-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); min-width: 0; }
 .desk-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
@@ -5642,7 +5644,7 @@ ${talkStyles}
 .desk-tag:hover, .desk-tag:focus-visible { background: var(--paper-sunken); }
 .desk-tag.is-on { background: var(--accent-soft); color: var(--accent); }
 .desk-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-.desk-table th { height: 32px; padding: 0 var(--space-3); border-bottom: 1px solid var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.desk-table th { position: sticky; top: calc(var(--desk-filter-h, 1px) - 1px); z-index: 1; height: 32px; padding: 0 var(--space-3); background: var(--card); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .desk-table td { height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; vertical-align: middle; }
 .desk-table tbody tr:last-child td { border-bottom: 0; }
 .desk-table tbody tr:hover td { background: var(--paper-sunken); }
@@ -5671,7 +5673,8 @@ ${talkStyles}
   .desk-rail { position: static; display: contents; }
   .desk-rail-part:first-child { order: -2; }
   .desk-main { order: -1; }
-  .desk-filter { flex-wrap: wrap; }
+  .desk-main-head { margin-bottom: var(--space-3); }
+  .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
   .desk-table thead, .desk-table .desk-col-date { display: none; }
   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
