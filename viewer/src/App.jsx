@@ -4306,49 +4306,6 @@ export default function App() {
                 {userName ? `Showing ${userName}’s annotations` : 'Showing shared annotations'}
               </span>
             )}
-            {/* Whose annotations the pages carry: the reader's own, or a
-                project's. Only where the reader has a project holding this
-                paper is there anything to choose, so only then is it here;
-                with a project on, it wears the project's colour and shows who
-                has marked the paper, each in the colour their ink is drawn
-                in; the name is in the menu and the tooltip, so the chip stays
-                small. */}
-            {(projectView || projectsHolding.length > 0) && (
-              <span className="project-switch" ref={projectSwitchRef}>
-                <button
-                  type="button"
-                  className={`bar-link project-pill${projectView ? ' on' : ''}`}
-                  aria-haspopup="menu"
-                  aria-expanded={projectMenuOpen}
-                  title={projectView ? `Reading in ${projectView.name}` : 'Read with a project on'}
-                  onClick={() => { setProjectMenuOpen((open) => !open); setPaperInfoOpen(false); }}
-                >
-                  <svg className="project-glyph" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="8.5" cy="9" r="3.2" /><circle cx="16.5" cy="9" r="3.2" />
-                    <path d="M3 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5M11 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5" />
-                  </svg>
-                  {projectView && (
-                    <span className="project-faces">
-                      {whoMarked([...projectView.notes, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (
-                        <span key={user.uuid} className="who" style={{ '--who': memberInk(user) }} title={user.display_name}>
-                          <Avatar user={user} className="mini-avatar" />
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </button>
-                {projectMenuOpen && (
-                  <div className="paper-info-pop project-menu" role="menu" data-tauri-drag-region="false">
-                    <a role="menuitemradio" aria-checked={!projectView} href={withProject(window.location.href, null)}>Yours</a>
-                    {projectsHolding.map((p) => (
-                      <a key={p.uuid} role="menuitemradio" aria-checked={projectView?.uuid === p.uuid} href={withProject(window.location.href, p.uuid)}>
-                        {p.name}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </span>
-            )}
             <button
               type="button"
               className="bar-link paper-info-button"
@@ -4394,6 +4351,50 @@ export default function App() {
                   {nookStep === 'adding' ? 'Adding to nook…' : 'Add to nook'}
                 </button>
               )
+            )}
+            {/* Whose annotations the pages carry: the reader's own, or a
+                project's. Only where the reader has a project holding this
+                paper is there anything to choose, so only then is it here;
+                with a project on, it wears the project's colour and shows who
+                has marked the paper, each in the colour their ink is drawn
+                in; the name is in the menu and the tooltip, so the chip stays
+                small. Last in the bar, after the paper's own controls, so it
+                stands clear of the square buttons on its own. */}
+            {(projectView || projectsHolding.length > 0) && (
+              <span className="project-switch" ref={projectSwitchRef}>
+                <button
+                  type="button"
+                  className={`bar-link project-pill${projectView ? ' on' : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={projectMenuOpen}
+                  title={projectView ? `Reading in ${projectView.name}` : 'Read with a project on'}
+                  onClick={() => { setProjectMenuOpen((open) => !open); setPaperInfoOpen(false); }}
+                >
+                  <svg className="project-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="8.5" cy="9" r="3.2" /><circle cx="16.5" cy="9" r="3.2" />
+                    <path d="M3 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5M11 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5" />
+                  </svg>
+                  {projectView && (
+                    <span className="project-faces">
+                      {whoMarked([...projectView.notes, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (
+                        <span key={user.uuid} className="who" style={{ '--who': memberInk(user) }} title={user.display_name}>
+                          <Avatar user={user} className="mini-avatar" />
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </button>
+                {projectMenuOpen && (
+                  <div className="paper-info-pop project-menu" role="menu" data-tauri-drag-region="false">
+                    <a role="menuitemradio" aria-checked={!projectView} href={withProject(window.location.href, null)}>Yours</a>
+                    {projectsHolding.map((p) => (
+                      <a key={p.uuid} role="menuitemradio" aria-checked={projectView?.uuid === p.uuid} href={withProject(window.location.href, p.uuid)}>
+                        {p.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </span>
             )}
             {nookStep === 'adding' && (
               <div className="paper-info-pop nook-ask nook-adding" data-tauri-drag-region="false">

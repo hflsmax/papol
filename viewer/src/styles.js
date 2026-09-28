@@ -67,22 +67,28 @@ ${talkStyles}
   background: var(--accent-soft);
   border-bottom-color: var(--accent-line);
 }
-.project-switch { position: relative; display: flex; align-items: center; min-width: 0; }
+.project-switch { position: relative; display: flex; align-items: center; flex: none; }
+/* The same 32px height and corner as the square buttons beside it; alone
+   it is one such square, and with the project on it grows only by the
+   faces it carries. */
 .viewer-bar .bar-link.project-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
-  border-radius: 999px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 6px;
+  background: var(--card);
   cursor: pointer;
 }
 .viewer-bar .bar-link.project-pill.on {
+  padding-right: 7px;
   border-color: var(--accent);
   background: var(--accent);
   color: var(--ink-inverse);
 }
 .viewer-bar .bar-link.project-pill.on:hover { color: var(--ink-inverse); background: var(--accent-strong); }
-.project-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.project-glyph { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 /* Who has marked the paper, each ringed in the colour their ink is drawn
    in, so the ring on the page and the face in the bar say the same name. */
 .project-faces { display: inline-flex; align-items: center; gap: 5px; }
