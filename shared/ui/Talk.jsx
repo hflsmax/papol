@@ -379,7 +379,13 @@ export function TalkCard({
     : undefined;
 
   // Whose dig this is, when there is a choice or it is not yours.
-  const owners = discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine)));
+  // Whose dig this is, when there is a choice, it is not yours, or yours is
+  // still to be written: starting a dig always happens on your own chip.
+  const owners = discussion !== undefined && (digs.length > 1 || !digs.some((d) => d.is_mine));
+  // A dig is started in the body, where its words will stand; the box at
+  // the foot only ever adds a post to the dig that is open.
+  const writing = discussion === null && currentUser;
+  const whose = discussion && (discussion.is_mine ? 'your' : `${discussion.owner?.display_name?.split(' ')[0]}'s`);
   const picker = discussion && (
     <PhasePicker
       dig={discussion}
@@ -437,6 +443,17 @@ export function TalkCard({
       <div className="talk-card-body" ref={list}>
         {discussion === undefined ? (
           <p className="talk-card-quiet">Opening…</p>
+        ) : writing ? (
+          <form className="talk-dig-new" onSubmit={send}>
+            <textarea
+              ref={box} rows={4} value={body} maxLength={POST_LIMIT} aria-label="Your dig"
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
+            />
+            <span className="talk-dig-new-foot">
+              <button type="submit" className="primary" disabled={!body.trim() || busy} title="Dig (⌘↩)">Dig</button>
+            </span>
+          </form>
         ) : posts.length === 0 ? null : (
           <>
             <ol className="talk-posts">
@@ -485,22 +502,24 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      <form className="talk-compose" onSubmit={send}>
-        {currentUser && <Face user={currentUser} />}
-        <textarea
-          ref={box}
-          rows={body ? 4 : posts.length ? 2 : 3}
-          value={body}
-          maxLength={POST_LIMIT}
-          placeholder={discussion ? 'Post' : 'Dig'}
-          aria-label={discussion ? 'Your post' : 'Your dig'}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
-        />
-        <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label={discussion ? 'Post' : 'Dig'} title={`${discussion ? 'Post' : 'Dig'} (⌘↩)`}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-        </button>
-      </form>
+      {discussion && (
+        <form className="talk-compose" onSubmit={send}>
+          {currentUser && <Face user={currentUser} />}
+          <textarea
+            ref={box}
+            rows={body ? 4 : 2}
+            value={body}
+            maxLength={POST_LIMIT}
+            placeholder={`Post to ${whose} dig`}
+            aria-label={`Post to ${whose} dig`}
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
+          />
+          <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+          </button>
+        </form>
+      )}
     </section>
   );
 }
