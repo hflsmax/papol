@@ -12,14 +12,14 @@ import Markdown from './Markdown.jsx';
 // A dig: a conversation, among any number of members, about one thing the
 // project holds. A pin, drawn like a note pin in the viewer, sits beside
 // the thing; pressing it opens a dig card, drawn like a card on a board,
-// right where you are. The same pin and card serve the project itself, a
-// paper, a member's thought, a board and a card on it. (In code the pin and
+// right where you are. The same pin and card serve a paper, a member's
+// thought, a board and a card on it; never the project as a whole, which
+// is no one thing. (In code the pin and
 // card keep their first name, Talk; the store calls a dig a discussion.)
 
 const POST_LIMIT = appLimits.text.discussion_post;
 
 const KINDS = {
-  project: { word: 'Project' },
   paper: { word: 'Paper' },
   take: { word: 'Thought' },
   board: { word: 'Board' },
@@ -186,8 +186,8 @@ function place(anchor, card) {
   };
 }
 
-// A dig is always about something: the project, a paper, a member's
-// thought, a board or a card. Nothing here is a free-floating chat room.
+// A dig is always about something: a paper, a member's thought, a board
+// or a card. Nothing here is a free-floating chat room.
 // When a dig drifts onto something else, any post in it can be dug into:
 // say what the new thing is, as something the project already holds or as
 // a new idea (a card on a board), and the card moves to that dig with the
@@ -220,10 +220,9 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
   const boards = project?.boards ?? [];
   const home = boards.find((b) => b.uuid === boardUuid) ?? boards[0] ?? null;
   const things = [
-    current !== 'project' && { subject: 'project', kind: 'project', label: project?.name ?? 'The project' },
     ...(project?.papers ?? []).map((p) => ({ subject: `paper:${p.sha256}`, kind: 'paper', label: p.title ?? 'Untitled paper' })),
     ...boards.map((b) => ({ subject: `board:${b.uuid}`, kind: 'board', label: b.name })),
-  ].filter((t) => t && t.subject !== current);
+  ].filter((t) => t.subject !== current);
 
   const makeIdea = async (e) => {
     e.preventDefault();
@@ -289,7 +288,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   const list = useRef(null);
   const box = useRef(null);
   const kind = kindOf(topic.subject);
-  const words = KINDS[kind] ?? KINDS.project;
+  const words = KINDS[kind] ?? KINDS.paper;
   const onHome = topic.subject === subject;
 
   useEffect(() => {

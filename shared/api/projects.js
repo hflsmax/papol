@@ -78,15 +78,14 @@ export function addIdeaCard(boardUuid, content) {
 // ---------- Discussions ----------
 
 // A discussion can be about anything a project holds, named by a key:
-// "project", "paper:<sha256>", "take:<sha256>:<user uuid>",
-// "board:<uuid>" or "card:<uuid>".
+// "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>" or
+// "card:<uuid>". Never the project itself.
 export function subjectKey(subject) {
   if (typeof subject === 'string') return subject;
   if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
   if (subject.paper) return `paper:${subject.paper}`;
   if (subject.card) return `card:${subject.card}`;
-  if (subject.board) return `board:${subject.board}`;
-  return 'project';
+  return `board:${subject.board}`;
 }
 
 // A subject's discussion, if it has one, and what it is about.

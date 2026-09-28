@@ -72,7 +72,7 @@ CREATE INDEX ix_project_boards_board_uuid ON project_boards (board_uuid);
 -- A discussion: writing about one thing in a project. The thing can be
 -- anything the project holds: the project itself, a paper, a member's
 -- thought on a paper, a board, or a card on a board. `subject` names it
--- ("project", "paper:<sha256>", "take:<sha256>:<user>", "board:<uuid>",
+-- ("paper:<sha256>", "take:<sha256>:<user>", "board:<uuid>",
 -- "card:<uuid>"); the columns beside it point at the same thing so it can
 -- be joined and cleaned up. One discussion per subject, so the place to
 -- talk about something is always the same place.

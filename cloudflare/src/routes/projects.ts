@@ -197,19 +197,17 @@ function excerpt(body: string): string {
 // Everything subjectOut needs to name a subject.
 export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_name, tc.thought AS take_thought, tc.thought_public AS take_public,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
-  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name, pj.name AS project_name`;
+  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
   LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
-  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
-  LEFT JOIN projects pj ON pj.uuid = d.project_uuid`;
+  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)`;
 
 // What a discussion is about, said the way the project page says it.
 export function subjectOut(d: Row) {
   const key = String(d.subject);
   const base = { key, kind: key.split(":")[0] };
-  if (base.kind === "project") return { ...base, label: (d.project_name as string) ?? "The project" };
   if (base.kind === "paper") return { ...base, paper_sha256: d.paper_sha256, label: d.paper_title ?? "A paper" };
   if (base.kind === "take") {
     const thought = d.take_public && d.take_thought ? `“${excerpt(String(d.take_thought)).slice(0, 120)}”` : null;

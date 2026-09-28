@@ -34,7 +34,6 @@ function Subject({ project, subject, action }) {
   const paperHref = subject.paper_sha256 ? appPath(`/paper/${paperName(subject.paper_sha256)}`) : null;
   const boardHref = subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const about = {
-    project: 'Digging into the project',
     paper: 'Digging into a paper',
     take: <>Digging into {subject.by ? `${subject.by}’s` : 'a'} thought on <a href={paperHref}>{subject.paper_title ?? 'a paper'}</a></>,
     board: 'Digging into a board',

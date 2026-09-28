@@ -1,6 +1,7 @@
 // Discussions: writing in a project about one thing in it. The thing can
-// be anything the project holds: the project itself, a paper, a member's
-// thought on a paper, a board, or a card on a board. A subject has one
+// be anything the project holds: a paper, a member's thought on a paper, a
+// board, or a card on a board. Never the project itself: a dig about the
+// whole project would be about nothing in particular. A subject has one
 // discussion, so talking about it always leads to the same place; the
 // first post opens it and the last one taken back closes it.
 
@@ -61,7 +62,6 @@ async function subjectOf(env: Env, project: Project, data: Row): Promise<Subject
   if (!key && typeof data.board_item_uuid === "string") key = `card:${data.board_item_uuid}`;
   if (!key) return refuse(422, "Say what the discussion is about");
   const [kind, first, second] = key.split(":");
-  if (kind === "project" && first === undefined) return { subject: "project", ...NONE };
   if (kind === "paper" && first && second === undefined) {
     const digest = await paperIn(env, project, first);
     return { ...NONE, subject: `paper:${digest}`, paper_sha256: digest };

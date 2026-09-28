@@ -107,6 +107,7 @@ test('a discussion has a page, and talking about anything in a project leads to 
   assert.deepEqual(parseRoute(`/project/${UUID}/discuss/card/${UUID}`), { page: 'discuss', uuid: UUID, subject: `card:${UUID}` });
   assert.deepEqual(parseRoute(`/project/${UUID}/discuss/board/${UUID}`), { page: 'discuss', uuid: UUID, subject: `board:${UUID}` });
   assert.deepEqual(parseRoute(`/project/${UUID}/discuss/take/${DIGEST64}/${UUID}`), { page: 'discuss', uuid: UUID, subject: `take:${DIGEST64}:${UUID}` });
-  assert.deepEqual(parseRoute(`/project/${UUID}/discuss/project`), { page: 'discuss', uuid: UUID, subject: 'project' });
+  // A project has no dig of its own.
+  assert.equal(parseRoute(`/project/${UUID}/discuss/project`).page, 'home');
   assert.equal(parseRoute(`/project/${UUID}/discuss/paper/abc`).page, 'home');
 });

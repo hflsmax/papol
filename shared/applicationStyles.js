@@ -6021,18 +6021,19 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
 .talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.talk-posts { margin: 0; padding: 0 0 var(--space-2); list-style: none; }
+.talk-posts { margin: 0; padding: 0 0 var(--space-1); list-style: none; }
 .talk-post + .talk-post { border-top: 1px solid var(--line); }
-.talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 2px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 11px; }
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
-.talk-post-body { color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); overflow-wrap: anywhere; }
+.talk-post-body { color: var(--ink); font: var(--fs-base)/1.4 var(--font-serif); overflow-wrap: anywhere; }
+.talk-post-body p, .discussion-post-body p { margin: 0 0 var(--space-2); }
 .talk-post-body > :first-child { margin-top: 0; }
 .talk-post-body > :last-child { margin-bottom: 0; }
 .talk-card-error { margin: 0 var(--space-4) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
 /* Following a drift: pick a post, dig into what it is about. */
-.talk-post { margin: 0 calc(-1 * var(--space-2)); padding: var(--space-3) var(--space-2); border-radius: 6px; cursor: default; }
+.talk-post { margin: 0 calc(-1 * var(--space-2)); padding: var(--space-2); border-radius: 6px; cursor: default; }
 .talk-post:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .talk-post.is-selected { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
 .talk-post-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
@@ -6107,14 +6108,14 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-title { margin: 0; font-size: var(--fs-2xl); line-height: 1.25; }
 .discussion-card-label { font-style: italic; }
 .discussion-posts { margin: 0; padding: 0; list-style: none; }
-.discussion-post { position: relative; padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); border-left: 2px solid var(--line); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
-.discussion-post + .discussion-post { margin-top: var(--space-3); }
+.discussion-post { position: relative; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); border-left: 2px solid var(--line); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+.discussion-post + .discussion-post { margin-top: var(--space-2); }
 .discussion-post.is-selected { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
-.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding-right: calc(var(--space-7) + var(--space-6)); }
-.discussion-post-head .item-actions { position: absolute; top: var(--space-3); right: var(--space-3); }
+.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px; padding-right: calc(var(--space-7) + var(--space-6)); }
+.discussion-post-head .item-actions { position: absolute; top: var(--space-1); right: var(--space-2); }
 .discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
 .discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.discussion-post-body { font-size: var(--fs-md); line-height: 1.65; }
+.discussion-post-body { font-size: var(--fs-base); line-height: 1.45; }
 .discussion-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: end; }
 .discussion-head .kicker, .discussion-title { grid-column: 1; }
 .discussion-jump { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
@@ -6122,8 +6123,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-jump .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 /* In the Mac app a project's pages keep their header in the window's
-   toolbar: the desk's name, pin, counts and people; a brief's actions;
-   where a dig is and its Reply. */
+   toolbar: the desk's name, counts and people; where a dig is and its
+   Reply. */
 .project-toolbar { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; }
 .project-toolbar .project-title { flex: none; max-width: 50%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
 .project-toolbar-tally, .discussion-toolbar-where { min-width: 0; overflow: hidden; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
@@ -6139,9 +6140,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-toolbar-where a { color: var(--ink); font-weight: 600; text-decoration: none; }
 .discussion-toolbar-where a:hover { color: var(--accent); }
 .desktop-toolbar .discussion-jump { flex: none; padding: 2px var(--space-2); }
-.brief-toolbar-actions { flex-wrap: nowrap; margin: 0 0 0 auto; }
-.brief-toolbar-actions .button.primary { padding: 3px var(--space-4); }
-.brief-toolbar-actions .brief-take-out { margin-left: 0; }
 /* Your turn: a card with your face on it, below the last post. */
 .discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
 .discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }

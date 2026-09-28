@@ -10,7 +10,6 @@ import appLimits from '../../../shared/appLimits.js';
 import { paperName } from '../../../shared/paperName.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
-import { InToolbar } from './DesktopChrome';
 import { formatAuthors } from '../paperFormat.js';
 import Avatar from './Avatar';
 import { RATING_DIMENSIONS } from './Rating';
@@ -86,31 +85,11 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
     if (ok && await act(() => removePaperFromProject(project.uuid, paper.sha256))) onRemoved?.();
   };
 
-  const actions = (
-    <div className={`brief-actions${DESKTOP ? ' brief-toolbar-actions' : ''}`}>
-      <a
-        className="button primary" href={viewer} data-document
-        onClick={(e) => {
-          if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-          e.preventDefault();
-          onRead(viewer);
-        }}
-      >
-        Read
-      </a>
-      {!paper.in_my_nook && (
-        <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
-      )}
-      <a className="brief-jacket" href={appPath(`/paper/${name}`)}>In the Library</a>
-      {canTakeOut && <button type="button" className="project-quiet project-danger brief-take-out" onClick={takeOut}>Take out</button>}
-    </div>
-  );
-
-  // In the Mac app the toolbar names the project and carries the actions,
-  // and the sidebar is the way back, so the page starts with the paper.
+  // In the Mac app the toolbar names the project and the sidebar is the way
+  // back, so the page starts with the paper.
   return (
     <div className="brief-page">
-      {DESKTOP ? <InToolbar>{actions}</InToolbar> : <BackLink className="back-button" href={backHref} onBack={onBack} />}
+      {!DESKTOP && <BackLink className="back-button" href={backHref} onBack={onBack} />}
       <header className="brief-head">
         {!DESKTOP && <p className="kicker"><a href={appPath(`/project/${project.uuid}`)}>{project.name}</a> · Brief</p>}
         <h1 className="brief-title">{paper.title}</h1>
@@ -118,7 +97,23 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
           <span className="brief-authors">{formatAuthors(paper.authors)}</span>
           {[paper.journal, paper.year].filter(Boolean).length > 0 && <span>{[paper.journal, paper.year].filter(Boolean).join(' · ')}</span>}
         </p>
-        {!DESKTOP && actions}
+        <div className="brief-actions">
+          <a
+            className="button primary" href={viewer} data-document
+            onClick={(e) => {
+              if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onRead(viewer);
+            }}
+          >
+            Read
+          </a>
+          {!paper.in_my_nook && (
+            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
+          )}
+          <a className="brief-jacket" href={appPath(`/paper/${name}`)}>In the Library</a>
+          {canTakeOut && <button type="button" className="project-quiet project-danger brief-take-out" onClick={takeOut}>Take out</button>}
+        </div>
       </header>
       {notice && <div className="error" role="alert">{notice}</div>}
 

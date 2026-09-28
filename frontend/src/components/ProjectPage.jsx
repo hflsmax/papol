@@ -177,7 +177,6 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         <InToolbar>
           <div className="project-toolbar talk-host" data-toolbar-title>
             {title}
-            {pin('project', project.name)}
             <span className="project-toolbar-tally">{tally}</span>
             {since.length > 0 && <span className="project-toolbar-since">{since.join(' · ')} new</span>}
           </div>
@@ -190,7 +189,6 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             <div className="project-head-main">
               <div className="project-title-row">
                 {title}
-                {project.is_member && pin('project', project.name, { size: 'lg' })}
               </div>
               {project.is_member && <p className="project-tally">{tally}</p>}
               {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' · ')}</p>}
@@ -385,7 +383,7 @@ function ProjectPapers({ project, currentUser, pin, latestDig, digLine, hueOf, o
 // Everything being talked about, latest first, beside the desk. Each is a
 // card that opens its talk right there; the first line starts talk about
 // the project as a whole.
-export const SUBJECT_WORDS = { project: 'Project', paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
+export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card' };
 
 function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
   const [all, setAll] = useState(false);
@@ -397,7 +395,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
     const key = target(d);
     if (key) document.querySelector(`[data-subject="${key}"]`)?.classList.toggle('is-lit', on);
   };
-  const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : d.subject.kind === 'project' ? 'var(--accent)' : 'var(--gold)');
+  const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : 'var(--gold)');
   return (
     <aside className={`project-talk${all ? ' is-all' : ''}`} aria-labelledby="project-talk-heading">
       <SectionHead id="project-talk-heading" title="Digs" count={discussions.length} />
@@ -413,7 +411,7 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked }) {
                     <span className="project-talk-subject">
                       <i style={{ background: square(d) }} />
                       <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
-                      {kind !== 'project' && <span className="project-talk-label">{d.subject.label}</span>}
+                      <span className="project-talk-label">{d.subject.label}</span>
                     </span>
                     {last && <span className="project-talk-excerpt">{last.excerpt}</span>}
                     <span className="project-talk-meta">

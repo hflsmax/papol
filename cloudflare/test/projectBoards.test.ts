@@ -109,14 +109,14 @@ describe("discussions", () => {
   it("digs into a drift as a new card, and lists posts as plain words", async () => {
     const { dana, ana, project } = await group();
     const board = await boardIn(dana, project.uuid);
-    const first = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: dana.headers, json: { subject: "project", body: "Sparse attention might fix the lag." } });
+    const first = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: dana.headers, json: { subject: `board:${board.uuid}`, body: "Sparse attention might fix the lag." } });
     const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: ana.headers, json: { content: "Sparse attention" } });
     const dug = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `card:${card.uuid}`, body: "> Dana: Sparse attention might fix the lag.\n\nWho has **tried** it?" } });
     await ok("POST", `/api/discussions/${first.uuid}/posts`, { headers: ana.headers, json: { body: `Dug into [Sparse attention](/discussion/${dug.uuid})` } });
 
     const listed = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
     const excerpts = Object.fromEntries(listed.discussions.map((d: { subject: { key: string }; last_post: { excerpt: string } }) => [d.subject.key, d.last_post.excerpt]));
-    expect(excerpts).toEqual({ project: "Dug into Sparse attention", [`card:${card.uuid}`]: "Who has tried it?" });
+    expect(excerpts).toEqual({ [`board:${board.uuid}`]: "Dug into Sparse attention", [`card:${card.uuid}`]: "Who has tried it?" });
   });
 
   it("discusses a card on a project board and marks it on the board", async () => {
@@ -131,14 +131,13 @@ describe("discussions", () => {
     });
   });
 
-  it("talks about the project, a board, and a member's thought on a paper", async () => {
+  it("digs into a board and a member's thought on a paper, never the project itself", async () => {
     const { dana, ana, sam, project } = await group();
     await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
     const board = await boardIn(dana, project.uuid, "Bench plan");
 
-    const general = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: "project", body: "Weekly sync on Friday?" } });
-    expect(general.subject).toMatchObject({ key: "project", kind: "project", label: "Wavefronts" });
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: "project", body: "Weekly sync on Friday?" } })).status).toBe(422);
     const onBoard = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `board:${board.uuid}`, body: "Too many cards." } });
     expect(onBoard.subject).toMatchObject({ key: `board:${board.uuid}`, kind: "board", board_uuid: board.uuid, label: "Bench plan" });
     const take = `take:${A_PAPER}:${dana.uuid}`;
@@ -156,7 +155,7 @@ describe("discussions", () => {
     // Only members, and only about what the project holds.
     expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `take:${A_PAPER}:${sam.uuid}`, body: "x" } })).status).toBe(404);
     expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: "shelf:1", body: "x" } })).status).toBe(422);
-    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: sam.headers, json: { subject: "project", body: "x" } })).status).toBe(403);
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: sam.headers, json: { subject: `board:${board.uuid}`, body: "x" } })).status).toBe(403);
   });
 
   it("lets a writer edit, and a writer or keeper take back; the last post closes it", async () => {

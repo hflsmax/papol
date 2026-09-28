@@ -24,7 +24,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   // Where talking about a subject leads: its discussion, or the first post.
   const ID = UUID.slice(1, -1);
   const DIGEST = '[0-9a-f]{64}';
-  const discuss = path.match(new RegExp(`^/project/${UUID}/discuss/(project|paper/${DIGEST}|take/${DIGEST}/${ID}|(?:board|card)/${ID})/?$`, 'i'));
+  const discuss = path.match(new RegExp(`^/project/${UUID}/discuss/(paper/${DIGEST}|take/${DIGEST}/${ID}|(?:board|card)/${ID})/?$`, 'i'));
   if (discuss) return { page: 'discuss', uuid: discuss[1].toLowerCase(), subject: discuss[2].toLowerCase().replace(/\//g, ':') };
   // A paper as a project sees it, named as the Library names it.
   const brief = path.match(new RegExp(`^/project/${UUID}/paper/${PAPER}/?$`, 'i'));
