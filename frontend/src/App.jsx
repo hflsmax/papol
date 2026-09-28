@@ -9,6 +9,7 @@ import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import Nook from './components/Nook';
+import NookDesk, { forgetNookShape } from './components/NookDesk';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
@@ -561,9 +562,29 @@ export default function App({ startupUser = null, startupError = null }) {
       }
       return;
     }
+    forgetNookShape();
     setUser(null);
     navigate('/');
   };
+
+  if (!authChecked && !DESKTOP && NOOK_PAGES.has(route.page)) {
+    // A member coming back to their nook: its frame while the sign-in is
+    // checked, the same one it keeps while its papers come.
+    return (
+      <>
+        <style>{applicationStyles}</style>
+        <div className="app has-way" data-page={route.page}>
+          <WayBar route={route} />
+          <main className="main-content">
+            <div className="nook is-desk">
+              <NookDesk adding={<button type="button" className="primary" aria-disabled="true" tabIndex={-1}>Add papers</button>} elsewhere={route.page !== 'home' && route.page !== 'shelf'} shelf={route.page === 'shelf' ? route.uuid : null} />
+            </div>
+          </main>
+          <WayFoot user={{}} macDownloadUrl={MACOS_DOWNLOAD_URL} />
+        </div>
+      </>
+    );
+  }
 
   if (!authChecked) {
     return (

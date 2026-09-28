@@ -8,7 +8,7 @@ import { createServer } from 'vite';
 // loads. No account or Worker is needed. `?shell=desktop` shows the Mac
 // shell around the same pages. project-shots.mjs photographs them.
 
-const ME = 'a1b2c3d4-0000-4000-8000-000000000001';
+export const ME = 'a1b2c3d4-0000-4000-8000-000000000001';
 const ANA = 'a1b2c3d4-0000-4000-8000-000000000002';
 const BEN = 'a1b2c3d4-0000-4000-8000-000000000003';
 const MIA = 'a1b2c3d4-0000-4000-8000-000000000004';
@@ -252,9 +252,14 @@ function answer(method, path, search) {
   return method === 'GET' ? {} : { ok: true };
 }
 
+// Paths the pretend server leaves unanswered, so a picture can show a
+// page while it waits for them.
+export const held = new Set();
+
 function projectFixture(server) {
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    if (held.has(url.pathname)) return;
     const body = answer(req.method, url.pathname, url.searchParams);
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = body === null ? 404 : 200;

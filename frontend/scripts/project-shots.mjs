@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { DIG_PAPER, P_ERROR, PROJECT, projectServer } from './fixtures/projectPages.mjs';
+import { DIG_PAPER, ME, P_ERROR, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a brief and a dig, on
@@ -58,6 +58,13 @@ const SHOTS = {
   you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
   'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
+  // The nook while it waits: for the sign-in to be checked, then for its
+  // papers.
+  'nook-signing-in': { path: '/?shell=web', hold: ['/auth/me'], ready: "document.getElementById('root').childElementCount > 0", size: wide },
+  // Back to the nook from elsewhere in the app: shown as it was left while
+  // it is fetched again.
+  'nook-return': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: [`/users/${ME}/nook`], then: "document.querySelector('.way-aside a').click(); return new Promise((done) => setTimeout(() => { document.querySelector('.way-mark').click(); done(true); }, 1000));", settled: "document.querySelector('.nook .desk-title')", size: wide },
+  'nook-loading': { path: '/?shell=web', hold: [`/users/${ME}/nook`], ready: "document.querySelector('.nook, .loading')", size: wide },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket h2')", size: phone },
   'phone-brief': { path: `/project/${PROJECT}/paper/${paper}?shell=web`, ready: "document.querySelector('.brief-page .talk-post')", size: phone },
@@ -81,10 +88,13 @@ try {
   await mkdir(outDir, { recursive: true });
   for (const name of names) {
     const shot = SHOTS[name];
+    held.clear();
+    for (const path of shot.hold ?? []) held.add(path);
     await browser.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor: 2, mobile: false, ...shot.size });
     // The Mac shell is remembered per tab, so a web shot says so.
     await browser.navigate(origin + shot.path);
     await browser.waitFor(shot.ready, { timeout: 40_000, what: `${name} to be ready` });
+    for (const path of shot.holdThen ?? []) held.add(path);
     if (shot.then) { await browser.evaluate(shot.then); await new Promise((done) => setTimeout(done, 300)); }
     if (shot.settled) await browser.waitFor(shot.settled, { what: `${name} to settle` });
     await browser.evaluate(`return ${settled};`);

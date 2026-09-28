@@ -11,7 +11,8 @@ export const BAZAAR = 'Bazaar';
 // The one bar over a signed-in member's pages on the web: the trail home
 // on the left, and on the right the Bazaar beside it and the member, who
 // wears the count of what has come for them. A page names its own trail through InWay;
-// `trail` is the one said for it when it names none.
+// `trail` is the one said for it when it names none. Before the member is
+// known (their sign-in still being checked) the bar stands without them.
 export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   return (
     <header className="way-bar">
@@ -27,7 +28,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
           {BAZAAR}
         </a>
       </nav>
-      <a
+      {user && <a
         className="way-self"
         href={appPath('/profile')}
         aria-current={route.page === 'profile' || route.page === 'inbox' ? 'page' : undefined}
@@ -36,7 +37,8 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
       >
         <Avatar user={user} className="nav-avatar" />
         {unreadCount > 0 && <span className="way-count way-self-count" aria-hidden="true">{unreadCount}</span>}
-      </a>
+      </a>}
+      {!user && <span className="way-self" aria-hidden="true"><span className="nav-avatar" /></span>}
     </header>
   );
 }
