@@ -162,7 +162,17 @@ const listed = (p, mine = false) => {
 // What the pretend server says to each request the pages make.
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
-  if (path === '/notifications') return { notifications: [], unread_count: 1 };
+  if (path === '/notifications') {
+    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, room_uuid: null });
+    return {
+      notifications: [
+        note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
+        note(2, 'Mia Tanaka joined Adaptive optics control.', 26, false),
+        note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
+      ],
+      unread_count: 2,
+    };
+  }
   if (path === '/admin-messages/pending') return [];
   if (path === '/projects') return [summary, other];
   if (path === `/projects/${PROJECT}`) return project;

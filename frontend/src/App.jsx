@@ -21,6 +21,7 @@ import HomePage from './components/HomePage';
 import AboutPage from './components/AboutPage';
 import LearnPage from './components/LearnPage';
 import ProjectsPage from './components/ProjectsPage';
+import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage';
 import BriefPage from './components/BriefPage';
@@ -779,7 +780,7 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'room' && (
         <RoomPage roomUuid={route.uuid} currentUser={user} hideBack={hasWay} onBack={goBack} backHref={backHref} />
       )}
-      {route.page === 'inbox' && (
+      {!hasWay && route.page === 'inbox' && (
         <InboxPage
           onOpenRoom={(uuid) => navigate(`/room/${uuid}`)}
           onUnread={setUnreadCount}
@@ -801,7 +802,21 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'signin' && (
         <AuthPage onAuth={handleAuth} initialMode="login" />
       )}
-      {route.page === 'profile' &&
+      {hasWay && (route.page === 'profile' || route.page === 'inbox') && (
+        <YouPage
+          user={user}
+          unreadCount={unreadCount}
+          onUnread={setUnreadCount}
+          onOpenRoom={(uuid) => navigate(`/room/${uuid}`)}
+          onUserUpdated={setUser}
+          onLogout={handleLogout}
+          onSync={() => {
+            nookState.reload();
+            setSyncRefresh((revision) => revision + 1);
+          }}
+        />
+      )}
+      {!hasWay && route.page === 'profile' &&
         (user ? (
           <ProfilePage
             user={user}

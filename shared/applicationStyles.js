@@ -175,7 +175,20 @@ ${commonStyles}
   text-align: center;
 }
 
-.way-self { display: inline-flex; border-radius: 50%; }
+.way-self { position: relative; display: inline-flex; border-radius: 50%; }
+.way-self-count { position: absolute; top: -5px; right: -9px; margin: 0; box-shadow: 0 0 0 2px var(--paper); }
+
+/* A member's own page: who they are, then Inbox, Activity or Account,
+   one at a time, in the tabs a project's desk uses. */
+.you-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); }
+.you-avatar { width: 56px; height: 56px; font-size: var(--fs-xl); }
+.you-name { margin: 0; font: 600 var(--fs-2xl) var(--font-serif); }
+.you-affiliation { margin: 2px 0 0; color: var(--ink-soft); font-style: italic; }
+.you-tabs { margin-bottom: var(--space-4); }
+.you-who { flex: 1; min-width: 0; }
+.inbox-panel.is-bare .panel-head-row:empty { display: none; }
+.inbox-panel.is-bare .panel-head-row { justify-content: flex-end; margin-bottom: var(--space-2); }
+.inbox-panel.is-bare .panel-head-row .link-button { font: var(--fs-sm) var(--font-ui); }
 .way-self .nav-avatar { margin: 0; vertical-align: 0; }
 .way-self[aria-current] .nav-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
 
