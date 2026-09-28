@@ -26,7 +26,7 @@ import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage
 import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
 import { briefPath, listProjects } from '../../shared/api/projects.js';
-import { COMMONS, WayBar, WayFoot } from './components/Way';
+import { BAZAAR, WayBar, WayFoot } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
@@ -912,9 +912,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // says so itself: a jacket to the place it was opened from, a nook of
   // someone else's to the Library their papers are found in.
   const wayTrail = (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: '/library', label: COMMONS } : jacketBack]
+    ? [jacketBack.path === '/library' ? { path: '/bazaar', label: BAZAAR } : jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: '/library', label: COMMONS }]
+      ? [{ path: '/bazaar', label: BAZAAR }]
       : [];
   return (
     <>
@@ -952,8 +952,8 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
               Home
             </a>
-            <a href={appPath('/library')} className={route.page === 'papers' ? 'active' : ''}>
-              Library
+            <a href={appPath('/bazaar')} className={route.page === 'papers' ? 'active' : ''}>
+              Bazaar
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

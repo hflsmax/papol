@@ -51,6 +51,7 @@ test('every standing page is reachable by its path', () => {
     '/learn': 'learn',
     '/signin': 'signin',
     '/library': 'papers',
+    '/bazaar': 'papers',
     '/inbox': 'inbox',
     '/admin': 'admin',
   };

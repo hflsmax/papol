@@ -6,10 +6,10 @@ import Avatar from './Avatar';
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
 // where everyone else's work is: their papers, boards and projects.
-export const COMMONS = 'Commons';
+export const BAZAAR = 'Bazaar';
 
 // The one bar over a signed-in member's pages on the web: the trail home
-// on the left, and on the right the Commons beside it, what is waiting for
+// on the left, and on the right the Bazaar beside it, what is waiting for
 // the member and who they are. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none.
 export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCount = 0 }) {
@@ -23,8 +23,8 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCou
         </span>
       </nav>
       <nav className="way-aside" aria-label="Elsewhere">
-        <a href={appPath('/library')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
-          {COMMONS}
+        <a href={appPath('/bazaar')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
+          {BAZAAR}
           {projectNewCount > 0 && <span className="way-count" title={`${projectNewCount} new in your projects`}>{projectNewCount}</span>}
         </a>
         <a

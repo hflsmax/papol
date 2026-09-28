@@ -40,7 +40,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/about') return { page: 'about' };
   if (path === '/learn') return { page: 'learn' };
   if (path === '/signin') return { page: 'signin' };
-  if (path === '/library') return { page: 'papers' };
+  if (path === '/bazaar' || path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
   return { page: 'home' };

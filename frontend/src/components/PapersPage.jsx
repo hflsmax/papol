@@ -177,8 +177,8 @@ export default function PapersPage({
           <div className="library-search-line">
             <input
               type="text"
-              aria-label="Search the library"
-              placeholder="Search the library…"
+              aria-label="Search the bazaar"
+              placeholder="Search the bazaar…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -195,7 +195,7 @@ export default function PapersPage({
 
         {shown.length === 0 && shownBoards.length === 0 ? (
           <div className="no-papers">
-            <p>{papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your filters.'}</p>
+            <p>{papers.length === 0 && boards.length === 0 ? 'The bazaar is empty.' : 'Nothing matches your filters.'}</p>
             {hasActiveFilters && <button type="button" className="link-button" onClick={() => { setSelectedUser(null); setSearch(''); }}>Clear filters</button>}
           </div>
         ) : (

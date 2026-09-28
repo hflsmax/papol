@@ -5748,7 +5748,7 @@ ${desktopStyles}
 .projects-kicker { margin: var(--space-5) 0 var(--space-2); }
 .projects-head + .projects-kicker { margin-top: 0; }
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }
-/* In the Commons, the projects are a section above everyone's papers. */
+/* In the Bazaar, the projects are a section above everyone's papers. */
 .projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
 .projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
 .projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
@@ -6396,7 +6396,26 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .nook-projects-faces { display: inline-flex; align-items: center; margin-right: calc(-1 * var(--space-1)); }
 .nook-projects-avatar { width: 20px; height: 20px; margin-left: calc(-1 * var(--space-1)); border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
 .nook-projects-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
-.upload-review-mode .nook-projects { display: none; }
+.upload-review-mode .nook-projects,
+.upload-review-mode .nook-desk-projects { display: none; }
+
+/* A member's own projects on their nook: cards in a row under the header,
+   the first thing after who they are. A project with something new wears
+   the gold of new things. */
+.nook-desk-projects { margin-top: var(--space-5); }
+.nook-desk-projects-title { margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
+.nook-desk-projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.nook-project-card {
+  display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3); height: 100%; box-sizing: border-box;
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+  color: var(--ink); text-decoration: none;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+.nook-project-card:hover, .nook-project-card:focus-visible { border-color: var(--accent); }
+.nook-project-card.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
+.nook-project-card-name { font: 600 var(--fs-md) var(--font-serif); line-height: 1.3; }
+.nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
 /* Product-wide motion preference. Component media rules can remove layout
    transitions more selectively, while this guarantees that no newly added

@@ -165,7 +165,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
               >
                 Read
               </a>
-              <a className="brief-jacket" href={appPath(`/paper/${name}`)}>In the Library</a>
+              <a className="brief-jacket" href={appPath(`/paper/${name}`)}>{DESKTOP ? 'In the Library' : 'In the Bazaar'}</a>
               {!paper.in_my_nook && (
                 <button type="button" className="brief-jacket brief-nook" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
               )}

@@ -22,7 +22,7 @@ function Crowd({ members, currentUser }) {
 
 // Every project: mine first, where the work is, then everyone else's by
 // name and keepers, so anyone can see who to ask to be let in. On the web
-// it is a section of the Commons, beside everyone's papers and boards.
+// it is a section of the Bazaar, beside everyone's papers and boards.
 export default function ProjectsPage({ currentUser, onOpenProject, onChanged, section = false }) {
   const Title = section ? 'h3' : 'h2';
   const [projects, setProjects] = useState(null);

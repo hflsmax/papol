@@ -123,9 +123,38 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             </div>
           )}
         </div>
-        {nook.projects?.length > 0 && (
-          <nav className="nook-projects" aria-label={isOwn ? 'My projects' : 'Projects'}>
-            <span className="kicker nook-projects-label">{isOwn ? 'My projects' : 'Projects'}</span>
+        {isOwn && nook.projects?.length > 0 && (
+          // A member's own projects are where their shared work goes on:
+          // each a card of its own, with what is new in it.
+          <section className="nook-desk-projects" aria-label="My projects">
+            <h3 className="nook-desk-projects-title">Projects</h3>
+            <ul className="nook-desk-projects-grid">
+              {nook.projects.map((project) => {
+                const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);
+                return (
+                  <li key={project.uuid}>
+                    <a className={project.new_count > 0 ? 'nook-project-card has-new' : 'nook-project-card'} href={appPath(`/project/${project.uuid}`)}>
+                      <span className="nook-project-card-name">{project.name}</span>
+                      <span className="nook-project-card-foot">
+                        <span className="nook-projects-faces">
+                          {others.slice(0, 4).map((m) => (
+                            <Avatar key={m.user.uuid} user={m.user} className="nook-projects-avatar" />
+                          ))}
+                          {others.length > 4 && <span className="nook-projects-more">+{others.length - 4}</span>}
+                          {others.length === 0 && <span className="nook-projects-more">Just you</span>}
+                        </span>
+                        {project.new_count > 0 && <span className="nook-project-card-new">{project.new_count} new</span>}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+        {!isOwn && nook.projects?.length > 0 && (
+          <nav className="nook-projects" aria-label="Projects">
+            <span className="kicker nook-projects-label">Projects</span>
             <ul className="nook-projects-list">
               {nook.projects.map((project) => {
                 const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);
