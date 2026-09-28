@@ -5314,9 +5314,17 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
 /* Wide: the list stays put and the dig opens beside it. */
 .project-talk.is-wide { display: grid; grid-template-columns: minmax(360px, 460px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
-.project-talk-phase { flex: none; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); letter-spacing: 0; text-transform: none; }
-.project-talk-phase.is-gold { border-color: var(--accent); color: var(--accent-strong); }
-.project-talk-item.is-buried .project-talk-label { color: var(--ink-faint); }
+/* Bands by phase, parted by space: digging first and unheaded, then a
+   quiet heading with its count for each of the others. */
+.project-talk-bands { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.project-talk-band-head { display: flex; align-items: center; gap: var(--space-1); width: 100%; min-height: 0; padding: var(--space-1) var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/1.6 var(--font-ui); letter-spacing: 0; text-align: left; text-transform: none; }
+.project-talk-band-head:hover:not(:disabled) { border: 0; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); }
+.project-talk-band-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.project-talk-band-count { margin-left: 2px; color: var(--ink-faint); font-weight: 400; font-variant-numeric: tabular-nums; }
+.project-talk-band-fold { flex: none; width: 10px; height: 10px; margin-left: -2px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-faint); transform: rotate(90deg); transition: transform var(--motion-fast) var(--ease-out); }
+.project-talk-band-head[aria-expanded="false"] .project-talk-band-fold { transform: none; }
+.project-talk-band-head + .project-talk-list { margin-top: 2px; }
+.project-talk-band.is-buried .project-talk-item:not(.is-selected) .project-talk-label { color: var(--ink-soft); }
 .project-talk .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
 .project-talk .project-talk-item.is-new, .project-talk .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
 .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
@@ -5331,7 +5339,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* One dig, so its phase sits at the end of the subject line. */
 .project-talk-panel .talk-card.is-inline { position: static; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { position: absolute; top: var(--space-2); right: var(--space-5); min-height: 0; padding: 0; background: none; }
-.project-talk-panel .project-talk-subject-line { padding-right: 8rem; }
+.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 17rem; }
+/* Narrow, the phases take their own line under the subject. */
+.project-talk:not(.is-wide) .project-talk-panel .talk-card.is-inline .talk-card-header { position: static; margin: var(--space-1) 0 var(--space-2); }
+.project-talk:not(.is-wide) .project-talk-panel .dig-phase { margin-left: 0; }
 .project-talk-panel .talk-card.is-inline :is(.talk-card-owners, .talk-card-body) { padding-left: 0; padding-right: 0; }
 .project-talk-panel .talk-post { margin-inline: 0; padding-inline: 0; }
 .project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--card); }
@@ -5351,7 +5362,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-item:hover .project-talk-label { color: var(--accent); }
 .project-talk-item.is-selected .project-talk-label { color: var(--ink); }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-talk-meta .project-talk-phase { margin-left: 0; }
 .project-talk-meta .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 @container (max-width: 559px) {
   .project-head { align-items: flex-start; }
@@ -5413,6 +5423,12 @@ ${talkStyles}
 .paper-brief-dig .talk-card.is-inline { position: relative; }
 .paper-brief-dig .talk-card.is-inline .talk-card-header { position: absolute; top: calc(var(--space-3) + 6px); right: 0; z-index: 1; padding: 0; }
 .paper-brief-dig .talk-post:first-child .talk-post-head { padding-right: 120px; }
+/* A buried dig folds to its owner's line; pressing it opens the dig. */
+.paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: calc(100% + 2 * var(--space-2)); min-height: 36px; margin: var(--space-3) calc(-1 * var(--space-2)) 0; padding: var(--space-1) var(--space-2); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
+.paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-soft); }
+.paper-brief-dig-folded .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
+.paper-brief-dig-owner { color: var(--ink-soft); font-weight: 600; }
+.paper-brief-dig-folded .dig-phase-word { margin-left: 0; pointer-events: none; }
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people. */

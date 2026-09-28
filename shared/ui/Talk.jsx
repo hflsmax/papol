@@ -11,6 +11,7 @@ import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
 import PaperTitle from './PaperTitle.jsx';
 import { plainTitle } from '../texTitle.js';
+import { useDismiss } from '../useDismiss.js';
 
 // A dig: one member's writing about one thing the project holds, which
 // anyone in the project can post in. A thing holds one dig per member who
@@ -31,17 +32,57 @@ export const PHASES = [
   { key: 'buried', word: 'Buried' },
 ];
 export const phaseWord = (phase) => PHASES.find((p) => p.key === phase)?.word ?? 'Digging';
+// Digging first, then stashed, gold and buried: how lists of digs run.
+export const phaseRank = (phase) => Math.max(0, PHASES.findIndex((p) => p.key === phase));
 
-export function PhasePicker({ dig, onMoved, className = '' }) {
+// The four phases side by side, the current one on a white tile: one press
+// moves the dig. Compact, only the current word shows until it is pressed,
+// then the bar opens in its place and closes after a move or away.
+export function PhasePicker({ dig, onMoved, compact = false, className = '' }) {
+  const current = dig.phase ?? 'digging';
+  const [shown, setShown] = useState(current);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const move = async (e) => {
+  const bar = useRef(null);
+  useEffect(() => setShown(current), [current]);
+  useDismiss(compact && open, bar, () => setOpen(false));
+  useEffect(() => {
+    if (compact && open) bar.current?.querySelector('[aria-checked="true"]')?.focus();
+  }, [compact, open]);
+  const move = async (phase) => {
+    if (compact) setOpen(false);
+    if (phase === shown || busy) return;
+    setShown(phase);
     setBusy(true);
-    try { onMoved?.(await moveDig(dig.uuid, e.target.value)); } finally { setBusy(false); }
+    try { onMoved?.(await moveDig(dig.uuid, phase)); } catch { setShown(current); } finally { setBusy(false); }
   };
+  // Arrows walk the words; Enter or Space moves the dig.
+  const walk = (e) => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const words = [...e.currentTarget.querySelectorAll('button')];
+    const at = words.indexOf(document.activeElement);
+    words[(at + step + words.length) % words.length]?.focus();
+  };
+  if (compact && !open) {
+    return (
+      <button type="button" className={`dig-phase-word is-${shown} ${className}`} aria-haspopup="true" aria-label={`Phase: ${phaseWord(shown)}`} onClick={() => setOpen(true)}>
+        {phaseWord(shown)}
+      </button>
+    );
+  }
   return (
-    <select className={`dig-phase is-${dig.phase ?? 'digging'} ${className}`} value={dig.phase ?? 'digging'} disabled={busy} aria-label="Phase" onChange={move}>
-      {PHASES.map((p) => <option key={p.key} value={p.key}>{p.word}</option>)}
-    </select>
+    <div ref={bar} className={`dig-phase${busy ? ' is-busy' : ''} ${className}`} role="radiogroup" aria-label="Phase" onKeyDown={walk}>
+      {PHASES.map((p) => (
+        <button
+          key={p.key} type="button" role="radio" aria-checked={shown === p.key} tabIndex={shown === p.key ? 0 : -1}
+          className={shown === p.key ? 'is-on' : ''} onClick={() => move(p.key)}
+        >
+          {p.word}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -215,10 +256,11 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
-// the one that says what the dig is about.
+// the one that says what the dig is about. With phaseBar the four phases
+// stand open (the dig open in the Digs tab); else only the current one.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
-  single = false,
+  single = false, phaseBar = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
@@ -403,7 +445,7 @@ export function TalkCard({
   const whose = discussion && (discussion.is_mine ? 'your' : `${discussion.owner?.display_name?.split(' ')[0]}'s`);
   const picker = discussion && (
     <PhasePicker
-      dig={discussion}
+      dig={discussion} compact={!phaseBar}
       onMoved={(next) => {
         setDiscussion(next);
         const others = digs.filter((d) => d.uuid !== next.uuid);
