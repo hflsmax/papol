@@ -290,7 +290,10 @@ try {
     await browser.waitFor('document.querySelector("#upload-paper-title").value === "Looked-up paper"', { what: 'the looked-up title' });
     const asked = await browser.evaluate('return window.lookupSeen;');
     assert.equal(asked.length, 1);
-    assert.deepEqual(asked[0].body, { identifier: { arxiv_id: '1706.03762v7' }, uploaded_name: 'attention.pdf' });
+    // With the title block, for what the indexes leave out (a preprint's venue).
+    const { title_block: lookedBlock, ...lookedUp } = asked[0].body;
+    assert.deepEqual(lookedUp, { identifier: { arxiv_id: '1706.03762v7' }, uploaded_name: 'attention.pdf' });
+    assert.equal(lookedBlock?.title, 'Attention Is All You Need');
     assert.equal(asked[0].putDone, false, 'the indexes were asked before the bytes were in');
     assert.equal(await value('upload-paper-doi'), '10.48550/arXiv.1706.03762');
     assert.equal(await value('upload-paper-authors'), 'Ashish Vaswani');
