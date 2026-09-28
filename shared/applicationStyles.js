@@ -5701,7 +5701,9 @@ ${talkStyles}
   opacity: 0; pointer-events: none; transition: opacity 0s 120ms;
 }
 .nook-desk.is-folded .desk-rail:hover .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 180ms; }
-.nook-desk.is-folded .desk-rail:focus-within .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 0s; }
+/* Only keyboard focus holds it open: a link just clicked keeps focus, and
+   the rail must still fold once the pointer leaves. */
+.nook-desk.is-folded .desk-rail:has(:focus-visible) .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 0s; }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing .desk-rail,
 .nook-desk.is-reviewing .desk-search,
