@@ -77,6 +77,16 @@ function withIssue(venue: string | null, issue: unknown): string | null {
   return `${venue} (${named})`;
 }
 
+// A conference paper is known by its conference's short name — "CHI '17",
+// not "Proceedings of the 2017 CHI Conference on Human Factors in
+// Computing Systems" — and the publisher deposits that name with the
+// event. ACM's event names open with it too ("CHI '17: CHI Conference
+// on …") when the acronym itself is missing.
+function eventAcronym(event: any): string | null {
+  const acronym = String(event?.acronym ?? "").trim() || /^(?<short>[^:]{2,30}['’]\s*\d\d):/.exec(String(event?.name ?? ""))?.groups!.short;
+  return acronym ? unescapeHtml(acronym).split(/\s+/).join(" ") : null;
+}
+
 // A CrossRef item as the viewer's popup wants it. Thinner than
 // OpenAlex's: CrossRef often has no abstract.
 export function summarizeCrossref(item: Record<string, any>): Summary {
@@ -94,7 +104,7 @@ export function summarizeCrossref(item: Record<string, any>): Summary {
   const doi: string | null = item.DOI ?? null;
   return {
     title, authors: (item.author ?? []).map((a: any) => unescapeHtml([a.given, a.family].filter(Boolean).join(" "))),
-    year, venue: withIssue(container, item.issue), abstract, citations: item["is-referenced-by-count"] ?? null,
+    year, venue: eventAcronym(item.event) ?? withIssue(container, item.issue), abstract, citations: item["is-referenced-by-count"] ?? null,
     doi, url: doi ? `https://doi.org/${doi}` : null,
     pdf_url: (item.link ?? []).find((l: any) => String(l["content-type"] ?? "").endsWith("pdf"))?.URL ?? null,
     source: "crossref",
@@ -112,7 +122,7 @@ export async function crossrefMatch(env: Env, raw: string): Promise<Record<strin
   if (!query) return [];
   const params = new URLSearchParams({
     "query.bibliographic": query, rows: String(limits.counts.bibliography_results),
-    select: "DOI,title,author,issued,container-title,issue,is-referenced-by-count,abstract,link,score",
+    select: "DOI,title,author,issued,container-title,issue,event,is-referenced-by-count,abstract,link,score",
   });
   let response: Response;
   try {

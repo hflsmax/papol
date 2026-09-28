@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { PHASES, PhaseGlyph, TalkCard, phaseRank, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
+import { PHASES, PhaseGlyph, TalkCard, phaseRank, when } from '../../../shared/ui/Talk.jsx';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   annotationViewerPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -135,27 +136,13 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const reload = () => getProject(project.uuid).then((next) => setProject(show(next)));
   const talked = () => { reload().catch(() => {}); };
   const openPaper = (sha256) => { pick(sha256); setView('papers'); };
-  // On a desk card, digs speak up only when there is something unread: the
-  // spade and the count of posts others wrote since you looked, gold, like a
-  // notification. It opens the latest unread dig.
+  // Anything new in the project, a new paper or a dig someone else moved
+  // on, is the one news dot on whatever it concerns.
   const readDig = (uuid) => {
     readDigs([uuid]);
     setProject((p) => ({ ...p, digs: p.digs.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
   };
-  const alert = (about) => {
-    const unread = (project.digs ?? []).filter((d) => d.is_new && about(d.subject));
-    if (!unread.length) return null;
-    const count = unread.reduce((sum, d) => sum + (d.unread || 1), 0);
-    const d = unread[0];
-    return (
-      <TalkOpener
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser} onChanged={talked} onClosed={() => readDig(d.uuid)}
-        className="project-card-alert" title={`${plural(count, 'unread post', 'unread posts')}`}
-      >
-        <TalkGlyph /><span>{count > 99 ? '99+' : count}</span>
-      </TalkOpener>
-    );
-  };
+  const hasNews = (about) => (project.digs ?? []).some((d) => d.is_new && about(d.subject));
   // Folded until asked for, even for a keeper alone in the project:
   // entering a project shows its work. The faces open who is in it, and
   // Invite opens the invitation link; each is its own card.
@@ -165,8 +152,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
 
   const talkedAbout = project.digs ?? [];
   const boards = project.boards ?? [];
-  const newPapers = project.papers.filter((p) => p.is_new).length;
-  const newTalk = talkedAbout.filter((d) => d.is_new).length;
+  const newPapers = project.papers.some((p) => p.is_new);
+  const newTalk = talkedAbout.some((d) => d.is_new);
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
   const tabs = project.is_member && (
@@ -245,7 +232,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             {view === 'papers' && (
               <ProjectPapers
                 project={project}
-                alert={alert}
+                hasNews={hasNews}
                 currentUser={currentUser}
                 picked={picked}
                 onPick={pick}
@@ -253,7 +240,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 onRead={onRead}
               />
             )}
-            {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} currentUser={currentUser} />}
+            {view === 'boards' && <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} />}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
           </div>
         </>
@@ -389,8 +376,8 @@ function usePicked(projectUuid) {
   return [picked, choose];
 }
 
-// Papers, Boards, Digs: each with its count, and in gold how many in it
-// are new since the last visit.
+// Papers, Boards, Digs: each with its count, and the news dot when
+// something in it is new since the last visit.
 function DeskTabs({ view, onView, counts, fresh }) {
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -411,7 +398,7 @@ function DeskTabs({ view, onView, counts, fresh }) {
         >
           {label}
           {counts[v] > 0 && <span className="project-tab-count">{counts[v]}</span>}
-          {fresh[v] > 0 && <span className="project-tab-new" aria-label={`${fresh[v]} new`}>{fresh[v]}</span>}
+          {fresh[v] && <NewsDot />}
         </button>
       ))}
     </nav>
@@ -423,7 +410,7 @@ function DeskTabs({ view, onView, counts, fresh }) {
 // what is unread about it. Picking a row shows the paper's brief: beside
 // the list on a wide window, as the Digs tab shows a dig, and under the
 // row on a narrow one.
-function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged, onRead }) {
+function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChanged, onRead }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
   const papers = project.papers;
@@ -463,7 +450,7 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
             <React.Fragment key={paper.sha256}>
               <li
                 data-subject={`paper:${paper.sha256}`}
-                className={`project-row project-paper${paper.is_new ? ' is-new' : ''}${selected ? ' is-selected' : ''}`}
+                className={`project-row project-paper${selected ? ' is-selected' : ''}`}
                 onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) choose(); }}
               >
                 <div className="project-row-text">
@@ -483,8 +470,7 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
                   <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
                 </span>
                 <span className="project-row-end">
-                  {paper.is_new && <span className="project-card-new">New</span>}
-                  {alert((subject) => subject.paper_sha256 === paper.sha256 && !(selected && subject.kind === 'paper'))}
+                  {(paper.is_new || hasNews((subject) => subject.paper_sha256 === paper.sha256 && !(selected && subject.kind === 'paper'))) && <NewsDot />}
                 </span>
               </li>
               {!wide && selected && <li className="project-paper-open">{brief(paper)}</li>}
@@ -576,7 +562,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
           <span>{d.is_mine ? 'You' : d.owner?.display_name}</span>
           <span>· {when(d.updated_at)}</span>
         </span>
-        {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
+        {d.is_new && <NewsDot />}
       </>
     );
   };
@@ -584,7 +570,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
     <li key={d.uuid}>
       <button
         type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
-        className={`project-talk-item${d.is_new ? ' is-new' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
+        className={`project-talk-item${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
         onClick={() => pick(d.uuid)}
       >
         {row(d)}
@@ -639,7 +625,7 @@ function useWide(query = '(min-width: 1000px)') {
 // The project's boards, which every member arranges; a board is known by
 // its shape, so its map is the card. The last tile is the one way to make
 // one more.
-function ProjectBoards({ project, act, alert, currentUser }) {
+function ProjectBoards({ project, act, hasNews, currentUser }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -667,7 +653,7 @@ function ProjectBoards({ project, act, alert, currentUser }) {
                 <BoardMap boxes={board.boxes} />
                 <strong className="project-card-title">{board.name}</strong>
               </a>
-              {alert((subject) => subject.board_uuid === board.uuid)}
+              {hasNews((subject) => subject.board_uuid === board.uuid) && <NewsDot />}
               <footer className="project-card-foot project-board-meta">
                 {[
                   board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',

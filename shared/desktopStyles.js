@@ -179,6 +179,10 @@ export const desktopStyles = `
   font-variant-numeric: tabular-nums;
 }
 
+.desktop-sidebar-item > .news-dot {
+  margin: 0 4px 0 auto;
+}
+
 .desktop-sidebar-count.unread {
   color: var(--ink-soft);
   font-weight: 600;

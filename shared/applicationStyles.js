@@ -5124,11 +5124,6 @@ a.projects-row-name:hover { color: var(--accent); text-decoration: underline; te
 .avatar-chip.project-keeper { border-color: var(--gold); background: var(--gold-soft); }
 .project-keeper .mini-avatar { box-shadow: none; }
 
-.project-new {
-  background: var(--accent);
-  color: var(--ink-inverse);
-}
-
 .project-members {
   display: flex;
   flex-wrap: wrap;
@@ -5233,17 +5228,15 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
-/* New items on a tab: a number alone. Unread posts on an item are the spade pill (.project-card-alert). */
+/* The inbox tab on the You page counts unread notifications. */
 .project-tab-new { display: inline-block; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/19px var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry.
    No rules between them: each row is a soft tile that shows only on hover,
-   when new, or when open, where it takes the pane's white. */
+   or when open, where it takes the pane's white; news is the dot. */
 .project-rows { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .project-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-lg); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.project-row.is-new { background: var(--gold-soft); }
-.project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 88%, var(--ink)); }
 .project-row-text { min-width: 0; }
 .project-row .project-card-title { display: block; font-size: var(--fs-base); -webkit-line-clamp: unset; }
 .project-row:hover .project-card-title, .project-row:focus-within .project-card-title { color: var(--accent); }
@@ -5252,7 +5245,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-facts { display: contents; }
 .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.project-row .project-card-alert { margin-left: 0; }
 @container (max-width: 1099px) {
   .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */
@@ -5271,18 +5263,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-paper { cursor: pointer; }
 .project-paper:focus-within:has(.project-card-title a:focus-visible) { border-color: var(--accent); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
-.project-paper.is-new .project-card-head { border-bottom-color: var(--gold-line); background: var(--gold-soft); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-card-head .project-card-new { margin-left: auto; }
-.project-card-new { color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
 .project-card-title { display: -webkit-box; margin: 0; overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .project-card-title a { color: inherit; }
 .project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
-.project-card-alert { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 22px; margin-left: auto; padding: 0 7px 0 5px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); box-shadow: none; color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); }
-.project-card-new + .project-card-alert { margin-left: var(--space-1); }
-.project-card-alert:hover:not(:disabled), .project-card-alert[aria-expanded='true'] { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
-.project-card-alert .talk-glyph { width: 14px; height: 14px; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
 .project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -5298,9 +5283,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
 
 .project-board-link { color: inherit; text-decoration: none; }
-/* The whole card opens the board; the alert stays its own button above it. */
+/* The whole card opens the board. */
 .project-board .project-board-link::after { content: ''; position: absolute; inset: 0; }
-.project-board > .project-card-alert { position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; margin: 0; }
+.project-board > .news-dot { position: absolute; top: var(--space-3); right: var(--space-3); }
 
 .project-board-link:hover .project-card-title { color: var(--accent); }
 .project-board-meta { justify-content: flex-start; margin-top: auto; padding: var(--space-1) var(--space-3) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
@@ -5326,7 +5311,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-band-head + .project-talk-list { margin-top: 2px; }
 .project-talk-band.is-buried .project-talk-item:not(.is-selected) .project-talk-label { color: var(--ink-soft); }
 .project-talk .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.project-talk .project-talk-item.is-new, .project-talk .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
 .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
 .project-talk .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The open thing sits on white, the list on the page: tone, not a rule, parts them. */
@@ -5352,13 +5336,12 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-subject-line a:hover { color: var(--accent); }
 .project-talk-subject-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .project-talk-subject-open:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
 .project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink); font: inherit; text-align: left; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-talk-subject { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; grid-column: 1; }
 .project-talk-subject > .project-card-kind { flex: none; white-space: nowrap; }
 .project-talk-meta { grid-column: 1; }
-.project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.project-talk-item > .news-dot { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-label { overflow: hidden; color: var(--ink); font: 600 var(--fs-base)/1.35 var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-talk-item:hover .project-talk-label { color: var(--accent); }
 .project-talk-item.is-selected .project-talk-label { color: var(--ink); }
@@ -5391,8 +5374,8 @@ ${talkStyles}
 
 /* A paper's brief: the paper, the ways to act on it, the members' takes,
    then its dig, in one reading column. */
-.paper-brief { display: grid; gap: var(--space-4); max-width: 44rem; }
-.paper-brief-head { display: grid; gap: var(--space-2); }
+.paper-brief { display: grid; gap: var(--space-3); max-width: 44rem; }
+.paper-brief-head { display: grid; gap: var(--space-1); }
 .paper-brief-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); text-wrap: balance; }
 .paper-brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .paper-brief-authors { font: italic var(--fs-md) var(--font-serif); }
@@ -5400,23 +5383,25 @@ ${talkStyles}
 /* Every action is a button of one size; Read alone is filled. */
 .paper-brief-actions :is(.button, button) { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; min-height: 32px; padding: 0 14px; font: 500 var(--fs-sm)/1 var(--font-ui); }
 .paper-brief-actions .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.paper-brief-take-out { margin-left: auto; }
 .paper-brief-take-out:hover:not(:disabled) { border-color: var(--red-line); background: var(--red-soft); color: var(--red); }
-.paper-brief .project-paper-added { margin-top: calc(-1 * var(--space-2)); }
+.paper-brief-actions .project-paper-added { margin-left: auto; }
 /* The paper's digs, each on a sheet of its own: parted by space and tone,
    everything in a sheet on one left edge, the posts a step in from the dig. */
-.paper-brief-digs { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding-bottom: var(--space-2); }
-.paper-brief-dig { padding: var(--space-3) var(--space-4) var(--space-4); border-radius: 10px; background: var(--paper-sunken); }
-.paper-brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.paper-brief-digs { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
+.paper-brief-dig { padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--paper-sunken); }
+.paper-brief-dig .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 .paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
-.paper-brief-dig .talk-post { margin: 0; padding: var(--space-2) 0; }
+.paper-brief-dig .talk-post { margin: 0; padding: var(--space-1) 0; }
 .paper-brief-dig .talk-post:hover { background: none; }
-.paper-brief-dig .talk-post + .talk-post { margin-top: 0; padding-left: 28px; }
-.paper-brief-dig .talk-post-head { margin-bottom: var(--space-1); }
-.paper-brief-dig .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
-.paper-brief-dig .talk-post:first-child .talk-post-body { font-size: var(--fs-md); line-height: 1.5; }
-.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .4em; }
+.paper-brief-dig .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.paper-brief-dig .talk-post-head { margin-bottom: 2px; }
+.paper-brief-dig .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.paper-brief-dig .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
+.paper-brief-dig .talk-post:first-child .talk-post-body { font-size: var(--fs-md); line-height: 1.45; }
+.paper-brief-dig .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.paper-brief-dig .talk-post-body > :last-child { margin-bottom: 0; }
 /* The phase is a word on the dig's own line, after its date. */
 .paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
 .paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
@@ -5425,16 +5410,18 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller
    while it is being written in. */
-.paper-brief-dig .talk-compose { grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-2); padding: 0 0 0 28px; background: none; }
-.paper-brief-dig .talk-compose .mini-avatar { width: 20px; height: 20px; margin-top: 8px; font-size: 10px; }
-.paper-brief-dig .talk-compose textarea { min-height: 36px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
+.paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
+.paper-brief-dig .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
+.paper-brief-dig .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
 .paper-brief-dig .talk-compose textarea:focus { min-height: 88px; }
-.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 36px; overflow: hidden; }
+.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 32px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
-.paper-brief-dig .talk-unfold.is-post { margin: var(--space-2) 0 0 28px; }
+/* Post waits at the end of the owner's line, not on a row of its own. */
+.paper-brief-dig .talk-unfold.is-post { position: absolute; top: 1px; right: 0; min-height: 26px; margin: 0; padding: 0 10px; }
+.paper-brief-dig .talk-card:has(.talk-unfold.is-post) .talk-post:first-child .talk-post-head { padding-right: 64px; }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
-.paper-brief-dig.is-yours { padding: var(--space-1) var(--space-4) 0; background: none; }
+.paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
 /* A buried dig folds to its owner's line; pressing it opens the dig. */
 .paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
@@ -5545,10 +5532,8 @@ ${talkStyles}
   transition: border-color var(--motion-fast) var(--ease-out);
 }
 .nook-project-card:hover, .nook-project-card:focus-visible { border-color: var(--accent); }
-.nook-project-card.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
 .nook-project-card-name { font: 600 var(--fs-md) var(--font-serif); line-height: 1.3; }
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
 /* A member's own nook on the web: a rail of places (projects, shelves,
    boards), each opening in the main area beside it. One row grid and one
@@ -5599,7 +5584,6 @@ ${talkStyles}
 .desk-project.is-on { background: var(--accent-soft); }
 .desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
 .desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
-.desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 .desk-faces { display: inline-flex; align-items: center; padding-left: 4px; }
 .desk-face { width: 20px; height: 20px; margin-left: -4px; border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
@@ -5666,7 +5650,7 @@ ${talkStyles}
 }
 .desk-strip-mark:hover { background: var(--paper-sunken); color: var(--ink); }
 .desk-strip-mark.is-on { background: var(--accent-soft); color: var(--ink); }
-.desk-strip-mark.has-new::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.desk-strip-mark > .news-dot { position: absolute; top: 5px; right: 5px; }
 .nook-desk.is-folded .desk-rail-body {
   position: absolute; top: calc(-1 * var(--space-2)); left: calc(-1 * var(--space-2));
   width: 15rem; max-height: calc(100vh - 2 * var(--space-4)); overflow-y: auto; padding: var(--space-2);

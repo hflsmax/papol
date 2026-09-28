@@ -97,9 +97,10 @@ export function headerOf(doc: Doc): HeaderResult {
     trace.add(rule.id, 1, found[0], []);
     if (lineYear) break;
   }
-  // ACM's "In Proceedings of the … (CHI '23)", read across line breaks.
+  // ACM's "In Proceedings of the … (CHI '23)", read across line breaks:
+  // the conference's short name.
   const venue = HEADER_PROCEEDINGS.pattern!.exec((doc.pages[0]?.text ?? "").replace(/(\p{L})- (\p{Ll})/gu, "$1$2").replace(/\s+/g, " "));
-  if (!journal && venue) { journal = venue.groups!.venue; trace.add(HEADER_PROCEEDINGS.id, 1, venue[0], []); }
+  if (!journal && venue) { journal = venue.groups!.acronym; trace.add(HEADER_PROCEEDINGS.id, 1, venue[0], []); }
   const abbreviated = HEADER_JOURNAL_ABBREVIATION.pattern!.exec(pageOne)?.groups!.abbr;
   if (!journal && abbreviated) {
     journal = JOURNALS[abbreviated] ?? (abbreviated.startsWith("Phys. Rev. ") ? `Physical Review ${abbreviated.slice(-1)}` : null);

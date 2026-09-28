@@ -98,9 +98,15 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
 // Languages (ICFP)" — and a reader knows the paper as an ICFP paper; an
 // issue numbered within its year ("OOPSLA2", "CSCW1") is still that
 // conference.
+//
+// A conference's short name carries its year ("CHI '17", "ASPLOS 2024"),
+// which the paper's year already says: the venue is the name alone.
 export function paperVenue(venue: string | null | undefined): string | null {
-  const issue = /^Proceedings of the ACM on .+ \((?<issue>[^()]+)\)$/.exec(venue?.trim() ?? "")?.groups!.issue;
-  return issue ? issue.replace(/(?<=\p{L})\d$/u, "") : venue || null;
+  const trimmed = venue?.trim() ?? "";
+  const issue = /^Proceedings of the ACM on .+ \((?<issue>[^()]+)\)$/.exec(trimmed)?.groups!.issue;
+  if (issue) return issue.replace(/(?<=\p{L})\d$/u, "");
+  const conference = /^(?<name>\p{Lu}[\p{L}\d&+-]*(?: \p{Lu}[\p{L}\d&+-]*)?)\s*(?:['’]\s*\d\d|\d{4})$/u.exec(trimmed)?.groups!.name;
+  return conference ?? (trimmed || null);
 }
 
 // The form's fields as an index knows the work, `asked` being the DOI it

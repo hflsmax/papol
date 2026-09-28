@@ -27,7 +27,7 @@ export const talkStyles = `
 .talk-pin.is-empty:hover, .talk-pin.is-empty:focus-visible, .talk-pin.is-empty.is-open { opacity: 1; }
 .talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty, .talk-host.selected .talk-pin.is-empty, .talk-host.is-selected .talk-pin.is-empty { opacity: .9; }
 @media (hover: none) { .talk-pin.is-empty { opacity: .6; } }
-.talk-pin.is-new::after { content: ''; position: absolute; top: -1px; right: -2px; width: 9px; height: 9px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); }
+.talk-pin.is-new::after { content: ''; position: absolute; top: -2px; right: -3px; box-sizing: content-box; width: 7px; height: 7px; border: 2px solid var(--card); border-radius: 50%; background: var(--gold); }
 
 
 /* The first word on something: a few sparks fly off the pin. */
@@ -80,7 +80,7 @@ export const talkStyles = `
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
 .talk-post.is-new .talk-post-head time { display: inline-flex; align-items: center; }
-.talk-post.is-new .talk-post-head time::after { content: ''; flex: none; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); }
+.talk-post.is-new .talk-post-head time::after { content: ''; flex: none; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--gold); }
 .talk-post-head .item-actions { margin-left: auto; visibility: hidden; }
 .talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
 @media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }

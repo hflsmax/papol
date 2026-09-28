@@ -329,6 +329,8 @@ button:disabled {
   padding-left: 88px;
 }
 
+/* News in a project, anywhere it shows: one gold dot, never a count. */
+.news-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
 .experimental-badge { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
 .experimental-badge svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 
