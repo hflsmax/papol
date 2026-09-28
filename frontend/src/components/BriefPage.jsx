@@ -13,7 +13,7 @@ import { DESKTOP } from '../../../shared/desktopShell';
 import { formatAuthors } from '../paperFormat.js';
 import Avatar from './Avatar';
 import { RATING_DIMENSIONS } from './Rating';
-import { SectionHead, firstName, markArrivals, plural } from './ProjectPage';
+import { ProjectWay, SectionHead, firstName, markArrivals, plural } from './ProjectPage';
 
 // A take shows the two ratings a project compares by; expertise is the
 // reader's own, not the paper's.
@@ -101,17 +101,19 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       if (box && (box.top > window.innerHeight || box.bottom < 0)) aside.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
   };
-  const pinFor = (entry) => {
-    const key = takeKey(entry.user);
+  // The pin at the end of a name line: the paper's, or a take's. Pressing
+  // it shows that dig in the dig column.
+  const pin = (key, about, size = 'sm') => {
     const summary = talk.get(key);
     const count = summary?.post_count ?? 0;
+    const on = shown === key && withDig;
     return (
-      <span className="talk-pin-wrap talk-sm">
+      <span className={`talk-pin-wrap talk-${size}`}>
         <button
           type="button"
-          className={`talk-pin${count ? '' : ' is-empty'}${summary?.is_new ? ' is-new' : ''}${shown === key ? ' is-open' : ''}`}
-          aria-pressed={shown === key}
-          aria-label={count ? `${plural(count, 'post', 'posts')} about ${takeLabel(entry)}. Open the dig` : `Dig into ${takeLabel(entry)}`}
+          className={`talk-pin${count ? '' : ' is-empty'}${summary?.is_new ? ' is-new' : ''}${on ? ' is-open' : ''}`}
+          aria-pressed={on}
+          aria-label={count ? `${plural(count, 'post', 'posts')} about ${about}. Open the dig` : `Dig into ${about}`}
           title={count ? plural(count, 'post', 'posts') : 'Dig into this'}
           onClick={() => openDig(key)}
         >
@@ -121,6 +123,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       </span>
     );
   };
+  const pinFor = (entry) => pin(takeKey(entry.user), takeLabel(entry));
   const boards = (project.boards ?? []).filter((b) => paper.board_uuids?.includes(b.uuid));
   const talked = () => { load().catch(() => {}); };
 
@@ -137,11 +140,11 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   // back, so the page starts with the paper.
   return (
     <div className="brief-page">
+      <ProjectWay project={project} />
       <div className="brief-layout">
         <div className="brief-main">
           <header className="brief-head">
-            {!DESKTOP && <p className="kicker"><a href={appPath(`/project/${project.uuid}`)}>{project.name}</a> · Brief</p>}
-            <h1 className="brief-title">{paper.title}</h1>
+            <h1 className="brief-title talk-host">{paper.title}{pin(paperKey, paper.title, 'md')}</h1>
             <p className="brief-cite">
               <span className="brief-authors">{formatAuthors(paper.authors)}</span>
               {[paper.journal, paper.year].filter(Boolean).length > 0 && <span>{[paper.journal, paper.year].filter(Boolean).join(' · ')}</span>}
@@ -180,6 +183,11 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                         <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
                       ))}
                       {!composing && pinFor(entry)}
+                      {!composing && mine && entry.thought && (
+                        <span className="project-take-options">
+                          <button type="button" className="project-quiet" onClick={() => setWriting(true)}>Edit</button>
+                        </span>
+                      )}
                     </p>
                     {composing ? (
                       <ThoughtComposer
@@ -227,11 +235,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
         </div>
 
         {!withDig ? (
-          <aside className="brief-dig is-empty" aria-label="Dig" ref={aside}>
-            <button type="button" className="brief-dig-start" onClick={() => openDig(paperKey)}>
-              <TalkGlyph outline />Dig
-            </button>
-          </aside>
+          <aside className="brief-dig is-empty" aria-label="Dig" ref={aside} />
         ) : (
           <aside className="brief-dig" aria-label="Dig" ref={aside}>
             {choices.length > 1 && (
@@ -295,7 +299,6 @@ function ThoughtComposer({ paper, initial, autoFocus, onCancel, onSave }) {
       />
       {onCancel && <button type="button" className="project-quiet" onClick={onCancel}>Cancel</button>}
       {draft.trim() && <button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : 'Share'}</button>}
-      {!paper.in_my_nook && <p className="project-thought-note">Adds the paper to your nook.</p>}
     </form>
   );
 }
