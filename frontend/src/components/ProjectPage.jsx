@@ -541,20 +541,20 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
       />
     </>
   );
-  // A row is one member's dig: whose it is first, then what it is about.
+  // A row is one dig: what it is about first, then whose it is.
   const row = (d) => {
     const kind = d.subject.kind;
     return (
       <>
-        <span className="project-talk-meta">
-          {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
-          <b>{d.is_mine ? 'You' : d.owner?.display_name}</b>
-          {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
-          <span>{when(d.updated_at)}</span>
-        </span>
         <span className="project-talk-subject">
           <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
           <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
+        </span>
+        <span className="project-talk-meta">
+          {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
+          <span>{d.is_mine ? 'You' : d.owner?.display_name}</span>
+          {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
+          <span>· {when(d.updated_at)}</span>
         </span>
         {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
       </>

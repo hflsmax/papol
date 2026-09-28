@@ -5343,14 +5343,16 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
 .project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink); font: inherit; text-align: left; transition: background-color var(--motion-fast) var(--ease-out); }
-.project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; grid-column: 1; }
+.project-talk-subject { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; grid-column: 1; }
 .project-talk-subject > .project-card-kind { flex: none; white-space: nowrap; }
 .project-talk-meta { grid-column: 1; }
 .project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-.project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-talk-label { overflow: hidden; color: var(--ink); font: 600 var(--fs-base)/1.35 var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-talk-item:hover .project-talk-label { color: var(--accent); }
+.project-talk-item.is-selected .project-talk-label { color: var(--ink); }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-talk-meta b { color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
 .project-talk-meta .project-talk-phase { margin-left: 0; }
+.project-talk-meta .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 @container (max-width: 559px) {
   .project-head { align-items: flex-start; }
   .project-seat small { display: none; }
