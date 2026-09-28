@@ -5421,7 +5421,6 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
 .paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
 .paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
-.paper-brief-dig .talk-post-head .dig-phase-word.is-gold { color: var(--accent-strong); }
 .paper-brief-dig .talk-post-head .dig-phase-pick { margin-left: 0; }
 .paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller

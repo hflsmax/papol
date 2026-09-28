@@ -44,6 +44,10 @@ export const talkStyles = `
 .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
 .phase-glyph { flex: none; width: 15px; height: 15px; overflow: visible; }
+.phase-glyph.is-digging { color: color-mix(in srgb, var(--green) 80%, var(--green-ink)); }
+.phase-glyph.is-stashed { color: #5a6fa3; }
+.phase-glyph.is-gold { color: var(--gold); }
+.phase-glyph.is-buried { color: var(--ink-faint); }
 .phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* The phase and, pressed, the four phases in a list dropped under it. */
 .dig-phase-pick { position: relative; display: inline-flex; flex: none; margin-left: auto; }
