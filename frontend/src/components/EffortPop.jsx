@@ -4,7 +4,7 @@ import { useDismiss } from '../../../shared/useDismiss.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
 import {
-  clockTime, dayName, daysOf, EFFORT_MARKS, effortLevel, effortRange, formatDuration, lastWhen,
+  clockTime, dayName, daysOf, EFFORT_MARKS, effortLevel, effortRange, formatDuration, formatDurationShort, lastWhen,
   recentWeeks, shadeOf,
 } from '../activityView';
 
@@ -96,8 +96,9 @@ function EffortDetail({ subject, onClose }) {
 }
 
 // The clock and the time on a paper's line in its user's nook, which
-// opens the detail.
-export default function Effort({ effort, subject }) {
+// opens the detail. In a column headed Effort the time says enough alone,
+// as short as it goes.
+export default function Effort({ effort, subject, compact = false }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
   useDismiss(open, anchor, () => setOpen(false));
@@ -108,15 +109,15 @@ export default function Effort({ effort, subject }) {
     <span className="nook-effort-anchor" ref={anchor}>
       <button
         type="button"
-        className={`nook-effort effort-level-${level}`}
+        className={`nook-effort effort-level-${level}${compact ? ' is-compact' : ''}`}
         title={`${said}. Only you see this.`}
         aria-label={`${said}. Show the time spent`}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
       >
-        <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.75" /><path d="M6 3.4V6l1.8 1.2" /></svg>
-        {formatDuration(effort.seconds)}
+        {!compact && <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.75" /><path d="M6 3.4V6l1.8 1.2" /></svg>}
+        {compact ? formatDurationShort(effort.seconds) : formatDuration(effort.seconds)}
       </button>
       {open && (
         <div className="effort-pop" role="dialog" aria-label="Time reading this paper" onClick={(event) => event.stopPropagation()}>

@@ -3454,6 +3454,8 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   cursor: pointer;
 }
 
+.nook-effort.is-compact { padding: 1px 7px; }
+
 .nook-effort:hover,
 .nook-effort[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--accent); }
 
@@ -5347,10 +5349,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* One dig, so its phase sits at the end of the subject line. */
 .project-talk-panel .talk-card.is-inline { position: static; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { position: absolute; top: var(--space-2); right: var(--space-5); min-height: 0; padding: 0; background: none; }
-.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 17rem; }
+.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 9rem; }
 /* Narrow, the phases take their own line under the subject. */
 .project-talk:not(.is-wide) .project-talk-panel .talk-card.is-inline .talk-card-header { position: static; margin: var(--space-1) 0 var(--space-2); }
-.project-talk:not(.is-wide) .project-talk-panel .dig-phase { margin-left: 0; }
+.project-talk:not(.is-wide) .project-talk-panel .dig-phase-pick { margin-left: 0; }
+.project-talk:not(.is-wide) .project-talk-panel .dig-phase-menu { right: auto; left: 0; }
 .project-talk-panel .talk-card.is-inline :is(.talk-card-owners, .talk-card-body) { padding-left: 0; padding-right: 0; }
 .project-talk-panel .talk-post { margin-inline: 0; padding-inline: 0; }
 .project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--card); }
@@ -5429,8 +5432,8 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
 .paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
 .paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
-.paper-brief-dig .talk-post-head .dig-phase-word.is-gold { color: var(--accent-strong); }
-.paper-brief-dig .talk-post-head .dig-phase { margin-left: var(--space-1); }
+.paper-brief-dig .talk-post-head .dig-phase-pick { margin-left: 0; }
+.paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller
    while it is being written in. */
 .paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
@@ -5652,11 +5655,14 @@ ${talkStyles}
 .desk-row-tag:hover, .desk-row-tag:focus-visible { color: var(--accent); }
 .desk-row-tag.is-on { color: var(--accent); }
 .desk-col-dots { width: 6rem; white-space: nowrap; }
-.desk-col-faces { width: 6.5rem; white-space: nowrap; }
 .desk-col-date { width: 4.5rem; white-space: nowrap; }
 .desk-col-date { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; }
 .desk-table th.desk-col-date { text-align: right; }
 .desk-col-dots .rating-dots { display: inline-flex; gap: 3px; }
+/* The time spent on each paper, its level's colour behind it; the time
+   opens beneath it, from its right edge so it stays on the page. */
+.desk-col-effort { width: 5rem; white-space: nowrap; }
+.desk-col-effort .effort-pop { left: auto; right: -4px; }
 .desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
 /* Inside a project the rail folds to a strip of project letters and the
    project takes the width. Resting on the strip, or tabbing into it, lays
@@ -5695,9 +5701,9 @@ ${talkStyles}
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
-  .desk-table thead, .desk-table .desk-col-date { display: none; }
+  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort { display: none; }
   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
-  .desk-table td.desk-col-dots, .desk-table td.desk-col-faces { width: auto; }
+  .desk-table td.desk-col-dots { width: auto; }
   .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--line); }
   .desk-table tbody tr:last-child { border-bottom: 0; }
   .desk-table td { display: block; height: auto; border: 0; }

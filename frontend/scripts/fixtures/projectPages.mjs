@@ -153,6 +153,9 @@ const TAGS = ['control', 'wavefront', 'to cite'].map((name, i) => ({ uuid: `ae00
 const DRAWER = { uuid: 'ab000000-0000-4000-8000-000000000002', name: 'Drafts', color: '#b07a4f', is_public: false, is_default: false, position: 1, paper_count: 0, board_count: 1 };
 // The member's own boards, outside any project.
 const nookBoard = (n, name, count, shelf, at) => ({ uuid: `ad000000-0000-4000-8000-00000000000${n}`, name, description: null, item_count: count, shelf_uuid: shelf.uuid, updated_at: at, owner: me, can_edit: true, items: [] });
+// The time the member has spent on each of their papers, in the order the
+// nook lists them; one they have not opened yet.
+const EFFORT = [7500, 1260, 0];
 const NOOK_BOARDS = [nookBoard(1, 'Thesis chapter 3 outline', 18, DRAWER, hoursAgo(5)), nookBoard(2, 'Wavefront sensors compared', 7, SHELF, daysAgo(3))];
 const listed = (p, mine = false) => {
   const own = p.users.find((u) => u.user.uuid === ME);
@@ -233,7 +236,10 @@ function answer(method, path, search) {
   if (path === `/users/${ME}/nook`) {
     return {
       user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4 },
-      papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({ ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [] })),
+      papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({
+        ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [],
+        effort: EFFORT[i] ? { seconds: EFFORT[i], last_at: hoursAgo(3 + i * 20) } : null,
+      })),
       boards: NOOK_BOARDS,
       projects: [summary, other],
     };
@@ -247,6 +253,15 @@ function answer(method, path, search) {
   if (one) {
     const found = papers.find((p) => p.sha256.startsWith(one[1])) ?? papers[1];
     return { ...listed(found, found.in_my_nook), in_nook: found.in_my_nook, notes: [], comments: [], also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
+  }
+  // A paper's time, from its Effort in the nook: two sittings a day apart.
+  const time = path.match(/^\/activity\/paper\/([0-9a-f]+)$/);
+  if (time) {
+    const at = (h, m) => new Date(Date.now() - h * 3_600_000 + m * 60_000).toISOString();
+    return { sha256: time[1], seconds: 7500, first_at: at(28, 0), last_at: at(3, 0), spans: [
+      { kind: 'paper', subject: time[1], started_at: at(28, 0), ended_at: at(28, 75), seconds: 4500 },
+      { kind: 'paper', subject: time[1], started_at: at(4, 10), ended_at: at(4, 60), seconds: 3000 },
+    ] };
   }
   if (path.startsWith('/activity')) return { spans: [], papers: {}, first_at: null };
   if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];

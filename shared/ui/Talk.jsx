@@ -32,57 +32,87 @@ export const PHASES = [
   { key: 'buried', word: 'Buried' },
 ];
 export const phaseWord = (phase) => PHASES.find((p) => p.key === phase)?.word ?? 'Digging';
+
+// One glyph per phase, drawn like the spade: the spade in the ground while
+// digging, a box for what is stashed, stacked ingots for gold, a headstone
+// for what is buried. Each has its own colour: green while it grows, blue
+// when put away, gold, and grey underground. Gold's glint is drawn solid.
+const GLINT = 'M19.5 1.8c.3 1.5.9 2.1 2.3 2.4-1.4.3-2 .9-2.3 2.4-.3-1.5-.9-2.1-2.3-2.4 1.4-.3 2-.9 2.3-2.4Z';
+// Gold's three ingots, tinted with their colour.
+const INGOTS = 'M1.8 21h9.6l-1.7-6H3.5ZM12.6 21h9.6l-1.7-6h-6.2ZM7.2 14h9.6l-1.7-6H8.9Z';
+const PHASE_PATHS = {
+  digging: ['M3 16.5h4.6M16.4 16.5H21', 'M12 4.2v4.3M9.6 2.2h4.8v2H9.6Z', 'M7.5 8.5h9v4c0 2.6-2 4.8-4.5 6-2.5-1.2-4.5-3.4-4.5-6Z'],
+  stashed: ['M3.5 6h17v4h-17Z', 'M5 10h14v8.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5Z', 'M10 13.5h4'],
+  gold: [INGOTS, GLINT],
+  buried: ['M3.5 20h17', 'M7.5 20V10a4.5 4.5 0 0 1 9 0v10', 'M10.5 12.5h3'],
+};
+// Each drawing moved to sit on the middle of its box, so every glyph lines
+// up with the word beside it.
+const PHASE_NUDGE = { digging: 1.6, stashed: -1, gold: 0.5, buried: -0.8 };
+export function PhaseGlyph({ phase }) {
+  return (
+    <svg className={`phase-glyph is-${PHASE_PATHS[phase] ? phase : 'digging'}`} viewBox="0 0 24 24" aria-hidden="true">
+      <g transform={`translate(0 ${PHASE_NUDGE[phase] ?? 0})`}>
+        {(PHASE_PATHS[phase] ?? PHASE_PATHS.digging).map((d) => <path key={d} d={d} className={d === GLINT ? 'is-solid' : d === INGOTS ? 'is-tinted' : undefined} />)}
+      </g>
+    </svg>
+  );
+}
 // Digging first, then stashed, gold and buried: how lists of digs run.
 export const phaseRank = (phase) => Math.max(0, PHASES.findIndex((p) => p.key === phase));
 
-// The four phases side by side, the current one on a white tile: one press
-// moves the dig. Compact, only the current word shows until it is pressed,
-// then the bar opens in its place and closes after a move or away.
-export function PhasePicker({ dig, onMoved, compact = false, className = '' }) {
+// A dig's phase: its glyph and word. Pressed, the four phases drop down
+// under it, one per line; picking one moves the dig.
+export function PhasePicker({ dig, onMoved, className = '' }) {
   const current = dig.phase ?? 'digging';
   const [shown, setShown] = useState(current);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const bar = useRef(null);
+  const pick = useRef(null);
   useEffect(() => setShown(current), [current]);
-  useDismiss(compact && open, bar, () => setOpen(false));
+  useDismiss(open, pick, () => setOpen(false));
   useEffect(() => {
-    if (compact && open) bar.current?.querySelector('[aria-checked="true"]')?.focus();
-  }, [compact, open]);
+    if (open) pick.current?.querySelector('[aria-selected="true"]')?.focus();
+  }, [open]);
   const move = async (phase) => {
-    if (compact) setOpen(false);
+    setOpen(false);
+    pick.current?.querySelector('.dig-phase-word')?.focus();
     if (phase === shown || busy) return;
     setShown(phase);
     setBusy(true);
     try { onMoved?.(await moveDig(dig.uuid, phase)); } catch { setShown(current); } finally { setBusy(false); }
   };
-  // Arrows walk the words; Enter or Space moves the dig.
+  // Up and down walk the phases; Enter or Space moves the dig.
   const walk = (e) => {
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step) return;
     e.preventDefault();
-    const words = [...e.currentTarget.querySelectorAll('button')];
-    const at = words.indexOf(document.activeElement);
-    words[(at + step + words.length) % words.length]?.focus();
+    const items = [...e.currentTarget.querySelectorAll('[role="option"]')];
+    const at = items.indexOf(document.activeElement);
+    items[(at + step + items.length) % items.length]?.focus();
   };
-  if (compact && !open) {
-    return (
-      <button type="button" className={`dig-phase-word is-${shown} ${className}`} aria-haspopup="true" aria-label={`Phase: ${phaseWord(shown)}`} onClick={() => setOpen(true)}>
-        {phaseWord(shown)}
-      </button>
-    );
-  }
   return (
-    <div ref={bar} className={`dig-phase${busy ? ' is-busy' : ''} ${className}`} role="radiogroup" aria-label="Phase" onKeyDown={walk}>
-      {PHASES.map((p) => (
-        <button
-          key={p.key} type="button" role="radio" aria-checked={shown === p.key} tabIndex={shown === p.key ? 0 : -1}
-          className={shown === p.key ? 'is-on' : ''} onClick={() => move(p.key)}
-        >
-          {p.word}
-        </button>
-      ))}
-    </div>
+    <span ref={pick} className={`dig-phase-pick ${className}`}>
+      <button
+        type="button" className={`dig-phase-word is-${shown}${busy ? ' is-busy' : ''}`} aria-haspopup="listbox" aria-expanded={open}
+        aria-label={`Phase: ${phaseWord(shown)}`} onClick={() => setOpen((was) => !was)}
+        onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } }}
+      >
+        <PhaseGlyph phase={shown} />{phaseWord(shown)}
+      </button>
+      {open && (
+        <div className="dig-phase-menu" role="listbox" aria-label="Phase" onKeyDown={walk}>
+          {PHASES.map((p) => (
+            <button
+              key={p.key} type="button" role="option" aria-selected={shown === p.key}
+              className={shown === p.key ? 'is-on' : ''} onClick={() => move(p.key)}
+            >
+              <PhaseGlyph phase={p.key} />{p.word}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -256,14 +286,13 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
-// the one that says what the dig is about. With phaseBar the four phases
-// stand open (the dig open in the Digs tab); else only the current one.
+// the one that says what the dig is about.
 // With phaseInHead the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
 // With tucked the writing box stays folded to one word until it is pressed.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
-  single = false, phaseBar = false, phaseInHead = false, tucked = false,
+  single = false, phaseInHead = false, tucked = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
@@ -454,7 +483,7 @@ export function TalkCard({
   const whose = discussion && (discussion.is_mine ? 'your' : `${discussion.owner?.display_name?.split(' ')[0]}'s`);
   const picker = discussion && (
     <PhasePicker
-      dig={discussion} compact={!phaseBar}
+      dig={discussion}
       onMoved={(next) => {
         setDiscussion(next);
         const others = digs.filter((d) => d.uuid !== next.uuid);
