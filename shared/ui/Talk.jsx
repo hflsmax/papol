@@ -6,7 +6,7 @@ import {
 import { appPath } from '../appUrls.js';
 import appLimits from '../appLimits.js';
 import ActionGlyph from './ActionGlyph.jsx';
-import Avatar from './Avatar.jsx';
+import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
 import PaperTitle from './PaperTitle.jsx';
 import { plainTitle } from '../texTitle.js';
@@ -439,7 +439,7 @@ export function TalkCard({
                   }}
                 >
                   <p className="talk-post-head">
-                    <Avatar user={post.user} className="mini-avatar" />
+                    <Face user={post.user} />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
                     <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
@@ -460,7 +460,7 @@ export function TalkCard({
       {error && <p className="talk-card-error" role="alert">{error}</p>}
       {!drift && (
         <form className="talk-compose" onSubmit={send}>
-          {currentUser && <Avatar user={currentUser} className="mini-avatar" />}
+          {currentUser && <Face user={currentUser} />}
           <textarea
             ref={box}
             rows={body ? 4 : posts.length ? 2 : 3}

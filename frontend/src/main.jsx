@@ -5,6 +5,7 @@ import '../../shared/desktopShell'
 // Papol macOS stays quiet on right-click, as a native app does.
 import '../../shared/contextMenu'
 import App from './App.jsx'
+import { FacesLead } from '../../shared/ui/Face.jsx'
 import { hydrateCredential } from '../../shared/credentials.js'
 import { getStartupUser } from '../../shared/api/account.js'
 import { startDesktopMediaHydration } from '../../shared/desktopMedia.js'
@@ -20,6 +21,8 @@ const startupUser = await getStartupUser().catch((error) => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App startupUser={startupUser} startupError={startupError} />
+    <FacesLead.Provider value={true}>
+      <App startupUser={startupUser} startupError={startupError} />
+    </FacesLead.Provider>
   </React.StrictMode>,
 )

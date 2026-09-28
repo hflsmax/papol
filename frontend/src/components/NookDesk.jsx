@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
+import Face from '../../../shared/ui/Face.jsx';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
@@ -20,10 +21,14 @@ const added = (at) => {
 const paperPlace = (sha256, { shelf = null, board = null }) =>
   appPath(`${board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
 
-function Faces({ users, max }) {
+// Who else is here. Each face leads to its person's nook, except inside a
+// link of its own (a project's card), where the card is the one way in.
+function Faces({ users, max, linked = false }) {
   return (
     <span className="desk-faces">
-      {users.slice(0, max).map((u) => <Avatar key={u.uuid} user={u} className="desk-face" />)}
+      {users.slice(0, max).map((u) => (linked
+        ? <Face key={u.uuid} user={u} className="desk-face" />
+        : <Avatar key={u.uuid} user={u} className="desk-face" />))}
       {users.length > max && <span className="desk-more">+{users.length - max}</span>}
     </span>
   );
@@ -228,12 +233,20 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                         {paper.journal && <> · <i>{paper.journal}</i></>}
-                        {paper.tags.map((t) => <span key={t.uuid} className="desk-meta-tag"><span aria-hidden="true">#</span>{t.name}</span>)}
                       </span>
+                      {paper.tags.length > 0 && (
+                        <span className="desk-row-tags">
+                          {paper.tags.map((t) => (
+                            <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-row-tag is-on' : 'desk-row-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>
+                              <span aria-hidden="true">#</span>{t.name}
+                            </button>
+                          ))}
+                        </span>
+                      )}
                     </td>
                     <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
                     {showMerit && <td className="desk-col-dots">{paper.rating_liking ? <RatingDots value={paper.rating_liking} /> : null}</td>}
-                    <td className="desk-col-faces">{others.length > 0 && <Faces users={others} max={3} />}</td>
+                    <td className="desk-col-faces">{others.length > 0 && <Faces users={others} max={3} linked />}</td>
                     <td className="desk-col-date">{added(paper.created_at)}</td>
                   </tr>
                 );

@@ -27,7 +27,7 @@ test('shared application styles reference only declared or runtime tokens', () =
     [...applicationStyles.matchAll(/--([\w-]+)\s*:/g)].map((match) => match[1]),
   );
   const runtime = new Set([
-    'active-shelf-color', 'activity-days', 'board-card-paint-state', 'board-grid-dot', 'hue',
+    'active-shelf-color', 'activity-days', 'board-card-paint-state', 'board-grid-dot',
     'board-grid-size', 'board-grid-x', 'board-grid-y', 'board-ui-scale',
     'desk-filter-h', 'preview-ratio', 'shelf-color',
   ]);
