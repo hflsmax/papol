@@ -382,7 +382,6 @@ export function TalkCard({
   };
 
   const posts = discussion?.posts ?? [];
-  const page = discussion ? `/discussion/${discussion.uuid}` : null;
   const style = spot && !spot.sheet
     ? { left: spot.left, top: spot.top, width: spot.width, transformOrigin: `${spot.originX}px ${spot.originY}px` }
     : undefined;
@@ -399,12 +398,6 @@ export function TalkCard({
       <header className="talk-card-header">
         <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
         {!inline && discussion && discussion.posts.length > 0 && <span className="talk-card-count">{plural(posts.length, 'post', 'posts')}</span>}
-        {page && (
-          <a className="talk-card-open" href={appPath(page)} title="Open as a page" aria-label="Open as a page">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
-            {inline && <span>Open as a page</span>}
-          </a>
-        )}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       {from && (
