@@ -422,6 +422,14 @@ button:disabled {
   color: var(--ink-inverse);
 }
 
+/* The initial sits on the circle's centre: its box is trimmed to the
+   capital's height, so the letter, not its line, is what is centred. */
+.avatar-letter {
+  display: block;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
+
 /* A user without a picture shows their initial on a colour of their
    own, so two initials are told apart at a glance. Two classes, so these
    beat the plain size classes but still yield to role colouring such as

@@ -79,9 +79,9 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             Read
           </a>
           {!paper.in_my_nook && (
-            <button type="button" className="paper-brief-quiet" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
+            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
           )}
-          {canTakeOut && <button type="button" className="paper-brief-quiet paper-brief-take-out" onClick={takeOut}>Take out</button>}
+          {canTakeOut && <button type="button" className="paper-brief-take-out" onClick={takeOut}>Take out</button>}
         </div>
       </header>
       {notice && <div className="error" role="alert">{notice}</div>}
@@ -107,7 +107,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             ) : (
               <div className="paper-brief-dig" key={d.uuid}>
                 <TalkCard
-                  inline single unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                  inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
                   projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                   onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
                 />
@@ -117,7 +117,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
           {currentUser && !digs.some((d) => d.is_mine) && (
             <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
               <TalkCard
-                inline single seekUnread={() => false} dig="mine"
+                inline single tucked seekUnread={() => false} dig="mine"
                 projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                 onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
               />

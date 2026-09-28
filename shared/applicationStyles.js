@@ -5395,40 +5395,53 @@ ${talkStyles}
 .paper-brief-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); text-wrap: balance; }
 .paper-brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .paper-brief-authors { font: italic var(--fs-md) var(--font-serif); }
-.paper-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
-.paper-brief-actions .button { font-family: var(--font-ui); }
-.paper-brief-quiet { display: inline-flex; align-items: center; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
-.paper-brief-quiet:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.paper-brief-quiet .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.paper-brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+/* Every action is a button of one size; Read alone is filled. */
+.paper-brief-actions :is(.button, button) { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; min-height: 32px; padding: 0 14px; font: 500 var(--fs-sm)/1 var(--font-ui); }
+.paper-brief-actions .action-glyph { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .paper-brief-take-out { margin-left: auto; }
-.paper-brief-take-out:hover:not(:disabled) { color: var(--red); }
+.paper-brief-take-out:hover:not(:disabled) { border-color: var(--red-line); background: var(--red-soft); color: var(--red); }
 .paper-brief .project-paper-added { margin-top: calc(-1 * var(--space-2)); }
-.paper-brief-dig { padding-top: var(--space-4); }
+/* The paper's digs, each on a sheet of its own: parted by space and tone,
+   everything in a sheet on one left edge, the posts a step in from the dig. */
+.paper-brief-digs { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding-bottom: var(--space-2); }
+.paper-brief-dig { padding: var(--space-3) var(--space-4) var(--space-4); border-radius: 10px; background: var(--paper-sunken); }
 .paper-brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
-.paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
-.paper-brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; align-items: baseline; }
-.paper-brief-dig .talk-card.is-inline .talk-card-subject { padding-left: 0; }
-.paper-brief-dig .talk-card.is-inline .talk-card-owners { padding-left: 0; padding-right: 0; }
-/* Posts are read, not skimmed: body size and leading, parted by space. */
-.paper-brief-dig .talk-post { padding: var(--space-3) 0; }
-.paper-brief-dig .talk-post-head { margin-bottom: var(--space-1); }
-.paper-brief-dig .talk-post-head .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
-.paper-brief-dig .talk-post-body { font-size: var(--fs-md); line-height: 1.5; }
-.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .5em; }
-.paper-brief-dig .talk-compose { padding-left: 0; padding-right: 0; }
-.paper-brief-dig .talk-compose textarea { background: var(--card); }
+.paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 .paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
-.paper-brief-dig + .paper-brief-dig { margin-top: var(--space-5); }
-/* Each dig on its own: its phase sits at the end of its owner's line. */
-.paper-brief-dig .talk-card.is-inline { position: relative; }
-.paper-brief-dig .talk-card.is-inline .talk-card-header { position: absolute; top: calc(var(--space-3) + 6px); right: 0; z-index: 1; padding: 0; }
-.paper-brief-dig .talk-post:first-child .talk-post-head { padding-right: 120px; }
+.paper-brief-dig .talk-post { margin: 0; padding: var(--space-2) 0; }
+.paper-brief-dig .talk-post:hover { background: none; }
+.paper-brief-dig .talk-post + .talk-post { margin-top: 0; padding-left: 28px; }
+.paper-brief-dig .talk-post-head { margin-bottom: var(--space-1); }
+.paper-brief-dig .talk-post-head .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
+.paper-brief-dig .talk-post:first-child .talk-post-body { font-size: var(--fs-md); line-height: 1.5; }
+.paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .4em; }
+/* The phase is a word on the dig's own line, after its date. */
+.paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
+.paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
+.paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
+.paper-brief-dig .talk-post-head .dig-phase-word.is-gold { color: var(--accent-strong); }
+.paper-brief-dig .talk-post-head .dig-phase { margin-left: var(--space-1); }
+/* The box that posts to the dig: one quiet line at the posts' edge, taller
+   while it is being written in. */
+.paper-brief-dig .talk-compose { grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-2); padding: 0 0 0 28px; background: none; }
+.paper-brief-dig .talk-compose .mini-avatar { width: 20px; height: 20px; margin-top: 8px; font-size: 10px; }
+.paper-brief-dig .talk-compose textarea { min-height: 36px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
+.paper-brief-dig .talk-compose textarea:focus { min-height: 88px; }
+.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 36px; overflow: hidden; }
+.paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
+.paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
+.paper-brief-dig .talk-unfold.is-post { margin: var(--space-2) 0 0 28px; }
+/* Yours, not yet written: no sheet, just your face and a line to write in. */
+.paper-brief-dig.is-yours { padding: var(--space-1) var(--space-4) 0; background: none; }
+.paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
 /* A buried dig folds to its owner's line; pressing it opens the dig. */
-.paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: calc(100% + 2 * var(--space-2)); min-height: 36px; margin: var(--space-3) calc(-1 * var(--space-2)) 0; padding: var(--space-1) var(--space-2); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
-.paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-soft); }
-.paper-brief-dig-folded .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
+.paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
+.paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink-soft); }
+.paper-brief-dig-folded .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .paper-brief-dig-owner { color: var(--ink-soft); font-weight: 600; }
-.paper-brief-dig-folded .dig-phase-word { margin-left: 0; pointer-events: none; }
+.paper-brief-dig-folded .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: inherit; font: inherit; pointer-events: none; }
+.paper-brief-dig-folded .paper-brief-dig-owner ~ span::before { content: '·'; margin-right: var(--space-2); }
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people. */
