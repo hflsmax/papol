@@ -5326,17 +5326,19 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk.is-wide .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The open thing sits on white, the list on the page: tone, not a rule, parts them. */
 .project-talk-panel { position: sticky; top: var(--space-4); padding: var(--space-2) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
-.project-talk-panel .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: calc(100vh - 2 * var(--space-4) - 56px); }
+/* One scroller: the page. The pane stays put beside a long list and
+   scrolls with the page when it is the longer one. */
+.project-talk-panel .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.project-talk-panel .talk-card.is-inline .talk-card-body { overflow: visible; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { padding-left: 0; background: none; }
 .project-talk-panel .talk-card.is-inline :is(.talk-card-owners, .talk-card-body) { padding-left: 0; padding-right: 0; }
 .project-talk-panel .talk-post { margin-inline: 0; padding-inline: 0; }
-.project-talk-panel .talk-card.is-inline .talk-compose { padding-left: 0; padding-right: 0; background: var(--card); }
+.project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--card); }
 .project-talk-subject-line { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); padding-top: 5px; font: 600 var(--fs-md)/1.35 var(--font-serif); }
 .project-talk-subject-line a { color: inherit; }
 .project-talk-subject-line a:hover { color: var(--accent); }
 .project-talk-subject-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .project-talk-subject-open:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-[data-shell='desktop'] .project-talk-panel .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 .project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
 .project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
@@ -5371,8 +5373,7 @@ ${talkStyles}
 .project-row-open:hover:not(:disabled) { border: 0; background: none; color: inherit; }
 .project-row.is-selected, .project-row.is-selected:hover { background: var(--card); box-shadow: var(--shadow-sm); }
 .project-row.is-selected .project-card-title { color: var(--ink); }
-.project-papers-panel { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
-[data-shell='desktop'] .project-papers-panel { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
+.project-papers-panel { position: sticky; top: var(--space-4); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
 .project-paper-open { margin-bottom: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
 
 
