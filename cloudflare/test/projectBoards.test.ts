@@ -45,6 +45,30 @@ describe("project boards", () => {
     expect(seen.boards[0].boxes).toHaveLength(1);
   });
 
+  it("marks a board new to the other members when someone puts a card on it, not while it waits in the tray", async () => {
+    const { dana, ana, project } = await group();
+    const board = await boardIn(ana, project.uuid);
+    const other = await boardIn(ana, project.uuid, "Plans");
+    await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers });
+    const count = async (who: Account) => (await ok("GET", "/api/projects", { headers: who.headers })).find((p: { uuid: string }) => p.uuid === project.uuid).new_count;
+
+    await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: ana.headers, json: { content: "Learn the delay online" } });
+    await ok("POST", `/api/boards/${other.uuid}/staging`, { headers: ana.headers, json: { excerpt_text: "Waiting in the tray", source_url: "https://papol.io/viewer/?pdf=abc", source_label: "A paper" } });
+    expect(await row("SELECT added_by FROM board_items WHERE content = ?", "Learn the delay online")).toEqual({ added_by: ana.uuid });
+    expect(await count(dana)).toBe(1);
+    expect(await count(ana)).toBe(0);
+    const seen = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(Object.fromEntries(seen.boards.map((b: { name: string; is_new: boolean }) => [b.name, b.is_new]))).toEqual({ Ideas: true, Plans: false });
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).boards.every((b: { is_new: boolean }) => !b.is_new)).toBe(true);
+
+    // Seen once opened; a card of the member's own is never news to them.
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).boards.some((b: { is_new: boolean }) => b.is_new)).toBe(false);
+    await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "Mine" } });
+    expect(await count(dana)).toBe(0);
+    expect(await count(ana)).toBe(1);
+  });
+
   it("lets only its maker shelve it, and its maker or a keeper delete it", async () => {
     const { dana, ana, project } = await group();
     const board = await boardIn(ana, project.uuid);

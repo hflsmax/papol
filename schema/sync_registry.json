@@ -44,6 +44,9 @@
       ],
       "server_owned": [
         "file_path"
+      ],
+      "server_columns": [
+        "added_by"
       ]
     },
     "papers": {

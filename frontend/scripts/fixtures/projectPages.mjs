@@ -82,7 +82,7 @@ const boards = [
     boxes: [box(0, 0, 300, 112), box(340, 0, 300, 145, 'excerpt'), box(0, 150, 300, 112), box(340, 180, 300, 112), box(700, 40, 300, 180, 'image'), box(0, 300, 300, 145, 'excerpt'), box(340, 330, 300, 112), box(700, 260, 300, 112), box(1040, 0, 300, 112), box(1040, 150, 300, 145, 'excerpt'), box(1040, 330, 300, 112), box(700, 410, 300, 82, 'file')],
   },
   {
-    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, updated_at: daysAgo(4),
+    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, updated_at: hoursAgo(1), is_new: true,
     boxes: [box(0, 0, 300, 145, 'excerpt'), box(360, 0, 300, 145, 'excerpt'), box(180, 200, 300, 112), box(540, 220, 300, 180, 'image'), box(0, 260, 300, 112)],
   },
 ];

@@ -94,7 +94,12 @@ export async function keeping(env: Env, project: Project, user: User): Promise<M
   return member.is_keeper ? member : refuse(403, "Only a keeper can do that");
 }
 
-// The papers other members added since this member last looked.
+// A card someone else put on one of the project's boards since this
+// member last looked, and that is on the board rather than in its tray.
+const NEW_CARD = "bi.created_at > ? AND bi.added_by != <me> AND bi.deleted_at IS NULL AND NOT bi.staged";
+
+// The papers, cards and digs other members added since this member last
+// looked.
 async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
   const rows = await all<{ project_uuid: string; n: number }>(env.DB,
     `SELECT m.project_uuid, count(pp.uuid) AS n FROM project_members m
@@ -105,7 +110,13 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      JOIN digs d ON d.project_uuid = m.project_uuid
      WHERE m.user_uuid = ? AND d.phase = 'digging' AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
        OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
-     GROUP BY m.project_uuid`, user.uuid, user.uuid);
+     GROUP BY m.project_uuid
+     UNION ALL
+     SELECT m.project_uuid, count(bi.uuid) AS n FROM project_members m
+     JOIN project_boards pb ON pb.project_uuid = m.project_uuid
+     JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
+     JOIN board_items bi ON bi.board_uuid = b.uuid AND ${NEW_CARD.replace(/\?/g, "m.seen_at").replace("<me>", "m.user_uuid")}
+     WHERE m.user_uuid = ? GROUP BY m.project_uuid`, user.uuid, user.uuid, user.uuid);
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.project_uuid, (counts.get(r.project_uuid) ?? 0) + r.n);
   return counts;
@@ -135,9 +146,10 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
        WHERE c.user_uuid = ? AND c.deleted_at IS NULL`, project.uuid, me.uuid),
     statement(env.DB,
       `SELECT b.uuid, b.name, b.description, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
-              (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count
+              (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count,
+              EXISTS (SELECT 1 FROM board_items bi WHERE bi.board_uuid = b.uuid AND ${NEW_CARD.replace("<me>", "?")}) AS is_new
        FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid LEFT JOIN users u ON u.uuid = b.user_uuid
-       WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, project.uuid),
+       WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, member.seen_at, me.uuid, project.uuid),
     // Which of the project's boards carry a card from each paper: an
     // excerpt's backlink names the paper by the first half of its digest.
     statement(env.DB,
@@ -176,7 +188,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     boards: boards.map((b) => ({
       uuid: b.uuid, name: b.name, description: b.description,
       owner: b.owner_uuid ? userPublic({ ...b, uuid: b.owner_uuid }) : null,
-      item_count: b.item_count, updated_at: b.updated_at,
+      item_count: b.item_count, updated_at: b.updated_at, is_new: Boolean(b.is_new),
       boxes: boxes.get(b.uuid as string) ?? [],
     })),
     digs,
