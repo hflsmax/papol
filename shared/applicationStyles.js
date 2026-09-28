@@ -103,9 +103,9 @@ ${commonStyles}
 }
 
 /* ---------- The way bar ----------
-   A signed-in member's one bar on the web: Papol and its three places (or,
-   deeper, the trail back), then the inbox and the member. Small UI type on
-   one row with no rule under it, so the page's own title leads. */
+   A signed-in member's one bar on the web: Papol, the page's own title (or
+   the trail back), then the Bazaar and the member. One row with no rule
+   under it. */
 
 .way-bar {
   display: flex;
@@ -162,7 +162,20 @@ ${commonStyles}
 .way-trail:empty,
 #way-slot:not(:empty) + .way-default { display: none; }
 .way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.way-trail a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
+.way-default a::before, #way-slot > a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
+
+/* A page's own title stands on the bar's line, on its baseline, so the page
+   starts at the top of the window. In the nook "Papol" takes the rail's
+   width, so the title starts where the page does. */
+#way-slot { flex: 1; color: var(--ink); }
+#way-slot > h2,
+#way-slot .project-title { margin: 0; font: 600 var(--fs-xl)/1.3 var(--font-serif); }
+#way-slot > h2 { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+#way-slot .project-title-row { align-items: baseline; }
+#way-slot .project-title-row .experimental-badge { align-self: center; }
+.app:has(.nook-desk) .way { gap: 0; }
+.app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
+.app:has(.nook-desk.is-folded) .way-mark { width: calc(2.25rem + var(--space-5)); }
 
 .way-count {
   display: inline-block;
@@ -196,6 +209,15 @@ ${commonStyles}
 @media (max-width: 640px) {
   .way-bar { gap: var(--space-3); }
   .way-aside { gap: var(--space-3); }
+}
+/* Where the nook has no room for its rail, the title takes a line of its
+   own under Papol and the member. */
+@media (max-width: 760px) {
+  .app:has(.nook-desk) .way-bar { flex-wrap: wrap; row-gap: var(--space-4); }
+  .app:has(.nook-desk) .way { display: contents; }
+  .app:has(.nook-desk) .way-mark { flex: 1; width: auto; }
+  .app:has(.nook-desk) #way-slot { order: 1; flex: 1 1 100%; min-width: 0; }
+  .app:has(.nook-desk) #way-slot:empty { display: none; }
 }
 
 /* About, Learn and the Mac app, for a member: at the foot of the page.
@@ -5193,7 +5215,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @media (max-width: 640px) { .app.is-project { padding: var(--space-3) var(--space-4) var(--space-7); } }
 
 .project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-4); }
-.project-head-main { flex: 1 1 22rem; min-width: 0; }
+.project-head > .project-title-row { flex: 1 1 22rem; }
+.project-head > .project-tabs { margin: 0; }
+.project-head:has(> .project-title-row) > .project-tabs { order: 3; flex-basis: 100%; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
 .project-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
 .project-title-row .project-title { min-width: 0; }
@@ -5588,8 +5612,6 @@ ${talkStyles}
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
 
 .desk-main { min-width: 0; }
-.desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-1); }
-.desk-main-head h2 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; font: 600 var(--fs-xl) var(--font-serif); }
 .desk-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .desk-actions button { padding: 5px 12px; font: 500 var(--fs-sm) var(--font-ui); }
 .desk-actions .upload-section.is-trigger { position: relative; margin: 0; }
@@ -5660,10 +5682,10 @@ ${talkStyles}
 .nook-desk.is-folded .desk-rail:focus-within .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 0s; }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing .desk-rail,
-.nook-desk.is-reviewing .desk-filter,
-.nook-desk.is-reviewing .desk-table,
-.nook-desk.is-reviewing .desk-main-head h2 { display: none; }
-.nook-desk.is-reviewing .desk-main-head, .nook-desk.is-reviewing .desk-actions { display: block; margin: 0; }
+.nook-desk.is-reviewing .desk-search,
+.nook-desk.is-reviewing .desk-chips,
+.nook-desk.is-reviewing .desk-table { display: none; }
+.nook-desk.is-reviewing .desk-filter, .nook-desk.is-reviewing .desk-actions { position: static; display: block; margin: 0; padding: 0; }
 @media (max-width: 760px) {
   .nook-desk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .desk-rail, .desk-rail-body { position: static; display: contents; }
@@ -5671,7 +5693,6 @@ ${talkStyles}
   .nook-desk.is-folded .desk-rail { display: none; }
   .desk-rail-part:first-child { order: -2; }
   .desk-main { order: -1; }
-  .desk-main-head { margin-bottom: var(--space-3); }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
   .desk-table thead, .desk-table .desk-col-date { display: none; }

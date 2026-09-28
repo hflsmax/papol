@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { appPath } from '../base';
 import Avatar from './Avatar';
@@ -43,11 +43,17 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   );
 }
 
-// What a page adds to the bar's trail: the steps between Papol and the
-// page itself, each a link. It takes the place of the bar's own guess.
+// Whether this page is drawn under the bar: a signed-in member on the web.
+export const WayShown = createContext(false);
+
+// What a page puts on the bar's line: its title, or the steps between Papol
+// and the page. It takes the place of the bar's own guess. Where there is no
+// bar (a visitor, the Mac app) it stays where the page put it.
 export function InWay({ children }) {
+  const shown = useContext(WayShown);
   const [slot, setSlot] = useState(null);
-  useEffect(() => { setSlot(document.getElementById('way-slot')); }, []);
+  useLayoutEffect(() => { if (shown) setSlot(document.getElementById('way-slot')); }, [shown]);
+  if (!shown) return children;
   return slot ? createPortal(children, slot) : null;
 }
 
