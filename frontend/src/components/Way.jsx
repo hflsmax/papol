@@ -38,7 +38,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
         <Avatar user={user} className="nav-avatar" />
         {unreadCount > 0 && <span className="way-count way-self-count" aria-hidden="true">{unreadCount}</span>}
       </a>}
-      {!user && <span className="way-self" aria-hidden="true"><span className="nav-avatar" /></span>}
+      {!user && <span className="way-self is-unknown" aria-hidden="true"><span className="nav-avatar" /></span>}
     </header>
   );
 }
