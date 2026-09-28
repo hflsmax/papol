@@ -47,6 +47,10 @@ export const talkStyles = `
 .talk-card-count { color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
 .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
+.dig-phase { margin-left: auto; text-transform: none; letter-spacing: 0; min-height: 24px; padding: 1px 26px 1px 9px; border: 1px solid var(--line); border-radius: 999px; background-color: transparent; background-position: right 8px center; color: var(--ink-soft); font: 600 var(--fs-2xs) var(--font-ui); cursor: pointer; }
+.dig-phase + .talk-card-close { margin-left: 0; }
+.dig-phase.is-gold { border-color: var(--accent); color: var(--accent-strong); }
+.dig-phase.is-buried { color: var(--ink-faint); }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  addIdeaCard, createProjectBoard, findDigs, getDig, getProject, postInDig, startDig, subjectKey,
+  addIdeaCard, createProjectBoard, findDigs, getDig, getProject, moveDig, postInDig, startDig, subjectKey,
 } from '../api/projects.js';
 import { appPath } from '../appUrls.js';
 import appLimits from '../appLimits.js';
@@ -27,6 +27,28 @@ const KINDS = {
   card: { word: 'Card' },
   annotation: { word: 'Annotation' },
 };
+
+// Where a dig stands. Anyone in the project moves it; nothing else does.
+export const PHASES = [
+  { key: 'digging', word: 'Digging' },
+  { key: 'stashed', word: 'Stashed' },
+  { key: 'gold', word: 'Gold' },
+  { key: 'buried', word: 'Buried' },
+];
+export const phaseWord = (phase) => PHASES.find((p) => p.key === phase)?.word ?? 'Digging';
+
+export function PhasePicker({ dig, onMoved, className = '' }) {
+  const [busy, setBusy] = useState(false);
+  const move = async (e) => {
+    setBusy(true);
+    try { onMoved?.(await moveDig(dig.uuid, e.target.value)); } finally { setBusy(false); }
+  };
+  return (
+    <select className={`dig-phase is-${dig.phase ?? 'digging'} ${className}`} value={dig.phase ?? 'digging'} disabled={busy} aria-label="Phase" onChange={move}>
+      {PHASES.map((p) => <option key={p.key} value={p.key}>{p.word}</option>)}
+    </select>
+  );
+}
 
 export function kindOf(subject) {
   return subjectKey(subject).split(':')[0];
@@ -422,6 +444,16 @@ export function TalkCard({
       <header className="talk-card-header">
         <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
         {discussion?.posts.length > 0 && <span className="talk-card-count">{inline ? discussion.posts.length : plural(discussion.posts.length, 'post', 'posts')}</span>}
+        {discussion && (
+          <PhasePicker
+            dig={discussion}
+            onMoved={(next) => {
+              setDiscussion(next);
+              const others = digs.filter((d) => d.uuid !== next.uuid);
+              if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
+            }}
+          />
+        )}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       {from && (

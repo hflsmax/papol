@@ -5336,6 +5336,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk.is-wide .project-talk-item .project-talk-subject { grid-column: 1; }
 .project-talk.is-wide .project-talk-item .project-talk-meta { grid-column: 1; }
 .project-talk.is-wide .project-talk-item .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.project-talk-phase { flex: none; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); letter-spacing: 0; text-transform: none; }
+.project-talk-phase.is-gold { border-color: var(--accent); color: var(--accent-strong); }
+.project-talk-item.is-buried .project-talk-label { color: var(--ink-faint); }
 .project-talk.is-wide .project-talk-item:hover:not(:disabled) { background: var(--paper-sunken); }
 .project-talk.is-wide .project-talk-item.is-new, .project-talk.is-wide .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
 .project-talk.is-wide .project-talk-item.is-selected, .project-talk.is-wide .project-talk-item.is-selected:hover:not(:disabled) { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
@@ -5354,6 +5357,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-item.is-new { border-color: var(--gold-line); background: var(--gold-soft); }
 .project-talk-item.is-new:hover:not(:disabled) { border-color: var(--accent); background: var(--gold-soft); }
 .project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; grid-column: 1; }
+.project-talk-subject > .project-card-kind { flex: none; white-space: nowrap; }
 .project-talk-meta { grid-column: 1; }
 .project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }

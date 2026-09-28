@@ -21,6 +21,11 @@ import { digsOf, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjec
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
+// Where a dig stands: still being dug, stashed for later, gold worth
+// keeping, or buried. Anyone in the project moves it; nothing else does.
+export const PHASES = ["digging", "stashed", "gold", "buried"] as const;
+type Phase = typeof PHASES[number];
+
 interface Dig extends Row {
   uuid: string;
   user_uuid: string;
@@ -30,6 +35,7 @@ interface Dig extends Row {
   board_item_uuid: string | null;
   annotation_uuid: string | null;
   text: string;
+  phase: Phase;
   edited_at: string | null;
   created_at: string;
   updated_at: string;
@@ -127,7 +133,7 @@ async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Me
     project: { uuid: project.uuid, name: project.name },
     subject: subjectOut(await subjectRow(env, project.uuid, dig)),
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
-    text: dig.text, edited_at: dig.edited_at,
+    text: dig.text, phase: dig.phase, edited_at: dig.edited_at,
     can_moderate: Boolean(member.is_keeper),
     posts: posts.map(postOut),
   };
@@ -145,7 +151,7 @@ export async function pinsOf(env: Env, projectUuid: string, me: User, member: Me
   const rows = await all<Row>(env.DB,
     `SELECT d.uuid, d.subject, d.user_uuid,
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            (d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
+            (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d WHERE d.project_uuid = ? ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
@@ -211,7 +217,7 @@ export function digRoutes(router: Router) {
     if (await mine(env, project, subject, me)) refuse(409, "You have dug this already");
     const text = postBody(data.text, "text");
     const at = now();
-    const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: project.uuid, ...subject, text, edited_at: null, created_at: at, updated_at: at };
+    const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: project.uuid, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
     return json(await digOut(env, made, project, me, member));
   });
@@ -231,6 +237,16 @@ export function digRoutes(router: Router) {
     const at = now();
     await batch(env.DB, [update(env.DB, "digs", "uuid", dig.uuid, { text, edited_at: at })]);
     return json(await digOut(env, { ...dig, text, edited_at: at }, project, me, member));
+  });
+
+  // Anyone in the project moves a dig from one phase to another.
+  router.on("PUT", "/api/digs/:uuid/phase", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const { dig, project, member } = await openDig(env, params.uuid, me);
+    const phase = (await readJson<Row>(request)).phase;
+    if (!PHASES.includes(phase as Phase)) refuse(422, "That is not a phase");
+    await batch(env.DB, [update(env.DB, "digs", "uuid", dig.uuid, { phase })]);
+    return json(await digOut(env, { ...dig, phase: phase as Phase }, project, me, member));
   });
 
   // Its owner, or a keeper, removes a dig and everything posted in it.

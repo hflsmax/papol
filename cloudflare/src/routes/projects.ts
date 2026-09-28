@@ -98,7 +98,7 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
      JOIN digs d ON d.project_uuid = m.project_uuid
-     WHERE m.user_uuid = ? AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
+     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
        OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
      GROUP BY m.project_uuid`, user.uuid, user.uuid);
   const counts = new Map<string, number>();
@@ -181,7 +181,7 @@ export async function digsOf(env: Env, projectUuid: string, me: User, member: Me
   const rows = await all<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            (d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?) AS unread,
+            (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d ${SUBJECT_JOINS}
      WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
@@ -202,7 +202,7 @@ export async function digsOf(env: Env, projectUuid: string, me: User, member: Me
     return {
       uuid: d.uuid, project_uuid: d.project_uuid, created_at: d.created_at, updated_at: d.updated_at,
       owner: people.get(String(d.user_uuid)) ?? null, is_mine: d.user_uuid === me.uuid,
-      text: d.text, excerpt: excerpt(String(d.text)),
+      text: d.text, excerpt: excerpt(String(d.text)), phase: d.phase,
       subject: subjectOut(d),
       post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0,
       voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => people.get(uuid)).filter(Boolean),
