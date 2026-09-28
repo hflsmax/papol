@@ -657,16 +657,16 @@ export default function PaperJacket({
                   member's own about it. */}
               <InWay>
                 <div className="paper-way-head">
-                  <h2><PaperTitle title={paper.title} /></h2>
-                  <div className="paper-way-facts">
+                  <div className="paper-way-name">
+                    <h2><PaperTitle title={paper.title} /></h2>
                     {authors.length > 0 && <p className="authors">{authors.join(', ')}</p>}
-                    {(paper.journal || paper.year) && (
-                      <p className="metadata">
-                        {paper.journal && <span className="journal">{paper.journal}</span>}
-                        {paper.year && <span className="year">{paper.year}</span>}
-                      </p>
-                    )}
                   </div>
+                  {(paper.journal || paper.year) && (
+                    <p className="metadata">
+                      {paper.journal && <span className="journal">{paper.journal}</span>}
+                      {paper.year && <span className="year">{paper.year}</span>}
+                    </p>
+                  )}
                 </div>
               </InWay>
               {hasEntry && <div className="paper-own-row">{authorCheck}{shelfControls}</div>}
