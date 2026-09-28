@@ -5763,6 +5763,9 @@ ${desktopStyles}
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }
 /* In the Bazaar, the projects are a section above everyone's papers. */
 .projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
+/* Papers come in through the nook; the Bazaar shows no drop box. A PDF
+   dropped anywhere on the window still lands here for its review. */
+.library-page.is-bazaar > .upload-section { display: none; }
 .projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
 .projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
 .projects-page.is-section .projects-row { padding-block: var(--space-3); }

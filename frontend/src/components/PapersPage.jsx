@@ -131,7 +131,7 @@ export default function PapersPage({
   const hasActiveFilters = selectedUser != null || Boolean(search.trim());
 
   return (
-    <div className={reviewingUpload || addingFolder ? 'library-page upload-review-mode' : 'library-page'}>
+    <div className={`library-page${projects ? ' is-bazaar' : ''}${reviewingUpload || addingFolder ? ' upload-review-mode' : ''}`}>
       {currentUser && addingFolder && (
         <FolderImport
           currentUser={currentUser}
