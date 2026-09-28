@@ -79,9 +79,9 @@ export const talkStyles = `
 .talk-dig-new textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { display: flex; justify-content: flex-end; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
-.talk-post-body p, .discussion-post-body p { margin: 0 0 3px; }
-.talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }
-.talk-post-body li, .discussion-post-body li { margin-bottom: 0; }
+.talk-post-body p { margin: 0 0 3px; }
+.talk-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }
+.talk-post-body li { margin-bottom: 0; }
 .talk-post-body > :first-child { margin-top: 0; }
 .talk-post-body > :last-child { margin-bottom: 0; }
 .talk-card-error { margin: 0 var(--space-4) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
