@@ -23,7 +23,7 @@ const POST_LIMIT = appLimits.text.dig_post;
 
 // What the dig is about, and the ways out of it: the project, and the
 // thing itself, at its brief or on its board.
-function Subject({ project, subject, posts = [], count = 0, children }) {
+function Subject({ project, subject, posts = [], children }) {
   const projectHref = appPath(`/project/${project.uuid}`);
   const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
     : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
@@ -57,7 +57,6 @@ function Subject({ project, subject, posts = [], count = 0, children }) {
         {posts.length > 0 && (
           <p className="dig-voices">
             <span className="project-faces">{voices.slice(0, 5).map((u) => <Face key={u.uuid} user={u} />)}</span>
-            {count > 0 && <span>{count === 1 ? '1 post' : `${count} posts`}</span>}
           </p>
         )}
       </aside>
@@ -213,7 +212,7 @@ export function DigPage({ digUuid, currentUser, onBack, backHref }) {
 
   return (
     <div className="discussion-page dig-page">
-      <Subject project={discussion.project} subject={discussion.subject} posts={entries} count={discussion.posts.length}>
+      <Subject project={discussion.project} subject={discussion.subject} posts={entries}>
         <PhasePicker dig={discussion} onMoved={setDiscussion} />
       </Subject>
       <div className="dig-main">

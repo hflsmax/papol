@@ -335,7 +335,6 @@ export function TalkCard({
     >
       <header className="talk-card-header">
         <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
-        {discussion?.posts.length > 0 && <span className="talk-card-count">{inline ? discussion.posts.length : plural(discussion.posts.length, 'post', 'posts')}</span>}
         {discussion && (
           <PhasePicker
             dig={discussion}

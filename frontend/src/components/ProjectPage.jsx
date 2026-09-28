@@ -484,7 +484,6 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
           {last && <Avatar user={last.user} className="mini-avatar" />}
           {last && <b>{last.user.uuid === currentUser?.uuid ? 'You' : last.user.display_name}</b>}
           <span>{when(d.updated_at)}</span>
-          {!d.is_new && d.post_count > 1 && <span className="project-talk-count"><TalkGlyph outline />{d.post_count}</span>}
         </span>
         {d.is_new && <span className="project-card-alert" aria-label={plural(d.unread || 1, 'unread post', 'unread posts')}><TalkGlyph /><span>{d.unread || 1}</span></span>}
       </>
