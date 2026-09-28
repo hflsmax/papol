@@ -4,10 +4,9 @@ import { updatePaper, paperHref } from '../../../shared/api/papers.js';
 import { RatingSummary } from './Rating';
 import Avatar from './Avatar';
 import ReaderPop from './ReaderPop';
-import StatePill from './StatePill';
 import HintPop from './HintPop';
 import { appPath } from '../base';
-import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
+import { formatAuthors } from '../paperFormat';
 import Effort from './EffortPop';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
@@ -61,12 +60,11 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
       (board.name.toLowerCase().includes(searchLower) || (board.description || '').toLowerCase().includes(searchLower));
   });
 
-  // Your own nook reads as a journal: newest first, grouped by month.
-  // Other nooks rank active seminars to the top.
+  // A nook reads as a journal: newest first, grouped by month.
   const entries = [
-    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at, rank: seminarRank(paper) })),
-    ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at, rank: 2 })),
-  ].sort((a, b) => (isOwn ? 0 : a.rank - b.rank) || new Date(b.at) - new Date(a.at));
+    ...filteredPapers.map((paper) => ({ kind: 'paper', value: paper, at: paper.created_at })),
+    ...filteredBoards.map((board) => ({ kind: 'board', value: board, at: board.updated_at })),
+  ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
   const activeShelf = shelves.find((shelf) => shelf.uuid === selectedShelf);
   const activeTag = tags.find((tag) => tag.uuid === selectedTag);
@@ -255,15 +253,6 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                     {paper.title}
                   </a>
                 </h4>
-                {/* Beside the title rather than inside it: inside, the pill
-                    rides the text baseline and sits low against a serif
-                    line. Out here it takes the same first-line box as the
-                    user chips, and the two agree. */}
-                {paper.room_status && (
-                  <span className="title-state">
-                    <StatePill status={paper.room_status} />
-                  </span>
-                )}
                 </div>
                 <p className="paper-meta paper-meta-row">
                   <span>

@@ -9,7 +9,7 @@ The shared client layers have distinct responsibilities:
 - `appUrls.js` owns deployment paths and backend URL derivation.
 - `httpClient.js` owns authenticated HTTP requests and response normalization.
 - `api/` contains cohesive product clients for accounts, people, boards,
-  papers, rooms, sharables, notifications, feedback, and administration.
+  papers, projects, sharables, notifications, feedback, and administration.
   Applications import the domain they use.
 - `nativeData.js` exposes a finite `nativeRepository` for desktop queries and
   atomic transactions without importing Tauri. Raw IPC query names are private

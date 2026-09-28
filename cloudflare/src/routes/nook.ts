@@ -3,7 +3,6 @@
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
-import { inActiveCohort } from "../cohorts";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { paperListEntries } from "../papers/list";
@@ -84,7 +83,6 @@ export function nookRoutes(router: Router) {
       papers: copies.length,
       displayed: copies.filter((c) => c.shelf_public).length,
       notes: (await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM annotations WHERE user_uuid = ? AND kind = 'note' AND deleted_at IS NULL", user.uuid))!.n,
-      seminars: (await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM room_participants WHERE user_uuid = ?", user.uuid))!.n,
     };
     const tags = hidePrivate ? [] : await all<{ uuid: string; name: string }>(env.DB,
       "SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)", user.uuid);
@@ -196,11 +194,6 @@ export function nookRoutes(router: Router) {
     check.done();
     const statements: D1PreparedStatement[] = [];
     if (data.is_public !== undefined && Boolean(data.is_public) !== Boolean(shelf.is_public)) {
-      if (!data.is_public) {
-        for (const copy of await all<{ paper_sha256: string }>(env.DB, "SELECT paper_sha256 FROM copies WHERE shelf_uuid = ? AND deleted_at IS NULL", shelf.uuid)) {
-          if (await inActiveCohort(env.DB, user.uuid, copy.paper_sha256)) refuse(400, "Some papers on this shelf are in active seminar cohorts");
-        }
-      }
       // Every copy on the shelf moves with it: none was holding a
       // visibility of its own to update.
       shelf.is_public = data.is_public ? 1 : 0;
@@ -224,11 +217,6 @@ export function nookRoutes(router: Router) {
     if (!remaining.length) refuse(400, "A nook must have at least one shelf");
     const destination = remaining.find((s) => s.is_default) ?? remaining[0];
     const copies = await all<Row>(env.DB, "SELECT * FROM copies WHERE shelf_uuid = ? AND deleted_at IS NULL", shelf.uuid);
-    if (!destination.is_public && shelf.is_public) {
-      for (const copy of copies) {
-        if (await inActiveCohort(env.DB, user.uuid, copy.paper_sha256 as string)) refuse(400, "Seminar papers cannot move to a private shelf");
-      }
-    }
     const statements: D1PreparedStatement[] = [];
     for (const copy of copies) {
       copy.shelf_uuid = destination.uuid;

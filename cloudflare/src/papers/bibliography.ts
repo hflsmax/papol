@@ -36,7 +36,7 @@ export interface Summary {
 
 function userAgent(env: Env): string {
   const contact = env.PAPOL_CONTACT_EMAIL ? `; mailto:${env.PAPOL_CONTACT_EMAIL}` : "";
-  return `Papol/1.0 (Spontaneous Seminar Paper Reading App${contact})`;
+  return `Papol/1.0 (Paper Reading App${contact})`;
 }
 
 function bare(doi: string): string {

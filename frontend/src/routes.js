@@ -1,8 +1,8 @@
 import { stripAppBase } from './base.js';
 import { PAPER_NAME_PATTERN } from '../../shared/paperName.js';
 
-// What a name looks like in a URL. Users and seminar rooms are addressed by
-// their UUID. A paper is addressed by the digest of its PDF, because a paper
+// What a name looks like in a URL. Users, boards and projects are addressed
+// by their UUID. A paper is addressed by the digest of its PDF, because a paper
 // *is* its file: the bytes say which paper a link means, and a paper has no
 // other name to be addressed by. It goes by the first half of that digest,
 // which is the same size as a UUID.
@@ -20,7 +20,6 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if ((uuid = at(`/u/${UUID}`))) return { page: 'nook', uuid };
   if ((uuid = at(`/paper/${PAPER}`))) return { page: 'paper', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
-  if ((uuid = at(`/room/${UUID}`))) return { page: 'room', uuid };
   // Where talking about a subject leads: its discussion, or the first post.
   const ID = UUID.slice(1, -1);
   const DIGEST = '[0-9a-f]{64}';

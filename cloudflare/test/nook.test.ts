@@ -37,7 +37,7 @@ describe("a nook", () => {
     const mine = own.papers.find((p: any) => p.sha256 === shown);
     expect(mine).toMatchObject({ summary: "Mine alone", thought: "Worth it", is_public: true, copy_uuid: shownCopy, tags: [{ uuid: tag.uuid, name: "favourite reads" }] });
     expect(mine.users.map((u: any) => u.user.uuid)).toEqual([keeper.uuid]);
-    expect(own.stats).toEqual({ papers: 2, displayed: 1, notes: 0, seminars: 0 });
+    expect(own.stats).toEqual({ papers: 2, displayed: 1, notes: 0 });
     // Signing up left a tag too; the list is by name.
     expect(own.tags.map((t: any) => t.name)).toEqual(["favourite", "favourite reads"]);
     expect(own.shelves.map((s: any) => [s.name, s.paper_count, s.board_count])).toEqual([["Display", 1, 1], ["Personal", 1, 1]]);
@@ -88,7 +88,6 @@ describe("the Library", () => {
     const entry = (await ok("GET", "/api/papers", { headers: grace.headers }))[0];
     expect(entry.users).toEqual([{ user: { uuid: ada.uuid, display_name: "Ada", affiliation: null, avatar_path: null, email: "ada@example.test" },
       is_author: true, thought: "Brilliant", rating_expertise: null, rating_reading: null, rating_liking: 5, summary: null, tags: [] }]);
-    expect(entry.room_status).toBeNull();
   });
 });
 
@@ -144,7 +143,7 @@ describe("shelves", () => {
     expect((await call("POST", "/api/shelves", { headers: account.headers, json: { name: "Six", color: "#000000" } })).status).toBe(400);
   });
 
-  it("renames, recolours, changes hands as the default, and hides unless a seminar is on", async () => {
+  it("renames, recolours, changes hands as the default, and hides", async () => {
     const account = await register();
     const display = await defaultShelf(account), personal = await privateShelf(account);
     const renamed = await ok("PUT", `/api/shelves/${personal}`, { headers: account.headers, json: { name: "Drafts", color: "#FFFFFF", is_default: true } });
@@ -155,11 +154,6 @@ describe("shelves", () => {
 
     const digest = "7".repeat(64);
     await paperWithCopy(account, digest, "Shelved", { shelfUuid: display });
-    const at = new Date().toISOString(), room = uuid();
-    await exec("INSERT INTO rooms (uuid, paper_sha256, created_by, status, created_at) VALUES (?, ?, ?, 'called', ?)", room, digest, account.uuid, at);
-    await exec("INSERT INTO room_participants (uuid, room_uuid, user_uuid, created_at) VALUES (?, ?, ?, ?)", uuid(), room, account.uuid, at);
-    expect((await call("PUT", `/api/shelves/${display}`, { headers: account.headers, json: { is_public: false } })).status).toBe(400);
-    await exec("UPDATE rooms SET status = 'finished' WHERE uuid = ?", room);
     expect((await ok("PUT", `/api/shelves/${display}`, { headers: account.headers, json: { is_public: false } })).is_public).toBe(false);
   });
 

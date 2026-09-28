@@ -587,7 +587,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
         <p className="panel-note">
         A ZIP file containing all your Papol data: your profile, 
         papers and PDFs in your nook, ratings, summaries, notes 
-        in both data and readable formats, and seminars you joined.
+        in both data and readable formats.
         </p>
 
         <div className="form-actions">

@@ -116,7 +116,6 @@ const TITLES = {
   nook: 'Nook',
   paper: 'Paper',
   papers: 'Desk',
-  room: 'Seminar',
   projects: 'Projects',
   project: 'Project',
   invitation: 'Invitation',

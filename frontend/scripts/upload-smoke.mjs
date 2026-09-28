@@ -119,7 +119,7 @@ function uploadFixture(server) {
             const body = JSON.parse(options.body);
             window.uploadSeen.push({step: 'save', body});
             return new Response(JSON.stringify({sha256: body.file_path.slice(0, 64), file_path: body.file_path, title: body.title,
-              notes: [], also_read_by: [], rooms: [], tags: []}));
+              notes: [], also_read_by: [], tags: []}));
           }
           return new Response('[]');
         };

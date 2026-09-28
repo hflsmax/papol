@@ -5,7 +5,7 @@ import { paperName } from '../../shared/paperName.js';
 
 // The names a link can carry. A paper is its file, so a paper link carries the
 // digest of that file — the first half of it, which is the size of the UUID
-// users and rooms carry.
+// users and boards carry.
 const DIGEST = '5cf24221f8fa36824ddd1178cbfb5cf36d0dcfcf335c8de87826c4082b70cbf1';
 const NAME = paperName(DIGEST);
 const UUID = '2f1c6f60-3f5b-4a19-9c2a-7d0e1b8c4a53';
@@ -36,10 +36,6 @@ test('a user link opens their space', () => {
     parseRoute(`/u/${UUID}/boards`),
     { page: 'nook', uuid: UUID, section: 'boards' },
   );
-});
-
-test('a room link opens that room', () => {
-  assert.deepEqual(parseRoute(`/room/${UUID}`), { page: 'room', uuid: UUID });
 });
 
 test('every standing page is reachable by its path', () => {
@@ -76,10 +72,10 @@ test('a name of the wrong shape is not a paper', () => {
   }
 });
 
-test('a paper name is not a user and not a room', () => {
+test('a paper name is not a user and not a board', () => {
   for (const name of [NAME, DIGEST]) {
     assert.equal(parseRoute(`/u/${name}`).page, 'home');
-    assert.equal(parseRoute(`/room/${name}`).page, 'home');
+    assert.equal(parseRoute(`/board/${name}`).page, 'home');
   }
 });
 

@@ -140,7 +140,7 @@ describe("mail", () => {
   it("sends one job's mail through the email API and marks its notifications", async () => {
     const account = await register("reader@example.test");
     const notification = uuid();
-    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, 'A seminar was called', 0, 0, ?)", notification, account.uuid, new Date().toISOString());
+    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, 'Feedback from a visitor', 0, 0, ?)", notification, account.uuid, new Date().toISOString());
     const queued = queueEmail(env.DB, "reader@example.test", "Papol: 1 new message today", "Hello", [notification]);
     await queued.statement.run();
     emailApi();

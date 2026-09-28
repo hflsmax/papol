@@ -18,15 +18,6 @@ export interface UserEntry {
   tags: { uuid: string; name: string }[];
 }
 
-// The status of each paper's latest seminar, by the paper's digest.
-export async function roomStatusMap(db: D1Database): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  for (const room of await all<{ paper_sha256: string; status: string }>(db, "SELECT paper_sha256, status FROM rooms ORDER BY created_at, uuid")) {
-    map.set(room.paper_sha256, room.status);
-  }
-  return map;
-}
-
 // Every displayed copy of these papers, with its user: the readers shown
 // against a paper, which is each user's own business to be among. Of each
 // copy, only what its user lets be seen.
@@ -92,9 +83,8 @@ export interface Listed {
 // user's own nook: there a copy shows only what its user lets be seen.
 export async function paperListEntries(db: D1Database, listed: Listed[], hidePrivate: boolean): Promise<Row[]> {
   const digests = [...new Set(listed.map((l) => l.paper.sha256 as string))];
-  const [shown, rooms, tags] = await Promise.all([
+  const [shown, tags] = await Promise.all([
     displayedCopies(db, digests),
-    roomStatusMap(db),
     tagsOf(db, listed.map((l) => l.copy).filter((c) => c && (!hidePrivate || c.tags_public)).map((c) => c!.uuid as string)),
   ]);
   return listed.map(({ paper, copy }) => {
@@ -110,7 +100,6 @@ export async function paperListEntries(db: D1Database, listed: Listed[], hidePri
       rating_expertise: personal?.rating_expertise ?? null,
       rating_reading: personal?.rating_reading ?? null,
       rating_liking: personal?.rating_liking ?? null,
-      room_status: rooms.get(paper.sha256 as string) ?? null,
       users: shown.get(paper.sha256 as string) ?? [],
       tags: copy ? tags.get(copy.uuid as string) ?? [] : [],
       shelf_uuid: copy?.shelf_uuid ?? null,

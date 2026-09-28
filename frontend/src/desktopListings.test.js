@@ -69,13 +69,12 @@ test('a shelf that no longer exists lists the whole nook', () => {
   assert.deepEqual(ids(papersInListing('shelf:42', { nook })), ['b', 'c', 'a']);
 });
 
-test('lists the library with live seminars first', () => {
+test('lists the library newest first', () => {
   const library = [
-    { sha256: 'quiet', created_at: '2026-05-01T00:00:00Z' },
-    { sha256: 'scheduled', room_status: 'scheduled', created_at: '2026-01-01T00:00:00Z' },
-    { sha256: 'called', room_status: 'open', created_at: '2025-01-01T00:00:00Z' },
+    { sha256: 'old', created_at: '2025-01-01T00:00:00Z' },
+    { sha256: 'new', created_at: '2026-05-01T00:00:00Z' },
   ];
-  assert.deepEqual(ids(papersInListing('library', { library })), ['called', 'scheduled', 'quiet']);
+  assert.deepEqual(ids(papersInListing('library', { library })), ['new', 'old']);
   assert.deepEqual(ids(papersInListing('library', { library: null })), []);
 });
 

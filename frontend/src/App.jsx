@@ -14,7 +14,6 @@ import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
 import PapersPage from './components/PapersPage';
-import RoomPage from './components/RoomPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
@@ -69,7 +68,7 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 export const PROJECT_PAGES = new Set(['project', 'brief', 'discussion', 'discuss']);
 
 const SIGN_IN_PAGES = new Set([
-  'nook', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'nook', 'papers', 'inbox', 'admin', 'profile',
   'projects', 'project', 'brief', 'invitation', 'discussion', 'discuss',
 ]);
 
@@ -572,8 +571,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const routeAppLinks = (event) => {
     const anchor = event.target.closest?.('a[href^="/"]');
     const href = anchor?.getAttribute('href');
-    // A control inside a link (the × that leaves a seminar cohort sits on the
-    // user's chip) is its own action. This runs on the way down, before
+    // A control inside a link is its own action. This runs on the way down, before
     // that control's handler could stop the click, so it has to step aside.
     const control = event.target.closest?.('button, input, select, textarea');
     if (control && anchor?.contains(control)) return;
@@ -765,14 +763,8 @@ export default function App({ startupUser = null, startupError = null }) {
           onChanged={() => setProjectsRevision((r) => r + 1)}
         />
       )}
-      {route.page === 'room' && (
-        <RoomPage roomUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
-      )}
       {route.page === 'inbox' && (
-        <InboxPage
-          onOpenRoom={(uuid) => navigate(`/room/${uuid}`)}
-          onUnread={setUnreadCount}
-        />
+        <InboxPage onUnread={setUnreadCount} />
       )}
       {route.page === 'admin' &&
         (user && user.is_admin ? (

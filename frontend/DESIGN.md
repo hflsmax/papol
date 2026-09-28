@@ -40,22 +40,18 @@ Semantic hues — states carry meaning consistently across the app:
 
 | Family | Tokens | Meaning |
 |---|---|---|
-| Gold | `--gold`, `--gold-ink`, `--gold-soft` | planning state, notice banners |
-| Green | `--green`, `--green-ink`, `--green-soft` | live/called state, "public" badges, success notices |
+| Gold | `--gold`, `--gold-ink`, `--gold-soft` | roles (author, keeper), notice banners |
+| Green | `--green`, `--green-ink`, `--green-soft` | "public" badges, success notices |
 | Red | `--red`, `--red-soft` | danger actions, errors |
-| Grey | `--grey` | finished/neutral state pills |
 
 Each family has the same four roles: the base is the saturated fill/border,
 `*-soft` is the tinted background, `*-line` is the border that goes on that
-tint, and `*-ink` is text placed on it. Seminar state always reads the same
-way, everywhere: called = accent, planning = gold, scheduled = green,
-finished = grey — all rendered by the single `StatePill` component, never
-restyled per page.
+tint, and `*-ink` is text placed on it.
 
 **Identity colors** are a separate axis from the semantic ones: six
 `--identity-*` tokens, chosen per user by id, back the initial shown when
 someone has no profile picture (applied via `.avatar-initial.avatar-tint-N`,
-two classes so role colors like the leader's gold still win). They say
+two classes so role colors like an author's gold still win). They say
 "which person", never "what state".
 
 **Activity colors** are a third axis, used only where time is drawn (the
@@ -84,11 +80,9 @@ Three families, by role:
 
 Form controls (`input`, `textarea`, `select`) **inherit** their context's
 family rather than setting one, so a field is serif inside a panel, mono
-inside an admin data table, and UI sans inside the announce form. Never
-leave a control unstyled: a bare `<textarea>` falls back to the browser's
-monospace default, which is how the seminar message box drifted out of the
-system. Prose the user writes (notes, summaries, messages) is serif;
-structured configuration (the announce form) is UI sans.
+inside an admin data table. Never leave a control unstyled: a bare
+`<textarea>` falls back to the browser's monospace default. Prose the user
+writes (notes, summaries, messages) is serif.
 
 Scale (use the nearest step, never a bespoke rem value):
 
@@ -112,7 +106,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 
 - `--radius` (3px) — everything: panels, buttons, inputs, cards.
 - `--radius-lg` (10px) — large soft containers (chip pops).
-- `--radius-pill` (999px) — state pills, badges, toggles.
+- `--radius-pill` (999px) — badges, toggles.
 - Avatars are `border-radius: 50%`.
 
 ## Space, elevation, and motion
@@ -407,8 +401,6 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   recognizable as an editable white control while the surrounding colour
   communicates who can see its value. Apply the matching ink colour to the
   field label as a secondary cue.
-- **State pill** — small-caps/uppercase `--fs-2xs` UI-font text on a
-  semantic fill (`--gold`/`--green`/`--grey`), `--radius-pill`.
 - **Visibility badge** — `public` (green-soft) / `private` (accent-soft)
   chip beside a *heading* ("My ratings", "Summary"). A control that states
   its own meaning in a full sentence takes the tint alone — appending a
@@ -510,7 +502,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
   becomes the selected board in the Desk and shows its jacket; creation
   never opens the document window on the user's behalf.
   Adding a paper or a board also happens in the detail pane. Every
-  other page (Inbox, Profile, Learn, a seminar, someone else's nook) fills the
+  other page (Inbox, Profile, Learn, someone else's nook) fills the
   space beside the sidebar under a toolbar holding just its title.
   Papol is small enough that the sidebar is all the navigation the app needs:
   its window has no Back or Forward and no history to walk (⌘1…⌘4 open the

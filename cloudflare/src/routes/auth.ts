@@ -16,10 +16,7 @@ const DEFAULT_WELCOME =
   "keep private notes and a summary, and share a public " +
   "one-sentence thought. Use the Library to find papers and see " +
   "what other users keep in their nooks, then add papers to " +
-  "your own. When a paper deserves a conversation, call a " +
-  "spontaneous seminar, and every user of it will be invited. " +
-  "Each seminar is run by a host: a user who volunteers to plan " +
-  "it and lead the discussion. Answer a call to host one yourself!";
+  "your own.";
 
 export function authRoutes(router: Router) {
   router.on("POST", "/api/auth/register", async ({ request, env }) => {

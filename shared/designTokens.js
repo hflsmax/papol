@@ -41,7 +41,6 @@ export const designTokens = `
   --red: #8c2f22;
   --red-soft: #f9ecea;
   --red-line: #e5c4bd;
-  --grey: #8a94a2;
 
   /* User identity colors */
   --identity-0: #2b4a6f;
