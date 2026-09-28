@@ -107,7 +107,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             ) : (
               <div className="paper-brief-dig" key={d.uuid}>
                 <TalkCard
-                  inline single unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                  inline single phaseInHead unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
                   projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                   onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
                 />

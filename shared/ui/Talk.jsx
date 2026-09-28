@@ -258,9 +258,10 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about. With phaseBar the four phases
 // stand open (the dig open in the Digs tab); else only the current one.
+// With phaseInHead the phase word sits on the dig's own line, after its date.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
-  single = false, phaseBar = false,
+  single = false, phaseBar = false, phaseInHead = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
@@ -465,7 +466,7 @@ export function TalkCard({
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
-      {(!inline || (discussion && !pickerWithOwners)) && (
+      {(!inline || (discussion && !pickerWithOwners && !phaseInHead)) && (
       <header className="talk-card-header">
         {!pickerWithOwners && picker}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
@@ -500,15 +501,18 @@ export function TalkCard({
       <div className="talk-card-body" ref={list}>
         {discussion === undefined ? null : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
-            <p className="talk-post-head"><Face user={currentUser} /><b>You</b></p>
+            <Face user={currentUser} />
             <textarea
-              ref={box} rows={4} value={body} maxLength={POST_LIMIT} aria-label="Your dig"
+              ref={box} rows={1} value={body} maxLength={POST_LIMIT} placeholder="Your dig" aria-label="Your dig"
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
             />
-            <span className="talk-dig-new-foot">
-              <button type="submit" className="primary" disabled={!body.trim() || busy} title="Dig (⌘↩)">Dig</button>
-            </span>
+            {/* The button comes with the words: nothing to press before. */}
+            {body.trim() && (
+              <span className="talk-dig-new-foot">
+                <button type="submit" className="primary" disabled={busy} title="Dig (⌘↩)">Dig</button>
+              </span>
+            )}
           </form>
         ) : posts.length === 0 ? null : (
           <>
@@ -522,6 +526,7 @@ export function TalkCard({
                     <Face user={post.user} />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
                     <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
+                    {phaseInHead && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                     {editing?.uuid !== post.uuid && (post.is_mine || discussion.can_moderate) && (
                       <ItemActions
