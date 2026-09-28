@@ -176,14 +176,14 @@ ${commonStyles}
 #way-slot > .project-title-row { flex: 1 1 auto; }
 #way-slot > .project-seats { margin-left: auto; }
 #way-slot > .detail-title-row { flex: 1; min-width: 0; margin: 0; }
-/* A paper's title runs long, so it is set smaller, with its authors under
-   it and its venue and year at the bar's right. What is the member's own
-   about the paper stays in its jacket. */
-#way-slot > .paper-way-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2) var(--space-6); }
-.paper-way-name { flex: 1 1 22rem; min-width: 0; display: grid; gap: 2px; }
+/* A paper's title runs long, so it is set smaller. Under it, its authors
+   on the left and its venue and year on the right. What is the member's
+   own about the paper stays in its jacket. */
+#way-slot > .paper-way-head { flex: 0 1 auto; min-width: 0; display: grid; gap: 2px; }
+.paper-way-facts { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-4); }
 .paper-way-head h2 { margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); color: var(--ink); }
 .paper-way-head .authors { margin: 0; color: var(--ink-soft); font: italic var(--fs-md) var(--font-serif); }
-.paper-way-head .metadata { flex: 0 1 auto; max-width: 40%; gap: var(--space-1); margin: 0; justify-content: flex-end; text-align: right; }
+.paper-way-head .metadata { margin: 0 0 0 auto; gap: var(--space-1); justify-content: flex-end; text-align: right; }
 .paper-way-head .metadata span { font-size: var(--fs-sm); }
 .paper-way-head .metadata span + span::before { content: '·'; margin-right: var(--space-1); }
 .paper-own-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
@@ -235,8 +235,6 @@ ${commonStyles}
   .app:has(.nook-desk) #way-slot { order: 1; flex: 1 1 100%; min-width: 0; }
   .app:has(.nook-desk) #way-slot:empty { display: none; }
   .app:has(.nook-desk) #way-slot > .project-seats { margin-left: calc(-1 * var(--space-1)); }
-  .paper-way-head { flex-wrap: wrap; }
-  .paper-way-head .metadata { max-width: none; justify-content: flex-start; text-align: left; }
 }
 
 /* About, Learn and the Mac app, for a member: at the foot of the page.
