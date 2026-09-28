@@ -173,7 +173,7 @@ NO_DEBUG = ["--config", "profile.dev.package.papol-desktop.debug=0"]
 
 def build_probe():
     subprocess.run(
-        ["cargo", "build", "--quiet", "--locked", "--manifest-path", str(MANIFEST),
+        ["cargo", "build", "--locked", "--manifest-path", str(MANIFEST),
          *NO_DEBUG, "--example", "capture_probe"],
         check=True,
     )
