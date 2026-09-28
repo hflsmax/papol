@@ -1182,7 +1182,7 @@ export default function App() {
   useEffect(() => {
     if (!firstPageReady || offeredStorageNotice.current) return;
     offeredStorageNotice.current = true;
-    if (showsAnnotationStorageNotice({ neverAnnotatable })) setStorageNotice(true);
+    if (showsAnnotationStorageNotice({ signedIn: signedInHere(), neverAnnotatable })) setStorageNotice(true);
   }, [firstPageReady, neverAnnotatable]);
   // Behind any other window the bar hangs, and never put away unseen.
   const storageNoticeShown = storageNotice && nookStep === 'idle' && !nookPromptOpen
@@ -1191,15 +1191,6 @@ export default function App() {
     if (!storageNoticeShown) return;
     closeAnnotationStorageNotice(storageNoticeOptOut);
     setStorageNotice(false);
-  };
-  const registerFromStorageNotice = () => {
-    closeStorageNotice();
-    if (!IS_DESKTOP) {
-      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
-      window.location.assign(appPath(`/join?next=${encodeURIComponent(back)}`));
-      return;
-    }
-    requestSignIn({ register: true }).catch(() => {});
   };
 
   const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer || storageNoticeShown;
@@ -4447,7 +4438,6 @@ export default function App() {
                 <strong id="storage-notice-title">Annotations aren’t in the PDF</strong>
                 <p>
                   Papol keeps your notes, ink and clips separately from the PDF file.
-                  {!signedInHere() && ' Create an account to back them up in the cloud.'}
                 </p>
                 <label className="storage-notice-opt-out">
                   <input
@@ -4458,10 +4448,7 @@ export default function App() {
                   Don’t show again
                 </label>
                 <div className="nook-ask-actions">
-                  <button type="button" className={signedInHere() ? 'primary' : undefined} onClick={closeStorageNotice}>OK</button>
-                  {!signedInHere() && (
-                    <button type="button" className="primary" onClick={registerFromStorageNotice}>Create account</button>
-                  )}
+                  <button type="button" className="primary" onClick={closeStorageNotice}>OK</button>
                 </div>
               </div>
             )}
