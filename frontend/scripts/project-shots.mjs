@@ -50,8 +50,6 @@ const SHOTS = {
   // A dig opened under its row on a phone.
   'phone-digs': { ...desk('digs', '.project-talk-panel .talk-post', "const go = () => { const d = document.querySelector('.project-talk-item'); if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=web'), size: phone },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
-  // A face under Also read, and where it leads: that reader's nook.
-  'nook-face': { path: '/?shell=web', ready: "document.querySelector('.desk-col-faces .face-link')", then: "document.querySelector('.desk-col-faces .face-link').click(); return true;", settled: "document.body.innerText.includes(\"'s nook\")", size: wide },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
   'phone-their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: phone },

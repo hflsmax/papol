@@ -5632,7 +5632,6 @@ ${talkStyles}
 .desk-row-tag:hover, .desk-row-tag:focus-visible { color: var(--accent); }
 .desk-row-tag.is-on { color: var(--accent); }
 .desk-col-dots { width: 6rem; white-space: nowrap; }
-.desk-col-faces { width: 6.5rem; white-space: nowrap; }
 .desk-col-date { width: 4.5rem; white-space: nowrap; }
 .desk-col-date { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; }
 .desk-table th.desk-col-date { text-align: right; }
@@ -5682,7 +5681,7 @@ ${talkStyles}
   .desk-search { flex: 1 1 100%; }
   .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort { display: none; }
   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
-  .desk-table td.desk-col-dots, .desk-table td.desk-col-faces { width: auto; }
+  .desk-table td.desk-col-dots { width: auto; }
   .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--line); }
   .desk-table tbody tr:last-child { border-bottom: 0; }
   .desk-table td { display: block; height: auto; border: 0; }
