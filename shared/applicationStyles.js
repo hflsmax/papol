@@ -2843,7 +2843,7 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 
 /* The profile page is settings from top to bottom: nothing on it is prose
    the user wrote, it is all structured configuration, which the type
-   roles put in the interface font. Same reasoning as .announce-card above,
+   roles put in the interface font. Same reasoning as the forms above,
    over a whole page rather than one card — and the reason the page read as
    a jumble was that its chrome was borrowing the prose face and then
    distinguishing itself with italics, small-caps and five sizes instead.

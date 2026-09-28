@@ -3,7 +3,7 @@
 
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
-import { consume, digestIfDue, HOURLY_CRON, sweep, type Wakeup } from "./jobs/run";
+import { consume, sweep, type Wakeup } from "./jobs/run";
 import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
 import { adminRoutes } from "./routes/admin";
@@ -76,10 +76,8 @@ export default {
     return consume(batch, env);
   },
 
-  // Every two minutes, what nobody was woken for; every hour, the digest
-  // if it is its hour.
-  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === HOURLY_CRON) await digestIfDue(env, new Date(controller.scheduledTime));
-    else await sweep(env);
+  // Every two minutes, what nobody was woken for.
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await sweep(env);
   },
 } satisfies ExportedHandler<Env, Wakeup>;

@@ -136,9 +136,8 @@ export function inboxRoutes(router: Router) {
     const statements: D1PreparedStatement[] = [insert(env.DB, "feedback", fb)];
     const wakeups: string[] = [];
     for (const admin of admins) {
-      const notification = newUuid();
-      statements.push(insert(env.DB, "notifications", { uuid: notification, user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, emailed: 0, created_at: at }));
-      const mail = queueEmail(env.DB, admin.email, `Papol feedback: ${headline}`, body, [notification]);
+      statements.push(insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, created_at: at }));
+      const mail = queueEmail(env.DB, admin.email, `Papol feedback: ${headline}`, body);
       statements.push(mail.statement);
       wakeups.push(mail.uuid);
     }

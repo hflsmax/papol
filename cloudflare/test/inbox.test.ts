@@ -7,9 +7,9 @@ describe("notifications", () => {
   it("lists a user's own, newest first, and marks them read one at a time or all at once", async () => {
     const account = await register("reader@example.test", "Reader"), other = await register();
     const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, 'older', 0, 0, ?)", uuid(), account.uuid, at(2));
+    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, created_at) VALUES (?, ?, 'older', 0, ?)", uuid(), account.uuid, at(2));
     const newer = uuid();
-    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, 'newer', 0, 0, ?)", newer, account.uuid, at(1));
+    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, created_at) VALUES (?, ?, 'newer', 0, ?)", newer, account.uuid, at(1));
     const listed = await ok("GET", "/api/notifications", { headers: account.headers });
     // The welcome from signing up is the newest of the three.
     expect(listed.notifications.map((n: any) => [n.content, n.read])).toEqual([[expect.stringContaining("Welcome"), false], ["newer", false], ["older", false]]);
@@ -68,7 +68,6 @@ describe("feedback", () => {
     const mail = (await rows("SELECT payload FROM jobs WHERE kind = 'send_email' ORDER BY created_at")).map((j) => JSON.parse(j.payload as string));
     expect(mail.map((m) => [m.to, m.subject])).toEqual([["admin@example.test", "Papol feedback: The cow is upside down"], ["admin@example.test", "Papol feedback: Cannot sign in"]]);
     expect(mail[0].body).toContain("Page: /library");
-    expect(mail[0].notification_uuids).toHaveLength(1);
     expect((await call("POST", "/api/feedback", { json: { content: "" } })).status).toBe(422);
   });
 });

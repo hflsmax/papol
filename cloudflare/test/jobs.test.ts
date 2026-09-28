@@ -7,7 +7,7 @@ import worker from "../src/index";
 import { sentEmails } from "../src/jobs/mail";
 import { queueAnnouncement, queueEmail } from "../src/jobs/notifications";
 import { claim, enqueue, JobError, LEASE_MS, type Job } from "../src/jobs/queue";
-import { HANDLERS, HOURLY_CRON, runOne, SWEEP_CRON, type Wakeup } from "../src/jobs/run";
+import { HANDLERS, runOne, SWEEP_CRON, type Wakeup } from "../src/jobs/run";
 import { call, count, exec, ok, register, row, rows, uuid } from "./helpers";
 
 // The email API, stood in for: what was posted, and what it answers.
@@ -137,21 +137,17 @@ describe("the queue", () => {
 describe("mail", () => {
   const configured = { EMAIL_API_URL: "https://mail.example.test/emails", EMAIL_API_KEY: "key", EMAIL_FROM: "papol@example.test" };
 
-  it("sends one job's mail through the email API and marks its notifications", async () => {
-    const account = await register("reader@example.test");
-    const notification = uuid();
-    await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, 'Feedback from a visitor', 0, 0, ?)", notification, account.uuid, new Date().toISOString());
-    const queued = queueEmail(env.DB, "reader@example.test", "Papol: 1 new message today", "Hello", [notification]);
+  it("sends one job's mail through the email API", async () => {
+    const queued = queueEmail(env.DB, "reader@example.test", "Papol: 1 new message today", "Hello");
     await queued.statement.run();
     emailApi();
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
     expect(posted).toEqual([{ from: "papol@example.test", to: ["reader@example.test"], subject: "Papol: 1 new message today", text: "Hello" }]);
-    expect(await row("SELECT emailed FROM notifications WHERE uuid = ?", notification)).toEqual({ emailed: 1 });
     expect((await job(queued.uuid)).status).toBe("done");
   });
 
-  it("leaves the notification for the digest when the mail cannot be sent", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body", []);
+  it("fails the job when the mail cannot be sent", async () => {
+    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
     await queued.statement.run();
     emailApi(502, "bad gateway");
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
@@ -159,42 +155,10 @@ describe("mail", () => {
   });
 
   it("skips, not fails, when no email API is configured", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body", []);
+    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
     await queued.statement.run();
     await woken(queued.uuid);
     expect(await job(queued.uuid)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
-  });
-
-  it("queues the day's digest at its hour, once a day, from unread unemailed news", async () => {
-    const reader = await register("reader@example.test", "Reader"), admin = await register("admin@example.test");
-    const at = new Date().toISOString();
-    for (const [user, content, read, emailed, when] of [
-      [reader.uuid, "today", 0, 0, at], [reader.uuid, "already read", 1, 0, at], [reader.uuid, "already mailed", 0, 1, at],
-      [reader.uuid, "last week", 0, 0, new Date(Date.now() - 8 * 86400_000).toISOString()], [admin.uuid, "the admin's", 0, 0, at],
-    ] as const) {
-      await exec("INSERT INTO notifications (uuid, user_uuid, content, read, emailed, created_at) VALUES (?, ?, ?, ?, ?, ?)", uuid(), user, content, read, emailed, when);
-    }
-    await exec("INSERT INTO settings (key, value) VALUES ('digest_hour', '9')");
-    const nineUtc = new Date(Date.UTC(2026, 8, 21, 9, 0, 0));
-    const mailed = { ...env, ...configured } as Env;
-    const worker = { ...(await import("../src/index")).default };
-    // Not its hour: nothing.
-    await worker.scheduled(createScheduledController({ cron: HOURLY_CRON, scheduledTime: new Date(Date.UTC(2026, 8, 21, 8)).getTime() }), mailed, createExecutionContext());
-    expect(await count("jobs")).toBe(0);
-    await worker.scheduled(createScheduledController({ cron: HOURLY_CRON, scheduledTime: nineUtc.getTime() }), mailed, createExecutionContext());
-    const emails = await rows<Job>("SELECT * FROM jobs WHERE kind = 'send_email' ORDER BY payload");
-    expect(emails.map((e) => JSON.parse(e.payload).to).sort()).toEqual(["admin@example.test", "reader@example.test"]);
-    // The reader's news: today's, and the welcome that signing up left.
-    const readers = JSON.parse(emails.find((e) => JSON.parse(e.payload).to === "reader@example.test")!.payload);
-    expect(readers.subject).toBe("Papol: 2 new messages today");
-    expect(readers.body).toContain("  - today");
-    expect(readers.body).toContain("Welcome to Papol, Reader");
-    for (const left of ["already read", "already mailed", "last week"]) expect(readers.body).not.toContain(left);
-    expect(readers.notification_uuids).toHaveLength(2);
-    // The hour firing again queues nothing more.
-    await worker.scheduled(createScheduledController({ cron: HOURLY_CRON, scheduledTime: nineUtc.getTime() + 1000 }), mailed, createExecutionContext());
-    expect(await count("jobs", "kind = 'daily_digest'")).toBe(1);
-    expect(await count("jobs", "kind = 'send_email'")).toBe(2);
   });
 
   it("sends an announcement as batches of a hundred, one email per recipient", async () => {
