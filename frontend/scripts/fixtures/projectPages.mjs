@@ -202,6 +202,16 @@ function answer(method, path, search) {
       projects: [summary, other],
     };
   }
+  // Another member's nook, where their face leads: the papers they have
+  // a take on, on one shelf.
+  const someone = [ana, ben, mia].find((u) => path === `/users/${u.uuid}/nook`);
+  if (someone) {
+    const theirs = papers.filter((p) => p.users.some((u) => u.user.uuid === someone.uuid));
+    return {
+      user: someone, shelves: [{ ...SHELF, paper_count: theirs.length }], tags: [], stats: { papers: theirs.length, displayed: theirs.length, notes: 0 },
+      papers: theirs.map((p) => ({ ...listed(p), shelf_uuid: SHELF.uuid })), boards: [], projects: [],
+    };
+  }
   if (path === '/papers') return papers.map((p) => listed(p));
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
   if (one) {
