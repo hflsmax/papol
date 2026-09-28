@@ -35,14 +35,12 @@ function Faces({ users, max, linked = false }) {
 }
 
 // A member's own nook on the web: a rail of places beside the main area.
-// Every place in the rail opens in the main area: a project its desk, a
-// shelf (or all papers) its papers, a board its jacket; and a paper picked
-// from a shelf's papers or a board's jacket its jacket, the shelf or board
-// still chosen. Search and tags narrow what the main area shows. Every place
+// A shelf (or all papers) in the rail opens its papers in the main area, a
+// board its jacket, and a paper picked from either its jacket, the shelf or
+// board still chosen; a project leaves the nook for a page of its own. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
-  const board = project ? null : boardAsked;
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board = null, shelf: shelfAsked = null, paper = null, renderPaper, onOpenCanvas, onChanged }) {
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
@@ -85,9 +83,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               {nook.projects.map((p) => (
                 <li key={p.uuid}>
                   <a
-                    className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
+                    className={`desk-project${p.new_count > 0 ? ' has-new' : ''}`}
                     href={appPath(`/project/${p.uuid}`)}
-                    aria-current={p.uuid === project ? 'page' : undefined}
                   >
                     <span className="desk-project-name">{p.name}</span>
                     <span className="desk-project-foot">
@@ -108,7 +105,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           </div>
           <ul className="desk-rail-list">
             {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
-              const on = !board && !project && shelf === s.uuid;
+              const on = !board && shelf === s.uuid;
               return (
                 <li key={s.uuid ?? 'all'}>
                   <a
@@ -166,8 +163,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
 
       </aside>
 
-      {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
-      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>}
+      {paper && <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>}
       {board && (
         <section className="desk-main desk-board" hidden={Boolean(paper)}>
           <BoardJacket
@@ -181,7 +177,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           />
         </section>
       )}
-      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
+      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(paper || board)}>
         <div className="desk-main-head">
           <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
           <div className="desk-actions">{adding}</div>

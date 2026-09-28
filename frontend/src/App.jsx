@@ -121,7 +121,8 @@ function openBoard(uuid) {
 
 // On the web every thing has one path (frontend/DESIGN.md, Navigation), and
 // a signed-in member sees these ones inside their nook, beside its rail.
-const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
+// A project is not among them: it has the whole page.
+const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'paper']);
 
 // Links from before things had paths: /?shelf=…&paper=… and the like.
 function nookPathFromQuery(search) {
@@ -698,7 +699,6 @@ export default function App({ startupUser = null, startupError = null }) {
             onSelectBoard={(uuid) => navigate(uuid ? `/board/${uuid}` : '/')}
             shelf={route.page === 'shelf' ? route.uuid : route.shelf ?? null}
             board={route.page === 'board' ? route.uuid : route.board ?? null}
-            project={route.page === 'project' ? route.uuid : null}
             paper={route.page === 'paper' ? route.uuid : null}
             renderPaper={(name) => (
               <PaperJacket
@@ -708,16 +708,6 @@ export default function App({ startupUser = null, startupError = null }) {
                 hideBack
                 onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
                 onReportableError={offerErrorReport}
-              />
-            )}
-            renderProject={(uuid) => (
-              <ProjectPage
-                key={uuid}
-                projectUuid={uuid}
-                currentUser={user}
-                onChanged={() => setProjectsRevision((r) => r + 1)}
-                onLeft={() => navigate('/', { replace: true })}
-                onOpenBrief={(sha256) => navigate(briefPath(uuid, sha256))}
               />
             )}
             onOpenCanvas={openBoardCanvas}
@@ -807,7 +797,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onBack={goBack}
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
-          onLeft={() => navigate('/projects', { replace: true })}
+          onLeft={() => navigate(hasWay ? '/' : '/projects', { replace: true })}
           onOpenBrief={(sha256) => navigate(briefPath(route.uuid, sha256))}
         />
       )}

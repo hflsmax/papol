@@ -5668,7 +5668,6 @@ ${talkStyles}
   color: var(--ink); text-decoration: none;
 }
 .desk-project:hover, .desk-project:focus-visible { background: var(--paper-sunken); color: var(--ink); }
-.desk-project.is-on { background: var(--accent-soft); }
 .desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
 .desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
 .desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
