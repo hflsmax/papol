@@ -5,14 +5,19 @@ import {
   markNotificationRead,
   markNotificationsRead,
 } from '../../../shared/api/notifications.js';
+import { keep, kept } from '../lastMember';
 
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
 // Bare, it is a tab of the member's own page, which already says Inbox.
 export default function InboxPage({ onUnread, bare = false }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => kept('inbox'));
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState({}); // uuid -> bool
+
+  useEffect(() => {
+    if (data) keep('inbox', data);
+  }, [data]);
 
   useEffect(() => {
     getNotifications()

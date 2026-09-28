@@ -177,6 +177,9 @@ sidebar, toolbar and document windows.
   these paths inside their nook, the rail beside the main area. Anyone else
   opening the same link, signed out or not the owner, gets the plain page.
   The layout follows who is looking; the link never shows the sender's nook.
+  Inside a project the rail folds to a strip of the member's projects, one
+  letter each, and the project takes the width; resting on the strip lays
+  the whole rail over the project's edge. A phone shows no rail there.
 - **In-app moves never reload.** Links are real `<a href>`s (so Cmd-click
   opens a tab) and plain clicks go through `navigate`.
 - **History.** Opening a place or a paper is one Back step. Stepping through

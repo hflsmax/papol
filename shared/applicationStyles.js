@@ -5540,7 +5540,8 @@ ${talkStyles}
 .their-meta i { font-family: var(--font-serif); }
 .their-thought { display: block; margin-top: 4px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
 .nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
-.desk-rail { display: grid; gap: var(--space-5); position: sticky; top: var(--space-4); }
+.desk-rail { position: sticky; top: var(--space-4); }
+.desk-rail-body { display: grid; gap: var(--space-5); }
 .desk-rail-part { display: grid; gap: var(--space-1); }
 .desk-rail-head { display: flex; align-items: center; justify-content: space-between; min-height: 28px; margin: 0; padding: 0 var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .desk-rail-head h3 { margin: 0; font: inherit; color: inherit; }
@@ -5620,6 +5621,28 @@ ${talkStyles}
 .desk-table th.desk-col-date { text-align: right; }
 .desk-col-dots .rating-dots { display: inline-flex; gap: 3px; }
 .desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
+/* Inside a project the rail folds to a strip of project letters and the
+   project takes the width. Resting on the strip, or tabbing into it, lays
+   the whole rail over the project's edge; a short wait keeps a pointer
+   passing by from opening it. */
+.nook-desk.is-folded { grid-template-columns: 2.25rem minmax(0, 1fr); gap: var(--space-5); }
+.nook-desk.is-folded .desk-rail { z-index: 30; }
+.desk-strip { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.desk-strip-mark {
+  position: relative; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius);
+  color: var(--ink-faint); font: 600 var(--fs-sm) var(--font-serif); text-decoration: none;
+}
+.desk-strip-mark:hover { background: var(--paper-sunken); color: var(--ink); }
+.desk-strip-mark.is-on { background: var(--accent-soft); color: var(--ink); }
+.desk-strip-mark.has-new::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.nook-desk.is-folded .desk-rail-body {
+  position: absolute; top: calc(-1 * var(--space-2)); left: calc(-1 * var(--space-2));
+  width: 15rem; max-height: calc(100vh - 2 * var(--space-4)); overflow-y: auto; padding: var(--space-2);
+  border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow-md);
+  opacity: 0; pointer-events: none; transition: opacity 0s 120ms;
+}
+.nook-desk.is-folded .desk-rail:hover .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 180ms; }
+.nook-desk.is-folded .desk-rail:focus-within .desk-rail-body { opacity: 1; pointer-events: auto; transition-delay: 0s; }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing .desk-rail,
 .nook-desk.is-reviewing .desk-filter,
@@ -5628,7 +5651,9 @@ ${talkStyles}
 .nook-desk.is-reviewing .desk-main-head, .nook-desk.is-reviewing .desk-actions { display: block; margin: 0; }
 @media (max-width: 760px) {
   .nook-desk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
-  .desk-rail { position: static; display: contents; }
+  .desk-rail, .desk-rail-body { position: static; display: contents; }
+  .nook-desk.is-folded { grid-template-columns: minmax(0, 1fr); }
+  .nook-desk.is-folded .desk-rail { display: none; }
   .desk-rail-part:first-child { order: -2; }
   .desk-main { order: -1; }
   .desk-main-head { margin-bottom: var(--space-3); }

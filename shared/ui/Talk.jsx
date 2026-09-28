@@ -208,6 +208,11 @@ function place(anchor, card) {
   };
 }
 
+// Digs seen in this tab, by where they were opened, so opening one again
+// shows it at once while it is fetched again.
+const seenTalk = new Map();
+const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic.dig ?? ''}`;
+
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about.
@@ -216,8 +221,8 @@ export function TalkCard({
   single = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
-  const [digs, setDigs] = useState([]);
-  const [discussion, setDiscussion] = useState(undefined);
+  const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
+  const [discussion, setDiscussion] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.discussion);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
@@ -230,19 +235,28 @@ export function TalkCard({
 
   useEffect(() => {
     let active = true;
-    setDiscussion(undefined);
+    const last = seenTalk.get(talkKey(projectUuid, topic));
+    setDigs(last?.digs ?? []);
+    setDiscussion(last?.discussion);
     // The dig asked for, else the reader's own, else the latest; a thing
-    // nobody has dug opens on the reader's own, to be written.
-    findDigs(projectUuid, topic.subject)
-      .then((found) => {
+    // nobody has dug opens on the reader's own, to be written. A dig asked
+    // for by name is read alongside the list.
+    const named = topic.dig && topic.dig !== 'mine' ? topic.dig : null;
+    Promise.all([findDigs(projectUuid, topic.subject), named ? getDig(named) : null])
+      .then(([found, fetched]) => {
         if (active) setDigs(found.digs ?? []);
-        const open = topic.dig === 'mine' ? found.mine : topic.dig ?? found.mine ?? found.digs?.[0]?.uuid ?? null;
+        if (named) return fetched;
+        const open = topic.dig === 'mine' ? found.mine : found.mine ?? found.digs?.[0]?.uuid ?? null;
         return open ? getDig(open) : null;
       })
       .then((next) => { if (active) setDiscussion(next); })
       .catch((err) => { if (active) { setError(err.message); setDiscussion(null); } });
     return () => { active = false; };
   }, [projectUuid, topic.subject, topic.dig]);
+
+  useEffect(() => {
+    if (discussion !== undefined) seenTalk.set(talkKey(projectUuid, topic), { digs, discussion });
+  }, [discussion, digs]);
 
   const reposition = useCallback(() => {
     if (!inline && anchor.current) setSpot(place(anchor.current, card.current));
@@ -442,9 +456,7 @@ export function TalkCard({
       )}
 
       <div className="talk-card-body" ref={list}>
-        {discussion === undefined ? (
-          <p className="talk-card-quiet">Opening…</p>
-        ) : writing ? (
+        {discussion === undefined ? null : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
             <p className="talk-post-head"><Face user={currentUser} /><b>You</b></p>
             <textarea

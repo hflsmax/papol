@@ -41,6 +41,8 @@ describe("project boards", () => {
 
     const seen = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
     expect(seen.boards.map((b: { uuid: string; item_count: number }) => [b.uuid, b.item_count])).toEqual([[board.uuid, 1]]);
+    expect(seen.boards[0].owner.uuid).toBe(ana.uuid);
+    expect(seen.boards[0].boxes).toHaveLength(1);
   });
 
   it("lets only its maker shelve it, and its maker or a keeper delete it", async () => {

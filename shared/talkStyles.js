@@ -58,7 +58,6 @@ export const talkStyles = `
 .talk-card-owners button.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
 .talk-card-owners button.talk-card-yours:not(.is-on) { border-style: dashed; border-color: var(--line-strong); }
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
-.talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .talk-posts { margin: 0; padding: 0 0 var(--space-1); list-style: none; }
 .talk-post + .talk-post { margin-top: var(--space-2); }
 .talk-post-head { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 2px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }

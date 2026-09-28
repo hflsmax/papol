@@ -75,95 +75,114 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   const rated = (key) => nook.papers.some((p) => p[key]);
   const showMerit = rated('rating_liking');
 
+  // Inside a project the rail folds to a strip of the member's projects, one
+  // letter each, and opens over the project while the pointer or focus is
+  // on it: the project gets the width, the other places stay one reach away.
+  const folded = Boolean(project);
+
   return (
-    <div className={reviewing ? 'nook-desk is-reviewing' : 'nook-desk'}>
+    <div className={`nook-desk${reviewing ? ' is-reviewing' : ''}${folded ? ' is-folded' : ''}`}>
       <aside className="desk-rail">
-        {nook.projects?.length > 0 && (
-          <section className="desk-rail-part" aria-labelledby="desk-projects">
-            <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
+        {folded && (
+          <ul className="desk-strip" aria-hidden="true">
+            {(nook.projects ?? []).map((p) => (
+              <li key={p.uuid}>
+                <a
+                  className={`desk-strip-mark${p.uuid === project ? ' is-on' : ''}${p.new_count > 0 ? ' has-new' : ''}`}
+                  href={appPath(`/project/${p.uuid}`)}
+                  tabIndex={-1}
+                >{[...p.name.trim()][0]?.toUpperCase()}</a>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="desk-rail-body">
+          {nook.projects?.length > 0 && (
+            <section className="desk-rail-part" aria-labelledby="desk-projects">
+              <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
+              <ul className="desk-rail-list">
+                {nook.projects.map((p) => (
+                  <li key={p.uuid}>
+                    <a
+                      className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
+                      href={appPath(`/project/${p.uuid}`)}
+                      aria-current={p.uuid === project ? 'page' : undefined}
+                    >
+                      <span className="desk-project-name">{p.name}</span>
+                      <span className="desk-project-foot">
+                        <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
+                        {p.new_count > 0 && <span className="desk-project-new">{p.new_count} new</span>}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="desk-rail-part" aria-labelledby="desk-shelves">
+            <div className="desk-rail-head">
+              <h3 id="desk-shelves">Shelves</h3>
+              <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>
+            </div>
             <ul className="desk-rail-list">
-              {nook.projects.map((p) => (
-                <li key={p.uuid}>
-                  <a
-                    className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
-                    href={appPath(`/project/${p.uuid}`)}
-                    aria-current={p.uuid === project ? 'page' : undefined}
-                  >
-                    <span className="desk-project-name">{p.name}</span>
-                    <span className="desk-project-foot">
-                      <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
-                      {p.new_count > 0 && <span className="desk-project-new">{p.new_count} new</span>}
-                    </span>
-                  </a>
-                </li>
-              ))}
+              {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
+                const on = !board && !project && shelf === s.uuid;
+                return (
+                  <li key={s.uuid ?? 'all'}>
+                    <a
+                      className={on ? 'desk-row is-on' : 'desk-row'}
+                      href={appPath(s.uuid ? `/shelf/${s.uuid}` : '/')}
+                      aria-current={on ? 'page' : undefined}
+                    >
+                      <span className="desk-dot" style={s.color ? { background: s.color } : undefined} aria-hidden="true" />
+                      <span className="desk-row-name">{s.name}</span>
+                      {!s.is_public && (
+                        <svg className="desk-lock" viewBox="0 0 16 16" aria-label="Private">
+                          <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+                          <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
+                        </svg>
+                      )}
+                      <span className="desk-count">{s.paper_count}</span>
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </section>
-        )}
 
-        <section className="desk-rail-part" aria-labelledby="desk-shelves">
-          <div className="desk-rail-head">
-            <h3 id="desk-shelves">Shelves</h3>
-            <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>
-          </div>
-          <ul className="desk-rail-list">
-            {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
-              const on = !board && !project && shelf === s.uuid;
-              return (
-                <li key={s.uuid ?? 'all'}>
-                  <a
-                    className={on ? 'desk-row is-on' : 'desk-row'}
-                    href={appPath(s.uuid ? `/shelf/${s.uuid}` : '/')}
-                    aria-current={on ? 'page' : undefined}
-                  >
-                    <span className="desk-dot" style={s.color ? { background: s.color } : undefined} aria-hidden="true" />
-                    <span className="desk-row-name">{s.name}</span>
-                    {!s.is_public && (
-                      <svg className="desk-lock" viewBox="0 0 16 16" aria-label="Private">
-                        <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
-                        <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
-                      </svg>
-                    )}
-                    <span className="desk-count">{s.paper_count}</span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className="desk-rail-part" aria-labelledby="desk-boards">
-          <div className="desk-rail-head">
-            <h3 id="desk-boards">Boards</h3>
-            {!creatingBoard && <button type="button" className="desk-quiet" onClick={() => setCreatingBoard(true)}>New</button>}
-          </div>
-          {creatingBoard && (
-            <BoardCreateForm
-              className="nook-inline-board-create"
-              shelves={nook.shelves}
-              onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
-              onCancel={() => setCreatingBoard(false)}
-            />
-          )}
-          {nook.boards.length > 0 && (
-            <ul className="desk-rail-list">
-              {nook.boards.map((b) => (
-                <li key={b.uuid}>
-                  <a
-                    className={b.uuid === board ? 'desk-row is-on' : 'desk-row'}
-                    href={appPath(`/board/${b.uuid}`)}
-                    aria-current={b.uuid === board ? 'page' : undefined}
-                  >
-                    <span className="desk-dot" style={{ background: shelfOf(b.shelf_uuid)?.color }} aria-hidden="true" />
-                    <span className="desk-row-name">{b.name}</span>
-                    <span className="desk-count">{b.item_count}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
+          <section className="desk-rail-part" aria-labelledby="desk-boards">
+            <div className="desk-rail-head">
+              <h3 id="desk-boards">Boards</h3>
+              {!creatingBoard && <button type="button" className="desk-quiet" onClick={() => setCreatingBoard(true)}>New</button>}
+            </div>
+            {creatingBoard && (
+              <BoardCreateForm
+                className="nook-inline-board-create"
+                shelves={nook.shelves}
+                onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
+                onCancel={() => setCreatingBoard(false)}
+              />
+            )}
+            {nook.boards.length > 0 && (
+              <ul className="desk-rail-list">
+                {nook.boards.map((b) => (
+                  <li key={b.uuid}>
+                    <a
+                      className={b.uuid === board ? 'desk-row is-on' : 'desk-row'}
+                      href={appPath(`/board/${b.uuid}`)}
+                      aria-current={b.uuid === board ? 'page' : undefined}
+                    >
+                      <span className="desk-dot" style={{ background: shelfOf(b.shelf_uuid)?.color }} aria-hidden="true" />
+                      <span className="desk-row-name">{b.name}</span>
+                      <span className="desk-count">{b.item_count}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </aside>
 
       {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
