@@ -900,16 +900,14 @@ export default function App({ startupUser = null, startupError = null }) {
   // The pages inside a project fill the window: a member at work in a
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page);
-  // Where a page deeper than a place leads back to, unless it says so
-  // itself: a jacket to the place it was opened from, a nook of someone
-  // else's to the Library their papers are found in.
-  const wayTrail = route.page === 'paper' || route.page === 'board'
+  // Where a page leads back to on its way home to the nook, unless it
+  // says so itself: a jacket to the place it was opened from, a nook of
+  // someone else's to the Library their papers are found in.
+  const wayTrail = (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
     ? [jacketBack]
-    : route.page === 'nook'
+    : route.page === 'nook' && route.uuid !== user?.uuid
       ? [{ path: '/library', label: 'Library' }]
-      : PROJECT_PAGES.has(route.page) || route.page === 'invitation'
-        ? [{ path: '/projects', label: 'Projects' }]
-        : [];
+      : [];
   return (
     <>
       <style>{applicationStyles}</style>

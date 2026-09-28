@@ -58,14 +58,13 @@ export function Faces({ users, max = 4 }) {
   );
 }
 
-// The way out of a project's pages on the web, in the bar over every page:
-// Papol, its projects, and (from a brief or a dig) the project.
+// The way home from a brief or a dig on the web, in the bar over every
+// page: the project it belongs to. The desk itself leads straight home.
 export function ProjectWay({ project }) {
-  if (DESKTOP) return null;
+  if (DESKTOP || !project) return null;
   return (
     <InWay>
-      <a href={appPath('/projects')}>Projects</a>
-      {project && <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>}
+      <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
     </InWay>
   );
 }

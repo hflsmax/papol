@@ -125,14 +125,14 @@ ${commonStyles}
 }
 
 .way a,
-.way-inbox {
+.way-aside a {
   color: var(--ink-soft);
   text-decoration: none;
   white-space: nowrap;
 }
 
 .way a:hover,
-.way-inbox:hover { color: var(--accent); }
+.way-aside a:hover { color: var(--accent); }
 
 .way a.way-mark {
   color: var(--ink);
@@ -140,15 +140,15 @@ ${commonStyles}
   letter-spacing: .02em;
 }
 
-.way-places {
+/* Beside the trail home: everyone else's papers, boards and projects, and
+   the inbox, as quiet as the trail. */
+.way-aside {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-4);
-  margin-left: var(--space-3);
 }
-
-.way a[aria-current],
-.way-inbox[aria-current] { color: var(--ink); font-weight: 600; }
+.way-aside a { display: inline-flex; align-items: center; color: var(--ink-faint); }
+.way-aside a[aria-current] { color: var(--ink); }
 
 /* The trail: each step after Papol follows a chevron; the last may be
    long (a project, a paper) and gives way before the bar wraps. */
@@ -162,8 +162,6 @@ ${commonStyles}
 #way-slot:not(:empty) + .way-default { display: none; }
 .way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .way-trail a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
-
-.way-inbox { display: inline-flex; align-items: center; }
 
 .way-count {
   display: inline-block;
@@ -183,7 +181,7 @@ ${commonStyles}
 
 @media (max-width: 640px) {
   .way-bar { gap: var(--space-3); }
-  .way-places { gap: var(--space-3); margin-left: var(--space-1); }
+  .way-aside { gap: var(--space-3); }
 }
 
 /* About, Learn and the Mac app, for a member: at the foot of the page. */
