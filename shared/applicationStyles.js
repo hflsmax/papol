@@ -5186,9 +5186,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 /* Sections: a serif word and a faint count; no small caps, no boxes. */
 .project-section + .project-section { margin-top: var(--space-7); }
-.project-section-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
-.project-section-head h3 { margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
-.project-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
 /* The desk: papers and boards as cards, with what is being said in a
    column beside them once the page is wide enough. Cards share a board
@@ -5241,7 +5238,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry. */
 .project-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.project-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 150px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-row:hover { background: var(--paper-sunken); }
 .project-row.is-new { background: var(--gold-soft); }
 .project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 70%, var(--paper-sunken)); }
@@ -5251,8 +5248,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row .project-card-authors { margin-top: 1px; font-size: var(--fs-sm); }
 .project-row-cite { display: -webkit-box; overflow: hidden; color: var(--ink-soft); font: var(--fs-sm)/1.3 var(--font-ui); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .project-row-facts { display: contents; }
-.project-row .project-card-readers, .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
-.project-row .project-card-readers { overflow: hidden; }
+.project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .project-row .project-card-alert { margin-left: 0; }
 @container (max-width: 1099px) {
@@ -5262,7 +5258,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-row-text { grid-area: text; }
   .project-row-end { grid-area: end; }
   .project-row-cite { display: block; font-size: var(--fs-xs); white-space: nowrap; }
-  .project-row-cite:empty, .project-row .project-card-readers:empty { display: none; }
+  .project-row-cite:empty { display: none; }
 }
 @container (max-width: 559px) {
   .project-row-cite { display: none; }
@@ -5288,7 +5284,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
 .project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.project-card-readers { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-board-tile { display: grid; min-height: 160px; }
@@ -5297,24 +5292,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-add { font-weight: 500; }
 .project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
-.project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
-/* A take's pin sits on its name line, right after the ratings. */
-.project-take-who .talk-pin-wrap { align-self: center; margin-left: calc(-1 * var(--space-2)); }
-.project-take-who .talk-pin { height: 20px; min-width: 20px; }
-.project-take.is-composing .project-thought-form { grid-column: 2; margin-top: var(--space-1); }
-.project-take > .mini-avatar, .project-take > .face-link { grid-row: 1 / span 2; align-self: start; }
-.project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-take-who b { color: var(--ink-soft); font-weight: 600; }
-.project-take-thought { grid-column: 2; margin: 2px 0 0; color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); }
-.project-thought-form { display: flex; align-items: center; gap: var(--space-2); }
-.project-thought-form { flex-wrap: wrap; }
-.project-thought-form input { flex: 1; }
-.project-thought-form .project-thought-note { flex-basis: 100%; }
-.project-thought-form input, .project-board-name { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
-.project-thought-form input:focus, .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
-.project-thought-form button:not(.project-quiet) { padding: var(--space-1) var(--space-3); }
-.project-thought-note { grid-column: 2 / -1; margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-board-name { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
+.project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
 
 .project-board-link { color: inherit; text-decoration: none; }
 /* The whole card opens the board; the alert stays its own button above it. */
@@ -5371,9 +5350,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-seat { width: auto; }
   .project-boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 640px) {
-  .project-thought-form input { flex-basis: 100%; }
-}
 
 ${talkStyles}
 .board-card-talk { margin-left: auto; }
@@ -5394,11 +5370,6 @@ ${talkStyles}
 [data-shell='desktop'] .project-papers-panel { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 .project-paper-open { padding: var(--space-4) var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); border-left: 2px solid var(--accent); }
 
-.project-take-options { display: none; margin-left: auto; }
-.project-take:hover .project-take-options, .project-take:focus-within .project-take-options { display: inline-flex; }
-.project-take-options .project-quiet { padding: 0 var(--space-1); font-size: var(--fs-xs); }
-.project-take-thought.is-mine { display: block; width: auto; padding: 0; border: 0; background: none; box-shadow: none; text-align: left; cursor: text; }
-@media (hover: hover) { .project-take-thought.is-mine:hover:not(:disabled) { border: 0; background: none; color: var(--ink); text-decoration: underline dotted var(--line-strong); text-underline-offset: 4px; } }
 
 /* A paper's brief: the paper, the ways to act on it, the members' takes,
    then its dig, in one reading column. */
@@ -5414,7 +5385,7 @@ ${talkStyles}
 .paper-brief-quiet .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .paper-brief-take-out { margin-left: auto; }
 .paper-brief-take-out:hover:not(:disabled) { color: var(--red); }
-.paper-brief .project-paper-added { margin-top: var(--space-3); }
+.paper-brief .project-paper-added { margin-top: calc(-1 * var(--space-2)); }
 .paper-brief-dig { padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .paper-brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .paper-brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
@@ -5430,6 +5401,8 @@ ${talkStyles}
 .paper-brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .5em; }
 .paper-brief-dig .talk-compose { padding-left: 0; padding-right: 0; }
 .paper-brief-dig .talk-compose textarea { background: var(--card); }
+/* With no dig yet, the box to start one sits right under the rule. */
+.paper-brief-dig .talk-card-body:empty + .talk-compose { border-top: 0; }
 .paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
 /* Beside the list, the reply bar stays at the foot of the pane. */
 .project-papers-panel .paper-brief-dig .talk-compose { position: sticky; bottom: 0; z-index: 1; margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); background: var(--paper); }

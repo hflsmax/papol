@@ -378,6 +378,21 @@ export function TalkCard({
     ? { left: spot.left, top: spot.top, width: spot.width, transformOrigin: `${spot.originX}px ${spot.originY}px` }
     : undefined;
 
+  // Whose dig this is, when there is a choice or it is not yours.
+  const owners = discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine)));
+  const picker = discussion && (
+    <PhasePicker
+      dig={discussion}
+      onMoved={(next) => {
+        setDiscussion(next);
+        const others = digs.filter((d) => d.uuid !== next.uuid);
+        if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
+      }}
+    />
+  );
+  // Inline, the phase sits at the end of the owners' row rather than on a
+  // line of its own.
+  const pickerWithOwners = inline && owners;
   return (
     <section
       ref={card}
@@ -387,23 +402,14 @@ export function TalkCard({
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
-      {(discussion || !inline) && (
+      {(!inline || (discussion && !pickerWithOwners)) && (
       <header className="talk-card-header">
-        {discussion && (
-          <PhasePicker
-            dig={discussion}
-            onMoved={(next) => {
-              setDiscussion(next);
-              const others = digs.filter((d) => d.uuid !== next.uuid);
-              if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
-            }}
-          />
-        )}
+        {!pickerWithOwners && picker}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       )}
       {(!inline || !onHome) && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
-      {discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine))) && (
+      {owners && (
         <nav className="talk-card-owners" aria-label="Whose dig">
           {digs.map((d) => (
             <button
@@ -422,6 +428,7 @@ export function TalkCard({
               <TalkGlyph outline={Boolean(discussion)} />
             </button>
           )}
+          {pickerWithOwners && picker}
         </nav>
       )}
 

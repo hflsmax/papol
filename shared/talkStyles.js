@@ -51,7 +51,7 @@ export const talkStyles = `
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
 
 /* Whose dig: a thing holds one per member who started one. */
-.talk-card-owners { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); }
+.talk-card-owners { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); }
 .talk-card-owners button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 9px 2px 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); }
 .talk-card-owners button .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .talk-card-owners button:hover:not(:disabled) { border-color: var(--line); background: none; color: var(--ink); }

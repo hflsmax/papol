@@ -339,17 +339,6 @@ function Invitation({ project, act }) {
   );
 }
 
-// A section heading: a serif word, a faint count, and at most one action.
-export function SectionHead({ id, title, count, action }) {
-  return (
-    <header className="project-section-head">
-      <h3 id={id}>{title}</h3>
-      {count > 0 && <span className="project-count">{count}</span>}
-      {action}
-    </header>
-  );
-}
-
 const VIEWS = [['papers', 'Papers'], ['boards', 'Boards'], ['digs', 'Digs']];
 
 // The desk shows one of its three things at a time. The view is kept for
@@ -424,7 +413,7 @@ function DeskTabs({ view, onView, counts, fresh }) {
 }
 
 // Each paper is a row of a list, the way a bibliography reads: its title
-// and authors, where it appeared, who has a take, who brought it in, and
+// and authors, where it appeared, who brought it in, and
 // what is unread about it. Picking a row shows the paper's brief: beside
 // the list on a wide window, as the Digs tab shows a dig, and under the
 // row on a narrow one.
@@ -459,7 +448,6 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
     <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
       <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {
-          const takes = paper.users.filter((u) => u.thought);
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
           const selected = chosen?.sha256 === paper.sha256;
           // A narrow window folds the brief away again on a second press.
@@ -485,9 +473,6 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
                 </div>
                 <span className="project-row-facts">
                   <span className="project-row-cite">{where}</span>
-                  <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
-                    {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
-                  </span>
                   <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
                 </span>
                 <span className="project-row-end">

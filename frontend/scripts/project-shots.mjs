@@ -34,9 +34,9 @@ const SHOTS = {
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   dig: { path: `/dig/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },
-  // A member's face on a paper's row, and where it leads: their nook.
-  'face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
-  'mac-face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;", '?shell=desktop'), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
+  // A member's face in a paper's dig, and where it leads: their nook.
+  'face-nook': { ...desk('papers', '.project-paper', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .talk-post .face-link[href$="0002"]'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
+  'mac-face-nook': { ...desk('papers', '.project-paper', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .talk-post .face-link[href$="0002"]'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`, '?shell=desktop'), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   'mac-desk-papers': { ...desk('papers', '.project-paper', null, '?shell=desktop'), size: wide },
   'mac-desk-digs': { ...desk('digs', '.project-talk-item', null, '?shell=desktop'), size: wide },
   'mac-desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=desktop'), size: wide },
