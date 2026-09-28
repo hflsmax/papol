@@ -1,16 +1,39 @@
-// Who was last signed in on this browser, so a returning member's nook
-// can be asked for while the sign-in is still being checked. Only the
-// member's id is kept, and only until they sign out.
-const KEY = 'papol.lastMember';
+// What this browser keeps of the member last signed in here, so that when
+// they come back the app opens as they left it while it checks with the
+// server: who they are, and their nook as last seen. Both go at sign-out,
+// or as soon as the server no longer knows the sign-in.
+const MEMBER = 'papol.lastMember';
+const NOOK = 'papol.lastNook';
+
+const read = (key) => {
+  try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+};
+const write = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); }
+  catch { try { localStorage.removeItem(key); } catch { /* storage may be off */ } }
+};
 
 export function lastMember() {
-  try { return localStorage.getItem(KEY); } catch { return null; }
+  const member = read(MEMBER);
+  return member && typeof member.uuid === 'string' ? member : null;
 }
 
-export function rememberLastMember(uuid) {
-  try { localStorage.setItem(KEY, uuid); } catch { /* storage may be off */ }
+export function rememberLastMember(user) {
+  write(MEMBER, user);
+}
+
+export function savedNook(userUuid) {
+  const saved = read(NOOK);
+  return saved && saved.uuid === userUuid ? saved.nook : null;
+}
+
+export function saveNook(nook) {
+  write(NOOK, { uuid: nook.user.uuid, nook });
 }
 
 export function forgetLastMember() {
-  try { localStorage.removeItem(KEY); } catch { /* storage may be off */ }
+  try {
+    localStorage.removeItem(MEMBER);
+    localStorage.removeItem(NOOK);
+  } catch { /* storage may be off */ }
 }

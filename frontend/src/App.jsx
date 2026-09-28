@@ -8,7 +8,7 @@ import { getNotifications, getPendingAdminMessages } from '../../shared/api/noti
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
-import Nook, { dropEarlyNooks, startNook } from './components/Nook';
+import Nook from './components/Nook';
 import { forgetLastMember, lastMember, rememberLastMember } from './lastMember';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
@@ -166,11 +166,14 @@ function DeskFileDropFeedback({ state, message, opensViewer = false }) {
 }
 
 export default function App({ startupUser = null, startupError = null }) {
-  const [user, setUser] = useState(startupUser);
+  // A member coming back on the web opens the app as they left it, while
+  // the sign-in is checked in the background.
+  const [returning] = useState(() => (!DESKTOP && !startupUser && getToken() ? lastMember() : null));
+  const [user, setUser] = useState(startupUser ?? returning);
   // Desktop hydrates its trusted local account before React mounts. On the
   // web, a visitor with no token is already known to be a guest. Only a web
   // credential or a first desktop sign-in still needs to gate the shell.
-  const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser) || !getToken());
+  const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser || returning) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [projectsRevision, setProjectsRevision] = useState(0);
@@ -381,7 +384,7 @@ export default function App({ startupUser = null, startupError = null }) {
     }
     if (initialRoute.page === 'paper') {
       if (getToken()) {
-        getMe().then(setUser).catch(() => storeCredential(null)).finally(() => setAuthChecked(true));
+        getMe().then(setUser).catch(() => { forgetLastMember(); setUser(null); return storeCredential(null); }).finally(() => setAuthChecked(true));
       } else {
         setAuthChecked(true);
       }
@@ -392,19 +395,12 @@ export default function App({ startupUser = null, startupError = null }) {
       setAuthChecked(true);
       return;
     }
-    // The member last signed in here is most likely the one coming back:
-    // their nook is asked for alongside the check, and let go if the check
-    // names someone else.
-    const expected = !DESKTOP && NOOK_PAGES.has(initialRoute.page) ? lastMember() : null;
-    if (expected) startNook(expected);
     getMe()
-      .then((me) => {
-        if (me.uuid !== expected) dropEarlyNooks();
-        setUser(me);
-      })
+      .then(setUser)
       .catch(async () => {
-        // A stale session becomes an ordinary guest session.
-        dropEarlyNooks();
+        // A stale session becomes an ordinary guest session, and what was
+        // kept of the member goes with it.
+        forgetLastMember();
         await storeCredential(null);
         setUser(null);
       })
@@ -412,7 +408,7 @@ export default function App({ startupUser = null, startupError = null }) {
   }, []);
 
   useEffect(() => {
-    if (user && !DESKTOP) rememberLastMember(user.uuid);
+    if (user && !DESKTOP) rememberLastMember(user);
   }, [user]);
 
   useEffect(() => {

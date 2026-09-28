@@ -14,6 +14,7 @@ import { DESKTOP } from '../../../shared/desktopShell';
 import { paperName } from '../../../shared/paperName.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { formatAuthors, newestFirst } from '../paperFormat';
+import { saveNook, savedNook } from '../lastMember';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -22,28 +23,16 @@ const storedSection = (userUuid) => {
 };
 
 // The nooks seen so far in this tab, so coming back to one shows it at once
-// while it is fetched again.
+// while it is fetched again. A member's own is also kept in the browser
+// (lastMember.js), so the next visit opens on it too.
 const seen = new Map();
-
-// A nook asked for before the page knew for certain who is signed in
-// (App starts the member's own while it checks), taken up by the first
-// Nook to want it.
-const early = new Map();
-export function startNook(userUuid) {
-  if (early.has(userUuid) || seen.has(userUuid)) return;
-  const asked = getNook(userUuid);
-  asked.catch(() => { /* whoever takes it up hears of the failure */ });
-  early.set(userUuid, asked);
-}
-export function dropEarlyNooks() {
-  early.clear();
-}
+const lastSeen = (userUuid) => seen.get(userUuid) ?? (DESKTOP ? null : savedNook(userUuid));
 
 export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
-  const [nook, setNook] = useState(() => seen.get(userUuid) ?? null);
+  const [nook, setNook] = useState(() => lastSeen(userUuid));
   // A nook that had to be waited for comes in with one short fade; one
-  // already seen is simply there.
-  const waited = useRef(!seen.has(userUuid));
+  // already seen is simply there, and quietly brought up to date.
+  const waited = useRef(lastSeen(userUuid) == null);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
@@ -69,23 +58,22 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const loadNook = useCallback(() => {
     let active = true;
     setError(null);
-    const asked = early.get(userUuid) ?? getNook(userUuid);
-    early.delete(userUuid);
-    asked
+    getNook(userUuid)
       .then((data) => { if (active) setNook(data); })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
   }, [userUuid]);
 
   useEffect(() => {
-    setNook(seen.get(userUuid) ?? null);
+    setNook(lastSeen(userUuid));
     return loadNook();
   }, [loadNook]);
 
   useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
     seen.set(userUuid, nook);
-  }, [nook, userUuid]);
+    if (isOwn && !DESKTOP) saveNook(nook);
+  }, [nook, userUuid, isOwn]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
   const ownDesk = isOwn && !DESKTOP;
