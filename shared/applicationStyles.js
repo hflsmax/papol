@@ -5222,11 +5222,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry. */
 .project-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.project-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) 190px 150px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 150px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-row:hover { background: var(--paper-sunken); }
 .project-row.is-new { background: var(--gold-soft); }
 .project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 70%, var(--paper-sunken)); }
-.project-row .project-card-hue { margin: 0; }
 .project-row-text { min-width: 0; }
 .project-row .project-card-title { display: block; font-size: var(--fs-base); -webkit-line-clamp: unset; }
 .project-row:hover .project-card-title, .project-row:focus-within .project-card-title { color: var(--accent); }
@@ -5238,8 +5237,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .project-row .project-card-alert { margin-left: 0; }
 @container (max-width: 1099px) {
-  .project-row { grid-template-columns: 8px minmax(0, 1fr) auto; grid-template-areas: 'hue text end' 'hue facts end'; row-gap: 2px; column-gap: var(--space-3); }
-  .project-row .project-card-hue { grid-area: hue; align-self: start; margin-top: 8px; }
+  .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */
   .project-row-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-3); grid-area: facts; font-size: var(--fs-xs); }
   .project-row-text { grid-area: text; }
@@ -5258,7 +5256,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .project-paper.is-new .project-card-head { border-bottom-color: var(--gold-line); background: var(--gold-soft); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-card-hue { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--hue, var(--line-strong)); }
 .project-card-head .project-card-new { margin-left: auto; }
 .project-card-new { color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
@@ -5340,7 +5337,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; grid-column: 1; }
 .project-talk-meta { grid-column: 1; }
 .project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-.project-talk-subject i { flex: none; width: 8px; height: 8px; border-radius: 2px; }
 .project-talk-label { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-talk-meta { display: flex; align-items: center; gap: var(--space-1); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-talk-meta b { color: var(--ink-soft); font-weight: 600; }

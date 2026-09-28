@@ -14,7 +14,6 @@ import { InToolbar } from './DesktopChrome';
 import { InWay } from './Way';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { formatAuthors } from '../paperFormat.js';
-import { coloursFor } from '../activityView.js';
 import Avatar from './Avatar';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -112,14 +111,6 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
     );
   }
   if (!project) return <div className="loading"><Working label="Loading project…" /></div>;
-
-  // Each paper keeps one hue, the one the activity views give it, on its
-  // card and wherever it is talked about.
-  const colours = coloursFor(project.papers.map((p) => ({ subject: p.sha256 })));
-  const hueOf = (sha256) => {
-    const colour = colours.get(sha256);
-    return !colour ? null : colour === 'other' ? 'var(--line-strong)' : `var(--activity-${colour})`;
-  };
 
   // How a dig card tells the page it spoke.
   const talked = () => { getProject(project.uuid).then((next) => setProject(show(next))).catch(() => {}); };
@@ -234,13 +225,12 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               <ProjectPapers
                 project={project}
                 alert={alert}
-                hueOf={hueOf}
                 currentUser={currentUser}
                 onOpenBrief={onOpenBrief}
               />
             )}
             {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} currentUser={currentUser} />}
-            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} hueOf={hueOf} onTalked={talked} onRead={readDig} />}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} />}
           </div>
         </>
       )}
@@ -396,12 +386,12 @@ function DeskTabs({ view, onView, counts, fresh }) {
   );
 }
 
-// Each paper is a row of a list, the way a bibliography reads: its hue,
+// Each paper is a row of a list, the way a bibliography reads: its
 // title and authors, where it appeared, who has a take, the boards it is
 // on, who brought it in, and what is unread about it. The row opens the
 // paper's brief, where the takes, the dig and the rest of what the
 // project knows about it are.
-function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
+function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
   return (
@@ -416,11 +406,9 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
             <li
               key={paper.sha256}
               data-subject={`paper:${paper.sha256}`}
-              style={{ '--hue': hueOf(paper.sha256) }}
               className={`project-row project-paper talk-host${paper.is_new ? ' is-new' : ''}`}
               onClick={(e) => { if (!e.target.closest('a, button, input, textarea') && !e.defaultPrevented) open(e); }}
             >
-              <i className="project-card-hue" />
               <div className="project-row-text">
                 <h4 className="project-card-title">
                   <a className="paper-title-link" href={href} onClick={open}><PaperTitle title={paper.title} /></a>
@@ -449,7 +437,7 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
 // Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation' };
 
-function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
+function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
   const wide = useWide();
   // On a wide window the list stays put and the dig opens beside it: on
@@ -465,7 +453,6 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
   const opener = (d) => ({
     projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
   });
-  const square = (d) => (d.subject.paper_sha256 ? hueOf(d.subject.paper_sha256) : 'var(--gold)');
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step || !shown) return;
@@ -481,7 +468,6 @@ function ProjectTalk({ project, currentUser, hueOf, onTalked, onRead }) {
     return (
       <>
         <span className="project-talk-subject">
-          <i style={{ background: square(d) }} />
           <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
           <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
         </span>
