@@ -134,20 +134,38 @@ jobs:
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      # The browser is the runner's own Google Chrome, found on PATH.
+      # The browser is the runner's own Google Chrome, found on PATH. The
+      # three pages and the Worker's install share nothing on disk and each
+      # smoke serves on a port of its own, so they run side by side; each
+      # log is printed whole once all are done, with how long it took.
       - name: Unit tests and smokes, all three pages
         env:
           # The upload smoke (frontend `npm test`) keeps the page here if it fails.
           PAPOL_E2E_ARTIFACTS: ${{ github.workspace }}/e2e-artifacts
         run: |
-          (cd viewer   && npm ci && npm test)
-          (cd board    && npm ci && npm test)
-          (cd frontend && npm ci && npm test)
-
-      # wrangler, for the Worker below; its suite is the worker job's.
-      - name: Install the Worker's dependencies
-        working-directory: cloudflare
-        run: npm ci --legacy-peer-deps
+          logs=$(mktemp -d)
+          part() {
+            local name=$1; shift
+            local began=$SECONDS
+            local status=0
+            "$@" > "$logs/$name.log" 2>&1 || status=$?
+            echo "$status $((SECONDS - began))" > "$logs/$name.end"
+          }
+          part viewer   bash -c 'cd viewer && npm ci && npm test' &
+          part board    bash -c 'cd board && npm ci && npm test' &
+          part frontend bash -c 'cd frontend && npm ci && npm test' &
+          # wrangler, for the Worker below; its suite is the worker job's.
+          part cloudflare bash -c 'cd cloudflare && npm ci --legacy-peer-deps' &
+          wait
+          failed=0
+          for name in viewer board frontend cloudflare; do
+            read -r status took < "$logs/$name.end"
+            echo "::group::$name ($took s, exit $status)"
+            cat "$logs/$name.log"
+            echo "::endgroup::"
+            [ "$status" = 0 ] || { echo "::error::$name failed"; failed=1; }
+          done
+          exit $failed
 
       # The Worker as it is deployed: the three builds laid out as its
       # assets, a migrated local D1 beneath it, on a port of its own.
