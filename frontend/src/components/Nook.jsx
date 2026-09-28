@@ -7,7 +7,7 @@ import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
-import NookDesk from './NookDesk';
+import NookDesk, { rememberNookShape } from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -21,8 +21,12 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
+// The nooks seen so far in this tab, so coming back to one shows it at once
+// while it is fetched again.
+const seen = new Map();
+
 export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
-  const [nook, setNook] = useState(null);
+  const [nook, setNook] = useState(() => seen.get(userUuid) ?? null);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
@@ -55,11 +59,38 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   }, [userUuid]);
 
   useEffect(() => {
-    setNook(null);
+    setNook(seen.get(userUuid) ?? null);
     return loadNook();
   }, [loadNook]);
 
+  useEffect(() => {
+    if (nook?.user?.uuid !== userUuid) return;
+    seen.set(userUuid, nook);
+    if (isOwn && !DESKTOP) rememberNookShape(nook);
+  }, [nook, userUuid, isOwn]);
+
   if (error) return <div className="error" role="alert">{error}</div>;
+  const ownDesk = isOwn && !DESKTOP;
+  if (!nook && ownDesk) {
+    // The desk's frame while its papers come; a place already asked for
+    // (a project, a paper, a board) opens in it straight away.
+    return (
+      <div className="nook is-desk">
+        <NookDesk
+          adding={<PaperUpload onReportableError={onReportableError} trigger onPaperCreated={(paper) => { if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256); }} />}
+          onSelectBoard={onSelectBoard}
+          board={board}
+          shelf={shelf}
+          project={project}
+          renderProject={renderProject}
+          paper={paper}
+          renderPaper={renderPaper}
+          onOpenCanvas={onOpenCanvas}
+          onChanged={loadNook}
+        />
+      </div>
+    );
+  }
   if (!nook) return <div className="loading"><Working label="Loading nook…" /></div>;
 
   // Bringing papers in: the drop box, or a folder being brought in.
@@ -118,7 +149,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   );
 
   // A member's own nook on the web: what they work in, not who they are.
-  if (isOwn && !DESKTOP) {
+  if (ownDesk) {
     const addingOnDesk = folderRequest ? adding : React.cloneElement(adding, { trigger: true, compact: false });
     return (
       <div className={reviewingUpload ? 'nook is-desk upload-review-mode' : 'nook is-desk'}>
