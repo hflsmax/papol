@@ -26,10 +26,10 @@ import { keep, kept } from '../lastMember';
 // calls nothing new, and this page may be fetched more than once as the app
 // settles. What was new on arriving stays marked until another project, or
 // the list of projects, is opened.
-let arrivals = { project: null, papers: new Set(), digs: new Map() };
+let arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
 
 export function forgetArrivals() {
-  arrivals = { project: null, papers: new Set(), digs: new Map() };
+  arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
 }
 
 // A dig stays unread for the visit until it is opened, though the project
@@ -40,12 +40,14 @@ export function readDigs(uuids) {
 
 export function markArrivals(projectUuid, project) {
   if (!project?.papers) return project;
-  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), digs: new Map() };
+  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), boards: new Set(), digs: new Map() };
   project.papers.forEach((paper) => { if (paper.is_new) arrivals.papers.add(paper.sha256); });
+  (project.boards ?? []).forEach((board) => { if (board.is_new) arrivals.boards.add(board.uuid); });
   (project.digs ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
   return {
     ...project,
     papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })),
+    boards: (project.boards ?? []).map((board) => ({ ...board, is_new: arrivals.boards.has(board.uuid) })),
     digs: (project.digs ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
   };
 }
@@ -56,6 +58,7 @@ const lastSeen = (projectUuid) => markArrivals(projectUuid, kept(`project:${proj
 const settled = (project) => (project.papers ? {
   ...project,
   papers: project.papers.map((paper) => ({ ...paper, is_new: false })),
+  boards: (project.boards ?? []).map((board) => ({ ...board, is_new: false })),
   digs: (project.digs ?? []).map((d) => ({ ...d, unread: 0, is_new: false })),
 } : project);
 
@@ -148,7 +151,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
     <DeskTabs
       view={view} onView={setView}
       counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
-      fresh={{ papers: newPapers, digs: newTalk }}
+      fresh={{ papers: newPapers, boards: boards.some((b) => b.is_new), digs: newTalk }}
     />
   );
   const seats = project.is_member ? (
@@ -640,7 +643,7 @@ function ProjectBoards({ project, act, hasNews, currentUser }) {
                 <BoardMap boxes={board.boxes} />
                 <strong className="project-card-title">{board.name}</strong>
               </a>
-              {hasNews((subject) => subject.board_uuid === board.uuid) && <NewsDot />}
+              {(board.is_new || hasNews((subject) => subject.board_uuid === board.uuid)) && <NewsDot />}
               <footer className="project-card-foot project-board-meta">
                 {[
                   board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',

@@ -188,10 +188,10 @@ async function activeItemCount(env: Env, board: Board): Promise<number> {
   return (await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM board_items WHERE board_uuid = ?", board.uuid))!.n;
 }
 
-function newItem(board: Board, fields: Row): Row {
+function newItem(board: Board, user: User, fields: Row): Row {
   const at = now();
   return {
-    uuid: newUuid(), board_uuid: board.uuid, group_uuid: null, kind: "comment", content: null, excerpt_text: null,
+    uuid: newUuid(), board_uuid: board.uuid, added_by: user.uuid, group_uuid: null, kind: "comment", content: null, excerpt_text: null,
     file_path: null, sha256: null, original_filename: null, mime_type: null, source_url: null, source_label: null,
     staged: 0, text_align: "left", position: 0, x: 0, y: 0, width: 300, deleted_at: null, created_at: at, updated_at: at, revision: 0,
     ...fields,
@@ -326,7 +326,7 @@ export function boardRoutes(router: Router) {
     const content = check.string("content", data.content, { min: 1, max: limits.text.board_content });
     check.done();
     const where = slot(await activeItemCount(env, board));
-    const item = newItem(board, {
+    const item = newItem(board, user, {
       kind: "comment", content: content!.trim(),
       x: coordinate("x", data.x, true) ?? where.x, y: coordinate("y", data.y, true) ?? where.y,
     });
@@ -344,7 +344,7 @@ export function boardRoutes(router: Router) {
     const sourceUrl = check.string("source_url", data.source_url, { min: 1, max: limits.text.source_url, pattern: /^https?:\/\// });
     const sourceLabel = check.string("source_label", data.source_label, { min: 1, max: limits.text.source_label });
     check.done();
-    const item = newItem(board, {
+    const item = newItem(board, user, {
       kind: "excerpt", excerpt_text: excerpt!.trim(), content: content?.trim() || null,
       source_url: sourceUrl!.trim(), source_label: sourceLabel!.trim(), staged: 1,
     });
@@ -361,7 +361,7 @@ export function boardRoutes(router: Router) {
     const sourceUrl = check.string("source_url", data.source_url, { min: 1, max: limits.text.source_url, pattern: /^https?:\/\// });
     const sourceLabel = check.string("source_label", data.source_label, { min: 1, max: limits.text.source_label });
     const file = await announcedFile(env, check, data.sha256);
-    const item = newItem(board, {
+    const item = newItem(board, user, {
       kind: "image", content: caption?.trim() || null, ...file, original_filename: "paper-clip.png",
       mime_type: "image/png", source_url: sourceUrl!.trim(), source_label: sourceLabel!.trim(), staged: 1,
     });
@@ -394,7 +394,7 @@ export function boardRoutes(router: Router) {
     const mime = (check.string("mime_type", data.mime_type, { max: limits.text.mime_type, optional: true }) || "application/octet-stream").split(";")[0].trim();
     const file = await announcedFile(env, check, data.sha256);
     const where = slot(await activeItemCount(env, board));
-    const item = newItem(board, {
+    const item = newItem(board, user, {
       kind: mime.startsWith("image/") ? "image" : "file", content: caption?.trim() || null,
       ...file, original_filename: original, mime_type: mime,
       x: coordinate("x", data.x, true) ?? where.x, y: coordinate("y", data.y, true) ?? where.y,
@@ -433,7 +433,7 @@ export function boardRoutes(router: Router) {
       ? {}
       : { ...await announcedFile(env, check, data.sha256), original_filename: `${link.kind}-${link.id ?? "video"}.jpg`, mime_type: "image/jpeg" };
     check.done();
-    const item = newItem(board, {
+    const item = newItem(board, user, {
       kind: link.kind, content: title ?? url.trim(), source_url: url.trim(), ...thumbnail,
       x: coordinate("x", data.x)!, y: coordinate("y", data.y)!,
     });
@@ -447,7 +447,7 @@ export function boardRoutes(router: Router) {
     const given = validate.checking().string("url", data.url, { min: 1, max: limits.text.external_url }) ?? refuse(422, "url is required");
     const url = publicWebUrl(given);
     const hostname = new URL(url).hostname;
-    const item = newItem(board, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
+    const item = newItem(board, user, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
     const job = enqueue(env.DB, WEBPAGE, { item_uuid: item.uuid, url }, { userUuid: user.uuid });
     await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, true), touched(env, board), job.statement]);
     await wake(env, [job.uuid]);

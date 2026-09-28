@@ -281,7 +281,7 @@ async function newRecord(work: Working, env: Env, change: RowChange): Promise<En
       const group = await ownedGroup(work, values.group_uuid, board);
       return work.create(table, { uuid, board_uuid: board.row.uuid, group_uuid: group?.row.uuid ?? null, kind: "comment",
         content: null, excerpt_text: null, file_path: null, sha256: null, original_filename: null, mime_type: null,
-        source_url: null, source_label: null, staged: 0, text_align: "left", position: 0, x: 0, y: 0, width: 300, ...bookkeeping });
+        source_url: null, source_label: null, staged: 0, text_align: "left", position: 0, x: 0, y: 0, width: 300, added_by: user, ...bookkeeping });
     }
   }
 }
