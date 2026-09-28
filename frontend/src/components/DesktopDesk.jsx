@@ -20,6 +20,8 @@ import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
   dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
 } from '../../../shared/nativeData.js';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { plainTitle } from '../../../shared/texTitle.js';
 
 // Asked on every launch while another app is the PDF viewer. The viewer asks
 // the same question over an opened file; answering in either place quiets
@@ -461,7 +463,7 @@ export function DesktopBrowser({
                   onDragStart={libraryView ? undefined : (event) => {
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ sha256: paper.sha256, shelfUuid: paper.shelf_uuid }));
-                    event.dataTransfer.setData('text/plain', paper.title);
+                    event.dataTransfer.setData('text/plain', plainTitle(paper.title));
                     setDraggingSha256(paper.sha256);
                   }}
                   onDragEnd={() => setDraggingSha256(null)}
@@ -470,7 +472,7 @@ export function DesktopBrowser({
                     <span className="desktop-row-swatch" style={{ background: shelfColor }} aria-hidden="true" />
                   )}
                   <span className="desktop-row-body">
-                    <span className="desktop-row-title">{paper.title}</span>
+                    <span className="desktop-row-title"><PaperTitle title={paper.title} /></span>
                     <span className="desktop-row-meta">
                       {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                     </span>

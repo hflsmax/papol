@@ -9,6 +9,7 @@ import PaperUpload from './PaperUpload';
 import FolderImport from './FolderImport';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst as newest } from '../paperFormat';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 const avgMerit = (p) => {
   const rated = p.users
@@ -214,7 +215,7 @@ export default function PapersPage({
                   <div className="paper-title-row">
                     <h4>
                       <a className="paper-title-link" href={paperHref(paper)}>
-                        {paper.title}
+                        <PaperTitle title={paper.title} />
                       </a>
                     </h4>
                   </div>

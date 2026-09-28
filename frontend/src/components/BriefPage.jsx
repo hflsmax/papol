@@ -14,6 +14,7 @@ import { formatAuthors } from '../paperFormat.js';
 import Avatar from './Avatar';
 import { RATING_DIMENSIONS } from './Rating';
 import { ProjectWay, SectionHead, firstName, markArrivals, plural } from './ProjectPage';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 // A take shows the two ratings a project compares by; expertise is the
 // reader's own, not the paper's.
@@ -148,7 +149,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
         <div className="brief-main">
           <header className="brief-head">
             <div className="brief-title-row talk-host">
-              <h1 className="brief-title">{paper.title}</h1>
+              <h1 className="brief-title"><PaperTitle title={paper.title} /></h1>
               {pin(paperKey, paper.title, 'md')}
             </div>
             <p className="brief-cite">

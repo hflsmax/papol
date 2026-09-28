@@ -8,6 +8,7 @@ import HintPop from './HintPop';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import Effort from './EffortPop';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
@@ -250,7 +251,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
                 <div className="paper-title-row">
                 <h4>
                   <a className="paper-title-link" href={paperHref(paper)}>
-                    {paper.title}
+                    <PaperTitle title={paper.title} />
                   </a>
                 </h4>
                 </div>

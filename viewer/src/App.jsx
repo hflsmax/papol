@@ -86,6 +86,8 @@ import '../../shared/contextMenu.js';
 import appLimits from '../../shared/appLimits.js';
 import { createPinchScheduler, createZoomPageCache } from './pinchZoom.js';
 import { showInNookTarget } from './nookOffer.js';
+import PaperTitle from '../../shared/ui/PaperTitle.jsx';
+import { plainTitle } from '../../shared/texTitle.js';
 
 // A full page carries the canvas, text layer, annotations, clips, and animal
 // renderer. None of that is needed to draw the real toolbar. Keep it out of
@@ -992,7 +994,7 @@ export default function App() {
   }, [source]);
 
   useEffect(() => {
-    if (paper?.title) document.title = `${paper.title} — Papol`;
+    if (paper?.title) document.title = `${plainTitle(paper.title)} — Papol`;
   }, [paper?.title]);
 
   // A desktop viewer already has enough content identity in the URL to read
@@ -4471,7 +4473,7 @@ export default function App() {
                 {/* What scrolls, apart from what closes it: the × stays in its
                     corner of the box while an abstract moves beneath. */}
                 <div className="paper-info-scroll">
-                <h3 className="ref-title">{paperInfo?.title || paper.title}</h3>
+                <h3 className="ref-title"><PaperTitle title={paperInfo?.title || paper.title} /></h3>
                 {(paperInfo?.authors || paperAuthors(paper.authors)).length > 0 && (
                   <p className="ref-authors">
                     {(paperInfo?.authors || paperAuthors(paper.authors)).join(', ')}
@@ -4933,7 +4935,7 @@ export default function App() {
                   <p className="send-selection-source">
                     {sendSelection.kind === 'clip'
                       ? `Source: Page ${sendSelection.page}`
-                      : <>Source: {paper?.title || 'Paper'}, page {sendSelection.page}. A backlink is included.</>}
+                      : <>Source: <PaperTitle title={paper?.title || 'Paper'} />, page {sendSelection.page}. A backlink is included.</>}
                   </p>
                   {sendError && <p className="feedback-error">{sendError}</p>}
                   <div className="feedback-actions">

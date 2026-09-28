@@ -7,6 +7,8 @@ import {
   blocksOfDay, clockTime, coloursFor, dailyBySubject, formatDuration, formatDurationShort, ownDays, papersWithin,
   periodLabel, periodOf, secondsIn, shadeOf, SHADE_MARKS, stepPeriod, VIEWS,
 } from '../activityView';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { plainTitle } from '../../../shared/texTitle.js';
 
 const VIEW_LABELS = { day: 'Day', week: 'Week', month: 'Month' };
 const STEP_NAMES = { day: 'day', week: 'week', month: 'month' };
@@ -76,7 +78,7 @@ function Track({ blocks, data, paint, onTip, now = null, label }) {
             tabIndex={subject.href ? undefined : 0}
             className={`activity-block activity-${paint.colours.get(key) ?? 'other'}${faded ? ' is-faded' : ''}`}
             style={{ left: `${block.left * 100}%`, width: `${block.width * 100}%` }}
-            aria-label={`${subject.name}, ${when}, ${formatDuration(block.seconds)}`}
+            aria-label={`${plainTitle(subject.name)}, ${when}, ${formatDuration(block.seconds)}`}
             onMouseEnter={(event) => { onTip(event, tip); paint.pick(key); }}
             onFocus={(event) => { onTip(event, tip); paint.pick(key); }}
             onMouseLeave={() => { onTip(null); paint.pick(null); }}
@@ -218,9 +220,9 @@ function PaperRows({ period, spans, papers, data, paint, onTip, onOpenDay }) {
           >
             <span className="activity-paper-name">
               <span className={`activity-swatch activity-${colour}`} aria-hidden="true" />
-              {subject.href ? <a href={subject.href}>{subject.name}</a> : <span className="activity-subject-gone">{subject.name}</span>}
+              {subject.href ? <a href={subject.href}><PaperTitle title={subject.name} /></a> : <span className="activity-subject-gone">{subject.name}</span>}
             </span>
-            <div className="activity-columns" role="group" aria-label={subject.name}>
+            <div className="activity-columns" role="group" aria-label={plainTitle(subject.name)}>
               {days.map((day, i) => {
                 const seconds = row[i] ?? 0;
                 const long = day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -285,7 +287,7 @@ function Papers({ papers, data, paint }) {
               onBlur={() => paint.pick(null)}
             >
               <span className={`activity-swatch activity-${colour}`} aria-hidden="true" />
-              {subject.href ? <a href={subject.href}>{subject.name}</a> : <span className="activity-subject-gone">{subject.name}</span>}
+              {subject.href ? <a href={subject.href}><PaperTitle title={subject.name} /></a> : <span className="activity-subject-gone">{subject.name}</span>}
               <span className="activity-subject-bar" aria-hidden="true">
                 <i className={`activity-${colour}`} style={{ width: `${Math.max(2, (entry.seconds / most) * 100)}%` }} />
               </span>
@@ -403,7 +405,7 @@ export default function ActivityPanel() {
             {view === 'month' && !byPaper && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
             {tip && (
               <div className="activity-tip" aria-hidden="true" style={{ left: tip.x, top: tip.y }}>
-                <strong>{tip.title}</strong>
+                <strong><PaperTitle title={tip.title} /></strong>
                 {tip.lines.map((line) => <span key={line}>{line}</span>)}
               </div>
             )}

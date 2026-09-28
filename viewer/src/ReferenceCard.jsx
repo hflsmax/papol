@@ -3,6 +3,7 @@ import { appPath } from './base';
 import { useDismiss } from '../../shared/useDismiss.js';
 import { paperName } from '../../shared/paperName.js';
 import ExperimentalBadge from '../../shared/ui/ExperimentalBadge.jsx';
+import PaperTitle from '../../shared/ui/PaperTitle.jsx';
 
 /**
  * What a citation turns out to be, shown beside the marker that was
@@ -233,10 +234,10 @@ export default function ReferenceCard({
           <h3 className="ref-title">
             {work.url ? (
               <a href={work.url} target="_blank" rel="noreferrer">
-                {work.title || raw}
+                <PaperTitle title={work.title || raw} />
               </a>
             ) : (
-              work.title || raw
+              <PaperTitle title={work.title || raw} />
             )}
           </h3>
 

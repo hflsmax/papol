@@ -90,7 +90,7 @@ export default defineConfig(({ command }) => ({
   // hooks in the shared components then run against the wrong dispatcher.
   // shared/ sits outside the root and names its packages bare; these are
   // resolved from this app, where they are installed.
-  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes'] },
+  resolve: { dedupe: ['react', 'react-dom', '@noble/hashes', 'katex'] },
   server: {
     // shared/ sits a level above either app's root.
     fs: { allow: ['..'] },

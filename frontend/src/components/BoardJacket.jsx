@@ -14,6 +14,7 @@ import HintPop from './HintPop';
 import { boardFacts } from '../boardFacts';
 import { authorList } from '../paperFormat';
 import { appPath } from '../base';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 /**
  * A board's jacket: what is known about it, and the way in.
@@ -291,7 +292,7 @@ export default function BoardJacket({
             <ul className="board-jacket-papers">
               {papers.slice(0, SHOWN_PAPERS).map((paper) => (
                 <li key={paper.sha256}>
-                  <a href={paperLink(paper)}>{paper.title}</a>
+                  <a href={paperLink(paper)}><PaperTitle title={paper.title} /></a>
                   {paperByline(paper) && <span>{paperByline(paper)}</span>}
                 </li>
               ))}
