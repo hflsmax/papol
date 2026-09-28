@@ -7,6 +7,7 @@ import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
+import NookDesk from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -28,7 +29,6 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const [managingShelves, setManagingShelves] = useState(false);
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [section, setSection] = useState(() => initialSection || storedSection(userUuid));
-  const [shelf, setShelf] = useState(null);
 
   const isOwn = currentUser != null && currentUser.uuid === userUuid;
   const selectSection = (next) => {
@@ -115,108 +115,22 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   );
 
   // A member's own nook on the web: what they work in, not who they are.
-  // Their projects lead; their papers take the width, with their boards and
-  // shelves beside them. The shelf chosen there narrows the papers.
   if (isOwn && !DESKTOP) {
-    const chosen = nook.shelves.find((s) => s.uuid === shelf);
+    const addingOnDesk = folderRequest ? adding : (
+      <>
+        <button type="button" onClick={() => { setFolderRequest({}); setReviewingUpload(true); }}>Add folder</button>
+        {React.cloneElement(adding, { trigger: true, compact: false })}
+      </>
+    );
     return (
-      <div className={reviewingUpload ? 'nook is-home upload-review-mode' : 'nook is-home'}>
-        {projectCards}
-        <div className="nook-home">
-          <section className="nook-home-papers" aria-labelledby="nook-papers-title">
-            <div className="nook-home-head">
-              <h3 id="nook-papers-title">
-                {chosen ? chosen.name : 'Papers'}
-                <span className="nook-home-count">{chosen ? chosen.paper_count : nook.papers.length}</span>
-              </h3>
-              {adding}
-            </div>
-            <PaperList
-              papers={nook.papers}
-              isOwn
-              tags={nook.tags}
-              shelves={nook.shelves}
-              shelf={shelf}
-              onSelectShelf={setShelf}
-              shelfCase={false}
-              selectedTag={selectedTag}
-              onSelectTag={setSelectedTag}
-              onSelectPaper={onSelectPaper}
-              onChanged={loadNook}
-            />
-          </section>
-          <aside className="nook-home-side">
-            <section className="nook-home-boards" aria-labelledby="nook-boards-title">
-              <div className="nook-home-head">
-                <h3 id="nook-boards-title">Boards</h3>
-                {!creatingBoard && (
-                  <button type="button" className="nook-home-add" onClick={() => setCreatingBoard(true)}>New board</button>
-                )}
-              </div>
-              {creatingBoard && (
-                <BoardCreateForm
-                  className="nook-inline-board-create"
-                  shelves={nook.shelves}
-                  onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
-                  onCancel={() => setCreatingBoard(false)}
-                />
-              )}
-              {nook.boards.length > 0 && (
-                <ul className="nook-home-list">
-                  {nook.boards.map((board) => (
-                    <li key={board.uuid}>
-                      <a
-                        className="nook-home-board"
-                        href={appPath(`/board/${board.uuid}`)}
-                        onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}
-                      >
-                        <span className="nook-home-dot" style={{ background: nook.shelves.find((s) => s.uuid === board.shelf_uuid)?.color }} aria-hidden="true" />
-                        <span className="nook-home-name">{board.name}</span>
-                        <span className="nook-home-count">{board.item_count}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-            <section className="nook-home-shelves" aria-labelledby="nook-shelves-title">
-              <div className="nook-home-head">
-                <h3 id="nook-shelves-title">Shelves</h3>
-                <button
-                  type="button"
-                  className="manage-nook-gear"
-                  onClick={() => setManagingShelves(true)}
-                  title="Manage shelves and tags"
-                  aria-label="Manage shelves and tags"
-                >
-                  <span className="gear-symbol" aria-hidden="true">⚙</span>
-                </button>
-              </div>
-              <ul className="nook-home-list">
-                {nook.shelves.map((s) => (
-                  <li key={s.uuid}>
-                    <button
-                      type="button"
-                      className={shelf === s.uuid ? 'nook-home-shelf is-on' : 'nook-home-shelf'}
-                      aria-pressed={shelf === s.uuid}
-                      onClick={() => setShelf(shelf === s.uuid ? null : s.uuid)}
-                    >
-                      <span className="nook-home-dot" style={{ background: s.color }} aria-hidden="true" />
-                      <span className="nook-home-name">{s.name}</span>
-                      {!s.is_public && (
-                        <svg className="nook-home-lock" viewBox="0 0 16 16" aria-label="Private">
-                          <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
-                          <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />
-                        </svg>
-                      )}
-                      <span className="nook-home-count">{s.paper_count + (s.board_count || 0)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </aside>
-        </div>
+      <div className={reviewingUpload ? 'nook is-desk upload-review-mode' : 'nook is-desk'}>
+        <NookDesk
+          nook={nook}
+          adding={addingOnDesk}
+          reviewing={reviewingUpload}
+          onSelectBoard={onSelectBoard}
+          onManage={() => setManagingShelves(true)}
+        />
         {managingShelves && (
           <NookManager
             nook={nook}

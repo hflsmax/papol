@@ -25,6 +25,8 @@ import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, t
 export default function PaperUpload({
   onPaperCreated, onReviewChange = () => {}, compact = false,
   incomingFile = null, onIncomingFileHandled = () => {}, onReportableError, onAddFolder = null,
+  // A button in place of the drop box, where the window itself takes drops.
+  trigger = false,
 }) {
   const localImport = nativeDataActive();
   const [isDragging, setIsDragging] = useState(false);
@@ -462,6 +464,29 @@ export default function PaperUpload({
     );
   }
 
+  const picker = (
+    <input
+      type="file"
+      ref={fileInputRef}
+      onChange={handleFileSelect}
+      accept=".pdf"
+      multiple={Boolean(onAddFolder)}
+      style={{ display: 'none' }}
+    />
+  );
+
+  if (trigger) {
+    return (
+      <div className="upload-section is-trigger">
+        {picker}
+        <button type="button" className="primary" disabled={isLoading} onClick={() => fileInputRef.current?.click()}>
+          {isLoading ? 'Adding…' : 'Add papers'}
+        </button>
+        {error && <div className="error" role="alert">{error}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className={`upload-section${compact ? ' compact' : ''}`}>
       <div
@@ -471,14 +496,7 @@ export default function PaperUpload({
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
       >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          accept=".pdf"
-          multiple={Boolean(onAddFolder)}
-          style={{ display: 'none' }}
-        />
+        {picker}
         {isLoading ? (
           <UploadWait progress={uploadProgress} />
         ) : (

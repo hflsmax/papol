@@ -6433,45 +6433,98 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
-/* A member's own nook on the web: no face or name, only their work. Their
-   projects lead; below, their papers take the width and their boards and
-   shelves stand in a narrow column beside them (under them on a phone).
-   Each part is headed by its name, with its count, and the one thing you
-   add to it. */
-.nook.is-home > .nook-desk-projects { margin-top: 0; }
-.nook-home { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: var(--space-6) var(--space-5); align-items: start; margin-top: var(--space-6); }
-.nook-home-head { display: flex; align-items: center; gap: var(--space-3); min-height: 32px; margin-bottom: var(--space-3); }
-.nook-home-head h3 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
-.nook-home-head .upload-section.compact { flex: 1 1 auto; min-width: 0; margin-left: var(--space-3); }
-.nook-home-head .upload-section.compact .dropzone { min-height: 32px; padding: 4px 12px; }
-.nook-home-head .upload-section.compact .dropzone p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nook-home-head .manage-nook-gear, .nook-home-add { margin-left: auto; }
-.nook-home-add { padding: 2px 10px; font-size: var(--fs-xs); }
-.nook-home-count { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
-.nook-home-papers > .paper-list { margin-top: 0; }
-.nook-home-side { display: grid; gap: var(--space-6); }
-.nook-home-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
-.nook-home-board, .nook-home-shelf {
-  display: flex; align-items: center; gap: var(--space-2); width: 100%; box-sizing: border-box;
-  padding: var(--space-2) var(--space-2); border: 0; border-radius: var(--radius); background: transparent; box-shadow: none;
+/* A member's own nook on the web: a rail of their places (projects,
+   boards, shelves) beside one table of their papers. One row grid and one
+   left edge throughout; the only fill is gold, for what is new, and the
+   soft accent of the shelf being shown. */
+.app:has(.nook.is-desk) { max-width: 1180px; }
+.nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.desk-rail { display: grid; gap: var(--space-5); position: sticky; top: var(--space-4); }
+.desk-rail-part { display: grid; gap: var(--space-1); }
+.desk-rail-head { display: flex; align-items: center; justify-content: space-between; min-height: 28px; margin: 0; padding: 0 var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.desk-rail-head h3 { margin: 0; font: inherit; color: inherit; }
+.desk-quiet { padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); letter-spacing: 0; text-transform: none; }
+.desk-quiet:hover, .desk-quiet:focus-visible { color: var(--accent); background: none; }
+.desk-rail-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.desk-row {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 32px; box-sizing: border-box;
+  padding: 0 var(--space-2); border: 0; border-radius: var(--radius); background: transparent; box-shadow: none;
   color: var(--ink); font: 400 var(--fs-sm) var(--font-ui); text-align: left; text-decoration: none;
 }
-.nook-home-board:hover, .nook-home-board:focus-visible, .nook-home-shelf:hover, .nook-home-shelf:focus-visible { background: var(--paper-sunken); color: var(--ink); }
-.nook-home-shelf.is-on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.nook-home-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nook-home-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
-.nook-home-lock { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--ink-faint); stroke-width: 1.4; }
-.nook-home-side .nook-inline-board-create { margin-bottom: var(--space-3); }
-.upload-review-mode .nook-home { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
-.upload-review-mode .nook-home-side,
-.upload-review-mode .nook-home-papers > .paper-list,
-.upload-review-mode .nook-home-head h3 { display: none; }
-.upload-review-mode .nook-home-head { display: block; }
+.desk-row:hover, .desk-row:focus-visible { background: var(--paper-sunken); color: var(--ink); }
+.desk-row.is-on { background: var(--accent-soft); font-weight: 600; }
+.desk-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.desk-lock { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--ink-faint); stroke-width: 1.4; }
+.desk-count { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
+.desk-project {
+  display: grid; gap: var(--space-1); padding: var(--space-2); border: 1px solid transparent; border-radius: var(--radius);
+  color: var(--ink); text-decoration: none;
+}
+.desk-project:hover, .desk-project:focus-visible { background: var(--paper-sunken); color: var(--ink); }
+.desk-project.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
+.desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
+.desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
+.desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
+.desk-faces { display: inline-flex; align-items: center; padding-left: 4px; }
+.desk-face { width: 20px; height: 20px; margin-left: -4px; border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
+.desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
+
+.desk-main { min-width: 0; }
+.desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-3); }
+.desk-main-head h2 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; font: 600 var(--fs-xl) var(--font-serif); }
+.desk-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+.desk-actions button { padding: 5px 12px; font: 500 var(--fs-sm) var(--font-ui); }
+.desk-actions .upload-section.is-trigger { position: relative; margin: 0; }
+.desk-actions .upload-section.is-trigger .error { position: absolute; right: 0; z-index: 10; width: min(360px, 80vw); margin-top: 6px; }
+.desk-filter { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.desk-search { flex: 0 1 15rem; min-width: 8rem; height: 32px; box-sizing: border-box; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font: 400 var(--fs-sm) var(--font-ui); }
+.desk-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.desk-tag { padding: 2px 8px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
+.desk-tag:hover, .desk-tag:focus-visible { background: var(--paper-sunken); }
+.desk-tag.is-on { background: var(--accent-soft); color: var(--accent); }
+.desk-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.desk-table th { height: 32px; padding: 0 var(--space-3); border-bottom: 1px solid var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.desk-table td { height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; vertical-align: middle; }
+.desk-table tbody tr:last-child td { border-bottom: 0; }
+.desk-table tbody tr:hover td { background: var(--paper-sunken); }
+.desk-table td.desk-col-title { position: relative; padding-left: calc(var(--space-3) + 6px); }
+.desk-table td.desk-col-title::before { content: ""; position: absolute; left: var(--space-2); top: var(--space-2); bottom: var(--space-2); width: 3px; border-radius: 2px; background: var(--shelf-color, var(--line-strong)); }
+.desk-title { color: var(--ink); font: 400 var(--fs-md) var(--font-serif); line-height: 1.3; text-decoration: none; }
+.desk-title:hover, .desk-title:focus-visible { color: var(--accent); text-decoration: underline; }
+.desk-col-title .state-pill { margin-left: var(--space-2); vertical-align: middle; }
+.desk-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.desk-meta i { font-family: var(--font-serif); }
+.desk-meta-tag { margin-left: var(--space-2); color: var(--ink-soft); }
+.desk-col-dots { width: 6rem; white-space: nowrap; }
+.desk-col-faces { width: 6.5rem; white-space: nowrap; }
+.desk-col-date { width: 4.5rem; white-space: nowrap; }
+.desk-col-date { color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; }
+.desk-table th.desk-col-date { text-align: right; }
+.desk-col-dots .rating-dots { display: inline-flex; gap: 3px; }
+.desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
+.nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
+.nook-desk.is-reviewing .desk-rail,
+.nook-desk.is-reviewing .desk-filter,
+.nook-desk.is-reviewing .desk-table,
+.nook-desk.is-reviewing .desk-main-head h2 { display: none; }
+.nook-desk.is-reviewing .desk-main-head, .nook-desk.is-reviewing .desk-actions { display: block; margin: 0; }
 @media (max-width: 760px) {
-  .nook-home { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); margin-top: var(--space-5); }
-  .nook-home-head { flex-wrap: wrap; }
-  .nook-home-side { order: -1; gap: var(--space-5); }
-  .nook-home-head .upload-section.compact { flex: 1 1 100%; margin-left: 0; }
+  .nook-desk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .desk-rail { position: static; display: contents; }
+  .desk-rail-part:first-child { order: -2; }
+  .desk-main { order: -1; }
+  .desk-filter { flex-wrap: wrap; }
+  .desk-search { flex: 1 1 100%; }
+  .desk-table thead, .desk-table .desk-col-date { display: none; }
+  .desk-table, .desk-table tbody { display: block; table-layout: auto; }
+  .desk-table td.desk-col-dots, .desk-table td.desk-col-faces { width: auto; }
+  .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--line); }
+  .desk-table tbody tr:last-child { border-bottom: 0; }
+  .desk-table td { display: block; height: auto; border: 0; }
+  .desk-table td.desk-col-title { grid-row: span 2; }
+  .desk-meta { white-space: normal; }
+  .desk-table.no-merit td.desk-col-dots, .desk-table td.desk-col-dots:nth-child(3) { display: none; }
 }
 
 /* Product-wide motion preference. Component media rules can remove layout

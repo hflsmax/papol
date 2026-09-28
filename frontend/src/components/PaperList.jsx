@@ -10,13 +10,9 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst, seminarRank } from '../paperFormat';
 import Effort from './EffortPop';
 
-// A nook that lists its shelves beside the papers passes the chosen shelf
-// in (`shelf`, `onSelectShelf`) and hides the shelf case here.
-export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged, shelf, onSelectShelf, shelfCase = true }) {
+export default function PaperList({ papers, boards = [], isOwn, tags = [], shelves = [], selectedTag = null, onSelectTag, onSelectPaper, onSelectBoard, onChanged }) {
   const [search, setSearch] = useState('');
-  const [ownShelf, setOwnShelf] = useState(null);
-  const selectedShelf = shelf !== undefined ? shelf : ownShelf;
-  const setSelectedShelf = onSelectShelf ?? setOwnShelf;
+  const [selectedShelf, setSelectedShelf] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(
     () => window.sessionStorage.getItem('papol.paperBrowserOpen') === 'true'
   );
@@ -106,7 +102,7 @@ export default function PaperList({ papers, boards = [], isOwn, tags = [], shelv
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
         </button>
         {browserOpen && <div className="search-bar paper-search-tools">
-        {shelfCase && shelves.length > 1 && (
+        {shelves.length > 1 && (
           <div className="shelf-filter" role="group" aria-label="Filter nook items by shelf">
             <div className="shelf-filter-case">
               {shelves.map((shelf) => (
