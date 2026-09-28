@@ -387,3 +387,4 @@ an empty pass-through isolation app would add complexity without another useful
 policy boundary. The updater is also deferred until a public update endpoint
 and updater signing key are chosen. These are separate from Apple's application
 signature and notarization credentials.
+
