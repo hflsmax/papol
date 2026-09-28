@@ -23,7 +23,6 @@ import LearnPage from './components/LearnPage';
 import ProjectsPage from './components/ProjectsPage';
 import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
-import { DigPage } from './components/DigPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects } from '../../shared/api/projects.js';
 import { BAZAAR, WayBar, WayFoot } from './components/Way';
@@ -66,11 +65,11 @@ import {
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 // Where a member works inside one project.
-export const PROJECT_PAGES = new Set(['project', 'dig']);
+export const PROJECT_PAGES = new Set(['project']);
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'shelf', 'papers', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation', 'dig',
+  'projects', 'project', 'invitation',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -528,7 +527,7 @@ export default function App({ startupUser = null, startupError = null }) {
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
     // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/dig/', '/boards/', '/viewer/']
+    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/boards/', '/viewer/']
       .some((start) => candidate.startsWith(start))
       ? candidate
       : '/';
@@ -834,9 +833,6 @@ export default function App({ startupUser = null, startupError = null }) {
           onLeft={() => navigate('/projects', { replace: true })}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
         />
-      )}
-      {route.page === 'dig' && (
-        <DigPage key={route.uuid} digUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
       )}
       {route.page === 'invitation' && (
         <InvitationPage

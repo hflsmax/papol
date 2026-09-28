@@ -389,15 +389,6 @@ function usePicked(projectUuid) {
   return [picked, choose];
 }
 
-// Somewhere outside the project (a dig's page) leads to one of its papers:
-// the project opens on the Papers tab with that paper's brief.
-export function showPaperInProject(projectUuid, sha256) {
-  try {
-    sessionStorage.setItem(`papol:project-view:${projectUuid}`, 'papers');
-    sessionStorage.setItem(pickedKey(projectUuid), sha256);
-  } catch { /* the project opens as it was */ }
-}
-
 // Papers, Boards, Digs: each with its count, and in gold how many in it
 // are new since the last visit.
 function DeskTabs({ view, onView, counts, fresh }) {
@@ -515,19 +506,14 @@ const PHASE_ORDER = { digging: 0, stashed: 1, gold: 2, buried: 3 };
 function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   const discussions = [...(project.digs ?? [])].sort((a, b) => (PHASE_ORDER[a.phase] ?? 0) - (PHASE_ORDER[b.phase] ?? 0));
   const wide = useWide();
-  // On a wide window the list stays put and the dig opens beside it: on
-  // arrival the first unread one, else the latest; read when the selection
-  // moves on.
-  const [picked, setPicked] = useState(() => (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null);
-  const shown = discussions.find((d) => d.uuid === picked) ?? discussions[0] ?? null;
-  const pick = (uuid) => {
-    if (shown && shown.uuid !== uuid) onRead(shown.uuid);
-    setPicked(uuid);
-  };
-  useEffect(() => () => { if (wide && shown) onRead(shown.uuid); }, [wide, shown?.uuid]);
-  const opener = (d) => ({
-    projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, dig: d.uuid, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
-  });
+  // A dig opens right here, never on a page of its own. On a wide window
+  // the list stays put and the dig opens beside it: on arrival the first
+  // unread one, else the latest. Narrower, it opens under its row, and a
+  // second press folds it. Read when the selection moves on.
+  const [picked, setPicked] = useState(() => (wide ? (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null : null));
+  const shown = discussions.find((d) => d.uuid === picked) ?? (wide ? discussions[0] : null) ?? null;
+  const pick = (uuid) => setPicked(wide || shown?.uuid !== uuid ? uuid : null);
+  useEffect(() => () => { if (shown) onRead(shown.uuid); }, [shown?.uuid]);
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step || !shown) return;
@@ -537,6 +523,24 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
     pick(next.uuid);
     e.currentTarget.querySelector(`[data-dig="${next.uuid}"]`)?.focus();
   };
+  const pane = (d) => (
+    <>
+      <h3 className="project-talk-subject-line">
+        <span className="project-card-kind">{SUBJECT_WORDS[d.subject.kind]}</span>
+        {d.subject.kind === 'paper' ? (
+          <button type="button" className="project-talk-subject-open" onClick={() => onOpenPaper(d.subject.paper_sha256)}>
+            <PaperTitle title={d.subject.label} />
+          </button>
+        ) : subjectHome(project, d.subject)
+          ? <a href={appPath(subjectHome(project, d.subject))}><PaperTitle title={d.subject.label} /></a>
+          : <span><PaperTitle title={d.subject.label} /></span>}
+      </h3>
+      <TalkCard
+        key={d.uuid} inline
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked}
+      />
+    </>
+  );
   const row = (d) => {
     const last = d.last_post;
     const kind = d.subject.kind;
@@ -564,39 +568,19 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
         <ul className="project-talk-list" onKeyDown={wide ? move : undefined}>
           {discussions.map((d) => (
             <li key={d.uuid}>
-              {wide ? (
-                <button
-                  type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
-                  className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
-                  onClick={() => pick(d.uuid)}
-                >
-                  {row(d)}
-                </button>
-              ) : (
-                <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}`}>{row(d)}</TalkOpener>
-              )}
+              <button
+                type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
+                className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
+                onClick={() => pick(d.uuid)}
+              >
+                {row(d)}
+              </button>
+              {!wide && shown?.uuid === d.uuid && <div className="project-talk-panel">{pane(d)}</div>}
             </li>
           ))}
         </ul>
       )}
-      {wide && shown && (
-        <div className="project-talk-panel">
-          <h3 className="project-talk-subject-line">
-            <span className="project-card-kind">{SUBJECT_WORDS[shown.subject.kind]}</span>
-            {shown.subject.kind === 'paper' ? (
-              <button type="button" className="project-talk-subject-open" onClick={() => onOpenPaper(shown.subject.paper_sha256)}>
-                <PaperTitle title={shown.subject.label} />
-              </button>
-            ) : subjectHome(project, shown.subject)
-              ? <a href={appPath(subjectHome(project, shown.subject))}><PaperTitle title={shown.subject.label} /></a>
-              : <span><PaperTitle title={shown.subject.label} /></span>}
-          </h3>
-          <TalkCard
-            key={shown.uuid} inline
-            projectUuid={project.uuid} subject={shown.subject.key} label={shown.subject.label} dig={shown.uuid} currentUser={currentUser} onChanged={onTalked}
-          />
-        </div>
-      )}
+      {wide && shown && <div className="project-talk-panel">{pane(shown)}</div>}
     </section>
   );
 }

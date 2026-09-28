@@ -5309,25 +5309,23 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-name { font-weight: 600; }
 .project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 
-.project-talk-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+/* Digs as rows, the soft tiles of the Papers tab; a dig opens beside its
+   row on a wide window, under it on a narrow one. */
+.project-talk-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
 /* Wide: the list stays put and the dig opens beside it. */
 .project-talk.is-wide { display: grid; grid-template-columns: minmax(360px, 460px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
-.project-talk.is-wide .project-talk-list { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-.project-talk.is-wide .project-talk-item { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; }
-.project-talk.is-wide .project-talk-item .project-talk-subject { grid-column: 1; }
-.project-talk.is-wide .project-talk-item .project-talk-meta { grid-column: 1; }
-.project-talk.is-wide .project-talk-item .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-phase { flex: none; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); letter-spacing: 0; text-transform: none; }
 .project-talk-phase.is-gold { border-color: var(--accent); color: var(--accent-strong); }
 .project-talk-item.is-buried .project-talk-label { color: var(--ink-faint); }
-.project-talk.is-wide .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.project-talk.is-wide .project-talk-item.is-new, .project-talk.is-wide .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
-.project-talk.is-wide .project-talk-item.is-selected, .project-talk.is-wide .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
-.project-talk.is-wide .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.project-talk .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.project-talk .project-talk-item.is-new, .project-talk .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
+.project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
+.project-talk .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The open thing sits on white, the list on the page: tone, not a rule, parts them. */
 .project-talk-panel { position: sticky; top: var(--space-4); padding: var(--space-2) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
 /* One scroller: the page. The pane stays put beside a long list and
    scrolls with the page when it is the longer one. */
+.project-talk:not(.is-wide) .project-talk-panel { position: static; margin: var(--space-1) 0 var(--space-3); padding-inline: var(--space-4); }
 .project-talk-panel .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .project-talk-panel .talk-card.is-inline .talk-card-body { overflow: visible; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { padding-left: 0; background: none; }
@@ -5341,10 +5339,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-subject-open:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 .project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
-.project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; text-align: left; transition: border-color var(--motion-fast) var(--ease-out); }
-.project-talk-item:hover:not(:disabled), .project-talk-item[aria-expanded='true'] { border-color: var(--accent); background: var(--card); color: var(--ink); }
-.project-talk-item.is-new { border-color: var(--gold-line); background: var(--gold-soft); }
-.project-talk-item.is-new:hover:not(:disabled) { border-color: var(--accent); background: var(--gold-soft); }
+.project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink); font: inherit; text-align: left; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-talk-subject { display: flex; align-items: center; gap: var(--space-2); min-width: 0; grid-column: 1; }
 .project-talk-subject > .project-card-kind { flex: none; white-space: nowrap; }
 .project-talk-meta { grid-column: 1; }
@@ -5410,65 +5405,10 @@ ${talkStyles}
 /* Beside the list, the reply bar stays at the foot of the pane. */
 .project-papers-panel .paper-brief-dig .talk-compose { position: sticky; bottom: 0; z-index: 1; margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); background: var(--card); }
 
-/* One dig as a page: what it is about in a rail that stays put, the
-   posts in a reading measure beside it, and the reply bar at their foot. */
-.dig-page { display: grid; grid-template-columns: 15rem minmax(0, 38rem); justify-content: center; column-gap: var(--space-7); max-width: none; margin: 0; }
-.dig-rail { position: sticky; top: var(--space-4); align-self: start; display: grid; gap: var(--space-2); }
-/* The way back stacks in the rail: three lines, no chevrons to orphan. */
-.dig-kind { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.dig-kind .talk-glyph { width: 15px; height: 15px; color: var(--accent-strong); }
-.dig-subject-title { margin: 0; font: 600 var(--fs-lg)/1.3 var(--font-serif); overflow-wrap: anywhere; }
-.dig-subject-title a { color: inherit; text-decoration: none; }
-.dig-subject-title a:hover { color: var(--accent); }
-.dig-subject-open { width: 12px; height: 12px; margin-left: 4px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-faint); }
-.dig-subject-title a:hover .dig-subject-open { color: inherit; }
-.dig-subject-under { margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
-.dig-subject-under a { color: var(--ink); }
-.dig-subject-under a:hover { color: var(--accent); }
-.dig-voices { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-1) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.dig-main { min-width: 0; }
-.discussion-card-label { font-style: italic; }
-.discussion-posts { margin: 0; padding: 0; list-style: none; }
-/* Posts parted by space alone; the face hangs in the gutter so the words
-   share one left edge. */
-.discussion-post { position: relative; padding: 0; }
-.discussion-post + .discussion-post { margin-top: var(--space-5); }
-.discussion-post-head > :first-child { margin-left: calc(-1 * (22px + var(--space-2))); }
-.discussion-post-head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; margin-bottom: 2px; }
-/* A post's options bar is where the hand already is: on hover or focus; always on touch. */
-.discussion-post-head .item-actions { margin-left: auto; visibility: hidden; }
-.discussion-post:hover .item-actions, .discussion-post:focus-within .item-actions { visibility: visible; }
-@media (hover: none) { .discussion-post-head .item-actions { visibility: visible; } }
-.discussion-post.is-mine .discussion-post-author { color: var(--accent); }
-.discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
-.discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.discussion-post-body { font-size: var(--fs-md); line-height: 1.5; }
-/* The reply bar, docked at the foot of the posts. */
-.dig-compose { position: sticky; bottom: 0; z-index: 1; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); margin-top: var(--space-6); padding: var(--space-3) 0 var(--space-4); background: var(--paper); }
-/* The reply box hangs its face in the gutter too, level with the posts. */
-.dig-compose { margin-left: calc(-1 * (22px + var(--space-2))); }
-.dig-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }
-.dig-compose textarea { width: 100%; max-height: 45vh; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); resize: vertical; }
-.dig-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
-.dig-compose .talk-send { margin-bottom: 1px; }
-.discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
-.discussion-composer-foot { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
-@media (max-width: 759px) {
-  .dig-page { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
-  .dig-rail { position: static; padding: 0 0 var(--space-5); }
-  .discussion-post-head > :first-child { margin-left: 0; }
-  .dig-compose { margin-left: 0; }
-  .dig-compose { padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom)); }
-}
-[data-shell='desktop'] .desktop-content:has(.dig-page) { max-width: none; }
-[data-shell='desktop'] .dig-rail { top: 0; }
-
 /* In the Mac app a project's pages keep their header in the window's
-   toolbar: the desk's name, its three views in the middle and its people;
-   where a dig is and its Reply. */
+   toolbar: the desk's name, its three views in the middle and its people. */
 .project-toolbar { display: flex; flex: 1 1 0; align-items: center; gap: var(--space-2); min-width: 0; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
-.discussion-toolbar-where { min-width: 0; overflow: hidden; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .desktop-toolbar .project-tabs { flex: none; margin: 0; }
 .desktop-toolbar .project-tab { padding: 3px var(--space-3); }
 .desktop-toolbar .project-seats { flex: 1 1 0; justify-content: flex-end; align-items: center; gap: var(--space-1); }
@@ -5478,15 +5418,6 @@ ${talkStyles}
 .desktop-toolbar .project-seat .mini-avatar { width: 24px; height: 24px; box-shadow: 0 0 0 2px var(--paper); }
 .desktop-toolbar .project-seat small { display: none; }
 .desktop-toolbar .project-invite-open { padding: 2px var(--space-2); }
-.discussion-toolbar-where { flex: 1; margin: 0; color: var(--ink-soft); }
-.discussion-toolbar-where a { color: var(--ink); font-weight: 600; text-decoration: none; }
-.discussion-toolbar-where a:hover { color: var(--accent); }
-/* Your turn: a card with your face on it, below the last post. */
-.discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
-.discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }
-.discussion-composer textarea { display: block; width: 100%; padding: var(--space-3); font-size: var(--fs-md); line-height: 1.6; }
-.discussion-composer-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
-.discussion-composer-foot .md-hint { margin: 0 auto 0 0; }
 
 .project-invitation {
   display: flex;

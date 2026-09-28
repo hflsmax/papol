@@ -119,7 +119,6 @@ const TITLES = {
   projects: 'Projects',
   project: 'Project',
   invitation: 'Invitation',
-  dig: 'Dig',
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',

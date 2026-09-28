@@ -97,8 +97,9 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.equal(parseRoute(`/project/${UUID}/paper/${NAME}`).page, 'home');
 });
 
-test('a dig has a page', () => {
-  assert.deepEqual(parseRoute(`/dig/${UUID}`), { page: 'dig', uuid: UUID });
+test('a dig is not a place of its own', () => {
+  // It opens in its project's Digs tab.
+  assert.equal(parseRoute(`/dig/${UUID}`).page, 'home');
 });
 
 test('a shelf has a page of its own', () => {

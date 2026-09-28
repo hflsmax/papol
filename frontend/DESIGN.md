@@ -189,9 +189,10 @@ sidebar, toolbar and document windows.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.
 - **Sign-in returns to the path asked for,** whichever of the above it is.
-- **Full pages that stay full pages:** Bazaar, the member's own page, and a
-  dig. A paper's brief is not a page: it opens beside the list in the
-  project's Papers tab, as a dig does in the Digs tab.
+- **Full pages that stay full pages:** Bazaar and the member's own page.
+  Neither a paper's brief nor a dig is a page: a brief opens beside the
+  list in the project's Papers tab, a dig in its Digs tab (under its row on
+  a narrow window).
 
 ## Digs
 
