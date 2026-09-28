@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  addIdeaCard, createProjectBoard, findDigs, getDig, getProject, moveDig, postInDig, startDig, subjectKey,
+  findDigs, getDig, moveDig, postInDig, startDig, subjectKey,
 } from '../api/projects.js';
-import { appPath } from '../appUrls.js';
 import appLimits from '../appLimits.js';
 import ActionGlyph from './ActionGlyph.jsx';
 import Face from './Face.jsx';
@@ -213,101 +212,14 @@ function place(anchor, card) {
   };
 }
 
-// A dig is always about something: a paper, a member's thought, a board
-// or a card. Nothing here is a free-floating chat room.
-// When a dig drifts onto something else, any post in it can be dug into:
-// say what the new thing is, as something the project already holds or as
-// a new idea (a card on a board), and the card moves to that dig with the
-// post quoted, leaving a pointer behind in the dig it came from.
-const IDEA_LIMIT = 200;
-
-function excerptOf(text, length = 220) {
-  const flat = String(text).replace(/^>.*$/gm, '').replace(/\s+/g, ' ').trim();
-  return flat.length > length ? `${flat.slice(0, length - 1)}…` : flat;
-}
-
-function quoteOf(post) {
-  return `> ${post.user.display_name}: ${excerptOf(post.body, 400)}\n\n`;
-}
-
-function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel }) {
-  const [project, setProject] = useState(null);
-  const [idea, setIdea] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const input = useRef(null);
-
-  useEffect(() => {
-    let active = true;
-    getProject(projectUuid).then((next) => { if (active) setProject(next); }).catch(() => { if (active) setProject({ papers: [], boards: [] }); });
-    input.current?.focus({ preventScroll: true });
-    return () => { active = false; };
-  }, [projectUuid]);
-
-  const boards = project?.boards ?? [];
-  const home = boards.find((b) => b.uuid === boardUuid) ?? boards[0] ?? null;
-  const things = [
-    ...(project?.papers ?? []).map((p) => ({ subject: `paper:${p.sha256}`, kind: 'paper', label: p.title ?? 'Untitled paper' })),
-  ].filter((t) => t.subject !== current);
-
-  const makeIdea = async (e) => {
-    e.preventDefault();
-    const name = idea.trim();
-    if (!name || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const board = home ?? await createProjectBoard(projectUuid, 'Ideas');
-      const card = await addIdeaCard(board.uuid, name);
-      onPick({ subject: `card:${card.uuid}`, label: name });
-    } catch (err) {
-      setError(err.message);
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="dig-chooser">
-      <blockquote className="dig-chooser-quote">{excerptOf(post.body)}</blockquote>
-      {things.length > 0 && (
-        <>
-          <p className="dig-chooser-or">In the project</p>
-          <ul className="dig-chooser-list">
-            {things.map((t) => (
-              <li key={t.subject}>
-                <button type="button" onClick={() => onPick({ subject: t.subject, label: t.label })}>
-                  <span className="dig-chooser-kind">{KINDS[t.kind].word}</span>
-                  <span className="dig-chooser-label"><PaperTitle title={t.label} /></span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <form className="dig-chooser-idea" onSubmit={makeIdea}>
-        <input
-          ref={input} value={idea} maxLength={IDEA_LIMIT} placeholder="A new idea" aria-label="The new idea"
-          onChange={(e) => setIdea(e.target.value)}
-        />
-        <button type="submit" className="primary" disabled={!idea.trim() || busy}>Dig in</button>
-      </form>
-      {error && <p className="talk-card-error" role="alert">{error}</p>}
-      <button type="button" className="dig-chooser-cancel" onClick={onCancel}>Cancel</button>
-    </div>
-  );
-}
-
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about.
 export function TalkCard({
-  anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false, unread = 0, seekUnread = () => true,
+  anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState([]);
-  const [from, setFrom] = useState(null);
-  const [drift, setDrift] = useState(startDrift);
-  const [picked, setPicked] = useState(null);
   const [discussion, setDiscussion] = useState(undefined);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
@@ -339,7 +251,7 @@ export function TalkCard({
   const reposition = useCallback(() => {
     if (!inline && anchor.current) setSpot(place(anchor.current, card.current));
   }, [anchor, inline]);
-  useLayoutEffect(() => { reposition(); }, [reposition, discussion, drift]);
+  useLayoutEffect(() => { reposition(); }, [reposition, discussion]);
   useEffect(() => {
     if (inline) return undefined;
     window.addEventListener('resize', reposition);
@@ -360,7 +272,7 @@ export function TalkCard({
   }, [anchor, onClose, inline]);
 
   useEffect(() => {
-    if (discussion === undefined || drift) return;
+    if (discussion === undefined) return;
     const field = box.current;
     if (!inline || body || focus) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
@@ -371,30 +283,15 @@ export function TalkCard({
       const fresh = list.current?.querySelector('.talk-post.is-new');
       if (fresh && fresh.getBoundingClientRect().top > window.innerHeight) fresh.scrollIntoView({ block: 'center' });
     }
-  }, [discussion, drift]);
+  }, [discussion]);
   // The field grows with what is written, up to the sheet's cap.
   useLayoutEffect(() => {
     const field = box.current;
     if (!field) return;
     field.style.height = '';
     if (field.scrollHeight > field.clientHeight) field.style.height = `${field.scrollHeight + 2}px`;
-  }, [body, drift]);
+  }, [body]);
   const toEnd = () => requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight; });
-
-  // Dug into: the card moves to the new thing, with the post quoted to
-  // start from. The pointer back is left once the first post is sent.
-  const dugInto = (next) => {
-    setFrom({ ...topic, dig: discussion?.uuid ?? topic.dig, uuid: discussion?.uuid ?? null, pending: true });
-    setBody(quoteOf(drift));
-    setDrift(null);
-    setPicked(null);
-    setTopic(next);
-  };
-  const goBack = () => {
-    setTopic({ subject: from.subject, label: from.label, dig: from.dig });
-    setFrom(null);
-    setBody('');
-  };
 
   const send = async (e) => {
     e?.preventDefault();
@@ -412,11 +309,6 @@ export function TalkCard({
       // it now stands.
       const others = digs.filter((d) => d.uuid !== next.uuid);
       if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
-      if (from?.pending && from.uuid) {
-        const back = await postInDig(from.uuid, `Dug into [${plainTitle(topic.label).replace(/[[\]]/g, '')}](${appPath(`/dig/${next.uuid}`)})`);
-        setFrom({ ...from, pending: false });
-        if (from.subject === subject) onChanged?.(back);
-      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -438,7 +330,7 @@ export function TalkCard({
       className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
       role={inline ? 'region' : 'dialog'}
-      aria-label={`Dig into ${plainTitle(topic.label)}`}
+      aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
       <header className="talk-card-header">
@@ -456,13 +348,8 @@ export function TalkCard({
         )}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
-      {from && (
-        <button type="button" className="talk-card-back" onClick={goBack}>
-          <span aria-hidden="true">←</span> Dug out of <PaperTitle title={from.label} />
-        </button>
-      )}
       {(!inline || !onHome) && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
-      {!drift && discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine))) && (
+      {discussion !== undefined && (digs.length > 1 || (digs.length > 0 && !digs.some((d) => d.is_mine))) && (
         <nav className="talk-card-owners" aria-label="Whose dig">
           {digs.map((d) => (
             <button
@@ -485,25 +372,15 @@ export function TalkCard({
       )}
 
       <div className="talk-card-body" ref={list}>
-        {drift ? (
-          <DigChooser
-            projectUuid={projectUuid} post={drift} current={topic.subject} boardUuid={discussion?.subject?.board_uuid}
-            onPick={dugInto} onCancel={() => (startDrift && !from ? onClose?.() : setDrift(null))}
-          />
-        ) : discussion === undefined ? (
+        {discussion === undefined ? (
           <p className="talk-card-quiet">Opening…</p>
         ) : posts.length === 0 ? null : (
           <>
             <ol className="talk-posts">
               {posts.map((post, index) => (
                 <li
-                  key={post.uuid} tabIndex={0}
-                  className={`talk-post${post.is_mine ? ' is-mine' : ''}${picked === post.uuid ? ' is-selected' : ''}${unread > 0 && index >= posts.length - unread ? ' is-new' : ''}`}
-                  onClick={(e) => { if (!e.target.closest('a, button') && !window.getSelection()?.toString()) setPicked(picked === post.uuid ? null : post.uuid); }}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(picked === post.uuid ? null : post.uuid); }
-                  }}
+                  key={post.uuid}
+                  className={`talk-post${post.is_mine ? ' is-mine' : ''}${unread > 0 && index >= posts.length - unread ? ' is-new' : ''}`}
                 >
                   <p className="talk-post-head">
                     <Face user={post.user} />
@@ -512,11 +389,6 @@ export function TalkCard({
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                   </p>
                   <Markdown className="talk-post-body" text={post.body} />
-                  {picked === post.uuid && (
-                    <div className="talk-post-actions">
-                      <button type="button" onClick={() => setDrift(post)}><ActionGlyph name="dig" />Dig into this</button>
-                    </div>
-                  )}
                 </li>
               ))}
             </ol>
@@ -525,24 +397,22 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {!drift && (
-        <form className="talk-compose" onSubmit={send}>
-          {currentUser && <Face user={currentUser} />}
-          <textarea
-            ref={box}
-            rows={body ? 4 : posts.length ? 2 : 3}
-            value={body}
-            maxLength={POST_LIMIT}
-            placeholder={discussion ? 'Post' : 'Dig'}
-            aria-label={discussion ? 'Your post' : 'Your dig'}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
-          />
-          <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label={discussion ? 'Post' : 'Dig'} title={`${discussion ? 'Post' : 'Dig'} (⌘↩)`}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-          </button>
-        </form>
-      )}
+      <form className="talk-compose" onSubmit={send}>
+        {currentUser && <Face user={currentUser} />}
+        <textarea
+          ref={box}
+          rows={body ? 4 : posts.length ? 2 : 3}
+          value={body}
+          maxLength={POST_LIMIT}
+          placeholder={discussion ? 'Post' : 'Dig'}
+          aria-label={discussion ? 'Your post' : 'Your dig'}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
+        />
+        <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label={discussion ? 'Post' : 'Dig'} title={`${discussion ? 'Post' : 'Dig'} (⌘↩)`}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+        </button>
+      </form>
     </section>
   );
 }

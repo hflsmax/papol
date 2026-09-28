@@ -68,13 +68,6 @@ export function createProjectBoard(uuid, name) {
   return jsonRequest(`/projects/${uuid}/boards`, 'POST', { name });
 }
 
-// A new idea someone wants to dig into becomes a card on one of the
-// project's boards, so the dig is about something. Asked of the server
-// directly: the board may be another member's, outside this replica.
-export function addIdeaCard(boardUuid, content) {
-  return jsonRequest(`/boards/${boardUuid}/comments`, 'POST', { content });
-}
-
 // ---------- Digs ----------
 
 // A dig is about a paper, a card or an annotation, named by a key:
