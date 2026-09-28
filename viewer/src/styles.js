@@ -740,8 +740,10 @@ ${talkStyles}
 .viewer-bar .bar-link:hover { border-color: var(--accent); color: var(--accent); }
 /* min-width: 0, so that when the bar is short of room this block can be
    squeezed and the shared-reading chip inside it ellipsizes, instead of
-   the whole block holding its width and pushing the bar wide. */
-.paper-menu { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
+   the whole block holding its width and pushing the bar wide. Its gap is
+   the bar's own, so the info button and the project chip stand as far
+   from each other as from the tool before them. */
+.paper-menu { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
 .viewer-bar button.bar-link { cursor: pointer; background: var(--card); }
 .viewer-bar button.bar-link:disabled { cursor: default; opacity: 0.6; }
 .viewer-bar .nook-add-button { border-color: var(--accent); color: var(--accent); }
