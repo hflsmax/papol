@@ -4309,8 +4309,10 @@ export default function App() {
             {/* Whose annotations the pages carry: the reader's own, or a
                 project's. Only where the reader has a project holding this
                 paper is there anything to choose, so only then is it here;
-                with a project on, it names the project and shows who has
-                marked the paper, each in the colour their ink is drawn in. */}
+                with a project on, it wears the project's colour and shows who
+                has marked the paper, each in the colour their ink is drawn
+                in; the name is in the menu and the tooltip, so the chip stays
+                small. */}
             {(projectView || projectsHolding.length > 0) && (
               <span className="project-switch" ref={projectSwitchRef}>
                 <button
@@ -4325,7 +4327,6 @@ export default function App() {
                     <circle cx="8.5" cy="9" r="3.2" /><circle cx="16.5" cy="9" r="3.2" />
                     <path d="M3 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5M11 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5" />
                   </svg>
-                  <span className="project-pill-name">{projectView ? projectView.name : 'Yours'}</span>
                   {projectView && (
                     <span className="project-faces">
                       {whoMarked([...projectView.notes, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (

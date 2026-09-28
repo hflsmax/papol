@@ -72,9 +72,7 @@ ${talkStyles}
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 260px;
-  min-width: 0;
-  padding: 3px 10px 3px 8px;
+  padding: 3px 8px;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -85,10 +83,9 @@ ${talkStyles}
 }
 .viewer-bar .bar-link.project-pill.on:hover { color: var(--ink-inverse); background: var(--accent-strong); }
 .project-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.project-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* Who has marked the paper, each ringed in the colour their ink is drawn
    in, so the ring on the page and the face in the bar say the same name. */
-.project-faces { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; }
+.project-faces { display: inline-flex; align-items: center; gap: 5px; }
 .project-faces .who { display: inline-flex; border-radius: 50%; box-shadow: 0 0 0 2px var(--who); }
 .project-faces .mini-avatar { width: 18px; height: 18px; font-size: 10px; }
 .viewer-bar .paper-info-pop.project-menu { right: 0; left: auto; width: max-content; min-width: 160px; max-width: min(320px, calc(100vw - 24px)); padding: 6px 6px 6px 6px; display: flex; flex-direction: column; }
