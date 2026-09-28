@@ -43,9 +43,11 @@ Pictures are kept in PAPOL_E2E_ARTIFACTS/capture, pass or fail.
 """
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 import os
 from pathlib import Path
 import socket
+import socketserver
 import struct
 import subprocess
 import sys
@@ -97,8 +99,16 @@ class Quiet(BaseHTTPRequestHandler):
         pass
 
 
+class Server(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer's own asks the resolver for the loopback address's full
+        # name, which can take a macOS runner many seconds.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 def serve(handler):
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = Server(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -171,25 +181,30 @@ def require_fixture_host():
 
 # The app's own crate without debug information, which it spends most of
 # its compile and link on; its dependencies keep theirs, so the ones already
-# built are used as they are. The same on the build and every run, or each
-# run would build again.
+# built are used as they are. The CI app job builds the probe with the same
+# flags on main, so the cache it saves holds this build.
 NO_DEBUG = ["--config", "profile.dev.package.papol-desktop.debug=0"]
 
 
 def build_probe():
-    subprocess.run(
+    """The probe, built, as the path of its executable."""
+    built = subprocess.run(
         ["cargo", "build", "--locked", "--manifest-path", str(MANIFEST),
-         *NO_DEBUG, "--example", "capture_probe"],
-        check=True,
+         *NO_DEBUG, "--example", "capture_probe", "--message-format=json-render-diagnostics"],
+        check=True, stdout=subprocess.PIPE, text=True,
     )
+    for line in built.stdout.splitlines():
+        message = json.loads(line)
+        if message.get("reason") == "compiler-artifact" and message["target"]["name"] == "capture_probe":
+            return message["executable"]
+    raise RuntimeError("cargo built no capture_probe")
 
 
-def probe(url, output):
+def probe(executable, url, output):
     """The probe's verdict: its exit status and everything it said."""
     started = time.monotonic()
     completed = subprocess.run(
-        ["cargo", "run", "--quiet", "--locked", "--manifest-path", str(MANIFEST),
-         *NO_DEBUG, "--example", "capture_probe", "--", url, str(output)],
+        [executable, url, str(output)],
         capture_output=True, text=True, timeout=120,
         env={**os.environ, "PAPOL_CAPTURE_LONGEST_MS": str(LONGEST_MS)},
     )
@@ -261,7 +276,12 @@ def main():
     require_fixture_host()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     say("Compiling the capture probe")
-    build_probe()
+    executable = build_probe()
+    # Its first start on a fresh machine is slow; timed apart from the
+    # captures, so their times are their own.
+    started = time.monotonic()
+    subprocess.run([executable], capture_output=True)
+    say(f"The probe first started in {time.monotonic() - started:.1f}s")
 
     private = private_server()
     fixture = fixture_server(private)
@@ -269,7 +289,7 @@ def main():
     try:
         for path, what in (("/", "the fixture page"), ("/image", "a page with an image from this machine")):
             output = ARTIFACTS / f"{path.strip('/') or 'page'}.jpg"
-            status, said = probe(f"{site}{path}", output)
+            status, said = probe(executable, f"{site}{path}", output)
             if status:
                 raise RuntimeError(f"{what} was not captured:\n{said}")
             say(f"Captured {what}: {check_picture(output)} ({said.splitlines()[-1]})")
@@ -280,7 +300,7 @@ def main():
             ("/blank", "a page that shows nothing", "showed nothing to make a picture of"),
         ):
             output = ARTIFACTS / f"{path.strip('/')}.jpg"
-            status, said = probe(f"{site}{path}", output)
+            status, said = probe(executable, f"{site}{path}", output)
             if status == 0 or output.exists():
                 raise RuntimeError(f"{what} was captured:\n{said}")
             if why not in said:
