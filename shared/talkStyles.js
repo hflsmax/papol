@@ -72,6 +72,12 @@ export const talkStyles = `
 .talk-post-edit textarea { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
 .talk-post-edit textarea:focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-post-edit-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
+/* Your dig, still to be written: it stands in the body, where its words will go. */
+.talk-dig-new { display: grid; gap: var(--space-2); padding: var(--space-3) 0; }
+.talk-dig-new .talk-post-head b { color: var(--accent); }
+.talk-dig-new textarea { width: 100%; min-height: 0; margin: 0; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
+.talk-dig-new textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-dig-new-foot { display: flex; justify-content: flex-end; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }

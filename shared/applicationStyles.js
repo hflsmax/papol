@@ -5408,8 +5408,11 @@ ${talkStyles}
 .paper-brief-dig .talk-compose { padding-left: 0; padding-right: 0; }
 .paper-brief-dig .talk-compose textarea { background: var(--card); }
 .paper-brief-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
-/* Beside the list, the reply bar stays at the foot of the pane. */
-.project-papers-panel .paper-brief-dig .talk-compose { position: sticky; bottom: 0; z-index: 1; margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); background: var(--card); }
+.paper-brief-dig + .paper-brief-dig { margin-top: var(--space-5); }
+/* Each dig on its own: its phase sits at the end of its owner's line. */
+.paper-brief-dig .talk-card.is-inline { position: relative; }
+.paper-brief-dig .talk-card.is-inline .talk-card-header { position: absolute; top: calc(var(--space-3) + 6px); right: 0; z-index: 1; padding: 0; }
+.paper-brief-dig .talk-post:first-child .talk-post-head { padding-right: 120px; }
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people. */
