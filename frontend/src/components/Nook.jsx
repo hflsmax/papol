@@ -7,8 +7,10 @@ import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
+import NookDesk from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
 import { appPath } from '../base';
+import { DESKTOP } from '../../../shared/desktopShell';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -16,7 +18,7 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
-export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError }) {
+export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
   const [nook, setNook] = useState(null);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
@@ -56,6 +58,94 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
 
   if (error) return <div className="error" role="alert">{error}</div>;
   if (!nook) return <div className="loading"><Working label="Loading nook…" /></div>;
+
+  // Bringing papers in: the drop box, or a folder being brought in.
+  const adding = folderRequest ? (
+      <FolderImport
+        currentUser={nook.user}
+        incomingFolder={folderRequest.uuid ? folderRequest : null}
+        onReportableError={onReportableError}
+        onAdded={loadNook}
+        onClose={() => { setFolderRequest(null); setReviewingUpload(false); loadNook(); }}
+      />
+    ) : (
+      <PaperUpload
+        onReportableError={onReportableError}
+        compact
+        onAddFolder={(incoming) => {
+          setFolderRequest(incoming ? { uuid: globalThis.crypto.randomUUID(), ...incoming } : {});
+          setReviewingUpload(true);
+        }}
+        onPaperCreated={(paper) => {
+          if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
+          else loadNook();
+        }}
+        onReviewChange={setReviewingUpload}
+      />
+  );
+
+  const projectCards = nook.projects?.length > 0 && (
+    // A member's own projects are where their shared work goes on:
+    // each a card of its own, with what is new in it.
+    <section className="nook-desk-projects" aria-label="My projects">
+      <h3 className="nook-desk-projects-title">Projects</h3>
+      <ul className="nook-desk-projects-grid">
+        {nook.projects.map((project) => {
+          const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);
+          return (
+            <li key={project.uuid}>
+              <a className={project.new_count > 0 ? 'nook-project-card has-new' : 'nook-project-card'} href={appPath(`/project/${project.uuid}`)}>
+                <span className="nook-project-card-name">{project.name}</span>
+                <span className="nook-project-card-foot">
+                  <span className="nook-projects-faces">
+                    {others.slice(0, 4).map((m) => (
+                      <Avatar key={m.user.uuid} user={m.user} className="nook-projects-avatar" />
+                    ))}
+                    {others.length > 4 && <span className="nook-projects-more">+{others.length - 4}</span>}
+                    {others.length === 0 && <span className="nook-projects-more">Just you</span>}
+                  </span>
+                  {project.new_count > 0 && <span className="nook-project-card-new">{project.new_count} new</span>}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+
+  // A member's own nook on the web: what they work in, not who they are.
+  if (isOwn && !DESKTOP) {
+    const addingOnDesk = folderRequest ? adding : React.cloneElement(adding, { trigger: true, compact: false });
+    return (
+      <div className={reviewingUpload ? 'nook is-desk upload-review-mode' : 'nook is-desk'}>
+        <NookDesk
+          nook={nook}
+          adding={addingOnDesk}
+          reviewing={reviewingUpload}
+          onSelectBoard={onSelectBoard}
+          board={board}
+          shelf={shelf}
+          project={project}
+          renderProject={renderProject}
+          paper={paper}
+          renderPaper={renderPaper}
+          onOpenCanvas={onOpenCanvas}
+          onChanged={loadNook}
+          onManage={() => setManagingShelves(true)}
+        />
+        {managingShelves && (
+          <NookManager
+            nook={nook}
+            setNook={setNook}
+            onChanged={loadNook}
+            onClose={() => setManagingShelves(false)}
+            onTagDeleted={(tagUuid) => { if (selectedTag === tagUuid) setSelectedTag(null); }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={reviewingUpload ? 'nook upload-review-mode' : 'nook'}>
@@ -97,35 +187,14 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
                 <span className="new-board-mark" aria-hidden="true"><i /><i /><i /><i /></span>
                 <span>New board</span>
               </button>
-              {folderRequest ? (
-                <FolderImport
-                  currentUser={nook.user}
-                  incomingFolder={folderRequest.uuid ? folderRequest : null}
-                  onReportableError={onReportableError}
-                  onAdded={loadNook}
-                  onClose={() => { setFolderRequest(null); setReviewingUpload(false); loadNook(); }}
-                />
-              ) : (
-                <PaperUpload
-                  onReportableError={onReportableError}
-                  compact
-                  onAddFolder={(incoming) => {
-                    setFolderRequest(incoming ? { uuid: globalThis.crypto.randomUUID(), ...incoming } : {});
-                    setReviewingUpload(true);
-                  }}
-                  onPaperCreated={(paper) => {
-                    if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
-                    else loadNook();
-                  }}
-                  onReviewChange={setReviewingUpload}
-                />
-              )}
+              {adding}
             </div>
           )}
         </div>
-        {nook.projects?.length > 0 && (
-          <nav className="nook-projects" aria-label={isOwn ? 'My projects' : 'Projects'}>
-            <span className="kicker nook-projects-label">{isOwn ? 'My projects' : 'Projects'}</span>
+        {isOwn && projectCards}
+        {!isOwn && nook.projects?.length > 0 && (
+          <nav className="nook-projects" aria-label="Projects">
+            <span className="kicker nook-projects-label">Projects</span>
             <ul className="nook-projects-list">
               {nook.projects.map((project) => {
                 const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);

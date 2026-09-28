@@ -8,7 +8,8 @@ import {
 
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
-export default function InboxPage({ onOpenRoom, onUnread }) {
+// Bare, it is a tab of the member's own page, which already says Inbox.
+export default function InboxPage({ onOpenRoom, onUnread, bare = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState({}); // uuid -> bool
@@ -52,9 +53,9 @@ export default function InboxPage({ onOpenRoom, onUnread }) {
   };
 
   return (
-    <div className="panel">
+    <div className={bare ? 'panel inbox-panel is-bare' : 'panel inbox-panel'}>
       <div className="panel-head-row">
-        <h2 className="panel-title">Inbox</h2>
+        {!bare && <h2 className="panel-title">Inbox</h2>}
         {unreadIn(data.notifications) > 0 && (
           <button className="link-button" onClick={handleMarkAll}>
             Mark all as read

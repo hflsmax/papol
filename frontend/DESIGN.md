@@ -165,6 +165,39 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - New breakpoints should follow one of those existing behavioral transitions,
   not a particular device model. Test at 320, 560, 760/860, and a wide desktop.
 
+## Navigation (web)
+
+Decided by the owner on 2026-09-28, after three engineers weighed paths,
+in-app state and sharing. Future web work relies on it; the Mac app keeps its
+sidebar, toolbar and document windows.
+
+- **One URL per thing, and it is a path.** `/` is the nook (all papers),
+  `/shelf/<uuid>` a shelf, `/board/<uuid>` a board's jacket,
+  `/project/<uuid>` a project's desk and `/paper/<name>` a paper's jacket.
+  A paper picked from a shelf or a board may carry that place in front of it
+  (`/shelf/<uuid>/paper/<name>`, `/board/<uuid>/paper/<name>`); that only
+  says which rail row stays chosen, and the paper is the same thing. No page
+  state lives in the query: query links get lost across sign-in and can't
+  hand off to the Mac app.
+- **The nook is the frame, not the URL.** A signed-in member on the web sees
+  these paths inside their nook, the rail beside the main area. Anyone else
+  opening the same link, signed out or not the owner, gets the plain page.
+  The layout follows who is looking; the link never shows the sender's nook.
+- **In-app moves never reload.** Links are real `<a href>`s (so Cmd-click
+  opens a tab) and plain clicks go through `navigate`.
+- **History.** Opening a place or a paper is one Back step. Stepping through
+  a list, tabs inside a project, tag chips, search and sort are not: they
+  replace the entry or stay out of the URL.
+- **Back is the browser's.** No in-page back links on the web. Back returns
+  to the list as it was left: its scroll, tags and search, so a list stays
+  mounted while a paper is open beside it. A link opened in a fresh tab has
+  nothing behind it; the rail and "Papol" are the way home.
+- **Separate apps.** The viewer and the board canvas open in the same tab;
+  Back brings the member to the place they left.
+- **Sign-in returns to the path asked for,** whichever of the above it is.
+- **Full pages that stay full pages:** Bazaar, the member's own page, a
+  project's brief and dig, and seminar rooms.
+
 ## Recurring patterns
 
 - **Activity** — time is drawn one way at every scale where "when"

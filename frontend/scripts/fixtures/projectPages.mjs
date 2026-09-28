@@ -145,10 +145,39 @@ const discussion = (uuid) => {
   return { uuid, created_at: d.created_at, updated_at: d.updated_at, project: { uuid: PROJECT, name: project.name }, subject: d.subject, can_moderate: true, posts };
 };
 
+// A paper as the Library and a nook list it: the members' takes are the
+// users shown against it, and a nook's own copy sits on its one shelf.
+const SHELF = { uuid: 'ab000000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 3, board_count: 0 };
+const TAGS = ['control', 'wavefront', 'to cite'].map((name, i) => ({ uuid: `ae000000-0000-4000-8000-00000000000${i + 1}`, name }));
+const DRAWER = { uuid: 'ab000000-0000-4000-8000-000000000002', name: 'Drafts', color: '#b07a4f', is_public: false, is_default: false, position: 1, paper_count: 0, board_count: 1 };
+// The member's own boards, outside any project.
+const nookBoard = (n, name, count, shelf, at) => ({ uuid: `ad000000-0000-4000-8000-00000000000${n}`, name, description: null, item_count: count, shelf_uuid: shelf.uuid, updated_at: at, owner: me, can_edit: true, items: [] });
+const NOOK_BOARDS = [nookBoard(1, 'Thesis chapter 3 outline', 18, DRAWER, hoursAgo(5)), nookBoard(2, 'Wavefront sensors compared', 7, SHELF, daysAgo(3))];
+const listed = (p, mine = false) => {
+  const own = p.users.find((u) => u.user.uuid === ME);
+  return {
+    doi: p.doi, title: p.title, authors: p.authors, journal: p.journal, year: p.year, file_path: `papers/${p.sha256}.pdf`, sha256: p.sha256,
+    created_at: p.added_at, summary: null, thought: mine ? own?.thought ?? null : null, is_public: mine ? true : null, is_author: mine ? false : null,
+    rating_expertise: null, rating_reading: mine ? own?.rating_reading ?? null : null, rating_liking: mine ? own?.rating_liking ?? null : null,
+    room_status: null, tags: [], shelf_uuid: mine ? SHELF.uuid : null, copy_uuid: mine ? `ac${p.sha256.slice(2, 8)}-0000-4000-8000-000000000001` : null, effort: null,
+    users: p.users.map((u) => ({ user: u.user, is_author: false, thought: u.thought, rating_reading: u.rating_reading, rating_liking: u.rating_liking, rating_expertise: null, summary: null, tags: [] })),
+  };
+};
+
 // What the pretend server says to each request the pages make.
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
-  if (path === '/notifications') return { notifications: [], unread_count: 1 };
+  if (path === '/notifications') {
+    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, room_uuid: null });
+    return {
+      notifications: [
+        note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
+        note(2, 'Mia Tanaka joined Adaptive optics control.', 26, false),
+        note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
+      ],
+      unread_count: 2,
+    };
+  }
   if (path === '/admin-messages/pending') return [];
   if (path === '/projects') return [summary, other];
   if (path === `/projects/${PROJECT}`) return project;
@@ -159,13 +188,30 @@ function answer(method, path, search) {
   }
   const dig = path.match(/^\/discussions\/([0-9a-f-]+)$/);
   if (dig) return discussion(dig[1]);
-  if (path.startsWith('/nook/') || path === '/nook') {
+  const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
+  if (nookBoardAsked) {
+    const onIt = nookBoardAsked === NOOK_BOARDS[1] ? papers.slice(0, 2) : [];
+    const items = onIt.map((p, i) => ({ uuid: `ae00000${i}-0000-4000-8000-000000000001`, kind: 'excerpt', source_url: `https://papol.io/viewer/?pdf=${p.sha256}`, source_label: p.title, excerpt_text: null, content: null, x: 40 + i * 260, y: 60 + i * 40, width: 220, height: 140 }));
+    return { ...nookBoardAsked, items, project: null, discussions: {}, staged_items: [], papers: onIt.map(({ sha256, title, authors, year }) => ({ sha256, title, authors, year })), groups: [], revision: 1, user_uuid: ME, created_at: daysAgo(9) };
+  }
+  if (path === `/users/${ME}/nook`) {
     return {
-      user: me, shelves: [{ uuid: 'ab000000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 2 }],
-      tags: [], papers: [], boards: [], copies: [], copy_tags: [],
+      user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4, seminars: 0 },
+      papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({ ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [] })),
+      boards: NOOK_BOARDS,
+      projects: [summary, other],
     };
   }
-  if (path.startsWith('/papers/')) return { sha256: path.split('/')[2], thought: null, in_nook: true };
+  if (path === '/papers') return papers.map((p) => listed(p));
+  const one = path.match(/^\/papers\/([0-9a-f]+)$/);
+  if (one) {
+    const found = papers.find((p) => p.sha256.startsWith(one[1])) ?? papers[1];
+    return { ...listed(found, found.in_my_nook), in_nook: found.in_my_nook, notes: [], comments: [], also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
+  }
+  if (path.startsWith('/activity')) return { spans: [], papers: {}, first_at: null };
+  if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];
+  if (path === '/users') return [me, ana, ben, mia].map((u) => ({ ...u, paper_count: 2 }));
+  if (path === '/shelves') return [SHELF, DRAWER];
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };
   return method === 'GET' ? {} : { ok: true };
 }

@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { getRoom } from '../../../shared/api/rooms.js';
 import RoomView from './RoomView';
+import { InWay } from './Way';
 import StatePill from './StatePill';
 import { appPath } from '../base';
 import { paperName } from '../../../shared/paperName.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { subscribeNativeSyncResults } from '../../../shared/nativeData.js';
 
-export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
+export default function RoomPage({ roomUuid, currentUser, hideBack = false, onBack, backHref }) {
   const [room, setRoom] = useState(null);
   const [error, setError] = useState(null);
   const roomRevision = useRef(0);
@@ -53,7 +54,11 @@ export default function RoomPage({ roomUuid, currentUser, onBack, backHref }) {
 
   return (
     <div className="room-page">
-      <BackLink className="back-button" href={backHref} onBack={onBack} />
+      {hideBack ? room.paper_sha256 && (
+        <InWay><a href={appPath(`/paper/${paperName(room.paper_sha256)}`)}>{room.paper_title}</a></InWay>
+      ) : (
+        <BackLink className="back-button" href={backHref} onBack={onBack} />
+      )}
 
       <div className="panel">
         <div className="room-kicker-row">
