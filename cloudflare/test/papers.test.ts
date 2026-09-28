@@ -292,7 +292,8 @@ describe("an upload that went straight to the bucket", () => {
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
 
     // An arXiv id is asked about through its DataCite DOI, of DataCite,
-    // which registers it: CrossRef is not asked.
+    // which registers it: CrossRef is not asked. arXiv knows no venue; the
+    // title block's stands.
     asked.length = 0;
     apis({
       "api.datacite.org": (url) => { asked.push(url.pathname); return Response.json({ data: { attributes: {
@@ -304,9 +305,14 @@ describe("an upload that went straight to the bucket", () => {
     const arxiv = await queue({ arxiv_id: "1706.03762v5" });
     await woken(arxiv.job);
     expect((await ok("GET", `/api/jobs/${arxiv.job}`, { headers: account.headers })).result).toMatchObject({
-      doi: "10.48550/arxiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani", "Noam Shazeer"]), journal: null, year: 2017,
+      doi: "10.48550/arxiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani", "Noam Shazeer"]), journal: "The Page", year: 2017,
     });
     expect(asked).toEqual([`/dois/${encodeURIComponent("10.48550/arxiv.1706.03762")}`]);
+    // arXiv knows no venue; a preprint typeset by its journal prints one,
+    // and a PACMPL issue is the conference.
+    const typeset = await queue({ arxiv_id: "1706.03762v5" }, titleBlock({ journal: "Proceedings of the ACM on Programming Languages (ICFP)" }));
+    await woken(typeset.job);
+    expect((await ok("GET", `/api/jobs/${typeset.job}`, { headers: account.headers })).result).toMatchObject({ title: "Attention Is All You Need", journal: "ICFP" });
     // DataCite down: the title block as read; OpenAlex is not asked.
     asked.length = 0;
     apis({
@@ -346,6 +352,13 @@ describe("an upload that went straight to the bucket", () => {
     expect(await known.json()).toEqual({ doi: "10.1145/2984511.2984540", title: "Metamaterial Mechanisms",
       authors: JSON.stringify(["Alexandra Ion", "Patrick Baudisch"]), journal: "Proceedings of UIST '16", year: 2016 });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
+    // A PACMPL paper is known by its issue, the conference.
+    apis({ "api.crossref.org": () => Response.json({ message: { ...crossrefWork.message, "container-title": ["Proceedings of the ACM on Programming Languages"], issue: "OOPSLA2" } }) });
+    expect(await (await lookup({ doi: "10.1145/2984511.2984540" })).json()).toMatchObject({ journal: "OOPSLA" });
+    apis({
+      "api.crossref.org": (url) => { asked.push(url.pathname); return url.pathname.includes("2984511") ? Response.json(crossrefWork) : new Response("", { status: 404 }); },
+      "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 404 }); },
+    });
     // Known to none: 404, and the upload's job reads the PDF as ever.
     expect((await lookup({ doi: "10.9999/nobody-knows" })).status).toBe(404);
     // Nothing to look up is a bad request, not a paper nobody knows.

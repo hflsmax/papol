@@ -5,6 +5,7 @@
 
 import limits from "../../../config/app_limits.json";
 import { json, readJson, type Router } from "../http";
+import { paperVenue } from "../papers/extract";
 import { resolve } from "../papers/resolve";
 import { lookUpPrinted } from "../papers/references";
 import { viewerPaper } from "../papers/sharables";
@@ -41,7 +42,9 @@ export function referenceRoutes(router: Router) {
     const outcome = await resolve(env, { raw, title: paper.title, year: paper.year, doi: paper.doi, arxiv_id: null });
     if (outcome.status === "ok") {
       const { host, ...summary } = outcome.summary;
-      return json({ ...summary, venue: summary.venue ?? host ?? null });
+      // The venue as the paper has it, which its reader may have set;
+      // else the index's; else wherever a copy is held (arXiv).
+      return json({ ...summary, venue: paper.journal || paperVenue(summary.venue) || host || null });
     }
     let authors: unknown[] = [];
     try { authors = paper.authors ? JSON.parse(paper.authors) : []; } catch { authors = paper.authors ? [paper.authors] : []; }

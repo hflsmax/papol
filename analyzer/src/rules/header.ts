@@ -14,7 +14,7 @@ import { extractArxivId, extractDoi } from "../../../cloudflare/src/papers/ident
 import { layout, type Line } from "./layout";
 import { readDoc, type Doc, type PdfDocument } from "./page";
 import {
-  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
+  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_ISSUE, HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
   HEADER_SUBTITLE, HEADER_TITLE, HEADER_YEAR, HEADER_YEAR_LATE,
 } from "./registry";
 import { Trace } from "./trace";
@@ -104,6 +104,9 @@ export function headerOf(doc: Doc): HeaderResult {
   if (!journal && abbreviated) {
     journal = JOURNALS[abbreviated] ?? (abbreviated.startsWith("Phys. Rev. ") ? `Physical Review ${abbreviated.slice(-1)}` : null);
     trace.add(HEADER_JOURNAL_ABBREVIATION.id, 1, abbreviated, []);
+    // PACMPL's issue is the conference: "(ICFP)", as Crossref has it.
+    const issue = journal ? HEADER_JOURNAL_ISSUE.pattern!.exec(pageOne.replace(/\s+/g, " ")) : null;
+    if (issue) { journal = `${journal} (${issue.groups!.issue})`; trace.add(HEADER_JOURNAL_ISSUE.id, 1, issue[0], []); }
   }
   const year = cited ? Number(cited.groups!.year) : yearOf(pageOne, lineYear, arxiv, trace);
 

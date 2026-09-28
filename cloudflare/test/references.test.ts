@@ -164,6 +164,11 @@ describe("the viewer's references", () => {
     expect(await ok("GET", `/api/viewer/${PDF}/info`, { headers: ada.headers })).toMatchObject({ title: "KinetiX", year: 2024, citations: 3, doi: "10.1/kinetix" });
     hosts({ "api.openalex.org": () => jsonResponse({}, 404), "api.crossref.org": () => crossrefItems() });
     expect(await ok("GET", `/api/viewer/${PDF}/info`, { headers: ada.headers })).toMatchObject({ title: "KinetiX", authors: ["A. Author"], venue: "SIGGRAPH", url: "https://doi.org/10.1/kinetix" });
+    // The paper's own venue over the index's; a PACMPL issue is the conference.
+    await exec("UPDATE papers SET journal = NULL WHERE sha256 = ?", PDF);
+    const pacmpl = { source: { display_name: "Proceedings of the ACM on Programming Languages", type: "journal" } };
+    hosts({ "api.openalex.org": () => jsonResponse(openalexWork("KinetiX", 2024, { doi: "https://doi.org/10.1/kinetix", primary_location: pacmpl, locations: [pacmpl], biblio: { issue: "ICFP" } })) });
+    expect((await ok("GET", `/api/viewer/${PDF}/info`, { headers: ada.headers })).venue).toBe("ICFP");
     // What a paper is is public, as the paper itself is to whoever holds
     // its digest.
     expect((await ok("GET", `/api/viewer/${PDF}/info`)).title).toBe("KinetiX");

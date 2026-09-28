@@ -137,7 +137,7 @@ export function paperRoutes(router: Router) {
     check.done();
     if (!identifier) refuse(422, "No DOI or arXiv id to look up");
     try {
-      return json((await indexedMetadata(env, identifier, uploadedName)) ?? refuse(404, "No index knows this identifier"));
+      return json((await indexedMetadata(env, identifier, uploadedName, givenTitleBlock(data.title_block))) ?? refuse(404, "No index knows this identifier"));
     } catch (error) {
       if (error instanceof Unavailable) refuse(503, "Metadata lookup failed");
       throw error;
