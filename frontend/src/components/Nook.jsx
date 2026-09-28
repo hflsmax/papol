@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { getNook } from '../../../shared/api/people.js';
 import PaperUpload from './PaperUpload';
@@ -7,7 +7,7 @@ import PaperList from './PaperList';
 import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
-import NookDesk, { rememberNookShape } from './NookDesk';
+import NookDesk from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -25,8 +25,25 @@ const storedSection = (userUuid) => {
 // while it is fetched again.
 const seen = new Map();
 
+// A nook asked for before the page knew for certain who is signed in
+// (App starts the member's own while it checks), taken up by the first
+// Nook to want it.
+const early = new Map();
+export function startNook(userUuid) {
+  if (early.has(userUuid) || seen.has(userUuid)) return;
+  const asked = getNook(userUuid);
+  asked.catch(() => { /* whoever takes it up hears of the failure */ });
+  early.set(userUuid, asked);
+}
+export function dropEarlyNooks() {
+  early.clear();
+}
+
 export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
   const [nook, setNook] = useState(() => seen.get(userUuid) ?? null);
+  // A nook that had to be waited for comes in with one short fade; one
+  // already seen is simply there.
+  const waited = useRef(!seen.has(userUuid));
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
@@ -52,7 +69,9 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const loadNook = useCallback(() => {
     let active = true;
     setError(null);
-    getNook(userUuid)
+    const asked = early.get(userUuid) ?? getNook(userUuid);
+    early.delete(userUuid);
+    asked
       .then((data) => { if (active) setNook(data); })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
@@ -66,31 +85,13 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
     seen.set(userUuid, nook);
-    if (isOwn && !DESKTOP) rememberNookShape(nook);
-  }, [nook, userUuid, isOwn]);
+  }, [nook, userUuid]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
   const ownDesk = isOwn && !DESKTOP;
-  if (!nook && ownDesk) {
-    // The desk's frame while its papers come; a place already asked for
-    // (a project, a paper, a board) opens in it straight away.
-    return (
-      <div className="nook is-desk">
-        <NookDesk
-          adding={<PaperUpload onReportableError={onReportableError} trigger onPaperCreated={(paper) => { if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256); }} />}
-          onSelectBoard={onSelectBoard}
-          board={board}
-          shelf={shelf}
-          project={project}
-          renderProject={renderProject}
-          paper={paper}
-          renderPaper={renderPaper}
-          onOpenCanvas={onOpenCanvas}
-          onChanged={loadNook}
-        />
-      </div>
-    );
-  }
+  // Nothing but the page while the member's own nook comes: an outline
+  // of it would only draw the eye to what is not there yet.
+  if (!nook && ownDesk) return <div className="nook is-desk" />;
   if (!nook) return <div className="loading"><Working label="Loading nook…" /></div>;
 
   // Bringing papers in: the drop box, or a folder being brought in.
@@ -152,7 +153,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   if (ownDesk) {
     const addingOnDesk = folderRequest ? adding : React.cloneElement(adding, { trigger: true, compact: false });
     return (
-      <div className={reviewingUpload ? 'nook is-desk upload-review-mode' : 'nook is-desk'}>
+      <div className={`nook is-desk${waited.current ? ' is-arriving' : ''}${reviewingUpload ? ' upload-review-mode' : ''}`}>
         <NookDesk
           nook={nook}
           adding={addingOnDesk}

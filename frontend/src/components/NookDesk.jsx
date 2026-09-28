@@ -34,30 +34,6 @@ function Faces({ users, max, linked = false }) {
   );
 }
 
-// The nook before its papers have come: the same frame, with as many
-// empty places and rows as it had last time, so nothing moves when they
-// arrive. Only the counts are kept, in this browser, until sign-out.
-// `elsewhere` when the place to open beside the rail is not yet known.
-const WAITING = { user: null, papers: [], shelves: [], boards: [], tags: [], projects: [] };
-const SHAPE_KEY = 'papol.nookShape';
-const MOST_ROWS = 12;
-export function rememberNookShape(nook) {
-  const shape = { projects: nook.projects?.length ?? 0, shelves: nook.shelves.length, boards: nook.boards.length, papers: Math.min(nook.papers.length, MOST_ROWS) };
-  try { localStorage.setItem(SHAPE_KEY, JSON.stringify(shape)); } catch { /* storage may be off */ }
-}
-export function forgetNookShape() {
-  try { localStorage.removeItem(SHAPE_KEY); } catch { /* storage may be off */ }
-}
-function lastShape() {
-  try {
-    const shape = JSON.parse(localStorage.getItem(SHAPE_KEY));
-    if (shape && typeof shape === 'object') return shape;
-  } catch { /* storage may be off */ }
-  return { projects: 0, shelves: 0, boards: 0, papers: 6 };
-}
-const count = (n) => Math.max(0, Math.min(Number(n) || 0, MOST_ROWS));
-const empties = (n, render) => Array.from({ length: count(n) }, (_, i) => render(i));
-
 // A member's own nook on the web: a rail of places beside the main area.
 // Every place in the rail opens in the main area: a project its desk, a
 // shelf (or all papers) its papers, a board its jacket; and a paper picked
@@ -65,12 +41,9 @@ const empties = (n, render) => Array.from({ length: count(n) }, (_, i) => render
 // still chosen. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-export default function NookDesk({ nook: nookGiven = null, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, elsewhere = false }) {
-  const waiting = nookGiven == null;
-  const nook = nookGiven ?? WAITING;
-  const [shape] = useState(() => (waiting ? lastShape() : null));
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
   const board = project ? null : boardAsked;
-  const shelf = waiting || nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
+  const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
   // The column heads stick just under the filter bar, whose height changes
@@ -87,7 +60,7 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
     return () => observer.disconnect();
   }, []);
   const [creatingBoard, setCreatingBoard] = useState(false);
-  const me = nook.user?.uuid;
+  const me = nook.user.uuid;
   const shelfOf = (uuid) => nook.shelves.find((s) => s.uuid === uuid);
 
   const papers = useMemo(() => {
@@ -100,19 +73,11 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
 
   const chosen = shelfOf(shelf);
   const rated = (key) => nook.papers.some((p) => p[key]);
-  const showMerit = waiting || rated('rating_liking');
+  const showMerit = rated('rating_liking');
 
   return (
     <div className={reviewing ? 'nook-desk is-reviewing' : 'nook-desk'}>
       <aside className="desk-rail">
-        {waiting && count(shape.projects) > 0 && (
-          <section className="desk-rail-part" aria-hidden="true">
-            <h3 className="desk-rail-head">Projects</h3>
-            <ul className="desk-rail-list">
-              {empties(shape.projects, (i) => <li key={i}><span className="desk-project is-waiting" /></li>)}
-            </ul>
-          </section>
-        )}
         {nook.projects?.length > 0 && (
           <section className="desk-rail-part" aria-labelledby="desk-projects">
             <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
@@ -139,10 +104,10 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
         <section className="desk-rail-part" aria-labelledby="desk-shelves">
           <div className="desk-rail-head">
             <h3 id="desk-shelves">Shelves</h3>
-            <button type="button" className="desk-quiet" onClick={onManage} disabled={waiting}>Manage</button>
+            <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>
           </div>
           <ul className="desk-rail-list">
-            {[{ uuid: null, name: 'All papers', paper_count: waiting ? null : nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
+            {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
               const on = !board && !project && shelf === s.uuid;
               return (
                 <li key={s.uuid ?? 'all'}>
@@ -164,7 +129,6 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
                 </li>
               );
             })}
-            {waiting && empties(shape.shelves, (i) => <li key={`waiting-${i}`} aria-hidden="true"><span className="desk-row is-waiting" /></li>)}
           </ul>
         </section>
 
@@ -180,11 +144,6 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
               onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
               onCancel={() => setCreatingBoard(false)}
             />
-          )}
-          {waiting && count(shape.boards) > 0 && (
-            <ul className="desk-rail-list" aria-hidden="true">
-              {empties(shape.boards, (i) => <li key={i}><span className="desk-row is-waiting" /></li>)}
-            </ul>
           )}
           {nook.boards.length > 0 && (
             <ul className="desk-rail-list">
@@ -222,15 +181,14 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
           />
         </section>
       )}
-      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board || elsewhere)}>
+      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
         <div className="desk-main-head">
-          <h2 id="desk-papers">{chosen ? chosen.name : waiting && shelf ? '\u00a0' : 'Papers'}{!waiting && <span className="desk-count">{papers.length}</span>}</h2>
+          <h2 id="desk-papers">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2>
           <div className="desk-actions">{adding}</div>
         </div>
         <div ref={filterRef} className="desk-filter">
-          {((waiting && count(shape.papers) > 0) || nook.papers.length > 0) && (
+          {nook.papers.length > 0 && (
             <input
-              disabled={waiting}
               type="search"
               className="desk-search"
               value={search}
@@ -251,7 +209,7 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
             )}
           </div>
         </div>
-        {((waiting && count(shape.papers) > 0) || papers.length > 0) && (
+        {papers.length > 0 && (
           <table className={showMerit ? 'desk-table' : 'desk-table no-merit'}>
             <thead>
               <tr>
@@ -263,15 +221,6 @@ export default function NookDesk({ nook: nookGiven = null, adding, reviewing, on
               </tr>
             </thead>
             <tbody>
-              {waiting && empties(shape.papers, (i) => (
-                <tr key={i} className="desk-waiting-row" aria-hidden="true">
-                  <td className="desk-col-title" />
-                  <td className="desk-col-dots" />
-                  <td className="desk-col-dots" />
-                  <td className="desk-col-faces" />
-                  <td className="desk-col-date" />
-                </tr>
-              ))}
               {papers.map((paper) => {
                 const others = (paper.users ?? []).map((u) => u.user).filter((u) => u.uuid !== me);
                 return (

@@ -8,8 +8,8 @@ import { getNotifications, getPendingAdminMessages } from '../../shared/api/noti
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
-import Nook from './components/Nook';
-import NookDesk, { forgetNookShape } from './components/NookDesk';
+import Nook, { dropEarlyNooks, startNook } from './components/Nook';
+import { forgetLastMember, lastMember, rememberLastMember } from './lastMember';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
@@ -393,15 +393,28 @@ export default function App({ startupUser = null, startupError = null }) {
       setAuthChecked(true);
       return;
     }
+    // The member last signed in here is most likely the one coming back:
+    // their nook is asked for alongside the check, and let go if the check
+    // names someone else.
+    const expected = !DESKTOP && NOOK_PAGES.has(initialRoute.page) ? lastMember() : null;
+    if (expected) startNook(expected);
     getMe()
-      .then(setUser)
+      .then((me) => {
+        if (me.uuid !== expected) dropEarlyNooks();
+        setUser(me);
+      })
       .catch(async () => {
         // A stale session becomes an ordinary guest session.
+        dropEarlyNooks();
         await storeCredential(null);
         setUser(null);
       })
       .finally(() => setAuthChecked(true));
   }, []);
+
+  useEffect(() => {
+    if (user && !DESKTOP) rememberLastMember(user.uuid);
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -562,24 +575,20 @@ export default function App({ startupUser = null, startupError = null }) {
       }
       return;
     }
-    forgetNookShape();
+    forgetLastMember();
     setUser(null);
     navigate('/');
   };
 
   if (!authChecked && !DESKTOP && NOOK_PAGES.has(route.page)) {
-    // A member coming back to their nook: its frame while the sign-in is
-    // checked, the same one it keeps while its papers come.
+    // A member coming back to their nook: the bar alone while the sign-in
+    // is checked, as it stays while the nook comes.
     return (
       <>
         <style>{applicationStyles}</style>
         <div className="app has-way" data-page={route.page}>
           <WayBar route={route} />
-          <main className="main-content">
-            <div className="nook is-desk">
-              <NookDesk adding={<button type="button" className="primary" aria-disabled="true" tabIndex={-1}>Add papers</button>} elsewhere={route.page !== 'home' && route.page !== 'shelf'} shelf={route.page === 'shelf' ? route.uuid : null} />
-            </div>
-          </main>
+          <main className="main-content"><div className="nook is-desk" /></main>
           <WayFoot user={{}} macDownloadUrl={MACOS_DOWNLOAD_URL} />
         </div>
       </>

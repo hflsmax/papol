@@ -5699,12 +5699,13 @@ ${talkStyles}
 .desk-table td { height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; vertical-align: middle; }
 .desk-table tbody tr:last-child td { border-bottom: 0; }
 .desk-table tbody tr:hover td { background: var(--paper-sunken); }
-/* The places and rows the desk holds for a nook still coming: each the
-   height of what will fill it, empty. */
-.desk-table tbody tr.desk-waiting-row td { height: 66px; background: none; }
-.desk-project.is-waiting { box-sizing: border-box; height: 60px; }
-.desk-row.is-waiting, .desk-project.is-waiting { pointer-events: none; }
-.way-self > .nav-avatar:empty { display: inline-block; border-radius: 50%; background: var(--line); }
+/* The member's place in the bar before they are known: held, not drawn. */
+.way-self.is-unknown { visibility: hidden; }
+.way-self.is-unknown > .nav-avatar { display: inline-block; }
+/* A nook that had to be waited for comes in once, in one short fade. */
+.nook.is-arriving { animation: nook-arrive 120ms ease-out; }
+@keyframes nook-arrive { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .nook.is-arriving { animation: none; } }
 .desk-table td.desk-col-title { position: relative; padding-left: calc(var(--space-3) + 6px); }
 .desk-table td.desk-col-title::before { content: ""; position: absolute; left: var(--space-2); top: var(--space-2); bottom: var(--space-2); width: 3px; border-radius: 2px; background: var(--shelf-color, var(--line-strong)); }
 .desk-title { color: var(--ink); font: 400 var(--fs-md) var(--font-serif); line-height: 1.3; text-decoration: none; }
