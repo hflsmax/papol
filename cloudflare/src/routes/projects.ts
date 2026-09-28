@@ -58,7 +58,12 @@ export async function liveProject(env: Env, uuid: string): Promise<Project> {
 
 async function membersOf(env: Env, projectUuids: string[]): Promise<(Member & Row)[]> {
   if (!projectUuids.length) return [];
-  return all<Member & Row>(env.DB,
+  const { results } = await membersStatement(env, projectUuids).all<Member & Row>();
+  return results;
+}
+
+function membersStatement(env: Env, projectUuids: string[]) {
+  return statement(env.DB,
     `SELECT m.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
      FROM project_members m JOIN users u ON u.uuid = m.user_uuid
      WHERE m.project_uuid IN (${projectUuids.map(() => "?").join(",")}) ORDER BY m.joined_at, m.uuid`, ...projectUuids);
@@ -116,34 +121,47 @@ function previewHeight(kind: string) {
 }
 
 async function projectOut(env: Env, project: Project, me: User, member: Member) {
-  const members = await membersOf(env, [project.uuid]);
-  const entries = await all<Row>(env.DB,
-    `SELECT pp.paper_sha256, pp.added_by, pp.added_at, p.title, p.authors, p.journal, p.year, p.doi,
-            u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
-     FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 JOIN users u ON u.uuid = pp.added_by
-     WHERE pp.project_uuid = ? ORDER BY pp.added_at DESC, pp.uuid`, project.uuid);
+  // Everything the page shows in one trip, then the two things that
+  // depend on what came back.
+  const [members, entries, held, boards, placed, placedCards, digRows] = (await env.DB.batch<Row>([
+    membersStatement(env, [project.uuid]),
+    statement(env.DB,
+      `SELECT pp.paper_sha256, pp.added_by, pp.added_at, p.title, p.authors, p.journal, p.year, p.doi,
+              u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
+       FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 JOIN users u ON u.uuid = pp.added_by
+       WHERE pp.project_uuid = ? ORDER BY pp.added_at DESC, pp.uuid`, project.uuid),
+    statement(env.DB,
+      `SELECT DISTINCT c.paper_sha256 FROM copies c JOIN project_papers pp ON pp.paper_sha256 = c.paper_sha256 AND pp.project_uuid = ?
+       WHERE c.user_uuid = ? AND c.deleted_at IS NULL`, project.uuid, me.uuid),
+    statement(env.DB,
+      `SELECT b.uuid, b.name, b.description, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
+              (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count
+       FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid LEFT JOIN users u ON u.uuid = b.user_uuid
+       WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, project.uuid),
+    // Which of the project's boards carry a card from each paper: an
+    // excerpt's backlink names the paper by the first half of its digest.
+    statement(env.DB,
+      `SELECT DISTINCT pp.paper_sha256, bi.board_uuid FROM project_papers pp
+       JOIN project_boards pb ON pb.project_uuid = pp.project_uuid
+       JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
+       JOIN board_items bi ON bi.board_uuid = pb.board_uuid AND bi.deleted_at IS NULL AND NOT bi.staged AND bi.source_url IS NOT NULL
+       WHERE pp.project_uuid = ? AND instr(lower(bi.source_url), substr(pp.paper_sha256, 1, 32)) > 0`, project.uuid),
+    // Each board seen from a distance: where its cards sit, at their size,
+    // which the desk draws as a small map.
+    statement(env.DB,
+      `SELECT bi.board_uuid, bi.kind, bi.x, bi.y, bi.width FROM board_items bi
+       JOIN project_boards pb ON pb.board_uuid = bi.board_uuid AND pb.project_uuid = ?
+       JOIN boards b ON b.uuid = bi.board_uuid AND b.deleted_at IS NULL
+       WHERE bi.deleted_at IS NULL AND NOT bi.staged
+       ORDER BY bi.position, bi.created_at`, project.uuid),
+    digsStatement(env, project.uuid, me, member),
+  ])).map((r) => r.results) as [(Member & Row)[], Row[], Row[], Row[], Row[], Row[], Row[]];
   const digests = entries.map((e) => e.paper_sha256 as string);
-  const copies = await membersCopies(env.DB, digests, members.map((m) => m.user_uuid));
-  const held = new Set(digests.length ? (await all<{ paper_sha256: string }>(env.DB,
-    `SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL AND paper_sha256 IN (${digests.map(() => "?").join(",")})`,
-    me.uuid, ...digests)).map((c) => c.paper_sha256) : []);
-  const boards = await all<Row>(env.DB,
-    `SELECT b.* FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid
-     WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, project.uuid);
-  // Which of the project's boards carry a card from each paper: an excerpt's
-  // backlink names the paper by the first half of its digest.
-  const placed = digests.length ? await all<{ paper_sha256: string; board_uuid: string }>(env.DB,
-    `SELECT DISTINCT pp.paper_sha256, bi.board_uuid FROM project_papers pp
-     JOIN project_boards pb ON pb.project_uuid = pp.project_uuid
-     JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
-     JOIN board_items bi ON bi.board_uuid = pb.board_uuid AND bi.deleted_at IS NULL AND NOT bi.staged AND bi.source_url IS NOT NULL
-     WHERE pp.project_uuid = ? AND instr(lower(bi.source_url), substr(pp.paper_sha256, 1, 32)) > 0`, project.uuid) : [];
-  // Each board seen from a distance: where its cards sit, at their size,
-  // which the desk draws as a small map.
-  const placedCards = boards.length ? await all<Row>(env.DB,
-    `SELECT board_uuid, kind, x, y, width FROM board_items
-     WHERE board_uuid IN (${boards.map(() => "?").join(",")}) AND deleted_at IS NULL AND NOT staged
-     ORDER BY position, created_at`, ...boards.map((b) => b.uuid)) : [];
+  const [copies, digs] = await Promise.all([
+    membersCopies(env.DB, digests, members.map((m) => m.user_uuid)),
+    digsFrom(env, digRows, me),
+  ]);
+  const mine = new Set(held.map((c) => c.paper_sha256 as string));
   const boxes = new Map<string, { x: number; y: number; w: number; h: number; kind: string }[]>();
   for (const c of placedCards) {
     const list = boxes.get(c.board_uuid as string) ?? [];
@@ -151,23 +169,22 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     boxes.set(c.board_uuid as string, list);
   }
   const onBoards = new Map<string, string[]>();
-  for (const r of placed) onBoards.set(r.paper_sha256, [...(onBoards.get(r.paper_sha256) ?? []), r.board_uuid]);
+  for (const r of placed) onBoards.set(r.paper_sha256 as string, [...(onBoards.get(r.paper_sha256 as string) ?? []), r.board_uuid as string]);
   return {
     ...summaryOut(project, members, me),
     invite_code: member.is_keeper ? project.invite_code : null,
-    boards: await Promise.all(boards.map(async (b) => {
-      const out = await boardOut(env, b as never, { canEdit: true });
-      return {
-        uuid: out.uuid, name: out.name, description: out.description, owner: out.owner, item_count: out.item_count, updated_at: out.updated_at,
-        boxes: boxes.get(b.uuid as string) ?? [],
-      };
+    boards: boards.map((b) => ({
+      uuid: b.uuid, name: b.name, description: b.description,
+      owner: b.owner_uuid ? userPublic({ ...b, uuid: b.owner_uuid }) : null,
+      item_count: b.item_count, updated_at: b.updated_at,
+      boxes: boxes.get(b.uuid as string) ?? [],
     })),
-    digs: await digsOf(env, project.uuid, me, member),
+    digs,
     papers: entries.map((e) => ({
       sha256: e.paper_sha256, title: e.title, authors: e.authors, journal: e.journal, year: e.year, doi: e.doi,
       added_by: userPublic({ ...e, uuid: e.added_by }), added_at: e.added_at,
       is_new: e.added_by !== me.uuid && (e.added_at as string) > member.seen_at,
-      in_my_nook: held.has(e.paper_sha256 as string),
+      in_my_nook: mine.has(e.paper_sha256 as string),
       users: copies.get(e.paper_sha256 as string) ?? [],
       board_uuids: onBoards.get(e.paper_sha256 as string) ?? [],
     })),
@@ -178,7 +195,12 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
 // run, and whether others have written since this member looked, the dig
 // itself counting as the first thing written.
 export async function digsOf(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
-  const rows = await all<Row>(env.DB,
+  const { results } = await digsStatement(env, projectUuid, me, member, only).all<Row>();
+  return digsFrom(env, results, me);
+}
+
+function digsStatement(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
+  return statement(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
@@ -186,16 +208,24 @@ export async function digsOf(env: Env, projectUuid: string, me: User, member: Me
      FROM digs d ${SUBJECT_JOINS}
      WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
-  const lasts = rows.length ? await all<Row>(env.DB,
-    `SELECT dp.dig_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
-     FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
-     WHERE dp.dig_uuid IN (${rows.map(() => "?").join(",")})
-     AND dp.created_at = (SELECT max(created_at) FROM dig_posts x WHERE x.dig_uuid = dp.dig_uuid)`,
-    ...rows.map((r) => r.uuid)) : [];
+}
+
+// The last post in each dig and everyone who spoke, read together.
+async function digsFrom(env: Env, rows: Row[], me: User) {
+  if (!rows.length) return [];
   const peopleUuids = [...new Set(rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]))];
-  const people = new Map(peopleUuids.length ? (await all<Row>(env.DB,
-    `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${peopleUuids.map(() => "?").join(",")})`,
-    ...peopleUuids)).map((u) => [u.uuid as string, userPublic(u)]) : []);
+  const [lasts, users] = (await env.DB.batch<Row>([
+    statement(env.DB,
+      `SELECT dp.dig_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
+       FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
+       WHERE dp.dig_uuid IN (${rows.map(() => "?").join(",")})
+       AND dp.created_at = (SELECT max(created_at) FROM dig_posts x WHERE x.dig_uuid = dp.dig_uuid)`,
+      ...rows.map((r) => r.uuid)),
+    statement(env.DB,
+      `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${peopleUuids.map(() => "?").join(",")})`,
+      ...peopleUuids),
+  ])).map((r) => r.results);
+  const people = new Map(users.map((u) => [u.uuid as string, userPublic(u)]));
   return rows.map((d) => {
     const posted = lasts.find((l) => l.dig_uuid === d.uuid);
     const last = posted ?? { ...(people.get(String(d.user_uuid)) as Row ?? {}), body: d.text, created_at: d.created_at };
@@ -320,11 +350,17 @@ export function projectRoutes(router: Router) {
   // no longer new. Anyone else is told only what the listing says.
   router.on("GET", "/api/projects/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const project = await liveProject(env, params.uuid);
-    const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, me.uuid);
+    const [project, member] = await Promise.all([
+      liveProject(env, params.uuid),
+      one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", params.uuid, me.uuid),
+    ]);
     if (!member) return json(summaryOut(project, await membersOf(env, [project.uuid]), me));
-    const out = await projectOut(env, project, me, member);
-    await batch(env.DB, [statement(env.DB, "UPDATE project_members SET seen_at = ? WHERE uuid = ?", now(), member.uuid)]);
+    // What is new is read against the member's last look, held above, so
+    // the look can be recorded while the page is read.
+    const [out] = await Promise.all([
+      projectOut(env, project, me, member),
+      batch(env.DB, [statement(env.DB, "UPDATE project_members SET seen_at = ? WHERE uuid = ?", now(), member.uuid)]),
+    ]);
     return json(out);
   });
 

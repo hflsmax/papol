@@ -18,6 +18,7 @@ import AutoTextarea from './AutoTextarea';
 import Markdown from './Markdown';
 import { ProjectWay, SUBJECT_WORDS, showPaperInProject } from './ProjectPage';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { keep, kept } from '../lastMember';
 
 const POST_LIMIT = appLimits.text.dig_post;
 
@@ -162,17 +163,23 @@ function ReplyBar({ currentUser, placeholder, submitLabel, onSubmit, tall = fals
 
 // One discussion: its subject, every post in order, and room to write more.
 export function DigPage({ digUuid, currentUser, onBack, backHref }) {
-  const [discussion, setDiscussion] = useState(null);
+  const [discussion, setDiscussion] = useState(() => kept(`dig:${digUuid}`));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     let active = true;
+    setDiscussion(kept(`dig:${digUuid}`));
+    setError(null);
     getDig(digUuid)
       .then((next) => { if (active) setDiscussion(next); })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
   }, [digUuid]);
+
+  useEffect(() => {
+    if (discussion?.uuid === digUuid) keep(`dig:${digUuid}`, discussion);
+  }, [discussion, digUuid]);
 
   const act = useCallback(async (work) => {
     setNotice(null);

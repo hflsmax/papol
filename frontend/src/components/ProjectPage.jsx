@@ -19,6 +19,7 @@ import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import PaperBrief from './PaperBrief';
+import { keep, kept } from '../lastMember';
 
 // Opening a project marks what others added as seen, so every later answer
 // calls nothing new, and this page may be fetched more than once as the app
@@ -48,6 +49,15 @@ export function markArrivals(projectUuid, project) {
   };
 }
 
+// A project as last seen, shown at once while it is fetched again. What
+// was new then has since been seen, so it is kept without the marks.
+const lastSeen = (projectUuid) => markArrivals(projectUuid, kept(`project:${projectUuid}`));
+const settled = (project) => (project.papers ? {
+  ...project,
+  papers: project.papers.map((paper) => ({ ...paper, is_new: false })),
+  digs: (project.digs ?? []).map((d) => ({ ...d, unread: 0, is_new: false })),
+} : project);
+
 // Overlapping faces, a few then a count: who is here without a row of
 // chips. Each leads to its person's nook.
 export function Faces({ users, max = 4 }) {
@@ -76,7 +86,7 @@ export function ProjectWay({ project }) {
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
 export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead }) {
-  const [project, setProject] = useState(null);
+  const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -86,6 +96,8 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
 
   const load = useCallback(() => {
     let active = true;
+    setProject(lastSeen(projectUuid));
+    setError(null);
     getProject(projectUuid)
       .then((next) => { const shown = show(next); if (active) { setProject(shown); onChanged?.(); } })
       .catch((err) => { if (active) setError(err.message); });
@@ -93,6 +105,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   }, [projectUuid]);
 
   useEffect(() => load(), [load]);
+  useEffect(() => {
+    if (project?.uuid === projectUuid) keep(`project:${projectUuid}`, settled(project));
+  }, [project, projectUuid]);
 
   const act = async (work) => {
     setNotice(null);
