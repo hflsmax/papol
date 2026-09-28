@@ -5636,28 +5636,6 @@ ${desktopStyles}
   gap: var(--space-2);
 }
 
-.project-name-form {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.project-name-form input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font: var(--fs-sm) var(--font-ui);
-}
-
-.project-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 /* The projects list: mine, then everyone else's, each a panel of rows. */
 .projects-head {
   display: flex;
@@ -5818,7 +5796,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-section-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
 .project-section-head h3 { margin: 0; color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); }
 .project-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-empty { margin: 0; color: var(--ink-faint); font-size: var(--fs-md); }
 
 /* The desk: papers and boards as cards, with what is being said in a
    column beside them once the page is wide enough. Cards share a board
@@ -5841,7 +5818,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-title-sizer > .project-title-input { text-overflow: ellipsis; }
 .board-toolbar-title:has(~ .board-toolbar-talk) { field-sizing: content; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-since { margin: var(--space-1) 0 0; color: var(--gold-ink); font: 600 var(--fs-sm) var(--font-ui); }
 
 .project-seats { display: flex; align-items: flex-start; gap: var(--space-2); }
 .project-seat-row { display: flex; gap: var(--space-2); padding: var(--space-1); border-color: transparent; background: none; box-shadow: none; }
@@ -5900,9 +5876,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-add { color: var(--accent); font-weight: 500; }
 .project-board-add:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
-.project-takes-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-color: transparent; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-takes-toggle:hover:not(:disabled) { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
-.project-takes-toggle:hover .project-faces .mini-avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
 .project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
 /* A take's pin sits on its name line, right after the ratings. */
