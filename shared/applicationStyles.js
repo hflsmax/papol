@@ -5633,6 +5633,22 @@ ${talkStyles}
    left edge throughout; the only fill is the soft accent of the place
    being shown, and what is new says so in gold words, not paint. */
 .app:has(.nook.is-desk) { max-width: 1180px; }
+/* Someone else's nook: who they are, then a plain list of what they keep. */
+.their-nook { max-width: 46rem; }
+.their-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 var(--space-6); }
+.their-face { flex: none; width: 48px; height: 48px; font-size: var(--fs-lg); }
+.their-name { margin: 0; font: 600 var(--fs-xl)/1.2 var(--font-serif); }
+.their-line { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
+.their-line a { color: inherit; }
+.their-list { margin: 0; padding: 0; list-style: none; }
+.their-list li { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.their-list li:last-child { border-bottom: 0; }
+.their-boards { margin-top: var(--space-6); }
+.their-title { display: block; color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
+.their-title:hover, .their-title:focus-visible { color: var(--accent); text-decoration: underline; }
+.their-meta { display: block; margin-top: 2px; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
+.their-meta i { font-family: var(--font-serif); }
+.their-thought { display: block; margin-top: 4px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
 .nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .desk-rail { display: grid; gap: var(--space-5); position: sticky; top: var(--space-4); }
 .desk-rail-part { display: grid; gap: var(--space-1); }
@@ -5664,17 +5680,6 @@ ${talkStyles}
 .desk-faces { display: inline-flex; align-items: center; padding-left: 4px; }
 .desk-face { width: 20px; height: 20px; margin-left: -4px; border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
-
-/* Whose nook, when it is someone else's: their face and name head the rail. */
-.desk-who { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-2); }
-.desk-who-face { flex: none; width: 48px; height: 48px; font-size: var(--fs-lg); }
-.desk-who-copy { min-width: 0; }
-.desk-who-name { margin: 0; font: 600 var(--fs-xl)/1.2 var(--font-serif); overflow-wrap: anywhere; }
-.desk-who-line { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); overflow-wrap: anywhere; }
-.desk-who-line a { color: inherit; }
-.nook-desk.is-visiting button.desk-row { cursor: pointer; }
-/* Their thought on a paper, under its authors. */
-.desk-thought { display: block; margin-top: 3px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
 
 .desk-main { min-width: 0; }
 .desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-1); }

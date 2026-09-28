@@ -41,15 +41,9 @@ function Faces({ users, max, linked = false }) {
 // still chosen. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-//
-// Someone else's nook (`visiting`) is the same workspace, read only: whose
-// it is heads the rail, their shelves narrow the papers in place, their
-// boards open on the canvas, and each paper carries their thought on it.
-export default function NookDesk({ nook, visiting = false, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
-  const board = project || visiting ? null : boardAsked;
-  const [shelfPicked, setShelfPicked] = useState(null);
-  const shelfWanted = visiting ? shelfPicked : shelfAsked;
-  const shelf = nook.shelves.some((s) => s.uuid === shelfWanted) ? shelfWanted : null;
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
+  const board = project ? null : boardAsked;
+  const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
   // The column heads stick just under the filter bar, whose height changes
@@ -81,67 +75,47 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
   const rated = (key) => nook.papers.some((p) => p[key]);
   const showMerit = rated('rating_liking');
 
-  const owner = nook.user;
-  // The projects this nook's owner is in: the member's own, or, in
-  // another's nook, the ones the visitor shares with them.
-  const projects = nook.projects?.length > 0 && (
-    <section className="desk-rail-part" aria-labelledby="desk-projects">
-      <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
-      <ul className="desk-rail-list">
-        {nook.projects.map((p) => {
-          const fresh = !visiting && p.new_count > 0;
-          return (
-            <li key={p.uuid}>
-              <a
-                className={`desk-project${fresh ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
-                href={appPath(`/project/${p.uuid}`)}
-                aria-current={p.uuid === project ? 'page' : undefined}
-              >
-                <span className="desk-project-name">{p.name}</span>
-                <span className="desk-project-foot">
-                  <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
-                  {fresh && <span className="desk-project-new">{p.new_count} new</span>}
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-
   return (
-    <div className={`nook-desk${reviewing ? ' is-reviewing' : ''}${visiting ? ' is-visiting' : ''}`}>
+    <div className={reviewing ? 'nook-desk is-reviewing' : 'nook-desk'}>
       <aside className="desk-rail">
-        {visiting && (
-          <section className="desk-rail-part desk-who" aria-label={owner.display_name}>
-            <Avatar user={owner} className="desk-who-face" />
-            <div className="desk-who-copy">
-              <h1 className="desk-who-name">{owner.display_name}</h1>
-              {owner.affiliation && <p className="desk-who-line">{owner.affiliation}</p>}
-              {/* Only there when they chose to show it. */}
-              {owner.email && <p className="desk-who-line"><a href={`mailto:${owner.email}`}>{owner.email}</a></p>}
-            </div>
+        {nook.projects?.length > 0 && (
+          <section className="desk-rail-part" aria-labelledby="desk-projects">
+            <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
+            <ul className="desk-rail-list">
+              {nook.projects.map((p) => (
+                <li key={p.uuid}>
+                  <a
+                    className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
+                    href={appPath(`/project/${p.uuid}`)}
+                    aria-current={p.uuid === project ? 'page' : undefined}
+                  >
+                    <span className="desk-project-name">{p.name}</span>
+                    <span className="desk-project-foot">
+                      <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
+                      {p.new_count > 0 && <span className="desk-project-new">{p.new_count} new</span>}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
-        {!visiting && projects}
 
         <section className="desk-rail-part" aria-labelledby="desk-shelves">
           <div className="desk-rail-head">
             <h3 id="desk-shelves">Shelves</h3>
-            {!visiting && <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>}
+            <button type="button" className="desk-quiet" onClick={onManage}>Manage</button>
           </div>
           <ul className="desk-rail-list">
             {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
               const on = !board && !project && shelf === s.uuid;
-              // Another's shelves narrow their papers where they are.
-              const Row = visiting ? 'button' : 'a';
-              const place = visiting
-                ? { type: 'button', 'aria-pressed': on, onClick: () => setShelfPicked(s.uuid) }
-                : { href: appPath(s.uuid ? `/shelf/${s.uuid}` : '/'), 'aria-current': on ? 'page' : undefined };
               return (
                 <li key={s.uuid ?? 'all'}>
-                  <Row className={on ? 'desk-row is-on' : 'desk-row'} {...place}>
+                  <a
+                    className={on ? 'desk-row is-on' : 'desk-row'}
+                    href={appPath(s.uuid ? `/shelf/${s.uuid}` : '/')}
+                    aria-current={on ? 'page' : undefined}
+                  >
                     <span className="desk-dot" style={s.color ? { background: s.color } : undefined} aria-hidden="true" />
                     <span className="desk-row-name">{s.name}</span>
                     {!s.is_public && (
@@ -151,17 +125,17 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
                       </svg>
                     )}
                     <span className="desk-count">{s.paper_count}</span>
-                  </Row>
+                  </a>
                 </li>
               );
             })}
           </ul>
         </section>
 
-        {(!visiting || nook.boards.length > 0) && <section className="desk-rail-part" aria-labelledby="desk-boards">
+        <section className="desk-rail-part" aria-labelledby="desk-boards">
           <div className="desk-rail-head">
             <h3 id="desk-boards">Boards</h3>
-            {!visiting && !creatingBoard && <button type="button" className="desk-quiet" onClick={() => setCreatingBoard(true)}>New</button>}
+            {!creatingBoard && <button type="button" className="desk-quiet" onClick={() => setCreatingBoard(true)}>New</button>}
           </div>
           {creatingBoard && (
             <BoardCreateForm
@@ -177,10 +151,7 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
                 <li key={b.uuid}>
                   <a
                     className={b.uuid === board ? 'desk-row is-on' : 'desk-row'}
-                    // Another's board opens on the canvas: it has no jacket
-                    // beside a rail that is not the visitor's own.
-                    href={appPath(visiting ? `/boards/${b.uuid}` : `/board/${b.uuid}`)}
-                    onClick={visiting ? (e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onSelectBoard(b.uuid); } } : undefined}
+                    href={appPath(`/board/${b.uuid}`)}
                     aria-current={b.uuid === board ? 'page' : undefined}
                   >
                     <span className="desk-dot" style={{ background: shelfOf(b.shelf_uuid)?.color }} aria-hidden="true" />
@@ -191,9 +162,8 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
               ))}
             </ul>
           )}
-        </section>}
+        </section>
 
-        {visiting && projects}
       </aside>
 
       {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
@@ -228,7 +198,7 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
             />
           )}
           <div className="desk-chips">
-            {!visiting && nook.tags.length > 0 && (
+            {nook.tags.length > 0 && (
               <div className="desk-tags" role="group" aria-label="Tags">
                 {nook.tags.map((t) => (
                   <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>
@@ -258,14 +228,13 @@ export default function NookDesk({ nook, visiting = false, adding, reviewing, on
                     <td className="desk-col-title">
                       <a
                         className="desk-title"
-                        href={paperPlace(paper.sha256, { shelf: visiting ? null : shelf })}
+                        href={paperPlace(paper.sha256, { shelf })}
                       ><PaperTitle title={paper.title} /></a>
                       <span className="desk-meta">
                         {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                         {paper.journal && <> · <i>{paper.journal}</i></>}
                       </span>
-                      {visiting && paper.thought && <span className="desk-thought">“{paper.thought}”</span>}
-                      {!visiting && paper.tags.length > 0 && (
+                      {paper.tags.length > 0 && (
                         <span className="desk-row-tags">
                           {paper.tags.map((t) => (
                             <button key={t.uuid} type="button" className={tag === t.uuid ? 'desk-row-tag is-on' : 'desk-row-tag'} aria-pressed={tag === t.uuid} onClick={() => setTag(tag === t.uuid ? null : t.uuid)}>

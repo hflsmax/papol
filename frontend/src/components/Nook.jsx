@@ -11,6 +11,9 @@ import NookDesk from './NookDesk';
 import BoardCreateForm from './BoardCreateForm';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
+import { paperName } from '../../../shared/paperName.js';
+import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { formatAuthors, newestFirst } from '../paperFormat';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -147,12 +150,49 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
     );
   }
 
-  // Someone else's nook on the web: the same workspace, theirs to look
-  // through.
+  // Someone else's nook on the web: who they are, then a plain list of
+  // what they keep, newest first, each with their thought on it.
   if (!isOwn && !DESKTOP) {
+    const owner = nook.user;
     return (
-      <div className="nook is-desk">
-        <NookDesk nook={nook} visiting onSelectBoard={onSelectBoard} />
+      <div className="nook their-nook">
+        <header className="their-head">
+          <Avatar user={owner} className="their-face" />
+          <div>
+            <h1 className="their-name">{owner.display_name}</h1>
+            {owner.affiliation && <p className="their-line">{owner.affiliation}</p>}
+            {/* Only there when they chose to show it. */}
+            {owner.email && <p className="their-line"><a href={`mailto:${owner.email}`}>{owner.email}</a></p>}
+          </div>
+        </header>
+        {nook.papers.length > 0 && (
+          <ul className="their-list" aria-label="Papers">
+            {[...nook.papers].sort(newestFirst).map((paper) => (
+              <li key={paper.sha256}>
+                <a className="their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
+                <span className="their-meta">
+                  {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
+                  {paper.journal && <> · <i>{paper.journal}</i></>}
+                </span>
+                {paper.thought && <span className="their-thought">“{paper.thought}”</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {nook.boards.length > 0 && (
+          <ul className="their-list their-boards" aria-label="Boards">
+            {nook.boards.map((board) => (
+              <li key={board.uuid}>
+                <a
+                  className="their-title"
+                  href={appPath(`/boards/${board.uuid}`)}
+                  onClick={(e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onSelectBoard(board.uuid); } }}
+                >{board.name}</a>
+                <span className="their-meta">Board · {board.item_count}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     );
   }
