@@ -5386,13 +5386,16 @@ ${talkStyles}
 .brief-page { width: 100%; max-width: 1440px; margin: 0 auto; container-type: inline-size; }
 .brief-head { margin: 0 0 var(--space-5); }
 .brief-title-row { display: flex; align-items: flex-start; gap: var(--space-2); }
-.brief-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); }
+.brief-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-2xl)/1.25 var(--font-serif); text-wrap: balance; }
 .brief-title-row .talk-pin-wrap { flex: none; margin-top: 2px; }
+/* With no dig yet, the empty pin is the way to start one, so it shows. */
+.brief-title-row .talk-pin.is-empty { opacity: .6; }
 .project-take-options { display: none; margin-left: auto; }
 .project-take:hover .project-take-options, .project-take:focus-within .project-take-options { display: inline-flex; }
 .project-take-options .project-quiet { padding: 0 var(--space-1); font-size: var(--fs-xs); }
 .brief-cite { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); margin: var(--space-2) 0 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .brief-authors { font: italic var(--fs-md) var(--font-serif); }
+.brief-actions .button { font-family: var(--font-ui); }
 .brief-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
 .brief-actions .action-glyph { width: 16px; height: 16px; margin-right: var(--space-1); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
 .brief-jacket { color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
@@ -5408,10 +5411,21 @@ ${talkStyles}
 .brief-layout { display: grid; gap: var(--space-5); }
 .brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .brief-main .project-takes { margin-bottom: var(--space-2); }
-.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; }
+.brief-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding-left: 0; padding-right: 0; }
 .brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; }
-.brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); font-variant: small-caps; letter-spacing: .04em; text-transform: none; }
+/* The dig's head is a section head, like Takes beside it. */
+.brief-dig .talk-card.is-inline .talk-card-header { align-items: baseline; }
+.brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); letter-spacing: 0; text-transform: none; }
+.brief-dig .talk-card.is-inline .talk-card-kind i { display: none; }
+.brief-dig .talk-card.is-inline .talk-card-count { color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+/* Posts are read, not skimmed: body size and leading, parted by space. */
+.brief-dig .talk-post { padding-top: var(--space-3); padding-bottom: var(--space-3); }
+.brief-dig .talk-post + .talk-post { border-top: 0; }
+.brief-dig .talk-post-head { margin-bottom: var(--space-1); }
+.brief-dig .talk-post-head .mini-avatar { width: 22px; height: 22px; font-size: 11px; }
+.brief-dig .talk-post-body { max-width: 38rem; font-size: var(--fs-md); line-height: 1.5; }
+.brief-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .5em; }
 .brief-dig .talk-post.is-mine .talk-post-head b { color: var(--ink); }
 .brief-dig .talk-compose textarea { background: var(--card); }
 .brief-dig .talk-card.is-inline .talk-card-subject { padding-left: 0; }
@@ -5422,16 +5436,28 @@ ${talkStyles}
 .brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
-@container (min-width: 760px) {
-  /* The paper's facts on the left, in view while the dig scrolls; the
-     dig beside them, parted by a rule, in a reading measure. */
-  .brief-layout { grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr); align-items: start; column-gap: var(--space-7); }
-  .brief-main { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); overflow: clip; overflow-clip-margin: 4px; }
-  .brief-dig { max-width: 44rem; min-width: 0; padding-top: 2px; padding-left: var(--space-5); border-left: 1px solid var(--line); }
+@container (min-width: 960px) {
+  /* The paper's facts on the left, in view while the dig scrolls, and
+     scrolling on their own when they outgrow the window; the dig beside
+     them, parted by a rule, in a reading measure; the pair centred. */
+  .brief-layout { grid-template-columns: minmax(20rem, 26rem) minmax(0, 40rem); justify-content: center; align-items: start; column-gap: var(--space-7); }
+  .brief-main { position: sticky; top: var(--space-4); max-height: calc(100vh - 2 * var(--space-4)); margin: -4px; padding: 4px; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  [data-shell='desktop'] .brief-main { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
+  .brief-dig { min-width: 0; padding-top: 2px; padding-left: var(--space-5); border-left: 1px solid var(--line); }
   .brief-dig.is-empty { align-self: stretch; }
+  /* The dig is open beside the title, so the title's pin would repeat it. */
+  .brief-page.has-dig .brief-title-row .talk-pin-wrap { display: none; }
 }
-@container (max-width: 759px) {
+/* Until the pair is centred clear of it, the reply bar stands above the
+   Feedback button in the window's corner. */
+@container (min-width: 960px) and (max-width: 1299px) {
+  :root:not([data-shell='desktop']) .brief-dig .talk-card.is-inline .talk-compose { padding-bottom: 56px; }
+}
+@container (max-width: 959px) {
   .brief-dig { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+  .brief-dig.is-empty { display: none; }
+  /* Under the paper the reply bar stays at the dig's foot. */
+  .brief-dig .talk-card.is-inline .talk-compose { position: static; }
   .brief-page { margin-bottom: 56px; }
 }
 
