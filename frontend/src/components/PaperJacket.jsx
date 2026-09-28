@@ -635,30 +635,30 @@ export default function PaperJacket({
                 </div>
               )}
             </div>
-          </InWay>
 
-          {authors.length > 0 && (
-            <div className="detail-authors-row">
-              <p className="authors">{authors.join(', ')}</p>
-              {/* Sits level with the names it refers to, however many lines
-                  they run to — as the display controls do with the title. */}
-              {hasEntry && (
-                <label
-                  className="checkbox-row inline"
-                  title="Marks your chip on this paper as an author"
-                >
-                  <input
-                    type="checkbox"
-                    checked={paper.is_author === true}
-                    onChange={(e) =>
-                      handleInlineRating('is_author', e.target.checked)
-                    }
-                  />
-                  <span>I am an author</span>
-                </label>
-              )}
-            </div>
-          )}
+            {authors.length > 0 && (
+              <div className="detail-authors-row">
+                <p className="authors">{authors.join(', ')}</p>
+                {/* Sits level with the names it refers to, however many lines
+                    they run to — as the display controls do with the title. */}
+                {hasEntry && (
+                  <label
+                    className="checkbox-row inline"
+                    title="Marks your chip on this paper as an author"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={paper.is_author === true}
+                      onChange={(e) =>
+                        handleInlineRating('is_author', e.target.checked)
+                      }
+                    />
+                    <span>I am an author</span>
+                  </label>
+                )}
+              </div>
+            )}
+          </InWay>
 
           <div className="metadata">
             {paper.journal && <span className="journal">{paper.journal}</span>}

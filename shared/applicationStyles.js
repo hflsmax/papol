@@ -135,11 +135,8 @@ ${commonStyles}
 .way a:hover,
 .way-aside a:hover { color: var(--accent); }
 
-.way a.way-mark {
-  color: var(--ink);
-  font: 600 var(--fs-md) var(--font-serif);
-  letter-spacing: .02em;
-}
+.way a.way-mark { display: inline-flex; align-self: center; }
+.way-mark img { display: block; width: 28px; height: 28px; border-radius: 7px; }
 
 /* Beside the trail home: everyone else's papers, boards and projects, and
    the inbox, as quiet as the trail. */
@@ -179,6 +176,10 @@ ${commonStyles}
 #way-slot > .project-title-row { flex: 1 1 auto; }
 #way-slot > .project-seats { margin-left: auto; }
 #way-slot > .detail-title-row { flex: 1; min-width: 0; margin: 0; }
+/* A paper's title runs long, so it is set smaller, its authors under it. */
+#way-slot > .detail-title-row h2 { font-size: var(--fs-2xl); line-height: 1.25; }
+#way-slot > .detail-authors-row { flex: 1 1 100%; margin: calc(-1 * var(--space-1)) 0 0; font-size: var(--fs-md); }
+#way-slot > .detail-authors-row .authors { margin: 0; color: var(--ink-soft); font: italic var(--fs-md) var(--font-serif); }
 .app:has(.nook-desk) .way { gap: 0; }
 .app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
 .app:has(.nook-desk.is-folded) .way-mark { width: calc(2.25rem + var(--space-5)); }

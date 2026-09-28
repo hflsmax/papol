@@ -17,7 +17,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
-        <a className="way-mark" href={appPath('/')}>Papol</a>
+        <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/favicon.svg')} alt="Papol" width="28" height="28" /></a>
         <span className="way-trail" id="way-slot" />
         <span className="way-trail way-default">
           {trail.map(({ path, label }) => <a key={path} href={appPath(path)}>{label}</a>)}
