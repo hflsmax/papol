@@ -544,7 +544,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
       <>
         <span className="project-talk-subject">
           <span className="project-card-kind">
-            {SUBJECT_WORDS[kind]}{d.owner && <> · {d.is_mine ? 'Yours' : d.owner.display_name}</>}
+            {SUBJECT_WORDS[kind]}{d.owner && !d.is_mine && <> · {d.owner.display_name}</>}
             {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
           </span>
           <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>

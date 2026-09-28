@@ -31,6 +31,8 @@ const SHOTS = {
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
   // A paper picked in the Papers tab: its brief beside the list.
   'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
+  // Your own post in a brief's dig, its options shown.
+  'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   dig: { path: `/dig/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },
   // A member's face on a paper's row, and where it leads: their nook.
   'face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
