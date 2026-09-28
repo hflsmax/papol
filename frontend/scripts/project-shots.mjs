@@ -54,6 +54,7 @@ const SHOTS = {
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket-heading')", size: wide },
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
+  'nook-project-rail': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", hover: '.desk-strip-mark', size: wide },
   'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
   'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket h2')", size: wide },
   library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
@@ -101,6 +102,11 @@ try {
     for (const path of shot.holdThen ?? []) held.add(path);
     if (shot.then) { await browser.evaluate(shot.then); await new Promise((done) => setTimeout(done, 300)); }
     if (shot.settled) await browser.waitFor(shot.settled, { what: `${name} to settle` });
+    if (shot.hover) {
+      const { x, y } = await browser.evaluate(`const box = document.querySelector('${shot.hover}').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 };`);
+      await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await new Promise((done) => setTimeout(done, 400));
+    }
     await browser.evaluate(`return ${settled};`);
     const { data } = await browser.send('Page.captureScreenshot', { format: 'png' });
     const file = join(resolve(outDir), `${name}.png`);
