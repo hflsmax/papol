@@ -5748,6 +5748,11 @@ ${desktopStyles}
 .projects-kicker { margin: var(--space-5) 0 var(--space-2); }
 .projects-head + .projects-kicker { margin-top: 0; }
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }
+/* In the Commons, the projects are a section above everyone's papers. */
+.projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
+.projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
+.projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
+.projects-page.is-section .projects-row { padding-block: var(--space-3); }
 .projects-list { list-style: none; margin: 0; padding: 0; }
 
 .projects-row {

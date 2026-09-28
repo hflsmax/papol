@@ -4,16 +4,12 @@ import { appPath } from '../base';
 import Avatar from './Avatar';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
-// every page is a trail back to it. Beside the member's own things sit,
-// quietly, the places where everyone else's are: the Library (papers and
-// boards) and the list of projects.
-const ASIDE = [
-  { path: '/library', label: 'Library', pages: ['papers'] },
-  { path: '/projects', label: 'Projects', pages: ['projects'] },
-];
+// every page is a trail back to it. Beside it sits, quietly, the one place
+// where everyone else's work is: their papers, boards and projects.
+export const COMMONS = 'Commons';
 
 // The one bar over a signed-in member's pages on the web: the trail home
-// on the left, and on the right the places beside it, what is waiting for
+// on the left, and on the right the Commons beside it, what is waiting for
 // the member and who they are. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none.
 export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCount = 0 }) {
@@ -27,14 +23,10 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCou
         </span>
       </nav>
       <nav className="way-aside" aria-label="Elsewhere">
-        {ASIDE.map(({ path, label, pages }) => (
-          <a key={path} href={appPath(path)} aria-current={pages.includes(route.page) ? 'page' : undefined}>
-            {label}
-            {path === '/projects' && projectNewCount > 0 && (
-              <span className="way-count" title={`${projectNewCount} new`}>{projectNewCount}</span>
-            )}
-          </a>
-        ))}
+        <a href={appPath('/library')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
+          {COMMONS}
+          {projectNewCount > 0 && <span className="way-count" title={`${projectNewCount} new in your projects`}>{projectNewCount}</span>}
+        </a>
         <a
           href={appPath('/inbox')}
           aria-current={route.page === 'inbox' ? 'page' : undefined}

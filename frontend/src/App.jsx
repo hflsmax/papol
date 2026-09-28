@@ -26,7 +26,7 @@ import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage
 import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
 import { briefPath, listProjects } from '../../shared/api/projects.js';
-import { WayBar, WayFoot } from './components/Way';
+import { COMMONS, WayBar, WayFoot } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
@@ -706,8 +706,16 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {route.page === 'papers' && (
+      {(route.page === 'papers' || (hasWay && route.page === 'projects')) && (
         <PapersPage
+          projects={hasWay && (
+            <ProjectsPage
+              section
+              currentUser={user}
+              onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
+              onChanged={() => setProjectsRevision((r) => r + 1)}
+            />
+          )}
           onReportableError={offerErrorReport}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
@@ -718,7 +726,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
         />
       )}
-      {route.page === 'projects' && (
+      {!hasWay && route.page === 'projects' && (
         <ProjectsPage
           currentUser={user}
           onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
@@ -904,9 +912,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // says so itself: a jacket to the place it was opened from, a nook of
   // someone else's to the Library their papers are found in.
   const wayTrail = (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack]
+    ? [jacketBack.path === '/library' ? { path: '/library', label: COMMONS } : jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: '/library', label: 'Library' }]
+      ? [{ path: '/library', label: COMMONS }]
       : [];
   return (
     <>

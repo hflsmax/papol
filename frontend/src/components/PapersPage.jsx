@@ -51,6 +51,7 @@ const SORTS = {
 };
 
 export default function PapersPage({
+  projects = null,
   currentUser, onSelectPaper, onSelectBoard,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
   incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
@@ -157,6 +158,8 @@ export default function PapersPage({
           onIncomingFileHandled={onIncomingPaperFileHandled}
         />
       )}
+
+      {!reviewingUpload && !addingFolder && projects}
 
       <div className="panel paper-list">
         <div className="search-bar library-search-tools">
