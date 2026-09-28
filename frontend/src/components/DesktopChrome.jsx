@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Working } from '../../../shared/ui/Waiting.js';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
@@ -22,7 +23,7 @@ const MOD = MAC ? '⌘' : 'Ctrl+';
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
 // are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
+export function desktopNavigation({ user, route, unreadCount, projects = [], nook, listing }) {
   const page = route.page;
   if (!user) {
     return [
@@ -74,6 +75,29 @@ export function desktopNavigation({ user, route, unreadCount, nook, listing }) {
         active: at(`tag:${tag.uuid}`),
       })),
     }] : []),
+    // Each project is a place of its own, like a shelf; the last row leads
+    // to all of them, and to starting one.
+    {
+      label: 'Projects',
+      items: [
+        ...projects.map((project) => ({
+          key: `project:${project.uuid}`,
+          label: project.name,
+          path: `/project/${project.uuid}`,
+          glyph: 'folder',
+          active: ['project', 'brief', 'discuss'].includes(page) && route.uuid === project.uuid,
+          count: project.new_count,
+          unread: true,
+        })),
+        {
+          key: 'projects',
+          label: projects.length ? 'All projects' : 'Projects',
+          path: '/projects',
+          glyph: projects.length ? 'projects' : 'folder',
+          active: ['projects', 'invitation'].includes(page),
+        },
+      ],
+    },
     {
       label: 'Papol',
       items: [
@@ -93,6 +117,12 @@ const TITLES = {
   paper: 'Paper',
   papers: 'Desk',
   room: 'Seminar',
+  projects: 'Projects',
+  project: 'Project',
+  invitation: 'Invitation',
+  brief: 'Brief',
+  discussion: 'Dig',
+  discuss: 'Dig',
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',
@@ -102,8 +132,13 @@ const TITLES = {
   profile: 'Settings',
 };
 
-export function desktopTitle(route, user) {
+// A project's pages carry its name, which says more than the word Project.
+export function desktopTitle(route, user, projects = []) {
   if (route.page === 'home') return user ? 'My nook' : 'Sign in';
+  if (['project', 'brief', 'discuss'].includes(route.page)) {
+    const project = projects.find((p) => p.uuid === route.uuid);
+    if (project) return project.name;
+  }
   return TITLES[route.page] || 'Papol';
 }
 
@@ -353,11 +388,22 @@ export function useDesktopShortcuts({ groups, onNavigate }) {
   }, []);
 }
 
-// A page's toolbar: its title, in the strip that moves the window.
+// A page's toolbar: its title, in the strip that moves the window, and a
+// slot a page fills with its own controls through InToolbar, so a page in
+// the Mac app needs no header of its own.
 export function DesktopToolbar({ title }) {
   return (
     <header className="desktop-toolbar" data-tauri-drag-region="deep">
       {title && <h1 className="desktop-toolbar-title">{title}</h1>}
+      <div className="desktop-toolbar-slot" id="desktop-toolbar-slot" />
     </header>
   );
+}
+
+// What a page puts in the toolbar. A page that brings its own title marks
+// it data-toolbar-title, and the toolbar's plain title steps aside.
+export function InToolbar({ children }) {
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById('desktop-toolbar-slot')); }, []);
+  return slot ? createPortal(children, slot) : null;
 }

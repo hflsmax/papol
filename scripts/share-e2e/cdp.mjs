@@ -57,7 +57,10 @@ export class Browser {
 
   async start() {
     this.profile = await mkdtemp(join(tmpdir(), 'papol-cdp-'));
-    const port = 9222 + Math.floor(Math.random() * 500);
+    // 9229 is where wrangler dev's inspector listens, so a browser that
+    // drew it would never answer.
+    let port = 9222 + Math.floor(Math.random() * 500);
+    if (port === 9229) port += 1;
     const args = [
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${this.profile}`,

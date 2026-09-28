@@ -7,6 +7,7 @@ import { type User } from "../auth";
 import { cohortUserUuids } from "../cohorts";
 import { all, now, one, statement, type Row } from "../db";
 import { boardFileKey, UPLOADS } from "../files";
+import { handOnProjectBoards, leaveAllProjects } from "../routes/projects";
 import { notify, saveRoom, type Room } from "../routes/rooms";
 
 // What a closed account is called wherever it still shows.
@@ -62,10 +63,15 @@ async function boardFiles(env: Env, boardUuids: string[]): Promise<{ file_path: 
 // then the files nothing points at any more.
 export async function closeAccount(env: Env, user: User): Promise<Record<string, number>> {
   const db = env.DB;
+  // Before anything of theirs goes: a board a project goes on using is
+  // the project's, so it passes to another member rather than going.
+  const projectBoards = await handOnProjectBoards(env, user.uuid);
   const boardUuids = (await all<{ uuid: string }>(db, "SELECT uuid FROM boards WHERE user_uuid = ?", user.uuid)).map((b) => b.uuid);
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
+  const goneTalk = `board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR ${inBoards} OR take_user_uuid = ?`;
   const files = await boardFiles(env, boardUuids);
   const seminars = await handOnSeminars(env, user.uuid);
+  const projects = await leaveAllProjects(env, user.uuid);
 
   // Private, and theirs alone; then out of the cohorts, since someone who
   // has closed their account is not going to turn up; then signed out and
@@ -76,6 +82,11 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
     ["papers_in_nook", statement(db, "DELETE FROM copies WHERE user_uuid = ?", user.uuid)],
     ["tags", statement(db, "DELETE FROM tags WHERE user_uuid = ?", user.uuid)],
+    // A discussion about a board that goes, or a card on it, or their own
+    // thought on a paper, goes too.
+    ["discussion_posts", statement(db, `DELETE FROM discussion_posts WHERE discussion_uuid IN (SELECT uuid FROM discussions WHERE ${goneTalk})`, ...boardUuids, ...boardUuids, user.uuid)],
+    ["discussions", statement(db, `DELETE FROM discussions WHERE ${goneTalk}`, ...boardUuids, ...boardUuids, user.uuid)],
+    ["project_boards", statement(db, `DELETE FROM project_boards WHERE ${inBoards}`, ...boardUuids)],
     ["board_items", statement(db, `DELETE FROM board_items WHERE ${inBoards}`, ...boardUuids)],
     ["board_groups", statement(db, `DELETE FROM board_groups WHERE ${inBoards}`, ...boardUuids)],
     ["boards", statement(db, "DELETE FROM boards WHERE user_uuid = ?", user.uuid)],
@@ -95,13 +106,14 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const scrub = statement(db,
     "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, password_hash = ?, deleted_at = ? WHERE uuid = ?",
     `deleted-${user.uuid}@papol.invalid`, FORMER_USER, UNUSABLE_PASSWORD, now(), user.uuid);
-  const results = await db.batch([...counted.map(([, s]) => s), ...seminars.statements, scrub]);
+  const results = await db.batch([...counted.map(([, s]) => s), ...seminars.statements, ...projects, scrub]);
 
   const removed: Record<string, number> = {};
   counted.forEach(([name], i) => { removed[name] = results[i].meta.changes ?? 0; });
   removed.sync_history = removed.sync_changes + removed.sync_replays + removed.sync_clients;
   removed.seminars_handed_on = seminars.handed;
   removed.seminars_reopened = seminars.reopened;
+  removed.project_boards_handed_on = projectBoards;
   // What they said to other users stays where they said it. PDFs they
   // uploaded stay too: a paper is nobody's.
   removed.messages_kept = (await all<Row>(db, "SELECT 1 FROM room_messages WHERE user_uuid = ?", user.uuid)).length;

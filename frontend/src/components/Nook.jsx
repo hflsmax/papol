@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import NookManager from './NookManager';
 import BoardCreateForm from './BoardCreateForm';
+import { appPath } from '../base';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -122,6 +123,31 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             </div>
           )}
         </div>
+        {nook.projects?.length > 0 && (
+          <nav className="nook-projects" aria-label={isOwn ? 'My projects' : 'Projects'}>
+            <span className="kicker nook-projects-label">{isOwn ? 'My projects' : 'Projects'}</span>
+            <ul className="nook-projects-list">
+              {nook.projects.map((project) => {
+                const others = (project.members ?? []).filter((m) => m.user.uuid !== nook.user.uuid);
+                return (
+                  <li key={project.uuid}>
+                    <a className="nook-projects-chip" href={appPath(`/project/${project.uuid}`)}>
+                      <span className="nook-projects-name">{project.name}</span>
+                      {others.length > 0 && (
+                        <span className="nook-projects-faces" aria-label={`with ${others.length} more`}>
+                          {others.slice(0, 3).map((m) => (
+                            <Avatar key={m.user.uuid} user={m.user} className="nook-projects-avatar" />
+                          ))}
+                          {others.length > 3 && <span className="nook-projects-more">+{others.length - 3}</span>}
+                        </span>
+                      )}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        )}
       </div>
 
       {isOwn && creatingBoard && (

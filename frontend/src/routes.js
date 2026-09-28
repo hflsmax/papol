@@ -21,6 +21,20 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if ((uuid = at(`/paper/${PAPER}`))) return { page: 'paper', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
   if ((uuid = at(`/room/${UUID}`))) return { page: 'room', uuid };
+  // Where talking about a subject leads: its discussion, or the first post.
+  const ID = UUID.slice(1, -1);
+  const DIGEST = '[0-9a-f]{64}';
+  const discuss = path.match(new RegExp(`^/project/${UUID}/discuss/(paper/${DIGEST}|take/${DIGEST}/${ID}|(?:board|card)/${ID})/?$`, 'i'));
+  if (discuss) return { page: 'discuss', uuid: discuss[1].toLowerCase(), subject: discuss[2].toLowerCase().replace(/\//g, ':') };
+  // A paper as a project sees it, named as the Library names it.
+  const brief = path.match(new RegExp(`^/project/${UUID}/paper/${PAPER}/?$`, 'i'));
+  if (brief) return { page: 'brief', uuid: brief[1].toLowerCase(), paper: brief[2].toLowerCase() };
+  if ((uuid = at(`/project/${UUID}`))) return { page: 'project', uuid };
+  if ((uuid = at(`/discussion/${UUID}`))) return { page: 'discussion', uuid };
+  // An invitation's code is case-sensitive, so it is read as written.
+  const invitation = path.match(/^\/projects\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
+  if (invitation) return { page: 'invitation', code: invitation };
+  if (path === '/projects') return { page: 'projects' };
   if (path === '/profile') return { page: 'profile' };
   if (path === '/join') return { page: 'join' };
   if (path === '/about') return { page: 'about' };

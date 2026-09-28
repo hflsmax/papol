@@ -127,6 +127,8 @@ export async function distFile(dist, relative) {
  * Each page names what its probe must report; anything else — a timeout, a
  * crash, an uncaught error — fails with the browser's stderr attached.
  */
+const RENDER_BUDGET_MS = 60_000;
+
 export async function runSmoke(pages, respond) {
   let markRendered;
   let rendered;
@@ -188,7 +190,9 @@ export async function runSmoke(pages, respond) {
       });
       let timeoutId;
       const timeout = new Promise((resolveTimeout) => {
-        timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), 30_000);
+        // Chrome alone can take a quarter of a minute to start on a busy
+        // runner, and the budget counts from its launch.
+        timeoutId = setTimeout(() => resolveTimeout({ kind: 'timeout' }), RENDER_BUDGET_MS);
       });
       const outcome = await Promise.race([
         rendered.then((result) => ({ kind: 'rendered', ...result })),
@@ -209,7 +213,7 @@ export async function runSmoke(pages, respond) {
       const outcome = await openLink(path);
       if (outcome.kind === 'error') throw outcome.error;
       if (outcome.kind === 'timeout') {
-        throw new Error(`${path} did not render within 30 seconds.\n${outcome.errors}`);
+        throw new Error(`${path} did not render within ${RENDER_BUDGET_MS / 1000} seconds.\n${outcome.errors}`);
       }
       if (outcome.kind === 'closed') {
         throw new Error(

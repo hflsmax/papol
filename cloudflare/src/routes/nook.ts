@@ -11,6 +11,7 @@ import { writeSynced } from "../sync/write";
 import { effortByPaper } from "./activity";
 import * as validate from "../validate";
 import { boardOut, userPublic } from "./boards";
+import { projectsOfUser } from "./projects";
 
 interface Shelf extends Row {
   uuid: string;
@@ -76,7 +77,8 @@ export function nookRoutes(router: Router) {
       `SELECT * FROM papers WHERE sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL)`, user.uuid)).map((p) => [p.sha256, p]));
     const boards = await all<Row>(env.DB,
       `SELECT b.* FROM boards b LEFT JOIN shelves s ON s.uuid = b.shelf_uuid
-       WHERE b.user_uuid = ? AND b.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY b.updated_at DESC, b.uuid DESC`, user.uuid);
+       WHERE b.user_uuid = ? AND b.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""}
+       AND b.uuid NOT IN (SELECT board_uuid FROM project_boards) ORDER BY b.updated_at DESC, b.uuid DESC`, user.uuid);
     const shelves = (await liveShelves(env, user.uuid)).filter((s) => !hidePrivate || s.is_public);
     const stats = hidePrivate ? null : {
       papers: copies.length,
@@ -96,6 +98,7 @@ export function nookRoutes(router: Router) {
       papers: entries.map((p) => ({ ...p, effort: effort?.get(p.sha256 as string) ?? null })),
       boards: outBoards,
       stats, tags,
+      projects: await projectsOfUser(env, user.uuid, me),
       shelves: await Promise.all(shelves.map((s) => shelfOut(env, s))),
     });
   });
