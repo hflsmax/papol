@@ -5962,9 +5962,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
-.project-tab-count { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
 /* New items on a tab: a number alone. Unread posts on an item are the spade pill (.project-card-alert). */
-.project-tab-new { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
+.project-tab-new { display: inline-block; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/19px var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry. */
 .project-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
