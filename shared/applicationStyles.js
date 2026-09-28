@@ -5419,9 +5419,8 @@ ${talkStyles}
 .paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 32px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
-/* Post waits at the end of the owner's line, not on a row of its own. */
-.paper-brief-dig .talk-unfold.is-post { position: absolute; top: 1px; right: 0; min-height: 26px; margin: 0; padding: 0 10px; }
-.paper-brief-dig .talk-card:has(.talk-unfold.is-post) .talk-post:first-child .talk-post-head { padding-right: 64px; }
+/* Post comes after the last post, where the conversation continues. */
+.paper-brief-dig .talk-unfold.is-post { min-height: 26px; margin: var(--space-1) 0 0 24px; padding: 0 10px; font-size: var(--fs-xs); }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
