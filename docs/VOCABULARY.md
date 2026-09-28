@@ -25,7 +25,7 @@ identifier of its own, the notes column gives it.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who holds it, and **owned by none of them**. | `papers`, primary key `sha256`. Metadata, the seminar cohort and "also read by" hang off the paper, never off a copy. Nothing in the code asks whose a paper is. Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
+| **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who holds it, and **owned by none of them**. | `papers`, primary key `sha256`. Metadata and "also read by" hang off the paper, never off a copy. Nothing in the code asks whose a paper is. Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
 | **DOI** | A paper's DOI, stored bare: `10.1000/xyz`, without `https://doi.org/`. The server strips the resolver prefix from whatever it is given, so the link is built on the way out. | `papers.doi`; `bare_doi()` in `schemas.py`. |
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | `copies`, `Copy`. A paper payload carries `copy_uuid` and `is_public` for the viewer's own copy. Everything private in Papol hangs off a copy. |
 | **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper's is at `/paper/<name>`, a board's at `/board/<uuid>`. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`; `route.page` is `paper` or `board`. A jacket is a place in a surface (§9), not the application that opens the work. On the desktop it sits in the Library window while the work opens in a document window of its own. |
@@ -110,23 +110,11 @@ first user of a PDF waits.
 **Sharing is not displaying.** A shelf says who can *find* the paper; a link
 says who may *read this PDF*. Neither moves the other.
 
-## 7. Seminars
+## 7. Projects
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Call** | Requesting a spontaneous seminar on a paper. Notifies every user of that paper, including users whose copy is on a private shelf. | |
-| **Cohort** | The group where a called seminar is planned: leader, availability, platform, discussion. | `rooms`, `Room`, `RoomPage.jsx`, `shared/api/rooms.js`, `/room/<uuid>`. |
-| **Leader** | The user who answers a call and takes charge. | `rooms.leader_uuid`. Stepping down is `POST /api/rooms/<uuid>/unhost`. |
-| **Participant** | The caller, the leader, and users who join or contribute. | `room_participants`. |
-| **Availability** | Free-form text, editable until the seminar is scheduled, visible to the cohort. | |
-| **Style** | How the leader intends to run it: *A Presentation*, *Bring your questions*, *Guided discussion*, *Deep critique*, or their own free text. | `seminarStyles.js`: keys `walkthrough`, `questions`, `guided`, `critique`; free text in `style_desc`. |
-| **States** | **called** → **planning** → **scheduled** → **finished**. Called is waiting for a leader; planning is a leader in charge; scheduled is a time and platform announced; finished is the leader marking it held. | `rooms.status` is `open`, `planning`, `scheduled`, `finished`. `/announce` schedules, `/finish` finishes. |
-
-### Projects
-
-| Term | Meaning | Notes |
-| --- | --- | --- |
-| **Project** | A few users reading together: the papers they gather, the boards they think on, and the digs about both. | `projects`, `ProjectPage.jsx`, `/project/<uuid>`. Online only, as a cohort is. |
+| **Project** | A few users reading together: the papers they gather, the boards they think on, and the digs about both. | `projects`, `ProjectPage.jsx`, `/project/<uuid>`. Online only. |
 | **Member** / **Keeper** | Someone in a project; a keeper can also invite, take papers out and make others keepers. | `project_members.is_keeper`. |
 | **Brief** | A paper as one project sees it: members' takes, the paper's dig, the digs on their thoughts, the boards it is on, who added it. The jacket says what a paper is; the brief says what this group makes of it. | `BriefPage.jsx`, `briefPath()`, `route.page === 'brief'` at `/project/<uuid>/paper/<name>`. A desk card opens it. |
 | **Dig** | A conversation, among any number of members, **about one thing**: a paper, a member's thought on it, a board, or a card; never the project as a whole. Opened from the **dig pin**, the one mark for a dig: a spade, tipped as if in use. Every thing that can hold one wears the pin at the end of its name line (a card's header strip, a board's name), hidden until you reach for the thing, and showing its post count once there is a dig. Every other way into a dig opens the same card, with no mark of its own. | Store: `discussions`, `discussion_posts`, keyed by a **subject**. Code: the pin and card are still `TalkPin` and `TalkCard` (`shared/ui/Talk.jsx`); the page is `DiscussionPage.jsx`. |
@@ -192,8 +180,6 @@ For all prose and all new identifiers.
 | public shelf, private shelf | on display, displayed, hidden | Whether a copy is seen at all is a property of the shelf. |
 | paint *(verb)* | paint *(noun)* | The noun is **ink**. |
 | ink | paint *(noun)* | Ink is the substance, the kind and the stored stroke. |
-| leader | host | `host` is a hostname. |
-| cohort | room | Room is the code and store identifier only. |
 | reading | "my notes and annotations" | The reading is the unit a rich link carries. |
 | revoke | close | A revoked link does not reopen. |
 | library | directory | Papers and the people who read them are two views of one Library. |

@@ -43,9 +43,9 @@ export function inboxRoutes(router: Router) {
   router.on("GET", "/api/notifications", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const rows = await all<Row>(env.DB,
-      "SELECT uuid, content, room_uuid, read, created_at FROM notifications WHERE user_uuid = ? ORDER BY created_at DESC, uuid DESC LIMIT ?",
+      "SELECT uuid, content, read, created_at FROM notifications WHERE user_uuid = ? ORDER BY created_at DESC, uuid DESC LIMIT ?",
       user.uuid, limits.counts.notifications);
-    return json({ notifications: rows.map((n) => ({ uuid: n.uuid, content: n.content, room_uuid: n.room_uuid ?? null, read: Boolean(n.read), created_at: n.created_at })) });
+    return json({ notifications: rows.map((n) => ({ uuid: n.uuid, content: n.content, read: Boolean(n.read), created_at: n.created_at })) });
   });
 
   // Reading happens by clicking: one notification read.
@@ -136,9 +136,8 @@ export function inboxRoutes(router: Router) {
     const statements: D1PreparedStatement[] = [insert(env.DB, "feedback", fb)];
     const wakeups: string[] = [];
     for (const admin of admins) {
-      const notification = newUuid();
-      statements.push(insert(env.DB, "notifications", { uuid: notification, user_uuid: admin.uuid, room_uuid: null, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, emailed: 0, created_at: at }));
-      const mail = queueEmail(env.DB, admin.email, `Papol feedback: ${headline}`, body, [notification]);
+      statements.push(insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, created_at: at }));
+      const mail = queueEmail(env.DB, admin.email, `Papol feedback: ${headline}`, body);
       statements.push(mail.statement);
       wakeups.push(mail.uuid);
     }

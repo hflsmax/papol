@@ -1,6 +1,6 @@
 # Papol Social — User Stories
 
-Papol exists to make **spontaneous seminars** happen: a seminar is never scheduled top-down, it springs up whenever a user calls one on a paper and others answer.
+Papol is every paper, and what you make of it: a nook for your own reading, boards to think on, and projects to read with others.
 
 `docs/VOCABULARY.md` defines every term Papol uses, across product, code and
 store. The user-facing core:
@@ -13,11 +13,8 @@ store. The user-facing core:
 - **Sharable** — a link that opens a PDF in the viewer for whoever holds it, signed in or not: the UUID in the link is the whole of the permission. A **rich** link carries one user's reading — their annotations on that paper — and is theirs. A **lean** link carries the PDF alone, is one per paper, and is nobody's.
 - **Papol for Mac** — the native macOS application. It carries the same three surfaces (library, viewer, boards) and reads the same account, so a paper open in a browser and the same paper open in the app are one paper, not a copy.
 - **Handoff** — moving what I am reading right now from the browser into Papol for Mac: the same document, at the same place, in the app instead of the tab.
-- **Call** — requesting a spontaneous seminar on a paper; it notifies every user of that paper.
-- **Cohort** — the group where a called seminar is planned: leader, availability, platform, discussion. A seminar moves through four named states: **called** (waiting for a leader) → **planning** (leader took charge) → **scheduled** (time and platform announced) → **finished** (the leader marks it held).
-- **Leader** — the user who answers a call and takes charge of the seminar.
 
-Papers are **keyed by the content hash of the PDF**: the same file in different nooks is the same paper — one row, sharing its metadata, its seminar cohorts and its "also read by" listing. Two different files are two papers, even when they print the same DOI (§2, US-2.7).
+Papers are **keyed by the content hash of the PDF**: the same file in different nooks is the same paper — one row, sharing its metadata and its "also read by" listing. Two different files are two papers, even when they print the same DOI (§2, US-2.7).
 
 ## 1. Accounts
 
@@ -85,21 +82,9 @@ papers in, and I decide where they go.
 - **US-3.3** As a user, I can open the **Library**, which lists **every paper** — not only the ones somebody keeps on a public shelf, because no user's shelf decides what is findable. Each paper appears once, with a row per user whose copy is on a public shelf (avatar, name, ratings) linking to theirs; a paper with no such copy shows no such row. Search matches papers and user names.
 - **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user whose copy of the same paper is on a **public shelf**. Users who keep theirs on a private shelf are not named. Hovering a chip shows what they have made public of their copy — thought, ratings, summary, tags; clicking visits their nook.
 
-## 4. Calling a seminar
+## 4. Inbox
 
-- **US-4.1** As a user with a copy of a paper on a **public shelf**, I can **call for a seminar** on it. The call notifies **every user of the paper — including users whose own copy is on a private shelf** — via the in-app inbox. Users without a copy on a public shelf cannot call, join, or write in the cohort; the UI tells them so.
-- **US-4.2** As a notified user whose copy is on a private shelf, I can move it to a public shelf right from the cohort, which lets me appear among the users and become eligible to lead.
-- **US-4.3** Only one call can be active per paper (called or planning); after a seminar is scheduled, a new one can be called.
-- **US-4.4** As a user, I have an **Inbox** in the navigation with an unread badge; opening it shows my notifications (calls, a leader stepping up, scheduled seminars) and marks them read. Clicking one opens the cohort.
-
-## 5. The cohort
-
-- **US-5.1** A call forms a **cohort** for the paper, in the **called** state. Any user with a copy of the paper on a public shelf can **answer to lead** and takes charge; everyone is notified when they do.
-- **US-5.2** All planning happens in the cohort: participants (the caller, the leader, and users who join or contribute) are shown as chips. Only users with a copy of the paper on a **public shelf** can join, message, or submit availability — users whose copy is on a private shelf are invited to move it to a public shelf first, right from the cohort.
-- **US-5.3** Every participant can submit and update their **availability** (free-form) until the seminar is scheduled; all availability is visible in the cohort.
-- **US-5.4** The cohort has a **discussion thread** for coordination — short messages with author and time.
-- **US-5.5** The **leader announces** the seminar by picking a time and a platform; the cohort switches to **scheduled**, the paper's jacket shows the result, and participants and users are notified.
-- **US-5.6** A paper's jacket always reflects the cohort: none called, called, planning, or scheduled — with a "Join the cohort" door for signed-in users.
+- **US-4.1** As a user, I have an **Inbox** in the navigation with an unread badge; opening it shows what Papol has told me (the welcome, and for an admin, feedback) and marks it read.
 
 ## 5b. Boards
 
@@ -156,7 +141,7 @@ papers in, and I decide where they go.
 ## 7b. Following a citation
 
 - **US-7.6** As a user, when I meet a citation in the text — "[12]" — I can click it and see what it is without leaving my place: title, authors, where and when it appeared, its abstract, and how often it has been cited.
-- **US-7.7** The card offers what can be done with the work: a free PDF where one exists, the publisher's page, and a Scholar search. When the cited paper is **already in Papol**, that link comes first — a citation is how a user finds the next paper in their nook, and the next seminar.
+- **US-7.7** The card offers what can be done with the work: a free PDF where one exists, the publisher's page, and a Scholar search. When the cited paper is **already in Papol**, that link comes first — a citation is how a user finds the next paper in their nook.
 - **US-7.8** A reference Papol cannot match is not hidden: the card shows the line exactly as the author printed it, with a way to go and search for it. A thin answer beats a blank one.
 - **US-7.9** Clickable citations come from the PDF where the PDF has them — papers built with LaTeX carry a link on every marker, and the author's own link is better than any analysis. Where they are absent, the analyzer's reading of the page is used, and a marker matched only by counting its number is marked as the guess it is.
 - **US-7.10** Reading a paper's bibliography happens on my own device, once per paper and version of the rules, and is kept there, so opening a paper again does not wait. Looking up a particular reference happens the first time anyone opens it, and is kept for everyone.

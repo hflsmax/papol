@@ -122,7 +122,7 @@ describe("the export", () => {
     expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.tar"$/);
     const archive = untar(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(archive).map((n) => n.replace(/^papol-export-\d{4}-\d{2}-\d{2}\//, ""));
-    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "seminars.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
+    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
     // The files themselves are not in it: the browser fetches them.
     expect(names.filter((n) => /^(pdfs|board-files|avatar)/.test(n))).toEqual([]);
     const read = (name: string) => JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith(`/${name}`))!]));
@@ -240,36 +240,5 @@ describe("closing the account", () => {
     // The paper is nobody's: it and its PDF stay.
     expect(await count("papers", "sha256 = ?", PDF)).toBe(1);
     expect(await env.FILES.head(`uploads/${PDF}.pdf`)).not.toBeNull();
-  });
-
-  it("hands on the seminars the user was hosting, or reopens them when nobody in the cohort can lead", async () => {
-    const ada = await register("leaver@example.com", "Ada"), grace = await register("stays@example.com", "Grace"), hidden = await register("hidden@example.com", "Hidden");
-    await paperWithCopy(ada, PDF, "On leaving", { shelfUuid: await defaultShelf(ada) });
-    await paperWithCopy(grace, "d".repeat(64), "Another", { shelfUuid: await defaultShelf(grace) });
-    await exec("INSERT INTO copies (uuid, paper_sha256, user_uuid, shelf_uuid, is_author, created_at, updated_at, revision) VALUES (?, ?, ?, ?, 0, ?, ?, 0)",
-      uuid(), PDF, grace.uuid, await defaultShelf(grace), new Date().toISOString(), new Date().toISOString());
-    const at = new Date().toISOString();
-    const room = async (paper: string, cohort: Account[], status = "planning") => {
-      const id = uuid();
-      await exec("INSERT INTO rooms (uuid, paper_sha256, created_by, leader_uuid, status, created_at) VALUES (?, ?, ?, ?, ?, ?)", id, paper, ada.uuid, ada.uuid, status, at);
-      for (const [i, member] of [ada, ...cohort].entries()) {
-        await exec("INSERT INTO room_participants (uuid, room_uuid, user_uuid, created_at) VALUES (?, ?, ?, ?)", uuid(), id, member.uuid, new Date(Date.now() - 10_000 + i * 1000).toISOString());
-      }
-      return id;
-    };
-    // Grace displays the paper, so she can lead; Hidden keeps no copy, so
-    // the second seminar goes back to open; the finished one is history.
-    const handed = await room(PDF, [hidden, grace]);
-    const reopened = await room("d".repeat(64), [hidden]);
-    const finished = await room(PDF, [grace], "finished");
-
-    const closed = await ok("DELETE", "/api/auth/account", { headers: ada.headers, json: { confirm_email: "leaver@example.com" } });
-    expect(closed.removed).toMatchObject({ seminars_handed_on: 1, seminars_reopened: 1, seminars_left: 3 });
-    expect(await row("SELECT leader_uuid, status FROM rooms WHERE uuid = ?", handed)).toEqual({ leader_uuid: grace.uuid, status: "planning" });
-    expect(await row("SELECT leader_uuid, status FROM rooms WHERE uuid = ?", reopened)).toEqual({ leader_uuid: null, status: "open" });
-    expect(await row("SELECT leader_uuid, status FROM rooms WHERE uuid = ?", finished)).toEqual({ leader_uuid: ada.uuid, status: "finished" });
-    expect((await rows("SELECT content FROM notifications WHERE user_uuid = ? AND room_uuid = ?", grace.uuid, handed)).map((n) => n.content)).toEqual([expect.stringContaining("yours to lead now")]);
-    expect((await rows("SELECT content FROM notifications WHERE user_uuid = ? AND room_uuid = ?", hidden.uuid, reopened)).map((n) => n.content)).toEqual([expect.stringContaining("open again")]);
-    expect(await count("room_participants", "user_uuid = ?", ada.uuid)).toBe(0);
   });
 });

@@ -9,7 +9,7 @@ import {
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
 // Bare, it is a tab of the member's own page, which already says Inbox.
-export default function InboxPage({ onOpenRoom, onUnread, bare = false }) {
+export default function InboxPage({ onUnread, bare = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState({}); // uuid -> bool
@@ -88,16 +88,6 @@ export default function InboxPage({ onOpenRoom, onUnread, bare = false }) {
                 </span>
                 <span className="notification-date">{formatWhen(n.created_at)}</span>
               </button>
-              {expanded[n.uuid] && n.room_uuid && (
-                <p className="notification-room-link">
-                  <button
-                    className="link-button"
-                    onClick={() => onOpenRoom(n.room_uuid)}
-                  >
-                    Open the seminar cohort →
-                  </button>
-                </p>
-              )}
             </li>
           ))}
         </ul>

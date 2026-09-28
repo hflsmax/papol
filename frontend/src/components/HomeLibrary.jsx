@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import StatePill from './StatePill';
 
 // The landing page's Library: the jacket of the specimen's paper, with the
 // people who read it and a line from each. The visitor can add a line of
-// their own and call a seminar; nothing leaves the page.
+// their own; nothing leaves the page.
 
 const READERS = [
   { initial: 'M', tint: 0, name: 'Mei', thought: 'The per-residue confidence is what I actually use.' },
@@ -14,7 +13,6 @@ const READERS = [
 export default function HomeLibrary({ beckoning, onTried }) {
   const [draft, setDraft] = useState('');
   const [mine, setMine] = useState(null);
-  const [called, setCalled] = useState(false);
 
   const readers = mine ? [...READERS, { initial: 'Y', tint: 1, name: 'You', thought: mine, own: true }] : READERS;
 
@@ -54,21 +52,6 @@ export default function HomeLibrary({ beckoning, onTried }) {
           <button type="submit" disabled={!draft.trim()}>Add</button>
         </form>
       )}
-      <div className="landing-jacket-seminar">
-        <span>Seminar</span>
-        <StatePill status={called ? 'open' : null} link={false} />
-        {called
-          ? <span>{readers.length} readers notified · waiting for a leader</span>
-          : (
-            <button
-              type="button"
-              className={`landing-call${beckoning === 'seminar' ? ' beckon' : ''}`}
-              onClick={() => { setCalled(true); onTried('seminar'); }}
-            >
-              Call a seminar
-            </button>
-          )}
-      </div>
     </div>
   );
 }

@@ -5,11 +5,10 @@ import { listPapers, paperHref } from '../../../shared/api/papers.js';
 import { listUsers } from '../../../shared/api/people.js';
 import ReaderPop from './ReaderPop';
 import Avatar from './Avatar';
-import StatePill from './StatePill';
 import PaperUpload from './PaperUpload';
 import FolderImport from './FolderImport';
 import { appPath } from '../base';
-import { formatAuthors, newestFirst as newest, seminarRank } from '../paperFormat';
+import { formatAuthors, newestFirst as newest } from '../paperFormat';
 
 const avgMerit = (p) => {
   const rated = p.users
@@ -24,10 +23,6 @@ const avgMerit = (p) => {
 const SELECTED_USER_KEY = 'papol.librarySelectedUser';
 
 const SORTS = {
-  activity: {
-    label: 'Seminar activity',
-    cmp: (a, b) => seminarRank(a) - seminarRank(b) || newest(a, b),
-  },
   newest: { label: 'Newest', cmp: newest },
   users: {
     label: 'Most users',
@@ -60,7 +55,7 @@ export default function PapersPage({
   const [boards, setBoards] = useState(null);
   const [people, setPeople] = useState([]);
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('activity');
+  const [sortBy, setSortBy] = useState('newest');
   // The chosen user chip is remembered for the tab, so opening a paper's
   // jacket and coming back finds the Library still filtered to them.
   const [selectedUser, setSelectedUser] = useState(
@@ -216,20 +211,12 @@ export default function PapersPage({
             {shown.map((paper) => (
               <li key={paper.sha256} className="paper-group">
                 <div className="paper-group-head">
-                  {/* Same arrangement as the nook's rows: the pill beside
-                      the title rather than inside the heading, so it sits
-                      on the title's line instead of riding its baseline. */}
                   <div className="paper-title-row">
                     <h4>
                       <a className="paper-title-link" href={paperHref(paper)}>
                         {paper.title}
                       </a>
                     </h4>
-                    {paper.room_status && paper.room_status !== 'finished' && (
-                      <span className="title-state">
-                        <StatePill status={paper.room_status} />
-                      </span>
-                    )}
                   </div>
                   <p className="paper-meta">
                     {formatAuthors(paper.authors)}

@@ -16,10 +16,7 @@ const DEFAULT_WELCOME =
   "keep private notes and a summary, and share a public " +
   "one-sentence thought. Use the Library to find papers and see " +
   "what other users keep in their nooks, then add papers to " +
-  "your own. When a paper deserves a conversation, call a " +
-  "spontaneous seminar, and every user of it will be invited. " +
-  "Each seminar is run by a host: a user who volunteers to plan " +
-  "it and lead the discussion. Answer a call to host one yourself!";
+  "your own.";
 
 export function authRoutes(router: Router) {
   router.on("POST", "/api/auth/register", async ({ request, env }) => {
@@ -43,7 +40,7 @@ export function authRoutes(router: Router) {
       insert(env.DB, "shelves", { uuid: newUuid(), user_uuid: user.uuid, name: "Display", color: "#7ba26c", is_public: 1, is_default: 1, position: 0, created_at: at, updated_at: at, revision: 0 }),
       insert(env.DB, "shelves", { uuid: newUuid(), user_uuid: user.uuid, name: "Personal", color: "#2b4a6f", is_public: 0, is_default: 0, position: 1, created_at: at, updated_at: at, revision: 0 }),
       insert(env.DB, "tags", { uuid: newUuid(), user_uuid: user.uuid, name: "favourite", created_at: at, updated_at: at, revision: 0 }),
-      insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: (welcome?.value || DEFAULT_WELCOME).replace("{name}", user.display_name), read: 0, emailed: 0, created_at: at }),
+      insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: (welcome?.value || DEFAULT_WELCOME).replace("{name}", user.display_name), read: 0, created_at: at }),
       sessionInsert(env.DB, token, user.uuid, loginPlatform(request)),
     ]);
     return json({ token, user: userPrivate(user as unknown as User) });

@@ -371,8 +371,7 @@ button:disabled {
    new pop joins this list — or wears .pop-surface outright — instead of
    restating the costume; a member states only its own deviation (an accent
    border, a pill radius) beside its geometry. */
-.card-surface, .panel, .auth-card, .seminar-card, .announce-card,
-.discussion-card, .stage-card, .learn-lesson, .board-staging-card,
+.card-surface, .panel, .auth-card, .learn-lesson, .board-staging-card,
 .pop-surface,
 .chip-pop, .share-menu, .tag-dropdown, .shelf-palette,
 .board-actions-popover, .board-selection-menu, .board-new-hint,
@@ -396,8 +395,8 @@ button:disabled {
 
 /* A chip: something small enough to sit in a line, rounded to a pill so
    it reads as an object, not a word of the sentence around it. */
-.chip, .nook-chip, .participant-chip, .tag-chip, .join-chip,
-.user-filter, .style-tag, .author-tag {
+.chip, .nook-chip, .tag-chip,
+.user-filter, .author-tag {
   display: inline-flex;
   box-shadow: none;
   align-items: center;
@@ -426,7 +425,7 @@ button:disabled {
 /* A user without a picture shows their initial on a colour of their
    own, so two initials are told apart at a glance. Two classes, so these
    beat the plain size classes but still yield to role colouring such as
-   the leader's gold below. */
+   an author's gold. */
 .avatar-initial.avatar-tint-0 { background: var(--identity-0); }
 .avatar-initial.avatar-tint-1 { background: var(--identity-1); }
 .avatar-initial.avatar-tint-2 { background: var(--identity-2); }
@@ -441,8 +440,7 @@ button:disabled {
 }
 
 /* A meta line: when or by whom, quiet under the thing it describes. */
-.meta, .comment-date, .notification-date, .room-message-time,
-.seminar-card-date {
+.meta, .comment-date, .notification-date {
   color: var(--ink-faint);
   font-size: var(--fs-xs);
 }
@@ -483,7 +481,7 @@ button:disabled {
    every stripped control; hover repainting stays each member's business. */
 .bare,
 .switch-toggle, .paper-browser-toggle, .tag-input, .rating-clear,
-.back-button, .icon-button, .collapse-button, .chip-x,
+.back-button, .icon-button,
 .notification-toggle, .delete-comment-button, .board-booklet-spine,
 .board-group-more, .board-group-arrange button, .board-notice button,
 .shelf-name-input, .notice-banner-link, .admin-sort,
@@ -582,7 +580,7 @@ button:disabled {
 
 /* One writing field, wherever writing happens: a Desk form, the feedback
    sheet, the send-to-board box. */
-.form-group input, .form-group textarea, .room-textarea,
+.form-group input, .form-group textarea,
 .feedback-field input, .feedback-field textarea,
 .send-selection-field textarea {
   width: 100%;
@@ -595,7 +593,7 @@ button:disabled {
   font-family: inherit;
 }
 
-.form-group input:focus, .form-group textarea:focus, .room-textarea:focus,
+.form-group input:focus, .form-group textarea:focus,
 .feedback-field input:focus, .feedback-field textarea:focus,
 .send-selection-field textarea:focus {
   outline: none;
@@ -603,7 +601,7 @@ button:disabled {
   box-shadow: 0 0 0 2px var(--focus-soft);
 }
 
-.form-group textarea, .room-textarea,
+.form-group textarea,
 .feedback-field textarea, .send-selection-field textarea {
   resize: vertical;
 }

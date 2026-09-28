@@ -1,4 +1,4 @@
-import { newestFirst, seminarRank } from './paperFormat.js';
+import { newestFirst } from './paperFormat.js';
 import { paperName } from '../../shared/paperName.js';
 
 // What Papol macOS's paper browser is showing, how that is written in a URL,
@@ -64,13 +64,12 @@ export function tagOf(listing, nook) {
   return (nook?.tags || []).find((tag) => `tag:${tag.uuid}` === listing) || null;
 }
 
-// The papers a listing lists, in its order: the nook newest first, the library
-// with live seminars on top. A shelf or tag the nook no longer has lists the
+// The papers a listing lists, newest first. A shelf or tag the nook no longer has lists the
 // whole nook rather than nothing.
 export function papersInListing(listing, { nook, library }) {
   if (listing === 'boards') return [];
   if (listing === 'library') {
-    return [...(library || [])].sort((a, b) => seminarRank(a) - seminarRank(b) || newestFirst(a, b));
+    return [...(library || [])].sort(newestFirst);
   }
   const shelf = shelfOf(listing, nook);
   const tag = tagOf(listing, nook);
