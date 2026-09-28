@@ -56,8 +56,7 @@ export const talkStyles = `
 .talk-card-owners button .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .talk-card-owners button:hover:not(:disabled) { border-color: var(--line); background: none; color: var(--ink); }
 .talk-card-owners button.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
-.talk-card-owners button.talk-card-dig { padding: 2px 6px; }
-.talk-card-owners button.talk-card-dig svg { width: 16px; height: 16px; }
+.talk-card-owners button.talk-card-yours:not(.is-on) { border-style: dashed; border-color: var(--line-strong); }
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
 .talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .talk-posts { margin: 0; padding: 0 0 var(--space-1); list-style: none; }
