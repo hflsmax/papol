@@ -114,6 +114,11 @@ export function removeDig(uuid) {
   return request(`/digs/${uuid}`, { method: 'DELETE' });
 }
 
+// Anyone in the project moves a dig from one phase to another.
+export function moveDig(uuid, phase) {
+  return jsonRequest(`/digs/${uuid}/phase`, 'PUT', { phase });
+}
+
 export function getDig(uuid) {
   return request(`/digs/${uuid}`);
 }

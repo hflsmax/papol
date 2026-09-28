@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, TalkGlyph, TalkOpener, when } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, TalkGlyph, TalkOpener, phaseWord, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   annotationViewerPath, briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
@@ -439,8 +439,12 @@ function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
 // Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', card: 'Card', annotation: 'Annotation' };
 
+// Digs still digging lead; stashed, gold and buried ones follow, each by
+// latest writing.
+const PHASE_ORDER = { digging: 0, stashed: 1, gold: 2, buried: 3 };
+
 function ProjectTalk({ project, currentUser, onTalked, onRead }) {
-  const discussions = project.digs ?? [];
+  const discussions = [...(project.digs ?? [])].sort((a, b) => (PHASE_ORDER[a.phase] ?? 0) - (PHASE_ORDER[b.phase] ?? 0));
   const wide = useWide();
   // On a wide window the list stays put and the dig opens beside it: on
   // arrival the first unread one, else the latest; read when the selection
@@ -470,7 +474,10 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
     return (
       <>
         <span className="project-talk-subject">
-          <span className="project-card-kind">{SUBJECT_WORDS[kind]}{d.owner && <> · {d.is_mine ? 'Yours' : d.owner.display_name}</>}</span>
+          <span className="project-card-kind">
+            {SUBJECT_WORDS[kind]}{d.owner && <> · {d.is_mine ? 'Yours' : d.owner.display_name}</>}
+            {d.phase && d.phase !== 'digging' && <span className={`project-talk-phase is-${d.phase}`}>{phaseWord(d.phase)}</span>}
+          </span>
           <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
         </span>
         <span className="project-talk-meta">
@@ -492,13 +499,13 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
               {wide ? (
                 <button
                   type="button" data-dig={d.uuid} aria-pressed={shown?.uuid === d.uuid}
-                  className={`project-talk-item${d.is_new ? ' is-new' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
+                  className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}${shown?.uuid === d.uuid ? ' is-selected' : ''}`}
                   onClick={() => pick(d.uuid)}
                 >
                   {row(d)}
                 </button>
               ) : (
-                <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}`}>{row(d)}</TalkOpener>
+                <TalkOpener {...opener(d)} className={`project-talk-item${d.is_new ? ' is-new' : ''}${d.phase === 'buried' ? ' is-buried' : ''}`}>{row(d)}</TalkOpener>
               )}
             </li>
           ))}

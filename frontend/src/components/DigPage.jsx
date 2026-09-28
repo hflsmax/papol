@@ -3,7 +3,7 @@ import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ItemActions from '../../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, TalkGlyph, when } from '../../../shared/ui/Talk.jsx';
+import { PhasePicker, TalkCard, TalkGlyph, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   deletePost, editPost, editDig, removeDig, getDig, postInDig,
@@ -23,7 +23,7 @@ const POST_LIMIT = appLimits.text.dig_post;
 
 // What the dig is about, and the ways out of it: the project, and the
 // thing itself, at its brief or on its board.
-function Subject({ project, subject, posts = [], count = 0 }) {
+function Subject({ project, subject, posts = [], count = 0, children }) {
   const projectHref = appPath(`/project/${project.uuid}`);
   const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
     : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
@@ -44,7 +44,7 @@ function Subject({ project, subject, posts = [], count = 0 }) {
       )}
       <aside className="dig-rail">
         <ProjectWay project={project} />
-        <p className="dig-kind"><TalkGlyph />{word}</p>
+        <p className="dig-kind"><TalkGlyph />{word}{children}</p>
         <h2 className="dig-subject-title">
           {home ? (
             <a href={home}>
@@ -242,7 +242,9 @@ export function DigPage({ digUuid, currentUser, onBack, backHref }) {
   );
   return (
     <div className="discussion-page dig-page">
-      <Subject project={discussion.project} subject={discussion.subject} posts={entries} count={discussion.posts.length} />
+      <Subject project={discussion.project} subject={discussion.subject} posts={entries} count={discussion.posts.length}>
+        <PhasePicker dig={discussion} onMoved={setDiscussion} />
+      </Subject>
       <div className="dig-main">
         {notice && <div className="error" role="alert">{notice}</div>}
         <ol className="discussion-posts">

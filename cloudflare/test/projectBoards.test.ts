@@ -110,6 +110,19 @@ describe("digs", () => {
     expect(onPaper.mine).toBe(dug.uuid);
     expect(onPaper.digs.map((d: { uuid: string }) => d.uuid).sort()).toEqual([dug.uuid, danas.uuid].sort());
 
+    // Anyone in the project moves a dig through its phases, and only that
+    // moves it. A dig that is not digging raises no news.
+    expect(dug.phase).toBe("digging");
+    expect((await ok("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "stashed" } })).phase).toBe("stashed");
+    await ok("POST", `/api/digs/${danas.uuid}/posts`, { headers: dana.headers, json: { body: "Still worth it." } });
+    const stashed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs.find((d: { uuid: string }) => d.uuid === danas.uuid);
+    expect(stashed).toMatchObject({ phase: "stashed", unread: 0, is_new: false });
+    for (const phase of ["gold", "buried", "digging"]) {
+      expect((await ok("PUT", `/api/digs/${danas.uuid}/phase`, { headers: dana.headers, json: { phase } })).phase).toBe(phase);
+    }
+    expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "done" } })).status).toBe(422);
+    expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: sam.headers, json: { phase: "gold" } })).status).toBe(403);
+
     expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(403);
     expect((await call("POST", `/api/digs/${dug.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(403);
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, text: "x" } })).status).toBe(404);
