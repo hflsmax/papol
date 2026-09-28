@@ -5416,8 +5416,6 @@ ${talkStyles}
 .brief-dig .talk-card.is-inline .talk-card-header { min-height: 0; padding: 0 0 var(--space-2); border-bottom: 0; background: none; }
 /* The dig's head is a section head, like Takes beside it. */
 .brief-dig .talk-card.is-inline .talk-card-header { align-items: baseline; }
-.brief-dig .talk-card.is-inline .talk-card-kind { color: var(--ink); font: 600 var(--fs-lg) var(--font-serif); letter-spacing: 0; text-transform: none; }
-.brief-dig .talk-card.is-inline .talk-card-kind i { display: none; }
 /* Posts are read, not skimmed: body size and leading, parted by space. */
 .brief-dig .talk-post { padding-top: var(--space-3); padding-bottom: var(--space-3); }
 .brief-dig .talk-post + .talk-post { border-top: 0; }

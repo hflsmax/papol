@@ -29,6 +29,8 @@ const SHOTS = {
   'desk-invite': { ...desk('papers', '#project-people .project-invite', "document.querySelector('.project-invite-open').click(); return true;"), size: wide },
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
   brief: { path: `/project/${PROJECT}/paper/${paper}`, ready: "document.querySelector('.brief-page .talk-post')", size: wide },
+  'brief-post-actions': { path: `/project/${PROJECT}/paper/${paper}`, ready: "document.querySelector('.brief-page .talk-post.is-mine .item-actions button')", then: "document.querySelector('.brief-page .talk-post.is-mine .item-actions').style.visibility = 'visible'; return true;", size: wide },
+  'brief-post-edit': { path: `/project/${PROJECT}/paper/${paper}`, ready: "document.querySelector('.brief-page .talk-post.is-mine .item-actions button')", then: "document.querySelector('.brief-page .talk-post.is-mine .item-actions button[aria-label=\"Edit\"], .brief-page .talk-post.is-mine .item-actions button').click(); return true;", settled: "document.querySelector('.talk-post-edit textarea')", size: wide },
   dig: { path: `/dig/${DIG_PAPER}`, ready: "document.querySelector('.discussion-post')", size: wide },
   // A member's face on a paper's row, and where it leads: their nook.
   'face-nook': { ...desk('papers', '.project-paper .face-link', "document.querySelector('.project-paper .face-link[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },

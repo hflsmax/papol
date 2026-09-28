@@ -41,12 +41,9 @@ export const talkStyles = `
 @keyframes talk-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin { transition: none; } }
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
-.talk-card-kind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.talk-card-kind i { display: inline-grid; place-items: center; color: var(--accent-strong); }
-.talk-card-kind i .talk-glyph { width: 15px; height: 15px; }
 .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
-.dig-phase { margin-left: auto; text-transform: none; letter-spacing: 0; min-height: 24px; padding: 1px 26px 1px 9px; border: 1px solid var(--line); border-radius: 999px; background-color: transparent; background-position: right 8px center; color: var(--ink-soft); font: 600 var(--fs-2xs) var(--font-ui); cursor: pointer; }
+.dig-phase { margin-left: auto; text-transform: none; letter-spacing: 0; height: 24px; min-height: 0; padding: 2px 26px 0 9px; border: 1px solid var(--line); border-radius: 999px; background-color: transparent; background-position: right 8px center; color: var(--ink-soft); font: 600 var(--fs-2xs)/20px var(--font-ui); cursor: pointer; }
 .dig-phase + .talk-card-close { margin-left: 0; }
 .dig-phase.is-gold { border-color: var(--accent); color: var(--accent-strong); }
 .dig-phase.is-buried { color: var(--ink-faint); }
@@ -70,6 +67,13 @@ export const talkStyles = `
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
 .talk-post.is-new .talk-post-head time::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
+.talk-post-head .item-actions { margin-left: auto; visibility: hidden; }
+.talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
+@media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }
+.talk-post-edit { display: grid; gap: var(--space-1); }
+.talk-post-edit textarea { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
+.talk-post-edit textarea:focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-post-edit-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p, .discussion-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }
