@@ -49,6 +49,7 @@ export const talkStyles = `
 .phase-glyph.is-gold { color: var(--gold); }
 .phase-glyph.is-buried { color: var(--ink-faint); }
 .phase-glyph path.is-solid { fill: currentColor; stroke-width: 1; }
+.phase-glyph path.is-tinted { fill: currentColor; fill-opacity: .28; }
 .phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* The phase and, pressed, the four phases in a list dropped under it. */
 .dig-phase-pick { position: relative; display: inline-flex; flex: none; margin-left: auto; }

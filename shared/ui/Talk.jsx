@@ -34,25 +34,26 @@ export const PHASES = [
 export const phaseWord = (phase) => PHASES.find((p) => p.key === phase)?.word ?? 'Digging';
 
 // One glyph per phase, drawn like the spade: the spade in the ground while
-// digging, a box for what is stashed, a bar of gold, a headstone for
-// what is buried. Each has its own colour: green while it grows, navy when
-// put away, gold, and grey underground.
-// Gold's glint, drawn solid.
-const GLINT = 'M18.5 2.5c.3 1.6 1 2.3 2.5 2.6-1.5.3-2.2 1-2.5 2.6-.3-1.6-1-2.3-2.5-2.6 1.5-.3 2.2-1 2.5-2.6Z';
+// digging, a box for what is stashed, stacked ingots for gold, a headstone
+// for what is buried. Each has its own colour: green while it grows, blue
+// when put away, gold, and grey underground. Gold's glint is drawn solid.
+const GLINT = 'M19.5 1.8c.3 1.5.9 2.1 2.3 2.4-1.4.3-2 .9-2.3 2.4-.3-1.5-.9-2.1-2.3-2.4 1.4-.3 2-.9 2.3-2.4Z';
+// Gold's three ingots, tinted with their colour.
+const INGOTS = 'M1.8 21h9.6l-1.7-6H3.5ZM12.6 21h9.6l-1.7-6h-6.2ZM7.2 14h9.6l-1.7-6H8.9Z';
 const PHASE_PATHS = {
   digging: ['M3 16.5h4.6M16.4 16.5H21', 'M12 4.2v4.3M9.6 2.2h4.8v2H9.6Z', 'M7.5 8.5h9v4c0 2.6-2 4.8-4.5 6-2.5-1.2-4.5-3.4-4.5-6Z'],
   stashed: ['M3.5 6h17v4h-17Z', 'M5 10h14v8.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5Z', 'M10 13.5h4'],
-  gold: ['M3.5 19h17l-3.2-8.5H6.7Z', 'M7.4 14.5h9.2', GLINT],
+  gold: [INGOTS, GLINT],
   buried: ['M3.5 20h17', 'M7.5 20V10a4.5 4.5 0 0 1 9 0v10', 'M10.5 12.5h3'],
 };
 // Each drawing moved to sit on the middle of its box, so every glyph lines
 // up with the word beside it.
-const PHASE_NUDGE = { digging: 1.6, stashed: -1, gold: 1, buried: -0.8 };
+const PHASE_NUDGE = { digging: 1.6, stashed: -1, gold: 0.5, buried: -0.8 };
 export function PhaseGlyph({ phase }) {
   return (
     <svg className={`phase-glyph is-${PHASE_PATHS[phase] ? phase : 'digging'}`} viewBox="0 0 24 24" aria-hidden="true">
       <g transform={`translate(0 ${PHASE_NUDGE[phase] ?? 0})`}>
-        {(PHASE_PATHS[phase] ?? PHASE_PATHS.digging).map((d) => <path key={d} d={d} className={d === GLINT ? 'is-solid' : undefined} />)}
+        {(PHASE_PATHS[phase] ?? PHASE_PATHS.digging).map((d) => <path key={d} d={d} className={d === GLINT ? 'is-solid' : d === INGOTS ? 'is-tinted' : undefined} />)}
       </g>
     </svg>
   );
