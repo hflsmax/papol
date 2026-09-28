@@ -67,6 +67,13 @@ export const talkStyles = `
 .talk-post-head b { color: var(--ink); font-weight: 600; }
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
 .talk-post.is-new .talk-post-head time::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
+.talk-post-head .item-actions { margin-left: auto; visibility: hidden; }
+.talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
+@media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }
+.talk-post-edit { display: grid; gap: var(--space-1); }
+.talk-post-edit textarea { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
+.talk-post-edit textarea:focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-post-edit-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p, .discussion-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul), .discussion-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }

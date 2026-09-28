@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  findDigs, getDig, moveDig, postInDig, startDig, subjectKey,
+  deletePost, editDig, editPost, findDigs, getDig, moveDig, postInDig, removeDig, startDig, subjectKey,
 } from '../api/projects.js';
 import appLimits from '../appLimits.js';
+import { confirmAction } from '../confirmAction';
+import ItemActions from './ItemActions.jsx';
 import ActionGlyph from './ActionGlyph.jsx';
 import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
@@ -219,6 +221,7 @@ export function TalkCard({
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [spot, setSpot] = useState(null);
+  const [editing, setEditing] = useState(null);
   const card = useRef(null);
   const list = useRef(null);
   const box = useRef(null);
@@ -255,9 +258,16 @@ export function TalkCard({
     if (inline) return undefined;
     const away = (e) => {
       if (card.current?.contains(e.target) || anchor.current?.contains(e.target)) return;
+      // Answering "Delete this?" is not leaving the card.
+      if (e.target.closest?.('.papol-confirm-overlay')) return;
       onClose();
     };
-    const escape = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    // Escape while rewording drops the edit, not the card.
+    const escape = (e) => {
+      if (e.key !== 'Escape' || e.target.closest?.('.talk-post-edit')) return;
+      e.stopPropagation();
+      onClose();
+    };
     document.addEventListener('pointerdown', away, true);
     document.addEventListener('keydown', escape, true);
     return () => { document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', escape, true); };
@@ -305,6 +315,58 @@ export function TalkCard({
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // The pin counts every dig on its thing and every post, this dig as it
+  // now stands.
+  const report = (next, all = digs) => {
+    if (!onHome) return;
+    const others = all.filter((d) => d.uuid !== next?.uuid);
+    onChanged?.(next, next
+      ? { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) }
+      : undefined);
+  };
+
+  // Its writer rewords a post, or its owner the dig's own words.
+  const save = async () => {
+    const text = editing?.body.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const next = editing.uuid === discussion.uuid ? await editDig(editing.uuid, text) : await editPost(editing.uuid, text);
+      setDiscussion(next);
+      setEditing(null);
+      report(next);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Taking back a post leaves the dig; removing the dig takes its posts,
+  // and the card moves on to the next dig on the thing, if any.
+  const remove = async (post) => {
+    const whole = post.uuid === discussion.uuid;
+    if (!(await confirmAction(whole ? 'Remove this dig and its posts?' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
+    setError(null);
+    try {
+      if (!whole) {
+        const next = await deletePost(post.uuid);
+        setDiscussion(next);
+        report(next);
+        return;
+      }
+      await removeDig(post.uuid);
+      const rest = digs.filter((d) => d.uuid !== post.uuid);
+      setDigs(rest);
+      const after = rest.length ? await getDig(rest[rest.length - 1].uuid) : null;
+      report(after, rest);
+      setTopic({ ...topic, dig: after ? after.uuid : 'mine' });
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -379,8 +441,33 @@ export function TalkCard({
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
                     <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
+                    {editing?.uuid !== post.uuid && (post.is_mine || discussion.can_moderate) && (
+                      <ItemActions
+                        label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}
+                        placement="below-end"
+                        actions={[
+                          post.is_mine && { key: 'edit', label: 'Edit', icon: <ActionGlyph name="edit" />, onSelect: () => setEditing({ uuid: post.uuid, body: post.body }) },
+                          { key: 'delete', label: 'Delete', danger: true, icon: <ActionGlyph name="trash" />, onSelect: () => remove(post) },
+                        ].filter(Boolean)}
+                      />
+                    )}
                   </p>
-                  <Markdown className="talk-post-body" text={post.body} />
+                  {editing?.uuid === post.uuid ? (
+                    <form className="talk-post-edit" onSubmit={(e) => { e.preventDefault(); save(); }}>
+                      <textarea
+                        rows={Math.min(14, Math.max(3, Math.ceil(editing.body.length / 110) + editing.body.split('\n').length))} value={editing.body} maxLength={POST_LIMIT} aria-label="Edit" autoFocus
+                        onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+                          if (e.key === 'Escape') { e.stopPropagation(); setEditing(null); }
+                        }}
+                      />
+                      <span className="talk-post-edit-foot">
+                        <button type="button" className="project-quiet" onClick={() => setEditing(null)}>Cancel</button>
+                        <button type="submit" className="primary" disabled={!editing.body.trim() || busy}>Save</button>
+                      </span>
+                    </form>
+                  ) : <Markdown className="talk-post-body" text={post.body} />}
                 </li>
               ))}
             </ol>
