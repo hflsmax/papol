@@ -67,6 +67,10 @@ export class Browser {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-gpu',
+      // A headless Chrome on a machine with no mouse tells pages it has no
+      // hover (hover: none), and the viewer lays itself out for a touch
+      // screen. These are pictures and smokes of a desk: a mouse, fine.
+      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4',
       'about:blank',
     ];
     if (this.headless) args.unshift('--headless=new');
