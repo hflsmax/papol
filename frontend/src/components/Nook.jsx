@@ -18,7 +18,7 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
-export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, onOpenCanvas }) {
+export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, onSelectShelf, onOpenCanvas }) {
   const [nook, setNook] = useState(null);
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
@@ -125,6 +125,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           reviewing={reviewingUpload}
           onSelectBoard={onSelectBoard}
           board={board}
+          shelf={shelf}
+          onSelectShelf={onSelectShelf}
           onOpenCanvas={onOpenCanvas}
           onChanged={loadNook}
           onManage={() => setManagingShelves(true)}
