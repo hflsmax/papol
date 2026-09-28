@@ -273,8 +273,9 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
 }
 
 // Inline, the card is part of a page (a paper's brief) rather than a
-// popover: it is not placed, closes on nothing, and waits to be written in.
-export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false }) {
+// popover: it is not placed, closes on nothing, and opens at its first post,
+// the one that says what the dig is about.
+export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false }) {
   const [topic, setTopic] = useState({ subject, label });
   const [from, setFrom] = useState(null);
   const [drift, setDrift] = useState(startDrift);
@@ -327,10 +328,11 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
   useEffect(() => {
     if (discussion === undefined || drift) return;
     const field = box.current;
-    if (!inline || body) field?.focus({ preventScroll: true });
+    if (!inline || body || focus) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
-    if (list.current) list.current.scrollTop = list.current.scrollHeight;
+    if (list.current && !inline) list.current.scrollTop = list.current.scrollHeight;
   }, [discussion, drift]);
+  const toEnd = () => requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight; });
 
   // Dug into: the card moves to the new thing, with the post quoted to
   // start from. The pointer back is left once the first post is sent.
@@ -357,6 +359,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
       const next = !discussion ? await startDiscussion(projectUuid, topic.subject, text) : await replyToDiscussion(discussion.uuid, text);
       setDiscussion(next);
       setBody('');
+      toEnd();
       if (onHome) onChanged?.(next);
       if (from?.pending && from.uuid) {
         const back = await replyToDiscussion(from.uuid, `Dug into [${topic.label.replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
@@ -450,7 +453,7 @@ export function TalkCard({ anchor, projectUuid, subject, label, currentUser, onC
             rows={body ? 4 : posts.length ? 2 : 3}
             value={body}
             maxLength={POST_LIMIT}
-            placeholder={posts.length ? 'Reply' : 'Start the dig'}
+            placeholder={posts.length ? 'Reply' : 'Post'}
             aria-label="Your post"
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}

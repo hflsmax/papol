@@ -5910,13 +5910,19 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-takes-toggle:hover:not(:disabled) { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
 .project-takes-toggle:hover .project-faces .mini-avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
 .project-takes { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: var(--space-2); align-items: baseline; }
-.project-take-talk { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+.project-take { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
+/* A take's pin sits on its name line, right after the ratings. */
+.project-take-who .talk-pin-wrap { align-self: center; margin-left: calc(-1 * var(--space-2)); }
+.project-take-who .talk-pin { height: 20px; min-width: 20px; }
+.project-take.is-composing .project-thought-form { grid-column: 2; margin-top: var(--space-1); }
 .project-take .mini-avatar { grid-row: 1 / span 2; align-self: start; }
 .project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-take-who b { color: var(--ink-soft); font-weight: 600; }
 .project-take-thought { grid-column: 2; margin: 2px 0 0; color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); }
-.project-thought-form { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-2); }
+.project-thought-form { display: flex; align-items: center; gap: var(--space-2); }
+.project-thought-form { flex-wrap: wrap; }
+.project-thought-form input { flex: 1; }
+.project-thought-form .project-thought-note { flex-basis: 100%; }
 .project-thought-form input, .project-board-name { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-thought-form input:focus, .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
 .project-thought-form button:not(.project-quiet) { padding: var(--space-1) var(--space-3); }
@@ -5953,12 +5959,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .project-thought-form { row-gap: var(--space-2); }
-  .project-thought-form input { grid-column: 2 / -1; }
-  .project-thought-form button { grid-row: 2; }
-  .project-thought-form button.project-quiet { grid-column: 3; }
-  .project-thought-form button:not(.project-quiet) { grid-column: 4; }
-  .project-thought-note { grid-row: 3; }
+  .project-thought-form input { flex-basis: 100%; }
 }
 
 /* Talk: one pin and one card for discussing anything in a project. The pin
@@ -6090,12 +6091,29 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-layout { display: grid; gap: var(--space-6); }
 .brief-main { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .brief-main .project-takes { margin-bottom: var(--space-4); }
+.brief-dig-start { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid transparent; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+.brief-dig-start:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--accent-soft); color: var(--accent); }
+.brief-dig-start .talk-glyph { width: 19px; height: 19px; }
+.brief-dig-choices { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
+.brief-dig-choice { padding: 3px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
+.brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
 .brief-boards { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .brief-boards a { display: inline-block; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-ui); text-decoration: none; }
 .brief-boards a:hover { border-color: var(--accent); color: var(--accent); }
 @container (min-width: 760px) {
-  .brief-layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+  .brief-layout:not(.is-single) { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
   .brief-dig { position: sticky; top: var(--space-4); }
+  /* Room below for the Feedback button in the corner. */
+  .brief-dig .talk-card.is-inline { max-height: calc(100vh - 2 * var(--space-4) - 56px); }
+  [data-shell='desktop'] .brief-dig .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
+}
+/* In one column the dig flows with the page: no scroll inside a scroll. */
+@container (max-width: 759px) {
+  .brief-dig .talk-card.is-inline { max-height: none; }
+  .brief-dig .talk-card.is-inline .talk-card-body { overflow: visible; }
+  .brief-page { margin-bottom: 56px; }
 }
 
 /* One discussion: its subject, its posts, and room to write at length. */

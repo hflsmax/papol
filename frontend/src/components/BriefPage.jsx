@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, TalkOpener, TalkPin, when } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, TalkGlyph } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { getProject, removePaperFromProject } from '../../../shared/api/projects.js';
 import { addToNook, getPaper, updatePaper } from '../../../shared/api/papers.js';
@@ -13,7 +13,7 @@ import { DESKTOP } from '../../../shared/desktopShell';
 import { formatAuthors } from '../paperFormat.js';
 import Avatar from './Avatar';
 import { RATING_DIMENSIONS } from './Rating';
-import { SectionHead, firstName, markArrivals } from './ProjectPage';
+import { SectionHead, firstName, markArrivals, plural } from './ProjectPage';
 
 // A take shows the two ratings a project compares by; expertise is the
 // reader's own, not the paper's.
@@ -28,13 +28,16 @@ function day(iso) {
 
 // A paper's brief: the paper as one project sees it. Where the Library's
 // jacket says what the paper is, the brief says what this group makes of
-// it: every member's take, the dig about it open beside them, the digs on
-// their thoughts, the boards it is on, and who brought it in.
+// it: every member's take, the dig about it open beside them (or about a
+// thought, picked by its pin), the boards it is on, and who brought it in.
 export default function BriefPage({ projectUuid, paper: name, currentUser, onBack, backHref, onRead, onRemoved }) {
   const [project, setProject] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [writing, setWriting] = useState(false);
+  const [digOn, setDigOn] = useState(null);
+  const [digOpen, setDigOpen] = useState(false);
+  const aside = useRef(null);
 
   const load = useCallback(() => getProject(projectUuid).then((next) => setProject(markArrivals(projectUuid, next))), [projectUuid]);
   useEffect(() => { load().catch((err) => setError(err.message)); }, [load]);
@@ -73,6 +76,51 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const viewer = appPath(`/viewer/?pdf=${paper.sha256}`);
   const talk = new Map((project.discussions ?? []).map((d) => [d.subject.key, d]));
   const onThoughts = (project.discussions ?? []).filter((d) => d.subject.kind === 'take' && d.subject.paper_sha256 === paper.sha256 && d.last_post);
+  // One dig shows at a time beside the takes: the paper's, or a thought's
+  // picked by its pin. The column appears once there is a dig to show.
+  const paperKey = `paper:${paper.sha256}`;
+  const takeKey = (user) => `take:${paper.sha256}:${user.uuid}`;
+  const takeLabel = (entry) => (entry.thought ? `“${entry.thought}”` : `${nameOf(entry.user)}’s take on ${paper.title}`);
+  const whose = (key) => paper.users.find((u) => takeKey(u.user) === key);
+  const labelOf = (key) => (key === paperKey ? paper.title : takeLabel(whose(key)));
+  const hasDig = (key) => (talk.get(key)?.post_count ?? 0) > 0;
+  // Until one is picked, the paper's own dig, or else the first thought's.
+  const shown = digOn ?? (hasDig(paperKey) || digOpen || !onThoughts.length ? paperKey : onThoughts[0].subject.key);
+  const withDig = hasDig(paperKey) || digOpen || digOn !== null || onThoughts.length > 0;
+  const choices = [paperKey, ...onThoughts.map((d) => d.subject.key), ...(digOn && digOn !== paperKey && !talk.get(digOn)?.last_post ? [digOn] : [])];
+  const choiceName = (key) => {
+    if (key === paperKey) return 'Paper';
+    const entry = whose(key);
+    return entry ? `${isMe(entry.user) ? 'Your' : `${firstName(entry.user)}’s`} thought` : 'Thought';
+  };
+  const openDig = (key) => {
+    setDigOn(key);
+    setDigOpen(true);
+    requestAnimationFrame(() => {
+      const box = aside.current?.getBoundingClientRect();
+      if (box && (box.top > window.innerHeight || box.bottom < 0)) aside.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  };
+  const pinFor = (entry) => {
+    const key = takeKey(entry.user);
+    const summary = talk.get(key);
+    const count = summary?.post_count ?? 0;
+    return (
+      <span className="talk-pin-wrap talk-sm">
+        <button
+          type="button"
+          className={`talk-pin${count ? '' : ' is-empty'}${summary?.is_new ? ' is-new' : ''}${shown === key ? ' is-open' : ''}`}
+          aria-pressed={shown === key}
+          aria-label={count ? `${plural(count, 'post', 'posts')} about ${takeLabel(entry)}. Open the dig` : `Dig into ${takeLabel(entry)}`}
+          title={count ? plural(count, 'post', 'posts') : 'Dig into this'}
+          onClick={() => openDig(key)}
+        >
+          <TalkGlyph outline={!count} />
+          {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
+        </button>
+      </span>
+    );
+  };
   const boards = (project.boards ?? []).filter((b) => paper.board_uuids?.includes(b.uuid));
   const talked = () => { load().catch(() => {}); };
 
@@ -117,7 +165,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
       </header>
       {notice && <div className="error" role="alert">{notice}</div>}
 
-      <div className="brief-layout">
+      <div className={`brief-layout${withDig ? '' : ' is-single'}`}>
         <div className="brief-main">
           <section className="project-section" aria-labelledby="brief-takes-heading">
             <SectionHead
@@ -126,72 +174,52 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                 <button type="button" className="project-board-start" onClick={() => setWriting(true)}><ActionGlyph name="edit" />Edit your thought</button>
               )}
             />
-            {takes.length > 0 && (
-              <ul className="project-takes">
-                {takes.map((entry) => {
-                  if (isMe(entry.user) && writing) return null;
-                  const subject = `take:${paper.sha256}:${entry.user.uuid}`;
-                  return (
-                    <li key={entry.user.uuid} className="project-take talk-host">
-                      <Avatar user={entry.user} className="mini-avatar" />
-                      <p className="project-take-who">
-                        <b>{nameOf(entry.user)}</b>
-                        {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
-                          <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
-                        ))}
-                      </p>
-                      {entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
-                      <span className="project-take-talk">
-                        <TalkPin
-                          projectUuid={project.uuid} subject={subject} summary={talk.get(subject)} currentUser={currentUser} onChanged={talked} size="sm"
-                          label={entry.thought ? `“${entry.thought}”` : `${nameOf(entry.user)}’s take on ${paper.title}`}
-                        />
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {(!myTake?.thought || writing) && (
-              <ThoughtComposer
-                key={paper.sha256}
-                paper={paper}
-                currentUser={currentUser}
-                initial={myTake?.thought ?? ''}
-                autoFocus={writing}
-                onCancel={writing ? () => setWriting(false) : null}
-                onSave={async (thought) => { const ok = await share(thought); if (ok) setWriting(false); return ok; }}
-              />
+            <ul className="project-takes">
+              {takes.map((entry) => {
+                const mine = isMe(entry.user);
+                const composing = mine && (writing || !entry.thought);
+                return (
+                  <li key={entry.user.uuid} className={`project-take talk-host${composing ? ' is-composing' : ''}`}>
+                    <Avatar user={entry.user} className="mini-avatar" />
+                    <p className="project-take-who">
+                      <b>{nameOf(entry.user)}</b>
+                      {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
+                        <span key={d.key} title={d.hint}>{d.label} {entry[d.key]}/5</span>
+                      ))}
+                      {!composing && pinFor(entry)}
+                    </p>
+                    {composing ? (
+                      <ThoughtComposer
+                        key={paper.sha256}
+                        paper={paper}
+                        initial={myTake?.thought ?? ''}
+                        autoFocus={writing}
+                        onCancel={writing ? () => setWriting(false) : null}
+                        onSave={async (thought) => { const ok = await share(thought); if (ok) setWriting(false); return ok; }}
+                      />
+                    ) : entry.thought && <p className="project-take-thought">“{entry.thought}”</p>}
+                  </li>
+                );
+              })}
+              {!takes.some((entry) => isMe(entry.user)) && (
+                <li className="project-take is-composing">
+                  <Avatar user={currentUser} className="mini-avatar" />
+                  <p className="project-take-who"><b>You</b></p>
+                  <ThoughtComposer
+                    key={paper.sha256}
+                    paper={paper}
+                    initial=""
+                    onSave={share}
+                  />
+                </li>
+              )}
+            </ul>
+            {!withDig && (
+              <button type="button" className="brief-dig-start" onClick={() => openDig(paperKey)}>
+                <TalkGlyph outline />Dig
+              </button>
             )}
           </section>
-
-          {onThoughts.length > 0 && (
-            <section className="project-section" aria-labelledby="brief-digs-heading">
-              <SectionHead id="brief-digs-heading" title="Digs on thoughts" count={onThoughts.length} />
-              <ul className="project-talk-list">
-                {onThoughts.map((d) => (
-                  <li key={d.uuid}>
-                    <TalkOpener
-                      projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser} onChanged={talked}
-                      className={`project-talk-item${d.is_new ? ' is-new' : ''}`}
-                    >
-                      <span className="project-talk-subject">
-                        <span className="project-card-kind">{d.subject.by ? `${d.subject.by}’s thought` : 'Thought'}</span>
-                        <span className="project-talk-label">{d.subject.label}</span>
-                      </span>
-                      <span className="project-talk-excerpt">{d.last_post.excerpt}</span>
-                      <span className="project-talk-meta">
-                        <Avatar user={d.last_post.user} className="mini-avatar" />
-                        <b>{isMe(d.last_post.user) ? 'You' : firstName(d.last_post.user)}</b>
-                        <span>{when(d.updated_at)}</span>
-                        {d.is_new && <span className="visually-hidden">New</span>}
-                      </span>
-                    </TalkOpener>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
 
           {boards.length > 0 && (
             <section className="project-section" aria-labelledby="brief-boards-heading">
@@ -209,9 +237,27 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
           </p>
         </div>
 
-        <aside className="brief-dig" aria-label="Dig">
-          <TalkCard inline projectUuid={project.uuid} subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser} onChanged={talked} />
-        </aside>
+        {withDig && (
+          <aside className="brief-dig" aria-label="Dig" ref={aside}>
+            {choices.length > 1 && (
+              <nav className="brief-dig-choices" aria-label="Which dig">
+                {choices.map((key) => (
+                  <button
+                    key={key} type="button" aria-pressed={shown === key}
+                    className={`brief-dig-choice${shown === key ? ' is-on' : ''}${talk.get(key)?.is_new ? ' is-new' : ''}`}
+                    onClick={() => openDig(key)}
+                  >
+                    {choiceName(key)}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <TalkCard
+              key={shown} inline focus={digOpen && !hasDig(shown)}
+              projectUuid={project.uuid} subject={shown} label={labelOf(shown)} currentUser={currentUser} onChanged={talked}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -220,7 +266,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
 // Your one line on a paper, which everyone in the project reads beside it.
 // A thought kept private on your copy is offered back to edit, and saving
 // shares it here.
-function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onSave }) {
+function ThoughtComposer({ paper, initial, autoFocus, onCancel, onSave }) {
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
   const touched = useRef(false);
@@ -242,7 +288,6 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
   };
   return (
     <form className="project-thought-form" onSubmit={save}>
-      <Avatar user={currentUser} className="mini-avatar" />
       <input
         type="text"
         autoFocus={autoFocus}
@@ -254,7 +299,7 @@ function ThoughtComposer({ paper, currentUser, initial, autoFocus, onCancel, onS
         onKeyDown={(e) => { if (e.key === 'Escape' && onCancel) { e.nativeEvent.stopImmediatePropagation(); onCancel(); } }}
       />
       {onCancel && <button type="button" className="project-quiet" onClick={onCancel}>Cancel</button>}
-      <button type="submit" className="primary" disabled={!draft.trim() || busy}>{busy ? 'Saving…' : 'Share'}</button>
+      {draft.trim() && <button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : 'Share'}</button>}
       {!paper.in_my_nook && <p className="project-thought-note">Adds the paper to your nook.</p>}
     </form>
   );
