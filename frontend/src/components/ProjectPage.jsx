@@ -437,7 +437,7 @@ function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
 }
 
 // Every dig, latest first. Each is a card that opens its dig right there.
-export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation' };
+export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation', post: 'Post' };
 
 function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   const discussions = project.discussions ?? [];
@@ -453,7 +453,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   };
   useEffect(() => () => { if (wide && shown) onRead(shown.uuid); }, [wide, shown?.uuid]);
   const opener = (d) => ({
-    projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
+    projectUuid: project.uuid, subject: d.subject.key, label: d.subject.label, dig: d.uuid, currentUser, onChanged: onTalked, onClosed: () => onRead(d.uuid),
   });
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
@@ -470,7 +470,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
     return (
       <>
         <span className="project-talk-subject">
-          <span className="project-card-kind">{SUBJECT_WORDS[kind]}</span>
+          <span className="project-card-kind">{SUBJECT_WORDS[kind]}{d.owner && <> · {d.is_mine ? 'Yours' : d.owner.display_name}</>}</span>
           <span className="project-talk-label"><PaperTitle title={d.subject.label} /></span>
         </span>
         <span className="project-talk-meta">
@@ -514,7 +514,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
           </h3>
           <TalkCard
             key={shown.uuid} inline
-            projectUuid={project.uuid} subject={shown.subject.key} label={shown.subject.label} currentUser={currentUser} onChanged={onTalked}
+            projectUuid={project.uuid} subject={shown.subject.key} label={shown.subject.label} dig={shown.uuid} currentUser={currentUser} onChanged={onTalked}
           />
         </div>
       )}

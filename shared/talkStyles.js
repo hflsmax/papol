@@ -50,6 +50,18 @@ export const talkStyles = `
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
 
+/* Whose dig: a thing holds one per member who started one. */
+.talk-card-owners { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); }
+.talk-card-owners button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 9px 2px 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); }
+.talk-card-owners button .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
+.talk-card-owners button:hover:not(:disabled) { border-color: var(--line); background: none; color: var(--ink); }
+.talk-card-owners button.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
+/* A post's own pin, at the end of its name line: dig what it says. */
+.talk-post-head .talk-post-pin { height: 20px; min-width: 20px; margin-left: auto; }
+.talk-post-head .talk-post-pin .talk-glyph { width: 16px; height: 16px; }
+.talk-post-head .talk-post-pin .talk-count { font-size: var(--fs-2xs); }
+.talk-post:hover .talk-post-pin.is-empty, .talk-post:focus-within .talk-post-pin.is-empty, .talk-post.is-selected .talk-post-pin.is-empty { opacity: .9; }
+
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
 .talk-card-quiet { margin: var(--space-2) 0 var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .talk-posts { margin: 0; padding: 0 0 var(--space-1); list-style: none; }

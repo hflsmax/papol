@@ -75,17 +75,19 @@ export function addIdeaCard(boardUuid, content) {
   return jsonRequest(`/boards/${boardUuid}/comments`, 'POST', { content });
 }
 
-// ---------- Discussions ----------
+// ---------- Digs ----------
 
-// A discussion can be about anything a project holds, named by a key:
+// A dig can be about anything a project holds, named by a key:
 // "paper:<sha256>", "take:<sha256>:<user uuid>", "board:<uuid>",
-// "card:<uuid>" or "annotation:<uuid>". Never the project itself.
+// "card:<uuid>", "annotation:<uuid>" or "post:<uuid>". Never the project
+// itself.
 export function subjectKey(subject) {
   if (typeof subject === 'string') return subject;
   if (subject.paper && subject.user) return `take:${subject.paper}:${subject.user}`;
   if (subject.paper) return `paper:${subject.paper}`;
   if (subject.card) return `card:${subject.card}`;
   if (subject.annotation) return `annotation:${subject.annotation}`;
+  if (subject.post) return `post:${subject.post}`;
   return `board:${subject.board}`;
 }
 
@@ -96,30 +98,33 @@ export function listProjectAnnotations(uuid, paperSha256) {
   return request(`/projects/${uuid}/papers/${paperSha256}/annotations`);
 }
 
-// A subject's discussion, if it has one, and what it is about.
+// Every dig on a subject (one per member who started one), the reader's
+// own among them, and what it is about.
 export function findDiscussion(projectUuid, subject) {
-  return request(`/projects/${projectUuid}/discussion?subject=${encodeURIComponent(subjectKey(subject))}`);
+  return request(`/projects/${projectUuid}/digs?subject=${encodeURIComponent(subjectKey(subject))}`);
 }
 
-// The first post on a subject, or the next one if it has a discussion.
+// A post under a subject, in the writer's own dig on it, which the first
+// one opens.
 export function startDiscussion(projectUuid, subject, body) {
-  return jsonRequest(`/projects/${projectUuid}/discussions`, 'POST', { subject: subjectKey(subject), body });
+  return jsonRequest(`/projects/${projectUuid}/digs`, 'POST', { subject: subjectKey(subject), body });
 }
 
 export function getDiscussion(uuid) {
-  return request(`/discussions/${uuid}`);
+  return request(`/digs/${uuid}`);
 }
 
+// A post in any dig, whoever's it is.
 export function replyToDiscussion(uuid, body) {
-  return jsonRequest(`/discussions/${uuid}/posts`, 'POST', { body });
+  return jsonRequest(`/digs/${uuid}/posts`, 'POST', { body });
 }
 
 export function editDiscussionPost(uuid, body) {
-  return jsonRequest(`/discussion-posts/${uuid}`, 'PUT', { body });
+  return jsonRequest(`/dig-posts/${uuid}`, 'PUT', { body });
 }
 
 export function deleteDiscussionPost(uuid) {
-  return request(`/discussion-posts/${uuid}`, { method: 'DELETE' });
+  return request(`/dig-posts/${uuid}`, { method: 'DELETE' });
 }
 
 // Where talking about a subject leads, as a page of its own.

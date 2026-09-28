@@ -21,6 +21,8 @@ const DIG_CARD = 'e1b2c3d4-0000-4000-8000-000000000041';
 const DIG_BOARD = 'e1b2c3d4-0000-4000-8000-000000000042';
 const DIG_TAKE = 'e1b2c3d4-0000-4000-8000-000000000043';
 const DIG_SURVEY = 'e1b2c3d4-0000-4000-8000-000000000044';
+const DIG_PAPER_BEN = 'e1b2c3d4-0000-4000-8000-000000000045';
+const DIG_POST = 'e1b2c3d4-0000-4000-8000-000000000046';
 
 const user = (uuid, display_name, affiliation) => ({ uuid, display_name, affiliation, avatar_path: null, email: null });
 const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
@@ -95,7 +97,7 @@ const subject = {
   take: { key: `take:${P_LEARN}:${BEN}`, kind: 'take', paper_sha256: P_LEARN, user_uuid: BEN, paper_title: 'Learning wavefront control from few examples', label: '“Worth trying on the bench this month.”', by: 'Ben Hall' },
 };
 
-const post = (uuid, u, body, at, mine = false) => ({ uuid, user: u, body, created_at: at, edited_at: null, is_mine: mine });
+const post = (uuid, u, body, at, mine = false, digs = null) => ({ uuid, user: u, body, created_at: at, edited_at: null, is_mine: mine, can_dig: !mine, digs });
 const errorPosts = [
   post('f0000000-0000-4000-8000-000000000001', ana, `I think Section 3 is where our model breaks, and it matters for the bench plan.
 
@@ -106,7 +108,7 @@ Two things follow:
 1. Their headline 40% gain is an upper bound for us, not an estimate.
 2. If we measure the delay first, we can say how much of the gain we should expect before we spend a week on the controller.
 
-Dana, does that match what you saw in March?`, daysAgo(2)),
+Dana, does that match what you saw in March?`, daysAgo(2), false, { uuid: DIG_POST, mine: DIG_POST, dig_count: 1, post_count: 2, unread: 0, is_new: false, voices: [] }),
   post('f0000000-0000-4000-8000-000000000002', me, `It does. March runs showed the same drift, and I never wrote it down properly, which is on me.
 
 I'd go further: their simulation uses a frozen-flow turbulence model, so the *prediction* half of the controller gets an easier job than it would on sky. Figure 6 is the only place they test anything else, and the gain there drops to about 15%.
@@ -116,11 +118,13 @@ I added "Measure the loop delay" to the Bench plan board. Let's do that before a
 ];
 
 const discussions = [
-  { uuid: DIG_PAPER, subject: subject.paperError, post_count: 3, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
-  { uuid: DIG_TAKE, subject: subject.take, post_count: 2, unread: 2, is_new: true, voices: [mia, ana], updated_at: hoursAgo(4), created_at: hoursAgo(5), last_post: { user: mia, excerpt: 'This month? We have not measured the delay yet.', created_at: hoursAgo(4) } },
-  { uuid: DIG_CARD, subject: subject.card, post_count: 4, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
-  { uuid: DIG_BOARD, subject: subject.board, post_count: 1, unread: 0, is_new: false, voices: [ana], updated_at: daysAgo(3), created_at: daysAgo(3), last_post: { user: ana, excerpt: 'Should this board be in the order we will run things?', created_at: daysAgo(3) } },
-  { uuid: DIG_SURVEY, subject: subject.paperSurvey, post_count: 5, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
+  { uuid: DIG_PAPER, owner: ana, is_mine: false, subject: subject.paperError, post_count: 3, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
+  { uuid: DIG_PAPER_BEN, owner: ben, is_mine: false, subject: subject.paperError, post_count: 1, unread: 0, is_new: false, voices: [ben], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ben, excerpt: 'The appendix has the raw delay traces; worth plotting against ours.', created_at: daysAgo(1) } },
+  { uuid: DIG_POST, owner: me, is_mine: true, subject: { key: 'post:f0000000-0000-4000-8000-000000000001', kind: 'post', post_uuid: 'f0000000-0000-4000-8000-000000000001', dig_uuid: DIG_PAPER, user_uuid: ANA, by: 'Ana Reyes', label: '“I think Section 3 is where our model breaks, and it matters for the bench plan.”' }, post_count: 2, unread: 0, is_new: false, voices: [me], updated_at: hoursAgo(26), created_at: hoursAgo(28), last_post: { user: me, excerpt: 'Our readout logs from March would settle it.', created_at: hoursAgo(26) } },
+  { uuid: DIG_TAKE, owner: mia, is_mine: false, subject: subject.take, post_count: 2, unread: 2, is_new: true, voices: [mia, ana], updated_at: hoursAgo(4), created_at: hoursAgo(5), last_post: { user: mia, excerpt: 'This month? We have not measured the delay yet.', created_at: hoursAgo(4) } },
+  { uuid: DIG_CARD, owner: me, is_mine: true, subject: subject.card, post_count: 4, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },
+  { uuid: DIG_BOARD, owner: ana, is_mine: false, subject: subject.board, post_count: 1, unread: 0, is_new: false, voices: [ana], updated_at: daysAgo(3), created_at: daysAgo(3), last_post: { user: ana, excerpt: 'Should this board be in the order we will run things?', created_at: daysAgo(3) } },
+  { uuid: DIG_SURVEY, owner: me, is_mine: true, subject: subject.paperSurvey, post_count: 5, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
 ];
 
 const project = {
@@ -142,7 +146,7 @@ const discussion = (uuid) => {
   const d = discussions.find((x) => x.uuid === uuid);
   if (!d) return null;
   const posts = uuid === DIG_PAPER ? errorPosts : [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)];
-  return { uuid, created_at: d.created_at, updated_at: d.updated_at, project: { uuid: PROJECT, name: project.name }, subject: d.subject, can_moderate: true, posts };
+  return { uuid, created_at: d.created_at, updated_at: d.updated_at, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, can_moderate: true, posts: d.subject.kind === 'post' ? posts.map((x) => ({ ...x, can_dig: false })) : posts };
 };
 
 // A paper as the Library and a nook list it: the members' takes are the
@@ -215,12 +219,13 @@ function answer(method, path, search) {
   if (path === '/admin-messages/pending') return [];
   if (path === '/projects') return [summary, other];
   if (path === `/projects/${PROJECT}`) return project;
-  if (path === `/projects/${PROJECT}/discussion`) {
+  if (path === `/projects/${PROJECT}/digs` || path === `/projects/${PROJECT}/discussion`) {
     const key = search.get('subject');
-    const d = discussions.find((x) => x.subject.key === key);
-    return { discussion_uuid: d?.uuid ?? null, project: { uuid: PROJECT, name: project.name }, subject: d?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
+    const on = discussions.filter((x) => x.subject.key === key);
+    const mine = on.find((x) => x.is_mine)?.uuid ?? null;
+    return { mine, discussion_uuid: mine ?? on[0]?.uuid ?? null, digs: on, project: { uuid: PROJECT, name: project.name }, subject: on[0]?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
   }
-  const dig = path.match(/^\/discussions\/([0-9a-f-]+)$/);
+  const dig = path.match(/^\/(?:digs|discussions)\/([0-9a-f-]+)$/);
   if (dig) return discussion(dig[1]);
   const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
   if (nookBoardAsked) {
