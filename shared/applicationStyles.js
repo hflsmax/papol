@@ -5484,19 +5484,15 @@ ${talkStyles}
 .discussion-posts { margin: 0; padding: 0; list-style: none; }
 .discussion-post { position: relative; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); border-left: 2px solid var(--line); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
 .discussion-post + .discussion-post { margin-top: var(--space-3); }
-.discussion-post.is-selected { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
 .discussion-post-head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; margin-bottom: 2px; }
-/* A post's options bar is where the hand already is: on hover, focus or selection. */
+/* A post's options bar is where the hand already is: on hover or focus; always on touch. */
 .discussion-post-head .item-actions { margin-left: auto; visibility: hidden; }
-.discussion-post:hover .item-actions, .discussion-post:focus-within .item-actions, .discussion-post.is-selected .item-actions { visibility: visible; }
-@media (hover: none) { .discussion-post:hover:not(.is-selected):not(:focus-within) .item-actions { visibility: hidden; } }
+.discussion-post:hover .item-actions, .discussion-post:focus-within .item-actions { visibility: visible; }
+@media (hover: none) { .discussion-post-head .item-actions { visibility: visible; } }
 .discussion-post.is-mine .discussion-post-author { color: var(--accent); }
 .discussion-post-author { font: 600 var(--fs-sm) var(--font-ui); color: var(--ink); }
 .discussion-post-time { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .discussion-post-body { font-size: var(--fs-sm); line-height: 1.4; }
-.discussion-post-drift { margin: var(--space-2) 0 var(--space-1); }
-.discussion-post-drift .talk-card.is-inline { max-height: none; }
-.discussion-post-drift .talk-card-body { overflow: visible; }
 /* The reply bar, docked at the foot of the posts. */
 .dig-compose { position: sticky; bottom: 0; z-index: 1; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-3) 0 var(--space-4); border-top: 1px solid var(--line); background: var(--paper); }
 .dig-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }

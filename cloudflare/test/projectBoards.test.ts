@@ -3,7 +3,7 @@
 // a subject.
 import { describe, expect, it } from "vitest";
 
-import { call, defaultShelf, ok, paperWithCopy, register, row, type Account } from "./helpers";
+import { call, defaultShelf, exec, ok, paperWithCopy, register, row, type Account } from "./helpers";
 
 const A_PAPER = "c".repeat(64);
 
@@ -178,6 +178,16 @@ describe("digs", () => {
     expect(await nope(`post:${other.uuid}`)).toBe(422);
     expect(await nope("shelf:1")).toBe(422);
     expect(await nope(`paper:${A_PAPER}`, sam)).toBe(403);
+
+    // Below the routes, the table itself holds a dig to one of the three.
+    const insert = (subject: string, paper: string | null, card: string | null, annotation: string | null) => exec(
+      `INSERT INTO digs (uuid, user_uuid, project_uuid, subject, paper_sha256, board_item_uuid, annotation_uuid, text, created_at, updated_at)
+       VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, 'x', datetime('now'), datetime('now'))`,
+      sam.uuid, project.uuid, subject, paper, card, annotation);
+    await expect(insert(`dig:${other.uuid}`, null, null, null)).rejects.toThrow(/CHECK/);
+    await expect(insert(`post:${other.uuid}`, A_PAPER, null, null)).rejects.toThrow(/CHECK/);
+    await expect(insert(`board:${board.uuid}`, null, board.uuid, null)).rejects.toThrow(/CHECK/);
+    await expect(insert(`paper:${A_PAPER}`, A_PAPER, board.uuid, null)).rejects.toThrow(/CHECK/);
   });
 
   it("lets its owner reword or remove a dig, a writer edit a post, and a writer or keeper take one back", async () => {
