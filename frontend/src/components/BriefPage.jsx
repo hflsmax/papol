@@ -39,6 +39,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const [digOn, setDigOn] = useState(null);
   const [digOpen, setDigOpen] = useState(false);
   const aside = useRef(null);
+  const layout = useRef(null);
 
   const load = useCallback(() => getProject(projectUuid).then((next) => setProject(markArrivals(projectUuid, next))), [projectUuid]);
   useEffect(() => { load().catch((err) => setError(err.message)); }, [load]);
@@ -130,22 +131,25 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   };
   const pinFor = (entry) => pin(takeKey(entry.user), takeLabel(entry));
   const talked = () => { load().catch(() => {}); };
+  // Beside the paper, the dig opens on what is new; stacked under it, the
+  // page opens on the paper.
+  const beside = () => Boolean(layout.current) && getComputedStyle(layout.current).gridTemplateColumns.split(' ').length > 1;
 
   const share = (thought) => act(async () => {
     if (!paper.in_my_nook) await addToNook(paper.sha256);
     await updatePaper(paper.sha256, { thought, thought_public: true });
   });
   const takeOut = async () => {
-    const ok = await confirmAction(`Take this paper out of ${project.name}? Its takes stay on each member’s copy.`, { confirmLabel: 'Take out', destructive: true });
+    const ok = await confirmAction(`Take this paper out of ${project.name}? Its takes stay on each member’s copy, and its dig stays in the project.`, { confirmLabel: 'Take out', destructive: true });
     if (ok && await act(() => removePaperFromProject(project.uuid, paper.sha256))) onRemoved?.();
   };
 
   // In the Mac app the toolbar names the project and the sidebar is the way
   // back, so the page starts with the paper.
   return (
-    <div className="brief-page">
+    <div className={`brief-page${withDig ? ' has-dig' : ''}`}>
       <ProjectWay project={project} />
-      <div className="brief-layout">
+      <div className="brief-layout" ref={layout}>
         <div className="brief-main">
           <header className="brief-head">
             <div className="brief-title-row talk-host">
@@ -253,6 +257,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
             )}
             <TalkCard
               key={shown} inline focus={digOpen && !hasDig(shown)} unread={talk.get(shown)?.unread ?? 0}
+              seekUnread={beside}
               projectUuid={project.uuid} subject={shown} label={labelOf(shown)} currentUser={currentUser} onChanged={talked}
             />
           </aside>

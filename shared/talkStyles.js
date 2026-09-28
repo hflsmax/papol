@@ -69,6 +69,7 @@ export const talkStyles = `
 /* Following a drift: pick a post, dig into what it is about. */
 .talk-post { margin: 0 calc(-1 * var(--space-2)); padding: 6px var(--space-2); border-radius: 6px; cursor: default; }
 .talk-post:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) { .talk-post:not(.is-selected):hover { background: color-mix(in srgb, var(--ink) 3%, transparent); } }
 .talk-post.is-selected { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
 .talk-post-actions { display: flex; justify-content: flex-end; margin-top: var(--space-2); }
 .talk-post-actions button { display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 999px; background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-xs) var(--font-ui); }
@@ -90,12 +91,13 @@ export const talkStyles = `
 .dig-chooser-cancel { justify-self: start; padding: var(--space-1) 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .dig-chooser-cancel:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
 
-.talk-compose { flex: none; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-top: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 50%, var(--card)); }
-.talk-compose .mini-avatar { width: 22px; height: 22px; margin-bottom: 6px; font-size: 11px; }
-.talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: vertical; }
+.talk-compose { flex: none; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-top: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 50%, var(--card)); }
+.talk-compose .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
+.talk-compose .talk-send { align-self: end; }
+.talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
 .talk-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: opacity var(--motion-fast) var(--ease-out); }
 .talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); }
-.talk-send:disabled { opacity: .35; }
+.talk-send:disabled { border: 1px solid var(--line-strong); background: none; color: var(--ink-faint); opacity: 1; cursor: default; }
 `;

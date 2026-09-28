@@ -279,7 +279,7 @@ function DigChooser({ projectUuid, post, current, boardUuid, onPick, onCancel })
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about.
 export function TalkCard({
-  anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false, unread = 0,
+  anchor, projectUuid, subject, label, currentUser, onChanged, onClose, drift: startDrift = null, inline = false, focus = false, unread = 0, seekUnread = () => true,
 }) {
   const [topic, setTopic] = useState({ subject, label });
   const [from, setFrom] = useState(null);
@@ -336,12 +336,20 @@ export function TalkCard({
     if (!inline || body || focus) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
     if (list.current && !inline) list.current.scrollTop = list.current.scrollHeight;
-    // In a page, the reader lands on the first post they have not read.
-    if (inline && discussion && unread > 0) {
+    // In a page, the reader lands on the first post they have not read,
+    // unless the page says to stay where it opened.
+    if (inline && discussion && unread > 0 && seekUnread()) {
       const fresh = list.current?.querySelector('.talk-post.is-new');
       if (fresh && fresh.getBoundingClientRect().top > window.innerHeight) fresh.scrollIntoView({ block: 'center' });
     }
   }, [discussion, drift]);
+  // The field grows with what is written, up to the sheet's cap.
+  useLayoutEffect(() => {
+    const field = box.current;
+    if (!field) return;
+    field.style.height = '';
+    if (field.scrollHeight > field.clientHeight) field.style.height = `${field.scrollHeight + 2}px`;
+  }, [body, drift]);
   const toEnd = () => requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight; });
 
   // Dug into: the card moves to the new thing, with the post quoted to
@@ -399,7 +407,7 @@ export function TalkCard({
     >
       <header className="talk-card-header">
         <span className="talk-card-kind"><i><TalkGlyph /></i>Dig{!inline && <> · {words.word}</>}</span>
-        {!inline && discussion && discussion.posts.length > 0 && <span className="talk-card-count">{plural(posts.length, 'post', 'posts')}</span>}
+        {discussion && posts.length > 0 && <span className="talk-card-count">{inline ? posts.length : plural(posts.length, 'post', 'posts')}</span>}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
       </header>
       {from && (
@@ -424,7 +432,7 @@ export function TalkCard({
                 <li
                   key={post.uuid} tabIndex={0}
                   className={`talk-post${post.is_mine ? ' is-mine' : ''}${picked === post.uuid ? ' is-selected' : ''}${unread > 0 && index >= posts.length - unread ? ' is-new' : ''}`}
-                  onClick={(e) => { if (!e.target.closest('a, button')) setPicked(picked === post.uuid ? null : post.uuid); }}
+                  onClick={(e) => { if (!e.target.closest('a, button') && !window.getSelection()?.toString()) setPicked(picked === post.uuid ? null : post.uuid); }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(picked === post.uuid ? null : post.uuid); }
@@ -434,6 +442,7 @@ export function TalkCard({
                     <Avatar user={post.user} className="mini-avatar" />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
                     <time dateTime={post.created_at}>{when(post.created_at, { time: true })}</time>
+                    {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                   </p>
                   <Markdown className="talk-post-body" text={post.body} />
                   {picked === post.uuid && (
