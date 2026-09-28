@@ -403,7 +403,6 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
       <ul className="project-papers project-rows">
         {project.papers.map((paper) => {
           const takes = paper.users.filter((u) => u.thought);
-          const boardCount = (paper.board_uuids ?? []).length;
           const href = appPath(briefPath(project.uuid, paper.sha256));
           const open = (e) => { e.preventDefault(); onOpenBrief(paper.sha256); };
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
@@ -427,7 +426,6 @@ function ProjectPapers({ project, currentUser, alert, hueOf, onOpenBrief }) {
                 <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
                   {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
                 </span>
-                <span className="project-card-boards">{boardCount > 0 && plural(boardCount, 'board', 'boards')}</span>
                 <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
               </span>
               <span className="project-row-end">

@@ -5858,7 +5858,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry. */
 .project-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.project-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) 190px 150px 90px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
+.project-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) 190px 150px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-row:hover { background: var(--paper-sunken); }
 .project-row.is-new { background: var(--gold-soft); }
 .project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 70%, var(--paper-sunken)); }
@@ -5869,7 +5869,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row .project-card-authors { margin-top: 1px; font-size: var(--fs-sm); }
 .project-row-cite { display: -webkit-box; overflow: hidden; color: var(--ink-soft); font: var(--fs-sm)/1.3 var(--font-ui); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .project-row-facts { display: contents; }
-.project-row .project-card-readers, .project-row .project-card-boards, .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
+.project-row .project-card-readers, .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row .project-card-readers { overflow: hidden; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .project-row .project-card-alert { margin-left: 0; }
@@ -5881,7 +5881,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-row-text { grid-area: text; }
   .project-row-end { grid-area: end; }
   .project-row-cite { display: block; font-size: var(--fs-xs); white-space: nowrap; }
-  .project-row-cite:empty, .project-row .project-card-readers:empty, .project-row .project-card-boards:empty { display: none; }
+  .project-row-cite:empty, .project-row .project-card-readers:empty { display: none; }
 }
 @container (max-width: 559px) {
   .project-row-cite { display: none; }
@@ -5906,7 +5906,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-alert:hover:not(:disabled), .project-card-alert[aria-expanded='true'] { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
 .project-card-alert .talk-glyph { width: 14px; height: 14px; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-card-boards { margin-left: auto; padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); white-space: nowrap; }
 .project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
 .project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .project-card-readers { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
@@ -6144,9 +6143,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-dig-choice:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .brief-dig-choice.is-on, .brief-dig-choice.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .brief-dig-choice.is-new::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
-.brief-boards { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.brief-boards a { color: var(--ink-soft); }
-.brief-boards a:hover { color: var(--accent); }
 @container (min-width: 760px) {
   /* The paper's facts on the left, in view while the dig scrolls; the
      dig beside them, parted by a rule, in a reading measure. */

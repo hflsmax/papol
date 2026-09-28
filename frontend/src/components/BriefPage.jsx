@@ -29,7 +29,7 @@ function day(iso) {
 // A paper's brief: the paper as one project sees it. Where the Library's
 // jacket says what the paper is, the brief says what this group makes of
 // it: every member's take, the dig about it open beside them (or about a
-// thought, picked by its pin), the boards it is on, and who brought it in.
+// thought, picked by its pin), and who brought it in.
 export default function BriefPage({ projectUuid, paper: name, currentUser, onBack, backHref, onRead, onRemoved }) {
   const [project, setProject] = useState(null);
   const [error, setError] = useState(null);
@@ -127,7 +127,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
     );
   };
   const pinFor = (entry) => pin(takeKey(entry.user), takeLabel(entry));
-  const boards = (project.boards ?? []).filter((b) => paper.board_uuids?.includes(b.uuid));
   const talked = () => { load().catch(() => {}); };
 
   const share = (thought) => act(async () => {
@@ -226,13 +225,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
           </section>
 
           <footer className="brief-foot">
-            {boards.length > 0 && (
-              <p className="brief-boards">
-                On {boards.map((board, i) => (
-                  <React.Fragment key={board.uuid}>{i > 0 && ', '}<a href={appPath(`/boards/${board.uuid}`)}>{board.name}</a></React.Fragment>
-                ))}
-              </p>
-            )}
             <p className="project-paper-added">
               Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}
               {canTakeOut && <> · <button type="button" className="brief-take-out" onClick={takeOut}>Take out</button></>}
