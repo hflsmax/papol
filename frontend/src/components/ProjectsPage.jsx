@@ -5,6 +5,7 @@ import { appPath } from '../base';
 import ProjectMembers from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { keep, kept } from '../lastMember';
 
 const SHOWN = 5;
@@ -101,7 +102,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                   <li key={project.uuid} className="projects-row">
                     <div className="projects-row-text">
                       <a className="projects-row-name" href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
-                      {project.new_count > 0 && <span className="badge project-new">{project.new_count} new</span>}
+                      {project.new_count > 0 && <NewsDot />}
                     </div>
                     <Crowd members={project.members} currentUser={currentUser} />
                   </li>

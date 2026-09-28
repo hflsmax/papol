@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
 import Face from '../../../shared/ui/Face.jsx';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
 import { RatingDots } from './Rating';
@@ -88,10 +89,10 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             {(nook.projects ?? []).map((p) => (
               <li key={p.uuid}>
                 <a
-                  className={`desk-strip-mark${p.uuid === project ? ' is-on' : ''}${p.new_count > 0 ? ' has-new' : ''}`}
+                  className={`desk-strip-mark${p.uuid === project ? ' is-on' : ''}`}
                   href={appPath(`/project/${p.uuid}`)}
                   tabIndex={-1}
-                >{[...p.name.trim()][0]?.toUpperCase()}</a>
+                >{[...p.name.trim()][0]?.toUpperCase()}{p.new_count > 0 && <NewsDot />}</a>
               </li>
             ))}
           </ul>
@@ -104,14 +105,14 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                 {nook.projects.map((p) => (
                   <li key={p.uuid}>
                     <a
-                      className={`desk-project${p.new_count > 0 ? ' has-new' : ''}${p.uuid === project ? ' is-on' : ''}`}
+                      className={`desk-project${p.uuid === project ? ' is-on' : ''}`}
                       href={appPath(`/project/${p.uuid}`)}
                       aria-current={p.uuid === project ? 'page' : undefined}
                     >
                       <span className="desk-project-name">{p.name}</span>
                       <span className="desk-project-foot">
                         <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
-                        {p.new_count > 0 && <span className="desk-project-new">{p.new_count} new</span>}
+                        {p.new_count > 0 && <NewsDot />}
                       </span>
                     </a>
                   </li>

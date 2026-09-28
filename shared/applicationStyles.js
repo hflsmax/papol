@@ -5124,11 +5124,6 @@ a.projects-row-name:hover { color: var(--accent); text-decoration: underline; te
 .avatar-chip.project-keeper { border-color: var(--gold); background: var(--gold-soft); }
 .project-keeper .mini-avatar { box-shadow: none; }
 
-.project-new {
-  background: var(--accent);
-  color: var(--ink-inverse);
-}
-
 .project-members {
   display: flex;
   flex-wrap: wrap;
@@ -5233,17 +5228,15 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
-/* New items on a tab: a number alone. Unread posts on an item are the spade pill (.project-card-alert). */
+/* The inbox tab on the You page counts unread notifications. */
 .project-tab-new { display: inline-block; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/19px var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry.
    No rules between them: each row is a soft tile that shows only on hover,
-   when new, or when open, where it takes the pane's white. */
+   or when open, where it takes the pane's white; news is the dot. */
 .project-rows { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .project-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 170px 96px; column-gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-lg); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.project-row.is-new { background: var(--gold-soft); }
-.project-row.is-new:hover { background: color-mix(in srgb, var(--gold-soft) 88%, var(--ink)); }
 .project-row-text { min-width: 0; }
 .project-row .project-card-title { display: block; font-size: var(--fs-base); -webkit-line-clamp: unset; }
 .project-row:hover .project-card-title, .project-row:focus-within .project-card-title { color: var(--accent); }
@@ -5252,7 +5245,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-facts { display: contents; }
 .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.project-row .project-card-alert { margin-left: 0; }
 @container (max-width: 1099px) {
   .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */
@@ -5271,18 +5263,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-paper { cursor: pointer; }
 .project-paper:focus-within:has(.project-card-title a:focus-visible) { border-color: var(--accent); }
 .project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
-.project-paper.is-new .project-card-head { border-bottom-color: var(--gold-line); background: var(--gold-soft); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-card-head .project-card-new { margin-left: auto; }
-.project-card-new { color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
 .project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
 .project-card-title { display: -webkit-box; margin: 0; overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .project-card-title a { color: inherit; }
 .project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
-.project-card-alert { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 22px; margin-left: auto; padding: 0 7px 0 5px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); box-shadow: none; color: var(--gold-ink); font: 700 var(--fs-2xs) var(--font-ui); }
-.project-card-new + .project-card-alert { margin-left: var(--space-1); }
-.project-card-alert:hover:not(:disabled), .project-card-alert[aria-expanded='true'] { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
-.project-card-alert .talk-glyph { width: 14px; height: 14px; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
 .project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -5298,9 +5283,9 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
 
 .project-board-link { color: inherit; text-decoration: none; }
-/* The whole card opens the board; the alert stays its own button above it. */
+/* The whole card opens the board. */
 .project-board .project-board-link::after { content: ''; position: absolute; inset: 0; }
-.project-board > .project-card-alert { position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; margin: 0; }
+.project-board > .news-dot { position: absolute; top: var(--space-3); right: var(--space-3); }
 
 .project-board-link:hover .project-card-title { color: var(--accent); }
 .project-board-meta { justify-content: flex-start; margin-top: auto; padding: var(--space-1) var(--space-3) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
@@ -5326,7 +5311,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-band-head + .project-talk-list { margin-top: 2px; }
 .project-talk-band.is-buried .project-talk-item:not(.is-selected) .project-talk-label { color: var(--ink-soft); }
 .project-talk .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.project-talk .project-talk-item.is-new, .project-talk .project-talk-item.is-new:hover:not(:disabled) { background: var(--gold-soft); }
 .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
 .project-talk .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The open thing sits on white, the list on the page: tone, not a rule, parts them. */
@@ -5351,13 +5335,12 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-subject-line a:hover { color: var(--accent); }
 .project-talk-subject-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .project-talk-subject-open:hover:not(:disabled) { border: 0; background: none; color: var(--accent); }
-.project-talk-item .project-card-alert { margin-left: auto; }
 .project-talk-list > li { display: grid; }
 .project-talk-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink); font: inherit; text-align: left; transition: background-color var(--motion-fast) var(--ease-out); }
 .project-talk-subject { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; grid-column: 1; }
 .project-talk-subject > .project-card-kind { flex: none; white-space: nowrap; }
 .project-talk-meta { grid-column: 1; }
-.project-talk-item > .project-card-alert { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.project-talk-item > .news-dot { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .project-talk-label { overflow: hidden; color: var(--ink); font: 600 var(--fs-base)/1.35 var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-talk-item:hover .project-talk-label { color: var(--accent); }
 .project-talk-item.is-selected .project-talk-label { color: var(--ink); }
@@ -5544,10 +5527,8 @@ ${talkStyles}
   transition: border-color var(--motion-fast) var(--ease-out);
 }
 .nook-project-card:hover, .nook-project-card:focus-visible { border-color: var(--accent); }
-.nook-project-card.has-new { border-color: var(--gold-line); background: var(--gold-soft); }
 .nook-project-card-name { font: 600 var(--fs-md) var(--font-serif); line-height: 1.3; }
 .nook-project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.nook-project-card-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 
 /* A member's own nook on the web: a rail of places (projects, shelves,
    boards), each opening in the main area beside it. One row grid and one
@@ -5598,7 +5579,6 @@ ${talkStyles}
 .desk-project.is-on { background: var(--accent-soft); }
 .desk-project-name { font: 600 var(--fs-sm) var(--font-serif); line-height: 1.3; }
 .desk-project-foot { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
-.desk-project-new { color: var(--gold-ink); font: 600 var(--fs-xs) var(--font-ui); }
 .desk-faces { display: inline-flex; align-items: center; padding-left: 4px; }
 .desk-face { width: 20px; height: 20px; margin-left: -4px; border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
@@ -5665,7 +5645,7 @@ ${talkStyles}
 }
 .desk-strip-mark:hover { background: var(--paper-sunken); color: var(--ink); }
 .desk-strip-mark.is-on { background: var(--accent-soft); color: var(--ink); }
-.desk-strip-mark.has-new::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.desk-strip-mark > .news-dot { position: absolute; top: 5px; right: 5px; }
 .nook-desk.is-folded .desk-rail-body {
   position: absolute; top: calc(-1 * var(--space-2)); left: calc(-1 * var(--space-2));
   width: 15rem; max-height: calc(100vh - 2 * var(--space-4)); overflow-y: auto; padding: var(--space-2);

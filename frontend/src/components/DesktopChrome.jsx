@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Working } from '../../../shared/ui/Waiting.js';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
@@ -86,8 +87,7 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
           path: `/project/${project.uuid}`,
           glyph: 'folder',
           active: page === 'project' && route.uuid === project.uuid,
-          count: project.new_count,
-          unread: true,
+          news: project.new_count > 0,
         })),
         {
           key: 'projects',
@@ -321,6 +321,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
             >
               <ItemMark item={item} />
               <span className="desktop-sidebar-text">{item.label}</span>
+              {item.news && <NewsDot />}
               {item.count > 0 && (
                 <span
                   className={`desktop-sidebar-count${item.unread ? ' unread' : ''}`}
