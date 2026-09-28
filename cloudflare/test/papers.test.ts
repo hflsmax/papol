@@ -259,16 +259,30 @@ describe("every paper's venue, asked again", () => {
     const paper = (digest: string, title: string, doi: string | null, journal: string | null) =>
       exec("INSERT INTO papers (sha256, doi, title, authors, journal, year, file_path, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 2024, ?, ?, ?, 1)",
         digest, doi, title, JSON.stringify(["Yuting Wang", "Zhong Shao"]), journal, `${digest}.pdf`, at, at);
-    const [byDoi, preprint, unknown] = ["a", "b", "c"].map((c) => c.repeat(64));
+    const [byDoi, preprint, unknown, conference] = ["a", "b", "c", "d"].map((c) => c.repeat(64));
     await paper(byDoi, "Linear Haskell", "10.1145/3158093", pacmpl);
     await paper(preprint, "An Abstract Stack Based Approach to Verified Compositional Compilation to Machine Code", "10.48550/arXiv.2311.12345", null);
     await paper(unknown, "Nobody Has Heard Of This", null, "The Page");
+    const chi = "Proceedings of the 2017 CHI Conference on Human Factors in Computing Systems";
+    await paper(conference, "Digital Mechanical Metamaterials", null, chi);
+    const works: Record<string, Record<string, unknown>> = {
+      "10.1145/3158093": { DOI: "10.1145/3158093", title: ["Linear Haskell"], "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2018]] } },
+      "10.1145/3632925": { DOI: "10.1145/3632925", title: ["An Abstract Stack Based Approach to Verified Compositional Compilation to Machine Code"],
+        "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2024]] }, author: [{ given: "Yuting", family: "Wang" }] },
+      "10.1145/3025453.3025624": { DOI: "10.1145/3025453.3025624", title: ["Digital Mechanical Metamaterials"], "container-title": [chi],
+        event: { name: "CHI '17: CHI Conference on Human Factors in Computing Systems", acronym: "CHI '17" }, issued: { "date-parts": [[2024]] }, author: [{ given: "Yuting", family: "Wang" }] },
+    };
     apis({
-      "api.crossref.org": (url) => url.pathname.startsWith("/works/")
-        ? Response.json({ message: { DOI: "10.1145/3158093", title: ["Linear Haskell"], "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2018]] } } })
-        : Response.json({ message: { items: [{ DOI: "10.1145/3632925", title: ["An Abstract Stack Based Approach to Verified Compositional Compilation to Machine Code"],
-          "container-title": [pacmpl], issue: "POPL", issued: { "date-parts": [[2024]] }, author: [{ given: "Yuting", family: "Wang" }] }] } }),
-      "api.openalex.org": () => Response.json({ results: [] }),
+      "api.crossref.org": (url) => {
+        if (url.pathname.startsWith("/works/")) return Response.json({ message: works[decodeURIComponent(url.pathname.slice(7))] });
+        const query = url.searchParams.get("query.bibliographic") ?? "";
+        return Response.json({ message: { items: Object.values(works).filter((w) => query.includes((w.title as string[])[0])) } });
+      },
+      // OpenAlex knows the CHI paper by its long proceedings title.
+      "api.openalex.org": (url) => url.pathname.includes("3025453.3025624")
+        ? Response.json({ display_name: "Digital Mechanical Metamaterials", publication_year: 2024, doi: "https://doi.org/10.1145/3025453.3025624",
+          primary_location: { source: { display_name: chi, type: "conference" } } })
+        : Response.json({ results: [] }),
     });
     const job = enqueue(env.DB, VENUES);
     await job.statement.run();
@@ -277,6 +291,7 @@ describe("every paper's venue, asked again", () => {
       { sha256: byDoi, journal: "POPL", revision: 2 },
       { sha256: preprint, journal: "POPL", revision: 2 },
       { sha256: unknown, journal: "The Page", revision: 1 },
+      { sha256: conference, journal: "CHI", revision: 2 },
     ]);
     expect(await row("SELECT status FROM jobs WHERE uuid = ?", job.uuid)).toEqual({ status: "done" });
   });
