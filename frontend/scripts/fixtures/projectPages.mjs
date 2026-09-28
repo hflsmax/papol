@@ -164,6 +164,40 @@ const listed = (p, mine = false) => {
   };
 };
 
+// Another member's nook as a visitor sees it: only public shelves, each
+// paper with the owner's own take. Ana's is the full one the pictures use.
+const THEIR_SHELVES = [
+  { uuid: 'ab100000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0 },
+  { uuid: 'ab100000-0000-4000-8000-000000000002', name: 'Wavefront sensing', color: '#4f7cb0', is_public: true, is_default: false, position: 1 },
+  { uuid: 'ab100000-0000-4000-8000-000000000003', name: 'Classics', color: '#b07a4f', is_public: true, is_default: false, position: 2 },
+];
+const THEIR_EXTRA = [
+  { sha256: digest(0xb1), title: 'Adaptive optics for astronomy', authors: '["J. M. Beckers"]', journal: 'Annual Review of Astronomy and Astrophysics', year: 1993, shelf: 2, thought: 'Still the best first read.', rating_reading: 5, rating_liking: 5, days: 40 },
+  { sha256: digest(0xb2), title: 'Wavefront sensing with a pyramid: a tutorial', authors: '["R. Ragazzoni"]', journal: 'Journal of Modern Optics', year: 1996, shelf: 1, thought: null, rating_reading: 4, rating_liking: 4, days: 20 },
+  { sha256: digest(0xb3), title: 'Predictive control with a Kalman filter on the Keck AO system', authors: '["S. Cetre", "M. van Kooten", "R. Jensen-Clem"]', journal: 'SPIE', year: 2024, shelf: 0, thought: 'The tuning appendix is gold.', rating_reading: 3, rating_liking: 4, days: 2 },
+  { sha256: digest(0xb4), title: 'Non-common path aberrations: a review', authors: '["N. Vigan", "K. Dohlen"]', journal: 'Astronomy & Astrophysics', year: 2019, shelf: 1, thought: null, rating_reading: 2, rating_liking: null, days: 12 },
+];
+function theirNook(owner) {
+  const takes = papers.filter((p) => p.users.some((u) => u.user.uuid === owner.uuid)).map((p, i) => {
+    const own = p.users.find((u) => u.user.uuid === owner.uuid);
+    return { ...listed(p), shelf_uuid: THEIR_SHELVES[i % 2].uuid, is_public: true, thought: own.thought, rating_reading: own.rating_reading, rating_liking: own.rating_liking };
+  });
+  const extra = owner.uuid === ANA ? THEIR_EXTRA.map((x) => ({
+    ...listed({ ...x, added_at: daysAgo(x.days), users: [{ user: owner, thought: x.thought, rating_reading: x.rating_reading, rating_liking: x.rating_liking }] }),
+    shelf_uuid: THEIR_SHELVES[x.shelf].uuid, is_public: true, thought: x.thought, rating_reading: x.rating_reading, rating_liking: x.rating_liking,
+  })) : [];
+  const all = [...takes, ...extra].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const shelves = THEIR_SHELVES.slice(0, owner.uuid === ANA ? 3 : 1).map((s) => ({ ...s, paper_count: all.filter((p) => p.shelf_uuid === s.uuid).length, board_count: 0 }));
+  const boards = owner.uuid === ANA ? [
+    { uuid: 'ad100000-0000-4000-8000-000000000001', name: 'Sensor zoo', description: null, item_count: 12, shelf_uuid: THEIR_SHELVES[1].uuid, updated_at: daysAgo(4), owner, can_edit: false, items: [] },
+    { uuid: 'ad100000-0000-4000-8000-000000000002', name: 'Thesis reading map', description: null, item_count: 31, shelf_uuid: THEIR_SHELVES[0].uuid, updated_at: daysAgo(15), owner, can_edit: false, items: [] },
+  ] : [];
+  return {
+    user: owner, shelves, tags: [], stats: { papers: all.length, displayed: all.length, notes: 0 },
+    papers: all, boards, projects: owner.uuid === ANA ? [summary] : [],
+  };
+}
+
 // What the pretend server says to each request the pages make.
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
@@ -202,16 +236,10 @@ function answer(method, path, search) {
       projects: [summary, other],
     };
   }
-  // Another member's nook, where their face leads: the papers they have
-  // a take on, on one shelf.
+  // Another member's nook, where their face leads: what they keep on
+  // their public shelves, with their own takes, and their boards.
   const someone = [ana, ben, mia].find((u) => path === `/users/${u.uuid}/nook`);
-  if (someone) {
-    const theirs = papers.filter((p) => p.users.some((u) => u.user.uuid === someone.uuid));
-    return {
-      user: someone, shelves: [{ ...SHELF, paper_count: theirs.length }], tags: [], stats: { papers: theirs.length, displayed: theirs.length, notes: 0 },
-      papers: theirs.map((p) => ({ ...listed(p), shelf_uuid: SHELF.uuid })), boards: [], projects: [],
-    };
-  }
+  if (someone) return theirNook(someone);
   if (path === '/papers') return papers.map((p) => listed(p));
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
   if (one) {

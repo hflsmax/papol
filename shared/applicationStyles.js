@@ -5639,6 +5639,17 @@ ${talkStyles}
 .desk-face { width: 20px; height: 20px; margin-left: -4px; border: 1.5px solid var(--card); font-size: var(--fs-2xs); }
 .desk-more { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--fs-2xs); }
 
+/* Whose nook, when it is someone else's: their face and name head the rail. */
+.desk-who { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-2); }
+.desk-who-face { flex: none; width: 48px; height: 48px; font-size: var(--fs-lg); }
+.desk-who-copy { min-width: 0; }
+.desk-who-name { margin: 0; font: 600 var(--fs-xl)/1.2 var(--font-serif); overflow-wrap: anywhere; }
+.desk-who-line { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); overflow-wrap: anywhere; }
+.desk-who-line a { color: inherit; }
+.nook-desk.is-visiting button.desk-row { cursor: pointer; }
+/* Their thought on a paper, under its authors. */
+.desk-thought { display: block; margin-top: 3px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
+
 .desk-main { min-width: 0; }
 .desk-main-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; margin-bottom: var(--space-1); }
 .desk-main-head h2 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; font: 600 var(--fs-xl) var(--font-serif); }
