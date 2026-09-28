@@ -5967,23 +5967,23 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* Talk: one pin and one card for discussing anything in a project. The pin
    is the viewer's note pin; the card is a board card, lifted. */
 .talk-pin-wrap { position: relative; display: inline-flex; flex: none; align-items: center; gap: var(--space-1); vertical-align: middle; }
-.talk-pin { position: relative; display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
-.talk-sm .talk-pin { width: 24px; height: 24px; }
-.talk-lg .talk-pin { width: 34px; height: 34px; }
-/* The dig bubble: a soft rounded bubble drawn in one line weight; a dig
-   with posts fills it with the accent wash and writes its count inside. */
-.talk-glyph path { fill: var(--accent-soft); stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
-.talk-glyph.is-outline path { fill: none; }
-.talk-pin .talk-glyph { display: block; width: 100%; height: 100%; overflow: visible; }
+/* The dig pin: a spade, then the dig's post count. The spade's size is the
+   pin's height; the count sits beside it, so any number fits. */
+.talk-pin { position: relative; display: inline-flex; flex: none; align-items: center; gap: 1px; height: 28px; min-width: 28px; justify-content: center; padding: 0 3px; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--accent-strong); cursor: pointer; transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+.talk-sm .talk-pin { height: 24px; min-width: 24px; }
+.talk-lg .talk-pin { height: 34px; min-width: 34px; padding: 0 4px; }
+.talk-glyph path { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.talk-glyph .talk-glyph-blade { fill: var(--accent-soft); }
+.talk-glyph.is-outline .talk-glyph-blade { fill: none; }
+.talk-pin .talk-glyph { display: block; flex: none; width: 22px; height: 22px; overflow: visible; }
+.talk-sm .talk-pin .talk-glyph { width: 19px; height: 19px; }
+.talk-lg .talk-pin .talk-glyph { width: 28px; height: 28px; }
 .talk-pin:hover:not(:disabled), .talk-pin:focus-visible { border: 0; background: none; color: var(--accent); }
 .talk-pin:focus-visible { outline: none; }
-.talk-pin:focus-visible::before, .talk-pin.is-open::before { content: ''; position: absolute; inset: -3px; z-index: -1; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--focus-soft); }
-.talk-count { position: absolute; top: 4px; left: 0; right: 0; color: var(--accent-strong); font: 700 10px/16px var(--font-ui); letter-spacing: -.02em; text-align: center; pointer-events: none; }
-.talk-sm .talk-count { top: 2px; font-size: 9px; line-height: 14px; }
-.talk-lg .talk-count { top: 4px; font-size: 12px; line-height: 20px; }
-.talk-plus { position: absolute; top: 1px; left: 0; right: 0; color: currentColor; font: 600 15px/20px var(--font-ui); text-align: center; pointer-events: none; }
-.talk-sm .talk-plus { font-size: 13px; line-height: 17px; }
-/* An empty pin shows when you reach for its thing, the same everywhere. */
+.talk-pin:focus-visible::before, .talk-pin.is-open::before { content: ''; position: absolute; inset: -3px; z-index: -1; border: 2px solid var(--accent); border-radius: 999px; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--focus-soft); }
+.talk-count { color: var(--accent-strong); font: 650 var(--fs-xs)/1 var(--font-ui); font-variant-numeric: tabular-nums; pointer-events: none; }
+.talk-sm .talk-count { font-size: var(--fs-2xs); }
+.talk-lg .talk-count { font-size: var(--fs-sm); }
 .talk-pin.is-empty { color: var(--accent); opacity: 0; }
 .talk-pin.is-empty:hover, .talk-pin.is-empty:focus-visible, .talk-pin.is-empty.is-open { opacity: 1; }
 .talk-host:hover .talk-pin.is-empty, .talk-host:focus-within .talk-pin.is-empty, .talk-host.selected .talk-pin.is-empty, .talk-host.is-selected .talk-pin.is-empty { opacity: .9; }

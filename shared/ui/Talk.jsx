@@ -31,10 +31,12 @@ export function kindOf(subject) {
 }
 
 // The viewer's note glyph: a speech bubble, filled or drawn as an outline.
+// The dig mark: a spade, tipped as if in use. Its blade takes the accent
+// wash once there is a dig to open.
 export function TalkGlyph({ outline = false }) {
   return (
     <svg className={`talk-glyph${outline ? ' is-outline' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7.5 3.5h9a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5H12l-4.2 3.3c-.4.3-1 .03-1-.5v-2.9A5 5 0 0 1 2.5 11.5v-3a5 5 0 0 1 5-5Z" />
+      <g transform="rotate(32 12 12)"><path className="talk-glyph-blade" d="M6.8 10.5h10.4v4.6c0 3-2.4 5.6-5.2 7.1-2.8-1.5-5.2-4.1-5.2-7.1Z" /><path d="M12 10.5V4.2M9.6 2.2h4.8v2H9.6Z" /></g>
     </svg>
   );
 }
@@ -98,9 +100,7 @@ export function TalkPin({
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
       >
         <TalkGlyph outline={!count} />
-        {count > 0
-          ? <span className="talk-count">{count > 99 ? '99+' : count}</span>
-          : <span className="talk-plus" aria-hidden="true">+</span>}
+        {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
       </button>
       {open && createPortal(
         <TalkCard
