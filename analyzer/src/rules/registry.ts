@@ -612,9 +612,9 @@ export const HEADER_JOURNAL_VOLUME = rule({
 });
 export const HEADER_PROCEEDINGS = rule({
   id: "header.proceedings", stage: "header",
-  summary: "The proceedings an ACM reference paragraph on the first page names — \"In Proceedings of the … (CHI '23)\" — are the paper's venue.",
-  why: "ACM conference papers print how to cite them on their first page; the venue there is the name Crossref keeps.",
-  pattern: /\bIn (?<venue>Proceedings of the .{10,180}?)\s*\((?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d\)/,
+  summary: "The conference an ACM reference paragraph on the first page names — \"In Proceedings of the … (CHI '23)\" — by its short name in parentheses is the paper's venue.",
+  why: "ACM conference papers print how to cite them on their first page; a reader knows the conference by the short name, the one Crossref keeps with the event.",
+  pattern: /\bIn Proceedings of the .{10,180}?\s*\((?<acronym>(?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d)\)/,
   matches: ["2023. All-in-One Print. In Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems (CHI '23), April 23–28, 2023"],
   rejects: ["Proceedings of the ACM on Programming Languages"],
 });
