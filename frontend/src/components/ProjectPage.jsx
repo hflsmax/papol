@@ -5,7 +5,7 @@ import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard, TalkGlyph, TalkOpener, phaseWord, when } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  annotationViewerPath, briefPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
+  annotationViewerPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
@@ -18,6 +18,7 @@ import Avatar from './Avatar';
 import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import PaperBrief from './PaperBrief';
 
 // Opening a project marks what others added as seen, so every later answer
 // calls nothing new, and this page may be fetched more than once as the app
@@ -60,8 +61,8 @@ export function Faces({ users, max = 4 }) {
   );
 }
 
-// The way home from a brief or a dig on the web, in the bar over every
-// page: the project it belongs to. The desk itself leads straight home.
+// The way home from a dig on the web, in the bar over every page: the
+// project it belongs to. The desk itself leads straight home.
 // The way back to a project on the web is to it in the member's nook.
 export function ProjectWay({ project }) {
   if (DESKTOP || !project) return null;
@@ -74,12 +75,13 @@ export function ProjectWay({ project }) {
 
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
-export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onOpenBrief }) {
+export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead }) {
   const [project, setProject] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [view, setView] = useView(projectUuid);
+  const [picked, pick] = usePicked(projectUuid);
   const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
 
   const load = useCallback(() => {
@@ -114,8 +116,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   }
   if (!project) return <div className="loading"><Working label="Loading project…" /></div>;
 
-  // How a dig card tells the page it spoke.
-  const talked = () => { getProject(project.uuid).then((next) => setProject(show(next))).catch(() => {}); };
+  // How a dig card or a brief tells the page it changed something.
+  const reload = () => getProject(project.uuid).then((next) => setProject(show(next)));
+  const talked = () => { reload().catch(() => {}); };
+  const openPaper = (sha256) => { pick(sha256); setView('papers'); };
   // On a desk card, digs speak up only when there is something unread: the
   // spade and the count of posts others wrote since you looked, gold, like a
   // notification. It opens the latest unread dig.
@@ -228,11 +232,14 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 project={project}
                 alert={alert}
                 currentUser={currentUser}
-                onOpenBrief={onOpenBrief}
+                picked={picked}
+                onPick={pick}
+                onChanged={reload}
+                onRead={onRead}
               />
             )}
             {view === 'boards' && <ProjectBoards project={project} act={act} alert={alert} currentUser={currentUser} />}
-            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} />}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
           </div>
         </>
       )}
@@ -332,21 +339,10 @@ function Invitation({ project, act }) {
   );
 }
 
-// A section heading: a serif word, a faint count, and at most one action.
-export function SectionHead({ id, title, count, action }) {
-  return (
-    <header className="project-section-head">
-      <h3 id={id}>{title}</h3>
-      {count > 0 && <span className="project-count">{count}</span>}
-      {action}
-    </header>
-  );
-}
-
 const VIEWS = [['papers', 'Papers'], ['boards', 'Boards'], ['digs', 'Digs']];
 
 // The desk shows one of its three things at a time. The view is kept for
-// the visit, so coming back from a brief or a board lands where you were.
+// the visit, so coming back from the viewer or a board lands where you were.
 function useView(projectUuid) {
   const key = `papol:project-view:${projectUuid}`;
   const [view, setView] = useState(() => {
@@ -357,6 +353,34 @@ function useView(projectUuid) {
     try { sessionStorage.setItem(key, next); } catch { /* the view lasts until the page is left */ }
   };
   return [VIEWS.some(([v]) => v === view) ? view : 'papers', choose];
+}
+
+const pickedKey = (projectUuid) => `papol:project-paper:${projectUuid}`;
+
+// The paper whose brief is open in the Papers tab, kept for the visit like
+// the tab. Picking a paper is not a place of its own: the address stays
+// the project's, as picking a dig does.
+function usePicked(projectUuid) {
+  const [picked, setPicked] = useState(() => {
+    try { return sessionStorage.getItem(pickedKey(projectUuid)); } catch { return null; }
+  });
+  const choose = (sha256) => {
+    setPicked(sha256);
+    try {
+      if (sha256) sessionStorage.setItem(pickedKey(projectUuid), sha256);
+      else sessionStorage.removeItem(pickedKey(projectUuid));
+    } catch { /* the pick lasts until the page is left */ }
+  };
+  return [picked, choose];
+}
+
+// Somewhere outside the project (a dig's page) leads to one of its papers:
+// the project opens on the Papers tab with that paper's brief.
+export function showPaperInProject(projectUuid, sha256) {
+  try {
+    sessionStorage.setItem(`papol:project-view:${projectUuid}`, 'papers');
+    sessionStorage.setItem(pickedKey(projectUuid), sha256);
+  } catch { /* the project opens as it was */ }
 }
 
 // Papers, Boards, Digs: each with its count, and in gold how many in it
@@ -388,50 +412,80 @@ function DeskTabs({ view, onView, counts, fresh }) {
   );
 }
 
-// Each paper is a row of a list, the way a bibliography reads: its
-// title and authors, where it appeared, who has a take, the boards it is
-// on, who brought it in, and what is unread about it. The row opens the
-// paper's brief, where the takes, the dig and the rest of what the
-// project knows about it are.
-function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
+// Each paper is a row of a list, the way a bibliography reads: its title
+// and authors, where it appeared, who brought it in, and
+// what is unread about it. Picking a row shows the paper's brief: beside
+// the list on a wide window, as the Digs tab shows a dig, and under the
+// row on a narrow one.
+function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged, onRead }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
-  if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
+  const wide = useWide();
+  const papers = project.papers;
+  // Beside the list there is always a brief: the one picked, else the first
+  // new paper, else the top one. Under a row it is only the one picked.
+  const chosen = papers.find((p) => p.sha256 === picked)
+    ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
+  if (!papers.length) return <section className="project-section" aria-label="Papers" />;
+  const unreadOn = (paper) => (project.digs ?? [])
+    .filter((d) => d.subject.key === `paper:${paper.sha256}`)
+    .reduce((sum, d) => sum + Number(d.unread ?? 0), 0);
+  const brief = (paper) => (
+    <PaperBrief
+      key={paper.sha256} project={project} paper={paper} currentUser={currentUser} underRow={!wide}
+      unread={unreadOn(paper)} onChanged={onChanged} onRead={onRead}
+    />
+  );
+  const move = (e) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step || !chosen || e.target.closest('input, textarea')) return;
+    e.preventDefault();
+    const at = papers.findIndex((p) => p.sha256 === chosen.sha256);
+    const next = papers[Math.max(0, Math.min(papers.length - 1, at + step))];
+    onPick(next.sha256);
+    e.currentTarget.querySelector(`[data-paper="${next.sha256}"]`)?.focus();
+  };
   return (
-    <section className="project-section" aria-label="Papers">
-      <ul className="project-papers project-rows">
-        {project.papers.map((paper) => {
-          const takes = paper.users.filter((u) => u.thought);
-          const href = appPath(briefPath(project.uuid, paper.sha256));
-          const open = (e) => { e.preventDefault(); onOpenBrief(paper.sha256); };
+    <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
+      <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
+        {papers.map((paper) => {
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
+          const selected = chosen?.sha256 === paper.sha256;
+          // A narrow window folds the brief away again on a second press.
+          const choose = () => onPick(selected && !wide ? null : paper.sha256);
           return (
-            <li
-              key={paper.sha256}
-              data-subject={`paper:${paper.sha256}`}
-              className={`project-row project-paper talk-host${paper.is_new ? ' is-new' : ''}`}
-              onClick={(e) => { if (!e.target.closest('a, button, input, textarea') && !e.defaultPrevented) open(e); }}
-            >
-              <div className="project-row-text">
-                <h4 className="project-card-title">
-                  <a className="paper-title-link" href={href} onClick={open}><PaperTitle title={paper.title} /></a>
-                </h4>
-                <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
-              </div>
-              <span className="project-row-facts">
-                <span className="project-row-cite">{where}</span>
-                <span className="project-card-readers" title={takes.map((u) => (isMe(u.user) ? 'You' : u.user.display_name)).join(', ')}>
-                  {takes.length > 0 && <><Faces users={takes.map((u) => u.user)} max={4} /><span>{plural(takes.length, 'take', 'takes')}</span></>}
+            <React.Fragment key={paper.sha256}>
+              <li
+                data-subject={`paper:${paper.sha256}`}
+                className={`project-row project-paper${paper.is_new ? ' is-new' : ''}${selected ? ' is-selected' : ''}`}
+                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) choose(); }}
+              >
+                <div className="project-row-text">
+                  <h4 className="project-card-title">
+                    <button
+                      type="button" className="project-row-open" data-paper={paper.sha256}
+                      aria-expanded={wide ? undefined : selected} aria-pressed={wide ? selected : undefined}
+                      onClick={choose}
+                    >
+                      <PaperTitle title={paper.title} />
+                    </button>
+                  </h4>
+                  <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
+                </div>
+                <span className="project-row-facts">
+                  <span className="project-row-cite">{where}</span>
+                  <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
                 </span>
-                <span className="project-card-added">{paper.added_by && <>{isMe(paper.added_by) ? 'You' : firstName(paper.added_by)} added · {when(paper.added_at)}</>}</span>
-              </span>
-              <span className="project-row-end">
-                {paper.is_new && <span className="project-card-new">New</span>}
-                {alert((subject) => subject.paper_sha256 === paper.sha256)}
-              </span>
-            </li>
+                <span className="project-row-end">
+                  {paper.is_new && <span className="project-card-new">New</span>}
+                  {alert((subject) => subject.paper_sha256 === paper.sha256 && !(selected && subject.kind === 'paper'))}
+                </span>
+              </li>
+              {!wide && selected && <li className="project-paper-open">{brief(paper)}</li>}
+            </React.Fragment>
           );
         })}
       </ul>
+      {wide && chosen && <div className="project-papers-panel">{brief(chosen)}</div>}
     </section>
   );
 }
@@ -443,7 +497,7 @@ export const SUBJECT_WORDS = { paper: 'Paper', card: 'Card', annotation: 'Annota
 // latest writing.
 const PHASE_ORDER = { digging: 0, stashed: 1, gold: 2, buried: 3 };
 
-function ProjectTalk({ project, currentUser, onTalked, onRead }) {
+function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   const discussions = [...(project.digs ?? [])].sort((a, b) => (PHASE_ORDER[a.phase] ?? 0) - (PHASE_ORDER[b.phase] ?? 0));
   const wide = useWide();
   // On a wide window the list stays put and the dig opens beside it: on
@@ -514,7 +568,11 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
         <div className="project-talk-panel">
           <h3 className="project-talk-subject-line">
             <span className="project-card-kind">{SUBJECT_WORDS[shown.subject.kind]}</span>
-            {subjectHome(project, shown.subject)
+            {shown.subject.kind === 'paper' ? (
+              <button type="button" className="project-talk-subject-open" onClick={() => onOpenPaper(shown.subject.paper_sha256)}>
+                <PaperTitle title={shown.subject.label} />
+              </button>
+            ) : subjectHome(project, shown.subject)
               ? <a href={appPath(subjectHome(project, shown.subject))}><PaperTitle title={shown.subject.label} /></a>
               : <span><PaperTitle title={shown.subject.label} /></span>}
           </h3>
@@ -528,11 +586,10 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   );
 }
 
-// Where a dig's subject lives: a paper's brief, the board a card is on,
-// the viewer at an annotation.
+// Where a card's or an annotation's dig subject lives: the board a card is
+// on, the viewer at an annotation. A paper's is its brief, on this page.
 function subjectHome(project, subject) {
   if (subject.kind === 'annotation') return annotationViewerPath(project.uuid, subject.paper_sha256, subject.page);
-  if (subject.paper_sha256) return briefPath(project.uuid, subject.paper_sha256);
   if (subject.board_uuid) return `/boards/${subject.board_uuid}`;
   return null;
 }

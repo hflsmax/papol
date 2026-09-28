@@ -8,7 +8,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import {
   deletePost, editPost, editDig, removeDig, getDig, postInDig,
 } from '../../../shared/api/projects.js';
-import { annotationViewerPath, briefPath } from '../../../shared/api/projects.js';
+import { annotationViewerPath } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -16,21 +16,23 @@ import { InToolbar } from './DesktopChrome';
 import Face from '../../../shared/ui/Face.jsx';
 import AutoTextarea from './AutoTextarea';
 import Markdown from './Markdown';
-import { ProjectWay, SUBJECT_WORDS } from './ProjectPage';
+import { ProjectWay, SUBJECT_WORDS, showPaperInProject } from './ProjectPage';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 const POST_LIMIT = appLimits.text.dig_post;
 
 // What the dig is about, and the ways out of it: the project, and the
-// thing itself, at its brief or on its board.
+// thing itself: a paper's brief in the project's Papers tab, or a card on
+// its board.
 function Subject({ project, subject, posts = [], children }) {
   const projectHref = appPath(`/project/${project.uuid}`);
+  const toPaper = () => showPaperInProject(project.uuid, subject.paper_sha256);
   const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
-    : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
+    : subject.paper_sha256 ? projectHref
       : subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const under = {
     card: subject.board_name && <>On <a href={home}>{subject.board_name}</a></>,
-    annotation: subject.by && <>{subject.by}’s, on <a href={appPath(briefPath(project.uuid, subject.paper_sha256))}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
+    annotation: subject.by && <>{subject.by}’s, on <a href={projectHref} onClick={toPaper}><PaperTitle title={subject.paper_title ?? 'a paper'} /></a></>,
   }[subject.kind];
   const voices = [];
   posts.forEach((post) => { if (!voices.some((u) => u.uuid === post.user.uuid)) voices.push(post.user); });
@@ -47,7 +49,7 @@ function Subject({ project, subject, posts = [], children }) {
         <p className="dig-kind"><TalkGlyph />{word}{children}</p>
         <h2 className="dig-subject-title">
           {home ? (
-            <a href={home}>
+            <a href={home} onClick={subject.kind === 'paper' ? toPaper : undefined}>
               <PaperTitle title={subject.label} />
               <svg className="dig-subject-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6M19 5l-9 9" /><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></svg>
             </a>
