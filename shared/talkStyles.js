@@ -37,7 +37,6 @@ export const talkStyles = `
 .talk-card.is-placed { visibility: visible; animation: talk-open var(--motion-fast) var(--ease-out) forwards; }
 .talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
 .talk-card.is-inline { position: relative; z-index: auto; max-height: min(640px, calc(100vh - 2 * var(--space-4))); opacity: 1; visibility: visible; box-shadow: var(--shadow-sm); animation: none; }
-.talk-card.is-inline .talk-card-open { margin-left: auto; }
 [data-shell='desktop'] .talk-card.is-inline { max-height: calc(100vh - 52px - 2 * var(--space-4)); }
 @keyframes talk-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .talk-card.is-placed { animation: none; opacity: 1; } .talk-pin { transition: none; } }
@@ -46,15 +45,9 @@ export const talkStyles = `
 .talk-card-kind i { display: inline-grid; place-items: center; color: var(--accent-strong); }
 .talk-card-kind i .talk-glyph { width: 15px; height: 15px; }
 .talk-card-count { color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); }
-.talk-card-open, .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
-.talk-card-open { margin-left: auto; }
+.talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
-.talk-card-open + .talk-card-close { margin-left: 0; }
-.talk-card-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.talk-card-open span { display: none; }
-.talk-card.is-inline .talk-card-open { display: inline-flex; align-items: center; gap: var(--space-1); width: auto; padding: 0 var(--space-2); border-radius: 999px; font: 500 var(--fs-xs) var(--font-ui); }
-.talk-card.is-inline .talk-card-open span { display: inline; }
-.talk-card-open:hover, .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
+.talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-bottom: 1px solid var(--line); }
 
 .talk-card-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-4) 0; }
