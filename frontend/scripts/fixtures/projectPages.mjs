@@ -189,7 +189,11 @@ function answer(method, path, search) {
   const dig = path.match(/^\/discussions\/([0-9a-f-]+)$/);
   if (dig) return discussion(dig[1]);
   const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
-  if (nookBoardAsked) return { ...nookBoardAsked, project: null, discussions: {}, staged_items: [], papers: [], groups: [], revision: 1, user_uuid: ME, created_at: daysAgo(9) };
+  if (nookBoardAsked) {
+    const onIt = nookBoardAsked === NOOK_BOARDS[1] ? papers.slice(0, 2) : [];
+    const items = onIt.map((p, i) => ({ uuid: `ae00000${i}-0000-4000-8000-000000000001`, kind: 'excerpt', source_url: `https://papol.io/viewer/?pdf=${p.sha256}`, source_label: p.title, excerpt_text: null, content: null, x: 40 + i * 260, y: 60 + i * 40, width: 220, height: 140 }));
+    return { ...nookBoardAsked, items, project: null, discussions: {}, staged_items: [], papers: onIt.map(({ sha256, title, authors, year }) => ({ sha256, title, authors, year })), groups: [], revision: 1, user_uuid: ME, created_at: daysAgo(9) };
+  }
   if (path === `/users/${ME}/nook`) {
     return {
       user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4, seminars: 0 },

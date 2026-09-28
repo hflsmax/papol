@@ -15,6 +15,9 @@ const added = (at) => {
   return day.toLocaleDateString('en', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', year: 'numeric' });
 };
 
+// Where a paper opens beside the rail, the shelf or board it came from kept.
+const paperPlace = (sha256, from) => appPath(`/?${new URLSearchParams([...Object.entries(from).filter(([, v]) => v), ['paper', paperName(sha256)]])}`);
+
 function Faces({ users, max }) {
   return (
     <span className="desk-faces">
@@ -27,7 +30,8 @@ function Faces({ users, max }) {
 // A member's own nook on the web: a rail of places beside the main area.
 // Every place in the rail opens in the main area: a project its desk, a
 // shelf (or all papers) its papers, a board its jacket; and a paper picked
-// from a shelf's papers its jacket, the shelf still chosen. Search and tags narrow what the main area shows.
+// from a shelf's papers or a board's jacket its jacket, the shelf or board
+// still chosen. Search and tags narrow what the main area shows.
 export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSelectShelf, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, onSelectProject, renderProject, paper = null, onOpenPaper, renderPaper, onOpenCanvas, onChanged }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
@@ -145,7 +149,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
 
       {project ? (
         <section className="desk-main desk-project-view">{renderProject(project)}</section>
-      ) : paper && !board ? (
+      ) : paper ? (
         <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>
       ) : board ? (
         <section className="desk-main desk-board">
@@ -153,6 +157,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
             key={board}
             boardUuid={board}
             onOpen={onOpenCanvas}
+            paperLink={(p) => paperPlace(p.sha256, { board })}
+            onOpenPaper={(sha256) => onOpenPaper(sha256, { board })}
             hideBack
             onChanged={onChanged}
             onDeleted={() => { onChanged?.(); onSelectBoard(null); }}
@@ -206,8 +212,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onSel
                     <td className="desk-col-title">
                       <a
                         className="desk-title"
-                        href={appPath(`/?${new URLSearchParams([...(shelf ? [['shelf', shelf]] : []), ['paper', paperName(paper.sha256)]])}`)}
-                        onClick={(event) => { event.preventDefault(); onOpenPaper(paper.sha256, shelf); }}
+                        href={paperPlace(paper.sha256, { shelf })}
+                        onClick={(event) => { event.preventDefault(); onOpenPaper(paper.sha256, { shelf }); }}
                       >{paper.title}</a>
                       {paper.room_status && <StatePill status={paper.room_status} />}
                       <span className="desk-meta">

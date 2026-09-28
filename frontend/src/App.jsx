@@ -128,13 +128,17 @@ function openShelfInNook(uuid) {
 function openProjectInNook(uuid) {
   navigate(uuid ? `/?project=${uuid}` : '/');
 }
-// A paper opens its jacket beside the rail, the shelf it was picked from
-// still chosen there.
-function openPaperInNook(sha256, shelf = null) {
+// A paper opens its jacket beside the rail, the shelf or board it was
+// picked from still chosen there.
+function nookPaperPath(sha256, { shelf = null, board = null } = {}) {
   const query = new URLSearchParams();
-  if (shelf) query.set('shelf', shelf);
+  if (board) query.set('board', board);
+  else if (shelf) query.set('shelf', shelf);
   query.set('paper', paperName(sha256));
-  navigate(`/?${query}`);
+  return `/?${query}`;
+}
+function openPaperInNook(sha256, from) {
+  navigate(nookPaperPath(sha256, from));
 }
 
 // The way in, from the jacket. The canvas is a separate application, so this
