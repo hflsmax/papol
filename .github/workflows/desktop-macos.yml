@@ -315,6 +315,15 @@ jobs:
           PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/e2e
         run: cd desktop && npm run test:e2e:native-ui
 
+      # The capture job restores the Rust cache this job saves and builds
+      # its probe on top, which recompiled Tauri with the probe's features
+      # every run (about 30 s). Built here as well, those crates are in it.
+      - name: Build the capture probe into the saved cache
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+          --config profile.dev.package.papol-desktop.debug=0 --example capture_probe
+
       - name: Keep what the window showed
         if: failure()
         uses: actions/upload-artifact@v7

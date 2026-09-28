@@ -2,6 +2,9 @@
 //! (src/capture.rs), and write it to a file to look at.
 //!
 //!     cargo run --example capture_probe -- https://example.com/ /tmp/page.jpg
+//!
+//! PAPOL_CAPTURE_LONGEST_MS gives the page that long, rather than the
+//! app's fourteen seconds, to show something before it is judged.
 
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -30,13 +33,16 @@ fn main() {
         })
     };
     let output = arguments[2].clone();
+    let longest = std::env::var("PAPOL_CAPTURE_LONGEST_MS")
+        .ok()
+        .map(|ms| std::time::Duration::from_millis(ms.parse().expect("milliseconds")));
     let app = tauri::Builder::default()
         .build(tauri::generate_context!())
         .expect("build a bare Tauri app");
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
         let started = std::time::Instant::now();
-        let code = match capture::snapshot(&handle, url).await {
+        let code = match capture::snapshot_within(&handle, url, longest).await {
             Ok(picture) => {
                 std::fs::write(&output, &picture.jpeg).expect("write the picture");
                 println!(

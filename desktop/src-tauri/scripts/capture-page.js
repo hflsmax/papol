@@ -15,7 +15,9 @@
   const QUIET_TITLE = 'papol-capture-quiet';
   // Nothing changed for this long, and the document complete: quiet.
   const STILLNESS = 900;
-  // However busy the page stays, its picture is taken by then.
+  // However busy the page stays, its picture is taken by then. The page
+  // capture test passes a shorter one, so its blank page is refused
+  // without sitting out the whole of it.
   const LONGEST = 14000;
 
   // A picture the page holds but hides. A site that draws grey squares
@@ -101,7 +103,7 @@
   const worth = (report) =>
     report.text > 40 || report.pictures > 0 || report.drawings > 0 || report.fills > 1;
 
-  const watch = () => {
+  const watch = (longest = LONGEST) => {
     const began = performance.now();
     let changed = performance.now();
     const touch = () => { changed = performance.now(); };
@@ -143,7 +145,7 @@
     // which says so plainly (`showing`) and costs it its picture.
     const watcher = setInterval(() => {
       const still = performance.now() - changed > STILLNESS && document.readyState === 'complete' && !waiting();
-      if ((still && worth(showing())) || performance.now() - began > LONGEST) {
+      if ((still && worth(showing())) || performance.now() - began > longest) {
         clearInterval(watcher);
         tell();
       }

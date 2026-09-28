@@ -32,6 +32,9 @@ const SETTLE: Duration = Duration::from_millis(600);
 /// (Instagram) draws nothing for seconds after its load event, and was
 /// photographed blank when the wait was a flat three seconds.
 const QUIET_TIMEOUT: Duration = Duration::from_millis(15_000);
+/// A second past the page's own longest wait (`LONGEST` in
+/// capture-page.js), which is the same distance QUIET_TIMEOUT keeps.
+const QUIET_GRACE: Duration = Duration::from_millis(1_000);
 /// How often the window is asked what the page has titled itself.
 const QUIET_POLL: Duration = Duration::from_millis(150);
 /// What the page titles itself once it has stopped changing. A window
@@ -41,11 +44,9 @@ const QUIET_TITLE: &str = "papol-capture-quiet";
 /// Watches the page and titles it once it has stopped changing and has
 /// something to show: no DOM mutations, no resources arriving, the
 /// document complete, and text or a picture in view. Planted in every
-/// document the window loads, before the page's own scripts run.
-const QUIET_SCRIPT: &str = concat!(
-    include_str!("../scripts/capture-page.js"),
-    "\npapolCapture.watch();"
-);
+/// document the window loads, before the page's own scripts run, with
+/// `papolCapture.watch()` after it.
+const CAPTURE_PAGE: &str = include_str!("../scripts/capture-page.js");
 const JPEG_QUALITY: f64 = 0.8;
 /// WebKit answers a snapshot within a frame or two; this is only a guard.
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -177,10 +178,33 @@ pub async fn capture_into(
     Ok(CapturedPage { blob, title })
 }
 
-/// The page's picture as JPEG bytes, and its title. Public for
-/// examples/capture_probe.rs, which takes one outside the app to see what
-/// WebKit draws.
-pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Snapshot, String> {
+/// The page's picture as JPEG bytes, and its title.
+async fn snapshot(app: &AppHandle, url: Url) -> Result<Snapshot, String> {
+    snapshot_within(app, url, None).await
+}
+
+/// `snapshot`, with the page given `longest` rather than its own fourteen
+/// seconds to show something. Public for examples/capture_probe.rs, which
+/// takes one outside the app to see what WebKit draws; the page capture
+/// test gives its blank page less, which never has anything to show.
+pub async fn snapshot_within(
+    app: &AppHandle,
+    url: Url,
+    longest: Option<Duration>,
+) -> Result<Snapshot, String> {
+    let (script, quiet_for) = match longest {
+        None => (
+            format!("{CAPTURE_PAGE}\npapolCapture.watch();"),
+            QUIET_TIMEOUT,
+        ),
+        Some(longest) => (
+            format!(
+                "{CAPTURE_PAGE}\npapolCapture.watch({});",
+                longest.as_millis()
+            ),
+            longest + QUIET_GRACE,
+        ),
+    };
     let label = format!("capture-{}", NEXT_CAPTURE.fetch_add(1, Ordering::Relaxed));
     // How the wait ends: the page loaded, or it set off for this machine or
     // its network, which the rules block and this says at once rather than
@@ -221,7 +245,7 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Snapshot, String> {
         // reaches only the first document, and a site that answers with
         // a shell and then goes somewhere else (Etsy's search results)
         // left the real page unwatched: the wait ran its full length.
-        .initialization_script(QUIET_SCRIPT)
+        .initialization_script(script)
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_navigation(move |to| {
             if to.scheme() == "about" || to.host().is_some_and(|host| !private_host(host)) {
@@ -255,7 +279,7 @@ pub async fn snapshot(app: &AppHandle, url: Url) -> Result<Snapshot, String> {
             Ok(Err(_)) => return Err("The page closed before it loaded".to_string()),
             Ok(Ok(outcome)) => outcome?,
         }
-        let showing = quiet(&window).await;
+        let showing = quiet(&window, quiet_for).await;
         if showing
             .as_ref()
             .is_some_and(|showing| !showing.worth_a_picture())
@@ -386,8 +410,8 @@ impl Showing {
 /// watcher could not be planted in — is photographed as it stands, which
 /// is what the flat wait did for every page before, and nothing is
 /// claimed about what it shows.
-async fn quiet(window: &WebviewWindow) -> Option<Showing> {
-    let deadline = tokio::time::Instant::now() + QUIET_TIMEOUT;
+async fn quiet(window: &WebviewWindow, wait: Duration) -> Option<Showing> {
+    let deadline = tokio::time::Instant::now() + wait;
     while tokio::time::Instant::now() < deadline {
         // The page's own title, not the window's: what a document calls
         // itself never reaches the frame around it.

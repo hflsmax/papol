@@ -51,6 +51,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 ROOT = Path(__file__).parents[2]
 MANIFEST = ROOT / "desktop" / "src-tauri" / "Cargo.toml"
@@ -69,6 +70,10 @@ TOLERANCE = 28
 # The capture window is 1280 × 800 points; WebKit draws it at the screen's
 # scale, which is 1 on some runners and 2 on a Retina Mac.
 SIZES = {(1280, 800), (2560, 1600)}
+# How long each page is given to show something, rather than the app's
+# fourteen seconds. The fixture's pages show theirs within a second or two;
+# the blank one never does, and would otherwise sit out the whole wait.
+LONGEST_MS = 3000
 
 
 def say(message):
@@ -181,11 +186,14 @@ def build_probe():
 
 def probe(url, output):
     """The probe's verdict: its exit status and everything it said."""
+    started = time.monotonic()
     completed = subprocess.run(
         ["cargo", "run", "--quiet", "--locked", "--manifest-path", str(MANIFEST),
          *NO_DEBUG, "--example", "capture_probe", "--", url, str(output)],
         capture_output=True, text=True, timeout=120,
+        env={**os.environ, "PAPOL_CAPTURE_LONGEST_MS": str(LONGEST_MS)},
     )
+    say(f"The probe took {time.monotonic() - started:.1f}s for {url}")
     return completed.returncode, (completed.stdout + completed.stderr).strip()
 
 
@@ -264,7 +272,7 @@ def main():
             status, said = probe(f"{site}{path}", output)
             if status:
                 raise RuntimeError(f"{what} was not captured:\n{said}")
-            say(f"Captured {what}: {check_picture(output)}")
+            say(f"Captured {what}: {check_picture(output)} ({said.splitlines()[-1]})")
 
         for path, what, why in (
             ("/redirect", "a page that redirects to this machine", "local or private network"),
