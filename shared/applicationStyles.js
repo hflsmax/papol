@@ -5834,7 +5834,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* The name input takes its text's width: a hidden copy of the name sizes
    the cell both share. */
 .project-title-sizer { display: inline-grid; max-width: 100%; }
-.project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; margin-left: calc(-1 * var(--space-2)); padding: 0 var(--space-2); border: 1px solid transparent; }
+.project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 var(--space-2); border: 1px solid transparent; }
 .project-title-sizer::after, .project-title-sizer > .project-title-input { grid-area: 1 / 1; min-width: 0; }
 .project-title-sizer > .project-title-input { text-overflow: ellipsis; }
 .board-toolbar-title:has(~ .board-toolbar-talk) { field-sizing: content; }
@@ -6093,7 +6093,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .brief-boards { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .brief-boards a { display: inline-block; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: var(--fs-sm) var(--font-ui); text-decoration: none; }
 .brief-boards a:hover { border-color: var(--accent); color: var(--accent); }
-@container (min-width: 880px) {
+@container (min-width: 760px) {
   .brief-layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
   .brief-dig { position: sticky; top: var(--space-4); }
 }
@@ -6120,6 +6120,28 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .discussion-jump { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--card); box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
 .discussion-jump:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .discussion-jump .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* In the Mac app a project's pages keep their header in the window's
+   toolbar: the desk's name, pin, counts and people; a brief's actions;
+   where a dig is and its Reply. */
+.project-toolbar { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; }
+.project-toolbar .project-title { flex: none; max-width: 50%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
+.project-toolbar-tally, .discussion-toolbar-where { min-width: 0; overflow: hidden; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.project-toolbar-since { flex: none; color: var(--gold-ink); font: 600 var(--fs-sm) var(--font-ui); }
+.desktop-toolbar .project-seats { flex: none; align-items: center; gap: var(--space-1); }
+.desktop-toolbar .project-seat-row { gap: 0; padding: 2px; }
+.desktop-toolbar .project-seat { width: auto; margin-left: -4px; }
+.desktop-toolbar .project-seat:first-child { margin-left: 0; }
+.desktop-toolbar .project-seat .mini-avatar { width: 24px; height: 24px; box-shadow: 0 0 0 2px var(--paper); }
+.desktop-toolbar .project-seat small { display: none; }
+.desktop-toolbar .project-invite-open { padding: 2px var(--space-2); }
+.discussion-toolbar-where { flex: 1; margin: 0; color: var(--ink-soft); }
+.discussion-toolbar-where a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.discussion-toolbar-where a:hover { color: var(--accent); }
+.desktop-toolbar .discussion-jump { flex: none; padding: 2px var(--space-2); }
+.brief-toolbar-actions { flex-wrap: nowrap; margin: 0 0 0 auto; }
+.brief-toolbar-actions .button.primary { padding: 3px var(--space-4); }
+.brief-toolbar-actions .brief-take-out { margin-left: 0; }
 /* Your turn: a card with your face on it, below the last post. */
 .discussion-reply, .discussion-start { margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); scroll-margin-top: var(--space-6); }
 .discussion-reply-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); }

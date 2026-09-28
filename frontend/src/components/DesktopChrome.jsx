@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Working } from '../../../shared/ui/Waiting.js';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
@@ -387,11 +388,22 @@ export function useDesktopShortcuts({ groups, onNavigate }) {
   }, []);
 }
 
-// A page's toolbar: its title, in the strip that moves the window.
+// A page's toolbar: its title, in the strip that moves the window, and a
+// slot a page fills with its own controls through InToolbar, so a page in
+// the Mac app needs no header of its own.
 export function DesktopToolbar({ title }) {
   return (
     <header className="desktop-toolbar" data-tauri-drag-region="deep">
       {title && <h1 className="desktop-toolbar-title">{title}</h1>}
+      <div className="desktop-toolbar-slot" id="desktop-toolbar-slot" />
     </header>
   );
+}
+
+// What a page puts in the toolbar. A page that brings its own title marks
+// it data-toolbar-title, and the toolbar's plain title steps aside.
+export function InToolbar({ children }) {
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById('desktop-toolbar-slot')); }, []);
+  return slot ? createPortal(children, slot) : null;
 }

@@ -304,6 +304,18 @@ export const desktopStyles = `
   stroke-linejoin: round;
 }
 
+.desktop-toolbar-slot {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.desktop-toolbar:has(.desktop-toolbar-slot [data-toolbar-title]) > .desktop-toolbar-title {
+  display: none;
+}
+
 .desktop-toolbar-title {
   min-width: 0;
   overflow: hidden;

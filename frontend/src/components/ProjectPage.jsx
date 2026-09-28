@@ -9,6 +9,8 @@ import {
   revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
+import { DESKTOP } from '../../../shared/desktopShell';
+import { InToolbar } from './DesktopChrome';
 import { formatAuthors } from '../paperFormat.js';
 import { coloursFor } from '../activityView.js';
 import Avatar from './Avatar';
@@ -138,47 +140,65 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const newTalk = talkedAbout.filter((d) => d.is_new).length;
   const since = [newPapers && plural(newPapers, 'paper', 'papers'), newTalk && plural(newTalk, 'dig', 'digs')].filter(Boolean);
 
+  const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
+  const tally = [plural(project.papers.length, 'paper', 'papers'), plural(boards.length, 'board', 'boards'), latest && `active ${when(latest)}`].filter(Boolean).join(' · ');
+  const seats = project.is_member ? (
+    <div className="project-seats">
+      <button
+        type="button" className="project-seat-row" aria-expanded={open} aria-controls="project-people"
+        aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
+        onClick={() => setPeopleOpen(!open)}
+      >
+        {people.slice(0, 5).map((user) => (
+          <span className="project-seat" key={user.uuid}>
+            <Avatar user={user} className="mini-avatar" />
+            <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
+          </span>
+        ))}
+        {people.length > 5 && <span className="project-seat-more">+{people.length - 5}</span>}
+      </button>
+      {project.is_keeper && (
+        <button type="button" className="project-invite-open" onClick={() => setPeopleOpen(true)}>
+          <ActionGlyph name="plus" />Invite
+        </button>
+      )}
+    </div>
+  ) : (
+    <p className="project-crowd"><Faces users={people} /><span>{count}</span></p>
+  );
+
+  // In the Mac app a member's desk has no header: its name, pin, counts and
+  // people sit in the window's toolbar, and the sidebar is the way back.
+  const inToolbar = DESKTOP && project.is_member;
+
   return (
     <div className={`project-page${project.is_member ? ' is-desk' : ''}`}>
-      <BackLink className="back-button" href={backHref} onBack={onBack} />
-      <header className="project-head talk-host">
-        <div className="project-head-main">
-          <div className="project-title-row">
-            <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />
-            {project.is_member && pin('project', project.name, { size: 'lg' })}
+      {inToolbar ? (
+        <InToolbar>
+          <div className="project-toolbar talk-host" data-toolbar-title>
+            {title}
+            {pin('project', project.name)}
+            <span className="project-toolbar-tally">{tally}</span>
+            {since.length > 0 && <span className="project-toolbar-since">{since.join(' · ')} new</span>}
           </div>
-          {project.is_member && (
-            <p className="project-tally">
-              {[plural(project.papers.length, 'paper', 'papers'), plural(boards.length, 'board', 'boards'), latest && `active ${when(latest)}`].filter(Boolean).join(' · ')}
-            </p>
-          )}
-          {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' · ')}</p>}
-        </div>
-        {project.is_member ? (
-          <div className="project-seats">
-            <button
-              type="button" className="project-seat-row" aria-expanded={open} aria-controls="project-people"
-              aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
-              onClick={() => setPeopleOpen(!open)}
-            >
-              {people.slice(0, 5).map((user) => (
-                <span className="project-seat" key={user.uuid}>
-                  <Avatar user={user} className="mini-avatar" />
-                  <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
-                </span>
-              ))}
-              {people.length > 5 && <span className="project-seat-more">+{people.length - 5}</span>}
-            </button>
-            {project.is_keeper && (
-              <button type="button" className="project-invite-open" onClick={() => setPeopleOpen(true)}>
-                <ActionGlyph name="plus" />Invite
-              </button>
-            )}
-          </div>
-        ) : (
-          <p className="project-crowd"><Faces users={people} /><span>{count}</span></p>
-        )}
-      </header>
+          {seats}
+        </InToolbar>
+      ) : (
+        <>
+          <BackLink className="back-button" href={backHref} onBack={onBack} />
+          <header className="project-head talk-host">
+            <div className="project-head-main">
+              <div className="project-title-row">
+                {title}
+                {project.is_member && pin('project', project.name, { size: 'lg' })}
+              </div>
+              {project.is_member && <p className="project-tally">{tally}</p>}
+              {since.length > 0 && <p className="project-since">New since you last looked: {since.join(' · ')}</p>}
+            </div>
+            {seats}
+          </header>
+        </>
+      )}
       {notice && <div className="error" role="alert">{notice}</div>}
 
       {!project.is_member ? (

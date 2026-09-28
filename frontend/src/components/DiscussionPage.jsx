@@ -12,6 +12,8 @@ import {
 import { paperName } from '../../../shared/paperName.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath } from '../base';
+import { DESKTOP } from '../../../shared/desktopShell';
+import { InToolbar } from './DesktopChrome';
 import Avatar from './Avatar';
 import AutoTextarea from './AutoTextarea';
 import Markdown, { MarkdownHint } from './Markdown';
@@ -44,9 +46,25 @@ function Subject({ project, subject, action }) {
     card: <span className="discussion-card-label">{subject.label}</span>,
     take: <span className="discussion-card-label">{subject.label}</span>,
   }[subject.kind] ?? subject.label;
+  const where = <><a href={projectHref}>{project.name}</a>{' · '}{about}</>;
+  // In the Mac app the toolbar says where the dig is and holds its action,
+  // and the sidebar is the way back, so the page starts with the subject.
+  if (DESKTOP) {
+    return (
+      <>
+        <InToolbar>
+          <p className="discussion-toolbar-where" data-toolbar-title>{where}</p>
+          {action}
+        </InToolbar>
+        <header className="discussion-head">
+          <h2 className="discussion-title">{title}</h2>
+        </header>
+      </>
+    );
+  }
   return (
     <header className="discussion-head">
-      <p className="kicker"><a href={projectHref}>{project.name}</a>{' · '}{about}</p>
+      <p className="kicker">{where}</p>
       <h2 className="discussion-title">{title}</h2>
       {action}
     </header>
@@ -177,7 +195,7 @@ export function DiscussionPage({ discussionUuid, currentUser, onBack, backHref }
 
   return (
     <div className="discussion-page">
-      <BackLink className="back-button" href={backHref} onBack={onBack} />
+      {!DESKTOP && <BackLink className="back-button" href={backHref} onBack={onBack} />}
       <Subject
         project={discussion.project}
         subject={discussion.subject}
@@ -252,7 +270,7 @@ export function StartDiscussionPage({ projectUuid, subject, currentUser, onBack,
 
   return (
     <div className="discussion-page">
-      <BackLink className="back-button" href={backHref} onBack={onBack} />
+      {!DESKTOP && <BackLink className="back-button" href={backHref} onBack={onBack} />}
       <Subject project={found.project} subject={found.subject} />
       {notice && <div className="error" role="alert">{notice}</div>}
       <section className="discussion-start" aria-label="Start the dig">
