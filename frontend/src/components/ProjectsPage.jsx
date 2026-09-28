@@ -21,8 +21,10 @@ function Crowd({ members, currentUser }) {
 }
 
 // Every project: mine first, where the work is, then everyone else's by
-// name and keepers, so anyone can see who to ask to be let in.
-export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) {
+// name and keepers, so anyone can see who to ask to be let in. On the web
+// it is a section of the Bazaar, beside everyone's papers and boards.
+export default function ProjectsPage({ currentUser, onOpenProject, onChanged, section = false }) {
+  const Title = section ? 'h3' : 'h2';
   const [projects, setProjects] = useState(null);
   const [error, setError] = useState(null);
   const [naming, setNaming] = useState(false);
@@ -58,9 +60,9 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) 
   const others = (projects || []).filter((p) => !p.is_member);
 
   return (
-    <div className="projects-page">
+    <div className={section ? 'projects-page is-section' : 'projects-page'}>
       <div className="projects-head">
-        <h2>Projects</h2>
+        <Title>Projects</Title>
         <ExperimentalBadge />
         {projects && !naming && (
           <button type="button" onClick={() => setNaming(true)}>New project</button>

@@ -19,6 +19,11 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if ((uuid = at(`/u/${UUID}/boards`))) return { page: 'nook', uuid, section: 'boards' };
   if ((uuid = at(`/u/${UUID}`))) return { page: 'nook', uuid };
   if ((uuid = at(`/paper/${PAPER}`))) return { page: 'paper', uuid };
+  // A paper picked from a shelf or a board: the same paper, the place it was
+  // picked from kept in front of it so the nook's rail keeps that place chosen.
+  const picked = path.match(new RegExp(`^/(shelf|board)/${UUID}/paper/${PAPER}/?$`, 'i'));
+  if (picked) return { page: 'paper', uuid: picked[3].toLowerCase(), [picked[1].toLowerCase()]: picked[2].toLowerCase() };
+  if ((uuid = at(`/shelf/${UUID}`))) return { page: 'shelf', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
   // Where talking about a subject leads: its discussion, or the first post.
   const ID = UUID.slice(1, -1);
@@ -39,7 +44,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/about') return { page: 'about' };
   if (path === '/learn') return { page: 'learn' };
   if (path === '/signin') return { page: 'signin' };
-  if (path === '/library') return { page: 'papers' };
+  if (path === '/bazaar' || path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
   return { page: 'home' };

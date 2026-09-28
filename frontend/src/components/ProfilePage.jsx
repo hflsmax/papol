@@ -268,7 +268,7 @@ function LocalDeviceSettings({ onSynced }) {
   );
 }
 
-export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
+export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, withActivity = true, inTab = false }) {
   // Account settings in this component are global: their handlers call the
   // backend and the resulting values follow the user to every device.
   const [displayName, setDisplayName] = useState(user.display_name);
@@ -399,15 +399,21 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
   return (
     <div className="profile-page">
       <div className="panel">
-        <div className="panel-head-row">
-          <h2 className="panel-title">Account</h2>
-          <button type="button" onClick={onLogout}>
-            Sign out
-          </button>
-        </div>
-        <p className="panel-note">
-          These settings are saved to your account and apply wherever you sign in.
-        </p>
+        {/* As a tab of the member's own page, the tab names it and the
+            page's head carries Sign out. */}
+        {!inTab && (
+          <>
+            <div className="panel-head-row">
+              <h2 className="panel-title">Account</h2>
+              <button type="button" onClick={onLogout}>
+                Sign out
+              </button>
+            </div>
+            <p className="panel-note">
+              These settings are saved to your account and apply wherever you sign in.
+            </p>
+          </>
+        )}
         <p className="profile-email">
           Signed in as <strong>{user.email}</strong>.
         </p>
@@ -559,7 +565,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync }) {
         )}
       </div>
 
-      <ActivityPanel />
+      {withActivity && <ActivityPanel />}
 
       {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
 

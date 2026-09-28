@@ -46,6 +46,7 @@ const SORTS = {
 };
 
 export default function PapersPage({
+  projects = null,
   currentUser, onSelectPaper, onSelectBoard,
   incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
   incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
@@ -125,7 +126,7 @@ export default function PapersPage({
   const hasActiveFilters = selectedUser != null || Boolean(search.trim());
 
   return (
-    <div className={reviewingUpload || addingFolder ? 'library-page upload-review-mode' : 'library-page'}>
+    <div className={`library-page${projects ? ' is-bazaar' : ''}${reviewingUpload || addingFolder ? ' upload-review-mode' : ''}`}>
       {currentUser && addingFolder && (
         <FolderImport
           currentUser={currentUser}
@@ -153,6 +154,8 @@ export default function PapersPage({
         />
       )}
 
+      {!reviewingUpload && !addingFolder && projects}
+
       <div className="panel paper-list">
         <div className="search-bar library-search-tools">
           {users.length > 0 && (
@@ -169,8 +172,8 @@ export default function PapersPage({
           <div className="library-search-line">
             <input
               type="text"
-              aria-label="Search the library"
-              placeholder="Search the library…"
+              aria-label="Search the bazaar"
+              placeholder="Search the bazaar…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -187,7 +190,7 @@ export default function PapersPage({
 
         {shown.length === 0 && shownBoards.length === 0 ? (
           <div className="no-papers">
-            <p>{papers.length === 0 && boards.length === 0 ? 'The library is empty.' : 'Nothing matches your filters.'}</p>
+            <p>{papers.length === 0 && boards.length === 0 ? 'The bazaar is empty.' : 'Nothing matches your filters.'}</p>
             {hasActiveFilters && <button type="button" className="link-button" onClick={() => { setSelectedUser(null); setSearch(''); }}>Clear filters</button>}
           </div>
         ) : (

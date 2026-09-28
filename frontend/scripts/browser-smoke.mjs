@@ -297,7 +297,7 @@ const server = createServer(async (request, response) => {
             const app = document.querySelector('.app');
             if (document.querySelector('#root > style')
                 && app
-                && document.querySelector('.topnav')) {
+                && document.querySelector('.topnav, .way-bar')) {
               loadingObserver.disconnect();
               fetch('/__papol_smoke_ready?startupLoading=' + startupLoading
                 + '&page=' + encodeURIComponent(app.dataset.page || ''), { method: 'POST' });
