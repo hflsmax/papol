@@ -147,6 +147,16 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
     );
   }
 
+  // Someone else's nook on the web: the same workspace, theirs to look
+  // through.
+  if (!isOwn && !DESKTOP) {
+    return (
+      <div className="nook is-desk">
+        <NookDesk nook={nook} visiting onSelectBoard={onSelectBoard} />
+      </div>
+    );
+  }
+
   return (
     <div className={reviewingUpload ? 'nook upload-review-mode' : 'nook'}>
       {onBack && (
