@@ -12,7 +12,7 @@ export const BAZAAR = 'Bazaar';
 // on the left, and on the right the Bazaar beside it, what is waiting for
 // the member and who they are. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none.
-export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCount = 0 }) {
+export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
@@ -25,7 +25,6 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, projectNewCou
       <nav className="way-aside" aria-label="Elsewhere">
         <a href={appPath('/bazaar')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
           {BAZAAR}
-          {projectNewCount > 0 && <span className="way-count" title={`${projectNewCount} new in your projects`}>{projectNewCount}</span>}
         </a>
         <a
           href={appPath('/inbox')}

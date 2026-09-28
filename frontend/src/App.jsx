@@ -157,7 +157,6 @@ export default function App({ startupUser = null, startupError = null }) {
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
   const [projectsRevision, setProjectsRevision] = useState(0);
-  const [projectNewCount, setProjectNewCount] = useState(0);
   const [myProjects, setMyProjects] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
   const [feedbackRequest, setFeedbackRequest] = useState(null);
@@ -379,10 +378,9 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
   }, [user, route]);
 
-  // What other members added to my projects since I last opened each.
+  // The projects I am in, for the Mac app's sidebar.
   useEffect(() => {
     if (!user) {
-      setProjectNewCount(0);
       setMyProjects([]);
       return;
     }
@@ -390,7 +388,6 @@ export default function App({ startupUser = null, startupError = null }) {
       .then((projects) => {
         const mine = projects.filter((project) => project.is_member);
         setMyProjects(mine);
-        setProjectNewCount(mine.reduce((sum, project) => sum + (project.new_count || 0), 0));
       })
       .catch(() => {});
   }, [user, route, projectsRevision]);
@@ -943,7 +940,6 @@ export default function App({ startupUser = null, startupError = null }) {
             route={route}
             trail={wayTrail}
             unreadCount={unreadCount}
-            projectNewCount={projectNewCount}
           />
         )}
         {!hasWay && <header className="topnav">
