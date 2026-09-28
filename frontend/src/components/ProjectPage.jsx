@@ -417,9 +417,10 @@ function ProjectPapers({ project, currentUser, alert, picked, onPick, onChanged,
   const chosen = papers.find((p) => p.sha256 === picked)
     ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
   if (!papers.length) return <section className="project-section" aria-label="Papers" />;
-  const unreadOn = (paper) => (project.digs ?? [])
+  // What is new in each of the paper's digs, by dig.
+  const unreadOn = (paper) => Object.fromEntries((project.digs ?? [])
     .filter((d) => d.subject.key === `paper:${paper.sha256}`)
-    .reduce((sum, d) => sum + Number(d.unread ?? 0), 0);
+    .map((d) => [d.uuid, Number(d.unread ?? 0)]));
   const brief = (paper) => (
     <PaperBrief
       key={paper.sha256} project={project} paper={paper} currentUser={currentUser} underRow={!wide}

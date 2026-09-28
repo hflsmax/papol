@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
 import { TalkCard } from '../../../shared/ui/Talk.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
-import { annotationViewerPath, removePaperFromProject } from '../../../shared/api/projects.js';
+import { annotationViewerPath, findDigs, removePaperFromProject } from '../../../shared/api/projects.js';
 import { addToNook } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat.js';
@@ -18,9 +18,17 @@ function day(iso) {
 // A paper's brief: the paper as one project sees it, shown in the Papers
 // tab beside the list (or under its row on a narrow window). Where the
 // Library's jacket says what the paper is, the brief says what this group
-// makes of it: its digs, one per member who wrote about it.
-export default function PaperBrief({ project, paper, currentUser, unread = 0, underRow = false, onChanged, onRead }) {
+// makes of it: its digs, one per member who wrote about it, each on its
+// own, then yours to write if you have not.
+export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead }) {
   const [notice, setNotice] = useState(null);
+  const [digs, setDigs] = useState(null);
+  const subject = `paper:${paper.sha256}`;
+
+  const loadDigs = useCallback(() => findDigs(project.uuid, subject)
+    .then((found) => setDigs(found.digs ?? []))
+    .catch((err) => setNotice(err.message)), [project.uuid, subject]);
+  useEffect(() => { setDigs(null); loadDigs(); }, [loadDigs]);
 
   const act = async (work) => {
     setNotice(null);
@@ -79,13 +87,29 @@ export default function PaperBrief({ project, paper, currentUser, unread = 0, un
         <p className="project-paper-added">Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}</p>
       )}
 
-      <section className="paper-brief-dig" aria-label="Dig">
-        <TalkCard
-          key={paper.sha256} inline unread={unread} seekUnread={() => false}
-          projectUuid={project.uuid} subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
-          onChanged={() => { onChanged().catch(() => {}); }}
-        />
-      </section>
+      {digs && (
+        <section className="paper-brief-digs" aria-label="Digs">
+          {/* Yours first, then the others' as they came. */}
+          {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine)).map((d) => (
+            <div className="paper-brief-dig" key={d.uuid}>
+              <TalkCard
+                inline single unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
+                onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
+              />
+            </div>
+          ))}
+          {currentUser && !digs.some((d) => d.is_mine) && (
+            <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
+              <TalkCard
+                inline single seekUnread={() => false} dig="mine"
+                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
+                onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
+              />
+            </div>
+          )}
+        </section>
+      )}
     </article>
   );
 }

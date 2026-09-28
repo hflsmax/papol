@@ -446,6 +446,7 @@ export function TalkCard({
           <p className="talk-card-quiet">Opening…</p>
         ) : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
+            <p className="talk-post-head"><Face user={currentUser} /><b>You</b></p>
             <textarea
               ref={box} rows={4} value={body} maxLength={POST_LIMIT} aria-label="Your dig"
               onChange={(e) => setBody(e.target.value)}

@@ -30,9 +30,6 @@ const SHOTS = {
   'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
   // A paper picked in the Papers tab: its brief beside the list.
   'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
-  // Your own dig on a paper others have dug, still to be written: it opens
-  // under your chip, apart from the box that posts to a dig.
-  'desk-paper-yours': { ...desk('papers', '.project-papers-panel .talk-dig-new', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const you = document.querySelector('.project-papers-panel .talk-card-yours'); if (you) you.click(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // A member's face in a paper's dig, and where it leads: their nook.
