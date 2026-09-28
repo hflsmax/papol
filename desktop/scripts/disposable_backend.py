@@ -54,7 +54,11 @@ def free_port():
 
 
 def port_is_free(port):
+    """Whether a server could listen on the port now. Asked as a server asks,
+    with SO_REUSEADDR: the connections a stopped backend closed linger in
+    TIME_WAIT for half a minute, and they stop a bare bind but not wrangler."""
     with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind(("127.0.0.1", port))
         except OSError:
@@ -156,6 +160,8 @@ def stop(process):
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return
+    # wrangler stops the runtime it started only when it winds down itself:
+    # killed outright, it leaves workerd holding the port.
     try:
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:

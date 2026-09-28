@@ -44,6 +44,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import uuid
@@ -65,14 +66,33 @@ PAPER_TITLE = "Native interface end-to-end paper"
 ARTIFACTS = Path(os.environ.get("PAPOL_E2E_ARTIFACTS", tempfile.gettempdir())) / "native-ui"
 
 
+STARTED = time.monotonic()
+
+
 def say(message):
-    print(f"==> {message}", flush=True)
+    # Seconds since the start, so a slow run shows which step it was.
+    print(f"==> [{time.monotonic() - STARTED:5.1f}s] {message}", flush=True)
+
+
+# The driver compiled once, into a directory of this run's own. `xcrun
+# swift` on the script compiles it again on every call, a second or two
+# each, and the check makes a hundred calls or more: every poll of the
+# window is one.
+DRIVER_BINARY = Path(tempfile.mkdtemp(prefix="papol-ui-")) / "papol-ui"
+
+
+def compile_driver():
+    """Start compiling the driver; `require_driver` waits for it."""
+    return subprocess.Popen(
+        ["xcrun", "swiftc", "-O", "-o", str(DRIVER_BINARY), str(DRIVER)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
 
 
 def ui(*arguments):
     """One driver command; its exit status is part of the answer."""
     completed = subprocess.run(
-        ["xcrun", "swift", str(DRIVER), *arguments],
+        [str(DRIVER_BINARY), *arguments],
         capture_output=True,
         text=True,
     )
@@ -85,9 +105,10 @@ def press(pid, name, role="AXButton"):
         raise RuntimeError(output)
 
 
-def require_driver():
-    if sys.platform != "darwin":
-        raise SystemExit("the native interface check runs on macOS only")
+def require_driver(compiling):
+    output, _ = compiling.communicate()
+    if compiling.returncode:
+        raise SystemExit(f"papol-ui did not compile\n{output}")
     status, output = ui("windows")
     if status == 3:
         raise SystemExit(output)
@@ -109,7 +130,11 @@ def build_app():
         cwd=DESKTOP, env=environment, check=True,
     )
     subprocess.run(
-        ["npx", "tauri", "build", "--debug", "--no-bundle", "--config", str(DEV_CONFIG)],
+        # The app's own crate without debug information, which it spends
+        # most of its compile and link on; its dependencies keep theirs, so
+        # the ones already built are used as they are.
+        ["npx", "tauri", "build", "--debug", "--no-bundle", "--config", str(DEV_CONFIG),
+         "--", "--config", "profile.dev.package.papol-desktop.debug=0"],
         cwd=DESKTOP, env=environment, check=True,
     )
     if not BINARY.exists():
@@ -151,12 +176,12 @@ def wait_for(pid, *fragments, seconds=60):
         _, listing = ui("dump", str(pid))
         if all(fragment in listing for fragment in fragments):
             return listing
-        time.sleep(1)
+        time.sleep(.25)
     wanted = ", ".join(repr(fragment) for fragment in fragments)
     raise RuntimeError(f"the window never showed {wanted}; it shows:\n{listing}")
 
 
-def eventually(what, probe, seconds=60, every=1, between=None):
+def eventually(what, probe, seconds=60, every=.5, between=None):
     """Poll `probe` until it answers something truthy, and answer that.
 
     `between` runs before each wait, for a check that needs nudging — a
@@ -269,8 +294,30 @@ class Backend:
     def stop(self):
         backend_service.stop(self.process)
         self.process = None
+        say("The backend exited; waiting for its port")
         # wrangler's runtime lets go of the port a moment after it exits.
         eventually("the backend's port coming free", lambda: backend_service.port_is_free(PORT), 30)
+
+
+class Starting:
+    """`backend.start()` on a thread of its own; `wait` answers when it has,
+    raising what it raised."""
+
+    def __init__(self, backend):
+        self.error = None
+        self.thread = threading.Thread(target=self._run, args=(backend,), daemon=True)
+        self.thread.start()
+
+    def _run(self, backend):
+        try:
+            backend.start()
+        except BaseException as error:  # handed to wait()
+            self.error = error
+
+    def wait(self):
+        self.thread.join()
+        if self.error is not None:
+            raise self.error
 
 
 def offline_then_online(pid, backend, auth, home, identifier):
@@ -280,12 +327,14 @@ def offline_then_online(pid, backend, auth, home, identifier):
 
     say("Stopping the backend")
     backend.stop()
+    say("Stopped; adding a shelf")
 
     # The one change the desk makes with presses alone: the nook manager's
     # "Add another shelf" names the shelf itself.
     press(pid, "Manage nook")
     wait_for(pid, "Add another shelf")
     press(pid, "Add another shelf")
+    say("Pressed Add another shelf")
     added = eventually("the new shelf reaching the replica", lambda: shelves() - before, 30)
     (shelf,) = added
     # The dialog is modal: while it is open, WebKit publishes nothing
@@ -313,7 +362,7 @@ def offline_then_online(pid, backend, auth, home, identifier):
     eventually(
         "the offline shelf arriving at the service",
         lambda: shelf in service_rows(backend.url, auth["token"], "shelves"),
-        seconds=90, every=10, between=lambda: ui("press", str(pid), "Sync now*", "AXButton"),
+        seconds=90, every=3, between=lambda: ui("press", str(pid), "Sync now*", "AXButton"),
     )
     eventually(
         "the outbox emptying of the shelf",
@@ -361,7 +410,8 @@ def add_opened_pdf(pid, backend, auth, home, identifier, sha256):
 
 
 def main():
-    require_driver()
+    if sys.platform != "darwin":
+        raise SystemExit("the native interface check runs on macOS only")
     backend_service.require_backend_python()
     if not backend_service.port_is_free(PORT):
         raise SystemExit(
@@ -370,18 +420,22 @@ def main():
         )
     identifier = json.loads(DEV_CONFIG.read_text())["identifier"]
 
-    say("Compiling the app against the disposable backend")
-    build_app()
-
     with tempfile.TemporaryDirectory(prefix="papol-native-ui-") as directory:
         temporary = Path(directory)
         home = temporary / "home"
         home.mkdir()
         backend = Backend(temporary / "service")
-        app = pid = None
+        app = pid = starting = None
         try:
+            # None of the three needs another: the driver and the backend
+            # come up while the app compiles.
+            compiling = compile_driver()
             say(f"Starting the backend at {backend.url}")
-            backend.start()
+            starting = Starting(backend)
+            say("Compiling the app against the disposable backend")
+            build_app()
+            require_driver(compiling)
+            starting.wait()
             auth = backend_service.register(backend.url, "Native UI E2E")
             backend_service.create_paper(backend.url, auth["token"], PAPER_TITLE)
 
@@ -429,6 +483,8 @@ def main():
             raise
         finally:
             quit_app(app)
+            if starting is not None:
+                starting.thread.join()
             backend_service.stop(backend.process)
 
 

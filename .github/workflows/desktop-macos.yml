@@ -43,6 +43,15 @@ concurrency:
 permissions:
   contents: read
 
+# What the end-to-end jobs install with npm, cached as it lies.
+env:
+  NODE_MODULES: |
+    desktop/node_modules
+    frontend/node_modules
+    viewer/node_modules
+    board/node_modules
+    cloudflare/node_modules
+
 jobs:
   # Which version this release is, settled before anything is built: the
   # one after the latest macos-v* tag, refused if it is not new.
@@ -128,10 +137,10 @@ jobs:
   # also has the page capture photograph a served fixture and refuse the
   # pages that lead to this machine.
   #
-  # Two jobs, side by side, since a public repository's macOS minutes cost
-  # nothing and most of each is waiting on the app: the replica and the
-  # capture in one, the window in the other. `end-to-end` below answers
-  # for both under the name branch protection requires.
+  # Three jobs, side by side, since a public repository's macOS minutes
+  # cost nothing and most of each is waiting on the app or on a compile:
+  # the replica, the capture, and the window. `end-to-end` below answers
+  # for all three under the name branch protection requires.
   end-to-end-replica:
     name: macos-end-to-end-replica
     if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
@@ -152,24 +161,58 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
-      # One target/ for both jobs: `cargo run` here and `tauri build
+      # One target/ for the three jobs: `cargo run` here and `tauri build
       # --debug` there compile the same dependencies. Saved from main
-      # only, and by the app job alone, so the two never race for the key.
+      # only, and by the app job alone, so none of them races for the key.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
           save-if: false
+      # The installed dependencies, which the app job saves from main;
+      # installed afresh only when a lockfile has changed.
+      - id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.NODE_MODULES }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json', 'frontend/package-lock.json', 'viewer/package-lock.json', 'board/package-lock.json', 'cloudflare/package-lock.json') }}
 
       - name: Install desktop and bundled UI dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd desktop && npm ci && npm run install:web
 
       # The disposable backend the checks start is `wrangler dev`.
       - name: Install the Worker's dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd cloudflare && npm ci --legacy-peer-deps
 
       - name: The replica against the service
         run: cd desktop && npm run test:e2e:native-sync
+
+  # The capture needs no backend and no npm: the probe is a cargo example.
+  end-to-end-capture:
+    name: macos-end-to-end-capture
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'hotfix')
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: node
+          cache_save: false
+      - name: Read the pinned Rust
+        id: rust
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          shared-key: end-to-end
+          save-if: false
 
       # The capture refuses a local link and WebKit's rules refuse any
       # address that spells one, so the fixture it photographs is served on
@@ -225,9 +268,9 @@ jobs:
       # tool's request to the launchd job its ancestor was started by, so
       # every executable up this step's process tree is written into the
       # system TCC database — root-writable on the hosted runners, which
-      # ship with System Integrity Protection off — and the driver is asked
-      # afterwards whether it is trusted, so a grant that did not take fails
-      # here, with that message, rather than later as an app with no window.
+      # ship with System Integrity Protection off. The check asks the driver
+      # whether it is trusted before it opens anything, so a grant that did
+      # not take fails with that message rather than as an app with no window.
       - name: Let this job drive the app's interface
         run: |
           set -euo pipefail
@@ -237,24 +280,49 @@ jobs:
           while [ "$pid" -gt 1 ]; do
             client=$(ps -o comm= -p "$pid")
             echo "trusting $client"
-            sudo sqlite3 "$db" "INSERT OR REPLACE INTO access
+            # tccd may hold the database a moment; wait for it, not fail.
+            sudo sqlite3 -cmd '.timeout 10000' "$db" "INSERT OR REPLACE INTO access
               (service, client, client_type, auth_value, auth_reason, auth_version, flags)
               VALUES ('kTCCServiceAccessibility', '$client', 1, 2, 4, 1, 0);"
             pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
           done
           sudo killall tccd || true
-          xcrun swift desktop/scripts/papol-ui.swift windows
+
+      # The installed dependencies: saved from main only, as the Rust
+      # cache is, and installed afresh only when a lockfile has changed.
+      - id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.NODE_MODULES }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json', 'frontend/package-lock.json', 'viewer/package-lock.json', 'board/package-lock.json', 'cloudflare/package-lock.json') }}
 
       - name: Install desktop and bundled UI dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd desktop && npm ci && npm run install:web
 
       - name: Install the Worker's dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd cloudflare && npm ci --legacy-peer-deps
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.modules.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.NODE_MODULES }}
+          key: ${{ steps.modules.outputs.cache-primary-key }}
 
       - name: The app against the service
         env:
           PAPOL_E2E_ARTIFACTS: ${{ runner.temp }}/e2e
         run: cd desktop && npm run test:e2e:native-ui
+
+      # The capture job restores the Rust cache this job saves and builds
+      # its probe on top, which recompiled Tauri with the probe's features
+      # every run (about 30 s). Built here as well, those crates are in it.
+      - name: Build the capture probe into the saved cache
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+          --config profile.dev.package.papol-desktop.debug=0 --example capture_probe
 
       - name: Keep what the window showed
         if: failure()
@@ -264,19 +332,19 @@ jobs:
           path: ${{ runner.temp }}/e2e
           if-no-files-found: ignore
 
-  # The check branch protection requires: both halves passed, or were
+  # The check branch protection requires: all three passed, or were
   # skipped together (a `hotfix` pull request, where a skipped check passes).
   end-to-end:
     name: macos-end-to-end
-    needs: [end-to-end-replica, end-to-end-app]
-    if: always()
+    needs: [end-to-end-replica, end-to-end-capture, end-to-end-app]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Both halves of the end-to-end check
+      - name: All three parts of the end-to-end check
         run: |
-          echo "replica: ${{ needs.end-to-end-replica.result }}, app: ${{ needs.end-to-end-app.result }}"
-          for result in "${{ needs.end-to-end-replica.result }}" "${{ needs.end-to-end-app.result }}"; do
+          echo "replica: ${{ needs.end-to-end-replica.result }}, capture: ${{ needs.end-to-end-capture.result }}, app: ${{ needs.end-to-end-app.result }}"
+          for result in "${{ needs.end-to-end-replica.result }}" "${{ needs.end-to-end-capture.result }}" "${{ needs.end-to-end-app.result }}"; do
             [ "$result" = success ] || [ "$result" = skipped ] || exit 1
           done
 
