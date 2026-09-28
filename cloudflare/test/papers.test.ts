@@ -8,7 +8,7 @@ import worker from "../src/index";
 import { enqueue } from "../src/jobs/queue";
 import type { Wakeup } from "../src/jobs/run";
 import { byDoi, summarizeCrossref, summarizeOpenalex } from "../src/papers/bibliography";
-import { extractDoi, extractArxivId, titleFromFilename } from "../src/papers/extract";
+import { extractDoi, extractArxivId, paperVenue, titleFromFilename } from "../src/papers/extract";
 import { VENUES } from "../src/papers/venues";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, sha256, uuid, type Account } from "./helpers";
 
@@ -193,6 +193,19 @@ describe("what a PDF says about itself", () => {
       primary_location: { source: { display_name: "arXiv (Cornell University)", type: "repository" }, landing_page_url: "https://arxiv.org/abs/1607.06450" },
       abstract_inverted_index: { Training: [0], deep: [1], nets: [2] } });
     expect(openalex).toMatchObject({ title: "Layer Normalization", venue: null, host: "arXiv (Cornell University)", abstract: "Training deep nets", doi: "10.48550/arXiv.1607.06450", source: "openalex" });
+  });
+
+  it("names a conference paper's venue by the conference's short name, without its year", () => {
+    const chi = "Proceedings of the 2017 CHI Conference on Human Factors in Computing Systems";
+    const crossref = (event: unknown) => summarizeCrossref({ DOI: "10.1145/3025453.3025912", "container-title": [chi], event }).venue;
+    expect(crossref({ name: "CHI '17: CHI Conference on Human Factors in Computing Systems", acronym: "CHI '17" })).toBe("CHI '17");
+    expect(crossref({ name: "CHI '17: CHI Conference on Human Factors in Computing Systems" })).toBe("CHI '17");
+    expect(crossref(undefined)).toBe(chi);
+    expect(paperVenue("CHI '17")).toBe("CHI");
+    expect(paperVenue("UIST ’16")).toBe("UIST");
+    expect(paperVenue("ASPLOS 2024")).toBe("ASPLOS");
+    expect(paperVenue(chi)).toBe(chi);
+    expect(paperVenue("Nature")).toBe("Nature");
   });
 
   it("names the venue by an issue the publisher named, not one it numbered", () => {
