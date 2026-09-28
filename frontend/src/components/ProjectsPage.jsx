@@ -5,6 +5,7 @@ import { appPath } from '../base';
 import ProjectMembers, { keeperNames } from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
+import { keep, kept } from '../lastMember';
 
 const SHOWN = 5;
 
@@ -25,7 +26,7 @@ function Crowd({ members, currentUser }) {
 // it is a section of the Bazaar, beside everyone's papers and boards.
 export default function ProjectsPage({ currentUser, onOpenProject, onChanged, section = false }) {
   const Title = section ? 'h3' : 'h2';
-  const [projects, setProjects] = useState(null);
+  const [projects, setProjects] = useState(() => kept('projects'));
   const [error, setError] = useState(null);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
@@ -39,6 +40,10 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (projects) keep('projects', projects);
+  }, [projects]);
 
   const create = async (event) => {
     event.preventDefault();

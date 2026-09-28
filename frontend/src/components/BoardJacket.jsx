@@ -15,6 +15,7 @@ import { boardFacts } from '../boardFacts';
 import { authorList } from '../paperFormat';
 import { appPath } from '../base';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { keep, kept } from '../lastMember';
 
 /**
  * A board's jacket: what is known about it, and the way in.
@@ -55,7 +56,7 @@ export default function BoardJacket({
   boardUuid, onOpen, onBack, backHref, backLabel = 'Back',
   hideBack = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
 }) {
-  const [board, setBoard] = useState(null);
+  const [board, setBoard] = useState(() => kept(`board:${boardUuid}`));
   const [error, setError] = useState(null);
   const [shelves, setShelves] = useState([]);
   const [shelfWarning, setShelfWarning] = useState(null);
@@ -65,7 +66,7 @@ export default function BoardJacket({
 
   const load = (quiet) => {
     let gone = false;
-    if (!quiet) { setBoard(null); setError(null); }
+    if (!quiet) { setBoard(kept(`board:${boardUuid}`)); setError(null); }
     getBoard(boardUuid)
       .then((found) => {
         if (gone) return;
@@ -75,6 +76,10 @@ export default function BoardJacket({
       .catch((err) => !gone && setError(err?.message || String(err)));
     return () => { gone = true; };
   };
+
+  useEffect(() => {
+    if (board?.uuid === boardUuid) keep(`board:${boardUuid}`, board);
+  }, [board, boardUuid]);
 
   useEffect(() => {
     setEditing(null);

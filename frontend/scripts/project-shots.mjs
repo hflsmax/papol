@@ -64,6 +64,10 @@ const SHOTS = {
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
   // The nook while it waits: for the sign-in to be checked, then for its
   // papers.
+  // A project opened before shows at once on coming back, while it is
+  // asked for again; one never opened waits for it.
+  'project-loading': { path: `/project/${PROJECT}?shell=web`, hold: [`/projects/${PROJECT}`], ready: "document.querySelector('.desk-project-view .loading, .desk-project-view .project-tabs')", size: wide },
+  'project-return': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", holdThen: [`/projects/${PROJECT}`], then: "setTimeout(() => location.reload(), 0); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
   'nook-signing-in': { path: '/?shell=web', hold: ['/auth/me'], ready: "document.getElementById('root').childElementCount > 0", size: wide },
   // Back to the nook from elsewhere in the app: shown as it was left while
   // it is fetched again.

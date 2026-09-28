@@ -14,7 +14,7 @@ import { DESKTOP } from '../../../shared/desktopShell';
 import { paperName } from '../../../shared/paperName.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { formatAuthors, newestFirst } from '../paperFormat';
-import { saveNook, savedNook } from '../lastMember';
+import { keep, kept } from '../lastMember';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -22,11 +22,8 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
-// The nooks seen so far in this tab, so coming back to one shows it at once
-// while it is fetched again. A member's own is also kept in the browser
-// (lastMember.js), so the next visit opens on it too.
-const seen = new Map();
-const lastSeen = (userUuid) => seen.get(userUuid) ?? (DESKTOP ? null : savedNook(userUuid));
+// A nook seen before shows at once while it is fetched again (lastMember.js).
+const lastSeen = (userUuid) => kept(`nook:${userUuid}`);
 
 export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
   const [nook, setNook] = useState(() => lastSeen(userUuid));
@@ -71,9 +68,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
 
   useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
-    seen.set(userUuid, nook);
-    if (isOwn && !DESKTOP) saveNook(nook);
-  }, [nook, userUuid, isOwn]);
+    keep(`nook:${userUuid}`, nook);
+  }, [nook, userUuid]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
   const ownDesk = isOwn && !DESKTOP;

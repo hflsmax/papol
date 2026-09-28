@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Working } from '../../../shared/ui/Waiting.js';
 import { acceptInvitation, previewInvitation } from '../../../shared/api/projects.js';
 import ProjectMembers from './ProjectMembers';
 
@@ -28,7 +27,7 @@ export default function InvitationPage({ code, currentUser, onOpenProject, onCha
   }, [code]);
 
   if (!project && !closed && error) return <div className="panel"><div className="error" role="alert">{error}</div></div>;
-  if (!project && !closed) return <div className="loading"><Working label="Opening invitation…" /></div>;
+  if (!project && !closed) return null;
 
   const join = async () => {
     setJoining(true);
