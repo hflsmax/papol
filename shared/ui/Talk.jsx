@@ -24,6 +24,7 @@ const KINDS = {
   take: { word: 'Thought' },
   board: { word: 'Board' },
   card: { word: 'Card' },
+  annotation: { word: 'Annotation' },
 };
 
 export function kindOf(subject) {

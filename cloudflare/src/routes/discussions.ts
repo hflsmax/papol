@@ -1,6 +1,7 @@
 // Discussions: writing in a project about one thing in it. The thing can
 // be anything the project holds: a paper, a member's thought on a paper, a
-// board, or a card on a board. Never the project itself: a dig about the
+// board, a card on a board, or an annotation a member left on one of the
+// papers. Never the project itself: a dig about the
 // whole project would be about nothing in particular. A subject has one
 // discussion, so talking about it always leads to the same place; the
 // first post opens it and the last one taken back closes it.
@@ -23,6 +24,7 @@ interface Discussion extends Row {
   take_user_uuid: string | null;
   board_uuid: string | null;
   board_item_uuid: string | null;
+  annotation_uuid: string | null;
   started_by: string;
   created_at: string;
   updated_at: string;
@@ -41,9 +43,10 @@ export interface Subject {
   take_user_uuid: string | null;
   board_uuid: string | null;
   board_item_uuid: string | null;
+  annotation_uuid: string | null;
 }
 
-const NONE = { paper_sha256: null, take_user_uuid: null, board_uuid: null, board_item_uuid: null };
+const NONE = { paper_sha256: null, take_user_uuid: null, board_uuid: null, board_item_uuid: null, annotation_uuid: null };
 
 async function paperIn(env: Env, project: Project, value: string): Promise<string> {
   const digest = value.toLowerCase();
@@ -88,6 +91,18 @@ async function subjectOf(env: Env, project: Project, data: Row): Promise<Subject
     if (!card) refuse(404, "That card is not on this project's boards");
     return { ...NONE, subject: `card:${first}`, board_item_uuid: first };
   }
+  // A member's note, ink or clip on one of the project's papers: what the
+  // viewer shows every member once the project is on. Its author's alone
+  // to change; the project's to dig into.
+  if (kind === "annotation" && first && second === undefined) {
+    const annotation = await one<{ paper_sha256: string }>(env.DB,
+      `SELECT a.paper_sha256 FROM annotations a
+       JOIN project_papers pp ON pp.paper_sha256 = a.paper_sha256 AND pp.project_uuid = ?
+       JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = pp.project_uuid
+       WHERE a.uuid = ? AND a.deleted_at IS NULL`, project.uuid, first);
+    if (!annotation) refuse(404, "That annotation is not on one of this project's papers");
+    return { ...NONE, subject: `annotation:${first}`, paper_sha256: annotation!.paper_sha256, annotation_uuid: first };
+  }
   return refuse(422, "That is not something a discussion can be about");
 }
 
@@ -98,8 +113,8 @@ async function existing(env: Env, project: Project, subject: Subject) {
 async function subjectRow(env: Env, projectUuid: string, subject: Subject): Promise<Row> {
   return (await one<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS}
-     FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS take_user_uuid, ? AS board_uuid, ? AS board_item_uuid) d ${SUBJECT_JOINS}`,
-    subject.subject, projectUuid, subject.paper_sha256, subject.take_user_uuid, subject.board_uuid, subject.board_item_uuid))!;
+     FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS take_user_uuid, ? AS board_uuid, ? AS board_item_uuid, ? AS annotation_uuid) d ${SUBJECT_JOINS}`,
+    subject.subject, projectUuid, subject.paper_sha256, subject.take_user_uuid, subject.board_uuid, subject.board_item_uuid, subject.annotation_uuid))!;
 }
 
 async function openDiscussion(env: Env, uuid: string, me: User): Promise<{ discussion: Discussion; project: Project; member: Member }> {

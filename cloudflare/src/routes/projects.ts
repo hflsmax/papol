@@ -11,6 +11,7 @@ import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
 import { all, batch, insert, newUuid, now, one, statement, update, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
+import { annotationOut } from "../papers/detail";
 import { membersCopies } from "../papers/list";
 import { isShareCode, newShareCode } from "../papers/sharables";
 import * as validate from "../validate";
@@ -220,12 +221,16 @@ function excerpt(body: string): string {
 // Everything subjectOut needs to name a subject.
 export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_name, tc.thought AS take_thought, tc.thought_public AS take_public,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
-  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name`;
+  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name,
+  an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name,
+  an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
   LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
-  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)`;
+  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
+  LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
+  LEFT JOIN users au ON au.uuid = an.user_uuid`;
 
 // What a discussion is about, said the way the project page says it.
 export function subjectOut(d: Row) {
@@ -240,11 +245,30 @@ export function subjectOut(d: Row) {
     };
   }
   if (base.kind === "board") return { ...base, board_uuid: d.board_uuid, board_name: d.board_name, label: d.board_name ?? "A board" };
+  if (base.kind === "annotation") {
+    return {
+      ...base, annotation_uuid: d.annotation_uuid, paper_sha256: d.paper_sha256, paper_title: d.paper_title,
+      annotation_kind: d.annotation_kind ?? null, page: d.annotation_page ?? null, user_uuid: d.annotation_user ?? null, by: d.annotation_by ?? null,
+      label: annotationLabel(d),
+    };
+  }
   const text = (d.card_excerpt || d.card_content || d.card_file || "") as string;
   return {
     ...base, board_item_uuid: d.board_item_uuid, board_uuid: d.card_board, board_name: d.board_name,
     card_kind: d.card_kind, label: text ? excerpt(text).slice(0, 120) : `A card on ${d.board_name ?? "a board"}`,
   };
+}
+
+// An annotation named in a line: a note by what it says, ink and a clip by
+// where they are.
+function annotationLabel(d: Row): string {
+  const words = String(d.annotation_name || d.annotation_content || "").trim();
+  if (d.annotation_kind === "note" && words) return excerpt(words).slice(0, 120);
+  const where = d.annotation_page ? ` on page ${d.annotation_page}` : "";
+  if (d.annotation_kind === "ink") return `Ink${where}`;
+  if (d.annotation_kind === "clip") return `A clip${where}`;
+  if (d.annotation_kind === "note") return `An anchor${where}`;
+  return "An annotation";
 }
 
 function touched(env: Env, project: Project): D1PreparedStatement {
@@ -454,6 +478,34 @@ export function projectRoutes(router: Router) {
       ]);
     }
     return json(await projectOut(env, project, me, member));
+  });
+
+  // A paper with the project on: every member's notes, ink and clips on
+  // it, each saying whose, and the digs already open on them. Read only;
+  // an annotation is written through its author's own routes. Joining is
+  // trust, as the copies are: what a member left on a project's paper is
+  // what the project reads.
+  router.on("GET", "/api/projects/:uuid/papers/:sha256/annotations", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    const member = await membership(env, project, me);
+    const digest = params.sha256.toLowerCase();
+    if (!(await one(env.DB, "SELECT 1 FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, digest))) {
+      refuse(404, "That paper is not in this project");
+    }
+    const members = await membersOf(env, [project.uuid]);
+    const rows = await all<Row>(env.DB,
+      `SELECT a.* FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
+       WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL ORDER BY a.created_at, a.uuid`, project.uuid, digest);
+    const people = new Map(members.map((m) => [m.user_uuid, userPublic({ ...m, uuid: m.user_uuid })]));
+    const digs = (await discussionsOf(env, project.uuid, me, member))
+      .filter((d) => d.subject.kind === "annotation" && Number(d.post_count) > 0);
+    return json({
+      project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
+      me: me.uuid,
+      annotations: rows.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
+      digs: Object.fromEntries(digs.map((d) => [d.subject.key.slice("annotation:".length), { uuid: d.uuid, post_count: d.post_count, is_new: d.is_new, voices: d.voices }])),
+    });
   });
 
   // Whoever added a paper, or a keeper, can take it out again.

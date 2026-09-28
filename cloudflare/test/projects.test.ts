@@ -187,3 +187,40 @@ describe("people going", () => {
     expect(await row("SELECT deleted_at FROM projects WHERE uuid = ?", solo.uuid)).toEqual({ deleted_at: expect.any(String) });
   });
 });
+
+describe("a paper with the project on", () => {
+  it("shows every member's annotations on it, whose each is, and takes a dig on one", async () => {
+    const dana = await register(), ana = await register(), ben = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    await copyOf(ana, A_PAPER, "Loss Curves");
+    await copyOf(ben, A_PAPER, "Loss Curves");
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const name = A_PAPER.slice(0, 32);
+    const danas = await ok("POST", `/api/papers/${name}/annotations`, { headers: dana.headers, json: { kind: "note", page: 2, content: "Figure 1 is off", body: { anchor: { type: "point", x: 0.5, y: 0.5 } } } });
+    const anas = await ok("POST", `/api/papers/${name}/annotations`, { headers: ana.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.1, y: 0.2 }] } } });
+    // Ben is not a member: what he leaves stays his.
+    await ok("POST", `/api/papers/${name}/annotations`, { headers: ben.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.3, y: 0.3 }] } } });
+
+    const seen = await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers });
+    expect(seen.me).toBe(ana.uuid);
+    expect(seen.project).toMatchObject({ uuid: project.uuid, name: "Error dynamics" });
+    expect(seen.project.members.map((m: any) => m.user.uuid)).toEqual([dana.uuid, ana.uuid]);
+    expect(seen.annotations.map((a: any) => [a.uuid, a.user.uuid])).toEqual([[danas.uuid, dana.uuid], [anas.uuid, ana.uuid]]);
+    expect(seen.digs).toEqual({});
+    expect((await call("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ben.headers })).status).toBe(403);
+    expect((await call("GET", `/api/projects/${project.uuid}/papers/${B_PAPER}/annotations`, { headers: ana.headers })).status).toBe(404);
+
+    // Ana digs into Dana's note; the dig is the project's and names the note.
+    const dig = await ok("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `annotation:${danas.uuid}`, body: "Which panel?" } });
+    expect(dig.subject).toMatchObject({ kind: "annotation", key: `annotation:${danas.uuid}`, paper_sha256: A_PAPER, page: 2, annotation_kind: "note", by: "Desktop Test", label: "Figure 1 is off" });
+    const again = await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: dana.headers });
+    expect(again.digs[danas.uuid]).toMatchObject({ uuid: dig.uuid, post_count: 1, is_new: true });
+    // Nothing outside the project can be dug: Ben's ink, or a note the project's paper does not carry.
+    const bens = (await ok("GET", `/api/papers/${name}/annotations`, { headers: ben.headers }))[0];
+    expect((await call("POST", `/api/projects/${project.uuid}/discussions`, { headers: ana.headers, json: { subject: `annotation:${bens.uuid}`, body: "?" } })).status).toBe(404);
+    const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).discussions;
+    expect(listed.map((d: any) => d.subject.label)).toEqual(["Figure 1 is off"]);
+  });
+});

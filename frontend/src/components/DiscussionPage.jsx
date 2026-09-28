@@ -8,7 +8,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import {
   deleteDiscussionPost, editDiscussionPost, findDiscussion, getDiscussion, replyToDiscussion, startDiscussion,
 } from '../../../shared/api/projects.js';
-import { briefPath } from '../../../shared/api/projects.js';
+import { annotationViewerPath, briefPath } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -24,11 +24,13 @@ const POST_LIMIT = appLimits.text.discussion_post;
 // thing itself, at its brief or on its board.
 function Subject({ project, subject, posts = [] }) {
   const projectHref = appPath(`/project/${project.uuid}`);
-  const home = subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
-    : subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
+  const home = subject.kind === 'annotation' ? appPath(annotationViewerPath(project.uuid, subject.paper_sha256, subject.page))
+    : subject.paper_sha256 ? appPath(briefPath(project.uuid, subject.paper_sha256))
+      : subject.board_uuid ? appPath(`/boards/${subject.board_uuid}`) : null;
   const under = {
     take: subject.by && <>{subject.by}’s thought on <a href={home}>{subject.paper_title ?? 'a paper'}</a></>,
     card: subject.board_name && <>On <a href={home}>{subject.board_name}</a></>,
+    annotation: subject.by && <>{subject.by}’s, on <a href={appPath(briefPath(project.uuid, subject.paper_sha256))}>{subject.paper_title ?? 'a paper'}</a></>,
   }[subject.kind];
   const voices = [];
   posts.forEach((post) => { if (!voices.some((u) => u.uuid === post.user.uuid)) voices.push(post.user); });
