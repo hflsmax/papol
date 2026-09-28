@@ -11,7 +11,7 @@ import { paperName } from '../../../shared/paperName.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { formatAuthors } from '../paperFormat.js';
-import Avatar from './Avatar';
+import Face from '../../../shared/ui/Face.jsx';
 import { RATING_DIMENSIONS } from './Rating';
 import { ProjectWay, SectionHead, firstName, markArrivals, plural } from './ProjectPage';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -183,7 +183,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
                 const composing = mine && (writing || !entry.thought);
                 return (
                   <li key={entry.user.uuid} className={`project-take talk-host${composing ? ' is-composing' : ''}`}>
-                    <Avatar user={entry.user} className="mini-avatar" />
+                    <Face user={entry.user} />
                     <p className="project-take-who">
                       <b>{nameOf(entry.user)}</b>
                       {TAKE_RATINGS.filter((d) => entry[d.key]).map((d) => (
@@ -213,7 +213,7 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
               })}
               {!takes.some((entry) => isMe(entry.user)) && (
                 <li className="project-take is-composing">
-                  <Avatar user={currentUser} className="mini-avatar" />
+                  <Face user={currentUser} />
                   <p className="project-take-who"><b>You</b></p>
                   <ThoughtComposer
                     key={paper.sha256}

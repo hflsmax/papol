@@ -15,6 +15,7 @@ import { InWay } from './Way';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
 import { formatAuthors } from '../paperFormat.js';
 import Avatar from './Avatar';
+import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
@@ -46,13 +47,14 @@ export function markArrivals(projectUuid, project) {
   };
 }
 
-// Overlapping faces, a few then a count: who is here without a row of chips.
+// Overlapping faces, a few then a count: who is here without a row of
+// chips. Each leads to its person's nook.
 export function Faces({ users, max = 4 }) {
   const shown = users.slice(0, max);
   const more = users.length - shown.length;
   return (
-    <span className="project-faces" aria-hidden="true">
-      {shown.map((user) => <Avatar key={user.uuid} user={user} className="mini-avatar" />)}
+    <span className="project-faces">
+      {shown.map((user) => <Face key={user.uuid} user={user} />)}
       {more > 0 && <span className="project-faces-more">+{more}</span>}
     </span>
   );
@@ -265,7 +267,7 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
           const me = member.user.uuid === currentUser?.uuid;
           return (
             <li key={member.user.uuid} className="project-person">
-              <Avatar user={member.user} className="mini-avatar" />
+              <Face user={member.user} />
               <a className="project-person-name" href={appPath(`/u/${member.user.uuid}`)}>
                 {member.user.display_name}
               </a>

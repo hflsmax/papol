@@ -13,7 +13,7 @@ import appLimits from '../../../shared/appLimits.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { InToolbar } from './DesktopChrome';
-import Avatar from './Avatar';
+import Face from '../../../shared/ui/Face.jsx';
 import AutoTextarea from './AutoTextarea';
 import Markdown from './Markdown';
 import { ProjectWay, SUBJECT_WORDS } from './ProjectPage';
@@ -57,7 +57,7 @@ function Subject({ project, subject, posts = [] }) {
         {under && <p className="dig-subject-under">{under}</p>}
         {posts.length > 0 && (
           <p className="dig-voices">
-            <span className="project-faces">{voices.slice(0, 5).map((u) => <Avatar key={u.uuid} user={u} className="mini-avatar" />)}</span>
+            <span className="project-faces">{voices.slice(0, 5).map((u) => <Face key={u.uuid} user={u} />)}</span>
             <span>{posts.length === 1 ? '1 post' : `${posts.length} posts`}</span>
           </p>
         )}
@@ -112,7 +112,7 @@ function Post({ post, canModerate, selected, onSelect, onEdit, onDelete, onDig, 
       onClick={(e) => { if (!editing && !e.target.closest('a, button, textarea')) onSelect(); }}
     >
       <div className="discussion-post-head">
-        <Avatar user={post.user} className="mini-avatar" />
+        <Face user={post.user} />
         <span className="discussion-post-author">{post.is_mine ? 'You' : post.user.display_name}</span>
         <time className="discussion-post-time" dateTime={post.created_at}>{when(post.created_at, { time: true })}{post.edited_at && ' · edited'}</time>
         {!editing && !digging && actions.length > 0 && <ItemActions actions={actions} label="Post actions" placement="below-end" />}
@@ -148,7 +148,7 @@ function ReplyBar({ currentUser, placeholder, submitLabel, onSubmit, tall = fals
   const open = tall || focused || body;
   return (
     <form className={`dig-compose${open ? ' is-open' : ''}`} onSubmit={submit} aria-label={submitLabel}>
-      {currentUser && <Avatar user={currentUser} className="mini-avatar" />}
+      {currentUser && <Face user={currentUser} />}
       <AutoTextarea
         rows={open ? 6 : 1}
         value={body}

@@ -5128,6 +5128,10 @@ a.projects-row-name:hover { color: var(--accent); text-decoration: underline; te
 .project-title-input:hover { border-color: var(--line); background: var(--card); }
 .project-title-input:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: 0; }
 
+/* A face that leads to its person's nook. */
+.face-link { display: inline-flex; flex: none; border-radius: 50%; text-decoration: none; }
+.face-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* The members, as overlapping faces and a count; one control. */
 .project-faces { display: inline-flex; align-items: center; padding-left: var(--space-1); }
 .project-faces .mini-avatar { margin-left: calc(-1 * var(--space-1)); box-shadow: 0 0 0 2px var(--paper); }
@@ -5284,7 +5288,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-take-who .talk-pin-wrap { align-self: center; margin-left: calc(-1 * var(--space-2)); }
 .project-take-who .talk-pin { height: 20px; min-width: 20px; }
 .project-take.is-composing .project-thought-form { grid-column: 2; margin-top: var(--space-1); }
-.project-take .mini-avatar { grid-row: 1 / span 2; align-self: start; }
+.project-take > .mini-avatar, .project-take > .face-link { grid-row: 1 / span 2; align-self: start; }
 .project-take-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-take-who b { color: var(--ink-soft); font-weight: 600; }
 .project-take-thought { grid-column: 2; margin: 2px 0 0; color: var(--ink); font: var(--fs-md)/1.5 var(--font-serif); }
