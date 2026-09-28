@@ -558,7 +558,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
       </h3>
       <TalkCard
         key={d.uuid} inline
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single phaseBar
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single
       />
     </>
   );

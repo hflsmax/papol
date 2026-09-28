@@ -43,19 +43,20 @@ export const talkStyles = `
 .talk-card-header { flex: none; display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 5px 7px 5px 10px; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .talk-card-close { display: inline-grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 20px/1 var(--font-ui); }
 .talk-card-close { margin-left: auto; }
-.dig-phase { display: inline-flex; flex: none; gap: 2px; margin-left: auto; padding: 2px; border-radius: 999px; background: var(--paper-sunken); }
-.dig-phase button, .dig-phase-word { min-height: 0; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-faint); font: 600 var(--fs-xs)/24px var(--font-ui); letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
-.dig-phase button:hover:not(:disabled) { border: 0; background: none; color: var(--ink-soft); }
-.dig-phase button.is-on, .dig-phase button.is-on:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); color: var(--ink); }
-.dig-phase.is-busy button.is-on { opacity: .6; }
-.dig-phase button:focus-visible, .dig-phase-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .phase-glyph { flex: none; width: 15px; height: 15px; overflow: visible; }
 .phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.dig-phase button, .dig-phase-word { display: inline-flex; align-items: center; gap: 5px; }
-.dig-phase-word { flex: none; margin-left: auto; background: var(--paper-sunken); color: var(--ink-soft); }
+/* The phase and, pressed, the four phases in a list dropped under it. */
+.dig-phase-pick { position: relative; display: inline-flex; flex: none; margin-left: auto; }
+.dig-phase-word, .dig-phase-menu button { display: inline-flex; align-items: center; gap: 6px; min-height: 0; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--paper-sunken); box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/26px var(--font-ui); letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
 .dig-phase-word:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink); }
-@media (pointer: coarse) { .dig-phase button, .dig-phase-word { height: 32px; line-height: 32px; } }
-.dig-phase + .talk-card-close, .dig-phase-word + .talk-card-close { margin-left: 0; }
+.dig-phase-word.is-busy { opacity: .6; }
+.dig-phase-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: grid; min-width: 9.5rem; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
+.dig-phase-menu button { width: 100%; height: 32px; border-radius: var(--radius); background: none; color: var(--ink-soft); font-weight: 500; text-align: left; }
+.dig-phase-menu button:hover:not(:disabled), .dig-phase-menu button:focus-visible { border: 0; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); outline: 0; }
+.dig-phase-menu button.is-on, .dig-phase-menu button.is-on:hover:not(:disabled) { background: var(--paper-sunken); color: var(--ink); font-weight: 600; }
+.dig-phase-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (pointer: coarse) { .dig-phase-word { height: 32px; line-height: 32px; } .dig-phase-menu button { height: 40px; } }
+.dig-phase-pick + .talk-card-close { margin-left: 0; }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
