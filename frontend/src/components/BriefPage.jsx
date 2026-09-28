@@ -13,7 +13,7 @@ import { DESKTOP } from '../../../shared/desktopShell';
 import { formatAuthors } from '../paperFormat.js';
 import Face from '../../../shared/ui/Face.jsx';
 import { RATING_DIMENSIONS } from './Rating';
-import { ProjectWay, SectionHead, firstName, markArrivals, plural } from './ProjectPage';
+import { ProjectWay, SectionHead, markArrivals } from './ProjectPage';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 
 // A take shows the two ratings a project compares by; expertise is the
@@ -36,7 +36,6 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [writing, setWriting] = useState(false);
-  const [digOn, setDigOn] = useState(null);
   const [digOpen, setDigOpen] = useState(false);
   const aside = useRef(null);
   const layout = useRef(null);
@@ -79,32 +78,19 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const viewer = appPath(annotationViewerPath(project.uuid, paper.sha256));
   // Every member's dig on a thing folds into one summary of it.
   const talk = new Map();
-  (project.discussions ?? []).forEach((d) => {
+  (project.digs ?? []).forEach((d) => {
     const had = talk.get(d.subject.key);
     talk.set(d.subject.key, had ? {
       ...had, count: had.count + 1 + Number(d.post_count ?? 0), unread: had.unread + Number(d.unread ?? 0), is_new: had.is_new || d.is_new,
     } : { ...d, count: 1 + Number(d.post_count ?? 0), unread: Number(d.unread ?? 0) });
   });
-  const onThoughts = [...talk.values()].filter((d) => d.subject.kind === 'take' && d.subject.paper_sha256 === paper.sha256);
-  // One dig shows at a time beside the takes: the paper's, or a thought's
-  // picked by its pin. The column appears once there is a dig to show.
+  // The paper's digs show beside the takes, one member's at a time. The
+  // column appears once there is one, or the reader starts theirs.
   const paperKey = `paper:${paper.sha256}`;
-  const takeKey = (user) => `take:${paper.sha256}:${user.uuid}`;
-  const takeLabel = (entry) => (entry.thought ? `“${entry.thought}”` : `${nameOf(entry.user)}’s take on ${paper.title}`);
-  const whose = (key) => paper.users.find((u) => takeKey(u.user) === key);
-  const labelOf = (key) => (key === paperKey ? paper.title : takeLabel(whose(key)));
   const hasDig = (key) => talk.has(key);
-  // Until one is picked, the paper's own dig, or else the first thought's.
-  const shown = digOn ?? (hasDig(paperKey) || digOpen || !onThoughts.length ? paperKey : onThoughts[0].subject.key);
-  const withDig = hasDig(paperKey) || digOpen || digOn !== null || onThoughts.length > 0;
-  const choices = [paperKey, ...onThoughts.map((d) => d.subject.key), ...(digOn && digOn !== paperKey && !talk.get(digOn)?.last_post ? [digOn] : [])];
-  const choiceName = (key) => {
-    if (key === paperKey) return 'Paper';
-    const entry = whose(key);
-    return entry ? `${isMe(entry.user) ? 'Your' : `${firstName(entry.user)}’s`} thought` : 'Thought';
-  };
-  const openDig = (key) => {
-    setDigOn(key);
+  const shown = paperKey;
+  const withDig = hasDig(paperKey) || digOpen;
+  const openDig = () => {
     setDigOpen(true);
     requestAnimationFrame(() => {
       const box = aside.current?.getBoundingClientRect();
@@ -116,19 +102,16 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
   const pin = (key, about, size = 'sm') => {
     const summary = talk.get(key);
     const count = summary?.count ?? 0;
-    // The pressed ring only where it tells digs apart; the gold dot only on
-    // a dig that is not the one in view.
-    const on = shown === key && withDig && choices.length > 1;
-    const fresh = summary?.is_new && shown !== key;
+    // The gold dot only while the digs are not in view.
+    const fresh = summary?.is_new && !withDig;
     return (
       <span className={`talk-pin-wrap talk-${size}`}>
         <button
           type="button"
-          className={`talk-pin${count ? '' : ' is-empty'}${fresh ? ' is-new' : ''}${on ? ' is-open' : ''}`}
-          aria-pressed={on}
+          className={`talk-pin${count ? '' : ' is-empty'}${fresh ? ' is-new' : ''}`}
           aria-label={count ? `Digs on ${about}` : `Dig into ${about}`}
           title="Dig"
-          onClick={() => openDig(key)}
+          onClick={openDig}
         >
           <TalkGlyph outline={!count} />
           {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
@@ -247,23 +230,10 @@ export default function BriefPage({ projectUuid, paper: name, currentUser, onBac
           <aside className="brief-dig is-empty" aria-label="Dig" ref={aside} />
         ) : (
           <aside className="brief-dig" aria-label="Dig" ref={aside}>
-            {choices.length > 1 && (
-              <nav className="brief-dig-choices" aria-label="Which dig">
-                {choices.map((key) => (
-                  <button
-                    key={key} type="button" aria-pressed={shown === key}
-                    className={`brief-dig-choice${shown === key ? ' is-on' : ''}${talk.get(key)?.is_new && shown !== key ? ' is-new' : ''}`}
-                    onClick={() => openDig(key)}
-                  >
-                    {choiceName(key)}
-                  </button>
-                ))}
-              </nav>
-            )}
             <TalkCard
               key={shown} inline focus={digOpen && !hasDig(shown)} unread={talk.get(shown)?.unread ?? 0}
               seekUnread={beside}
-              projectUuid={project.uuid} subject={shown} label={labelOf(shown)} currentUser={currentUser} onChanged={talked}
+              projectUuid={project.uuid} subject={shown} label={paper.title} currentUser={currentUser} onChanged={talked}
             />
           </aside>
         )}

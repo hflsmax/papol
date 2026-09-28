@@ -220,7 +220,7 @@ describe("a paper with the project on", () => {
     // Nothing outside the project can be dug: Ben's ink, or a note the project's paper does not carry.
     const bens = (await ok("GET", `/api/papers/${name}/annotations`, { headers: ben.headers }))[0];
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `annotation:${bens.uuid}`, text: "?" } })).status).toBe(404);
-    const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).discussions;
+    const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs;
     expect(listed.map((d: any) => d.subject.label)).toEqual(["Figure 1 is off"]);
   });
 });

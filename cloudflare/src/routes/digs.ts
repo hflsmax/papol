@@ -8,13 +8,8 @@
 // is the other act. The dig stays until its owner, or a keeper, removes
 // it, whatever is taken back from it.
 //
-// A thought is its member's dig on the paper, and a board is not dug: the
-// `take:` and `board:` digs made before are read and posted in, and no
-// new one opens.
-//
-// The routes still answer at their old /discussion paths for the Mac
-// builds that ask there. Those builds know only posts, so there the dig's
-// own text comes first among them, as the post it once was.
+// A thought is its member's dig on the paper, and a board as a whole is
+// not dug.
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
@@ -32,8 +27,6 @@ interface Dig extends Row {
   project_uuid: string;
   subject: string;
   paper_sha256: string | null;
-  take_user_uuid: string | null;
-  board_uuid: string | null;
   board_item_uuid: string | null;
   annotation_uuid: string | null;
   text: string;
@@ -44,7 +37,7 @@ interface Dig extends Row {
 
 function postBody(value: unknown, field = "body"): string {
   const check = validate.checking();
-  const body = check.string(field, value, { min: 1, max: limits.text.discussion_post });
+  const body = check.string(field, value, { min: 1, max: limits.text.dig_post });
   check.done();
   return body!.trim() || refuse(422, `${field} is required`);
 }
@@ -52,13 +45,11 @@ function postBody(value: unknown, field = "body"): string {
 export interface Subject {
   subject: string;
   paper_sha256: string | null;
-  take_user_uuid: string | null;
-  board_uuid: string | null;
   board_item_uuid: string | null;
   annotation_uuid: string | null;
 }
 
-const NONE = { paper_sha256: null, take_user_uuid: null, board_uuid: null, board_item_uuid: null, annotation_uuid: null };
+const NONE = { paper_sha256: null, board_item_uuid: null, annotation_uuid: null };
 
 async function paperIn(env: Env, project: Project, value: string): Promise<string> {
   const digest = value.toLowerCase();
@@ -68,33 +59,13 @@ async function paperIn(env: Env, project: Project, value: string): Promise<strin
   return digest;
 }
 
-// Which subject a request names, checked to be in the project. A subject
-// is named by its key; `paper_sha256` and `board_item_uuid` still name a
-// paper and a card.
-async function subjectOf(env: Env, project: Project, data: Row): Promise<Subject> {
-  let key = typeof data.subject === "string" ? data.subject : null;
-  if (!key && typeof data.paper_sha256 === "string") key = `paper:${data.paper_sha256}`;
-  if (!key && typeof data.board_item_uuid === "string") key = `card:${data.board_item_uuid}`;
-  if (!key) return refuse(422, "Say what the dig is about");
+// Which subject a request names by its key, checked to be in the project.
+async function subjectOf(env: Env, project: Project, key: unknown): Promise<Subject> {
+  if (typeof key !== "string" || !key) return refuse(422, "Say what the dig is about");
   const [kind, first, second] = key.split(":");
   if (kind === "paper" && first && second === undefined) {
     const digest = await paperIn(env, project, first);
     return { ...NONE, subject: `paper:${digest}`, paper_sha256: digest };
-  }
-  if (kind === "take" && first && second) {
-    const digest = await paperIn(env, project, first);
-    const holder = await one(env.DB,
-      `SELECT 1 FROM project_members m JOIN copies c ON c.user_uuid = m.user_uuid AND c.paper_sha256 = ? AND c.deleted_at IS NULL
-       WHERE m.project_uuid = ? AND m.user_uuid = ?`, digest, project.uuid, second);
-    if (!holder) refuse(404, "That member has no copy of this paper");
-    return { ...NONE, subject: `take:${digest}:${second}`, paper_sha256: digest, take_user_uuid: second };
-  }
-  if (kind === "board" && first && second === undefined) {
-    const board = await one(env.DB,
-      "SELECT 1 FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid WHERE pb.project_uuid = ? AND b.uuid = ? AND b.deleted_at IS NULL",
-      project.uuid, first);
-    if (!board) refuse(404, "That board is not in this project");
-    return { ...NONE, subject: `board:${first}`, board_uuid: first };
   }
   if (kind === "card" && first && second === undefined) {
     const card = await one(env.DB,
@@ -125,9 +96,9 @@ function mine(env: Env, project: Project, subject: Subject, me: User) {
 async function subjectRow(env: Env, projectUuid: string, subject: Subject): Promise<Row> {
   return (await one<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS}
-     FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS take_user_uuid, ? AS board_uuid, ? AS board_item_uuid, ? AS annotation_uuid) d
+     FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS board_item_uuid, ? AS annotation_uuid) d
      ${SUBJECT_JOINS}`,
-    subject.subject, projectUuid, subject.paper_sha256, subject.take_user_uuid, subject.board_uuid, subject.board_item_uuid, subject.annotation_uuid))!;
+    subject.subject, projectUuid, subject.paper_sha256, subject.board_item_uuid, subject.annotation_uuid))!;
 }
 
 async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project; member: Member }> {
@@ -141,9 +112,7 @@ async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; pr
 const PERSON = "u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public";
 
 // A dig as its card reads it: its owner's text, then every post in order.
-// `legacy` answers the builds that know only posts: the text comes first
-// among them, as the post it once was, under the dig's own uuid.
-async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Member, legacy = false) {
+async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Member) {
   const posts = await all<Row>(env.DB,
     `SELECT dp.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
      WHERE dp.dig_uuid = ? ORDER BY dp.created_at, dp.uuid`, dig.uuid);
@@ -153,7 +122,6 @@ async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Me
     uuid: p.uuid, user: userPublic({ ...p, uuid: p.user_uuid }), body: p.body,
     created_at: p.created_at, edited_at: p.edited_at, is_mine: p.user_uuid === me.uuid,
   });
-  const own = { uuid: dig.uuid, user: ownerOut, body: dig.text, created_at: dig.created_at, edited_at: dig.edited_at, is_mine: dig.user_uuid === me.uuid };
   return {
     uuid: dig.uuid, created_at: dig.created_at, updated_at: dig.updated_at,
     project: { uuid: project.uuid, name: project.name },
@@ -161,7 +129,7 @@ async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Me
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
     text: dig.text, edited_at: dig.edited_at,
     can_moderate: Boolean(member.is_keeper),
-    posts: legacy ? [own, ...posts.map(postOut)] : posts.map(postOut),
+    posts: posts.map(postOut),
   };
 }
 
@@ -212,72 +180,47 @@ async function digsOn(env: Env, project: Project, me: User, member: Member, subj
   return (await digsOf(env, project.uuid, me, member)).filter((d) => d.subject.key === subject);
 }
 
-type Handler = (context: { request: Request; env: Env; params: Record<string, string>; url: URL }) => Promise<Response>;
-
-// A post by uuid, or on the old paths, a dig's own text standing as its
-// first post.
-async function postOrText(env: Env, uuid: string): Promise<{ post: Row | null; digUuid: string }> {
+async function postIn(env: Env, uuid: string, me: User) {
   const post = await one<Row>(env.DB, "SELECT * FROM dig_posts WHERE uuid = ?", uuid);
-  if (post) return { post, digUuid: String(post.dig_uuid) };
-  if (await one(env.DB, "SELECT 1 FROM digs WHERE uuid = ?", uuid)) return { post: null, digUuid: uuid };
-  return refuse(404, "Post not found");
+  if (!post) refuse(404, "Post not found");
+  return { post: post!, ...(await openDig(env, String(post!.dig_uuid), me)) };
 }
 
 export function digRoutes(router: Router) {
   // Where a pin on a subject leads: every dig on it, the member's own
-  // among them if they have one, and what it is about. `discussion_uuid`
-  // is for the builds that open one dig.
-  const onSubject: Handler = async ({ request, env, params, url }) => {
+  // among them if they have one, and what it is about.
+  router.on("GET", "/api/projects/:uuid/digs", async ({ request, env, params, url }) => {
     const me = await currentUser(request, env);
     const project = await liveProject(env, params.uuid);
     const member = await membership(env, project, me);
-    const subject = await subjectOf(env, project, {
-      subject: url.searchParams.get("subject") ?? undefined,
-      paper_sha256: url.searchParams.get("paper") ?? undefined, board_item_uuid: url.searchParams.get("card") ?? undefined,
-    });
+    const subject = await subjectOf(env, project, url.searchParams.get("subject"));
     const digs = await digsOn(env, project, me, member, subject.subject);
-    const own = digs.find((d) => d.is_mine) ?? null;
     return json({
-      mine: own?.uuid ?? null, discussion_uuid: own?.uuid ?? digs[0]?.uuid ?? null, digs,
+      mine: digs.find((d) => d.is_mine)?.uuid ?? null, digs,
       project: { uuid: project.uuid, name: project.name }, subject: subjectOut(await subjectRow(env, project.uuid, subject)),
     });
-  };
-  router.on("GET", "/api/projects/:uuid/digs", onSubject);
-  router.on("GET", "/api/projects/:uuid/discussion", onSubject);
+  });
 
-  // Digging a subject: the member's own dig on it, with its text. What an
-  // old build sends to a subject it has already dug is a post in that dig.
-  const dig = (legacy: boolean): Handler => async ({ request, env, params }) => {
+  // Digging a subject: the member's own dig on it, with its text.
+  router.on("POST", "/api/projects/:uuid/digs", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const project = await liveProject(env, params.uuid);
     const member = await membership(env, project, me);
     const data = await readJson<Row>(request);
-    const subject = await subjectOf(env, project, data);
+    const subject = await subjectOf(env, project, data.subject);
+    if (await mine(env, project, subject, me)) refuse(409, "You have dug this already");
+    const text = postBody(data.text, "text");
     const at = now();
-    const existing = await mine(env, project, subject, me);
-    if (existing) {
-      if (!legacy) refuse(409, "You have dug this already");
-      const body = postBody(data.body);
-      await batch(env.DB, [insert(env.DB, "dig_posts", newPost(existing, me, body, at)), update(env.DB, "digs", "uuid", existing.uuid, { updated_at: at })]);
-      return json(await digOut(env, { ...existing, updated_at: at }, project, me, member, legacy));
-    }
-    if (subject.take_user_uuid) refuse(422, "A thought is a dig; post in it instead");
-    if (subject.board_uuid) refuse(422, "A board is not dug; dig a card on it");
-    const text = postBody(data.text ?? data.body, data.text === undefined ? "body" : "text");
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: project.uuid, ...subject, text, edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
-    return json(await digOut(env, made, project, me, member, legacy));
-  };
-  router.on("POST", "/api/projects/:uuid/digs", dig(false));
-  router.on("POST", "/api/projects/:uuid/discussions", dig(true));
+    return json(await digOut(env, made, project, me, member));
+  });
 
-  const read = (legacy: boolean): Handler => async ({ request, env, params }) => {
+  router.on("GET", "/api/digs/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { dig, project, member } = await openDig(env, params.uuid, me);
-    return json(await digOut(env, dig, project, me, member, legacy));
-  };
-  router.on("GET", "/api/digs/:uuid", read(false));
-  router.on("GET", "/api/discussions/:uuid", read(true));
+    return json(await digOut(env, dig, project, me, member));
+  });
 
   // Its owner rewords a dig.
   router.on("PUT", "/api/digs/:uuid", async ({ request, env, params }) => {
@@ -291,22 +234,19 @@ export function digRoutes(router: Router) {
   });
 
   // Its owner, or a keeper, removes a dig and everything posted in it.
-  const remove = async (env: Env, dig: Dig, me: User, member: Member) => {
+  router.on("DELETE", "/api/digs/:uuid", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const { dig, member } = await openDig(env, params.uuid, me);
     if (dig.user_uuid !== me.uuid && !member.is_keeper) refuse(403, "Only its owner or a keeper can remove a dig");
     await batch(env.DB, [
       statement(env.DB, "DELETE FROM dig_posts WHERE dig_uuid = ?", dig.uuid),
       statement(env.DB, "DELETE FROM digs WHERE uuid = ?", dig.uuid),
     ]);
     return new Response(null, { status: 204 });
-  };
-  router.on("DELETE", "/api/digs/:uuid", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
-    const { dig, member } = await openDig(env, params.uuid, me);
-    return remove(env, dig, me, member);
   });
 
   // Anyone who can see a dig posts in it.
-  const reply = (legacy: boolean): Handler => async ({ request, env, params }) => {
+  router.on("POST", "/api/digs/:uuid/posts", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { dig, project, member } = await openDig(env, params.uuid, me);
     const body = postBody((await readJson<Row>(request)).body);
@@ -315,42 +255,25 @@ export function digRoutes(router: Router) {
       insert(env.DB, "dig_posts", newPost(dig, me, body, at)),
       update(env.DB, "digs", "uuid", dig.uuid, { updated_at: at }),
     ]);
-    return json(await digOut(env, { ...dig, updated_at: at }, project, me, member, legacy));
-  };
-  router.on("POST", "/api/digs/:uuid/posts", reply(false));
-  router.on("POST", "/api/discussions/:uuid/posts", reply(true));
+    return json(await digOut(env, { ...dig, updated_at: at }, project, me, member));
+  });
 
   // Only its writer changes a post.
-  const change = (legacy: boolean): Handler => async ({ request, env, params }) => {
+  router.on("PUT", "/api/dig-posts/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { post, digUuid } = legacy ? await postOrText(env, params.uuid) : { post: await one<Row>(env.DB, "SELECT * FROM dig_posts WHERE uuid = ?", params.uuid), digUuid: "" };
-    if (!post && !legacy) refuse(404, "Post not found");
-    const { dig, project, member } = await openDig(env, post ? String(post.dig_uuid) : digUuid, me);
-    const body = postBody((await readJson<Row>(request)).body);
-    const at = now();
-    if (!post) {
-      if (dig.user_uuid !== me.uuid) refuse(403, "Only its owner can change a dig");
-      await batch(env.DB, [update(env.DB, "digs", "uuid", dig.uuid, { text: body, edited_at: at })]);
-      return json(await digOut(env, { ...dig, text: body, edited_at: at }, project, me, member, legacy));
-    }
+    const { post, dig, project, member } = await postIn(env, params.uuid, me);
     if (post.user_uuid !== me.uuid) refuse(403, "Only its writer can change a post");
-    await batch(env.DB, [update(env.DB, "dig_posts", "uuid", post.uuid as string, { body, edited_at: at })]);
-    return json(await digOut(env, dig, project, me, member, legacy));
-  };
-  router.on("PUT", "/api/dig-posts/:uuid", change(false));
-  router.on("PUT", "/api/discussion-posts/:uuid", change(true));
+    const body = postBody((await readJson<Row>(request)).body);
+    await batch(env.DB, [update(env.DB, "dig_posts", "uuid", post.uuid as string, { body, edited_at: now() })]);
+    return json(await digOut(env, dig, project, me, member));
+  });
 
   // Its writer, or a keeper, takes a post back. The dig stays.
-  const takeBack = (legacy: boolean): Handler => async ({ request, env, params }) => {
+  router.on("DELETE", "/api/dig-posts/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { post, digUuid } = legacy ? await postOrText(env, params.uuid) : { post: await one<Row>(env.DB, "SELECT * FROM dig_posts WHERE uuid = ?", params.uuid), digUuid: "" };
-    if (!post && !legacy) refuse(404, "Post not found");
-    const { dig, project, member } = await openDig(env, post ? String(post.dig_uuid) : digUuid, me);
-    if (!post) return remove(env, dig, me, member);
+    const { post, dig, project, member } = await postIn(env, params.uuid, me);
     if (post.user_uuid !== me.uuid && !member.is_keeper) refuse(403, "Only its writer or a keeper can take a post back");
     await batch(env.DB, [statement(env.DB, "DELETE FROM dig_posts WHERE uuid = ?", post.uuid)]);
-    return json(await digOut(env, dig, project, me, member, legacy));
-  };
-  router.on("DELETE", "/api/dig-posts/:uuid", takeBack(false));
-  router.on("DELETE", "/api/discussion-posts/:uuid", takeBack(true));
+    return json(await digOut(env, dig, project, me, member));
+  });
 }

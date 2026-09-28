@@ -162,7 +162,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
         boxes: boxes.get(b.uuid as string) ?? [],
       };
     })),
-    discussions: await digsOf(env, project.uuid, me, member),
+    digs: await digsOf(env, project.uuid, me, member),
     papers: entries.map((e) => ({
       sha256: e.paper_sha256, title: e.title, authors: e.authors, journal: e.journal, year: e.year, doi: e.doi,
       added_by: userPublic({ ...e, uuid: e.added_by }), added_at: e.added_at,
@@ -225,16 +225,14 @@ function excerpt(body: string): string {
 }
 
 // Everything subjectOut needs to name a subject.
-export const SUBJECT_COLUMNS = `p.title AS paper_title, tu.display_name AS take_name, tc.thought AS take_thought, tc.thought_public AS take_public,
+export const SUBJECT_COLUMNS = `p.title AS paper_title,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
-  coalesce(bi.board_uuid, d.board_uuid) AS card_board, b.name AS board_name,
+  bi.board_uuid AS card_board, b.name AS board_name,
   an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name,
   an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
-  LEFT JOIN users tu ON tu.uuid = d.take_user_uuid
-  LEFT JOIN copies tc ON tc.user_uuid = d.take_user_uuid AND tc.paper_sha256 = d.paper_sha256 AND tc.deleted_at IS NULL
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
-  LEFT JOIN boards b ON b.uuid = coalesce(bi.board_uuid, d.board_uuid)
+  LEFT JOIN boards b ON b.uuid = bi.board_uuid
   LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
   LEFT JOIN users au ON au.uuid = an.user_uuid`;
 
@@ -243,14 +241,6 @@ export function subjectOut(d: Row) {
   const key = String(d.subject);
   const base = { key, kind: key.split(":")[0] };
   if (base.kind === "paper") return { ...base, paper_sha256: d.paper_sha256, label: d.paper_title ?? "A paper" };
-  if (base.kind === "take") {
-    const thought = d.take_public && d.take_thought ? `“${excerpt(String(d.take_thought)).slice(0, 120)}”` : null;
-    return {
-      ...base, paper_sha256: d.paper_sha256, user_uuid: d.take_user_uuid, paper_title: d.paper_title,
-      label: thought ?? `${d.take_name ?? "A member"}’s take on ${d.paper_title ?? "a paper"}`, by: d.take_name ?? null,
-    };
-  }
-  if (base.kind === "board") return { ...base, board_uuid: d.board_uuid, board_name: d.board_name, label: d.board_name ?? "A board" };
   if (base.kind === "annotation") {
     return {
       ...base, annotation_uuid: d.annotation_uuid, paper_sha256: d.paper_sha256, paper_title: d.paper_title,

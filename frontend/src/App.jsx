@@ -22,7 +22,7 @@ import LearnPage from './components/LearnPage';
 import ProjectsPage from './components/ProjectsPage';
 import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
-import { DiscussionPage, StartDiscussionPage } from './components/DiscussionPage';
+import { DigPage } from './components/DigPage';
 import BriefPage from './components/BriefPage';
 import InvitationPage from './components/InvitationPage';
 import { briefPath, listProjects } from '../../shared/api/projects.js';
@@ -66,11 +66,11 @@ import {
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 
 // Where a member works inside one project.
-export const PROJECT_PAGES = new Set(['project', 'brief', 'discussion', 'discuss']);
+export const PROJECT_PAGES = new Set(['project', 'brief', 'dig']);
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'shelf', 'papers', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'brief', 'invitation', 'discussion', 'discuss',
+  'projects', 'project', 'brief', 'invitation', 'dig',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -519,7 +519,7 @@ export default function App({ startupUser = null, startupError = null }) {
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
     // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/discussion/', '/boards/', '/viewer/']
+    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/dig/', '/boards/', '/viewer/']
       .some((start) => candidate.startsWith(start))
       ? candidate
       : '/';
@@ -823,19 +823,8 @@ export default function App({ startupUser = null, startupError = null }) {
           onRemoved={() => navigate(`/project/${route.uuid}`, { replace: true })}
         />
       )}
-      {route.page === 'discussion' && (
-        <DiscussionPage key={route.uuid} discussionUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
-      )}
-      {route.page === 'discuss' && (
-        <StartDiscussionPage
-          key={route.subject}
-          projectUuid={route.uuid}
-          subject={route.subject}
-          currentUser={user}
-          onBack={goBack}
-          backHref={backHref}
-          onOpen={(uuid) => navigate(`/discussion/${uuid}`, { replace: true })}
-        />
+      {route.page === 'dig' && (
+        <DigPage key={route.uuid} digUuid={route.uuid} currentUser={user} onBack={goBack} backHref={backHref} />
       )}
       {route.page === 'invitation' && (
         <InvitationPage

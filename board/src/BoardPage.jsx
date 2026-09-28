@@ -1497,11 +1497,11 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
   // Talk about the board or a card on it happens right here, in a talk
   // card over the canvas; the pin keeps the board's own counts current.
   const talked = (key, summary) => {
-    setBoard((current) => current && ({ ...current, discussions: { ...(current.discussions ?? {}), [key]: summary } }));
+    setBoard((current) => current && ({ ...current, digs: { ...(current.digs ?? {}), [key]: summary } }));
   };
   const talkPin = (subject, label, extra = {}) => (board.project && board.can_edit ? (
     <TalkPin
-      projectUuid={board.project.uuid} subject={subject} label={label} summary={board.discussions?.[subject]}
+      projectUuid={board.project.uuid} subject={subject} label={label} summary={board.digs?.[subject]}
       currentUser={me} onChanged={talked} {...extra}
     />
   ) : null);

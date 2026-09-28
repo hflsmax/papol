@@ -85,7 +85,7 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
           label: project.name,
           path: `/project/${project.uuid}`,
           glyph: 'folder',
-          active: ['project', 'brief', 'discuss'].includes(page) && route.uuid === project.uuid,
+          active: ['project', 'brief'].includes(page) && route.uuid === project.uuid,
           count: project.new_count,
           unread: true,
         })),
@@ -120,8 +120,7 @@ const TITLES = {
   project: 'Project',
   invitation: 'Invitation',
   brief: 'Brief',
-  discussion: 'Dig',
-  discuss: 'Dig',
+  dig: 'Dig',
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',
@@ -134,7 +133,7 @@ const TITLES = {
 // A project's pages carry its name, which says more than the word Project.
 export function desktopTitle(route, user, projects = []) {
   if (route.page === 'home') return user ? 'My nook' : 'Sign in';
-  if (['project', 'brief', 'discuss'].includes(route.page)) {
+  if (['project', 'brief'].includes(route.page)) {
     const project = projects.find((p) => p.uuid === route.uuid);
     if (project) return project.name;
   }

@@ -107,10 +107,10 @@ export async function boardOut(env: Env, board: Board, { includeItems = false, c
   const project = await boardProject(env, board.uuid);
   // What is being said about the board and its cards, for the members who
   // can see them, keyed by subject.
-  const discussions = includeItems && project && canEdit && viewer ? await boardTalk(env, project.uuid, board.uuid, viewer) : {};
+  const digs = includeItems && project && canEdit && viewer ? await boardTalk(env, project.uuid, board.uuid, viewer) : {};
   return {
     uuid: board.uuid, revision: board.revision, user_uuid: board.user_uuid, owner: owner ? userPublic(owner) : null,
-    project, discussions,
+    project, digs,
     shelf_uuid: board.shelf_uuid, can_edit: canEdit, name: board.name, description: board.description,
     created_at: board.created_at, updated_at: board.updated_at, item_count: active.length,
     items: includeItems ? await Promise.all(active.map((i) => itemOut(env, i))) : [],

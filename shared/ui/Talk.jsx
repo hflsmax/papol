@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  addIdeaCard, createProjectBoard, findDiscussion, getDiscussion, getProject, replyToDiscussion, startDiscussion, subjectKey,
+  addIdeaCard, createProjectBoard, findDigs, getDig, getProject, postInDig, startDig, subjectKey,
 } from '../api/projects.js';
 import { appPath } from '../appUrls.js';
 import appLimits from '../appLimits.js';
@@ -16,17 +16,14 @@ import { plainTitle } from '../texTitle.js';
 // dug it. Digging and posting are two acts: a dig is written as its own
 // text, and a post is added to a dig that is there. The pin opens the
 // card, drawn like a card on a board, right where you are, on your own dig
-// if you have one. The same pin and card serve a paper, a member's thought, a
-// board, a card on it and an annotation; never the project as a whole,
-// which is no one thing, and never another dig. (In code the pin
-// and card keep their first name, Talk.)
+// if you have one. The same pin and card serve a paper, a card on a board
+// and an annotation; never the project, a board as a whole, or another
+// dig. (In code the pin and card keep their first name, Talk.)
 
-const POST_LIMIT = appLimits.text.discussion_post;
+const POST_LIMIT = appLimits.text.dig_post;
 
 const KINDS = {
   paper: { word: 'Paper' },
-  take: { word: 'Thought' },
-  board: { word: 'Board' },
   card: { word: 'Card' },
   annotation: { word: 'Annotation' },
 };
@@ -306,11 +303,11 @@ export function TalkCard({
     setDiscussion(undefined);
     // The dig asked for, else the reader's own, else the latest; a thing
     // nobody has dug opens on the reader's own, to be written.
-    findDiscussion(projectUuid, topic.subject)
+    findDigs(projectUuid, topic.subject)
       .then((found) => {
         if (active) setDigs(found.digs ?? []);
         const open = topic.dig === 'mine' ? found.mine : topic.dig ?? found.mine ?? found.digs?.[0]?.uuid ?? null;
-        return open ? getDiscussion(open) : null;
+        return open ? getDig(open) : null;
       })
       .then((next) => { if (active) setDiscussion(next); })
       .catch((err) => { if (active) { setError(err.message); setDiscussion(null); } });
@@ -384,7 +381,7 @@ export function TalkCard({
     setBusy(true);
     setError(null);
     try {
-      const next = !discussion ? await startDiscussion(projectUuid, topic.subject, text) : await replyToDiscussion(discussion.uuid, text);
+      const next = !discussion ? await startDig(projectUuid, topic.subject, text) : await postInDig(discussion.uuid, text);
       setDiscussion(next);
       setDigs((all) => (all.some((d) => d.uuid === next.uuid) ? all : [...all, { uuid: next.uuid, owner: next.owner, is_mine: next.is_mine }]));
       setBody('');
@@ -394,7 +391,7 @@ export function TalkCard({
       const others = digs.filter((d) => d.uuid !== next.uuid);
       if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
       if (from?.pending && from.uuid) {
-        const back = await replyToDiscussion(from.uuid, `Dug into [${plainTitle(topic.label).replace(/[[\]]/g, '')}](${appPath(`/discussion/${next.uuid}`)})`);
+        const back = await postInDig(from.uuid, `Dug into [${plainTitle(topic.label).replace(/[[\]]/g, '')}](${appPath(`/dig/${next.uuid}`)})`);
         setFrom({ ...from, pending: false });
         if (from.subject === subject) onChanged?.(back);
       }
@@ -444,7 +441,7 @@ export function TalkCard({
               {d.owner && <Face user={d.owner} />}{d.is_mine ? 'You' : d.owner?.display_name}
             </button>
           ))}
-          {!digs.some((d) => d.is_mine) && !topic.subject.startsWith('take:') && (
+          {!digs.some((d) => d.is_mine) && (
             <button
               type="button" className={`talk-card-dig${!discussion ? ' is-on' : ''}`} aria-pressed={!discussion} aria-label="Your dig" title="Dig"
               onClick={() => setTopic({ ...topic, dig: 'mine' })}

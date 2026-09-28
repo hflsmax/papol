@@ -39,11 +39,11 @@ export function markArrivals(projectUuid, project) {
   if (!project?.papers) return project;
   if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), digs: new Map() };
   project.papers.forEach((paper) => { if (paper.is_new) arrivals.papers.add(paper.sha256); });
-  (project.discussions ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
+  (project.digs ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
   return {
     ...project,
     papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })),
-    discussions: (project.discussions ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
+    digs: (project.digs ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
   };
 }
 
@@ -121,10 +121,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   // notification. It opens the latest unread dig.
   const readDig = (uuid) => {
     readDigs([uuid]);
-    setProject((p) => ({ ...p, discussions: p.discussions.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
+    setProject((p) => ({ ...p, digs: p.digs.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
   };
   const alert = (about) => {
-    const unread = (project.discussions ?? []).filter((d) => d.is_new && about(d.subject));
+    const unread = (project.digs ?? []).filter((d) => d.is_new && about(d.subject));
     if (!unread.length) return null;
     const count = unread.reduce((sum, d) => sum + (d.unread || 1), 0);
     const d = unread[0];
@@ -144,7 +144,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const people = project.members.map((m) => m.user);
   const count = plural(people.length, 'member', 'members');
 
-  const talkedAbout = project.discussions ?? [];
+  const talkedAbout = project.digs ?? [];
   const boards = project.boards ?? [];
   const newPapers = project.papers.filter((p) => p.is_new).length;
   const newTalk = talkedAbout.filter((d) => d.is_new).length;
@@ -437,10 +437,10 @@ function ProjectPapers({ project, currentUser, alert, onOpenBrief }) {
 }
 
 // Every dig, latest first. Each is a card that opens its dig right there.
-export const SUBJECT_WORDS = { paper: 'Paper', take: 'Thought', board: 'Board', card: 'Card', annotation: 'Annotation' };
+export const SUBJECT_WORDS = { paper: 'Paper', card: 'Card', annotation: 'Annotation' };
 
 function ProjectTalk({ project, currentUser, onTalked, onRead }) {
-  const discussions = project.discussions ?? [];
+  const discussions = project.digs ?? [];
   const wide = useWide();
   // On a wide window the list stays put and the dig opens beside it: on
   // arrival the first unread one, else the latest; read when the selection
@@ -522,8 +522,8 @@ function ProjectTalk({ project, currentUser, onTalked, onRead }) {
   );
 }
 
-// Where a dig's subject lives: a paper's brief, a board; a thought or a
-// card has no page of its own.
+// Where a dig's subject lives: a paper's brief, the board a card is on,
+// the viewer at an annotation.
 function subjectHome(project, subject) {
   if (subject.kind === 'annotation') return annotationViewerPath(project.uuid, subject.paper_sha256, subject.page);
   if (subject.paper_sha256) return briefPath(project.uuid, subject.paper_sha256);

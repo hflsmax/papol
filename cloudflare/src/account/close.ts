@@ -35,12 +35,11 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const projectBoards = await handOnProjectBoards(env, user.uuid);
   const boardUuids = (await all<{ uuid: string }>(db, "SELECT uuid FROM boards WHERE user_uuid = ?", user.uuid)).map((b) => b.uuid);
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
-  const goneTalk = `board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR ${inBoards} OR take_user_uuid = ?`;
-  // A dig about a board that goes, or a card on it, or their own thought
-  // on a paper or an annotation of theirs, goes too.
+  // A dig about a card on a board that goes, or an annotation of theirs,
+  // goes too.
   const goneDigs = (await all<{ uuid: string }>(db,
-    `SELECT uuid FROM digs WHERE ${goneTalk} OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)`,
-    ...boardUuids, ...boardUuids, user.uuid, user.uuid)).map((d) => d.uuid);
+    `SELECT uuid FROM digs WHERE board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)`,
+    ...boardUuids, user.uuid)).map((d) => d.uuid);
   const inDigs = goneDigs.length ? goneDigs.map(() => "?").join(",") : "NULL";
   const files = await boardFiles(env, boardUuids);
   const projects = await leaveAllProjects(env, user.uuid);
@@ -50,9 +49,6 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const counted: [string, D1PreparedStatement][] = [
     ["dig_posts", statement(db, `DELETE FROM dig_posts WHERE dig_uuid IN (${inDigs})`, ...goneDigs)],
     ["digs", statement(db, `DELETE FROM digs WHERE uuid IN (${inDigs})`, ...goneDigs)],
-    // What migration 0015 copied into digs, still held to what it names.
-    ["discussion_posts", statement(db, `DELETE FROM discussion_posts WHERE discussion_uuid IN (SELECT uuid FROM discussions WHERE ${goneTalk} OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?))`, ...boardUuids, ...boardUuids, user.uuid, user.uuid)],
-    ["discussions", statement(db, `DELETE FROM discussions WHERE ${goneTalk} OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)`, ...boardUuids, ...boardUuids, user.uuid, user.uuid)],
     ["annotations", statement(db, "DELETE FROM annotations WHERE user_uuid = ?", user.uuid)],
     ["activity", statement(db, "DELETE FROM activity WHERE user_uuid = ?", user.uuid)],
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
