@@ -213,6 +213,7 @@ function place(anchor, card) {
 // the one that says what the dig is about.
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
+  single = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState([]);
@@ -378,10 +379,10 @@ export function TalkCard({
     ? { left: spot.left, top: spot.top, width: spot.width, transformOrigin: `${spot.originX}px ${spot.originY}px` }
     : undefined;
 
-  // Whose dig this is, when there is a choice or it is not yours.
   // Whose dig this is, when there is a choice, it is not yours, or yours is
-  // still to be written: starting a dig always happens on your own chip.
-  const owners = discussion !== undefined && (digs.length > 1 || !digs.some((d) => d.is_mine));
+  // still to be written: starting a dig always happens on your own chip. A
+  // card opened on one dig alone (single) shows only that one.
+  const owners = !single && discussion !== undefined && (digs.length > 1 || !digs.some((d) => d.is_mine));
   // A dig is started in the body, where its words will stand; the box at
   // the foot only ever adds a post to the dig that is open.
   const writing = discussion === null && currentUser;
