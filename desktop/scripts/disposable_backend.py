@@ -156,10 +156,13 @@ def stop(process):
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return
+    # A disposable backend: whatever it has written is committed to its
+    # SQLite files already, so it is not given long to wind down.
     try:
-        process.wait(timeout=10)
+        process.wait(timeout=2)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
 
 
 def register(url, display_name, password="testing-password"):

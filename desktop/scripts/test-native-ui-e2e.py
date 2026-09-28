@@ -130,7 +130,11 @@ def build_app():
         cwd=DESKTOP, env=environment, check=True,
     )
     subprocess.run(
-        ["npx", "tauri", "build", "--debug", "--no-bundle", "--config", str(DEV_CONFIG)],
+        # The app's own crate without debug information, which it spends
+        # most of its compile and link on; its dependencies keep theirs, so
+        # the ones already built are used as they are.
+        ["npx", "tauri", "build", "--debug", "--no-bundle", "--config", str(DEV_CONFIG),
+         "--", "--config", "profile.dev.package.papol-desktop.debug=0"],
         cwd=DESKTOP, env=environment, check=True,
     )
     if not BINARY.exists():
@@ -172,12 +176,12 @@ def wait_for(pid, *fragments, seconds=60):
         _, listing = ui("dump", str(pid))
         if all(fragment in listing for fragment in fragments):
             return listing
-        time.sleep(1)
+        time.sleep(.25)
     wanted = ", ".join(repr(fragment) for fragment in fragments)
     raise RuntimeError(f"the window never showed {wanted}; it shows:\n{listing}")
 
 
-def eventually(what, probe, seconds=60, every=1, between=None):
+def eventually(what, probe, seconds=60, every=.5, between=None):
     """Poll `probe` until it answers something truthy, and answer that.
 
     `between` runs before each wait, for a check that needs nudging — a
@@ -322,12 +326,14 @@ def offline_then_online(pid, backend, auth, home, identifier):
 
     say("Stopping the backend")
     backend.stop()
+    say("Stopped; adding a shelf")
 
     # The one change the desk makes with presses alone: the nook manager's
     # "Add another shelf" names the shelf itself.
     press(pid, "Manage nook")
     wait_for(pid, "Add another shelf")
     press(pid, "Add another shelf")
+    say("Pressed Add another shelf")
     added = eventually("the new shelf reaching the replica", lambda: shelves() - before, 30)
     (shelf,) = added
     # The dialog is modal: while it is open, WebKit publishes nothing

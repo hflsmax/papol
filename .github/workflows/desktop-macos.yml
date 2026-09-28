@@ -43,6 +43,15 @@ concurrency:
 permissions:
   contents: read
 
+# What the end-to-end jobs install with npm, cached as it lies.
+env:
+  NODE_MODULES: |
+    desktop/node_modules
+    frontend/node_modules
+    viewer/node_modules
+    board/node_modules
+    cloudflare/node_modules
+
 jobs:
   # Which version this release is, settled before anything is built: the
   # one after the latest macos-v* tag, refused if it is not new.
@@ -160,18 +169,21 @@ jobs:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
           save-if: false
-      # npm's download cache, which the app job saves from main.
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The installed dependencies, which the app job saves from main;
+      # installed afresh only when a lockfile has changed.
+      - id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: npm-${{ runner.os }}-
+          path: ${{ env.NODE_MODULES }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json', 'frontend/package-lock.json', 'viewer/package-lock.json', 'board/package-lock.json', 'cloudflare/package-lock.json') }}
 
       - name: Install desktop and bundled UI dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd desktop && npm ci && npm run install:web
 
       # The disposable backend the checks start is `wrangler dev`.
       - name: Install the Worker's dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd cloudflare && npm ci --legacy-peer-deps
 
       - name: The replica against the service
@@ -256,9 +268,9 @@ jobs:
       # tool's request to the launchd job its ancestor was started by, so
       # every executable up this step's process tree is written into the
       # system TCC database — root-writable on the hosted runners, which
-      # ship with System Integrity Protection off — and the driver is asked
-      # afterwards whether it is trusted, so a grant that did not take fails
-      # here, with that message, rather than later as an app with no window.
+      # ship with System Integrity Protection off. The check asks the driver
+      # whether it is trusted before it opens anything, so a grant that did
+      # not take fails with that message rather than as an app with no window.
       - name: Let this job drive the app's interface
         run: |
           set -euo pipefail
@@ -274,27 +286,28 @@ jobs:
             pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
           done
           sudo killall tccd || true
-          xcrun swift desktop/scripts/papol-ui.swift windows
 
-      # npm's download cache: saved from main only, as the Rust one is.
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: github.ref != 'refs/heads/main'
+      # The installed dependencies: saved from main only, as the Rust
+      # cache is, and installed afresh only when a lockfile has changed.
+      - id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: npm-${{ runner.os }}-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: github.ref == 'refs/heads/main'
-        with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: npm-${{ runner.os }}-
+          path: ${{ env.NODE_MODULES }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json', 'frontend/package-lock.json', 'viewer/package-lock.json', 'board/package-lock.json', 'cloudflare/package-lock.json') }}
 
       - name: Install desktop and bundled UI dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd desktop && npm ci && npm run install:web
 
       - name: Install the Worker's dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
         run: cd cloudflare && npm ci --legacy-peer-deps
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.modules.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.NODE_MODULES }}
+          key: ${{ steps.modules.outputs.cache-primary-key }}
 
       - name: The app against the service
         env:
