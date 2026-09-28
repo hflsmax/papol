@@ -72,18 +72,6 @@ export function Faces({ users, max = 4 }) {
   );
 }
 
-// The way home from a dig on the web, in the bar over every page: the
-// project it belongs to. The desk itself leads straight home.
-// The way back to a project on the web is to it in the member's nook.
-export function ProjectWay({ project }) {
-  if (DESKTOP || !project) return null;
-  return (
-    <InWay>
-      <a href={appPath(`/project/${project.uuid}`)}>{project.name}</a>
-    </InWay>
-  );
-}
-
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
 export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead }) {
@@ -209,17 +197,16 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         </InToolbar>
       ) : (
         <>
-          <ProjectWay />
           <header className="project-head talk-host">
-            <div className="project-head-main">
+            <InWay>
               <div className="project-title-row">
                 {title}
                 <ExperimentalBadge />
               </div>
-            </div>
-            {seats}
+              {seats}
+            </InWay>
+            {tabs}
           </header>
-          {tabs}
         </>
       )}
       {notice && <div className="error" role="alert">{notice}</div>}
