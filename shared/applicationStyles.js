@@ -5323,10 +5323,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* One dig, so its phase sits at the end of the subject line. */
 .project-talk-panel .talk-card.is-inline { position: static; }
 .project-talk-panel .talk-card.is-inline .talk-card-header { position: absolute; top: var(--space-2); right: var(--space-5); min-height: 0; padding: 0; background: none; }
-.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 17rem; }
+.project-talk.is-wide .project-talk-panel .project-talk-subject-line { padding-right: 9rem; }
 /* Narrow, the phases take their own line under the subject. */
 .project-talk:not(.is-wide) .project-talk-panel .talk-card.is-inline .talk-card-header { position: static; margin: var(--space-1) 0 var(--space-2); }
-.project-talk:not(.is-wide) .project-talk-panel .dig-phase { margin-left: 0; }
+.project-talk:not(.is-wide) .project-talk-panel .dig-phase-pick { margin-left: 0; }
+.project-talk:not(.is-wide) .project-talk-panel .dig-phase-menu { right: auto; left: 0; }
 .project-talk-panel .talk-card.is-inline :is(.talk-card-owners, .talk-card-body) { padding-left: 0; padding-right: 0; }
 .project-talk-panel .talk-post { margin-inline: 0; padding-inline: 0; }
 .project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-left: 0; padding-right: 0; background: var(--card); }
@@ -5405,8 +5406,8 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
 .paper-brief-dig .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
 .paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
-.paper-brief-dig .talk-post-head .dig-phase-word.is-gold { color: var(--accent-strong); }
-.paper-brief-dig .talk-post-head .dig-phase { margin-left: var(--space-1); }
+.paper-brief-dig .talk-post-head .dig-phase-pick { margin-left: 0; }
+.paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
 /* The box that posts to the dig: one quiet line at the posts' edge, taller
    while it is being written in. */
 .paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
