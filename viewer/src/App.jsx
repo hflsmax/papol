@@ -2222,6 +2222,9 @@ export default function App() {
   // Opening a line picks out its thing on the page, as a press on it would.
   const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
     setMarginOpen({ key: line.key, dig, writing, landed });
+    // A face opens only the dig. A link that lands on a thing picks it out
+    // too, so the reader sees where they arrived.
+    if (!landed) return;
     if (line.kind === 'anchor') setActiveAnchorUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
@@ -2245,7 +2248,6 @@ export default function App() {
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
-    if (key && key === activeAnchorUuid) setActiveAnchorUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
         scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-face`)?.focus({ preventScroll: true });
@@ -2254,18 +2256,6 @@ export default function App() {
   });
   // The thing picked on the page, whose line answers it.
   const marginPicked = activeAnchorUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
-  // An anchor the margin holds is the place of its digs: pressing it opens
-  // its line there.
-  const marginHolds = useMemo(
-    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'anchor').map((l) => l.annotation) : []),
-    [withMargin, marginLines],
-  );
-  useEffect(() => {
-    if (!activeAnchorUuid || !marginHolds.has(activeAnchorUuid)) return;
-    if (marginOpen?.key === activeAnchorUuid) return;
-    const line = marginLines.find((l) => l.annotation === activeAnchorUuid);
-    if (line) openInMargin(line);
-  }, [activeAnchorUuid, marginHolds]);
   const pageProject = useMemo(() => (digView ? {
     uuid: digView.uuid, me: digView.me, digs: digView.digs, onDigChanged: digChanged, landing, inMargin,
   } : null), [digView?.uuid, digView?.me, digView?.digs, landing, inMargin]);

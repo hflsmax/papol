@@ -63,6 +63,11 @@ export const talkStyles = `
 .dig-phase-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (pointer: coarse) { .dig-phase-word { height: 32px; line-height: 32px; } .dig-phase-menu button { height: 40px; } }
 .dig-phase-pick + .talk-card-close { margin-left: 0; }
+/* On a post's head line the phase sits level with the name and date, in
+   every engine: no button margin or native look to lift it off the line. */
+.talk-post-head .dig-phase-pick { align-self: center; align-items: center; margin: 0; }
+.talk-post-head .dig-phase-word { -webkit-appearance: none; appearance: none; margin: 0; vertical-align: middle; }
+.talk-post-head .dig-phase-word svg { flex: none; display: block; }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
