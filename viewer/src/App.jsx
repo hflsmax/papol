@@ -2203,9 +2203,7 @@ export default function App() {
   // Opening a line picks out its thing on the page, as a press on it would.
   const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
     setMarginOpen({ key: line.key, dig, writing, landed });
-    // Another's note is read in the margin, so it is only picked out; the
-    // reader's own keeps its card for writing, opened from its pin.
-    if (line.kind === 'note' && theirs(line.annotation)) setActiveNoteUuid(line.annotation);
+    if (line.kind === 'note') setActiveNoteUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
@@ -2228,7 +2226,7 @@ export default function App() {
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
-    if (key && key === activeNoteUuid && theirs(key)) setActiveNoteUuid(null);
+    if (key && key === activeNoteUuid) setActiveNoteUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
         scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
@@ -2237,18 +2235,27 @@ export default function App() {
   });
   // The thing picked on the page, whose line answers it.
   const marginPicked = activeNoteUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
-  // Another member's note that the margin holds has no card of its own on
-  // the page: pressing it opens its line, which carries its words.
+  // An anchor the margin holds is the place of its digs: pressing it opens
+  // its line there.
   const marginHolds = useMemo(
     () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'note').map((l) => l.annotation) : []),
     [withMargin, marginLines],
   );
   useEffect(() => {
-    if (!activeNoteUuid || !marginHolds.has(activeNoteUuid) || !theirs(activeNoteUuid)) return;
+    if (!activeNoteUuid || !marginHolds.has(activeNoteUuid)) return;
     if (marginOpen?.key === activeNoteUuid) return;
     const line = marginLines.find((l) => l.annotation === activeNoteUuid);
     if (line) openInMargin(line);
   }, [activeNoteUuid, marginHolds]);
+  // An anchor dropped to dig at, left without a dig written there, is
+  // taken away again when the reader moves on: a place with nothing said.
+  const freshSpot = useRef(null);
+  useEffect(() => {
+    const spot = freshSpot.current;
+    if (!spot || marginOpen?.key === spot || activeNoteUuid === spot || landing?.annotation === spot) return;
+    freshSpot.current = null;
+    if (!projectView?.digs[spot]) removeNote(spot, false);
+  }, [marginOpen?.key, activeNoteUuid, landing?.annotation, projectView?.digs]);
   const pageProject = useMemo(() => (projectView ? {
     uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin, marginHolds,
   } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin, marginHolds]);
@@ -3278,9 +3285,10 @@ export default function App() {
     };
     setNotes((prev) => [...prev, optimistic]);
     // Its card opens with the note in hand: type and it is a note, click
-    // away and it is an anchor.
+    // away and it is an anchor. With a project on, an anchor is a place to
+    // dig: once saved, the reader's dig there opens to be written.
     setActiveNoteUuid(tempUuid);
-    setNoteCardFocus('text');
+    if (!projectView) setNoteCardFocus('text');
 
     const saving = annotations.notes
       .create({ ...spot, content: '' })
@@ -3289,6 +3297,11 @@ export default function App() {
           n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
         )));
         setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
+        if (projectView) {
+          freshSpot.current = saved.uuid;
+          if (withMargin) openInMargin({ key: saved.uuid, annotation: saved.uuid, kind: 'note' }, 'mine', true);
+          else setLanding({ annotation: saved.uuid, dig: 'mine' });
+        }
         const entry = { uuid: saved.uuid, snapshot: saved };
         remember({
           undo: () => removeNote(entry.uuid, false),

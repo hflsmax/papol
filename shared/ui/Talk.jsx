@@ -158,9 +158,9 @@ export function when(iso, { time = false } = {}) {
 // somewhere else already (the viewer's margin), `onPress` takes the press
 // instead of opening a card of the pin's own.
 export function TalkPin({
-  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title, openOn = null, onPress = null,
+  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title, openOn = null, onPress = null, startOpen = false,
 }) {
-  const [open, setOpen] = useState(Boolean(openOn));
+  const [open, setOpen] = useState(Boolean(openOn) || startOpen);
   const [asked, setAsked] = useState(openOn);
   const [local, setLocal] = useState(null);
   const pin = useRef(null);

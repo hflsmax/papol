@@ -80,9 +80,10 @@ async function subjectOf(env: Env, project: Project, key: unknown): Promise<Subj
     if (!card) refuse(404, "That card is not on this project's boards");
     return { ...NONE, subject: `card:${first}`, board_item_uuid: first };
   }
-  // A member's note, ink or clip on one of the project's papers: what the
+  // A member's anchor, ink or clip on one of the project's papers: what the
   // viewer shows every member once the project is on. Its author's alone
-  // to change; the project's to dig into.
+  // to change; the project's to dig into. An anchor is a place: what is
+  // written there is a dig.
   if (kind === "annotation" && first && second === undefined) {
     const annotation = await one<{ paper_sha256: string }>(env.DB,
       `SELECT a.paper_sha256 FROM annotations a

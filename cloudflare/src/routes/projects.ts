@@ -270,7 +270,7 @@ export function excerpt(body: string): string {
 export const SUBJECT_COLUMNS = `p.title AS paper_title,
   bi.kind AS card_kind, bi.content AS card_content, bi.excerpt_text AS card_excerpt, bi.original_filename AS card_file,
   bi.board_uuid AS card_board, b.name AS board_name,
-  an.kind AS annotation_kind, an.page AS annotation_page, an.content AS annotation_content, an.name AS annotation_name, an.body AS annotation_body,
+  an.kind AS annotation_kind, an.page AS annotation_page, an.body AS annotation_body,
   an.user_uuid AS annotation_user, au.display_name AS annotation_by`;
 export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN board_items bi ON bi.uuid = d.board_item_uuid
@@ -311,11 +311,9 @@ export function annotationDown(d: Row): number | null {
   return down == null ? null : Math.min(1, Math.max(0, down));
 }
 
-// An annotation named in a line: a note by what it says, ink and a clip by
-// where they are.
+// An annotation named in a line, by what it is and where: what was
+// written there is the dig itself.
 function annotationLabel(d: Row): string {
-  const words = String(d.annotation_name || d.annotation_content || "").trim();
-  if (d.annotation_kind === "note" && words) return excerpt(words).slice(0, 120);
   const where = d.annotation_page ? ` on page ${d.annotation_page}` : "";
   if (d.annotation_kind === "ink") return `Ink${where}`;
   if (d.annotation_kind === "clip") return `A clip${where}`;
@@ -559,10 +557,13 @@ export function projectRoutes(router: Router) {
     const paperKey = `paper:${digest}`;
     const pins = await pinsOf(env, project.uuid, me, member, [paperKey, ...rows.map((a) => `annotation:${a.uuid}`)]);
     const { [paperKey]: paperPin, ...annotationPins } = pins;
+    // Another member's anchor shows only as the place of a dig; one nobody
+    // has dug there says nothing to the project.
+    const shown = rows.filter((a) => a.kind !== "note" || a.user_uuid === me.uuid || `annotation:${a.uuid}` in annotationPins);
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
       me: me.uuid,
-      annotations: rows.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
+      annotations: shown.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
       digs: Object.fromEntries(Object.entries(annotationPins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
       // The digs on the paper itself, which head the viewer's margin.
       paper_digs: paperPin ?? null,
