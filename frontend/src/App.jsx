@@ -755,6 +755,10 @@ export default function App({ startupUser = null, startupError = null }) {
                 onLeft={() => navigate('/', { replace: true })}
               />
             )}
+            onOpenProject={(uuid) => {
+              setProjectsRevision((r) => r + 1);
+              navigate(`/project/${uuid}`);
+            }}
             onOpenCanvas={openBoardCanvas}
             incomingPaperFile={incomingPaperFile}
             onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}

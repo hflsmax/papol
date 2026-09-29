@@ -238,6 +238,8 @@ function answer(method, path, search) {
     };
   }
   if (path === '/admin-messages/pending') return [];
+  // A project started from the rail opens as the fixture's own.
+  if (path === '/projects' && method === 'POST') return project;
   if (path === '/projects') return [summary, other, closed];
   if (path === `/projects/${PROJECT}`) return project;
   if (path === `/projects/${PROJECT}/people`) {
