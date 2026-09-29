@@ -10,8 +10,8 @@ import { memberInk } from './project.js';
 // moves it.
 export const MARGIN_GAP = 20;
 export const MARGIN_WIDTH = 32;
-// How wide a dig opened from a face is. It stands beside the faces, over
-// the edge of the page when there is no room past them.
+// How wide a dig opened from a face is. It stands beside the faces, or,
+// with no room past them, over the edge of the page under them.
 const CARD_WIDTH = 300;
 const CARD_GAP = 8;
 // Between the faces of one thing, and between one thing and the next.
@@ -114,6 +114,10 @@ export default function DigMargin({
   // Where a thing's faces stand in its page: level with its place, and
   // as far below as they gave way.
   const topOf = (line) => `calc(${(line.down * 100).toFixed(4)}% - ${MARGIN_WIDTH / 2}px + ${pushes[line.key] ?? 0}px)`;
+  // Over the page, the open dig stands under its thing's faces, so the
+  // thing, its bar and its faces all stay in sight above it.
+  const openFaces = openLine ? Math.max(1, facesOf(openLine.pin).length) : 0;
+  const openBelow = openFaces * MARGIN_WIDTH + (openFaces - 1) * FACE_GAP + CARD_GAP;
 
   return (
     <>
@@ -171,7 +175,7 @@ export default function DigMargin({
           className="dig-margin-card"
           data-key={openLine.key}
           style={{
-            top: topOf(openLine),
+            top: past ? topOf(openLine) : `calc(${topOf(openLine)} + ${openBelow}px)`,
             left: past ? `calc(100% + ${MARGIN_GAP + MARGIN_WIDTH + CARD_GAP}px)` : `calc(100% + ${MARGIN_GAP - CARD_GAP - CARD_WIDTH}px)`,
             width: CARD_WIDTH,
           }}
@@ -179,7 +183,7 @@ export default function DigMargin({
           <TalkCard
             key={`${openLine.key}|${openDig ?? 'mine'}`}
             inline focus single phaseInHead tucked={!open.writing} projectUuid={project.uuid} subject={openLine.subject} label={openLine.label}
-            dig={openDig ?? 'mine'} currentUser={project.me}
+            dig={openDig ?? 'mine'} currentUser={project.me} askBeforeRemoving={false}
             onChanged={(discussion, total) => onChanged(openLine.subject, discussion, total)}
           />
         </div>,

@@ -327,7 +327,7 @@ function tally(next, all) {
 }
 
 export function TalkCard({
-  anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
+  anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, askBeforeRemoving = true, focus = false, unread = 0, seekUnread = () => true,
   single = false, phaseInHead = false, tucked = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
@@ -487,7 +487,8 @@ export function TalkCard({
   // and the card moves on to the next dig on the thing, if any.
   const remove = async (post) => {
     const whole = post.uuid === discussion.uuid;
-    if (!(await confirmAction(whole ? (personal ? 'Remove this dig?' : 'Remove this dig and its posts?') : 'Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
+    // The viewer's margin removes a dig at once (askBeforeRemoving off).
+    if ((!whole || askBeforeRemoving) && !(await confirmAction(whole ? (personal ? 'Remove this dig?' : 'Remove this dig and its posts?') : 'Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
     setError(null);
     try {
       if (!whole) {
