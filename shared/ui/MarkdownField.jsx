@@ -83,12 +83,13 @@ const draw = (root, text) => {
 };
 
 const MarkdownField = forwardRef(function MarkdownField({
-  value = '', onChange, onKeyDown, onFocus, onBlur, placeholder, rows = 1, maxLength, autoFocus = false, className = '', name, id, style, ...rest
+  value = '', onChange, onKeyDown, onFocus, onBlur, onPointerDown, placeholder, rows = 1, maxLength, autoFocus = false, className = '', name, id, style, ...rest
 }, ref) {
   const box = useRef(null);
   const text = useRef(value);
   const history = useRef({ past: [], future: [], at: 0 });
   const composing = useRef(false);
+  const editable = useRef('true');
 
   const tell = useCallback((next) => { onChange?.({ target: { name, value: next }, currentTarget: { name, value: next } }); }, [onChange, name]);
 
@@ -149,10 +150,27 @@ const MarkdownField = forwardRef(function MarkdownField({
   useLayoutEffect(() => {
     const root = box.current;
     try { root.contentEditable = 'plaintext-only'; } catch { root.contentEditable = 'true'; }
-    if (root.contentEditable !== 'plaintext-only') root.contentEditable = 'true';
+    editable.current = root.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true';
+    root.contentEditable = 'false';
     draw(root, text.current);
     if (autoFocus) { root.focus(); select(root, text.current.length); }
   }, []);
+
+  // The box is editable only while it has the caret. An editable box at
+  // rest lets the browser put the caret in it for a press anywhere near it,
+  // on blank page around it, so it opens without being pressed.
+  const wake = () => { if (box.current.contentEditable !== editable.current) box.current.contentEditable = editable.current; };
+  const focused = (event) => {
+    const root = box.current;
+    wake();
+    // Reached by Tab or from code, the caret goes to the end.
+    if (!root.contains(window.getSelection()?.anchorNode)) select(root, text.current.length);
+    onFocus?.(event);
+  };
+  const blurred = (event) => {
+    box.current.contentEditable = 'false';
+    onBlur?.(event);
+  };
 
   // Its label, pressed, puts the caret in it, as it would in a textarea.
   useLayoutEffect(() => {
@@ -253,8 +271,9 @@ const MarkdownField = forwardRef(function MarkdownField({
       style={style}
       data-placeholder={placeholder}
       onKeyDown={keyDown}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      onPointerDown={(event) => { wake(); onPointerDown?.(event); }}
+      onFocus={focused}
+      onBlur={blurred}
       onInput={input}
       onCompositionStart={() => { composing.current = true; remember('other'); }}
       onCompositionEnd={() => { composing.current = false; input(); }}
