@@ -30,3 +30,8 @@ test('it is one line under a smaller name, its words level with the name', () =>
   assert.match(styles, /\.project-description \{[^}]*margin: 0 0 0 calc\(-1 \* var\(--space-2\)\); padding: 0 var\(--space-2\);[^}]*text-overflow: ellipsis; white-space: nowrap;/);
   assert.match(styles, /#way-slot \.project-title \{ font-size: var\(--fs-2xl\);/);
 });
+
+test('on the Mac the three views sit over the list, as on the web, not in the toolbar', () => {
+  assert.match(page, /\{seats\}\s*<\/InToolbar>\s*\{tabs\}/);
+  assert.doesNotMatch(styles, /\.desktop-toolbar \.project-tabs/);
+});

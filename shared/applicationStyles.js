@@ -5396,9 +5396,8 @@ ${talkStyles}
 .project-toolbar { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; align-items: stretch; gap: 0; min-width: 0; }
 .project-toolbar .project-title-line { flex-wrap: nowrap; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
-.desktop-toolbar .project-tabs { flex: none; margin: 0; }
-.desktop-toolbar .project-tab { padding: 3px var(--space-3); }
-.desktop-toolbar .project-seats { flex: 1 1 0; justify-content: flex-end; align-items: center; gap: var(--space-1); }
+[data-shell='desktop'] .project-page > .project-tabs { margin: 0 0 var(--space-4); }
+.desktop-toolbar .project-seats { flex: none; margin-left: auto; justify-content: flex-end; align-items: center; gap: var(--space-1); }
 .desktop-toolbar .project-seat-row { gap: 0; }
 .desktop-toolbar .project-seat-more { align-self: center; margin: 0 0 0 var(--space-1); }
 .desktop-toolbar .project-seat { width: auto; margin-left: -4px; padding: 2px; border-radius: 50%; }

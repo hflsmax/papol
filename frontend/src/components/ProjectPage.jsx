@@ -189,8 +189,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
     <p className="project-crowd"><Faces users={people} /><span>{count}</span></p>
   );
 
-  // In the Mac app a member's desk has no header: its name, its three views
-  // and its people sit in the window's toolbar, and the sidebar is the way back.
+  // In the Mac app a member's desk has no header: its name and its people
+  // sit in the window's toolbar, and the sidebar is the way back. Its three
+  // views stay with the page they change, over the list, as on the web.
   const inToolbar = DESKTOP && project.is_member;
 
   return (
@@ -205,9 +206,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               </div>
               {about}
             </div>
-            {tabs}
             {seats}
           </InToolbar>
+          {tabs}
         </>
       ) : (
         <>
