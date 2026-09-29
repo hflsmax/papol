@@ -183,7 +183,7 @@ export default function DigMargin({
           <TalkCard
             key={`${openLine.key}|${openDig ?? 'mine'}`}
             inline focus single phaseInHead tucked={!open.writing} projectUuid={project.uuid} subject={openLine.subject} label={openLine.label}
-            dig={openDig ?? 'mine'} currentUser={project.me}
+            dig={openDig ?? 'mine'} currentUser={project.me} askBeforeRemoving={false}
             onChanged={(discussion, total) => onChanged(openLine.subject, discussion, total)}
           />
         </div>,
