@@ -25,8 +25,8 @@ const press = (selector) => `
 const SHOTS = {
   yours: { path: `/viewer/?pdf=${PAPER}`, ready: painted, size: wide },
   'project-on': { path: on, ready: `${painted} && document.querySelector('.project-pill.on') && document.querySelector('.pin.theirs')`, size: wide },
-  'project-note': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.note-pop .talk-pin', size: wide },
-  'project-dig': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: `${press('.pin.theirs').replace('return true;', '')} setTimeout(() => document.querySelector('.note-pop .talk-pin').click(), 300); return true;`, settled: '.dig-margin-line.is-open .talk-card-body > *', size: wide },
+  'project-note': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.dig-margin-line.is-open .dig-margin-quote', size: wide },
+  'project-dig': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.dig-margin-line.is-open .talk-card-body > *', size: wide },
   'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: press(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-who', size: wide },
   // A project's link to Ben's dig on his paint: the paint picked out in the
   // middle of the view with that dig open beside it.

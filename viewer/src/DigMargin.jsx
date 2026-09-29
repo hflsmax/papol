@@ -102,6 +102,12 @@ export default function DigMargin({ scrollerRef, lines, layoutKey, open, picked,
             data-subject={line.subject}
             style={{ top: at?.top ?? 0, left: at?.left ?? 0, width: MARGIN_WIDTH, visibility: at ? 'visible' : 'hidden' }}
           >
+            {isOpen && line.quote && (
+              <p className="dig-margin-quote">
+                {line.quote.name && <b>{line.quote.name}</b>}
+                <span>{line.quote.text}</span>
+              </p>
+            )}
             {isOpen ? (
               <TalkCard
                 inline focus phaseInHead projectUuid={project.uuid} subject={line.subject} label={line.label}

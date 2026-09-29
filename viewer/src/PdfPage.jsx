@@ -2444,7 +2444,8 @@ function PdfPage({
               is already being typed into, so it is mounted under a key of
               its own that the trade does not touch. */}
           {notes.filter((note) => note.uuid === activeNoteUuid && !(drag?.uuid === note.uuid && drag.moved)
-            && !(readOnly && !note.content && !note.name)).map((note) => (
+            && !(readOnly && !note.content && !note.name)
+            && !(note.theirs && project?.marginHolds?.has(note.uuid))).map((note) => (
             <NoteCard
               key={note._cardKey || note.uuid}
               note={note}

@@ -1357,6 +1357,10 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
   color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif);
 }
+/* An open note's line begins with the note itself, the words its marker
+   stands for, set in the page's own type above the digs on it. */
+.dig-margin-quote { display: grid; gap: 2px; margin: 0 0 10px; color: var(--ink-soft); font: italic var(--fs-sm)/1.45 var(--font-serif); }
+.dig-margin-quote b { color: var(--ink); font: 600 var(--fs-sm)/1.4 var(--font-ui); font-style: normal; }
 /* Open, a line is the dig card on a sheet of its own. */
 .dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
 .dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }

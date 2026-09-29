@@ -2203,7 +2203,9 @@ export default function App() {
   // Opening a line picks out its thing on the page, as a press on it would.
   const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
     setMarginOpen({ key: line.key, dig, writing, landed });
-    if (line.kind === 'note') setActiveNoteUuid(line.annotation);
+    // Another's note is read in the margin, so it is only picked out; the
+    // reader's own keeps its card for writing, opened from its pin.
+    if (line.kind === 'note' && theirs(line.annotation)) setActiveNoteUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
@@ -2226,6 +2228,7 @@ export default function App() {
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
+    if (key && key === activeNoteUuid && theirs(key)) setActiveNoteUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
         scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
@@ -2234,9 +2237,21 @@ export default function App() {
   });
   // The thing picked on the page, whose line answers it.
   const marginPicked = activeNoteUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
+  // Another member's note that the margin holds has no card of its own on
+  // the page: pressing it opens its line, which carries its words.
+  const marginHolds = useMemo(
+    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'note').map((l) => l.annotation) : []),
+    [withMargin, marginLines],
+  );
+  useEffect(() => {
+    if (!activeNoteUuid || !marginHolds.has(activeNoteUuid) || !theirs(activeNoteUuid)) return;
+    if (marginOpen?.key === activeNoteUuid) return;
+    const line = marginLines.find((l) => l.annotation === activeNoteUuid);
+    if (line) openInMargin(line);
+  }, [activeNoteUuid, marginHolds]);
   const pageProject = useMemo(() => (projectView ? {
-    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin,
-  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin]);
+    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin, marginHolds,
+  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin, marginHolds]);
 
 
   // A stroke appears the instant the pointer lifts and is saved behind it.

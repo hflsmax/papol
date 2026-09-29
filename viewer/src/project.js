@@ -93,7 +93,9 @@ export function marginLinesOf({ paper, paperDigs, digs, notes = [], ink = [], cl
     if (!pin || !a.page) continue;
     const label = kind === 'note' ? (a.name || a.content || `An anchor on page ${a.page}`)
       : kind === 'ink' ? `Ink on page ${a.page}` : `A clip on page ${a.page}`;
-    lines.push({ key: a.uuid, annotation: a.uuid, kind, subject: `annotation:${a.uuid}`, label, page: a.page, down: annotationDown(a), pin });
+    // A note's own words head its line's card: the thing the dig is about.
+    const quote = kind === 'note' && a.content ? { name: a.name || null, text: a.content } : null;
+    lines.push({ key: a.uuid, annotation: a.uuid, kind, subject: `annotation:${a.uuid}`, label, quote, page: a.page, down: annotationDown(a), pin });
   }
   return lines.sort((x, y) => x.page - y.page || x.down - y.down);
 }
