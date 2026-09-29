@@ -112,7 +112,8 @@ async function annotate(who, paper, body) {
   const out = await must(`${who.name} marks ${paper.title}`, await who.as('POST', `/api/papers/${paper.name}/annotations`, { ...body, page: pageIn(paper, body.page) }));
   return out.uuid ?? out.annotation?.uuid;
 }
-const note = (who, paper, page, x, y, content, name = null) => annotate(who, paper, { kind: 'note', page, content, name, body: { anchor: { type: 'point', x, y } } });
+// An anchor is a place; what is said there is its author's dig.
+const anchor = (who, paper, page, x, y) => annotate(who, paper, { kind: 'note', page, content: '', body: { anchor: { type: 'point', x, y } } });
 const ink = (who, paper, page, y, x0, x1, color) => annotate(who, paper, {
   kind: 'ink', page, body: { points: [{ x: x0, y }, { x: x1, y }], color, width: 0.018, opacity: 0.35, shape: 'flat' },
 });
@@ -121,12 +122,12 @@ const clip = (who, paper, page, source) => annotate(who, paper, {
 });
 
 console.log('annotations');
-const anaNote = await note(ana, attention, 1, 0.5, 0.36, 'Is this still true at 8 heads? Their ablation in Table 3 says the gain flattens.', 'Parallelism claim');
+const anaNote = await anchor(ana, attention, 1, 0.5, 0.36);
 const benInk = await ink(ben, attention, 1, 0.3, 0.2, 0.8, '#6f5bd9');
 const chenClip = await clip(chen, attention, 3, { x: 0.3, y: 0.08, w: 0.4, h: 0.45 });
-const danaNote = await note(dana, attention, 2, 0.2, 0.6, 'Residual around every sub-layer: the same trick as ResNet.', 'Add & Norm');
+const danaNote = await anchor(dana, attention, 2, 0.2, 0.6);
 const anaInk = await ink(ana, bert, 1, 0.55, 0.15, 0.85, '#d9534f');
-const chenNote = await note(chen, ddpm, 2, 0.4, 0.5, 'The simplified loss drops the weighting and trains better.', 'Simplified objective');
+const chenNote = await anchor(chen, ddpm, 2, 0.4, 0.5);
 
 // ---------------------------------------------------------------- projects
 
@@ -154,15 +155,15 @@ await dig(ana, group, `paper:${attention.sha}`, 'The parallelism argument carrie
 await dig(ben, group, `paper:${attention.sha}`, 'Positional encodings are the least argued choice here. Learned ones did as well in their own table.');
 await dig(dana, group, `paper:${attention.sha}`, 'Worth reading next to ResNet: the residual stream is what lets six layers train at all.',
   [[chen, 'And the warmup schedule. Without it the post-norm version diverges.']]);
-await dig(ana, group, `annotation:${anaNote}`, 'It flattens for translation. For our loop the heads would be doing different work, so I would not read Table 3 as a ceiling.',
-  [[ana, 'Fair. Then the claim to test is whether the heads specialise at all on our data.']]);
+await dig(ana, group, `annotation:${anaNote}`, 'Is this still true at 8 heads? Their ablation in Table 3 says the gain flattens.',
+  [[ben, 'It flattens for translation. For our loop the heads would be doing different work.'], [ana, 'Fair. Then the claim to test is whether the heads specialise at all on our data.']]);
 await dig(ben, group, `annotation:${benInk}`, '3.5 days on eight GPUs is the number to beat for our budget.', [[dana, 'We have two. Call it a week.']]);
 await dig(chen, group, `annotation:${chenClip}`, 'This figure is the clearest picture of multi-head attention I know. Keep it on the board.', [], 'stashed');
-await dig(dana, group, `annotation:${danaNote}`, 'Pre-norm moves this inside the residual. Most later models do that.');
+await dig(dana, group, `annotation:${danaNote}`, 'Residual around every sub-layer: the same trick as ResNet. Pre-norm moves it inside the residual.');
 await dig(ana, group, `annotation:${anaInk}`, 'Masked LM is the idea; next-sentence prediction turned out not to matter.', [[chen, 'RoBERTa dropped it and did better.']], 'buried');
 await dig(ben, group, `paper:${adam.sha}`, 'The bias correction is the part people forget when they write it by hand.');
 await dig(chen, club, `paper:${ddpm.sha}`, 'Read this before the score-based papers; it is the same model from the other side.', [[dana, 'Starting it tonight.']]);
-await dig(chen, club, `annotation:${chenNote}`, 'L_simple is the whole practical contribution.');
+await dig(chen, club, `annotation:${chenNote}`, 'The simplified loss drops the weighting and trains better. It is the whole practical contribution.');
 
 console.log('boards');
 const board = await must('make a board', await ana.as('POST', `/api/projects/${group}/boards`, { name: 'Ideas' }));

@@ -2226,6 +2226,7 @@ export default function App() {
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
+    if (key && key === activeNoteUuid) setActiveNoteUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
         scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
@@ -2234,9 +2235,30 @@ export default function App() {
   });
   // The thing picked on the page, whose line answers it.
   const marginPicked = activeNoteUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
+  // An anchor the margin holds is the place of its digs: pressing it opens
+  // its line there.
+  const marginHolds = useMemo(
+    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'note').map((l) => l.annotation) : []),
+    [withMargin, marginLines],
+  );
+  useEffect(() => {
+    if (!activeNoteUuid || !marginHolds.has(activeNoteUuid)) return;
+    if (marginOpen?.key === activeNoteUuid) return;
+    const line = marginLines.find((l) => l.annotation === activeNoteUuid);
+    if (line) openInMargin(line);
+  }, [activeNoteUuid, marginHolds]);
+  // An anchor dropped to dig at, left without a dig written there, is
+  // taken away again when the reader moves on: a place with nothing said.
+  const freshSpot = useRef(null);
+  useEffect(() => {
+    const spot = freshSpot.current;
+    if (!spot || marginOpen?.key === spot || activeNoteUuid === spot || landing?.annotation === spot) return;
+    freshSpot.current = null;
+    if (!projectView?.digs[spot]) removeNote(spot, false);
+  }, [marginOpen?.key, activeNoteUuid, landing?.annotation, projectView?.digs]);
   const pageProject = useMemo(() => (projectView ? {
-    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin,
-  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin]);
+    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin, marginHolds,
+  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin, marginHolds]);
 
 
   // A stroke appears the instant the pointer lifts and is saved behind it.
@@ -3263,9 +3285,10 @@ export default function App() {
     };
     setNotes((prev) => [...prev, optimistic]);
     // Its card opens with the note in hand: type and it is a note, click
-    // away and it is an anchor.
+    // away and it is an anchor. With a project on, an anchor is a place to
+    // dig: once saved, the reader's dig there opens to be written.
     setActiveNoteUuid(tempUuid);
-    setNoteCardFocus('text');
+    if (!projectView) setNoteCardFocus('text');
 
     const saving = annotations.notes
       .create({ ...spot, content: '' })
@@ -3274,6 +3297,11 @@ export default function App() {
           n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
         )));
         setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
+        if (projectView) {
+          freshSpot.current = saved.uuid;
+          if (withMargin) openInMargin({ key: saved.uuid, annotation: saved.uuid, kind: 'note' }, 'mine', true);
+          else setLanding({ annotation: saved.uuid, dig: 'mine' });
+        }
         const entry = { uuid: saved.uuid, snapshot: saved };
         remember({
           undo: () => removeNote(entry.uuid, false),

@@ -25,14 +25,31 @@ const press = (selector) => `
 const SHOTS = {
   yours: { path: `/viewer/?pdf=${PAPER}`, ready: painted, size: wide },
   'project-on': { path: on, ready: `${painted} && document.querySelector('.project-pill.on') && document.querySelector('.pin.theirs')`, size: wide },
-  'project-note': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.note-pop .talk-pin', size: wide },
-  'project-dig': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: `${press('.pin.theirs').replace('return true;', '')} setTimeout(() => document.querySelector('.note-pop .talk-pin').click(), 300); return true;`, settled: '.dig-margin-line.is-open .talk-card-body > *', size: wide },
+  'project-note': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.dig-margin-line.is-open .talk-post', size: wide },
+  'project-dig': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: press('.pin.theirs'), settled: '.dig-margin-line.is-open .talk-card-body > *', size: wide },
   'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: press(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-who', size: wide },
   // A project's link to Ben's dig on his paint: the paint picked out in the
   // middle of the view with that dig open beside it.
   'project-land': { path: `${on}&annotation=d1b2c3d4-0000-4000-8000-000000000008&dig=e1b2c3d4-0000-4000-8000-000000000051`, ready: `${painted} && document.querySelector('.ink-actions')`, settled: '.dig-margin-line.is-open .talk-post', size: wide },
   // The margin, a line pressed: its dig opens beside the page.
   'project-margin': { path: on, ready: `${painted} && document.querySelector('.dig-margin-line [data-subject], .dig-margin-head')`, then: "document.querySelectorAll('.dig-margin-head')[1].click(); return true;", settled: '.dig-margin-line.is-open .talk-post', size: wide },
+  // An anchor dropped with the project on: the reader's dig there opens in
+  // the margin, level with it, to be written.
+  'project-place': {
+    path: on, ready: `${painted} && document.querySelector('.dig-margin-head')`,
+    then: `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', bubbles: true }));
+      setTimeout(() => {
+        const page = document.querySelector('.pdf-page[data-page="1"]');
+        const box = page.getBoundingClientRect();
+        const at = { clientX: box.left + box.width * 0.62, clientY: box.top + box.height * 0.2, bubbles: true, button: 0, pointerId: 1, isPrimary: true };
+        const target = document.elementFromPoint(at.clientX, at.clientY);
+        target.dispatchEvent(new PointerEvent('pointerdown', at));
+        target.dispatchEvent(new PointerEvent('pointerup', at));
+        target.dispatchEvent(new MouseEvent('click', at));
+      }, 300);
+      return true;`,
+    settled: '.dig-margin-line.is-open .talk-dig-new textarea', size: wide,
+  },
   // The margin on a window just wide enough for it.
   'project-margin-narrow': { path: on, ready: `${painted} && document.querySelector('.dig-margin-head')`, size: { width: 1180, height: 820 } },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },

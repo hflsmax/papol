@@ -112,6 +112,10 @@ function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
   if (path === `/viewer/${PAPER}`) return { ...paper, notes: mine.filter((a) => a.kind === 'note') };
   if (path === `/viewer/${PAPER}/info`) return { paper: { ...paper }, references_status: 'done' };
+  // An anchor the reader drops is saved under a name of its own.
+  if (method === 'POST' && path === `/papers/${PAPER.slice(0, 32)}/annotations`) {
+    return { uuid: id(90), kind: 'note', page: 1, content: '', name: null, body: {}, created_at: daysAgo(0), updated_at: daysAgo(0), revision: 1 };
+  }
   if (path === `/papers/${PAPER.slice(0, 32)}/annotations`) {
     const kind = search.get('kind');
     return mine.filter((a) => !kind || a.kind === kind);

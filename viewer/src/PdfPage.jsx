@@ -23,7 +23,7 @@ import { memberInk } from './project.js';
 // With a project on, any annotation the project can see can hold a dig:
 // the pin for it, on the annotation's card. Never on one still being
 // saved, which has no name the project could know it by.
-function DigPin({ project, annotation, label, size = 'sm' }) {
+function DigPin({ project, annotation, label, size = 'sm', startOpen = false }) {
   if (!project || typeof annotation.uuid !== 'string' || annotation.uuid.startsWith('wet-')) return null;
   return (
     <TalkPin
@@ -35,6 +35,7 @@ function DigPin({ project, annotation, label, size = 'sm' }) {
       onChanged={project.onDigChanged}
       size={size}
       openOn={project.landing?.annotation === annotation.uuid ? project.landing.dig : null}
+      startOpen={startOpen}
       onPress={project.inMargin?.(annotation.uuid)}
     />
   );
@@ -2412,7 +2413,7 @@ function PdfPage({
               type="button"
               className={`pin${doomed.notes.includes(note.uuid) ? ' going' : ''}${
                 note.uuid === activeNoteUuid ? ' active' : ''
-              }${note.content ? '' : ' bare'}${
+              }${note.content && !project ? '' : ' bare'}${
                 drag?.uuid === note.uuid && drag.moved ? ' dragging' : ''
               }${note.theirs ? ' theirs' : ''}`}
               style={drag?.uuid === note.uuid && drag.moved ? {
@@ -2428,35 +2429,48 @@ function PdfPage({
                 // Another member's pin wears their colour, as their ink does.
                 ...(note.theirs ? { '--who': memberInk(note.user) } : {}),
               }}
-              title={note.theirs
-                ? `${note.user.display_name}: ${note.content || 'an anchor'}`
-                : note.content || 'An anchor with no note yet'}
+              title={project ? undefined : note.content || 'An anchor with no note yet'}
               onPointerDown={(e) => startDrag(e, note)}
               onPointerMove={onDragMove}
               onPointerUp={(e) => endDrag(e, note)}
               onClick={(e) => pointAt(e, note)}
             >
-              <GlyphFor note={note} />
+              {/* With a project on, an anchor is a place, whatever was once
+                  written on it. */}
+              <GlyphFor note={project ? {} : note} />
             </button>
           ))}
-          {/* The card of the anchor that is open, hung off its pin. A new
+          {/* The card of the anchor that is open, hung off its pin, when no
+              project is on: with one, an anchor is the place of its digs. A new
               anchor trades a temporary uuid for a real one while its card
               is already being typed into, so it is mounted under a key of
               its own that the trade does not touch. */}
           {notes.filter((note) => note.uuid === activeNoteUuid && !(drag?.uuid === note.uuid && drag.moved)
-            && !(readOnly && !note.content && !note.name)).map((note) => (
+            && !(readOnly && !note.content && !note.name)
+            && !project).map((note) => (
             <NoteCard
               key={note._cardKey || note.uuid}
               note={note}
               readOnly={readOnly || Boolean(note.theirs)}
               by={note.theirs ? note.user : null}
-              pin={<DigPin project={project} annotation={note} label={note.name || note.content || `an anchor on page ${note.page}`} />}
               focusField={noteCardFocus}
               onRename={onRenameNote}
               onWrite={onWriteNote}
               onDelete={onRemoveNote}
               onClose={() => onSelectNote(null)}
             />
+          ))}
+          {/* With a project on, an anchor is the place of its digs. With no
+              margin beside the pages to hold them, the pressed anchor's dig
+              card opens off a pin beside it. */}
+          {project && notes.filter((note) => note.uuid === activeNoteUuid && !project.marginHolds?.has(note.uuid)).map((note) => (
+            <span
+              key={`dig-${note.uuid}`}
+              className="place-dig"
+              style={{ left: `${note.anchor.x * 100}%`, top: `${(1 - note.anchor.y) * 100}%` }}
+            >
+              <DigPin project={project} annotation={note} label={`an anchor on page ${note.page}`} startOpen />
+            </span>
           ))}
         </div>
       </div>

@@ -1357,6 +1357,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
   color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif);
 }
+/* With no margin, a pressed anchor's dig pin stands just right of it. */
+.place-dig { position: absolute; transform: translate(14px, -50%); pointer-events: auto; }
 /* Open, a line is the dig card on a sheet of its own. */
 .dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
 .dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
