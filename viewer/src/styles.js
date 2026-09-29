@@ -1332,6 +1332,32 @@ ${talkStyles}
   background: var(--paper-sunken);
 }
 
+/* With a project on and room to spare, the sheets make way on the right
+   for the dig margin (DigMargin.jsx): 28px from the sheet, 300px wide, and
+   the pages' own 24px beyond it. The fitted zoom reads this padding. */
+.pages.with-margin { padding-right: 376px; }
+.dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
+.dig-margin-line { position: absolute; box-sizing: border-box; z-index: 5; }
+.dig-margin-head {
+  display: grid; gap: 4px; box-sizing: border-box; width: 100%; margin: 0; padding: 8px 12px;
+  border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.dig-margin-head:hover, .dig-margin-head:focus-visible { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.dig-margin-who { display: flex; align-items: center; gap: 6px; min-width: 0; font: 600 var(--fs-sm)/20px var(--font-ui); }
+.dig-margin-who .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.dig-margin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dig-margin-more { color: var(--ink-faint); font-weight: 400; }
+.dig-margin-who .phase-glyph { width: 14px; height: 14px; }
+.dig-margin-text {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif);
+}
+/* Open, a line is the dig card on a sheet of its own. */
+.dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
+.dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.dig-margin-line .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+
 .animal-gutter {
   position: relative;
   z-index: 4;

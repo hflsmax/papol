@@ -219,11 +219,16 @@ describe("a paper with the project on", () => {
     const onInk = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `annotation:${anas.uuid}`, text: "Same as eq. 3" } });
     expect(onInk.subject).toMatchObject({ annotation_kind: "ink", page: 1, down: 0.8, paper_sha256: A_PAPER, label: "Ink on page 1" });
     const again = await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: dana.headers });
-    expect(again.digs[danas.uuid]).toMatchObject({ uuid: dig.uuid, dig_count: 1, post_count: 0, is_new: true });
+    expect(again.digs[danas.uuid]).toMatchObject({ uuid: dig.uuid, dig_count: 1, post_count: 0, is_new: true, lead: { owner: { uuid: ana.uuid }, phase: "digging", excerpt: "Which panel?" } });
+    expect(again.paper_digs).toBeNull();
+    // A dig on the paper itself heads the paper's margin.
+    await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "The loss curves are the point." } });
+    expect((await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: dana.headers })).paper_digs)
+      .toMatchObject({ dig_count: 1, lead: { owner: { uuid: ana.uuid }, excerpt: "The loss curves are the point." } });
     // Nothing outside the project can be dug: Ben's ink, or a note the project's paper does not carry.
     const bens = (await ok("GET", `/api/papers/${name}/annotations`, { headers: ben.headers }))[0];
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `annotation:${bens.uuid}`, text: "?" } })).status).toBe(404);
     const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs;
-    expect(listed.map((d: any) => d.subject.label).sort()).toEqual(["Figure 1 is off", "Ink on page 1"]);
+    expect(listed.map((d: any) => d.subject.label).sort()).toEqual(["Figure 1 is off", "Ink on page 1", "Loss Curves"]);
   });
 });

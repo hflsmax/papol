@@ -30,7 +30,9 @@ const SHOTS = {
   'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: press(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-who', size: wide },
   // A project's link to Ben's dig on his paint: the paint picked out in the
   // middle of the view with that dig open beside it.
-  'project-land': { path: `${on}&annotation=d1b2c3d4-0000-4000-8000-000000000008&dig=e1b2c3d4-0000-4000-8000-000000000051`, ready: `${painted} && document.querySelector('.ink-actions')`, settled: '.talk-card.is-placed .talk-post', size: wide },
+  'project-land': { path: `${on}&annotation=d1b2c3d4-0000-4000-8000-000000000008&dig=e1b2c3d4-0000-4000-8000-000000000051`, ready: `${painted} && document.querySelector('.ink-actions')`, settled: '.dig-margin-line.is-open .talk-post', size: wide },
+  // The margin, a line pressed: its dig opens beside the page.
+  'project-margin': { path: on, ready: `${painted} && document.querySelector('.dig-margin-line [data-subject], .dig-margin-head')`, then: "document.querySelectorAll('.dig-margin-head')[1].click(); return true;", settled: '.dig-margin-line.is-open .talk-post', size: wide },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 
