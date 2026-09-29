@@ -222,9 +222,6 @@ ${commonStyles}
 .you-affiliation { margin: 2px 0 0; color: var(--ink-soft); font-style: italic; }
 .you-tabs { margin-bottom: var(--space-4); }
 .you-who { flex: 1; min-width: 0; }
-.inbox-panel.is-bare .panel-head-row:empty { display: none; }
-.inbox-panel.is-bare .panel-head-row { justify-content: flex-end; margin-bottom: var(--space-2); }
-.inbox-panel.is-bare .panel-head-row .link-button { font: var(--fs-sm) var(--font-ui); }
 .way-self .nav-avatar { margin: 0; vertical-align: 0; }
 .way-self[aria-current] .nav-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
 
@@ -4078,81 +4075,59 @@ a.button:hover {
   margin-left: 6px;
 }
 
-.notification-list {
-  list-style: none;
-}
+/* The inbox as a mail list on the page's ground: no box and no rules.
+   A row is a soft tile on hover and takes the white when open; one not
+   yet read carries the gold dot and reads a little heavier; the day sits
+   at the row's end. */
+.inbox { max-width: 860px; }
+.inbox-head { display: flex; justify-content: flex-end; margin-bottom: var(--space-1); padding-right: var(--space-3); }
+.inbox-read-all,
+.inbox-read-all:hover:not(:disabled) { padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); cursor: pointer; }
+.inbox-read-all:hover:not(:disabled) { color: var(--accent); }
+.inbox-empty { margin: 0; color: var(--ink-soft); }
 
-.notification-item {
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--line);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.notification-item:last-child {
-  border-bottom: none;
-}
-
-.notification-item:hover {
-  background: var(--accent-soft);
-}
+.notification-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.notification-item { border-radius: var(--radius-lg); transition: background-color var(--motion-fast) var(--ease-out); }
+.notification-item:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.notification-item.is-open, .notification-item.is-open:hover { background: var(--card); box-shadow: var(--shadow-sm); }
 
 /* The whole notification is its button: it keeps the row's look, and only
    gains the ability to be reached from the keyboard. */
 .notification-toggle,
 .notification-toggle:hover:not(:disabled) {
-  display: block;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: baseline;
   width: 100%;
-  padding: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-2);
+  border: 0;
+  background: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.notification-toggle .notification-content,
-.notification-toggle .notification-date {
-  display: block;
-}
-
-.notification-item.unread {
-  background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  padding-left: 9px;
-}
-
-.notification-item.unread .notification-content {
-  font-weight: 600;
-}
-
-.notification-new {
-  display: inline-block;
-  margin-right: 8px;
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--ink-inverse);
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
+.notification-mark { align-self: center; display: flex; justify-content: center; }
+.notification-item.is-open .notification-mark { align-self: start; padding-top: 0.55em; }
 
 .notification-content {
-  font-size: var(--fs-base);
-}
-
-/* Collapsed: a single teaser line; clicking expands (and de-news) it */
-.notification-content.collapsed {
-  white-space: nowrap;
   overflow: hidden;
+  font-size: var(--fs-base);
+  line-height: 1.45;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
+.notification-item.unread .notification-content { font-weight: 600; }
+/* Open, it is read in full, its own paragraphs kept. */
+.notification-item.is-open .notification-content { white-space: pre-line; overflow-wrap: anywhere; }
 
 .notification-date {
-  margin-top: 2px;
+  color: var(--ink-faint);
+  font: var(--fs-sm) var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ---------- Admin ---------- */

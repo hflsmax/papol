@@ -85,6 +85,9 @@ const SHOTS = {
   'you-inbox': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
   'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: phone },
+  // One notification opened in the inbox.
+  'you-open': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "return new Promise((done) => setTimeout(() => { const all = document.querySelectorAll('.notification-toggle'); all[all.length - 1].click(); done(true); }, 800));", settled: "document.querySelector('.notification-toggle[aria-expanded=true]')", size: wide },
+  'mac-inbox': { path: '/inbox?shell=desktop', ready: "document.querySelector('.notification-item')", size: wide },
   // The nook while it waits: for the sign-in to be checked, then for its
   // papers.
   // A project opened before shows at once on coming back, while it is
