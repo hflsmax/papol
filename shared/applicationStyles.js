@@ -5397,15 +5397,9 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
 .paper-brief-dig .talk-post-head .dig-phase-pick { margin-left: 0; }
 .paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
-/* The box that posts to the dig: one quiet line at the posts' edge, taller
-   while it is being written in. */
-.paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
-.paper-brief-dig .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
-.paper-brief-dig .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
-.paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
-.paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
-/* Post comes after the last post, where the conversation continues. */
-.paper-brief-dig .talk-unfold.is-post { min-height: 26px; margin: var(--space-1) 0 0 24px; padding: 0 10px; font-size: var(--fs-xs); }
+/* The box that posts starts where the posts begin. */
+.paper-brief-dig .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
+.paper-brief-dig .talk-compose textarea { background: var(--card); }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
