@@ -47,18 +47,18 @@ describe("a project of one", () => {
     expect(unheld.status).toBe(400);
   });
 
-  it("says what it is about in its keepers' words, which its members read and no one else", async () => {
+  it("says what it is about in one line of its keepers' words, which its members read and no one else", async () => {
     const dana = await register();
     const project = await start(dana);
     expect(project.description).toBeNull();
 
-    const described = await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "  Why the loop rings.\nAnd how to damp it. " } });
-    expect(described).toMatchObject({ name: "Error dynamics", description: "Why the loop rings.\nAnd how to damp it." });
+    const described = await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "  Why the loop\nrings,  and how to damp it. " } });
+    expect(described).toMatchObject({ name: "Error dynamics", description: "Why the loop rings, and how to damp it." });
     // Renaming leaves it; emptying it leaves none.
-    expect(await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { name: "Loop dynamics" } })).toMatchObject({ name: "Loop dynamics", description: "Why the loop rings.\nAnd how to damp it." });
+    expect(await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { name: "Loop dynamics" } })).toMatchObject({ name: "Loop dynamics", description: "Why the loop rings, and how to damp it." });
     expect((await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "  " } })).description).toBeNull();
     await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "Why the loop rings." } });
-    const long = await call("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "x".repeat(2001) } });
+    const long = await call("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "x".repeat(281) } });
     expect(long.status).toBe(422);
 
     const ana = await register();

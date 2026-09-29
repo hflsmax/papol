@@ -10,7 +10,6 @@ import {
   describeProject, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
-import AutoTextarea from './AutoTextarea';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { InToolbar } from './DesktopChrome';
@@ -202,11 +201,11 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
             <div className="project-toolbar talk-host" data-toolbar-title>
               {title}
               <ExperimentalBadge />
+              {about}
             </div>
             {tabs}
             {seats}
           </InToolbar>
-          {about}
         </>
       ) : (
         <>
@@ -215,10 +214,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               <div className="project-title-row">
                 {title}
                 <ExperimentalBadge />
+                {about}
               </div>
               {seats}
             </InWay>
-            {about}
             {tabs}
           </header>
         </>
@@ -764,37 +763,37 @@ function BoardMap({ boxes = [] }) {
   );
 }
 
-// The name, which a keeper renames in place: kept when left, taken back
-// with Escape. There is no Save.
-// What the project is about, under its name: a keeper writes it in place,
-// kept when left, taken back with Escape; Shift+Enter starts a new line.
-// Plain words, as written. With none, a member who is not a keeper sees
-// nothing.
+// What the project is about, one quiet line in the bar beside its name: a
+// keeper writes it in place, kept when left, taken back with Escape; the
+// whole of a long one shows on pointing at it. With none, a member who is
+// not a keeper sees nothing.
 function ProjectDescription({ project, onDescribe }) {
   const saved = project.description ?? '';
   const [text, setText] = useState(saved);
   const reverting = useRef(false);
   useEffect(() => setText(saved), [saved]);
-  if (!project.is_keeper) return saved ? <p className="project-description">{saved}</p> : null;
+  if (!project.is_keeper) return saved ? <p className="project-description" title={saved}>{saved}</p> : null;
   const keep = async () => {
     if (reverting.current) { reverting.current = false; return; }
     if (text.trim() === saved) { setText(saved); return; }
     if (!(await onDescribe(text))) setText(saved);
   };
   return (
-    <AutoTextarea
-      className="project-description project-description-input" value={text} rows={1}
+    <input
+      className="project-description project-description-input" value={text} title={saved || undefined}
       maxLength={appLimits.text.project_description} placeholder="Description" aria-label="Project description"
       onChange={(e) => setText(e.target.value)}
       onBlur={keep}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
+        if (e.key === 'Enter') e.currentTarget.blur();
         if (e.key === 'Escape') { reverting.current = true; setText(saved); e.currentTarget.blur(); }
       }}
     />
   );
 }
 
+// The name, which a keeper renames in place: kept when left, taken back
+// with Escape. There is no Save.
 function ProjectTitle({ project, onRename }) {
   const [name, setName] = useState(project.name);
   const reverting = useRef(false);

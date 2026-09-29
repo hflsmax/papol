@@ -52,12 +52,12 @@ function projectName(value: unknown): string {
   return name || refuse(422, "name is required");
 }
 
-// Kept as written, lines and all; empty is none.
+// One line, as the name is; empty is none.
 function projectDescription(value: unknown): string | null {
   const check = validate.checking();
   const description = check.string("description", value, { max: limits.text.project_description, optional: true });
   check.done();
-  return description?.trim() || null;
+  return tidy(description ?? "") || null;
 }
 
 export async function liveProject(env: Env, uuid: string): Promise<Project> {
