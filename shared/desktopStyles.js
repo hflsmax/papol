@@ -603,41 +603,11 @@ export const desktopStyles = `
   background: transparent;
 }
 
-/* Inbox reads as a mail list: an unread notification is marked by a dot
-   beside it, the way Mail annotations one, rather than a tinted row and a badge.
-   The word "new" stays for screen users. */
-[data-shell='desktop'] .notification-item,
-[data-shell='desktop'] .notification-item.unread {
-  position: relative;
-  padding: 10px 12px 10px 28px;
-  border-left: 0;
-  border-radius: var(--chrome-radius);
-  background: none;
-}
-
-[data-shell='desktop'] .notification-item:hover {
-  background: var(--chrome-hover);
-}
-
-[data-shell='desktop'] .notification-item.unread::before {
-  content: '';
-  position: absolute;
-  top: 18px;
-  left: 11px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-[data-shell='desktop'] .notification-new {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
+/* The Mac inbox sits in the window's own ground, its rows the sidebar's
+   hover. */
+[data-shell='desktop'] .inbox { margin: 0 auto; }
+[data-shell='desktop'] .notification-item { border-radius: var(--chrome-radius); }
+[data-shell='desktop'] .notification-item:hover { background: var(--chrome-hover); }
 
 /* Signing in is the whole window's business: the form sits in its middle,
    lifted off the ground by a shadow rather than boxed by a rule. */

@@ -45,7 +45,7 @@ export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, on
         ))}
       </nav>
       <div className="you-view" id="you-view" role="tabpanel" aria-labelledby={`you-tab-${view}`}>
-        {view === 'inbox' && <InboxPage bare onUnread={onUnread} />}
+        {view === 'inbox' && <InboxPage onUnread={onUnread} />}
         {view === 'activity' && <ActivityPanel />}
         {view === 'account' && (
           <ProfilePage user={user} withActivity={false} inTab onUserUpdated={onUserUpdated} onLogout={onLogout} onSync={onSync} />
