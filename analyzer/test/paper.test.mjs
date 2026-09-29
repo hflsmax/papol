@@ -161,10 +161,16 @@ describe("the paper", () => {
     // Two typing rules, each a bar with premises over it and the conclusion
     // under it, named at the bar's right: "T-App" in faked small capitals
     // ("T-A" at 8pt, "PP" at 6.4pt on one baseline), "(T-Var)" in brackets.
-    // A law named at its right, an em from its text: "(RUNIT)".
+    // A law named at its right, an em from its text: "(RUNIT)". A rule
+    // "T-Lam" set left of T-App on the same row, its label a hair from
+    // T-App's bar, is not in T-App's box.
     const pdf = writtenPdf([
       [60, 740, "Application is typed by T-App, as [T-Abs] and (T-Var) are, and the"],
       [60, 725, "law (RUNIT) holds. By T-App the argument is checked; see also T-Sub."],
+      [22, 600, "x |- e : u"],
+      "0 0 0 RG 0.4 w 20 596 m 72 596 l S",
+      [22, 585, "G |- x.e"],
+      [75, 592, "T-Lam", 8],
       [100, 600, "G |- e1 : t1 -> t2"],
       [220, 600, "G |- e2 : t1"],
       "0 0 0 RG 0.4 w 100 596 m 320 596 l S",
@@ -181,11 +187,13 @@ describe("the paper", () => {
     {
       const body = (await analyzeWithRules(pdf)).analysis;
       const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
-      assert.deepEqual(rules.map((f) => [f.label, f.page]), [["RUNIT", 1], ["T-APP", 1], ["T-Var", 1]]);
-      const [law, app, variable] = rules;
+      assert.deepEqual(rules.map((f) => [f.label, f.page]), [["RUNIT", 1], ["T-APP", 1], ["T-Lam", 1], ["T-Var", 1]]);
+      const [law, app, lam, variable] = rules;
       // T-App is its bar's width and its label, from its premises at 800 −
-      // 608 down to its conclusion at 800 − 575, not the rule under it.
-      assert.ok(app.x < 100 / 600 && app.x + app.w > 350 / 600 && app.x + app.w < 400 / 600, `T-App is as wide as its bar and label: ${JSON.stringify(app)}`);
+      // 608 down to its conclusion at 800 − 575, not the rule under it,
+      // nor T-Lam's label three points left of its bar.
+      assert.ok(app.x < 100 / 600 && app.x > 96 / 600 && app.x + app.w > 350 / 600 && app.x + app.w < 400 / 600, `T-App is as wide as its bar and label: ${JSON.stringify(app)}`);
+      assert.ok(lam.x < 20 / 600 && lam.x + lam.w > 96 / 600 && lam.x + lam.w < 101 / 600, `T-Lam ends at its label: ${JSON.stringify(lam)}`);
       assert.ok(app.y < 192 / 800 && app.y + app.h > 215 / 800 && app.y + app.h < 235 / 800, `T-App is its premises and conclusion: ${JSON.stringify(app)}`);
       assert.ok(variable.y >= 229 / 800 && variable.y + variable.h < 262 / 800, `T-Var is under T-App, apart from it: ${JSON.stringify(variable)}`);
       assert.ok(law.x < 100 / 600 && law.x + law.w > 220 / 600 && law.h < 20 / 800, `the law is its one line: ${JSON.stringify(law)}`);

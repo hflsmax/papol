@@ -469,9 +469,11 @@
     ]
   },
   "kokke-popl19": {
-    "rules": 3,
-    "mentions": 32,
+    "rules": 5,
+    "mentions": 34,
     "names": [
+      ":O",
+      "⊗O",
       "h-cut",
       "h-mix",
       "h-mix0"
@@ -715,9 +717,13 @@
     "names": []
   },
   "sequent": {
-    "rules": 27,
-    "mentions": 27,
+    "rules": 31,
+    "mentions": 34,
     "names": [
+      "→L",
+      "→R",
+      "∀L",
+      "∀R",
       "Act",
       "Ax",
       "Case",

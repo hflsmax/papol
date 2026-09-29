@@ -75,7 +75,9 @@ interface Token {
   end: number;
 }
 
-const TOKEN = "(?:[A-Z]{1,2} )?[\\p{L}\\d][\\p{L}\\d'′<:=→⇒⇓∀∃⊢⊗⊕⊸~*∧∨¬|/\\-‐‑–]{0,23}";
+// A token begins with a letter or digit, or with the connectives of a
+// symbol name (→L, ∀R) where a capital follows them.
+const TOKEN = "(?:[A-Z]{1,2} )?(?:[\\p{L}\\d]|[→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<:=]{1,2}(?=[A-Z]))[\\p{L}\\d'′<:=→⇒⇓∀∃⊢⊗⊕⊸~*∧∨¬|/\\-‐‑–]{0,23}";
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
@@ -135,6 +137,7 @@ interface Setting {
   bar: Drawn | null;
   row: Line[]; // the lines level with the label, in its column
   side: "left" | "right" | "over"; // where the label stands to its rule
+  other?: Setting; // beside a bar on either side: the setting on the other side
 }
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
@@ -239,6 +242,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const aside = (d: Drawn) => Math.abs(d.x + d.w / 2 - (label.x0 + label.x1) / 2);
   const below = near.filter((d) => d.y >= label.bottom - 1).sort((a, b) => (Math.abs(a.y - b.y) > 1 ? a.y - b.y : aside(a) - aside(b)));
   let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label));
+  const beside: Setting[] = [];
   for (const bar of bars) {
     const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
     // A conclusion stands under a bar; an axiom's has nothing over it.
@@ -254,8 +258,15 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
         && (Math.abs(d.x - label.x1) <= TOUCH * label.size || Math.abs(d.x + d.w - label.x0) <= TOUCH * label.size);
       const goesOn = touching(bar) && page.drawn.some((d) => d !== bar && touching(d));
       if (goesOn) return { category: "group", bar, row, side: right ? "right" : "left" };
-      return { category: "beside", bar, row, side: right ? "right" : "left" };
+      beside.push({ category: "beside", bar, row, side: right ? "right" : "left" });
     }
+  }
+  // Level with a bar on either side (TypeWhich sets Id's rule, "Const" and
+  // its rule on one row), the label stands on the side the paper's other
+  // labels do: findRules picks, so the other side is kept.
+  if (beside.length) {
+    const other = beside.find((s) => s.side !== beside[0].side);
+    return other ? { ...beside[0], other } : beside[0];
   }
   // On its own line over the premises, aligned with the rule's left edge
   // or its middle: mathpar's label, as far up as the premises stack.
@@ -354,10 +365,12 @@ interface Box { x: number; y: number; w: number; h: number }
 
 // The rule a label names, as set (rule.box). With a bar, the bar's width
 // joined with the label, the lines within 0.8 of a leading of the bar,
-// then every line touching those within reach. Without one, the row.
+// then every line touching those within reach. Without one, the row. A
+// line takes part only where it overlaps the bar and the label: the next
+// rule's label, set a hair from the bar on its other side, is not in it.
 function boxOf(page: Page, label: Line, setting: Setting, type: Type): Box {
   const lines = ruleLines(page, label);
-  const slack = BESIDE * label.size;
+  const slack = setting.bar ? 0 : BESIDE * label.size;
   const taken = new Set<Line>([label]);
   let x0: number, x1: number;
   if (setting.bar) {
@@ -459,12 +472,21 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const type = typeOf(layout);
   const candidates: Candidate[] = [];
   const at = (page: Page, line: Line, box: Box) => [{ page: page.number, ...box }];
+  const seen: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
   for (const page of layout.pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(line) || line.size > LABEL_SIZE * layout.bodySize) continue;
       const token = tokenOf(line);
-      if (!token) continue;
-      const setting = settingOf(page, line, token, type);
+      if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
+    }
+  }
+  // A label level with a bar on either side stands on the side most of
+  // the paper's other labels do; short of a majority, on the first found.
+  const sides = { left: 0, right: 0, over: 0 };
+  for (const s of seen) if (s.setting.category === "beside" && !s.setting.other) sides[s.setting.side] += 1;
+  for (const s of seen) if (s.setting.other && sides[s.setting.other.side] > sides[s.setting.side]) s.setting = s.setting.other;
+  {
+    for (const { page, line, token, setting } of seen) {
       const box = boxOf(page, line, setting, type);
       trace.add(RULE_CANDIDATE.id, page.number, token.text, at(page, line, box));
       if (setting.category === "none") continue;

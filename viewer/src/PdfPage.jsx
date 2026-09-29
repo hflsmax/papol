@@ -482,7 +482,7 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
       // Someone else's clip is a view they cut and placed. It is theirs to
       // move, so here it is simply part of the page — picked out, with a
       // project on, only to say whose it is.
-      title={peek ? peek.title : readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
+      title={peek ? undefined : readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
       onPointerDown={readOnly ? undefined : (event) => begin(event, 'move')}
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
@@ -2101,8 +2101,9 @@ function PdfPage({
       data-page-width={size.width || undefined}
       data-page-height={size.height || undefined}
       data-render-scale={renderScale}
-      // The link boxes let the pointer through, so their tooltip is the page's.
-      title={hoveredLink >= 0 && links[hoveredLink] ? linkTitle(links[hoveredLink]) : undefined}
+      // The link boxes let the pointer through, so their tooltip is the
+      // page's. A rule's name shows the rule itself and gets none.
+      title={hoveredLink >= 0 && links[hoveredLink] && !isRule(links[hoveredLink]) ? linkTitle(links[hoveredLink]) : undefined}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
           during a pinch this is a compositor transform, and the sharp
