@@ -77,9 +77,10 @@ const SHOTS = {
   'bazaar-projects': { path: '/projects?shell=web', ready: "document.querySelector('.projects-row.closed')", size: wide },
   library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
   paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
-  you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
-  'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
-  'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
+  you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: wide },
+  'you-inbox': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
+  'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
+  'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: phone },
   // The nook while it waits: for the sign-in to be checked, then for its
   // papers.
   // A project opened before shows at once on coming back, while it is
