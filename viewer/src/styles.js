@@ -130,7 +130,8 @@ ${talkStyles}
 .paper-clip.theirs { cursor: default; }
 .clip-bar { position: absolute; z-index: 2; right: -1px; bottom: calc(100% + 6px); }
 /* Over an anchor: centred above its pin. */
-.anchor-bar { position: absolute; transform: translate(-50%, calc(-100% - 20px)); z-index: 4; }
+/* Scaled back while a zoom stretches the page, so it keeps its size (--unzoom, set with the stretch). */
+.anchor-bar { position: absolute; transform: translate(-50%, calc(-100% - 20px)) scale(var(--unzoom, 1)); transform-origin: 50% 100%; z-index: 4; }
 
 .shell { max-width: 480px; margin: 18vh auto 80px; padding: 0 16px; }
 /* Why there is nothing to read. The title is the reason itself. */
@@ -1346,6 +1347,7 @@ ${talkStyles}
    right to hold it, so the sheet and its margin are centred together. */
 /* The margin's column runs to the window's foot, so the feedback chip
    steps to the other corner rather than sit over a dig. */
+.pages[data-fits-across] { overflow-x: hidden; overscroll-behavior-x: none; }
 body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* A thing's digs: a column of their writers' faces, level with its place. */
@@ -1882,7 +1884,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
    an anchor about to be rubbed out is still that anchor, and recolouring
    it says something about it that is not true. */
 .pin.going {
-  transform: translate(-50%, -50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(calc(var(--unzoom, 1) * 1.12));
 }
 
 /* ---------- Ink ---------- */
@@ -2026,7 +2028,9 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
      the drawing below the point and the point above the drawing — fine
      while a pin was only ever read, and wrong the moment one is aimed,
      dragged and rubbed out. */
-  transform: translate(-50%, -50%);
+  /* While a zoom stretches the page, --unzoom scales the pin back, so it
+     keeps its size through the gesture as it does after it. */
+  transform: translate(-50%, -50%) scale(var(--unzoom, 1));
   pointer-events: auto;
   width: 30px;
   height: 30px;
@@ -2034,6 +2038,8 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   color: var(--accent);
   cursor: grab;
   touch-action: none;
+  /* Its size never eases: a zoom changes --unzoom every frame. */
+  transition: color var(--motion-fast) var(--ease-out);
 }
 
 .pin svg { display: block; width: 100%; height: 100%; }
@@ -2057,7 +2063,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 
 .pin:focus-visible {
   outline: none;
-  transform: translate(-50%, -50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(calc(var(--unzoom, 1) * 1.12));
 }
 
 /* The anchor in hand: the one whose pin was clicked, whose dig is open,
@@ -2067,7 +2073,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 .pin.active {
   opacity: 1;
   color: var(--accent-strong);
-  transform: translate(-50%, -50%) scale(1.15);
+  transform: translate(-50%, -50%) scale(calc(var(--unzoom, 1) * 1.15));
 }
 .pin.worn.active { color: color-mix(in srgb, var(--who) 80%, black); }
 .pin:not(.active) { opacity: 0.9; }
