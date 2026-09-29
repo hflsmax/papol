@@ -68,6 +68,20 @@ describe("the profile", () => {
   });
 });
 
+describe("the nav bar's marks", () => {
+  it("start as the default set and keep what the reader chose, in the bar's order", async () => {
+    const ada = await register("ada@example.test", "Ada");
+    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).nav_marks).toEqual(["figure", "table", "algorithm", "definition", "theorem"]);
+    const changed = await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { nav_marks: ["proof", "subsection"] } });
+    expect(changed.nav_marks).toEqual(["subsection", "proof"]);
+    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).nav_marks).toEqual(["subsection", "proof"]);
+    // Nothing marked is a choice too.
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { nav_marks: [] } })).nav_marks).toEqual([]);
+    expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { nav_marks: ["footnote"] } })).status).toBe(422);
+    expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { nav_marks: "figure" } })).status).toBe(422);
+  });
+});
+
 describe("the password", () => {
   it("changes only when the current one is right and the new one is long enough", async () => {
     const ada = await register("ada@example.test", "Ada");

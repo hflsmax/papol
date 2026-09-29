@@ -5,6 +5,7 @@ import {
 } from './navigatorScale';
 import { isBibliography, isFrontMatter, topLevel } from './sections';
 import { positionOf, sectionStops } from './sectionStops';
+import { NAV_KINDS, NAV_NAMES, NAV_SHOWN, floatMarks } from './navMarks';
 import SectionStrip from './SectionStrip';
 import { PHONE } from './styles';
 
@@ -15,8 +16,10 @@ import { PHONE } from './styles';
  * screen, so its shape is read rather than recalled. Each section is a
  * segment as wide as the section is long, which is why a glance says
  * Method is half the paper and Conclusion is a paragraph — a list of names
- * can never say that. Three lanes at one scale: the subsections' ticks
- * point down at the strip from above, the strip of sections, and the
+ * can never say that. Three lanes at one scale: the paper's own marks —
+ * subsections, figures, tables, code, definitions, theorems, lemmas,
+ * proofs, whichever the reader has the gear at its right end show — stand
+ * over the strip, the strip of sections, and the
  * reader's anchors point up at it from below. So a triangle under
  * the middle of Results is *in* Results, and nothing has to say so — and
  * what the paper says about itself stands on one side of the strip, what
@@ -44,19 +47,61 @@ import { PHONE } from './styles';
  * under 560 points there is no room for them.
  */
 
-// A subsection's tick: the anchors' triangle again, smaller and turned over
-// so that it points down at the strip while theirs point up at it, which
-// makes the two lanes one idea seen twice. A plain stub standing over the
-// strip was tried first and read as a stray stroke. Its corners are rounded
-// by the stroke, as the anchor's are.
-const SubMark = () => (
-  <svg viewBox="0 0 10 7" aria-hidden="true">
+// What the paper says about itself, marked over the strip: one small glyph
+// per kind, in one hand — a nine-point square, strokes of 1.2, the bar's
+// quiet grey — so they read as one family and none of them as the
+// reader's own marks under the strip, which wear the member colours. Each
+// shape says its kind without a word: a subsection's tick is the anchors'
+// triangle turned over, pointing down at the strip as theirs point up at
+// it (a plain stub read as a stray stroke); a figure is a framed picture, a
+// table a ruled box, code its angle brackets, a definition ≔, a theorem a
+// solid diamond, a lemma the same diamond open (the lesser claim), and a
+// proof the square that ends one (∎). All sit on the strip's top edge.
+const GLYPHS = {
+  subsection: <path fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" d="M1.6 4.2h5.8L4.5 8.3Z" />,
+  figure: (
+    <>
+      <rect x="1.1" y="1.6" width="6.8" height="5.8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path fill="currentColor" d="M2.3 6.4 4 4.3l1.1 1.3.7-.8 1.1 1.6Z" />
+    </>
+  ),
+  table: (
+    <>
+      <rect x="1.1" y="1.6" width="6.8" height="5.8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path fill="none" stroke="currentColor" strokeWidth="1.2" d="M1.6 4h5.8M4.5 4v3" />
+    </>
+  ),
+  algorithm: <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d="M3.3 2.2 1.1 4.5l2.2 2.3M5.7 2.2l2.2 2.3-2.2 2.3" />,
+  definition: (
+    <>
+      <circle cx="1.6" cy="3.2" r="0.8" fill="currentColor" />
+      <circle cx="1.6" cy="5.8" r="0.8" fill="currentColor" />
+      <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" d="M3.6 3.2h4.3M3.6 5.8h4.3" />
+    </>
+  ),
+  theorem: <path fill="currentColor" d="M4.5 1 8 4.5 4.5 8 1 4.5Z" />,
+  lemma: <path fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" d="M4.5 1.7 7.3 4.5 4.5 7.3 1.7 4.5Z" />,
+  proof: <rect x="2.2" y="1.6" width="4.6" height="5.8" fill="currentColor" />,
+};
+
+export const MarkGlyph = ({ kind }) => (
+  <svg viewBox="0 0 9 9" aria-hidden="true">{GLYPHS[kind]}</svg>
+);
+
+// How far apart two marks over the strip stand at the least, in pixels:
+// a glyph's nine and a pixel of air.
+const MARK_ROOM = 10;
+// And the most a mark is moved off its place to stand clear.
+const MARK_DRIFT = 6;
+
+// The gear the choices open from: six teeth round a hole, as small as the
+// marks and in their grey.
+const Gear = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true">
     <path
       fill="currentColor"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinejoin="round"
-      d="M1.6 1.4h6.8L5 5.9Z"
+      fillRule="evenodd"
+      d="M6.9 1h2.2l.4 1.9 1.2.5 1.6-1.1 1.6 1.6-1.1 1.6.5 1.2 1.9.4v2.2l-1.9.4-.5 1.2 1.1 1.6-1.6 1.6-1.6-1.1-1.2.5-.4 1.9H6.9l-.4-1.9-1.2-.5-1.6 1.1-1.6-1.6 1.1-1.6-.5-1.2L.8 9.1V6.9l1.9-.4.5-1.2-1.1-1.6 1.6-1.6 1.6 1.1 1.2-.5ZM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8Z"
     />
   </svg>
 );
@@ -135,6 +180,13 @@ export default function Navigator({
   // 0 to 1, or null when nothing is being read.
   reading = null,
   anchors = [],
+  // The paper's figures, tables, algorithms and statements, as the
+  // analysis found them, and which kinds the reader has the bar mark.
+  floats = [],
+  kinds = NAV_SHOWN,
+  // Told the kinds to mark when the reader changes them; without it (no
+  // account to keep the choice on) there is no gear.
+  onShown = null,
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
   // measure a place against.
@@ -180,6 +232,18 @@ export default function Navigator({
       .filter((tick) => tick.at > 0 && tick.at < pages
         && !heads.some((head) => Math.abs(head - tick.at) < pages * 0.004));
   }, [sections, segments, pages, top]);
+
+  // Everything marked over the strip, in the paper's order: the
+  // subsections' ticks and the analysis's kinds, as the reader chose them.
+  // The ticks shape the scale whether they are shown or not, so the bar
+  // does not reflow when they are turned off.
+  const overs = useMemo(() => [
+    ...(kinds.includes('subsection') ? ticks.map((tick) => {
+      const name = [tick.number, tick.title].filter(Boolean).join(' ');
+      return { id: tick.id, kind: 'subsection', name, page: tick.page, at: tick.at };
+    }) : []),
+    ...floatMarks(floats, kinds, pages),
+  ].sort((a, b) => a.at - b.at), [ticks, floats, kinds, pages]);
 
   const marks = useMemo(
     () => anchors.map((anchor) => ({ ...anchor, at: positionOf(anchor.page, anchor.anchorY) })),
@@ -427,6 +491,22 @@ export default function Navigator({
 
   const percent = (at) => `${scale.toBar(at) * 100}%`;
 
+  // A lemma and its proof, a figure and the theorem beside it, are often
+  // a line apart, and their glyphs would print over each other. So a mark
+  // that would touch the one before it stands just clear of it instead, a
+  // few pixels off its place, where the pair can still be told apart. Where
+  // the paper is so dense that it would have to move further than that, it
+  // is left out rather than let the row drift off the places it marks: the
+  // mark before it already stands on that spot.
+  const spaced = [];
+  overs.forEach((over) => {
+    const at = scale.toBar(over.at) * width;
+    const prev = spaced[spaced.length - 1];
+    const x = prev ? Math.max(at, prev.x + MARK_ROOM) : at;
+    if (width > 0 && x - at > MARK_DRIFT) return;
+    spaced.push({ ...over, x, left: width > 0 ? `${x}px` : percent(over.at) });
+  });
+
   // One tab stop for the strip, arrows to walk it — a bar should not cost
   // twenty-five presses to get past.
   const walk = (event, container) => {
@@ -443,154 +523,213 @@ export default function Navigator({
   };
 
   return (
-    <div
-      className={`navigator${marks.length ? '' : ' unmarked'}${ticks.length ? '' : ' unticked'}`}
-      ref={rootRef}
-      data-tauri-drag-region="false"
-      onPointerDown={press}
-      onPointerMove={draw}
-      onPointerEnter={tell}
-      onPointerLeave={hush}
-      onPointerUp={release}
-      onPointerCancel={release}
-      onLostPointerCapture={release}
-    >
+    <div className={`navigator-frame${marks.length ? '' : ' unmarked'}${overs.length ? '' : ' unticked'}`}>
       <div
-        className="navigator-track"
-        ref={trackRef}
-        role="toolbar"
-        aria-label="Sections"
-        onKeyDown={(event) => walk(event, trackRef)}
+        className="navigator"
+        ref={rootRef}
+        data-tauri-drag-region="false"
+        onPointerDown={press}
+        onPointerMove={draw}
+        onPointerEnter={tell}
+        onPointerLeave={hush}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onLostPointerCapture={release}
       >
-        {/* While a paper with no outline is read for its headings, the
-            empty strip fills as the pages are read, and says so. */}
-        {!segments.length && reading != null && (
-          <div
-            className="navigator-reading"
-            role="progressbar"
-            aria-label="Initializing"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(reading * 100)}
-            data-tip="Reading this paper for its sections, references and links"
-          >
-            <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
-            <span className="navigator-reading-name">Initializing…</span>
-          </div>
-        )}
-        {/* A paper with an outline has its sections at once; the rest of
-            it, its references and links, is still being read, and a line
-            along the strip's foot fills as it is. */}
-        {segments.length > 0 && reading != null && (
-          <span
-            className="navigator-loading"
-            role="progressbar"
-            aria-label="Initializing"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(reading * 100)}
-            style={{ width: `${reading * 100}%` }}
-          />
-        )}
-        {segments.map((segment, index) => {
-          const name = [segment.number, segment.title].filter(Boolean).join(' ');
-          return (
-            <button
-              key={segment.id}
-              type="button"
-              className={`navigator-seg${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}${segment.end ? ' end' : ''}${index % 2 ? ' alt' : ''}`}
-              // Placed, not flowed. Shared out as flexible boxes, every
-              // segment's padding and border took its room before the rest
-              // was divided, and the heads of the sections drifted off the
-              // scale the marker and the marks are on. A section begins at
-              // its left edge, exactly: bring the marker to that edge and
-              // the heading is at the middle of the window.
-              style={{
-                left: `${bounds[index] * 100}%`,
-                width: `${(bounds[index + 1] - bounds[index]) * 100}%`,
-              }}
-              data-level={segment.level ?? 0}
-              tabIndex={index === 0 ? 0 : -1}
-              data-tip={segment.front ? 'The start of the paper'
-                : segment.end ? `The end of the paper — page ${segment.page}`
-                  : `${name} — page ${segment.page}`}
-              aria-label={segment.front ? 'The start of the paper'
-                : segment.end ? `The end of the paper, page ${segment.page}`
-                  : `${name}, page ${segment.page}`}
-              // A pointer's press has already gone to the exact spot under
-              // it. What is left to arrive here is the keyboard, which has
-              // no spot to point at and so goes to the head of the section.
-              onClick={(event) => {
-                if (event.detail !== 0) return;
-                if (segment.front) onTop();
-                else onSection(segment);
-              }}
-            >
-              {/* Always named. A short section shows as much of its name as
-                  it has room for, which is still more than a blank box
-                  says, and the tooltip has the rest. */}
-              <span className="navigator-name">{segment.front ? segment.title : name}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {ticks.length > 0 && (
         <div
-          className="navigator-subs"
-          ref={subsRef}
+          className="navigator-track"
+          ref={trackRef}
           role="toolbar"
-          aria-label="Subsections"
-          onKeyDown={(event) => walk(event, subsRef)}
+          aria-label="Sections"
+          onKeyDown={(event) => walk(event, trackRef)}
         >
-          {ticks.map((tick, index) => {
-            const name = [tick.number, tick.title].filter(Boolean).join(' ');
+          {/* While a paper with no outline is read for its headings, the
+              empty strip fills as the pages are read, and says so. */}
+          {!segments.length && reading != null && (
+            <div
+              className="navigator-reading"
+              role="progressbar"
+              aria-label="Initializing"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(reading * 100)}
+              data-tip="Reading this paper for its sections, references and links"
+            >
+              <span className="navigator-reading-fill" style={{ width: `${reading * 100}%` }} />
+              <span className="navigator-reading-name">Initializing…</span>
+            </div>
+          )}
+          {/* A paper with an outline has its sections at once; the rest of
+              it, its references and links, is still being read, and a line
+              along the strip's foot fills as it is. */}
+          {segments.length > 0 && reading != null && (
+            <span
+              className="navigator-loading"
+              role="progressbar"
+              aria-label="Initializing"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(reading * 100)}
+              style={{ width: `${reading * 100}%` }}
+            />
+          )}
+          {segments.map((segment, index) => {
+            const name = [segment.number, segment.title].filter(Boolean).join(' ');
             return (
               <button
-                key={tick.id}
+                key={segment.id}
                 type="button"
-                className="navigator-sub"
-                style={{ left: percent(tick.at) }}
+                className={`navigator-seg${segment.appendix ? ' back' : ''}${segment.front ? ' front' : ''}${segment.end ? ' end' : ''}${index % 2 ? ' alt' : ''}`}
+                // Placed, not flowed. Shared out as flexible boxes, every
+                // segment's padding and border took its room before the rest
+                // was divided, and the heads of the sections drifted off the
+                // scale the marker and the marks are on. A section begins at
+                // its left edge, exactly: bring the marker to that edge and
+                // the heading is at the middle of the window.
+                style={{
+                  left: `${bounds[index] * 100}%`,
+                  width: `${(bounds[index + 1] - bounds[index]) * 100}%`,
+                }}
+                data-level={segment.level ?? 0}
                 tabIndex={index === 0 ? 0 : -1}
-                data-tip={`${name} — page ${tick.page}`}
-                aria-label={`${name}, page ${tick.page}`}
-                // The same journey a press on the strip makes: the place
-                // comes to the middle of the window, so the marker ends up
-                // standing on the tick.
-                onClick={() => seek(tick.at)}
+                data-tip={segment.front ? 'The start of the paper'
+                  : segment.end ? `The end of the paper — page ${segment.page}`
+                    : `${name} — page ${segment.page}`}
+                aria-label={segment.front ? 'The start of the paper'
+                  : segment.end ? `The end of the paper, page ${segment.page}`
+                    : `${name}, page ${segment.page}`}
+                // A pointer's press has already gone to the exact spot under
+                // it. What is left to arrive here is the keyboard, which has
+                // no spot to point at and so goes to the head of the section.
+                onClick={(event) => {
+                  if (event.detail !== 0) return;
+                  if (segment.front) onTop();
+                  else onSection(segment);
+                }}
               >
-                <SubMark />
+                {/* Always named. A short section shows as much of its name as
+                    it has room for, which is still more than a blank box
+                    says, and the tooltip has the rest. */}
+                <span className="navigator-name">{segment.front ? segment.title : name}</span>
               </button>
             );
           })}
         </div>
-      )}
 
-      <div
-        className="navigator-lane"
-        ref={laneRef}
-        role="toolbar"
-        aria-label="Anchors"
-        onKeyDown={(event) => walk(event, laneRef)}
-      >
-        {marks.map((mark, index) => (
-          <button
-            key={mark.uuid}
-            type="button"
-            className={`navigator-anchor${mark.who ? ' worn' : ''}`}
-            style={{ left: percent(mark.at), ...(mark.who ? { '--who': mark.who } : {}) }}
-            tabIndex={index === 0 ? 0 : -1}
-            data-tip={`${mark.label} — page ${mark.page}`}
-            aria-label={`${mark.label}, page ${mark.page}`}
-            onClick={() => onAnchor(mark)}
+        {overs.length > 0 && (
+          <div
+            className="navigator-subs"
+            ref={subsRef}
+            role="toolbar"
+            aria-label="Marks"
+            onKeyDown={(event) => walk(event, subsRef)}
           >
-            <AnchorMark />
-          </button>
-        ))}
-      </div>
+            {spaced.map((over, index) => (
+              <button
+                key={`${over.kind}-${over.id}`}
+                type="button"
+                className="navigator-sub"
+                data-kind={over.kind}
+                style={{ left: over.left }}
+                tabIndex={index === 0 ? 0 : -1}
+                data-tip={`${over.name} — page ${over.page}`}
+                aria-label={`${over.name}, page ${over.page}`}
+                // The same journey a press on the strip makes: the place
+                // comes to the middle of the window, so the marker ends up
+                // standing on the mark.
+                onClick={() => seek(over.at)}
+              >
+                <MarkGlyph kind={over.kind} />
+              </button>
+            ))}
+          </div>
+        )}
 
-      <span className="navigator-here" aria-hidden="true" />
-      <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
+        <div
+          className="navigator-lane"
+          ref={laneRef}
+          role="toolbar"
+          aria-label="Anchors"
+          onKeyDown={(event) => walk(event, laneRef)}
+        >
+          {marks.map((mark, index) => (
+            <button
+              key={mark.uuid}
+              type="button"
+              className={`navigator-anchor${mark.who ? ' worn' : ''}`}
+              style={{ left: percent(mark.at), ...(mark.who ? { '--who': mark.who } : {}) }}
+              tabIndex={index === 0 ? 0 : -1}
+              data-tip={`${mark.label} — page ${mark.page}`}
+              aria-label={`${mark.label}, page ${mark.page}`}
+              onClick={() => onAnchor(mark)}
+            >
+              <AnchorMark />
+            </button>
+          ))}
+        </div>
+
+        <span className="navigator-here" aria-hidden="true" />
+        <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
+      </div>
+      {onShown && <MarkChoices shown={kinds} onShown={onShown} />}
+    </div>
+  );
+}
+
+// The gear at the bar's right end, and what it opens: every kind the bar
+// can mark, each with its glyph and name, pressed to mark it or not. Open
+// in one step, under the gear; a press outside or Escape puts it away.
+function MarkChoices({ shown, onShown }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (event) => {
+      if (!boxRef.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away, true);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+  const toggle = (kind) => onShown(shown.includes(kind)
+    ? shown.filter((k) => k !== kind)
+    : NAV_KINDS.filter((k) => k === kind || shown.includes(k)));
+  return (
+    <div className="navigator-choice" ref={boxRef} data-tauri-drag-region="false">
+      <button
+        type="button"
+        className={`navigator-gear${open ? ' open' : ''}`}
+        aria-label="Marks"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+      >
+        <Gear />
+      </button>
+      {open && (
+        <div className="navigator-choices" role="group" aria-label="Marks">
+          {NAV_KINDS.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className="navigator-kind"
+              aria-pressed={shown.includes(kind)}
+              onClick={() => toggle(kind)}
+            >
+              <MarkGlyph kind={kind} />
+              <span className="navigator-kind-name">{NAV_NAMES[kind]}</span>
+              <svg className="navigator-kind-on" viewBox="0 0 12 12" aria-hidden="true">
+                <path fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" d="m2.5 6.3 2.3 2.3 4.7-5" />
+              </svg>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

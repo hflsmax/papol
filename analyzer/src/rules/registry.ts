@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "rule" | "mention" | "bibliography" | "entry" | "field" | "citation" | "header";
+export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "statement" | "rule" | "mention" | "bibliography" | "entry" | "field" | "citation" | "header";
 
 export interface Rule {
   id: string;
@@ -436,6 +436,22 @@ export const FOOTNOTE_MARKER = rule({
   id: "footnote.marker", stage: "footnote",
   summary: "A raised number in a line of the text, whose footnote is on the same page, marks that footnote — unless the paper cites with raised numbers and this one is a citation.",
   why: "A reader follows a footnote mark to its note (ACM's \"linear neurons¹\"); Nature-style papers raise their citation numbers too, and those stay citations.",
+});
+
+// ------------------------------------------------------------- statements
+
+// The words a statement opens with, as set: "Theorem", or in capitals
+// ("THEOREM", which small capitals read as, the first letter sometimes
+// apart: "T HEOREM").
+const STATEMENT_WORDS = ["Theorem", "Lemma", "Proposition", "Corollary", "Definition", "Proof"]
+  .map((w) => `${w}|${w[0]}\\s?${w.slice(1).toUpperCase()}`).join("|");
+export const STATEMENT_LEAD = rule({
+  id: "statement.lead", stage: "statement",
+  summary: "A line that opens (after LIPIcs' ▶ if there is one) with Theorem, Lemma, Proposition, Corollary, Definition or Proof, set bold, italic or in capitals (or, with a stop, in the text's face when a theorem's italic words follow it, or when it is a proof: acmart's small capitals read as the text), then a number and a name in brackets if it has them, and a full stop or colon, opens that statement; with a number and no stop, only when the word is bold. Proofs may say what they prove (\"Proof of Lemma 2.\", \"Proof sketch.\").",
+  why: "The nav bar marks where a paper states and proves things; amsthm, acmart, LIPIcs, LNCS and IEEE all open them this way, and a sentence that merely begins \"Theorem 3 shows\" is set in the text's face.",
+  pattern: new RegExp(`^\\s*(?:[▶►▸]\\s*)?(?<word>${STATEMENT_WORDS})(?:(?<=roof|ROOF)\\s+(?:of|sketch|Sketch|outline|Outline)\\b[^]{0,80}?|\\s+(?<number>(?:[A-Z]\\.)?\\d{1,3}(?:\\.\\d{1,3}){0,2}))?(?:\\s*\\((?<name>[^()]{1,80})\\))?\\s*(?:(?<stop>[.:])(?=\\s|$)|(?<=\\d)(?=\\s|$))`, "u"),
+  matches: ["Theorem 3.1. Let e be", "Lemma 2 (Substitution). If", "Proof. By induction", "Definition 4 (Typing): A term", "THEOREM 3.1. For every", "T HEOREM 5. For", "▶ Lemma 7. For all", "Proof of Lemma 2.1. We", "Proof sketch. Consider", "Proof Outline. The result", "Proof of Lemma 2.8", "Corollary 1. The", "Proposition A.2. Every"],
+  rejects: ["The theorem holds", "In Lemma 2 we", "Proofs are in the appendix", "Theorems 3 and 4 show", "Theorem of Pythagoras says", "Lemmas"],
 });
 
 // ------------------------------------------------------------ bibliography

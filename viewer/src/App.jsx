@@ -15,7 +15,9 @@ import { downloadPdf } from './pdfDownload.js';
 import {
   pdfHref, pdfLoadInput, getViewerPaperInfo, lookUpViewerReference,
   submitFeedback, listBoards, stageBoardExcerpt, stageBoardClip, takeNookNotice,
+  getReader, keepNavMarks,
 } from './api';
+import { NAV_SHOWN } from './navMarks';
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
 import { anchorsIn, annotationKinds, clipsIn, inkIn } from './annotationKinds.js';
@@ -571,6 +573,30 @@ export default function App() {
   // How far the paper has been read, 0 to 1, while its pages are read for
   // its references, links and headings (paperReading.js); null otherwise.
   const [paperReading, setPaperReading] = useState(null);
+  // What the Navigator marks over its strip: the reader's choice, kept on
+  // their account, or the default set for someone reading by link. Only an
+  // account has somewhere to keep a choice, so only an account gets the
+  // gear (`navChoosable`).
+  const [navKinds, setNavKinds] = useState(NAV_SHOWN);
+  const [navChoosable, setNavChoosable] = useState(false);
+  useEffect(() => {
+    if (!signedInHere()) return undefined;
+    let gone = false;
+    getReader()
+      .then((me) => {
+        if (gone || !me) return;
+        if (Array.isArray(me.nav_marks)) setNavKinds(me.nav_marks);
+        setNavChoosable(true);
+      })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, []);
+  const chooseNavKinds = useCallback((kinds) => {
+    setNavKinds(kinds);
+    // Shown at once and kept on the account; where the account cannot be
+    // reached, the choice holds for this window.
+    keepNavMarks(kinds).catch(() => {});
+  }, []);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
   const paperMenuRef = useRef(null);
@@ -4150,6 +4176,9 @@ export default function App() {
           sections={sections}
           reading={paperReading}
           anchors={contentsAnchors}
+          floats={analysis?.floats}
+          kinds={navKinds}
+          onShown={navChoosable ? chooseNavKinds : null}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
           onSection={goToSection}

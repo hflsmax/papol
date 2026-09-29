@@ -1,0 +1,4 @@
+{
+  "kinds": ["subsection", "figure", "table", "algorithm", "definition", "theorem", "lemma", "proof"],
+  "shown": ["figure", "table", "algorithm", "definition", "theorem"]
+}

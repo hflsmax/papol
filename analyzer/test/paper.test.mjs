@@ -346,3 +346,20 @@ describe("the paper", () => {
     }
   });
 });
+
+describe("statements", () => {
+  it("marks where theorems, lemmas, definitions and proofs open, and not a sentence that names one", async () => {
+    const pdf = writtenPdf([
+      [60, 700, "Definition 1 (Typing). A term is typed when it is.", 10, "italic"],
+      [60, 680, "Theorem 2. Every typed term halts.", 10, "italic"],
+      [60, 660, "Proof. By induction on the typing derivation."],
+      [60, 640, "Proposition 3. It is decidable.", 10, "italic"],
+      [60, 620, "Lemma 4 (Weakening): Extra variables do no harm.", 10, "italic"],
+      [60, 600, "Theorem 2 shows that typed terms halt, which the text goes on to use."],
+      [60, 580, "Lemma 4. Said in the text's own face, with the text's upright words after it."],
+    ]);
+    const { analysis } = await analyzeWithRules(pdf);
+    const found = analysis.floats.filter((f) => ["theorem", "lemma", "definition", "proof"].includes(f.kind)).map((f) => [f.kind, f.label]);
+    assert.deepEqual(found, [["definition", "Definition 1"], ["theorem", "Theorem 2"], ["proof", "Proof"], ["theorem", "Proposition 3"], ["lemma", "Lemma 4"]]);
+  });
+});
