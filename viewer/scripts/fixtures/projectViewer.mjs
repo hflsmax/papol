@@ -84,7 +84,18 @@ const inkDig = {
   owner: ben, is_mine: false, phase: 'digging', text: '3.5 days on eight GPUs is the number to beat for our budget.', can_moderate: true,
   posts: [{ uuid: 'f0000000-0000-4000-8000-000000000013', user: me, body: 'We have two. Call it a week.', created_at: hoursAgo(2), edited_at: null, is_mine: true }],
 };
-const allDigs = [dig, inkDig];
+// Ana's dig on the paper itself, which heads the margin; Ben has one too.
+const PAPER_DIG = 'e1b2c3d4-0000-4000-8000-000000000052';
+const paperSubject = { key: `paper:${PAPER}`, kind: 'paper', paper_sha256: PAPER, label: paper.title };
+const paperDig = {
+  uuid: PAPER_DIG, created_at: daysAgo(2), updated_at: daysAgo(1), project: dig.project, subject: paperSubject,
+  owner: ana, is_mine: false, phase: 'gold', text: 'The parallelism argument carries the whole paper, and it is the part we can test on our own loop first.', can_moderate: true, posts: [],
+};
+const paperDigBen = {
+  uuid: 'e1b2c3d4-0000-4000-8000-000000000053', created_at: daysAgo(1), updated_at: daysAgo(1), project: dig.project, subject: paperSubject,
+  owner: ben, is_mine: false, phase: 'digging', text: 'Section 6 is where they admit the limits.', can_moderate: true, posts: [],
+};
+const allDigs = [dig, inkDig, paperDig, paperDigBen];
 
 const members = [
   { user: me, is_keeper: true, joined_at: daysAgo(20) },
@@ -112,9 +123,10 @@ function answer(method, path, search) {
       me: ME,
       annotations: [...mine, ...theirs],
       digs: {
-        [id(7)]: { uuid: DIG, post_count: 1, is_new: true, voices: [me, ana] },
-        [id(8)]: { uuid: INK_DIG, post_count: 1, is_new: false, voices: [ben, me] },
+        [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text } },
+        [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text } },
       },
+      paper_digs: { uuid: PAPER_DIG, dig_count: 2, post_count: 0, is_new: false, voices: [ana, ben], lead: { owner: ana, phase: 'gold', excerpt: paperDig.text } },
     };
   }
   if (path === `/projects/${PROJECT}`) return { ...projects[0], boards: [], discussions: [], papers: [] };

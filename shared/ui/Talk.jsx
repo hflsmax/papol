@@ -154,9 +154,11 @@ export function when(iso, { time = false } = {}) {
 // list, the latest words on a card) opens the same card, with no mark of
 // its own.
 // A pin can arrive open on one of its digs (`openOn`): a link to that dig
-// lands on its thing with the dig already showing.
+// lands on its thing with the dig already showing. Where the dig is shown
+// somewhere else already (the viewer's margin), `onPress` takes the press
+// instead of opening a card of the pin's own.
 export function TalkPin({
-  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title, openOn = null,
+  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title, openOn = null, onPress = null,
 }) {
   const [open, setOpen] = useState(Boolean(openOn));
   const [asked, setAsked] = useState(openOn);
@@ -193,7 +195,7 @@ export function TalkPin({
         aria-label={words}
         title={title ?? 'Dig'}
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (onPress) onPress(); else setOpen(!open); }}
       >
         <TalkGlyph outline={!dug} />
         {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
@@ -535,7 +537,7 @@ export function TalkCard({
               <Face user={currentUser} />You
             </button>
           )}
-          {pickerWithOwners && picker}
+          {pickerWithOwners && !phaseInHead && picker}
         </nav>
       )}
 

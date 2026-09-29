@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MEMBER_INKS, annotationDown, inMemberInk, memberInk, projectParam, sortAnnotations, whoMarked, withProject,
+  MEMBER_INKS, annotationDown, inMemberInk, marginLinesOf, memberInk, projectParam, sortAnnotations, whoMarked, withProject,
 } from './project.js';
 import { annotationViewerPath } from '../../shared/api/projects.js';
 
@@ -64,5 +64,35 @@ describe('a link to a dig on an annotation', () => {
     assert.ok(Math.abs(annotationDown({ points: [{ x: 0, y: 0.3 }, { x: 1, y: 0.4 }] }) - 0.6) < 1e-9);
     assert.equal(annotationDown({ frame: { x: 0.5, y: 0.1, w: 0.3, h: 0.2 } }), 0.1);
     assert.equal(annotationDown({}), 0.5);
+  });
+});
+
+describe('the dig margin', () => {
+  it('heads with the paper, then runs the dug annotations page by page, top to bottom', () => {
+    const pin = { uuid: 'd', dig_count: 1 };
+    const lines = marginLinesOf({
+      paper: { sha256: 'f1', title: 'Attention' },
+      paperDigs: pin,
+      digs: { low: pin, high: pin, ink: pin, later: pin },
+      notes: [
+        { uuid: 'low', page: 1, anchor: { x: 0.5, y: 0.2 }, name: 'Low' },
+        { uuid: 'high', page: 1, anchor: { x: 0.5, y: 0.9 }, content: 'High' },
+        { uuid: 'bare', page: 1, anchor: { x: 0.5, y: 0.5 } },
+      ],
+      ink: [{ uuid: 'ink', page: 1, points: [{ x: 0, y: 0.5 }] }],
+      clips: [{ uuid: 'later', page: 3, frame: { x: 0, y: 0.1, w: 0.2, h: 0.2 } }],
+    });
+    assert.deepEqual(lines.map((l) => [l.key, l.label]), [
+      ['paper', 'Attention'], ['high', 'High'], ['ink', 'Ink on page 1'], ['low', 'Low'], ['later', 'A clip on page 3'],
+    ]);
+  });
+
+  it('holds nothing when nobody has dug', () => {
+    assert.deepEqual(marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 1, anchor: { x: 0, y: 0 } }] }), []);
+  });
+
+  it('gives a thing nobody has dug a line while the reader starts a dig on it', () => {
+    const lines = marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 2, anchor: { x: 0, y: 0.75 } }], writing: 'n' });
+    assert.deepEqual(lines.map((l) => [l.key, l.page, l.down, l.pin]), [['n', 2, 0.25, {}]]);
   });
 });

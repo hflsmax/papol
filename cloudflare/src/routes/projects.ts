@@ -255,7 +255,7 @@ async function digsFrom(env: Env, rows: Row[], me: User) {
 
 // A post as a line of plain words: its own words before any it quotes,
 // links as their labels, and no Markdown marks.
-function excerpt(body: string): string {
+export function excerpt(body: string): string {
   const lines = body.split("\n");
   const own = lines.filter((line) => !/^\s*>/.test(line));
   const words = (own.join(" ").trim() ? own : lines).join(" ")
@@ -556,12 +556,16 @@ export function projectRoutes(router: Router) {
       `SELECT a.* FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
        WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL ORDER BY a.created_at, a.uuid`, project.uuid, digest);
     const people = new Map(members.map((m) => [m.user_uuid, userPublic({ ...m, uuid: m.user_uuid })]));
-    const pins = await pinsOf(env, project.uuid, me, member, rows.map((a) => `annotation:${a.uuid}`));
+    const paperKey = `paper:${digest}`;
+    const pins = await pinsOf(env, project.uuid, me, member, [paperKey, ...rows.map((a) => `annotation:${a.uuid}`)]);
+    const { [paperKey]: paperPin, ...annotationPins } = pins;
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
       me: me.uuid,
       annotations: rows.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
-      digs: Object.fromEntries(Object.entries(pins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
+      digs: Object.fromEntries(Object.entries(annotationPins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
+      // The digs on the paper itself, which head the viewer's margin.
+      paper_digs: paperPin ?? null,
     });
   });
 

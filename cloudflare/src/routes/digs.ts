@@ -17,7 +17,7 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { digsOf, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
+import { digsOf, excerpt, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
@@ -149,19 +149,22 @@ function newPost(dig: Dig, me: User, body: string, at: string): Row {
 // latest).
 export async function pinsOf(env: Env, projectUuid: string, me: User, member: Member, subjects?: string[]) {
   const rows = await all<Row>(env.DB,
-    `SELECT d.uuid, d.subject, d.user_uuid,
+    `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase,
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d WHERE d.project_uuid = ? ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(subjects ?? []));
-  const people = await usersByUuid(env, rows.flatMap((d) => String(d.voices ?? "").split(",").filter(Boolean)));
-  const pins: Record<string, { uuid: string; mine: string | null; dig_count: number; post_count: number; unread: number; is_new: boolean; voices: unknown[] }> = {};
+  const people = await usersByUuid(env, rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]));
+  // The dig a pin opens on, the reader's own else the latest, in a line:
+  // whose it is, where it stands and how it begins.
+  const lead = (d: Row) => ({ owner: people.get(String(d.user_uuid)) ?? null, phase: d.phase, excerpt: excerpt(String(d.text)) });
+  const pins: Record<string, { uuid: string; mine: string | null; dig_count: number; post_count: number; unread: number; is_new: boolean; voices: unknown[]; lead: unknown }> = {};
   for (const d of rows) {
     const key = String(d.subject);
-    const pin = pins[key] ??= { uuid: String(d.uuid), mine: null, dig_count: 0, post_count: 0, unread: 0, is_new: false, voices: [] };
-    if (d.user_uuid === me.uuid) pin.uuid = pin.mine = String(d.uuid);
+    const pin = pins[key] ??= { uuid: String(d.uuid), mine: null, dig_count: 0, post_count: 0, unread: 0, is_new: false, voices: [], lead: lead(d) };
+    if (d.user_uuid === me.uuid) { pin.uuid = pin.mine = String(d.uuid); pin.lead = lead(d); }
     pin.dig_count += 1;
     pin.post_count += Number(d.post_count);
     pin.unread += Number(d.unread);
