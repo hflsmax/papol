@@ -215,21 +215,32 @@ export const FLOAT_RULED = rule({
 // ------------------------------------------------------------------ rules
 
 // A named inference rule's name: a prefix of a few letters, a hyphen and
-// one or more capitalised parts ("T-App", "E-Beta", "LT-APP", "WF-Env",
-// "DEC-<:-BASE"), or, on a label line only, a single word in brackets
-// ("(BIND)", "[Var]", "(jump)"). Small capitals may reach the text layer
-// in either case, so a name is matched without regard to it.
-const RULE_PART = "(?:[A-Z\\d\u0370-\u03ff][\\p{L}\\d'′]*|[<:=→⇒⇓∀∃⊢~*∧∨¬|/]+[\\p{L}\\d<:=→⇒⇓∀∃⊢~*∧∨¬|/'′]*)";
-export const RULE_NAME = "[A-Z][\\p{L}]{0,3}(?:[-‐‑–]" + RULE_PART + ")+";
+// one or more parts ("T-App", "E-Beta", "LT-APP", "WF-Env", "DEC-<:-BASE",
+// "S-refl", "k-var"), or, on a label line only, a single word in brackets
+// ("(BIND)", "[Var]", "(jump)"). Small capitals may reach the text layer as
+// capitals or as the name in its own case, so a name is matched without
+// regard to it, and a prefix of lowercase letters is short.
+const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′]*|[<:=→⇒⇓∀∃⊢~*∧∨¬|/]+[\\p{L}\\d<:=→⇒⇓∀∃⊢~*∧∨¬|/'′]*)";
+export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,3}|[a-z]{1,3})(?:[-‐‑–]" + RULE_PART + ")+";
 export const RULE_WORD = "\\p{L}[\\p{L}\\d]{1,15}";
 
 export const RULE_LABEL = rule({
   id: "rule.label", stage: "rule",
-  summary: "A line that is only a rule's name (\"T-App\", \"[LT-APP]\", \"(BIND)\"), or that opens or ends with it an em or more apart from the rest, labels the inference rule set beside it: where the name is defined.",
-  why: "Programming-language papers name each typing and reduction rule in a figure and cite the names throughout the text; the name at the rule is the place a citation of it should lead to.",
+  summary: "A line that is only a rule's name (\"T-App\", \"[LT-APP]\", \"k-var\", \"(BIND)\"), or that opens or ends with it an em or more apart from the rest, labels the inference rule set beside it: where the name is defined.",
+  why: "Programming-language papers name each typing and reduction rule in a figure and cite the names throughout the text; the name at the rule is the place a citation of it should lead to. Small capitals from a text font reach the text layer in lowercase (\"k-var\", \"S-refl\").",
   pattern: new RegExp("^\\s*(?:[\\[(]\\s*(?<name>" + RULE_NAME + ")\\s*[\\])]|(?<bare>" + RULE_NAME + ")|[\\[(]\\s*(?<word>" + RULE_WORD + ")\\s*[\\])])\\s*$", "u"),
-  matches: ["[LT-APP]", "(T-App)", "T-App", "E-Beta", "WT-Fun", "[DEC-<:-BASE]", "S-Trans", "R-IfTrue", "Ty-Lam", "(E-β)", "(BIND)", "(LUNIT )", "[Var]", "(jump)", "T-App-Abs"],
-  rejects: ["Curry-Howard", "call-by-name", "F-bounded", "ML-style", "Hindley-Milner", "[LT-APP] For", "x-axis", "T-", "-App", "(a)", "(1)", "jump", "(T-App) and (T-Abs)", "T-App:", "well-typed"],
+  matches: ["[LT-APP]", "(T-App)", "T-App", "E-Beta", "WT-Fun", "[DEC-<:-BASE]", "S-Trans", "R-IfTrue", "Ty-Lam", "(E-β)", "(BIND)", "(LUNIT )", "[Var]", "(jump)", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans"],
+  rejects: ["Curry-Howard", "call-by-name", "Hindley-Milner", "[LT-APP] For", "T-", "-App", "(a)", "(1)", "jump", "(T-App) and (T-Abs)", "T-App:", "well-typed"],
+});
+export const RULE_LABEL_BARE = rule({
+  id: "rule.label-bare", stage: "rule",
+  summary: "A single word on a line of its own, beside a short drawn bar, labels the rule the bar belongs to.",
+  why: "Sequent Core sets Cut, Case and Jump beside their rules with no brackets, and Bounded Refinement Types VAR, CON and FUN; a word beside a table's rule, as wide as the column, is a cell.",
+});
+export const RULE_HEADING = rule({
+  id: "rule.heading", stage: "rule",
+  summary: "A bracketed word in italics, or level with a judgement form or a grammar production (⊢, ::=, a leading |) and beside no bar, heads a group of rules or comments a production; it names no rule.",
+  why: "\"(Kinding)\" at the right of \"Σ ⊢ τ : κ\" and \"(value)\" beside \"e ::= v\" are not cited as rules.",
 });
 export const RULE_LABEL_APART = rule({
   id: "rule.label-apart", stage: "rule",
@@ -243,8 +254,8 @@ export const RULE_BOX = rule({
 });
 export const RULE_MENTION = rule({
   id: "rule.mention", stage: "rule",
-  summary: "A rule's name in the text mentions the rule: bare or in brackets for a hyphenated name, in brackets and in running text for a single word. Its own labels do not, nor does a word in a listing.",
-  why: "\"by T-App\", \"rule [LT-IF]\" and \"the (BIND) law\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type.",
+  summary: "A rule's name in the text mentions the rule: bare or in brackets for a hyphenated name; for a single word, in brackets and in running text, or bare in its printed case within a few words of \"rule\". Its own labels do not, nor does a word in a listing.",
+  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\" and \"the Jump and Label rules\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, and \"case\" in prose is a word.",
 });
 
 // --------------------------------------------------------------- mentions

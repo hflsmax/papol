@@ -20,16 +20,18 @@ const { analyzeWithRules, headerWithRules } = await import(pathToFileURL(out).hr
 // A one-page PDF written here, line by line in Helvetica at 10pt: enough
 // for the rules to find a caption, a mention of it, citations and a
 // bibliography of three entries (fewer is not taken for a bibliography).
-// A string instead of a line is drawing operators, put in as they are.
+// A string instead of a line is drawing operators, put in as they are; a
+// fifth item "italic" sets the line in Helvetica-Oblique.
 function writtenPdf(lines) {
   const content = lines.map((line) => (typeof line === "string" ? line
-    : `BT /F1 ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
+    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>",
   ];
   let pdf = "%PDF-1.4\n";
   const offsets = objects.map((body, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${body}\nendobj\n`; return at; });
@@ -191,6 +193,48 @@ describe("the paper", () => {
       // "T-Sub" name no rule, and the labels are not mentions of themselves.
       const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
       assert.deepEqual(mentions, [[app.key, "T-App", 52], [variable.key, "(T-Var)", 52], [law.key, "(RUNIT)", 67], [app.key, "T-App", 67]]);
+    }
+  });
+
+  it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {
+    // Small capitals from a text font reach the text layer in lowercase
+    // ("s-refl"); Sequent Core names its rules with a bare word beside
+    // the bar ("Cut"). "(Kinding)" in italics at the right of the
+    // judgement's form heads the rules, "(value)" comments a grammar
+    // production, "sql-01" is a benchmark, and "Max" is a cell over a
+    // table's rule: none is a rule.
+    const pdf = writtenPdf([
+      [60, 740, "By s-refl every type is its own subtype. The Cut rule is admissible, and"],
+      [60, 725, "the cut of two proofs, as (value) shows, is cheap; sql-01 runs in a second."],
+      [60, 690, "G |- t : k", 10],
+      [280, 690, "(Kinding)", 10, "italic"],
+      [60, 670, "e ::= v"],
+      [160, 670, "(value)"],
+      [75, 672, "| e e"],
+      [100, 630, "t <: t"],
+      [160, 630, "s-refl", 8],
+      [100, 590, "G |- e : t"],
+      [180, 590, "G, x : t |- f : u"],
+      "0 0 0 RG 0.4 w 100 586 m 300 586 l S",
+      [150, 575, "G |- f[e/x] : u"],
+      [304, 584, "Cut", 8],
+      [60, 540, "sql-01"],
+      [200, 540, "12.3"],
+      [60, 500, "Max"],
+      "0 0 0 RG 0.4 w 60 496 m 340 496 l S",
+      [60, 485, "42"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => f.label), ["Cut", "s-refl"]);
+      const [cut, refl] = rules;
+      assert.ok(cut.x < 100 / 600 && cut.x + cut.w > 315 / 600 && cut.y < 210 / 800 && cut.y + cut.h > 225 / 800, `Cut is its premises, bar, conclusion and name: ${JSON.stringify(cut)}`);
+      assert.ok(refl.h < 20 / 800, `s-refl is its one line: ${JSON.stringify(refl)}`);
+      // "s-refl" and "Cut" beside "rule" from the text; "cut" in prose,
+      // "(value)" and "sql-01" name no rule.
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [[refl.key, "s-refl", 52], [cut.key, "Cut", 52]]);
     }
   });
 

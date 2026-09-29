@@ -15,3 +15,4 @@ for (const rule of rules) {
   console.log(`${rule.label.padEnd(16)} ${how.padEnd(18)} ${where(rule).padEnd(22)} ${mentions.length} mentions: ${mentions.slice(0, 6).map((m) => `${m.label}@p${m.page}`).join(" ")}`);
 }
 console.log(`${rules.size ?? rules.length} rules, ${analysis.links.filter((l) => byKey.has(l.float)).length} mentions`);
+for (const t of trace.items.filter((t) => t.rule === "rule.heading")) console.log(`heading  p${t.page} ${t.text}`);
