@@ -5,7 +5,6 @@ import {
 } from '../api/projects.js';
 import appLimits from '../appLimits.js';
 import { confirmAction } from '../confirmAction';
-import ItemActions from './ItemActions.jsx';
 import ActionGlyph from './ActionGlyph.jsx';
 import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
@@ -618,14 +617,16 @@ export function TalkCard({
                     {phaseInHead && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                     {editing?.uuid !== post.uuid && (post.is_mine || discussion.can_moderate) && (
-                      <ItemActions
-                        label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}
-                        placement="below-end"
-                        actions={[
-                          post.is_mine && { key: 'edit', label: 'Edit', icon: <ActionGlyph name="edit" />, onSelect: () => setEditing({ uuid: post.uuid, body: post.body }) },
-                          { key: 'delete', label: 'Delete', danger: true, icon: <ActionGlyph name="trash" />, onSelect: () => remove(post) },
-                        ].filter(Boolean)}
-                      />
+                      <span className="talk-post-actions" role="group" aria-label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}>
+                        {post.is_mine && (
+                          <button type="button" aria-label="Edit" title="Edit" onClick={() => setEditing({ uuid: post.uuid, body: post.body })}>
+                            <ActionGlyph name="edit" />
+                          </button>
+                        )}
+                        <button type="button" className="is-danger" aria-label="Delete" title="Delete" onClick={() => remove(post)}>
+                          <ActionGlyph name="trash" />
+                        </button>
+                      </span>
                     )}
                   </p>
                   {editing?.uuid === post.uuid ? (

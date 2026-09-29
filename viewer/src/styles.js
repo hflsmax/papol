@@ -123,12 +123,6 @@ ${fileDropStyles}
 .thing-dig .talk-pin.is-empty { opacity: 1; }
 /* The bar is for acting on the thing, not counting what is written on it. */
 .thing-dig .talk-count { display: none; }
-/* A dig opened over the page shows its Edit and Delete outright, not only
-   under the pointer. */
-.talk-card .talk-post-head .item-actions { position: static; width: auto; height: auto; visibility: visible; }
-.talk-card .talk-post-head .item-actions-surface { position: static; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.talk-card .talk-post-head .item-action { width: 24px; height: 24px; }
-.talk-card .talk-post-head .item-action svg { width: 14px; height: 14px; }
 /* Over a clip, above its top edge at its right. */
 .paper-clip.theirs { cursor: default; }
 .clip-bar { position: absolute; z-index: 2; right: -1px; bottom: calc(100% + 6px); }
