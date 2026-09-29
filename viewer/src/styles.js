@@ -1348,7 +1348,6 @@ ${talkStyles}
    steps to the other corner rather than sit over a dig. */
 body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
 /* A thing's digs: a column of their writers' faces, level with its place. */
 .dig-margin-line { position: absolute; z-index: 5; display: flex; flex-direction: column; box-sizing: border-box; }
 .dig-margin-face { position: relative; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; cursor: pointer; }
@@ -1385,9 +1384,10 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
 .dig-margin-card .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
 .dig-margin-card .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
-.dig-margin-card .talk-compose textarea:is(:focus, :not(:placeholder-shown)) { min-height: 88px; }
 .dig-margin-card .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
 .dig-margin-card .talk-compose .talk-send:disabled { display: none; }
+/* Post, tucked, stands where the posts begin. */
+.dig-margin-card .talk-unfold.is-post { min-height: 26px; margin: var(--space-1) 0 0 24px; padding: 0 10px; font-size: var(--fs-xs); }
 
 .animal-gutter {
   position: relative;

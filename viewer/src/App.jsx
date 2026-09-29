@@ -2203,11 +2203,13 @@ export default function App() {
   // own) beside the page it is about (DigMargin.jsx). One line per thing
   // dug, the paper's own at the head of the first page, the rest in
   // reading order by where their annotation sits, each dig as its
-  // writer's face. It lives in the room the page leaves beside it at the
-  // zoom it is read at, one face wide; with no room even for that, only the
-  // pins. It never makes the page smaller.
+  // writer's face. It lives in the room a page fitted to the window leaves
+  // beside it, one face wide; a window with no room even for that shows
+  // only the pins. Whether it shows turns on the window alone, never on the
+  // zoom, so zooming never makes it come and go. It never makes the page
+  // smaller.
   const viewWidth = useWidth(scrollerRef);
-  const pageAcross = scale && defaultPageSize ? scale * defaultPageSize.width : Infinity;
+  const pageAcross = defaultPageSize ? Math.min(viewWidth - 2 * PAGES_PADDING, FIT_MAX_WIDTH) : Infinity;
   const marginRoom = Math.floor(viewWidth - 2 * PAGES_PADDING - pageAcross - MARGIN_GAP);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(

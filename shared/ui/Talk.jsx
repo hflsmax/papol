@@ -559,12 +559,9 @@ export function TalkCard({
               onChange={(e) => setBody(e.target.value)} onBlur={leave}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
             />
-            {/* The button comes with the words: nothing to press before. */}
-            {body.trim() && (
-              <span className="talk-dig-new-foot">
-                <button type="submit" className="primary" disabled={busy} title="Dig (⌘↩)">Dig</button>
-              </span>
-            )}
+            <span className="talk-dig-new-foot">
+              <button type="submit" className="primary" disabled={busy || !body.trim()} title="Dig (⌘↩)">Dig</button>
+            </span>
           </form>
         ) : posts.length === 0 ? null : (
           <>
@@ -623,7 +620,7 @@ export function TalkCard({
           {currentUser && <Face user={currentUser} />}
           <textarea
             ref={box}
-            rows={body ? 4 : 2}
+            rows={2}
             value={body}
             maxLength={POST_LIMIT}
             placeholder={`Post to ${whose} dig`}
