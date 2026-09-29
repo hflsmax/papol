@@ -1,4 +1,4 @@
-// Uploading a paper, driven through the library's form against a real
+// Uploading a paper, driven through the nook's upload against a real
 // Worker, and the queue that reads it.
 //
 //     npx wrangler dev --test-scheduled
@@ -111,13 +111,13 @@ const type = (id, value) => browser.evaluate(`
   input.dispatchEvent(new Event('input', { bubbles: true }));
   return true;`);
 
-// Choose a file on the library's form, and wait for the reading to be over:
+// Choose a file on the nook's upload, and wait for the reading to be over:
 // the form opens at once on the filename's title, "Extracting…" beside it,
 // and the line goes when the job has answered — filled in or not.
 async function choose(file) {
   const before = jobs.length;
-  await browser.waitFor('document.querySelector("input[type=file]")', { what: 'the upload form' });
-  await browser.setFiles('input[type=file]', [file.path]);
+  await browser.waitFor('document.querySelector(".upload-section input[type=file]")', { what: 'the nook\'s upload' });
+  await browser.setFiles('.upload-section input[type=file]', [file.path]);
   await browser.waitFor('document.querySelector("#upload-paper-title")', { timeout: 30_000, what: `the form for ${file.name}` });
   for (let i = 0; i < 100 && jobs.length === before; i += 1) await wait(100);
   await browser.waitFor("!document.body.innerText.includes('Extracting…')", { timeout: 60_000, what: `the reading of ${file.name}` });
@@ -141,7 +141,7 @@ try {
   await browser.send('Network.enable');
   watchUploads();
   await browser.signIn({ token: me.token, accountUuid: me.uuid, origin: BASE });
-  await browser.navigate(`${BASE}/library`);
+  await browser.navigate(`${BASE}/`);
 
   console.log('\n== A PDF with no title block ==');
   const plain = pdfFile(`e2e-upload-${suffix}.pdf`, 'A paper for the upload check');
@@ -178,7 +178,7 @@ try {
   console.log('\n== A PDF whose title block the browser reads ==');
   const header = { title: `What the Rules Read ${suffix}`, authors: ['Ada Lovelace', 'Alan Turing'], published: '3 March 2024' };
   const read = pdfFile(`e2e-read-${suffix}.pdf`, titlePage(header));
-  await browser.navigate(`${BASE}/library`);
+  await browser.navigate(`${BASE}/`);
   uuid = await choose(read);
   check('the title is what the browser read', await field('upload-paper-title') === header.title,
     String(await field('upload-paper-title')));

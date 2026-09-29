@@ -814,14 +814,9 @@ export default function App({ startupUser = null, startupError = null }) {
               onChanged={() => setProjectsRevision((r) => r + 1)}
             />
           )}
-          onReportableError={offerErrorReport}
           currentUser={user}
           onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
-          incomingPaperFile={incomingPaperFile}
-          onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
-          incomingPaperFolder={incomingPaperFolder}
-          onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
         />
       )}
       {!hasWay && route.page === 'projects' && (

@@ -5014,7 +5014,6 @@ ${desktopStyles}
 .projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
 /* Papers come in through the nook; the Bazaar shows no drop box. A PDF
    dropped anywhere on the window still lands here for its review. */
-.library-page.is-bazaar > .upload-section { display: none; }
 .projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
 .projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
 .projects-page.is-section .projects-row { padding-block: var(--space-3); }
