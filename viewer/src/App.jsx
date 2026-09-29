@@ -144,6 +144,9 @@ function usePageGroups(items, include = null) {
 const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
 // The pages' padding on every side (`.pages` in styles.js).
 const PAGES_PADDING = 24;
+// Up to this wide the viewer is a phone's: digs open from their pins, with
+// no margin beside the page.
+const PHONE_WIDTH = 560;
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -2117,6 +2120,9 @@ export default function App() {
   // The card closes on Escape, like every other transient thing here.
   // While exploring, ↑ and ↓ step as the card's buttons do; before the
   // first step they scroll the page as ever.
+  // Fits the page again when the room beside it changes (the margin comes
+  // or goes), as a resize of the window would.
+  const refit = useRef(null);
   useEffect(() => {
     if (!openCite) return undefined;
     const onKey = (e) => {
@@ -2154,10 +2160,12 @@ export default function App() {
     };
 
     fit();
+    refit.current = fit;
 
     window.addEventListener('resize', fit);
     return () => {
       gone = true;
+      refit.current = null;
       window.removeEventListener('resize', fit);
     };
   }, [doc, defaultPageSize]);
@@ -2203,14 +2211,11 @@ export default function App() {
   // own) beside the page it is about (DigMargin.jsx). One line per thing
   // dug, the paper's own at the head of the first page, the rest in
   // reading order by where their annotation sits, each dig as its
-  // writer's face. It lives in the room a page fitted to the window leaves
-  // beside it, one face wide; a window with no room even for that shows
-  // only the pins. Whether it shows turns on the window alone, never on the
-  // zoom, so zooming never makes it come and go. It never makes the page
-  // smaller.
+  // writer's face. It shows at every size of page and window but a
+  // phone's, and the page keeps the window's middle: the margin's room is
+  // kept on both sides, so a page too wide for the window with it fits a
+  // little narrower.
   const viewWidth = useWidth(scrollerRef);
-  const pageAcross = defaultPageSize ? Math.min(viewWidth - 2 * PAGES_PADDING, FIT_MAX_WIDTH) : Infinity;
-  const marginRoom = Math.floor(viewWidth - 2 * PAGES_PADDING - pageAcross - MARGIN_GAP);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
     () => (digView && paper ? marginLinesOf({
@@ -2218,7 +2223,8 @@ export default function App() {
     }) : []),
     [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
-  const withMargin = Boolean(digView) && marginRoom >= MARGIN_WIDTH && marginLines.length > 0;
+  const withMargin = Boolean(digView) && viewWidth > PHONE_WIDTH && marginLines.length > 0;
+  useLayoutEffect(() => { refit.current?.(); }, [withMargin]);
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
@@ -4671,8 +4677,9 @@ export default function App() {
         </ReturnPill>
         <div
           className={`pages${withMargin ? ' with-margin' : ''}`}
-          style={withMargin ? { paddingRight: PAGES_PADDING + MARGIN_GAP + MARGIN_WIDTH } : undefined}
+          style={withMargin ? { paddingLeft: PAGES_PADDING + MARGIN_GAP + MARGIN_WIDTH, paddingRight: PAGES_PADDING + MARGIN_GAP + MARGIN_WIDTH } : undefined}
           ref={scrollerRef}
+          data-talk-host
           aria-busy={!doc}
           onPointerDown={(e) => {
             if (tool !== 'cow' || e.target.closest('.pdf-page')) return;
