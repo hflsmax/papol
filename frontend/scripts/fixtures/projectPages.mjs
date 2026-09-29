@@ -312,6 +312,10 @@ function answer(method, path, search) {
     }
     return { spans, papers: Object.fromEntries(papers.map((p) => [p.sha256, { title: p.title, in_nook: true }])), first_at: spans[0]?.started_at ?? null };
   }
+  // A PDF dropped on the window: stored at once, and known to the indexes.
+  if (path === '/files/upload-address') return { stored: true, file_path: `${'f'.repeat(64)}.pdf` };
+  if (path === '/papers/lookup') return { doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017 };
+  if (path === '/papers/uploaded') return { job: null, file_path: `${'f'.repeat(64)}.pdf`, sha256: 'f'.repeat(64) };
   if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];
   if (path === '/users') return [me, ana, ben, mia].map((u) => ({ ...u, paper_count: 2 }));
   if (path === '/shelves') return [SHELF, DRAWER];

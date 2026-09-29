@@ -78,6 +78,8 @@ const SHOTS = {
   // A narrower window: the page keeps its width and the faces stay beside
   // it while there is room for one.
   'project-narrow': { path: on, ready: `${painted} && document.querySelector('.pin')`, size: { width: 1180, height: 820 } },
+  // A PDF held over the page while reading: it will go to the nook's upload.
+  'drop-pdf': { path: alone, ready: painted, then: "const data = new DataTransfer(); data.items.add(new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: data, cancelable: true })); return true;", settled: '.desk-file-drop-overlay', size: wide },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 

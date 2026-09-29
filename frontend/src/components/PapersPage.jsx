@@ -5,8 +5,6 @@ import { listPapers, paperHref } from '../../../shared/api/papers.js';
 import { listUsers } from '../../../shared/api/people.js';
 import ReaderPop from './ReaderPop';
 import Avatar from './Avatar';
-import PaperUpload from './PaperUpload';
-import FolderImport from './FolderImport';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst as newest } from '../paperFormat';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -49,8 +47,6 @@ const SORTS = {
 export default function PapersPage({
   projects = null,
   currentUser, onSelectPaper, onSelectBoard,
-  incomingPaperFile, onIncomingPaperFileHandled, onReportableError,
-  incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
 }) {
   const [papers, setPapers] = useState(null);
   const [boards, setBoards] = useState(null);
@@ -63,13 +59,6 @@ export default function PapersPage({
     () => window.sessionStorage.getItem(SELECTED_USER_KEY)
   );
   const [error, setError] = useState(null);
-  const [reviewingUpload, setReviewingUpload] = useState(false);
-  // A folder from an agent, being brought in (FolderImport), in place of
-  // the one-paper upload.
-  const [addingFolder, setAddingFolder] = useState(false);
-  // What the upload box handed over to it: a folder dropped on it, or
-  // several PDFs dropped or chosen together; null when only opened.
-  const [folderRequest, setFolderRequest] = useState(null);
 
   const load = () => {
     // Boards and people are secondary here: if either list fails, the
@@ -91,9 +80,6 @@ export default function PapersPage({
     if (selectedUser == null) window.sessionStorage.removeItem(SELECTED_USER_KEY);
     else window.sessionStorage.setItem(SELECTED_USER_KEY, selectedUser);
   }, [selectedUser]);
-  useEffect(() => {
-    if (incomingPaperFolder) setAddingFolder(true);
-  }, [incomingPaperFolder]);
 
   if (error) return <div className="error" role="alert">{error}</div>;
   if (papers === null || boards === null) return <div className="loading"><Working label="Loading the library…" /></div>;
@@ -127,35 +113,8 @@ export default function PapersPage({
   const hasActiveFilters = selectedUser != null || Boolean(search.trim());
 
   return (
-    <div className={`library-page${projects ? ' is-bazaar' : ''}${reviewingUpload || addingFolder ? ' upload-review-mode' : ''}`}>
-      {currentUser && addingFolder && (
-        <FolderImport
-          currentUser={currentUser}
-          incomingFolder={incomingPaperFolder ?? folderRequest}
-          onIncomingFolderHandled={onIncomingPaperFolderHandled}
-          onReportableError={onReportableError}
-          onAdded={load}
-          onClose={() => { setAddingFolder(false); setFolderRequest(null); load(); }}
-        />
-      )}
-      {currentUser && !addingFolder && (
-        <PaperUpload
-          onAddFolder={(incoming) => {
-            setFolderRequest(incoming && { uuid: globalThis.crypto.randomUUID(), ...incoming });
-            setAddingFolder(true);
-          }}
-          onReportableError={onReportableError}
-          onPaperCreated={(paper) => {
-            if (paper?.sha256 != null) onSelectPaper(paper.sha256);
-            else load();
-          }}
-          onReviewChange={setReviewingUpload}
-          incomingFile={incomingPaperFile}
-          onIncomingFileHandled={onIncomingPaperFileHandled}
-        />
-      )}
-
-      {!reviewingUpload && !addingFolder && projects}
+    <div className={`library-page${projects ? ' is-bazaar' : ''}`}>
+      {projects}
 
       <div className="panel paper-list">
         <div className="search-bar library-search-tools">

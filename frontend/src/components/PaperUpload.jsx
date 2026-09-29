@@ -140,6 +140,10 @@ export default function PaperUpload({
     setIsLoading(true);
     setUploadProgress(null);
     setError(null);
+    // Where the window takes drops, the page turns to the upload as soon
+    // as there is a file: its bar first, then the form in the same place.
+    if (trigger) onReviewChange(true);
+    let opened = false;
 
     try {
       // The PDF's first pages are read for its DOI or arXiv id here, while
@@ -154,6 +158,7 @@ export default function PaperUpload({
       const [uploaded, tags, shelfData] = await Promise.all([uploadPaper(file, { identifier, onProgress }), listTags(), listShelves()]);
       if (fullAt != null) await holdFullBar(fullAt);
       setExtractedData(uploaded);
+      opened = true;
       onReviewChange(true);
       setShelves(shelfData);
       setFormData({
@@ -199,6 +204,7 @@ export default function PaperUpload({
         settle(read);
       });
     } catch (err) {
+      if (trigger && !opened) onReviewChange(false);
       showError(err, 'importing a PDF');
     } finally {
       setIsLoading(false);
@@ -487,6 +493,14 @@ export default function PaperUpload({
       style={{ display: 'none' }}
     />
   );
+
+  if (trigger && isLoading) {
+    return (
+      <div className="panel paper-form upload-going-up">
+        <UploadWait progress={uploadProgress} />
+      </div>
+    );
+  }
 
   if (trigger) {
     return (

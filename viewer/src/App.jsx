@@ -63,6 +63,7 @@ import { pageAtLine } from './readingPage';
 import { readSections } from './sections';
 import { printedCard, readPaper, READING, UNREAD } from './paperReading.js';
 import ReturnPill from './ReturnPill';
+import PaperDrop from './PaperDrop.jsx';
 import Navigator from './Navigator';
 import { createValueStore } from './valueStore';
 import { pageRenderQueue } from './pageRenderQueue';
@@ -4034,6 +4035,7 @@ export default function App() {
     <>
       <CompatibilityGate />
       <MacHandoffBar />
+      <PaperDrop />
       <header
         className={`viewer-bar${projectView ? ' in-project' : ''}`}
         // Empty stretches of the bar move the window in Papol macOS;

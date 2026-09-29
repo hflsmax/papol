@@ -4,6 +4,7 @@ import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
 import { compatibilityStyles } from '../../shared/compatibilityStyles.js';
 import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
 import { talkStyles } from '../../shared/talkStyles.js';
+import { fileDropStyles } from '../../shared/fileDropStyles.js';
 
 // Where a window stops being a desktop's and becomes a phone's. One
 // measure, used by the styles below and by the Navigator, which draws the
@@ -55,6 +56,8 @@ ${macHandoffStyles}
 ${compatibilityStyles}
 
 ${talkStyles}
+
+${fileDropStyles}
 
 /* ---------- A project on ----------
 

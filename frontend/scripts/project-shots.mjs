@@ -22,6 +22,8 @@ const desk = (tab, settled, then = null, search = '') => ({
   then: `document.getElementById('project-tab-${tab}').click(); ${then ?? 'return true;'}`,
   settled: `document.querySelector('${settled}')`,
 });
+// A PDF dropped on the window, as the browser hands one over.
+const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
@@ -35,7 +37,9 @@ const SHOTS = {
   'desk-invite-find': { ...desk('papers', '#project-people .project-add-found .project-person', "document.querySelector('.project-invite-open').click(); const go = () => { const f = document.querySelector('.project-add-field'); if (!f) { setTimeout(go, 100); return; } Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, 'mar'); f.dispatchEvent(new Event('input', { bubbles: true })); }; go(); return true;"), size: wide },
   'mac-desk-invite-find': { ...desk('papers', '#project-people .project-add-found .project-person', "document.querySelector('.project-invite-open').click(); const go = () => { const f = document.querySelector('.project-add-field'); if (!f) { setTimeout(go, 100); return; } Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, 'mar'); f.dispatchEvent(new Event('input', { bubbles: true })); }; go(); return true;", '?shell=desktop'), size: wide },
   'phone-desk-invite-find': { ...desk('papers', '#project-people .project-add-found .project-person', "document.querySelector('.project-invite-open').click(); const go = () => { const f = document.querySelector('.project-add-field'); if (!f) { setTimeout(go, 100); return; } Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, 'mar'); f.dispatchEvent(new Event('input', { bubbles: true })); }; go(); return true;", '?shell=web'), size: phone },
-  'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-row').click(); return true;"), size: wide },
+  'desk-people': { ...desk('papers', '#project-people', "document.querySelector('.project-seat-more').click(); return true;"), size: wide },
+  // A face on the tabs row, and where it leads: that member's nook.
+  'seat-nook': { ...desk('papers', '.project-paper', "document.querySelector('.project-seat[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },
   // A paper picked in the Papers tab: its brief beside the list.
   'desk-paper': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // The digs made inside a paper, in its brief: each led by its place.
@@ -105,6 +109,13 @@ const SHOTS = {
   // it is fetched again.
   'nook-return': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: [`/users/${ME}/nook`], then: "document.querySelector('.way-aside a').click(); return new Promise((done) => setTimeout(() => { document.querySelector('.way-mark').click(); done(true); }, 1000));", settled: "document.querySelector('.nook .desk-title')", size: wide },
   'nook-loading': { path: '/?shell=web', hold: [`/users/${ME}/nook`], ready: "document.querySelector('.nook, .loading')", size: wide },
+  // A PDF dropped on the window from inside a project: the nook's upload
+  // takes it, its bar while it goes up, then the form.
+  'drop-uploading': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
+  'drop-form': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
+  // A PDF dropped in the viewer, arriving in the nook's upload after the
+  // page load that brings the reader here.
+  'drop-from-viewer': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => import('/@fs' + " + JSON.stringify(new URL('../../shared/droppedPapers.js', import.meta.url).pathname) + ").then((kept) => kept.handOverDroppedPdfs([new File([bytes], 'attention.pdf', { type: 'application/pdf' })]))).then(() => { location.reload(); return true; });", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: phone },
   // On a phone the brief opens under its row.
