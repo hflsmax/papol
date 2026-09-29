@@ -223,6 +223,9 @@ export const FLOAT_RULED = rule({
 const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′]*|[<:=→⇒⇓∀∃⊢~*∧∨¬|/]+[\\p{L}\\d<:=→⇒⇓∀∃⊢~*∧∨¬|/'′]*)";
 export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,3}|[a-z]{1,3})(?:[-‐‑–]" + RULE_PART + ")+";
 export const RULE_WORD = "\\p{L}[\\p{L}\\d]{1,15}";
+// A prefix and a word with a space between, as LNCS and JFP papers set
+// \\rulename{E}{Beta}: "E Beta", "T FUNC", "E PreCheck".
+export const RULE_SPACED = "[A-Z]{1,2} [A-Z][\\p{L}\\d]{1,15}";
 
 export const RULE_LABEL = rule({
   id: "rule.label", stage: "rule",
@@ -235,12 +238,17 @@ export const RULE_LABEL = rule({
 export const RULE_LABEL_BARE = rule({
   id: "rule.label-bare", stage: "rule",
   summary: "A single word on a line of its own, beside a short drawn bar, labels the rule the bar belongs to.",
-  why: "Sequent Core sets Cut, Case and Jump beside their rules with no brackets, and Bounded Refinement Types VAR, CON and FUN; a word beside a table's rule, as wide as the column, is a cell.",
+  why: "Sequent Core sets Cut, Case and Jump beside their rules with no brackets, and Bounded Refinement Types VAR, CON and FUN; a word over a table's rule is a cell, and one set into a rule that goes on right past it heads a group.",
+});
+export const RULE_LABEL_SPACED = rule({
+  id: "rule.label-spaced", stage: "rule",
+  summary: "A prefix and a capitalised word with a space between, on a line of its own level with other text or beside a bar, or at the end of a line an em apart from the rest, labels a rule (\"E Beta\", \"T FUNC\"). In the text it is cited in its printed case: a word in capitals anywhere, a capitalised word beside \"rule\".",
+  why: "LNCS and JFP papers set the rule's name as a letter and a word in small capitals with a space between (\"E Reduce\", \"T FUNC\"); a heading like \"A Note\" stands on its own with nothing level with it.",
 });
 export const RULE_HEADING = rule({
   id: "rule.heading", stage: "rule",
-  summary: "A bracketed word in italics, or level with a judgement form or a grammar production (⊢, ::=, a leading |) and beside no bar, heads a group of rules or comments a production; it names no rule.",
-  why: "\"(Kinding)\" at the right of \"Σ ⊢ τ : κ\" and \"(value)\" beside \"e ::= v\" are not cited as rules.",
+  summary: "A bracketed word beside no bar that is level with a grammar production (::=, or a | alternative under one), or that ends at the text column's right edge with a line level with it, heads a group of rules or comments a production or an example; it names no rule.",
+  why: "\"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\", \"(value)\" beside \"e ::= v\" and \"(C1)\" at the margin beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin.",
 });
 export const RULE_LABEL_APART = rule({
   id: "rule.label-apart", stage: "rule",

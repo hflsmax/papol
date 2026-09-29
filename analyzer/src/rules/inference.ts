@@ -12,12 +12,13 @@ import { citedAway } from "./cited";
 import { typeOf, type Found, type Type } from "./floats";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import type { Drawn } from "./page";
-import { RULE_BOX, RULE_HEADING, RULE_LABEL, RULE_LABEL_APART, RULE_LABEL_BARE, RULE_MENTION, RULE_NAME, RULE_WORD } from "./registry";
+import { RULE_BOX, RULE_HEADING, RULE_LABEL, RULE_LABEL_APART, RULE_LABEL_BARE, RULE_LABEL_SPACED, RULE_MENTION, RULE_NAME, RULE_SPACED, RULE_WORD } from "./registry";
 import type { Trace } from "./trace";
 
 export interface Rule extends Found {
   name: string; // as printed at its label, without brackets
   word: boolean; // a single bracketed word, not a hyphenated name
+  spaced: boolean; // a prefix and a word with a space between ("E Beta", "T FUNC")
   labels: Line[]; // every line that labels a rule by this name
 }
 
@@ -36,6 +37,8 @@ const PAD = 2;
 
 const keyOf = (name: string) => name.toLowerCase().replace(/[‐‑–]/g, "-");
 const BARE_WORD = new RegExp(`^\\s*(?<word>${RULE_WORD})\\s*$`, "u");
+const SPACED = new RegExp(`^\\s*(?<word>${RULE_SPACED})\\s*$`, "u");
+const SPACED_TAIL = new RegExp(`(?<=\\s)(?<word>${RULE_SPACED})\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:[\\[(]\\s*(?<name>${RULE_NAME})\\s*[\\])]|(?<bare>${RULE_NAME})|[\\[(]\\s*(?<word>${RULE_WORD})\\s*[\\])])(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:[\\[(]\\s*(?<name>${RULE_NAME})\\s*[\\])]|(?<bare>${RULE_NAME})|[\\[(]\\s*(?<word>${RULE_WORD})\\s*[\\])])\\s*$`, "u");
 
@@ -77,7 +80,7 @@ function faceOf(line: Line): string {
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
 }
 
-interface Label { name: string; word: boolean; bracketed: boolean; start: number; end: number; rule: string }
+interface Label { name: string; word: boolean; spaced: boolean; bracketed: boolean; start: number; end: number; rule: string }
 
 // The label a line carries, if it is one: the whole line (rule.label), or
 // its head or tail set apart from the rest (rule.label-apart).
@@ -90,8 +93,10 @@ function labelOf(line: Line): Label | null {
     if (match.groups.word === undefined && !/[-‐‑–][^-‐‑–]*\p{L}/u.test(name)) return null;
     const start = match.index + match[0].indexOf(name);
     const word = match.groups.word !== undefined;
-    return { name, word, bracketed: !word || /[[(]/.test(match[0]), start, end: start + name.length, rule };
+    return { name, word, spaced: rule === RULE_LABEL_SPACED.id, bracketed: !word || /[[(]/.test(match[0]), start, end: start + name.length, rule };
   };
+  const spaced = found(SPACED.exec(text), RULE_LABEL_SPACED.id);
+  if (spaced) return spaced;
   const whole = found(RULE_LABEL.pattern!.exec(text), RULE_LABEL.id);
   if (whole) return whole;
   const bare = found(BARE_WORD.exec(text), RULE_LABEL_BARE.id);
@@ -99,6 +104,9 @@ function labelOf(line: Line): Label | null {
   const headMatch = HEAD.exec(text);
   const head = found(headMatch, RULE_LABEL_APART.id);
   if (head && headMatch && blankAfter(line, headMatch.index + headMatch[0].trimEnd().length) >= APART * line.size) return head;
+  const spacedTail = SPACED_TAIL.exec(text);
+  const spacedEnd = found(spacedTail, RULE_LABEL_SPACED.id);
+  if (spacedEnd && spacedTail && blankBefore(line, spacedTail.index) >= APART * line.size) return spacedEnd;
   const tailMatch = TAIL.exec(text);
   const tail = found(tailMatch, RULE_LABEL_APART.id);
   if (tail && tailMatch && blankBefore(line, tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length) >= APART * line.size) return tail;
@@ -150,14 +158,22 @@ function boxOf(page: Page, label: Line, type: Type): { box: Box; bar: Drawn | un
 
 // How wide a bar beside a bare word may be, in the page's width: a rule's
 // bar, not a table's (rule.label-bare).
-const BAR_SHARE = 0.35;
-// A bare word labels a rule when it is level with the rule's bar, which
-// separates premises from a conclusion and is no wider than a rule
-// (rule.label-bare): a cell beside a table's rule, or a word in a framed
-// box, is neither.
+const BAR_SHARE = 0.45;
+// A bare word labels a rule when it stands beside the rule's bar, level
+// with it, which separates premises from a conclusion and is no wider
+// than a rule (rule.label-bare): a cell over a table's rule, or a word in
+// a framed box, is neither.
 function besideRule(bar: Drawn, label: Line, lines: Line[], page: Page): boolean {
   if (bar.w > BAR_SHARE * page.width) return false;
-  if (Math.abs(bar.y - (label.top + label.bottom) / 2) > 0.6 * label.size) return false;
+  if (Math.abs(bar.y - (label.top + label.bottom) / 2) > 0.9 * label.size) return false;
+  // Beside the bar, not over it: a cell stands within its table's rule.
+  if (label.x0 < bar.x + bar.w - BESIDE * label.size && label.x1 > bar.x + BESIDE * label.size) return false;
+  // A word set into a rule, with the rule going on again right past it
+  // on the other side, heads a group of rules ("——— Structural ———"); the
+  // next rule's bar stands further off.
+  const other = page.drawn.some((d) => d !== bar && !d.image && d.h <= 1.5 && Math.abs(d.y - bar.y) <= 1
+    && (bar.x + bar.w <= label.x0 + BESIDE * label.size ? d.x <= label.x1 + TOUCH * label.size && d.x >= label.x1 - TOUCH * label.size : d.x + d.w >= label.x0 - TOUCH * label.size && d.x + d.w <= label.x0 + TOUCH * label.size));
+  if (other) return false;
   if (!/^(?:\p{Lu}[\p{L}\d]*)$/u.test(label.text.trim())) return false;
   const under = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
   const over = lines.some((l) => under(l) && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 1.5 * label.size * 2);
@@ -165,11 +181,8 @@ function besideRule(bar: Drawn, label: Line, lines: Line[], page: Page): boolean
   return over && below;
 }
 // What a line level with a bracketed word says when the word comments a
-// grammar production, or, with the word in italics, heads a group of
-// rules with the judgement's form (rule.heading): "(BIND)" is italic
-// too, beside a law with no turnstile.
+// grammar production (rule.heading).
 const GRAMMAR = /⩴|::=|∷=/u;
-const JUDGEMENT = /[⊢⊨]|\|-/u;
 // A line is a grammar production, or a "|" alternative under one within a
 // few lines, at the production's own indent: "| f" in "H | f" is a heap.
 function production(line: Line, page: Page, type: Type): boolean {
@@ -177,7 +190,12 @@ function production(line: Line, page: Page, type: Type): boolean {
   if (!/^\s*\|/.test(line.text)) return false;
   return page.lines.some((l) => GRAMMAR.test(l.text) && Math.abs(l.x0 - line.x0) <= 4 * line.size && l.top < line.top && l.top >= line.top - 4 * type.leading);
 }
-const italic = (line: Line) => line.runs.some((r) => /\p{L}/u.test(r.text)) && line.runs.filter((r) => /\p{L}/u.test(r.text)).every((r) => r.italic);
+// The right edge of the text column a line is in: the furthest a line of
+// running text over or under it reaches.
+function columnRight(page: Page, line: Line): number | null {
+  const text = page.lines.filter((l) => !l.furniture && l.text.length >= 40 && l.x0 <= line.x1 && l.x1 >= line.x0);
+  return text.length ? Math.max(...text.map((l) => l.x1)) : null;
+}
 
 /**
  * Every named rule, by its name in lower case: its first label in reading
@@ -197,13 +215,15 @@ export function findRules(layout: Layout, skip: Set<Line>, trace: Trace): Map<st
       if (known) { known.labels.push(line); continue; }
       const { box: shape, bar, row } = boxOf(page, line, type);
       const box = { page: page.number, ...shape };
-      if (label.word && !label.bracketed && !(bar && besideRule(bar, line, page.lines.filter((l) => !l.furniture && l !== line), page))) continue;
-      if (label.word && label.bracketed && !bar && (row.some((l) => production(l, page, type)) || (italic(line) && row.some((l) => JUDGEMENT.test(l.text))))) {
+      if (label.spaced && !bar && !row.length) continue;
+      if (label.word && !label.spaced && !label.bracketed && !(bar && besideRule(bar, line, page.lines.filter((l) => !l.furniture && l !== line), page))) continue;
+      const right = label.word && label.bracketed && !bar ? columnRight(page, line) : null;
+      if (label.word && label.bracketed && !bar && (row.some((l) => production(l, page, type)) || (right !== null && line.x1 >= right - line.size && row.length > 0))) {
         trace.add(RULE_HEADING.id, page.number, label.name, [box]);
         continue;
       }
       rules.set(key, {
-        key: `r${rules.size}`, kind: "rule", label: label.name, caption: line, name: label.name, word: label.word, labels: [line], ...box,
+        key: `r${rules.size}`, kind: "rule", label: label.name, caption: line, name: label.name, word: label.word, spaced: label.spaced, labels: [line], ...box,
       });
       trace.add(label.rule, page.number, label.name, [box]);
       trace.add(RULE_BOX.id, page.number, label.name, [box]);
@@ -213,7 +233,7 @@ export function findRules(layout: Layout, skip: Set<Line>, trace: Trace): Map<st
 }
 
 const NEAR = 60;
-const RULE_WORD_NEAR = /\brules?\b/;
+const RULE_WORD_NEAR = /\brules?\b/i;
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // A name in the text is the label's, whatever its case, only where one of
@@ -231,13 +251,13 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
   const labels = new Set([...rules.values()].flatMap((r) => r.labels));
   const type = typeOf(layout);
   const byName = [...rules.values()].sort((a, b) => b.name.length - a.name.length);
-  const names = byName.map((r) => escape(r.name).replace(/-/g, "[-‐‑–]")).join("|");
+  const names = byName.map((r) => escape(r.name).replace(/-/g, "[-‐‑–]").replace(/ /g, "\\s+")).join("|");
   // Whole: a name may be bare, a word must be bracketed.
   const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
   let match: RegExpExecArray | null;
   while ((match = re.exec(flow.text))) {
     const groups = match.groups!;
-    const rule = byName.find((r) => sameName(groups.name, r.name));
+    const rule = byName.find((r) => sameName(groups.name.replace(/\s+/g, " "), r.name));
     if (!rule) continue;
     const nameStart = match.index + (groups.open ? 1 : 0);
     const nameEnd = nameStart + groups.name.length;
@@ -249,7 +269,10 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
     // or bare in its printed case within a few words of "rule": "the Jump
     // and Label rules", not "in this case".
     if (rule.word && faceOf(at.line) !== family(type.font)) continue;
-    if (rule.word && !bracketed && !(groups.name === rule.name && RULE_WORD_NEAR.test(flow.text.slice(Math.max(0, match.index - NEAR), match.index + match[0].length + NEAR)))) continue;
+    // A spaced name whose word is in capitals ("T FUNC") is itself in
+    // running text; "E Beta" needs "rule" beside it as a bare word does.
+    const capitalised = rule.spaced && capitals(rule.name);
+    if (rule.word && !bracketed && !capitalised && !(groups.name.replace(/\s+/g, " ") === rule.name && RULE_WORD_NEAR.test(flow.text.slice(Math.max(0, match.index - NEAR), match.index + match[0].length + NEAR)))) continue;
     if (citedAway(flow.text, match.index, match.index + match[0].length)) continue;
     const from = bracketed ? match.index : nameStart;
     const to = bracketed ? match.index + match[0].length : nameEnd;

@@ -199,15 +199,15 @@ describe("the paper", () => {
   it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {
     // Small capitals from a text font reach the text layer in lowercase
     // ("s-refl"); Sequent Core names its rules with a bare word beside
-    // the bar ("Cut"). "(Kinding)" in italics at the right of the
-    // judgement's form heads the rules, "(value)" comments a grammar
+    // the bar ("Cut"). "(Kinding)" at the text's right margin, level with
+    // the judgement's form, heads the rules, "(value)" comments a grammar
     // production, "sql-01" is a benchmark, and "Max" is a cell over a
     // table's rule: none is a rule.
     const pdf = writtenPdf([
       [60, 740, "By s-refl every type is its own subtype. The Cut rule is admissible, and"],
       [60, 725, "the cut of two proofs, as (value) shows, is cheap; sql-01 runs in a second."],
       [60, 690, "G |- t : k", 10],
-      [280, 690, "(Kinding)", 10, "italic"],
+      [346, 690, "(Kinding)", 10, "italic"],
       [60, 670, "e ::= v"],
       [160, 670, "(value)"],
       [75, 672, "| e e"],
