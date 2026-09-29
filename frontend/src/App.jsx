@@ -122,6 +122,11 @@ function openBoard(uuid) {
 // a signed-in member sees these ones inside their nook, beside its rail.
 const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
 
+// Where a PDF dropped on the window is taken in: on the web the member's
+// own nook, whose papers it joins, straight into its upload; the Mac app's
+// Library holds the one upload box it has.
+const DROP_PLACE = DESKTOP ? '/library' : '/';
+
 // Links from before things had paths: /?shelf=…&paper=… and the like.
 function nookPathFromQuery(search) {
   const query = new URLSearchParams(search);
@@ -298,7 +303,7 @@ export default function App({ startupUser = null, startupError = null }) {
         }
         setDeskDropNotice(null);
         setIncomingPaperFolder({ uuid: globalThis.crypto.randomUUID(), entry: folder });
-        navigate('/library');
+        navigate(DROP_PLACE);
         return;
       }
       const files = Array.from(event.dataTransfer.files || []);
@@ -312,7 +317,7 @@ export default function App({ startupUser = null, startupError = null }) {
         }
         setDeskDropNotice(null);
         setIncomingPaperFolder({ uuid: globalThis.crypto.randomUUID(), files: several });
-        navigate('/library');
+        navigate(DROP_PLACE);
         return;
       }
       if (files.length !== 1) {
@@ -333,7 +338,7 @@ export default function App({ startupUser = null, startupError = null }) {
         return;
       }
       setIncomingPaperFile({ uuid: globalThis.crypto.randomUUID(), file: files[0] });
-      navigate('/library');
+      navigate(DROP_PLACE);
     };
     window.addEventListener('dragenter', dragEnter);
     window.addEventListener('dragover', dragOver);
@@ -744,6 +749,10 @@ export default function App({ startupUser = null, startupError = null }) {
               />
             )}
             onOpenCanvas={openBoardCanvas}
+            incomingPaperFile={incomingPaperFile}
+            onIncomingPaperFileHandled={() => setIncomingPaperFile(null)}
+            incomingPaperFolder={incomingPaperFolder}
+            onIncomingPaperFolderHandled={() => setIncomingPaperFolder(null)}
           />
       ) : route.page === 'home' &&
         (user ? (
