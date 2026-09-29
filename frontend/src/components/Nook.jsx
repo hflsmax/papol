@@ -26,7 +26,7 @@ const storedSection = (userUuid) => {
 // A nook seen before shows at once while it is fetched again (lastMember.js).
 const lastSeen = (userUuid) => kept(`nook:${userUuid}`);
 
-export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, incomingPaperFile = null, onIncomingPaperFileHandled, incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {} }) {
+export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, onOpenProject, paper = null, renderPaper, onOpenCanvas, incomingPaperFile = null, onIncomingPaperFileHandled, incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {} }) {
   const [nook, setNook] = useState(() => lastSeen(userUuid));
   // A nook that had to be waited for comes in with one short fade; one
   // already seen is simply there, and quietly brought up to date.
@@ -159,6 +159,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           shelf={shelf}
           project={project}
           renderProject={renderProject}
+          onOpenProject={onOpenProject}
           paper={paper}
           renderPaper={renderPaper}
           onOpenCanvas={onOpenCanvas}

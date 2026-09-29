@@ -1,10 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { useDismiss } from '../../../shared/useDismiss.js';
-import { addPaperToProject, listProjects } from '../../../shared/api/projects.js';
+import { addPaperToProject, createProject, listProjects } from '../../../shared/api/projects.js';
 import { updatePaper } from '../../../shared/api/papers.js';
 import { Working } from '../../../shared/ui/Waiting.js';
 import appLimits from '../../../shared/appLimits.js';
-import { appPath } from '../base';
 
 const membersLabel = (project) => {
   const count = project.members?.length ?? 1;
@@ -19,6 +18,7 @@ export default function ProjectPicker({ paper, onThought }) {
   const [why, setWhy] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [name, setName] = useState('');
   const ref = useRef(null);
   useDismiss(open, ref, () => setOpen(false));
 
@@ -50,6 +50,24 @@ export default function ProjectPicker({ paper, onThought }) {
     }
   };
 
+  // With no project yet, the menu starts one by its name, this paper in it.
+  const start = async (event) => {
+    event.preventDefault();
+    if (!name.trim() || busy) return;
+    setBusy('new');
+    setError(null);
+    try {
+      const project = await createProject(name.trim());
+      await addPaperToProject(project.uuid, paper.sha256);
+      setProjects([{ ...project, has_paper: true }]);
+      setName('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const stateOf = (project) => {
     if (project.has_paper) return <span className="project-picker-state is-added">✓ Added</span>;
     if (busy === project.uuid) return <span className="project-picker-state is-busy">Adding…</span>;
@@ -65,9 +83,17 @@ export default function ProjectPicker({ paper, onThought }) {
         <div className="share-menu project-picker" role="menu">
           {!projects && !error && <Working className="project-picker-wait" label="Loading…" />}
           {projects?.length === 0 && (
-            <p className="share-note">
-              <a href={appPath('/projects')}>New project</a>
-            </p>
+            <form className="share-menu-section" onSubmit={start}>
+              <input
+                autoFocus
+                value={name}
+                maxLength={appLimits.text.project_name}
+                placeholder="Project name"
+                aria-label="Project name"
+                disabled={busy === 'new'}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </form>
           )}
           {projects?.length > 0 && !paper.thought && (
             <div className="share-menu-section project-picker-why">
