@@ -83,9 +83,10 @@ const SHOTS = {
   'paper-dig-empty': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-dig .talk-unfold')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: wide },
   'paper-dig-writing': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-dig .talk-unfold')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig .talk-unfold').click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", settled: "document.querySelector('.paper-dig textarea')", size: wide },
   'phone-paper-dig': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-dig .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: phone },
-  you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
-  'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
-  'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },
+  you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: wide },
+  'you-inbox': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
+  'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
+  'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: phone },
   // The nook while it waits: for the sign-in to be checked, then for its
   // papers.
   // A project opened before shows at once on coming back, while it is

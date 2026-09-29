@@ -863,6 +863,8 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {hasWay && (route.page === 'profile' || route.page === 'inbox') && (
         <YouPage
+          key={route.page}
+          initialView={route.page === 'inbox' ? 'inbox' : 'activity'}
           user={user}
           unreadCount={unreadCount}
           onUnread={setUnreadCount}
