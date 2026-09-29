@@ -63,13 +63,13 @@ test('signed out, a paper\u2019s address is a lean link and reads nothing local'
 test('the nook handoff keeps navigation context and removes file-only identity', () => {
   const href = nookViewerHref(
     `http://127.0.0.1/viewer/?pdf=${HASH}&file=1&name=Local%20paper`
-      + '&opened_at_ms=1&native_read_ms=2&native_hash_ms=3&page=7&note=kept'
+      + '&opened_at_ms=1&native_read_ms=2&native_hash_ms=3&page=7&anchor=kept'
   );
   const handedOff = new URL(href);
 
   assert.equal(handedOff.searchParams.get('pdf'), HASH);
   assert.equal(handedOff.searchParams.get('page'), '7');
-  assert.equal(handedOff.searchParams.get('note'), 'kept');
+  assert.equal(handedOff.searchParams.get('anchor'), 'kept');
   for (const key of ['file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms']) {
     assert.equal(handedOff.searchParams.has(key), false);
   }
@@ -91,7 +91,7 @@ test('a standalone file neither reads nor exposes persistent paper state', async
   assert.equal(source.readOnly, true);
   assert.equal(source.annotationsRequireNook, true);
   assert.equal(loaded.doc.title, 'Local paper');
-  assert.deepEqual(loaded.notes, []);
+  assert.deepEqual(loaded.anchors, []);
   assert.equal(source.annotations, undefined);
   assert.deepEqual(native.argsOf('data_query'), []);
   await assert.rejects(source.addToNook(), /Sign in to add this paper/);

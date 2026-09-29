@@ -1,8 +1,8 @@
 // The viewer with a project on.
 //
-// A paper opens alone: what is on its pages is the reader's own. Opened
-// with one of their projects on (`?project=<uuid>`), the pages carry every
-// member's notes, ink and clips, and the reader has to be able to tell at a
+// A paper opens alone: what is on its pages is the reader's own, and so
+// are the digs on it. Opened with one of their projects on
+// (`?project=<uuid>`), the pages carry every member's anchors, ink and clips, and the reader has to be able to tell at a
 // glance whose each is. So with a project on, ink is drawn in its author's
 // colour rather than the colour it was painted in: one colour per member,
 // the reader's own included, and the same colour their avatar wears. What
@@ -82,16 +82,16 @@ export function annotationDown(annotation) {
 // the head of its first page, then every dug annotation where it sits,
 // page by page, top to bottom. `writing` is a thing nobody has dug that
 // the reader is starting a dig on: it has its line while they write.
-export function marginLinesOf({ paper, paperDigs, digs, notes = [], ink = [], clips = [], writing = null }) {
+export function marginLinesOf({ paper, paperDigs, digs, anchors = [], ink = [], clips = [], writing = null }) {
   const lines = [];
   if (paperDigs) {
     lines.push({ key: 'paper', subject: `paper:${paper.sha256}`, label: paper.title || 'this paper', page: 1, down: 0, pin: paperDigs });
   }
-  const all = [...notes.map((a) => ['note', a]), ...ink.map((a) => ['ink', a]), ...clips.map((a) => ['clip', a])];
+  const all = [...anchors.map((a) => ['anchor', a]), ...ink.map((a) => ['ink', a]), ...clips.map((a) => ['clip', a])];
   for (const [kind, a] of all) {
     const pin = digs?.[a.uuid] ?? (a.uuid === writing ? {} : null);
     if (!pin || !a.page) continue;
-    const label = kind === 'note' ? (a.name || a.content || `An anchor on page ${a.page}`)
+    const label = kind === 'anchor' ? `An anchor on page ${a.page}`
       : kind === 'ink' ? `Ink on page ${a.page}` : `A clip on page ${a.page}`;
     lines.push({ key: a.uuid, annotation: a.uuid, kind, subject: `annotation:${a.uuid}`, label, page: a.page, down: annotationDown(a), pin });
   }

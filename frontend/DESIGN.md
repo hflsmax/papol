@@ -254,7 +254,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   to length, evened out enough that every section can be read. Nothing opens. It is 40px tall — all the room the desktop title
   bar has to give — and centred in the bar, in three lanes at one scale: a
   7px lane of subsection ticks over the strip, the 18px strip of sections,
-  and a 15px lane of anchors and notes under it (strip to lower lane is
+  and a 15px lane of anchors under it (strip to lower lane is
   six parts to five). What the paper says
   about itself stands above the strip and what the reader has put on it
   hangs below. A lane with nothing in it takes no room, except that the
@@ -340,21 +340,16 @@ is a dig: one person's writing about one thing, under the one spade pin.
   left edge of a segment is where its section begins, exactly — bring the
   marker to that edge and the heading is at the middle of the window. The
   rest of the height is the lane under the strip, where every anchor is a
-  triangle pointing up at its place and every note is a dialog box with
-  its tip turned up from the middle to do the same. Its corners are as
-  round as a box can take: square, a box with a tip in the middle of its
-  lid reads as a briefcase at this size, and rounder still as an acorn.
+  triangle pointing up at its place.
   The lane has no ground of its own — the marks stand on the bar's white.
-  That makes the pair top-heavy: the strip is a solid band and the marks
+  That makes the two top-heavy: the strip is a solid band and the marks
   are specks, so a box centred by the ruler reads as sitting high, and the
   Navigator is set 2px below centre, where it looks centred. With no
-  anchors or notes there is no lane, the box is only the strip, and it is
+  anchors there is no lane, the box is only the strip, and it is
   centred exactly. A mark under the middle of Results is *in*
   Results and nothing has to say so; that shared scale is the whole idea,
-  and it is why the two lanes are stacked rather than merged. The marks
-  differ in silhouette, not only in colour (`--accent` for an anchor,
-  `--accent-strong` for a note), and each is a button that goes to its
-  place. **The Navigator is a scrubber.** A press anywhere on it — the
+  and it is why the two lanes are stacked rather than merged. Each mark
+  is a button that goes to its place. **The Navigator is a scrubber.** A press anywhere on it — the
   strip, or the lane between two marks — goes to *exactly* that place, not
   to the head of the section it falls in, and the press can be held and
   drawn along: the paper closes on the pointer a fraction of the way each

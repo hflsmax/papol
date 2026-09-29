@@ -8,7 +8,7 @@ const native = await installNativeHarness({
 });
 
 const {
-  createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperNotes, pdfLoadInput,
+  createAnnotation, deleteAnnotation, listAnnotations, getPaperByPdf, getPaperAnchors, pdfLoadInput,
 } = await import('./api.js');
 // A paper is its file, so the digest the viewer was opened on is also the
 // name every annotation call gives it.
@@ -17,18 +17,21 @@ const PAPER = sha256Hex(new Uint8Array(PDF));
 const calls = native.calls;
 
 test('every kind of annotation reaches the one native table', async () => {
-  const note = await createAnnotation(PAPER, {
-    kind: 'note', page: 3, content: 'Offline',
+  const anchor = await createAnnotation(PAPER, {
+    kind: 'anchor', page: 3,
     body: { anchor: { type: 'point', x: 0.25, y: 0.5 } },
   });
   const call = calls.find(([command, args]) => command === 'data_mutate'
     && args.changes[0].table === 'annotations');
-  assert.equal(call[1].changes[0].values.kind, 'note');
+  assert.equal(call[1].changes[0].values.kind, 'anchor');
+  // An anchor is a place: nothing is written on the row itself.
+  assert.equal('content' in call[1].changes[0].values, false);
+  assert.equal('name' in call[1].changes[0].values, false);
   assert.equal(call[1].changes[0].values.paper_sha256, PAPER);
   assert.equal(call[1].changes[0].values.page, 3);
   // Geometry travels as text and comes back parsed.
   assert.equal(typeof call[1].changes[0].values.body, 'string');
-  assert.deepEqual(note.body.anchor, { type: 'point', x: 0.25, y: 0.5 });
+  assert.deepEqual(anchor.body.anchor, { type: 'point', x: 0.25, y: 0.5 });
 
   const stroke = await createAnnotation(PAPER, {
     kind: 'ink', page: 1,
@@ -63,14 +66,14 @@ test('a local paper digest reads annotations without falling through to integer 
   assert.deepEqual(reads.map(([, args]) => args.parameters.kind), ['ink', 'clip']);
 });
 
-test('paper identity is available before its notes are queried', async () => {
+test('paper identity is available before its anchors are queried', async () => {
   native.query('paper_by_pdf', ({ sha256 }) => ({ sha256 }));
   const paper = await getPaperByPdf(PAPER);
 
   assert.equal(paper.sha256, PAPER);
   assert.equal(calls.some(([, args]) => args?.queryName === 'annotations'), false);
 
-  await getPaperNotes(paper);
+  await getPaperAnchors(paper);
   assert.equal(calls.filter(([, args]) => args?.queryName === 'annotations').length, 1);
 });
 

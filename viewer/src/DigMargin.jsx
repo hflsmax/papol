@@ -13,9 +13,10 @@ const LINE_GAP = 10;
 // with the thing it is about.
 const NAME_MID = 18;
 
-// With a project on and room beside the sheets, the viewer's margin holds
-// every dig on the paper: the paper's own at the head of the first page,
-// then each dig inside it level with its anchor, ink or clip. It is the
+// With room beside the sheets, the viewer's margin holds every dig on the
+// paper — the project's with one on, else the reader's own: the paper's
+// own at the head of the first page, then each dig inside it level with
+// its anchor, ink or clip. It is the
 // brief, beside the paper. It lives in the pages' own scroller, so it
 // moves with them and nothing scrolls on its own.
 //
@@ -87,7 +88,8 @@ export default function DigMargin({ scrollerRef, lines, layoutKey, open, picked,
         const at = places[line.key];
         const isOpen = open?.key === line.key;
         const lead = line.pin.lead ?? {};
-        const mine = lead.owner && lead.owner.uuid === project.me?.uuid;
+        // With no project on, every dig here is the reader's own.
+        const mine = !project.uuid || (lead.owner && lead.owner.uuid === project.me?.uuid);
         return (
           <div
             key={line.key}

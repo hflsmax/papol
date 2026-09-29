@@ -1,8 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 // The same legacy build as App.jsx (see there): one pdf.js, and one that
 // runs in WebKit.
-import { GlyphFor, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
-import NoteCard from './NoteCard';
+import { AnchorGlyph, AnimalJointed, ANCHOR_D, ANCHOR_HANG } from './glyphs';
 import { animalFor } from './animals';
 import { stepCow as stepAnimal, poseCow as poseAnimal } from './cow';
 import { citationHolds, pageOverlays } from './references';
@@ -14,38 +13,15 @@ import { markViewerPerformance, measureViewerPerformance } from './performance.j
 import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
-import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
-import Avatar from '../../shared/ui/Avatar.jsx';
-import { TalkPin } from '../../shared/ui/Talk.jsx';
 import { memberInk } from './project.js';
-
-// With a project on, any annotation the project can see can hold a dig:
-// the pin for it, on the annotation's card. Never on one still being
-// saved, which has no name the project could know it by.
-function DigPin({ project, annotation, label, size = 'sm', startOpen = false }) {
-  if (!project || typeof annotation.uuid !== 'string' || annotation.uuid.startsWith('wet-')) return null;
-  return (
-    <TalkPin
-      projectUuid={project.uuid}
-      subject={{ annotation: annotation.uuid }}
-      label={label}
-      summary={project.digs[annotation.uuid]}
-      currentUser={project.me}
-      onChanged={project.onDigChanged}
-      size={size}
-      openOn={project.landing?.annotation === annotation.uuid ? project.landing.dig : null}
-      startOpen={startOpen}
-      onPress={project.inMargin?.(annotation.uuid)}
-    />
-  );
-}
+import ThingBar from './ThingBar.jsx';
 
 /**
  * One rendered page, plus the pins that live on it.
  *
  * Two coordinate systems meet here and only here. pdf.js draws in device
- * pixels at whatever scale the user has chosen; a note is stored as a
+ * pixels at whatever scale the user has chosen; an anchor is stored as a
  * fraction of the page in PDF user space, origin bottom-left. `viewport`
  * converts between them, so nothing above this component ever sees a pixel.
  */
@@ -71,7 +47,7 @@ const ANCHOR_REACH = 13;
 // after it has been drawn.
 const MAX_POINTS = appLimits.counts.ink_points;
 // One object, so clearing the highlight does not count as a change.
-const EMPTY_DOOMED = { ink: [], notes: [], animals: [] };
+const EMPTY_DOOMED = { ink: [], anchors: [], animals: [] };
 // How wide a stroke is to take hold of, whatever it was drawn at.
 const GRAB_WIDTH = 14;
 // Draw, then stop and hold: the stroke snaps to a straight line from where
@@ -278,6 +254,9 @@ function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, o
     observer.observe(output);
     return () => {
       cancelled = true;
+      // A paint cut short here never reached the canvas, so the next one
+      // must not take it for done.
+      clipPaintedRef.current = null;
       if (paintClipRef.current === requestPaint) paintClipRef.current = null;
       if (resizePaintFrameRef.current != null) {
         cancelAnimationFrame(resizePaintFrameRef.current);
@@ -450,39 +429,33 @@ function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, o
       }
     : boxStyle(liveFrame);
 
-  const actions = selected && (
-    <span className="clip-actions">
-      <ItemActions
-        label="Clip actions"
-        placement="above-end"
-        actions={[
-          {
-            label: clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport',
-            title: clip.floating ? 'Lock to paper' : 'Free float',
-            icon: <ActionGlyph name={clip.floating ? 'unlock' : 'lock'} />,
-            pressed: clip.floating,
-            onSelect: toggleFloating,
-          },
-          {
-            label: 'Send clipped content to a board',
-            icon: <ActionGlyph name="send" />,
-            tone: 'accent',
-            onSelect: () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png'),
-          },
-          { label: 'Remove clipped view', title: 'Remove', icon: <ActionGlyph name="trash" />, danger: true, onSelect: onRemove },
-        ]}
-      />
-    </span>
-  );
-
-  // With a project on, a clip picked out says whose it is and can be dug
-  // into — another member's as much as the reader's own.
-  const who = project && selected && (
-    <span className={`clip-who${clip.theirs ? ' theirs' : ''}`} style={clip.user ? { '--who': memberInk(clip.user) } : undefined}>
-      {clip.user && <Avatar user={clip.user} className="mini-avatar" />}
-      {clip.user && <span>{clip.user.display_name}</span>}
-      <DigPin project={project} annotation={clip} label={`a clip on page ${clip.page}`} />
-    </span>
+  // Picked out, a clip wears the bar every picked thing wears: whose it is
+  // with a project on, its dig, and — the reader's own — what else can be
+  // done to it.
+  const bar = selected && (
+    <ThingBar
+      className="clip-bar"
+      digs={project}
+      annotation={clip}
+      label={`a clip on page ${clip.page}`}
+      actionsLabel="Clip actions"
+      actions={readOnly ? [] : [
+        {
+          label: clip.floating ? 'Lock clip to paper' : 'Let clip float with the viewport',
+          title: clip.floating ? 'Lock to paper' : 'Free float',
+          icon: <ActionGlyph name={clip.floating ? 'unlock' : 'lock'} />,
+          pressed: clip.floating,
+          onSelect: toggleFloating,
+        },
+        {
+          label: 'Send clipped content to a board',
+          icon: <ActionGlyph name="send" />,
+          tone: 'accent',
+          onSelect: () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png'),
+        },
+        { label: 'Remove clipped view', title: 'Remove', icon: <ActionGlyph name="trash" />, danger: true, onSelect: onRemove },
+      ]}
+    />
   );
 
   return (<>
@@ -506,8 +479,7 @@ function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, o
       }}
     >
       <canvas ref={canvasRef} className="clip-canvas" />
-      {who}
-      {!readOnly && actions}
+      {bar}
       {selected && !readOnly && (
         <span
           className="clip-resize"
@@ -534,14 +506,14 @@ function PdfPage({
   previewUrl,
   scale,
   renderScaleStore,
-  notes,
-  activeNoteUuid,
+  anchors,
+  activeAnchorUuid,
   analysis,
   openReferenceUuid,
   onOpenReference,
   onFollowLink,
-  onSelectNote,
-  onMoveNote,
+  onSelectAnchor,
+  onMoveAnchor,
   readOnly = false,
   project = null,
   tool,
@@ -559,7 +531,8 @@ function PdfPage({
   onSelectInk,
   onHoverInkObjects,
   onEraseStroke,
-  onEraseNote,
+  onEraseAnchor,
+  onRemoveAnchor,
   onHover,
   onDropAnchor,
   clips = [],
@@ -571,10 +544,6 @@ function PdfPage({
   onSelectClip,
   onSendClip,
   onMoveStroke,
-  noteCardFocus = null,
-  onRenameNote,
-  onWriteNote,
-  onRemoveNote,
   animal,
   animalSpeed,
   animalActivity,
@@ -1203,31 +1172,31 @@ function PdfPage({
     };
   };
 
-  const startDrag = (e, note) => {
+  const startDrag = (e, pin) => {
     // An anchor in a shared reading was placed by the user who shared it.
     // It can be pressed to go there, and not picked up.
-    if (readOnly || note.theirs || e.button !== 0) return;
+    if (readOnly || pin.theirs || e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     // Where the pointer sits relative to the anchor's own point, so the
     // shape keeps that offset instead of snapping its point to the cursor.
     const page = holderRef.current.getBoundingClientRect();
     const anchorScreen = {
-      x: page.left + note.anchor.x * page.width,
-      y: page.top + (1 - note.anchor.y) * page.height,
+      x: page.left + pin.anchor.x * page.width,
+      y: page.top + (1 - pin.anchor.y) * page.height,
     };
     dragRef.current = {
-      uuid: note.uuid,
+      uuid: pin.uuid,
       from: { x: e.clientX, y: e.clientY },
-      anchor: note.anchor,
+      anchor: pin.anchor,
       page: pageNumber,
-      spot: { page: pageNumber, anchor: note.anchor },
+      spot: { page: pageNumber, anchor: pin.anchor },
       grab: { x: e.clientX - anchorScreen.x, y: e.clientY - anchorScreen.y },
       screen: anchorScreen,
       pointer: { x: e.clientX, y: e.clientY },
       moved: false,
     };
-    setDrag({ uuid: note.uuid, anchor: note.anchor, moved: false });
+    setDrag({ uuid: pin.uuid, anchor: pin.anchor, moved: false });
   };
 
   const updateDraggedAnchor = (d) => {
@@ -1285,7 +1254,7 @@ function PdfPage({
     }
   };
 
-  const endDrag = (e, note) => {
+  const endDrag = (e, pin) => {
     e.stopPropagation();
     const d = dragRef.current;
     dragRef.current = null;
@@ -1293,13 +1262,13 @@ function PdfPage({
     dragScrollRef.current = null;
     // Dropping the drag state is also what puts a pin back that moved a
     // pixel or two and turned out to be a click: it is drawn from the
-    // note's own anchor again.
+    // anchor's own point again.
     setDrag(null);
     if (!d) return;
     draggedRef.current = d.moved;
     if (d.moved) {
-      onMoveNote(note.uuid, d.spot);
-      onSelectNote(null);
+      onMoveAnchor(pin.uuid, d.spot);
+      onSelectAnchor(null);
     }
     // A click that did not drag opens the menu — and it is left to the
     // click event, so pressing Enter on a focused pin works too.
@@ -1425,10 +1394,13 @@ function PdfPage({
     return false;
   };
 
+  // An anchor the eraser may take: the reader's own, with no dig on it.
+  const erasable = (pin) => pin.anchor && !pin.theirs && !project?.digs?.[pin.uuid];
+
   // The same reckoning the eraser itself uses, so what lights up is exactly
   // what would go.
   const under = (at) => {
-    const found = { ink: [], notes: [], animals: [] };
+    const found = { ink: [], anchors: [], animals: [] };
     const inkObjects = new Set();
     for (const stroke of ink) {
       if (stroke.theirs) continue;
@@ -1440,9 +1412,9 @@ function PdfPage({
       const object = stroke.group_uuid ? `group:${stroke.group_uuid}` : `stroke:${stroke.uuid}`;
       if (inkObjects.has(object)) found.ink.push(stroke.uuid);
     }
-    for (const note of notes) {
-      if (note.content || !note.anchor || note.theirs) continue;
-      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) found.notes.push(note.uuid);
+    for (const pin of anchors) {
+      if (!erasable(pin)) continue;
+      if (inPageUnits(pin.anchor, at) < ANCHOR_REACH) found.anchors.push(pin.uuid);
     }
     for (const animalRecord of animals) {
       if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) found.animals.push(animalRecord.id);
@@ -1458,12 +1430,11 @@ function PdfPage({
       if (nearStroke(stroke.points, at, ERASE_REACH)) onEraseStroke(stroke.uuid);
     }
     // An anchor is an annotation on the page, so the eraser takes it. What it does
-    // not take is a note with words in it: that is
-    // writing, there is no undo here, and a swipe of the hand is no way to
-    // lose it. Those are still deleted from the pin's own menu.
-    for (const note of notes) {
-      if (note.content || !note.anchor || note.theirs) continue;
-      if (inPageUnits(note.anchor, at) < ANCHOR_REACH) onEraseNote(note.uuid);
+    // not take is an anchor with a dig on it: that is writing, there is no
+    // undo here, and a swipe of the hand is no way to lose it.
+    for (const pin of anchors) {
+      if (!erasable(pin)) continue;
+      if (inPageUnits(pin.anchor, at) < ANCHOR_REACH) onEraseAnchor(pin.uuid);
     }
     for (const animalRecord of animals) {
       if (inPageUnits(animalRecord, at) < (animalFor(animalRecord.kind).size * size.width) / 2) onEraseAnimal(animalRecord.id);
@@ -1523,7 +1494,7 @@ function PdfPage({
       onHoverInkObjects(pageNumber, found.inkObjects);
       setDoomed((was) =>
         was.ink.join() === found.ink.join() &&
-        was.notes.join() === found.notes.join() &&
+        was.anchors.join() === found.anchors.join() &&
         was.animals.join() === found.animals.join()
           ? was
           : found
@@ -2001,13 +1972,13 @@ function PdfPage({
     strokeLinejoin: 'round',
   };
 
-  const pointAt = (e, note) => {
+  const pointAt = (e, pin) => {
     e.stopPropagation();
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
     }
-    onSelectNote(note.uuid);
+    onSelectAnchor(pin.uuid);
   };
 
   const stretch = scale / renderScale;
@@ -2407,16 +2378,16 @@ function PdfPage({
           ))}
         </div>
         <div className="pin-layer">
-          {notes.map((note) => (
+          {anchors.map((pin) => (
             <button
-              key={note.uuid}
+              key={pin.uuid}
               type="button"
-              className={`pin${doomed.notes.includes(note.uuid) ? ' going' : ''}${
-                note.uuid === activeNoteUuid ? ' active' : ''
-              }${note.content && !project ? '' : ' bare'}${
-                drag?.uuid === note.uuid && drag.moved ? ' dragging' : ''
-              }${note.theirs ? ' theirs' : ''}`}
-              style={drag?.uuid === note.uuid && drag.moved ? {
+              className={`pin${doomed.anchors.includes(pin.uuid) ? ' going' : ''}${
+                pin.uuid === activeAnchorUuid ? ' active' : ''
+              }${
+                drag?.uuid === pin.uuid && drag.moved ? ' dragging' : ''
+              }${pin.theirs ? ' theirs' : ''}`}
+              style={drag?.uuid === pin.uuid && drag.moved ? {
                 position: 'fixed',
                 left: drag.screen.x,
                 top: drag.screen.y,
@@ -2424,53 +2395,40 @@ function PdfPage({
               } : {
                 // The y fraction is measured from the bottom in PDF space and
                 // drawn from the top in CSS.
-                left: `${(drag?.uuid === note.uuid ? drag.anchor : note.anchor).x * 100}%`,
-                top: `${(1 - (drag?.uuid === note.uuid ? drag.anchor : note.anchor).y) * 100}%`,
+                left: `${(drag?.uuid === pin.uuid ? drag.anchor : pin.anchor).x * 100}%`,
+                top: `${(1 - (drag?.uuid === pin.uuid ? drag.anchor : pin.anchor).y) * 100}%`,
                 // Another member's pin wears their colour, as their ink does.
-                ...(note.theirs ? { '--who': memberInk(note.user) } : {}),
+                ...(pin.theirs ? { '--who': memberInk(pin.user) } : {}),
               }}
-              title={project ? undefined : note.content || 'An anchor with no note yet'}
-              onPointerDown={(e) => startDrag(e, note)}
+              aria-label={`An anchor on page ${pin.page}`}
+              data-annotation={pin.uuid}
+              onPointerDown={(e) => startDrag(e, pin)}
               onPointerMove={onDragMove}
-              onPointerUp={(e) => endDrag(e, note)}
-              onClick={(e) => pointAt(e, note)}
+              onPointerUp={(e) => endDrag(e, pin)}
+              onClick={(e) => pointAt(e, pin)}
             >
-              {/* With a project on, an anchor is a place, whatever was once
-                  written on it. */}
-              <GlyphFor note={project ? {} : note} />
+              <AnchorGlyph />
             </button>
           ))}
-          {/* The card of the anchor that is open, hung off its pin, when no
-              project is on: with one, an anchor is the place of its digs. A new
-              anchor trades a temporary uuid for a real one while its card
-              is already being typed into, so it is mounted under a key of
-              its own that the trade does not touch. */}
-          {notes.filter((note) => note.uuid === activeNoteUuid && !(drag?.uuid === note.uuid && drag.moved)
-            && !(readOnly && !note.content && !note.name)
-            && !project).map((note) => (
-            <NoteCard
-              key={note._cardKey || note.uuid}
-              note={note}
-              readOnly={readOnly || Boolean(note.theirs)}
-              by={note.theirs ? note.user : null}
-              focusField={noteCardFocus}
-              onRename={onRenameNote}
-              onWrite={onWriteNote}
-              onDelete={onRemoveNote}
-              onClose={() => onSelectNote(null)}
+          {/* The anchor in hand wears the bar every picked thing wears:
+              whose it is with a project on, its dig, and — the reader's
+              own — the way to remove it. An anchor is the place of its
+              digs, so with no margin beside the pages to hold them, its
+              dig card opens at once. */}
+          {anchors.filter((pin) => pin.uuid === activeAnchorUuid && !(drag?.uuid === pin.uuid && drag.moved)).map((pin) => (
+            <ThingBar
+              key={`bar-${pin.uuid}`}
+              className="anchor-bar"
+              style={{ left: `${pin.anchor.x * 100}%`, top: `${(1 - pin.anchor.y) * 100}%` }}
+              digs={project}
+              annotation={pin}
+              label={`an anchor on page ${pin.page}`}
+              startOpen={Boolean(project) && !project.inMargin?.(pin.uuid)}
+              actionsLabel="Anchor actions"
+              actions={readOnly || pin.theirs ? [] : [
+                { label: 'Remove anchor', title: 'Remove anchor (Delete)', icon: <ActionGlyph name="trash" />, danger: true, onSelect: () => onRemoveAnchor(pin.uuid) },
+              ]}
             />
-          ))}
-          {/* With a project on, an anchor is the place of its digs. With no
-              margin beside the pages to hold them, the pressed anchor's dig
-              card opens off a pin beside it. */}
-          {project && notes.filter((note) => note.uuid === activeNoteUuid && !project.marginHolds?.has(note.uuid)).map((note) => (
-            <span
-              key={`dig-${note.uuid}`}
-              className="place-dig"
-              style={{ left: `${note.anchor.x * 100}%`, top: `${(1 - note.anchor.y) * 100}%` }}
-            >
-              <DigPin project={project} annotation={note} label={`an anchor on page ${note.page}`} startOpen />
-            </span>
           ))}
         </div>
       </div>
