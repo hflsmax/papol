@@ -51,6 +51,8 @@ import { paperName } from '../../shared/paperName.js';
 import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
+import DeskFileDropFeedback from '../../shared/ui/FileDropFeedback.jsx';
+import { handOverDroppedPdfs, takeDroppedPdfs } from '../../shared/droppedPapers.js';
 import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
 import { droppedFolder, severalPdfs } from './agentFolder.js';
 import {
@@ -149,26 +151,6 @@ function openBoardCanvas(uuid) {
   window.location.assign(path);
 }
 
-function DeskFileDropFeedback({ state, message, opensViewer = false }) {
-  return <>
-    {state && (
-      <div className={`desk-file-drop-overlay${state === 'reject' ? ' reject' : ''}`} role="status">
-        <div className="desk-file-drop-card">
-          <strong>{state === 'reject'
-            ? 'PDF files only'
-            : opensViewer ? 'Drop PDF to open' : 'Drop PDFs or a folder to import'}</strong>
-          <span>{state === 'reject'
-            ? 'Papol’s Desk only supports PDF files.'
-            : opensViewer
-              ? 'The paper will open in Papol’s PDF viewer.'
-              : 'Papers open for review before they are added.'}</span>
-        </div>
-      </div>
-    )}
-    {message && <div className="desk-file-drop-notice" role="alert">{message}</div>}
-  </>;
-}
-
 export default function App({ startupUser = null, startupError = null }) {
   // A member coming back on the web opens the app as they left it, while
   // the sign-in is checked in the background.
@@ -258,7 +240,9 @@ export default function App({ startupUser = null, startupError = null }) {
   useEffect(() => {
     const importIntoDesk = mode === 'signed-in';
     const openInViewer = DESKTOP && mode === 'guest';
-    if (!importIntoDesk && !openInViewer) return undefined;
+    // A visitor on the web: the PDFs are kept for the nook they are about
+    // to sign in to, and its upload takes them once they have.
+    const keepForSignIn = !DESKTOP && mode === 'guest';
     const resetDrag = () => {
       deskDragDepth.current = 0;
       setDeskFileDrag(null);
@@ -295,6 +279,16 @@ export default function App({ startupUser = null, startupError = null }) {
       event.preventDefault();
       // A folder is one an agent gathered (USER_STORIES.md §2c): it opens
       // the folder's review. Its entry is read now, while the drop lasts.
+      if (keepForSignIn) {
+        const pdfs = Array.from(event.dataTransfer.files || []).filter(isPdfFile);
+        if (!pdfs.length) {
+          showNotice('Papol’s Desk only supports PDF files.');
+          return;
+        }
+        if (await handOverDroppedPdfs(pdfs)) navigate('/signin');
+        else showNotice('Sign in to add papers.');
+        return;
+      }
       const folder = droppedFolder(event.dataTransfer);
       if (folder) {
         if (openInViewer) {
@@ -351,6 +345,19 @@ export default function App({ startupUser = null, startupError = null }) {
       window.removeEventListener('drop', drop);
       window.clearTimeout(deskDropNoticeTimer.current);
     };
+  }, [mode]);
+
+  // PDFs dropped in the viewer, handed over on the way here: the nook's
+  // upload takes them as if they had been dropped on it.
+  useEffect(() => {
+    if (DESKTOP || mode !== 'signed-in') return;
+    void takeDroppedPdfs().then((files) => {
+      if (!files.length) return;
+      const uuid = globalThis.crypto.randomUUID();
+      if (files.length > 1) setIncomingPaperFolder({ uuid, files });
+      else setIncomingPaperFile({ uuid, file: files[0] });
+      navigate('/', { replace: true });
+    });
   }, [mode]);
 
   // Back and Forward return a page scrolled where it was left; a move
@@ -995,7 +1002,7 @@ export default function App({ startupUser = null, startupError = null }) {
   return (
     <>
       <style>{applicationStyles}</style>
-      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} />
+      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} />
       {adminMessageDialog}
       {macosDownloadBanner}
       {!onLanding && (

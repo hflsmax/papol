@@ -16,6 +16,7 @@ const fixtureSize = fixtureBytes.length;
 // played by a fetch that stores the upload at once and answers for the
 // job that reads it: `running` until the test says the reading is done.
 const feedbackDialog = fileURLToPath(new URL('../../shared/ui/FeedbackDialog.jsx', import.meta.url));
+const droppedPapers = fileURLToPath(new URL('../../shared/droppedPapers.js', import.meta.url));
 function uploadFixture(server) {
   server.middlewares.use('/__upload_test', async (req, res) => {
     const native = req.url.includes('native');
@@ -365,6 +366,21 @@ try {
   const dropBar = await browser.evaluate('return window.barSeen;');
   assert.ok(dropBar.length >= 1 && dropBar.every((step) => step.startsWith('Uploading ')), `the drop showed the bar: ${JSON.stringify(dropBar)}`);
   console.log('trigger: a dropped PDF turns the page to its upload at once, the bar in the form\'s place, and a failed one turns back');
+  // PDFs dropped in the viewer or before signing in are kept for the nook
+  // across the page load: taken back whole, once, and not after ten minutes.
+  const handed = await browser.evaluate(`return (async () => {
+    const kept = await import('/@fs${droppedPapers}');
+    const bytes = new Uint8Array([37, 80, 68, 70]);
+    const pdfs = [new File([bytes], 'one.pdf', {type: 'application/pdf'}), new File([bytes], 'two.pdf', {type: 'application/pdf'})];
+    const held = await kept.handOverDroppedPdfs(pdfs);
+    const taken = await kept.takeDroppedPdfs();
+    const again = await kept.takeDroppedPdfs();
+    await kept.handOverDroppedPdfs(pdfs);
+    const stale = await kept.takeDroppedPdfs(Date.now() + 11 * 60_000);
+    return {held, taken: await Promise.all(taken.map(async (f) => [f.name, f.type, (await f.arrayBuffer()).byteLength])), again: again.length, stale: stale.length};
+  })();`);
+  assert.deepEqual(handed, { held: true, taken: [['one.pdf', 'application/pdf', 4], ['two.pdf', 'application/pdf', 4]], again: 0, stale: 0 });
+  console.log('handover: dropped PDFs are kept across a page load, taken once, and let go when stale');
 } catch (error) {
   // The page as the failed assertion left it, for a run that cannot be
   // watched (scripts/share-e2e/cdp.mjs, `capture`).

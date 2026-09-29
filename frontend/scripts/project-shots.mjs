@@ -111,6 +111,9 @@ const SHOTS = {
   // takes it, its bar while it goes up, then the form.
   'drop-uploading': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
   'drop-form': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
+  // A PDF dropped in the viewer, arriving in the nook's upload after the
+  // page load that brings the reader here.
+  'drop-from-viewer': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => import('/@fs' + " + JSON.stringify(new URL('../../shared/droppedPapers.js', import.meta.url).pathname) + ").then((kept) => kept.handOverDroppedPdfs([new File([bytes], 'attention.pdf', { type: 'application/pdf' })]))).then(() => { location.reload(); return true; });", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: phone },
   // On a phone the brief opens under its row.
