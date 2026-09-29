@@ -55,6 +55,10 @@ const SHOTS = {
   'desk-paper-phase': { ...desk('papers', '.project-papers-panel .dig-phase-menu', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const w = document.querySelector('.project-papers-panel .dig-phase-word'); if (w) w.click(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // A brief's dig with its folded post box opened.
   'desk-paper-post': { ...desk('papers', '.project-papers-panel .talk-compose .md-field', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .talk-compose .md-field'); if (b) b.focus(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
+  // A press on blank desk beside a brief's dig, then on its post box: only
+  // the box itself opens.
+  'desk-paper-blank-press': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide, pointer: [['click', { x: 600, y: 797 }]] },
+  'desk-paper-box-press': { ...desk('papers', '.project-papers-panel .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide, pointer: [['click', '.project-papers-panel .talk-compose .md-field']] },
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // A member's face in a paper's dig, and where it leads: their nook.
