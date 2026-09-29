@@ -23,7 +23,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { copyOf, paperOr404 } from "../papers/detail";
-import { digsFrom, digsOf, excerpt, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
+import { digsFrom, digsOf, excerpt, liveProject, membership, LIVE_SUBJECT, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
@@ -191,7 +191,7 @@ export async function pinsOf(env: Env, projectUuid: string | null, me: User, mem
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
-     FROM digs d WHERE ${projectUuid ? "d.project_uuid = ?" : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
+     FROM digs d WHERE ${projectUuid ? `d.project_uuid = ? AND ${LIVE_SUBJECT}` : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid ?? me.uuid, ...(subjects ?? []));
   const people = await usersByUuid(env, rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]));

@@ -108,7 +108,7 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
      JOIN digs d ON d.project_uuid = m.project_uuid
-     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
+     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${LIVE_SUBJECT} AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
        OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
      GROUP BY m.project_uuid
      UNION ALL
@@ -218,7 +218,7 @@ function digsStatement(env: Env, projectUuid: string, me: User, member: Member, 
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d ${SUBJECT_JOINS}
-     WHERE d.project_uuid = ? ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
+     WHERE d.project_uuid = ? AND ${LIVE_SUBJECT} ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
 }
 
@@ -277,6 +277,23 @@ export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN boards b ON b.uuid = bi.board_uuid
   LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
   LEFT JOIN users au ON au.uuid = an.user_uuid`;
+
+// A project's dig whose subject is still the project's: its paper still
+// in the project, its card still on one of the project's boards, its
+// anchor, ink or clip not deleted, on a project paper and by a member
+// (an old note placed nowhere is no place in it).
+// Any other is kept, unshown, and comes back with its subject.
+export const LIVE_SUBJECT = `(CASE
+  WHEN d.annotation_uuid IS NOT NULL THEN EXISTS (SELECT 1 FROM annotations la
+    JOIN project_papers lpp ON lpp.paper_sha256 = la.paper_sha256 AND lpp.project_uuid = d.project_uuid
+    JOIN project_members lm ON lm.user_uuid = la.user_uuid AND lm.project_uuid = d.project_uuid
+    WHERE la.uuid = d.annotation_uuid AND la.deleted_at IS NULL AND la.kind != 'note')
+  WHEN d.board_item_uuid IS NOT NULL THEN EXISTS (SELECT 1 FROM board_items lbi
+    JOIN project_boards lpb ON lpb.board_uuid = lbi.board_uuid AND lpb.project_uuid = d.project_uuid
+    JOIN boards lb ON lb.uuid = lbi.board_uuid AND lb.deleted_at IS NULL
+    WHERE lbi.uuid = d.board_item_uuid AND lbi.deleted_at IS NULL)
+  ELSE EXISTS (SELECT 1 FROM project_papers lpp WHERE lpp.paper_sha256 = d.paper_sha256 AND lpp.project_uuid = d.project_uuid)
+END)`;
 
 // What a dig is about, said the way the project page says it.
 export function subjectOut(d: Row) {
