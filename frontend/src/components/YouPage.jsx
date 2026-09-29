@@ -4,13 +4,14 @@ import InboxPage from './InboxPage';
 import ActivityPanel from './ActivityPanel.jsx';
 import ProfilePage from './ProfilePage';
 
-const VIEWS = [['inbox', 'Inbox'], ['activity', 'Activity'], ['account', 'Account']];
+const VIEWS = [['activity', 'Activity'], ['inbox', 'Inbox'], ['account', 'Account']];
 
 // A member's own page on the web, reached by their avatar: who they are,
-// then one of what has come for them, what they have read, and their
-// account. What has come for them is first; it is why they came.
-export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, onLogout, onSync }) {
-  const [view, setView] = useState('inbox');
+// then one of what they have read, what has come for them, and their
+// account. What they have read is first and opens by default; /inbox opens
+// on what has come for them.
+export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, onLogout, onSync, initialView = 'activity' }) {
+  const [view, setView] = useState(initialView);
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (!step) return;

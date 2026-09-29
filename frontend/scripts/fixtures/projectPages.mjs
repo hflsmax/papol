@@ -271,7 +271,22 @@ function answer(method, path, search) {
       { kind: 'paper', subject: time[1], started_at: at(4, 10), ended_at: at(4, 60), seconds: 3000 },
     ] };
   }
-  if (path.startsWith('/activity')) return { spans: [], papers: {}, first_at: null };
+  // The member's week of reading, on their own page: a sitting or two a
+  // day on the fixture papers, the same every time.
+  if (path.startsWith('/activity')) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const spans = [];
+    for (let back = 6; back >= 0; back -= 1) {
+      [[9.5, 70], [14, 45 + back * 5]].forEach(([hour, minutes], i) => {
+        const start = new Date(today.getTime() - back * 86_400_000 + hour * 3_600_000);
+        const end = new Date(Math.min(start.getTime() + minutes * 60_000, Date.now()));
+        if (end <= start) return;
+        const subject = papers[(back + i) % papers.length].sha256;
+        spans.push({ kind: 'paper', subject, started_at: start.toISOString(), ended_at: end.toISOString(), seconds: Math.round((end - start) / 1000) });
+      });
+    }
+    return { spans, papers: Object.fromEntries(papers.map((p) => [p.sha256, { title: p.title, in_nook: true }])), first_at: spans[0]?.started_at ?? null };
+  }
   if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];
   if (path === '/users') return [me, ana, ben, mia].map((u) => ({ ...u, paper_count: 2 }));
   if (path === '/shelves') return [SHELF, DRAWER];
