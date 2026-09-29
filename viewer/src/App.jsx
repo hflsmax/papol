@@ -150,14 +150,15 @@ const PAGES_PADDING = 24;
 // no margin beside the page.
 const PHONE_WIDTH = 560;
 
-// A page that fits across the window, with its room either side, leaves
-// nothing to scroll sideways: the pages hold still across, with no give at
-// their edges, and only scroll sideways once a zoom makes a page wider.
+// A page that fits inside the window leaves nothing to scroll sideways:
+// the pages hold still across, centred, with no give at their edges, even
+// when the room kept for the margin either side does not all fit. They
+// only scroll sideways once a zoom makes a page wider than the window.
 function holdAcross(scroller, widest) {
-  const style = getComputedStyle(scroller);
-  const room = scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  if (widest > 0 && widest <= room + 0.5) scroller.dataset.fitsAcross = '';
-  else delete scroller.dataset.fitsAcross;
+  if (widest > 0 && widest <= scroller.clientWidth + 0.5) {
+    scroller.dataset.fitsAcross = '';
+    scroller.scrollLeft = (scroller.scrollWidth - scroller.clientWidth) / 2;
+  } else delete scroller.dataset.fitsAcross;
 }
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
@@ -3154,7 +3155,7 @@ export default function App() {
       : f && el?.querySelector(`[data-page="${f.page}"]`);
     if (!pageEl) return;
     const r = pageEl.getBoundingClientRect();
-    el.scrollLeft += r.left + f.fx * r.width - f.cx;
+    if (!('fitsAcross' in el.dataset)) el.scrollLeft += r.left + f.fx * r.width - f.cx;
     el.scrollTop += r.top + f.fy * r.height - f.cy;
   };
 
