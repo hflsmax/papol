@@ -1,0 +1,34 @@
+# Fill dev.papol.io with made-up people reading together, so there is
+# something to look at: demo@papol.test and three others, papers, two
+# projects with digs, and a board. By hand, from the Actions tab. What it
+# makes is in scripts/seed-dev/seed.mjs; a second run finds it there and
+# stops. A refresh-dev run replaces it with production's data.
+name: seed-dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: Password for the made-up accounts (8 characters or more)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    name: seed-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Keep the password out of the log
+        run: echo "::add-mask::${{ inputs.password }}"
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - name: Seed dev
+        env:
+          PAPOL_BASE: https://dev.papol.io
+          SEED_PASSWORD: ${{ inputs.password }}
+        run: node scripts/seed-dev/seed.mjs
