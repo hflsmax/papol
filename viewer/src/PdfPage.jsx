@@ -707,6 +707,7 @@ function PdfPage({
       inner.style.transform = currentScale === renderScale
         ? ''
         : `scale(${currentScale / renderScale})`;
+      inner.style.setProperty('--unzoom', String(renderScale / currentScale));
     }
   }, [size.width, size.height, renderScale, scale]);
 
@@ -2074,6 +2075,7 @@ function PdfPage({
           width: size.width ? size.width * renderScale : undefined,
           height: size.height ? size.height * renderScale : undefined,
           transform: stretch === 1 ? undefined : `scale(${stretch})`,
+          '--unzoom': stretch === 1 ? 1 : 1 / stretch,
         }}
       >
         <div className="page-canvas" ref={canvasHostRef} />

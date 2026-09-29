@@ -147,6 +147,16 @@ const PAGES_PADDING = 24;
 // Up to this wide the viewer is a phone's: digs open from their pins, with
 // no margin beside the page.
 const PHONE_WIDTH = 560;
+
+// A page that fits across the window, with its room either side, leaves
+// nothing to scroll sideways: the pages hold still across, with no give at
+// their edges, and only scroll sideways once a zoom makes a page wider.
+function holdAcross(scroller, widest) {
+  const style = getComputedStyle(scroller);
+  const room = scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  if (widest > 0 && widest <= room + 0.5) scroller.dataset.fitsAcross = '';
+  else delete scroller.dataset.fitsAcross;
+}
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -2225,6 +2235,13 @@ export default function App() {
   );
   const withMargin = Boolean(digView) && viewWidth > PHONE_WIDTH && marginLines.length > 0;
   useLayoutEffect(() => { refit.current?.(); }, [withMargin]);
+  // Settled on a scale, a window size or a margin: whether the pages fit across.
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || scale == null) return;
+    const widest = Math.max(0, ...[...el.querySelectorAll('.pdf-page')].map((page) => page.getBoundingClientRect().width));
+    holdAcross(el, widest);
+  }, [scale, withMargin, viewWidth, doc]);
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
@@ -3104,15 +3121,22 @@ export default function App() {
     const el = scrollerRef.current;
     if (!el || value == null) return;
     el.dataset.scale = String(value);
+    let widest = 0;
     for (const { page: pageEl, inner } of zoomPages.current.get(el)) {
       const width = Number(pageEl.dataset.pageWidth);
       const height = Number(pageEl.dataset.pageHeight);
       const drawnAt = Number(pageEl.dataset.renderScale);
       if (!width || !height) continue;
+      widest = Math.max(widest, width * value);
       pageEl.style.width = `${width * value}px`;
       pageEl.style.height = `${height * value}px`;
-      if (inner && drawnAt) inner.style.transform = value === drawnAt ? '' : `scale(${value / drawnAt})`;
+      if (inner && drawnAt) {
+        inner.style.transform = value === drawnAt ? '' : `scale(${value / drawnAt})`;
+        // Pins and their bar scale back by as much, so they keep their size.
+        inner.style.setProperty('--unzoom', value === drawnAt ? '1' : String(drawnAt / value));
+      }
     }
+    holdAcross(el, widest);
   };
 
   // Scroll so a spot captured by captureFocus is back under the point it
