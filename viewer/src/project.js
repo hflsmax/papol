@@ -64,3 +64,16 @@ export function whoMarked(annotations, me) {
   }
   return [...seen.values()];
 }
+
+// How far down its page an annotation sits, as a fraction from the top: an
+// anchor at its point, ink at its highest point, a clip at the top of its
+// frame. Anchors and ink are PDF-space (y up); a clip's frame is measured
+// from the top. The Worker orders a paper's digs by the same rule.
+export function annotationDown(annotation) {
+  const ys = (annotation.points ?? []).map((point) => point.y).filter(Number.isFinite);
+  const down = typeof annotation.anchor?.y === 'number' ? 1 - annotation.anchor.y
+    : ys.length ? 1 - Math.max(...ys)
+    : typeof annotation.frame?.y === 'number' ? annotation.frame.y
+    : 0.5;
+  return Math.min(1, Math.max(0, down));
+}

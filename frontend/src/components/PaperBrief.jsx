@@ -51,6 +51,30 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
   const viewer = appPath(annotationViewerPath(project.uuid, paper.sha256));
   const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
 
+  // The digs made inside the paper, on its anchors, ink and clips, in
+  // reading order: page by page, top to bottom.
+  const inside = (project.digs ?? [])
+    .filter((d) => d.subject?.kind === 'annotation' && d.subject.paper_sha256 === paper.sha256)
+    .sort((a, b) => (a.subject.page ?? 0) - (b.subject.page ?? 0) || (a.subject.down ?? 0) - (b.subject.down ?? 0));
+  // A link into the paper opens it here, as Read does.
+  const open = (href) => (e) => {
+    if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onRead(href);
+  };
+  const changed = () => { loadDigs(); onChanged().catch(() => {}); };
+  const folded = (d) => (
+    <button
+      type="button" className="paper-brief-dig-folded" key={d.uuid} aria-expanded="false"
+      onClick={() => setUnfolded((was) => new Set(was).add(d.uuid))}
+    >
+      {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
+      <span className="paper-brief-dig-owner">{d.is_mine ? 'You' : d.owner?.display_name}</span>
+      <span className="dig-phase-word is-buried"><PhaseGlyph phase="buried" />Buried</span>
+      <span>{day(d.updated_at)}</span>
+    </button>
+  );
+
   const takeOut = async () => {
     const ok = await confirmAction(`Take this paper out of ${project.name}? Its digs stay in the project.`, { confirmLabel: 'Take out', destructive: true });
     if (ok) await act(() => removePaperFromProject(project.uuid, paper.sha256));
@@ -68,14 +92,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
           </p>
         )}
         <div className="paper-brief-actions">
-          <a
-            className="button primary" href={viewer} data-document
-            onClick={(e) => {
-              if (!onRead || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              onRead(viewer);
-            }}
-          >
+          <a className="button primary" href={viewer} data-document onClick={open(viewer)}>
             Read
           </a>
           {!paper.in_my_nook && (
@@ -93,22 +110,12 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
         <section className="paper-brief-digs" aria-label="Digs">
           {/* Yours first, then the others' by phase, as the Digs tab lists them. */}
           {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
-            d.phase === 'buried' && !unfolded.has(d.uuid) ? (
-              <button
-                type="button" className="paper-brief-dig-folded" key={d.uuid} aria-expanded="false"
-                onClick={() => setUnfolded((was) => new Set(was).add(d.uuid))}
-              >
-                {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
-                <span className="paper-brief-dig-owner">{d.is_mine ? 'You' : d.owner?.display_name}</span>
-                <span className="dig-phase-word is-buried"><PhaseGlyph phase="buried" />Buried</span>
-                <span>{day(d.updated_at)}</span>
-              </button>
-            ) : (
+            d.phase === 'buried' && !unfolded.has(d.uuid) ? folded(d) : (
               <div className="paper-brief-dig" key={d.uuid}>
                 <TalkCard
                   inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
                   projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
-                  onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
+                  onChanged={changed}
                 />
               </div>
             )
@@ -118,10 +125,36 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
               <TalkCard
                 inline single tucked seekUnread={() => false} dig="mine"
                 projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
-                onChanged={() => { loadDigs(); onChanged().catch(() => {}); }}
+                onChanged={changed}
               />
             </div>
           )}
+        </section>
+      )}
+
+      {inside.length > 0 && (
+        <section className="paper-brief-inside" aria-label="Digs inside the paper">
+          {/* Each led by its place in the paper, which opens the paper
+              there with this dig open beside it. */}
+          {inside.map((d) => {
+            const place = appPath(annotationViewerPath(project.uuid, paper.sha256, { annotation: d.subject.annotation_uuid, dig: d.uuid }));
+            return (
+              <div className="paper-brief-place" key={d.uuid}>
+                <a className="paper-brief-place-link" href={place} data-document onClick={open(place)}>
+                  <PaperTitle title={d.subject.label} />
+                </a>
+                {d.phase === 'buried' && !unfolded.has(d.uuid) ? folded(d) : (
+                  <div className="paper-brief-dig">
+                    <TalkCard
+                      inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                      projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser}
+                      onChanged={changed}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </section>
       )}
     </article>

@@ -153,10 +153,13 @@ export function when(iso, { time = false } = {}) {
 // opens the dig card beside it. Anything else that opens a dig (a row in a
 // list, the latest words on a card) opens the same card, with no mark of
 // its own.
+// A pin can arrive open on one of its digs (`openOn`): a link to that dig
+// lands on its thing with the dig already showing.
 export function TalkPin({
-  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title,
+  projectUuid, subject, label, summary, currentUser, onChanged, size = 'md', className = '', title, openOn = null,
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(openOn));
+  const [asked, setAsked] = useState(openOn);
   const [local, setLocal] = useState(null);
   const pin = useRef(null);
   const key = subjectKey(subject);
@@ -201,9 +204,10 @@ export function TalkPin({
           projectUuid={projectUuid}
           subject={key}
           label={label}
+          dig={asked}
           currentUser={currentUser}
           onChanged={changed}
-          onClose={() => { setOpen(false); pin.current?.focus({ preventScroll: true }); }}
+          onClose={() => { setOpen(false); setAsked(null); pin.current?.focus({ preventScroll: true }); }}
         />,
         document.body,
       )}

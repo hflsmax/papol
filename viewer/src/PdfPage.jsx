@@ -34,6 +34,7 @@ function DigPin({ project, annotation, label, size = 'sm' }) {
       currentUser={project.me}
       onChanged={project.onDigChanged}
       size={size}
+      openOn={project.landing?.annotation === annotation.uuid ? project.landing.dig : null}
     />
   );
 }

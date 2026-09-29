@@ -90,6 +90,10 @@ const boards = [
 const subject = {
   paperError: { key: `paper:${P_ERROR}`, kind: 'paper', paper_sha256: P_ERROR, label: 'Error dynamics in adaptive optics loops' },
   paperSurvey: { key: `paper:${P_SURVEY}`, kind: 'paper', paper_sha256: P_SURVEY, label: 'A survey of predictive control for telescopes' },
+  // Digs made inside the error-dynamics paper: on an anchor, on ink, on a clip.
+  anchorDelay: { key: 'annotation:a9000000-0000-4000-8000-000000000001', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000001', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'note', page: 3, down: 0.42, by: 'Ben Hall', label: 'Delay assumed fixed at one frame' },
+  inkBudget: { key: 'annotation:a9000000-0000-4000-8000-000000000002', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000002', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'ink', page: 5, down: 0.3, by: 'Ana Reyes', label: 'Ink on page 5' },
+  clipFigure: { key: 'annotation:a9000000-0000-4000-8000-000000000003', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000003', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'clip', page: 8, down: 0.2, by: 'Dana Okafor', label: 'A clip on page 8' },
   card: { key: `card:${CARD_SPARSE}`, kind: 'card', board_item_uuid: CARD_SPARSE, board_uuid: BOARD_PLAN, board_name: 'Bench plan', card_kind: 'comment', label: 'Sparse attention at long context' },
 };
 
@@ -114,6 +118,9 @@ I added "Measure the loop delay" to the Bench plan board. Let's do that before a
 ];
 
 const digs = [
+  { uuid: 'd9000000-0000-4000-8000-000000000001', owner: ben, is_mine: false, text: 'This is the assumption our bench breaks. Everything in section 4 leans on it.', subject: subject.anchorDelay, post_count: 1, unread: 1, is_new: true, voices: [ben, ana], updated_at: hoursAgo(5), created_at: daysAgo(1), last_post: { user: ana, excerpt: 'Worth a line in the bench plan: measure it before we tune anything.', created_at: hoursAgo(5) } },
+  { uuid: 'd9000000-0000-4000-8000-000000000002', owner: ana, is_mine: false, text: 'Eq. 12 grows with the square of the delay, so 1.3 frames is not a small miss.', subject: subject.inkBudget, post_count: 0, unread: 0, is_new: false, voices: [ana], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ana, excerpt: 'Eq. 12 grows with the square of the delay, so 1.3 frames is not a small miss.', created_at: daysAgo(1) } },
+  { uuid: 'd9000000-0000-4000-8000-000000000003', owner: me, is_mine: true, phase: 'gold', text: 'Figure 6 is the only on-sky test. Keep this one for the write-up.', subject: subject.clipFigure, post_count: 0, unread: 0, is_new: false, voices: [me], updated_at: daysAgo(2), created_at: daysAgo(2), last_post: { user: me, excerpt: 'Figure 6 is the only on-sky test. Keep this one for the write-up.', created_at: daysAgo(2) } },
   { uuid: DIG_PAPER, owner: ana, is_mine: false, text: errorPosts[0].body, subject: subject.paperError, post_count: 2, unread: 1, is_new: true, voices: [ana, me, ben], updated_at: hoursAgo(3), created_at: daysAgo(2), last_post: { user: ben, excerpt: errorPosts[2].body, created_at: hoursAgo(3) } },
   { uuid: DIG_PAPER_BEN, owner: ben, is_mine: false, phase: 'stashed', text: 'The appendix has the raw delay traces; worth plotting against ours.', subject: subject.paperError, post_count: 0, unread: 0, is_new: false, voices: [ben], updated_at: daysAgo(1), created_at: daysAgo(1), last_post: { user: ben, excerpt: 'The appendix has the raw delay traces; worth plotting against ours.', created_at: daysAgo(1) } },
   { uuid: DIG_CARD, owner: me, is_mine: true, text: 'Their few-shot result is why this card goes first.', subject: subject.card, post_count: 3, unread: 0, is_new: false, voices: [me, ben], updated_at: hoursAgo(20), created_at: daysAgo(2), last_post: { user: ben, excerpt: 'Before we try this, what does "few-shot" mean on our bench? Their examples are 200 open-loop frames, which we can record in an afternoon.', created_at: hoursAgo(20) } },

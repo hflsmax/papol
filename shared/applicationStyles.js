@@ -5468,6 +5468,16 @@ ${talkStyles}
 /* A buried dig folds to its owner's line; pressing it opens the dig. */
 .paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
 .paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink-soft); }
+/* The digs made inside the paper, in reading order. Each sheet opens with
+   its place: a note's words, or the ink or clip and its page. The place is
+   the way into the paper there, with the dig open beside it. */
+.paper-brief-inside { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
+.paper-brief-place { padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--paper-sunken); }
+.paper-brief-place .paper-brief-dig { padding: 0; background: none; }
+.paper-brief-place .paper-brief-dig-folded { padding-left: 0; padding-right: 0; }
+.paper-brief-place .paper-brief-dig-folded:hover:not(:disabled) { background: none; }
+.paper-brief-place-link { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-bottom: var(--space-1); color: var(--ink-soft); font: italic var(--fs-sm)/1.4 var(--font-serif); text-decoration: none; }
+.paper-brief-place-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .paper-brief-dig-folded .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .paper-brief-dig-owner { color: var(--ink-soft); font-weight: 600; }
 .paper-brief-dig-folded .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: inherit; font: inherit; pointer-events: none; }
