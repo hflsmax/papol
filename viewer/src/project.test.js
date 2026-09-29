@@ -90,4 +90,9 @@ describe('the dig margin', () => {
   it('holds nothing when nobody has dug', () => {
     assert.deepEqual(marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 1, anchor: { x: 0, y: 0 } }] }), []);
   });
+
+  it('gives a thing nobody has dug a line while the reader starts a dig on it', () => {
+    const lines = marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 2, anchor: { x: 0, y: 0.75 } }], writing: 'n' });
+    assert.deepEqual(lines.map((l) => [l.key, l.page, l.down, l.pin]), [['n', 2, 0.25, {}]]);
+  });
 });

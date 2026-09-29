@@ -1333,9 +1333,13 @@ ${talkStyles}
 }
 
 /* With a project on and room to spare, the sheets make way on the right
-   for the dig margin (DigMargin.jsx): 28px from the sheet, 300px wide, and
+   for the dig margin (DigMargin.jsx): 20px from the sheet, 300px wide, and
    the pages' own 24px beyond it. The fitted zoom reads this padding. */
-.pages.with-margin { padding-right: 376px; }
+.pages.with-margin { padding-right: 344px; }
+/* The margin's column runs to the window's foot, so the feedback chip
+   steps to the other corner rather than sit over a dig. */
+body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
 .dig-margin-line { position: absolute; box-sizing: border-box; z-index: 5; }
 .dig-margin-head {
@@ -1343,7 +1347,7 @@ ${talkStyles}
   border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink);
   font: inherit; text-align: left; cursor: pointer;
 }
-.dig-margin-head:hover, .dig-margin-head:focus-visible { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.dig-margin-head:hover, .dig-margin-head:focus-visible, .dig-margin-line.is-picked .dig-margin-head { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .dig-margin-who { display: flex; align-items: center; gap: 6px; min-width: 0; font: 600 var(--fs-sm)/20px var(--font-ui); }
 .dig-margin-who .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
 .dig-margin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1357,6 +1361,31 @@ ${talkStyles}
 .dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
 .dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .dig-margin-line .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+/* Inside, the card keeps the margin's one column: owners, posts and the
+   box all start where the line's name did, and the phase stands on the
+   dig's own line after its date, as in the brief. */
+.dig-margin-line .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
+.dig-margin-line .talk-card.is-inline .talk-card-error { margin-left: 0; }
+.dig-margin-line .talk-post { margin: 0; padding: 4px 0; }
+.dig-margin-line .talk-post:hover { background: none; }
+.dig-margin-line .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.dig-margin-line .talk-post-head { margin-bottom: 2px; }
+.dig-margin-line .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.dig-margin-line .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
+.dig-margin-line .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.dig-margin-line .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.dig-margin-line .talk-post-body > :last-child { margin-bottom: 0; }
+.dig-margin-line .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
+.dig-margin-line .talk-post-head .dig-phase-word::before { content: '·'; margin-right: 6px; color: var(--ink-faint); }
+.dig-margin-line .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
+.dig-margin-line .talk-post-head .dig-phase-pick { margin-left: 0; }
+.dig-margin-line .talk-post-head .dig-phase-menu { right: auto; left: 0; }
+.dig-margin-line .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
+.dig-margin-line .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
+.dig-margin-line .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
+.dig-margin-line .talk-compose textarea:focus { min-height: 88px; }
+.dig-margin-line .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
+.dig-margin-line .talk-compose .talk-send:disabled { display: none; }
 
 .animal-gutter {
   position: relative;

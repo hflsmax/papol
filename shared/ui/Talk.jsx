@@ -537,7 +537,7 @@ export function TalkCard({
               <Face user={currentUser} />You
             </button>
           )}
-          {pickerWithOwners && picker}
+          {pickerWithOwners && !phaseInHead && picker}
         </nav>
       )}
 

@@ -513,6 +513,8 @@ export default function App() {
   // Whether the dig margin takes room beside the sheets, which the fitted
   // zoom has to leave for it.
   const [marginShown, setMarginShown] = useState(false);
+  // The margin's open line: { key, dig, writing } (DigMargin.jsx).
+  const [marginOpen, setMarginOpen] = useState(null);
   const wantedPage = numberParam('page');
   const wantedY = fractionParam('y');
   const wantedSelection = useMemo(selectionParam, []);
@@ -1473,6 +1475,11 @@ export default function App() {
         closeStorageNotice();
         return;
       }
+      if (e.key === 'Escape' && marginOpen) {
+        e.preventDefault();
+        closeMargin({ refocus: true });
+        return;
+      }
       if (e.key === 'Escape' && selectedClipUuid != null) {
         e.preventDefault();
         setSelectedClipUuid(null);
@@ -1664,20 +1671,27 @@ export default function App() {
   // A dig opened or grown from the viewer shows on its pin at once.
   // The margin keeps the words of the dig it shows, so a dig just written
   // shows there at once too.
+  // The line keeps leading with the dig it led with (the reader's own,
+  // else the latest) unless that is the dig just changed, or the reader's
+  // own was just written.
   const digChanged = useEvent((key, next, discussion) => {
-    const summary = next && (next.post_count || next.dig_count || next.uuid) ? {
-      ...next,
-      lead: discussion ? { owner: discussion.owner, phase: discussion.phase, excerpt: plainExcerpt(discussion.text) } : next.lead,
-    } : undefined;
     setProjectView((view) => {
       if (!view) return view;
-      if (key.startsWith('paper:')) return { ...view, paperDigs: summary ?? null };
+      const paperKey = key.startsWith('paper:');
+      const was = paperKey ? view.paperDigs : view.digs[key.slice('annotation:'.length)];
+      const fresh = discussion && { owner: discussion.owner, phase: discussion.phase, excerpt: plainExcerpt(discussion.text) };
+      const keep = was?.lead?.owner && discussion && was.lead.owner.uuid !== discussion.owner?.uuid && !discussion.is_mine;
+      const summary = next && (next.post_count || next.dig_count || next.uuid) ? {
+        ...next,
+        lead: keep ? was.lead : (fresh ?? next.lead ?? was?.lead),
+        voices: next.voices?.length ? next.voices : was?.voices ?? [],
+      } : undefined;
+      if (paperKey) return { ...view, paperDigs: summary ?? null };
       return { ...view, digs: { ...view.digs, [key.slice('annotation:'.length)]: summary } };
     });
   });
   const marginDigChanged = useEvent((key, discussion, total) => digChanged(key, discussion ? {
     uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts?.length ?? 0, is_new: false,
-    voices: [],
   } : null, discussion));
   // What PdfPage needs to pin a dig on an annotation, and nothing else of
   // the project: one object, so the pages are not redrawn for the bar.
@@ -2175,31 +2189,51 @@ export default function App() {
   // thing dug, the paper's own at the head of the first page, the rest in
   // reading order by where their annotation sits.
   const roomy = useRoomy(`(min-width: ${Math.round(MARGIN_WIDTH * 3.6)}px)`);
-  const [marginOpen, setMarginOpen] = useState(null);
+  const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
-    () => (projectView && paper ? marginLinesOf({ paper, paperDigs: projectView.paperDigs, digs: projectView.digs, notes: shownNotes, ink: shownInk, clips: shownClips }) : []),
-    [projectView, paper?.sha256, paper?.title, shownNotes, shownInk, shownClips],
+    () => (projectView && paper ? marginLinesOf({
+      paper, paperDigs: projectView.paperDigs, digs: projectView.digs, notes: shownNotes, ink: shownInk, clips: shownClips, writing: marginWriting,
+    }) : []),
+    [projectView, paper?.sha256, paper?.title, shownNotes, shownInk, shownClips, marginWriting],
   );
   const withMargin = Boolean(projectView) && roomy && marginLines.length > 0;
   useEffect(() => { setMarginShown(withMargin); }, [withMargin]);
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
-  const openInMargin = useEvent((line, dig = null) => {
-    setMarginOpen({ key: line.key, dig });
+  const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
+    setMarginOpen({ key: line.key, dig, writing, landed });
+    if (line.kind === 'note') setActiveNoteUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
     }
     if (line.kind === 'clip') setSelectedClipUuid(line.annotation);
   });
-  // A pin on something the margin holds opens its line there rather than
-  // a card of its own.
+  // With the margin shown, a pin opens its thing's line there rather than
+  // a card of its own; on a thing nobody has dug, a line for the reader's
+  // dig, level with it, for as long as they write.
   const inMargin = useCallback((uuid) => {
     if (!withMargin) return null;
     const line = marginLines.find((l) => l.annotation === uuid);
-    return line ? () => openInMargin(line) : null;
-  }, [withMargin, marginLines]);
+    if (line) return () => openInMargin(line);
+    const kind = shownNotes.some((a) => a.uuid === uuid) ? 'note'
+      : shownInk.some((a) => a.uuid === uuid) ? 'ink'
+      : shownClips.some((a) => a.uuid === uuid) ? 'clip' : null;
+    return kind ? () => openInMargin({ key: uuid, annotation: uuid, kind }, 'mine', true) : null;
+  }, [withMargin, marginLines, shownNotes, shownInk, shownClips]);
+  // Escape folds the open line and hands the keyboard back to it.
+  const closeMargin = useEvent(({ refocus = false } = {}) => {
+    const key = marginOpen?.key;
+    setMarginOpen(null);
+    if (refocus && key) {
+      window.requestAnimationFrame(() => {
+        scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
+      });
+    }
+  });
+  // The thing picked on the page, whose line answers it.
+  const marginPicked = activeNoteUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
   const pageProject = useMemo(() => (projectView ? {
     uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin,
   } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin]);
@@ -3669,7 +3703,7 @@ export default function App() {
       const box = scroller.getBoundingClientRect();
       scroller.scrollTo({ top: scroller.scrollTop + page.top + down * page.height - box.top - box.height / 2 });
       const line = marginLinesRef.current.find((l) => l.annotation === found.uuid);
-      if (line) openInMargin(line, wantedDigUuid);
+      if (line) openInMargin(line, wantedDigUuid, false, true);
       else setLanding({ annotation: found.uuid, dig: wantedDigUuid });
       if (note) setActiveNoteUuid(note.uuid);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
@@ -4833,7 +4867,7 @@ export default function App() {
           {withMargin && scale && (
             <DigMargin
               scrollerRef={scrollerRef} lines={marginLines} layoutKey={scale}
-              open={marginOpen} onOpen={(line) => openInMargin(line)} onClose={() => setMarginOpen(null)}
+              open={marginOpen} picked={marginPicked} onOpen={(line) => openInMargin(line)} onClose={() => closeMargin()}
               project={projectView} onChanged={marginDigChanged}
             />
           )}

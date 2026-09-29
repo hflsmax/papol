@@ -80,15 +80,16 @@ export function annotationDown(annotation) {
 
 // The lines of the dig margin: one for each thing dug, the paper's own at
 // the head of its first page, then every dug annotation where it sits,
-// page by page, top to bottom.
-export function marginLinesOf({ paper, paperDigs, digs, notes = [], ink = [], clips = [] }) {
+// page by page, top to bottom. `writing` is a thing nobody has dug that
+// the reader is starting a dig on: it has its line while they write.
+export function marginLinesOf({ paper, paperDigs, digs, notes = [], ink = [], clips = [], writing = null }) {
   const lines = [];
   if (paperDigs) {
     lines.push({ key: 'paper', subject: `paper:${paper.sha256}`, label: paper.title || 'this paper', page: 1, down: 0, pin: paperDigs });
   }
   const all = [...notes.map((a) => ['note', a]), ...ink.map((a) => ['ink', a]), ...clips.map((a) => ['clip', a])];
   for (const [kind, a] of all) {
-    const pin = digs?.[a.uuid];
+    const pin = digs?.[a.uuid] ?? (a.uuid === writing ? {} : null);
     if (!pin || !a.page) continue;
     const label = kind === 'note' ? (a.name || a.content || `An anchor on page ${a.page}`)
       : kind === 'ink' ? `Ink on page ${a.page}` : `A clip on page ${a.page}`;
