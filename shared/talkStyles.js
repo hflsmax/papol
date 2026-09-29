@@ -108,10 +108,14 @@ export const talkStyles = `
    the hand, and nothing shrinks from under a press on Dig. */
 .talk-dig-new :is(textarea, .md-field):focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
-/* A folded box: one quiet word that opens it. */
-.talk-unfold { display: inline-flex; align-self: flex-start; width: max-content; align-items: center; gap: 6px; box-sizing: border-box; min-height: 30px; padding: 0 12px; font: 500 var(--fs-sm)/1 var(--font-ui); }
-.talk-unfold:has(.mini-avatar) { padding-left: 5px; }
-.talk-unfold .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
+/* Tucked: your face, one thin line and its send button, the line opening
+   downward when pressed, as the box that posts does. */
+.talk-dig-new.is-tucked { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 6px; }
+.talk-dig-new.is-tucked .mini-avatar { margin-top: 3px; }
+.talk-dig-new.is-tucked :is(textarea, .md-field) { box-sizing: border-box; scroll-margin-bottom: 16px; min-height: 28px; padding: 4px 10px; font-size: var(--fs-sm); line-height: 1.35; }
+.talk-dig-new.is-tucked :is(textarea, .md-field):is(:focus, :not(:placeholder-shown, [data-empty])) { min-height: 76px; }
+.talk-dig-new.is-tucked .talk-send { width: 28px; height: 28px; }
+.talk-dig-new.is-tucked .talk-send svg { width: 15px; height: 15px; }
 .talk-post-body { color: var(--ink); font: var(--fs-sm)/1.32 var(--font-serif); overflow-wrap: anywhere; }
 .talk-post-body p { margin: 0 0 3px; }
 .talk-post-body :is(ol, ul) { margin: 0 0 3px; padding-left: 1.3em; }

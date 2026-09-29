@@ -5359,6 +5359,10 @@ ${talkStyles}
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }
+/* Your face in the column of the owners' faces below, the line where
+   their post boxes start. */
+.paper-brief-dig.is-yours .talk-dig-new.is-tucked { grid-template-columns: 18px minmax(0, 1fr) auto; }
+.paper-brief-dig.is-yours .talk-dig-new.is-tucked .mini-avatar { width: 18px; height: 18px; margin-top: 5px; font-size: 9px; }
 /* A buried dig folds to its owner's line; pressing it opens the dig. */
 .paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
 .paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink-soft); }

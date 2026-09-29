@@ -314,8 +314,8 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // the one that says what the dig is about.
 // With phaseInHead the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
-// With tucked a new dig's box stays folded to one word until it is pressed,
-// and the box that posts is one thin line that opens downward when pressed.
+// With tucked, the box that starts your dig and the box that posts are each
+// one thin line with a send button at its end, opening downward when pressed.
 // What a change leaves on the thing: how many digs and posts it holds, and
 // each dig, oldest first, whose it is.
 function tally(next, all) {
@@ -335,11 +335,6 @@ export function TalkCard({
   const [discussion, setDiscussion] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.discussion);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
-  const [unfolded, setUnfolded] = useState(false);
-  const folded = tucked && !unfolded && !body;
-  useEffect(() => { if (unfolded) box.current?.focus(); }, [unfolded]);
-  // An emptied box folds away again when it is left.
-  const leave = () => { if (!body.trim()) setUnfolded(false); };
   const [busy, setBusy] = useState(false);
   const [spot, setSpot] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -446,7 +441,6 @@ export function TalkCard({
       setDiscussion(next);
       setDigs((all) => (all.some((d) => d.uuid === next.uuid) ? all : [...all, { uuid: next.uuid, owner: next.owner, is_mine: next.is_mine }]));
       setBody('');
-      setUnfolded(false);
       toEnd();
       // The pin counts every dig on its thing and every post, this dig as
       // it now stands.
@@ -578,14 +572,24 @@ export function TalkCard({
       )}
 
       <div className="talk-card-body" ref={list}>
-        {discussion === undefined ? null : writing && folded ? (
-          <button type="button" className="talk-unfold" onClick={() => setUnfolded(true)}><Face user={currentUser} />Dig</button>
+        {discussion === undefined ? null : writing && tucked ? (
+          <form className="talk-dig-new is-tucked" onSubmit={send}>
+            <Face user={currentUser} />
+            <MarkdownField
+              ref={box} rows={1} value={body} maxLength={POST_LIMIT} placeholder="Your dig" aria-label="Your dig"
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
+            />
+            <button type="submit" className="talk-send" disabled={busy || !body.trim()} aria-label="Dig" title="Dig (⌘↩)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+            </button>
+          </form>
         ) : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
             <Face user={currentUser} />
             <MarkdownField
               ref={box} rows={1} value={body} maxLength={POST_LIMIT} placeholder="Your dig" aria-label="Your dig"
-              onChange={(e) => setBody(e.target.value)} onBlur={leave}
+              onChange={(e) => setBody(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
             />
             <span className="talk-dig-new-foot">

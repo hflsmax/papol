@@ -1386,6 +1386,7 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr); }
 .dig-margin-card .talk-dig-new > .mini-avatar { display: none; }
 .dig-margin-card .talk-dig-new-foot { grid-column: 1; }
+.dig-margin-card .talk-dig-new.is-tucked { grid-template-columns: minmax(0, 1fr) auto; }
 .dig-margin-card .talk-post { margin: 0; padding: 4px 0; }
 .dig-margin-card .talk-post:hover { background: none; }
 .dig-margin-card .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }

@@ -20,7 +20,7 @@ function day(iso) {
 // tab beside the list (or under its row on a narrow window). Where the
 // Library's jacket says what the paper is, the brief says what this group
 // makes of it: its digs, one per member who wrote about it, each on its
-// own, then yours to write if you have not.
+// own, with yours, or the line to write it, first.
 export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead }) {
   const [notice, setNotice] = useState(null);
   const [digs, setDigs] = useState(null);
@@ -108,7 +108,17 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
 
       {digs && (
         <section className="paper-brief-digs" aria-label="Digs">
-          {/* Yours first, then the others' by phase, as the Digs tab lists them. */}
+          {/* Yours first, to write if you have not, then the others' by
+              phase, as the Digs tab lists them. */}
+          {currentUser && !digs.some((d) => d.is_mine) && (
+            <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
+              <TalkCard
+                inline single tucked seekUnread={() => false} dig="mine"
+                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
+                onChanged={changed}
+              />
+            </div>
+          )}
           {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
             d.phase === 'buried' && !unfolded.has(d.uuid) ? folded(d) : (
               <div className="paper-brief-dig" key={d.uuid}>
@@ -120,15 +130,6 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
               </div>
             )
           ))}
-          {currentUser && !digs.some((d) => d.is_mine) && (
-            <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
-              <TalkCard
-                inline single tucked seekUnread={() => false} dig="mine"
-                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
-                onChanged={changed}
-              />
-            </div>
-          )}
         </section>
       )}
 
