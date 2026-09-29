@@ -61,7 +61,14 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
     e.preventDefault();
     onRead(href);
   };
-  const changed = () => { loadDigs(); onChanged().catch(() => {}); };
+  // A dig you have just written takes its sheet at once, in the same card,
+  // before the list comes back.
+  const changed = (next) => {
+    if (next?.is_mine) setDigs((all) => (all?.some((d) => d.uuid === next.uuid) ? all : [...(all ?? []), next]));
+    loadDigs();
+    onChanged().catch(() => {});
+  };
+  const mine = digs?.find((d) => d.is_mine && d.phase !== 'stashed');
   const takeOut = async () => {
     const ok = await confirmAction(`Take this paper out of ${project.name}? Its digs stay in the project.`, { confirmLabel: 'Take out', destructive: true });
     if (ok) await act(() => removePaperFromProject(project.uuid, paper.sha256));
@@ -95,18 +102,19 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
 
       {digs && (
         <section className="paper-brief-digs" aria-label="Digs">
-          {/* Yours first, to write if you have not, then the others' by
-              phase, as the Digs tab lists them. */}
-          {currentUser && !digs.some((d) => d.is_mine) && (
-            <div className="paper-brief-dig is-yours" key={`mine:${digs.length}`}>
+          {/* Yours first, or the line to write it, then the others' by
+              phase, as the Digs tab lists them. Yours is one card from the
+              line to the dig it becomes, so sending it moves nothing. */}
+          {currentUser && !digs.some((d) => d.is_mine && d.phase === 'stashed') && (
+            <div className={`paper-brief-dig${mine ? '' : ' is-yours'}`} key="yours">
               <TalkCard
-                inline single tucked seekUnread={() => false} dig="mine"
+                inline single phaseInHead tucked unread={mine ? unread[mine.uuid] ?? 0 : 0} seekUnread={() => false} dig={mine?.uuid ?? 'mine'}
                 projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                 onChanged={changed}
               />
             </div>
           )}
-          {digs.filter((d) => d.phase !== 'stashed').sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
+          {digs.filter((d) => !d.is_mine && d.phase !== 'stashed').sort((a, b) => phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
             <div className="paper-brief-dig" key={d.uuid}>
               <TalkCard
                 inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}

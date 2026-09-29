@@ -224,7 +224,7 @@ function theirNook(owner) {
 }
 
 // What the pretend server says to each request the pages make.
-function answer(method, path, search) {
+function answer(method, path, search, sent = {}) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
   if (path === '/notifications') {
     const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
@@ -246,6 +246,15 @@ function answer(method, path, search) {
   if (path === `/projects/${PROJECT}/people`) {
     const asked = (search?.get('q') ?? '').toLowerCase();
     return asked ? outsiders.filter((u) => u.display_name.toLowerCase().includes(asked)) : [];
+  }
+  // A dig written in the pictures: the member's own, kept for the visit.
+  if (path === `/projects/${PROJECT}/digs` && method === 'POST') {
+    const at = new Date().toISOString();
+    const made = { uuid: `d9100000-0000-4000-8000-${String(digs.length).padStart(12, '0')}`, owner: me, is_mine: true, phase: 'digging', text: sent.text, subject: { key: sent.subject, kind: sent.subject.split(':')[0], label: 'A thing' }, post_count: 0, unread: 0, is_new: false, voices: [me], updated_at: at, created_at: at, last_post: { user: me, excerpt: sent.text, created_at: at } };
+    const paperOf = Object.values(subject).find((x) => x.key === sent.subject);
+    if (paperOf) made.subject = paperOf;
+    digs.push(made);
+    return digOf(made.uuid);
   }
   if (path === `/projects/${PROJECT}/digs`) {
     const key = search.get('subject');
@@ -335,10 +344,16 @@ function projectFixture(server) {
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (isHeld(url.pathname)) return;
-    const body = answer(req.method, url.pathname, url.searchParams);
-    res.setHeader('Content-Type', 'application/json');
-    res.statusCode = body === null ? 404 : 200;
-    res.end(JSON.stringify(body ?? { error: 'Not found' }));
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      let sent = {};
+      try { sent = raw ? JSON.parse(raw) : {}; } catch { sent = {}; }
+      const body = answer(req.method, url.pathname, url.searchParams, sent);
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = body === null ? 404 : 200;
+      res.end(JSON.stringify(body ?? { error: 'Not found' }));
+    });
   });
 }
 
