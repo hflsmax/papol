@@ -16,6 +16,7 @@ const fixtureSize = fixtureBytes.length;
 // played by a fetch that stores the upload at once and answers for the
 // job that reads it: `running` until the test says the reading is done.
 const feedbackDialog = fileURLToPath(new URL('../../shared/ui/FeedbackDialog.jsx', import.meta.url));
+const droppedPapers = fileURLToPath(new URL('../../shared/droppedPapers.js', import.meta.url));
 function uploadFixture(server) {
   server.middlewares.use('/__upload_test', async (req, res) => {
     const native = req.url.includes('native');
@@ -77,6 +78,7 @@ function uploadFixture(server) {
             setTimeout(() => tick(0), 60);
           }
         };
+        window.realFetch = window.fetch.bind(window);
         window.fetch = async (url, options = {}) => {
           const path = String(url);
           if (path.endsWith('/files/upload-address')) {
@@ -129,12 +131,25 @@ function uploadFixture(server) {
         import {createRoot} from 'react-dom/client';
         import PaperUpload from '/src/components/PaperUpload.jsx';
         import FeedbackDialog from '/@fs${feedbackDialog}';
+        // ?trigger: the nook's button, where the window takes drops; a drop
+        // arrives as incomingFile, and every turn of the page is recorded.
+        const trigger = location.search.includes('trigger');
+        window.reviewSeen = [];
         function Fixture() {
           const [report, setReport] = React.useState(null);
+          const [incoming, setIncoming] = React.useState(null);
+          window.dropFixture = async () => {
+            const bytes = await (await window.realFetch('/scripts/fixtures/attention.pdf')).blob();
+            setIncoming({uuid: crypto.randomUUID(), file: new File([bytes], 'attention.pdf', {type: 'application/pdf'})});
+          };
           return React.createElement(React.Fragment, null,
             React.createElement(PaperUpload, {
               onPaperCreated: () => {},
               onReportableError: (error, area) => setReport(area + ': ' + (error?.message || String(error))),
+              trigger,
+              incomingFile: incoming,
+              onIncomingFileHandled: () => setIncoming(null),
+              onReviewChange: (on) => window.reviewSeen.push(on),
             }),
             report && React.createElement(FeedbackDialog, {
               initialContent: report, reportError: true, onClose: () => setReport(null),
@@ -334,6 +349,38 @@ try {
     }
     console.log(`${mode}: expected errors stay inline, defects open diagnostics, retry opens the form before the PDF is read, the reading fills what was not typed, a known version is offered and the choice saved, the indexes asked during the upload fill the form without a job, and a reading that failed is said quietly${mode === 'native' ? '; a PDF not sent says so and offers a report' : ''}`);
   }
+  // A PDF dropped on the window, taken by the nook's button: the page turns
+  // to the upload at once, its bar in the panel the form then fills, with
+  // no step back to the button between them; a failed upload turns back.
+  await browser.navigate(`http://127.0.0.1:${port}/__upload_test?web&trigger`);
+  await browser.waitFor('document.querySelector(".upload-section.is-trigger > button")');
+  await browser.evaluate('window.failImport = true; window.dropFixture(); return true;');
+  await browser.waitFor('document.querySelector(".upload-section.is-trigger .error")', { what: 'the failed drop to be said by the button' });
+  assert.deepEqual(await browser.evaluate('return window.reviewSeen;'), [true, false]);
+  await browser.evaluate('window.failImport = false; window.reviewSeen = []; window.barSeen = []; window.formAfterButton = false;'
+    + ' new MutationObserver(() => { if (window.reviewSeen.length && document.querySelector(".upload-section.is-trigger > button")) window.formAfterButton = true; })'
+    + '.observe(document, {childList: true, subtree: true}); window.dropFixture(); return true;');
+  await browser.waitFor('document.querySelector("#upload-paper-title")', { what: 'the dropped PDF to open the form' });
+  assert.deepEqual(await browser.evaluate('return window.reviewSeen;'), [true, true]);
+  assert.equal(await browser.evaluate('return window.formAfterButton;'), false, 'the button never came back between the drop and the form');
+  const dropBar = await browser.evaluate('return window.barSeen;');
+  assert.ok(dropBar.length >= 1 && dropBar.every((step) => step.startsWith('Uploading ')), `the drop showed the bar: ${JSON.stringify(dropBar)}`);
+  console.log('trigger: a dropped PDF turns the page to its upload at once, the bar in the form\'s place, and a failed one turns back');
+  // PDFs dropped in the viewer or before signing in are kept for the nook
+  // across the page load: taken back whole, once, and not after ten minutes.
+  const handed = await browser.evaluate(`return (async () => {
+    const kept = await import('/@fs${droppedPapers}');
+    const bytes = new Uint8Array([37, 80, 68, 70]);
+    const pdfs = [new File([bytes], 'one.pdf', {type: 'application/pdf'}), new File([bytes], 'two.pdf', {type: 'application/pdf'})];
+    const held = await kept.handOverDroppedPdfs(pdfs);
+    const taken = await kept.takeDroppedPdfs();
+    const again = await kept.takeDroppedPdfs();
+    await kept.handOverDroppedPdfs(pdfs);
+    const stale = await kept.takeDroppedPdfs(Date.now() + 11 * 60_000);
+    return {held, taken: await Promise.all(taken.map(async (f) => [f.name, f.type, (await f.arrayBuffer()).byteLength])), again: again.length, stale: stale.length};
+  })();`);
+  assert.deepEqual(handed, { held: true, taken: [['one.pdf', 'application/pdf', 4], ['two.pdf', 'application/pdf', 4]], again: 0, stale: 0 });
+  console.log('handover: dropped PDFs are kept across a page load, taken once, and let go when stale');
 } catch (error) {
   // The page as the failed assertion left it, for a run that cannot be
   // watched (scripts/share-e2e/cdp.mjs, `capture`).

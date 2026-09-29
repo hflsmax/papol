@@ -26,7 +26,7 @@ const storedSection = (userUuid) => {
 // A nook seen before shows at once while it is fetched again (lastMember.js).
 const lastSeen = (userUuid) => kept(`nook:${userUuid}`);
 
-export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas }) {
+export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoard, onBack, backHref, initialSection = null, onReportableError, board = null, shelf = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, incomingPaperFile = null, onIncomingPaperFileHandled, incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {} }) {
   const [nook, setNook] = useState(() => lastSeen(userUuid));
   // A nook that had to be waited for comes in with one short fade; one
   // already seen is simply there, and quietly brought up to date.
@@ -67,6 +67,15 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
     return loadNook();
   }, [loadNook]);
 
+  // A folder, or several PDFs, dropped on the window: their review opens
+  // here, where the papers go.
+  useEffect(() => {
+    if (!incomingPaperFolder) return;
+    onIncomingPaperFolderHandled();
+    setFolderRequest(incomingPaperFolder);
+    setReviewingUpload(true);
+  }, [incomingPaperFolder]);
+
   useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
     keep(`nook:${userUuid}`, nook);
@@ -101,6 +110,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           else loadNook();
         }}
         onReviewChange={setReviewingUpload}
+        incomingFile={incomingPaperFile}
+        onIncomingFileHandled={onIncomingPaperFileHandled}
       />
   );
 

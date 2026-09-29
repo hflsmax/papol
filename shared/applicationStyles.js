@@ -5,6 +5,7 @@ import { itemActionsStyles } from './itemActionsStyles.js';
 import { compatibilityStyles } from './compatibilityStyles.js';
 import { macHandoffStyles } from './macHandoffStyles.js';
 import { talkStyles } from './talkStyles.js';
+import { fileDropStyles } from './fileDropStyles.js';
 
 // Light red makes a development desktop unmistakable. Packaged builds use
 // neutral chrome so that the development cue never becomes product branding.
@@ -1032,56 +1033,7 @@ button.full-width {
   font-style: italic;
 }
 
-.desk-file-drop-overlay {
-  position: fixed;
-  z-index: 1000;
-  inset: 16px;
-  display: grid;
-  place-items: center;
-  border: 2px dashed var(--accent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
-  color: var(--accent);
-  font-family: var(--font-ui);
-  pointer-events: none;
-  backdrop-filter: blur(2px);
-}
-
-.desk-file-drop-overlay.reject {
-  border-color: var(--red);
-  background: color-mix(in srgb, var(--red-soft) 90%, transparent);
-  color: var(--red);
-}
-
-.desk-file-drop-card {
-  display: grid;
-  justify-items: center;
-  gap: 7px;
-  max-width: min(420px, calc(100vw - 64px));
-  padding: 24px 30px;
-  border: 1px solid currentColor;
-  border-radius: var(--radius);
-  background: var(--card);
-  box-shadow: 0 12px 32px rgba(29,33,41,.18);
-  text-align: center;
-}
-
-.desk-file-drop-card strong { font-size: var(--fs-lg); }
-.desk-file-drop-card span { color: var(--ink-soft); font-size: var(--fs-sm); }
-.desk-file-drop-notice {
-  position: fixed;
-  z-index: 1000;
-  right: 20px;
-  bottom: 20px;
-  max-width: min(420px, calc(100vw - 40px));
-  padding: 10px 14px;
-  border: 1px solid var(--red);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--red);
-  box-shadow: 0 8px 24px rgba(29,33,41,.18);
-  font: var(--fs-sm) var(--font-ui);
-}
+${fileDropStyles}
 
 /* A sync that did not finish, said where the user is (SyncAttention). */
 .sync-attention {
@@ -5014,7 +4966,6 @@ ${desktopStyles}
 .projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
 /* Papers come in through the nook; the Bazaar shows no drop box. A PDF
    dropped anywhere on the window still lands here for its review. */
-.library-page.is-bazaar > .upload-section { display: none; }
 .projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
 .projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
 .projects-page.is-section .projects-row { padding-block: var(--space-3); }

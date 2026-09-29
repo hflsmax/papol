@@ -66,7 +66,7 @@ exactly like a fixture that was never written.
 
 ## Uploading, and the queue behind it
 
-`upload.mjs` chooses PDFs on the library's form and follows each reading to
+`upload.mjs` chooses PDFs on the nook's upload and follows each reading to
 its end: the title block read in the browser, the bytes stored, the
 `extract_metadata` job woken through the queue with what the browser read,
 that reading in the form, the saved paper in the library and in the API.
