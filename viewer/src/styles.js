@@ -2056,24 +2056,16 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   transform: translate(-50%, -50%) scale(1.12);
 }
 
-/* The anchor in hand: the one whose pin was clicked, whose card is open,
-   and which Delete would take away. A ring behind the glyph, in the
-   selection colour the clip uses, and the glyph itself untouched — the
-   pin is still that pin, it has only been picked out. The ring sits
-   under the drawing: the button's transform makes it a stacking context
-   of its own, so a negative z-index stays inside it. */
-.pin.active { opacity: 1; }
-.pin.active::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2);
-  pointer-events: none;
+/* The anchor in hand: the one whose pin was clicked, whose dig is open,
+   and which Delete would take away. No ring around it: the glyph itself
+   is picked out, drawn in the deeper accent and at the lift keyboard
+   focus gives, so the pin is still that pin, only highlighted. */
+.pin.active {
+  opacity: 1;
+  color: var(--accent-strong);
+  transform: translate(-50%, -50%) scale(1.15);
 }
+.pin.theirs.active { color: color-mix(in srgb, var(--who) 80%, black); }
 .pin:not(.active) { opacity: 0.9; }
 
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
