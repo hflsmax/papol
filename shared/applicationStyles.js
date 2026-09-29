@@ -5143,6 +5143,17 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 var(--space-2); border: 1px solid transparent; }
 .project-title-sizer::after, .project-title-sizer > .project-title-input { grid-area: 1 / 1; min-width: 0; }
 .project-title-sizer > .project-title-input { text-overflow: ellipsis; }
+/* What the project is about, under its name: quiet reading text, its words
+   level with the tabs' words. A keeper's is written in place, bare until
+   pointed at. */
+.project-description { display: block; box-sizing: border-box; width: 100%; max-width: 44rem; margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid transparent; border-radius: var(--radius); color: var(--ink-soft); font: var(--fs-base)/1.5 var(--font-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+.project-head > .project-description + .project-tabs { flex-basis: 100%; }
+.project-head:has(> .project-title-row) > .project-description { order: 2; }
+[data-shell='desktop'] .project-description { margin-bottom: var(--space-4); }
+.project-description-input { resize: none; overflow: hidden; background: transparent; box-shadow: none; transition: border-color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.project-description-input::placeholder { color: var(--ink-faint); }
+.project-description-input:hover { border-color: var(--line); background: var(--card); }
+.project-description-input:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: 0; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
 .project-seats { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); }

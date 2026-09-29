@@ -53,6 +53,7 @@
     "tag_name": 60,
     "shelf_name": 40,
     "project_name": 80,
+    "project_description": 2000,
     "dig_post": 20000,
     "reference_key": 300,
     "reference_raw": 5000,

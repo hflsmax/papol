@@ -47,6 +47,29 @@ describe("a project of one", () => {
     expect(unheld.status).toBe(400);
   });
 
+  it("says what it is about in its keepers' words, which its members read and no one else", async () => {
+    const dana = await register();
+    const project = await start(dana);
+    expect(project.description).toBeNull();
+
+    const described = await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "  Why the loop rings.\nAnd how to damp it. " } });
+    expect(described).toMatchObject({ name: "Error dynamics", description: "Why the loop rings.\nAnd how to damp it." });
+    // Renaming leaves it; emptying it leaves none.
+    expect(await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { name: "Loop dynamics" } })).toMatchObject({ name: "Loop dynamics", description: "Why the loop rings.\nAnd how to damp it." });
+    expect((await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "  " } })).description).toBeNull();
+    await ok("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "Why the loop rings." } });
+    const long = await call("PUT", `/api/projects/${project.uuid}`, { headers: dana.headers, json: { description: "x".repeat(2001) } });
+    expect(long.status).toBe(422);
+
+    const ana = await register();
+    const stranger = await register();
+    await invite(dana, project, ana);
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).description).toBe("Why the loop rings.");
+    expect(await call("PUT", `/api/projects/${project.uuid}`, { headers: ana.headers, json: { description: "Mine now" } })).toMatchObject({ status: 403 });
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: stranger.headers })).description).toBeUndefined();
+    expect((await ok("GET", "/api/projects", { headers: stranger.headers })).find((p: any) => p.uuid === project.uuid).description).toBeUndefined();
+  });
+
   it("is listed to everyone by name and members, keepers marked, and opens only for members", async () => {
     const dana = await register();
     const project = await start(dana);

@@ -7,8 +7,10 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   addMember, annotationViewerPath, createProjectBoard, findPeople, getProject, invitationPath, openInvitation, removeMember,
-  renameProject, revokeInvitation, setKeeper,
+  describeProject, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
+import appLimits from '../../../shared/appLimits.js';
+import AutoTextarea from './AutoTextarea';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { InToolbar } from './DesktopChrome';
@@ -148,6 +150,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const newTalk = talkedAbout.some((d) => d.is_new);
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
+  const about = project.is_member && (
+    <ProjectDescription project={project} onDescribe={(text) => act(() => describeProject(project.uuid, text))} />
+  );
   const tabs = project.is_member && (
     <DeskTabs
       view={view} onView={setView}
@@ -192,14 +197,17 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   return (
     <div className={`project-page${project.is_member ? ' is-desk' : ''}`}>
       {inToolbar ? (
-        <InToolbar>
-          <div className="project-toolbar talk-host" data-toolbar-title>
-            {title}
-            <ExperimentalBadge />
-          </div>
-          {tabs}
-          {seats}
-        </InToolbar>
+        <>
+          <InToolbar>
+            <div className="project-toolbar talk-host" data-toolbar-title>
+              {title}
+              <ExperimentalBadge />
+            </div>
+            {tabs}
+            {seats}
+          </InToolbar>
+          {about}
+        </>
       ) : (
         <>
           <header className="project-head talk-host">
@@ -210,6 +218,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
               </div>
               {seats}
             </InWay>
+            {about}
             {tabs}
           </header>
         </>
@@ -757,6 +766,35 @@ function BoardMap({ boxes = [] }) {
 
 // The name, which a keeper renames in place: kept when left, taken back
 // with Escape. There is no Save.
+// What the project is about, under its name: a keeper writes it in place,
+// kept when left, taken back with Escape; Shift+Enter starts a new line.
+// Plain words, as written. With none, a member who is not a keeper sees
+// nothing.
+function ProjectDescription({ project, onDescribe }) {
+  const saved = project.description ?? '';
+  const [text, setText] = useState(saved);
+  const reverting = useRef(false);
+  useEffect(() => setText(saved), [saved]);
+  if (!project.is_keeper) return saved ? <p className="project-description">{saved}</p> : null;
+  const keep = async () => {
+    if (reverting.current) { reverting.current = false; return; }
+    if (text.trim() === saved) { setText(saved); return; }
+    if (!(await onDescribe(text))) setText(saved);
+  };
+  return (
+    <AutoTextarea
+      className="project-description project-description-input" value={text} rows={1}
+      maxLength={appLimits.text.project_description} placeholder="Description" aria-label="Project description"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={keep}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
+        if (e.key === 'Escape') { reverting.current = true; setText(saved); e.currentTarget.blur(); }
+      }}
+    />
+  );
+}
+
 function ProjectTitle({ project, onRename }) {
   const [name, setName] = useState(project.name);
   const reverting = useRef(false);

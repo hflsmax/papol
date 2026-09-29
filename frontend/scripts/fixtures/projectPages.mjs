@@ -143,6 +143,7 @@ const personalOf = (d) => ({ uuid: d.uuid, created_at: d.created_at, updated_at:
 
 const project = {
   uuid: PROJECT, name: 'Adaptive optics control', created_at: daysAgo(20),
+  description: 'How a closed loop can learn the turbulence it corrects, and where learned control beats a tuned integrator on a real bench.',
   members: [
     { user: me, is_keeper: true, joined_at: daysAgo(20) },
     { user: ana, is_keeper: true, joined_at: daysAgo(19) },
