@@ -49,6 +49,7 @@ import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
 import { citationOccurrences, placeAmong, readNamedReference, stillToLookUp } from './references';
 import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
+import { ruleClipFrame } from './ruleClip.js';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -676,6 +677,9 @@ export default function App() {
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
+  // A named rule brought to its mention as a clip (Cmd-click on the name):
+  // one at a time, looked at and let go of, never kept.
+  const [ruleClip, setRuleClip] = useState(null);
   // The project on, once it has answered (project.js): its name and
   // members, the reader among them, what the other members left on this
   // paper, and the digs open on any of it. Null while no project is on,
@@ -1472,6 +1476,11 @@ export default function App() {
         window.requestAnimationFrame(() => searchInputRef.current?.select());
         return;
       }
+      if (e.key === 'Escape' && ruleClip) {
+        e.preventDefault();
+        setRuleClip(null);
+        return;
+      }
       if (e.key === 'Escape' && learnLinkNavigation) {
         e.preventDefault();
         setLearnLinkNavigation(false);
@@ -1956,6 +1965,28 @@ export default function App() {
     // paragraph being read rarely survives that much movement.
     if (Math.abs(top - from) > box.height * 0.25) rememberJump(viewBeforeJump);
   };
+
+  // A named rule's mention, Cmd-clicked: the rule as printed, as a clip
+  // under the mention's line. Pressed, the clip leads to the rule; a press
+  // anywhere else, or Escape, lets it go.
+  const peekRule = (link, page, title) => {
+    const scroller = scrollerRef.current;
+    const sizeOf = (number) => {
+      const el = scroller?.querySelector(`[data-page="${number}"]`);
+      return el ? { width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) } : null;
+    };
+    const { box, page: rulePage } = link.spot;
+    const frame = ruleClipFrame(link, box, { mention: sizeOf(page), rule: sizeOf(rulePage) });
+    setRuleClip({ page, title, spot: link.spot, clip: { uuid: 'peek', page: rulePage, source: { x: box.x, y: box.y, w: box.w, h: box.h }, frame, floating: false } });
+  };
+  useEffect(() => {
+    if (!ruleClip) return undefined;
+    const letGo = (e) => {
+      if (!e.target.closest?.('.paper-clip.peek')) setRuleClip(null);
+    };
+    document.addEventListener('pointerdown', letGo, true);
+    return () => document.removeEventListener('pointerdown', letGo, true);
+  }, [ruleClip]);
 
   // A jump the way back returns from. A fitted float always counts: even
   // on screen already, the zoom has changed under the reader.
@@ -3886,6 +3917,7 @@ export default function App() {
 
   const pageOpenReference = useEvent(openCitation);
   const pageFollowLink = useEvent(followLink);
+  const pagePeekRule = useEvent(peekRule);
   const pageSelectAnchor = useEvent(pointAtAnchor);
   const pageMoveAnchor = useEvent(moveAnchor);
   const pageDrawStroke = useEvent(drawStroke);
@@ -4793,6 +4825,8 @@ export default function App() {
               openReferenceUuid={openReferencePage === n ? openCite?.referenceUuid ?? null : null}
               onOpenReference={pageOpenReference}
               onFollowLink={pageFollowLink}
+              onPeekRule={pagePeekRule}
+              peek={ruleClip?.page === n ? ruleClip : null}
               onSelectAnchor={pageSelectAnchor}
               onMoveAnchor={pageMoveAnchor}
               readOnly={readOnly}

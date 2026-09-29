@@ -93,3 +93,9 @@ test("a section's scroll stays inside the document", () => {
   // A heading at the first page's very top cannot scroll above 0.
   assert.equal(sectionScroll({ x: 0.09, y: 0, w: 0.41, h: 0.015 }, pageAt, view, content).top, 0);
 });
+
+test('a link to a named rule keeps the zoom, as a footnote does', () => {
+  assert.equal(fitsFloat('rule'), false);
+  assert.equal(fitsFloat('footnote'), false);
+  assert.equal(fitsFloat('figure'), true);
+});

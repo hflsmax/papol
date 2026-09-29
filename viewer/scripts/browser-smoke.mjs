@@ -160,6 +160,26 @@ const citedShared = {
   uuid: CITED_SHARE,
   paper: { ...shared.paper, title: 'The Citing Paper', file_path: 'cited.pdf', sha256: CITED_SHA256 },
 };
+// A fourth: a named typing rule on page 2 — premises over a drawn bar, the
+// conclusion under it, "(T-App)" at its right — and its name in the prose
+// of page 1. RULE is the rule as the rules box it, where a click on the
+// name should bring the reader; Cmd-click brings the rule to the name.
+const RULE = { x: 148 / 612, y: (792 - 400 - 9) / 792, w: (423 - 148) / 612, h: (792 - 383 + 3 - (792 - 400 - 9)) / 792 };
+const rulePdf = smokePdf([
+  page(['By T-App the argument is typed before the function, as the smoke', ...prose(40)]),
+  page(prose(10))
+    + '\nBT /F1 11 Tf 150 400 Td (G |- e1 : t1 -> t2) Tj ET\nBT /F1 11 Tf 290 400 Td (G |- e2 : t1) Tj ET'
+    + '\n0 G 0.5 w 150 396 m 380 396 l S'
+    + '\nBT /F1 11 Tf 200 383 Td (G |- e1 e2 : t2) Tj ET\nBT /F1 9 Tf 390 392 Td (\\(T-App\\)) Tj ET\n'
+    + page(prose(12), 340),
+]);
+const RULE_SHA256 = createHash('sha256').update(rulePdf).digest('hex');
+const RULE_SHARE = 'Pp99Qq00Rr';
+const ruleShared = {
+  ...shared,
+  uuid: RULE_SHARE,
+  paper: { ...shared.paper, title: 'The Rule Paper', file_path: 'rule.pdf', sha256: RULE_SHA256 },
+};
 // A link its sharer took back: the Worker's 404, which the viewer must say
 // in place of a PDF. Every hook the viewer calls has to stand above the
 // return that says it, or React throws and the boundary's panel stands
@@ -177,6 +197,7 @@ const probe = `<script>
     if (new URLSearchParams(location.search).get('smoke') === 'inner') return;
     if (new URLSearchParams(location.search).get('share') === '${FIGURE_SHARE}') return followFigure();
     if (new URLSearchParams(location.search).get('share') === '${CITED_SHARE}') return explorePlaces();
+    if (new URLSearchParams(location.search).get('share') === '${RULE_SHARE}') return followRule();
     if (new URLSearchParams(location.search).get('share') === '${REVOKED_SHARE}') return sayTakenBack();
     let clicked = false;
     const ready = () => {
@@ -322,6 +343,72 @@ const probe = `<script>
       run();
     }
 
+    // A named rule: its name pressed brings the rule into the window at the
+    // zoom the reader had; [ goes back; Cmd-pressed, the name gets a clip of
+    // the rule under its line, which Escape lets go of.
+    function followRule() {
+      const $ = (selector) => document.querySelector(selector);
+      const pages = () => $('.pages');
+      const link = () => $('.pdf-page[data-page="1"] .pdf-link');
+      const press = (key, code = key) => window.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }));
+      const near = (a, b) => Math.abs(a - b) < 3;
+      let width = null;
+      let start = null;
+      let why = '';
+      const ruleInView = () => {
+        const page = $('.pdf-page[data-page="2"]');
+        if (!page) return false;
+        const p = page.getBoundingClientRect();
+        const view = pages().getBoundingClientRect();
+        const top = p.top + ${RULE.y} * p.height, bottom = top + ${RULE.h} * p.height;
+        return top >= view.top && bottom <= view.top + pages().clientHeight;
+      };
+      const stages = [
+        ['go', () => {
+          width = $('.pdf-page[data-page="1"]').getBoundingClientRect().width;
+          start = pages().scrollTop;
+          link().click();
+        }, () => ruleInView() && near($('.pdf-page[data-page="1"]').getBoundingClientRect().width, width)],
+        ['back', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
+        ['peek', () => link().dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })), () => {
+          const peek = $('.pdf-page[data-page="1"] .paper-clip.peek canvas');
+          if (!peek || !peek.width) { why = peek ? 'unpainted' : 'no-peek'; return false; }
+          const clip = peek.getBoundingClientRect();
+          const name = link().getBoundingClientRect();
+          const page = $('.pdf-page[data-page="1"]').getBoundingClientRect();
+          why = ['top' + Math.round(clip.top - name.bottom), 'left' + Math.round(clip.left - name.left),
+            'w' + Math.round(clip.width - ${RULE.w} * page.width), 'h' + Math.round(clip.height - ${RULE.h} * page.height),
+            'scroll' + Math.round(pages().scrollTop - start)].join('.');
+          // Under the name's line, at the rule's printed size, on the page.
+          return clip.top > name.bottom && clip.top < name.bottom + 12 && near(clip.left, name.left)
+            && Math.abs(clip.width - ${RULE.w} * page.width) < 10 && Math.abs(clip.height - ${RULE.h} * page.height) < 8
+            && near(pages().scrollTop, start);
+        }],
+        ['let-go', () => press('Escape'), () => !$('.paper-clip.peek')],
+      ];
+      let stage = 0;
+      let acted = false;
+      let since = Date.now();
+      const run = () => {
+        const [name, act, done] = stages[stage];
+        if (!acted && link()) { act(); acted = true; }
+        if (acted && done()) {
+          stage += 1;
+          acted = false;
+          since = Date.now();
+          if (stage === stages.length) {
+            fetch('/__papol_smoke_ready?page=viewer-rule', { method: 'POST' });
+            return;
+          }
+        } else if (Date.now() - since > 15000) {
+          fetch('/__papol_smoke_ready?page=rule-stuck-at-' + name + (why ? '-' + why : ''), { method: 'POST' });
+          return;
+        }
+        setTimeout(run, 50);
+      };
+      run();
+    }
+
     function sayTakenBack() {
       const started = Date.now();
       const check = () => {
@@ -435,6 +522,7 @@ await runSmoke(
     { path: `/papol/viewer/?share=${SHARE}`, page: 'viewer-citation' },
     { path: `/papol/viewer/?share=${FIGURE_SHARE}`, page: 'viewer-float' },
     { path: `/papol/viewer/?share=${CITED_SHARE}`, page: 'viewer-places' },
+    { path: `/papol/viewer/?share=${RULE_SHARE}`, page: 'viewer-rule' },
     { path: `/papol/viewer/?share=${REVOKED_SHARE}`, page: 'viewer-taken-back' },
     { path: '/papol/viewer/__layout', page: 'viewer-layout' },
   ],
@@ -446,11 +534,13 @@ await runSmoke(
     if (pathname === `/papol/api/shared/${SHARE}`) return json(shared);
     if (pathname === `/papol/api/shared/${FIGURE_SHARE}`) return json(figureShared);
     if (pathname === `/papol/api/shared/${CITED_SHARE}`) return json(citedShared);
+    if (pathname === `/papol/api/shared/${RULE_SHARE}`) return json(ruleShared);
     if (pathname === `/papol/api/shared/${REVOKED_SHARE}`) {
       return { status: 404, ...json({ detail: 'This reading is no longer shared' }) };
     }
     if (pathname === '/papol/uploads/cited.pdf') return { type: 'application/pdf', body: citedPdf };
     if (pathname === '/papol/uploads/figure.pdf') return { type: 'application/pdf', body: figurePdf };
+    if (pathname === '/papol/uploads/rule.pdf') return { type: 'application/pdf', body: rulePdf };
     // A reference the viewer read off the page, looked up (for any of the papers).
     if (/^\/papol\/api\/viewer-references\/[0-9a-f]{64}\/resolve$/.test(pathname)) return json(resolved);
     if (pathname === '/papol/uploads/smoke.pdf') return { type: 'application/pdf', body: pdfBytes };
@@ -472,7 +562,7 @@ console.log(
   'Viewer browser smoke: a citation marker opened its reference card, search '
   + 'found and highlighted a phrase, a figure link zoomed the figure to fill '
   + 'the window in its middle, a card stepped through the places its work '
-  + 'is cited and every way out stayed with [ to go back, a link taken back '
-  + 'said so, and '
+  + 'is cited and every way out stayed with [ to go back, a named rule was '
+  + 'gone to and brought to its name as a clip, a link taken back said so, and '
   + 'the layout held from 320px to 1920px.',
 );

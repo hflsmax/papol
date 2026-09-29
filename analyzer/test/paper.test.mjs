@@ -155,6 +155,45 @@ describe("the paper", () => {
     }
   });
 
+  it("links a rule's name in the text to the rule its label stands beside", async () => {
+    // Two typing rules, each a bar with premises over it and the conclusion
+    // under it, named at the bar's right: "T-App" in faked small capitals
+    // ("T-A" at 8pt, "PP" at 6.4pt on one baseline), "(T-Var)" in brackets.
+    // A law named at its right, an em from its text: "(RUNIT)".
+    const pdf = writtenPdf([
+      [60, 740, "Application is typed by T-App, as [T-Abs] and (T-Var) are, and the"],
+      [60, 725, "law (RUNIT) holds. By T-App the argument is checked; see also T-Sub."],
+      [100, 600, "G |- e1 : t1 -> t2"],
+      [220, 600, "G |- e2 : t1"],
+      "0 0 0 RG 0.4 w 100 596 m 320 596 l S",
+      [150, 585, "G |- e1 e2 : t2"],
+      [330, 592, "T-A", 8],
+      [342.9, 592, "PP", 6.4],
+      [100, 560, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 556 m 200 556 l S",
+      [110, 545, "G |- x : t"],
+      [210, 552, "(T-Var)", 8],
+      [100, 500, "m >>= return = m"],
+      [189, 500, "(RUNIT)"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => [f.label, f.page]), [["RUNIT", 1], ["T-APP", 1], ["T-Var", 1]]);
+      const [law, app, variable] = rules;
+      // T-App is its bar's width and its label, from its premises at 800 −
+      // 608 down to its conclusion at 800 − 575, not the rule under it.
+      assert.ok(app.x < 100 / 600 && app.x + app.w > 350 / 600 && app.x + app.w < 400 / 600, `T-App is as wide as its bar and label: ${JSON.stringify(app)}`);
+      assert.ok(app.y < 192 / 800 && app.y + app.h > 215 / 800 && app.y + app.h < 235 / 800, `T-App is its premises and conclusion: ${JSON.stringify(app)}`);
+      assert.ok(variable.y >= 229 / 800 && variable.y + variable.h < 262 / 800, `T-Var is under T-App, apart from it: ${JSON.stringify(variable)}`);
+      assert.ok(law.x < 100 / 600 && law.x + law.w > 220 / 600 && law.h < 20 / 800, `the law is its one line: ${JSON.stringify(law)}`);
+      // "T-App" twice and "(T-Var)" once, from the text; "[T-Abs]" and
+      // "T-Sub" name no rule, and the labels are not mentions of themselves.
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [[app.key, "T-App", 52], [variable.key, "(T-Var)", 52], [law.key, "(RUNIT)", 67], [app.key, "T-App", 67]]);
+    }
+  });
+
   it("does not take a mention wrapped onto a line's start for a caption (caption.not-wrapped)", async () => {
     // "…as shown in / Fig. 2. Most passes…": the paragraph runs on into the
     // line. Fig. 2 is the real caption further down, under its drawing.

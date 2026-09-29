@@ -23,7 +23,7 @@
 // A pattern is tested against one line or one stretch of flowing text,
 // with no anchoring beyond what it says itself.
 
-export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "mention" | "bibliography" | "entry" | "field" | "citation" | "header";
+export type Stage = "layout" | "caption" | "float" | "section" | "footnote" | "rule" | "mention" | "bibliography" | "entry" | "field" | "citation" | "header";
 
 export interface Rule {
   id: string;
@@ -89,6 +89,11 @@ export const LAYOUT_HYPHEN = rule({
   id: "layout.hyphen", stage: "layout",
   summary: "A line ending in a letter and a hyphen, followed by one starting lower-case, is one word broken in two.",
   why: "\"Fig-\" / \"ure 2a-b\": a mention broken across lines is still a mention.",
+});
+export const LAYOUT_SMALL_CAPS = rule({
+  id: "layout.small-caps", stage: "layout",
+  summary: "A run on one baseline joins the line of the run it touches when their sizes are within a quarter of each other, even where the baseline's first run is further off in size.",
+  why: "Small capitals faked from a text font set \"LT-V\" at 8pt and \"AR\" at 6.4pt on a row that opens with 9pt mathematics; the name is one word.",
 });
 
 // --------------------------------------------------------------- captions
@@ -205,6 +210,41 @@ export const FLOAT_RULED = rule({
   id: "float.ruled", stage: "float",
   summary: "An algorithm or listing with rules under its caption, as wide as each other, runs down to the last of them before a bound — whatever is set between.",
   why: "Algorithms are set in the text's own font and size, so they read as running text; the rules around them are what bounds them.",
+});
+
+// ------------------------------------------------------------------ rules
+
+// A named inference rule's name: a prefix of a few letters, a hyphen and
+// one or more capitalised parts ("T-App", "E-Beta", "LT-APP", "WF-Env",
+// "DEC-<:-BASE"), or, on a label line only, a single word in brackets
+// ("(BIND)", "[Var]", "(jump)"). Small capitals may reach the text layer
+// in either case, so a name is matched without regard to it.
+const RULE_PART = "(?:[A-Z\\d\u0370-\u03ff][\\p{L}\\d'′]*|[<:=→⇒⇓∀∃⊢~*∧∨¬|/]+[\\p{L}\\d<:=→⇒⇓∀∃⊢~*∧∨¬|/'′]*)";
+export const RULE_NAME = "[A-Z][\\p{L}]{0,3}(?:[-‐‑–]" + RULE_PART + ")+";
+export const RULE_WORD = "\\p{L}[\\p{L}\\d]{1,15}";
+
+export const RULE_LABEL = rule({
+  id: "rule.label", stage: "rule",
+  summary: "A line that is only a rule's name (\"T-App\", \"[LT-APP]\", \"(BIND)\"), or that opens or ends with it an em or more apart from the rest, labels the inference rule set beside it: where the name is defined.",
+  why: "Programming-language papers name each typing and reduction rule in a figure and cite the names throughout the text; the name at the rule is the place a citation of it should lead to.",
+  pattern: new RegExp("^\\s*(?:[\\[(]\\s*(?<name>" + RULE_NAME + ")\\s*[\\])]|(?<bare>" + RULE_NAME + ")|[\\[(]\\s*(?<word>" + RULE_WORD + ")\\s*[\\])])\\s*$", "u"),
+  matches: ["[LT-APP]", "(T-App)", "T-App", "E-Beta", "WT-Fun", "[DEC-<:-BASE]", "S-Trans", "R-IfTrue", "Ty-Lam", "(E-β)", "(BIND)", "(LUNIT )", "[Var]", "(jump)", "T-App-Abs"],
+  rejects: ["Curry-Howard", "call-by-name", "F-bounded", "ML-style", "Hindley-Milner", "[LT-APP] For", "x-axis", "T-", "-App", "(a)", "(1)", "jump", "(T-App) and (T-Abs)", "T-App:", "well-typed"],
+});
+export const RULE_LABEL_APART = rule({
+  id: "rule.label-apart", stage: "rule",
+  summary: "A rule's name at the head or the end of a line, an em or more of blank space from the rest of the line, labels the rule the rest of the line is.",
+  why: "One-line laws are set with their name at the right (\"return x >>= f = f x (LUNIT)\") and machine steps with it at the left (\"(ret) 〈H; …〉\").",
+});
+export const RULE_BOX = rule({
+  id: "rule.box", stage: "rule",
+  summary: "A rule is as wide as the drawn bar nearest its label, with the lines over and under the bar that touch, within two and a half lines of the label; without a bar, it is the row the label is level with.",
+  why: "A rule's premises stand over a bar and its conclusion under; the name sits beside the bar or over it, and other rules may be set level with it.",
+});
+export const RULE_MENTION = rule({
+  id: "rule.mention", stage: "rule",
+  summary: "A rule's name in the text mentions the rule: bare or in brackets for a hyphenated name, in brackets and in running text for a single word. Its own labels do not, nor does a word in a listing.",
+  why: "\"by T-App\", \"rule [LT-IF]\" and \"the (BIND) law\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type.",
 });
 
 // --------------------------------------------------------------- mentions

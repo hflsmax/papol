@@ -140,6 +140,10 @@ const linkTitle = (link) => {
   return `Go to page ${link.spot.page}`;
 };
 
+// A named rule, with the command (or control) key held, is brought here as
+// a clip rather than gone to.
+const peeks = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
+
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
   left: `${box.x * 100}%`,
@@ -148,7 +152,9 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, onRemove, onSelect, onSend }) {
+// `peek` is a clip of a named rule brought to its mention, not kept: it
+// is only looked at, and pressed, it leads to the rule.
+function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const renderRef = useRef(null);
@@ -461,18 +467,18 @@ function ClipBox({ clip, doc, selected, readOnly, project, onChange, onCommit, o
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${peek ? ' peek' : ''}`}
       style={positionStyle}
-      aria-label="Clipped paper content"
+      aria-label={peek ? peek.title : 'Clipped paper content'}
       // Someone else's clip is a view they cut and placed. It is theirs to
       // move, so here it is simply part of the page — picked out, with a
       // project on, only to say whose it is.
-      title={readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
+      title={peek ? peek.title : readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
       onPointerDown={readOnly ? undefined : (event) => begin(event, 'move')}
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
       onPointerCancel={readOnly ? undefined : finish}
-      onClick={readOnly && !project ? undefined : (event) => {
+      onClick={readOnly && !project && !peek ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
         draggedRef.current = false;
@@ -512,6 +518,8 @@ function PdfPage({
   openReferenceUuid,
   onOpenReference,
   onFollowLink,
+  onPeekRule,
+  peek = null,
   onSelectAnchor,
   onMoveAnchor,
   readOnly = false,
@@ -2045,6 +2053,7 @@ function PdfPage({
           const link = links.find((l) => boxHolds(l, x, y));
           if (!link) return;
           if (link.href) window.open(link.href, '_blank', 'noopener,noreferrer');
+          else if (peeks(link, e)) onPeekRule(link, pageNumber, linkTitle(link));
           else onFollowLink(link.spot);
           return;
         }
@@ -2303,7 +2312,8 @@ function PdfPage({
                 style={boxStyle(link)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onFollowLink(link.spot);
+                  if (peeks(link, e)) onPeekRule(link, pageNumber, linkTitle(link));
+                  else onFollowLink(link.spot);
                   e.currentTarget.blur();
                 }}
               />
@@ -2452,6 +2462,17 @@ function PdfPage({
           onSend={(blob) => onSendClip(clip, blob)}
         />
       ))}
+      {peek && (
+        <ClipBox
+          key="peek"
+          clip={peek.clip}
+          doc={doc}
+          readOnly
+          peek={peek}
+          selected={false}
+          onSelect={() => onFollowLink(peek.spot)}
+        />
+      )}
       <span className="page-number">{pageNumber}</span>
     </div>
   );

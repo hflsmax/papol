@@ -114,12 +114,19 @@ export function buildLines(page: Page): Placed[][] {
   // left to right wherever a gutter or a gap too wide for a word space
   // separates its runs. Grouping in two steps keeps the answer from
   // depending on which of two runs a hair apart in height came first.
+  // A run is sized like the baseline's first run, or like the run it
+  // touches: fake small capitals ("LT-V" at 8pt, "AR" at 6.4pt, "]" at
+  // 8pt) are one word whichever run the baseline happened to open with
+  // (layout.small-caps).
   const clusters: Placed[][] = [];
+  const near = (a: Placed, b: Placed) => Math.abs(a.size - b.size) <= 0.25 * Math.max(a.size, b.size);
   for (const run of runs) {
     const current = clusters[clusters.length - 1];
     const anchor = current?.[0];
+    const last = current?.[current.length - 1];
+    const touching = last && near(run, last) && run.x - (last.x + last.width) <= 0.5 * Math.min(run.size, last.size);
     if (anchor && Math.abs(anchor.baseline - run.baseline) <= SAME_LINE * Math.min(anchor.size, run.size)
-      && Math.abs(run.size - anchor.size) <= 0.25 * anchor.size) current.push(run);
+      && (near(run, anchor) || touching)) current.push(run);
     else clusters.push([run]);
   }
   const groups: { runs: Placed[] }[] = [];

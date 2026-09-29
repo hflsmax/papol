@@ -7,11 +7,12 @@
 // edges are seen as edges and the text around it hints where it sits.
 export const FLOAT_ROOM = { width: 0.92, height: 0.85 };
 
-// A footnote is a line or two: filling the window with it would be absurd,
-// so a link to one keeps the zoom and only scrolls. A section is read from
-// its heading (sectionZoom, below). Anything else a link can name with a
-// box — figure, table, box, algorithm, listing — is fitted.
-export const fitsFloat = (kind) => kind !== 'footnote' && kind !== 'section';
+// A footnote is a line or two, and a named rule a few: filling the window
+// with either would be absurd, so a link to one keeps the zoom and only
+// scrolls. A section is read from its heading (sectionZoom, below).
+// Anything else a link can name with a box — figure, table, box,
+// algorithm, listing — is fitted.
+export const fitsFloat = (kind) => kind !== 'footnote' && kind !== 'section' && kind !== 'rule';
 
 /**
  * The zoom at which a float fills the room it is given.
