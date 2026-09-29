@@ -135,8 +135,9 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   };
   const hasNews = (about) => (project.digs ?? []).some((d) => d.is_new && about(d.subject));
   // Folded until asked for, even for a keeper alone in the project:
-  // entering a project shows its work. The faces open who is in it, and
-  // Invite opens the invitation link; each is its own card.
+  // entering a project shows its work. Each face leads to its person's
+  // nook; the button after them opens who is in it, and Invite opens the
+  // invitation link; each is its own card.
   const open = peopleOpen;
   const people = project.members.map((m) => m.user);
   const count = plural(people.length, 'member', 'members');
@@ -157,19 +158,20 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   const seats = project.is_member ? (
     <div className="project-seats">
       {open && <People project={project} showing={open} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
-      <button
-        type="button" className="project-seat-row" aria-expanded={open === 'people'} aria-controls="project-people"
-        aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}
-        onClick={() => setPeopleOpen(open === 'people' ? false : 'people')}
-      >
+      <div className="project-seat-row" aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}>
         {people.slice(0, 5).map((user) => (
-          <span className="project-seat" key={user.uuid}>
+          <a className="project-seat" key={user.uuid} href={appPath(`/u/${user.uuid}`)} title={user.display_name}>
             <Avatar user={user} className="mini-avatar" />
             <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
-          </span>
+          </a>
         ))}
-        {people.length > 5 && <span className="project-seat-more">+{people.length - 5}</span>}
-      </button>
+        <button
+          type="button" className="project-seat-more" aria-label="Members" aria-expanded={open === 'people'} aria-controls="project-people"
+          onClick={() => setPeopleOpen(open === 'people' ? false : 'people')}
+        >
+          {people.length > 5 ? `+${people.length - 5}` : <ActionGlyph name="more" />}
+        </button>
+      </div>
       {project.is_keeper && (
         <button
           type="button" className="project-invite-open" aria-expanded={open === 'invite'} aria-controls="project-people"
@@ -245,7 +247,7 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
   const alone = project.members.length === 1;
   const self = useRef(null);
   useEffect(() => {
-    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-seat-row, .project-invite-open')) onClose(); };
+    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-seat-more, .project-invite-open')) onClose(); };
     const escape = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', escape);

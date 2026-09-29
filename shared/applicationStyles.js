@@ -5195,12 +5195,17 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
 .project-seats { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); }
-.project-seat-row { display: flex; gap: var(--space-2); padding: var(--space-1); border-color: transparent; background: none; box-shadow: none; }
-.project-seat-row:hover:not(:disabled), .project-seat-row[aria-expanded='true'] { border-color: transparent; background: var(--fill); }
-.project-seat { display: grid; justify-items: center; gap: 2px; width: 44px; }
+.project-seat-row { display: flex; align-items: center; gap: 2px; }
+/* Each face leads to its person's nook; the last button opens who is in it. */
+.project-seat { display: grid; justify-items: center; gap: 2px; width: 44px; padding: var(--space-1) 0; border-radius: var(--radius); color: inherit; text-decoration: none; }
+.project-seat:hover, .project-seat:focus-visible { background: var(--fill); }
+.project-seat:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 .project-seat .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
 .project-seat small { max-width: 100%; overflow: hidden; color: var(--ink-faint); font: var(--fs-2xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.project-seat-more { align-self: center; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-seat-more { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 var(--space-1); border-color: transparent; border-radius: var(--radius-pill); background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); align-self: flex-start; margin-top: var(--space-1); }
+.project-seat-more:hover:not(:disabled), .project-seat-more[aria-expanded='true'] { border-color: transparent; background: var(--fill); color: var(--ink); }
+.project-seat-more .action-glyph { width: 18px; height: 18px; }
+.project-seat-more .action-glyph-fill { fill: currentColor; stroke: none; }
 /* Quiet at rest: the header's only emphasis is what is new. */
 .project-invite-open, .project-board-start { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-3); border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-invite-open { align-self: center; }
@@ -5428,8 +5433,9 @@ ${talkStyles}
 .desktop-toolbar .project-tabs { flex: none; margin: 0; }
 .desktop-toolbar .project-tab { padding: 3px var(--space-3); }
 .desktop-toolbar .project-seats { flex: 1 1 0; justify-content: flex-end; align-items: center; gap: var(--space-1); }
-.desktop-toolbar .project-seat-row { gap: 0; padding: 2px; }
-.desktop-toolbar .project-seat { width: auto; margin-left: -4px; }
+.desktop-toolbar .project-seat-row { gap: 0; }
+.desktop-toolbar .project-seat-more { align-self: center; margin: 0 0 0 var(--space-1); }
+.desktop-toolbar .project-seat { width: auto; margin-left: -4px; padding: 2px; border-radius: 50%; }
 .desktop-toolbar .project-seat:first-child { margin-left: 0; }
 .desktop-toolbar .project-seat .mini-avatar { width: 24px; height: 24px; box-shadow: 0 0 0 2px var(--paper); }
 .desktop-toolbar .project-seat small { display: none; }
