@@ -456,6 +456,50 @@ export function projectRoutes(router: Router) {
 
   // -------------------------------------------------------------- members
 
+  // People a keeper can add: anyone in Papol not yet in the project whose
+  // name has the words asked for in it, or whose address is the one asked
+  // for. An address nobody chose to show is matched whole, never in part.
+  router.on("GET", "/api/projects/:uuid/people", async ({ request, env, params, url }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await keeping(env, project, me);
+    const asked = tidy(url.searchParams.get("q") ?? "").toLowerCase();
+    if (!asked) return json([]);
+    const like = `%${asked.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const people = await all<Row>(env.DB,
+      `SELECT u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM users u
+       WHERE u.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.project_uuid = ? AND m.user_uuid = u.uuid)
+         AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.email) = ? OR (u.email_public = 1 AND lower(u.email) LIKE ? ESCAPE '\\'))
+       ORDER BY lower(u.email) = ? DESC, lower(u.display_name), u.uuid LIMIT 8`,
+      project.uuid, like, asked, like, asked);
+    return json(people.map(userPublic));
+  });
+
+  // A keeper adding someone already in Papol: they are a member at once,
+  // as if they had followed the link, and their inbox says who added them.
+  router.on("POST", "/api/projects/:uuid/members", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    const mine = await keeping(env, project, me);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const userUuid = check.string("user_uuid", data.user_uuid, { min: 1, max: 64 });
+    check.done();
+    const user = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", userUuid);
+    if (!user) refuse(404, "User not found");
+    const already = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, user.uuid);
+    if (!already) {
+      const at = now();
+      await batch(env.DB, [
+        insert(env.DB, "project_members", { uuid: newUuid(), project_uuid: project.uuid, user_uuid: user.uuid, is_keeper: 0, joined_at: at, seen_at: at }),
+        insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: `${me.display_name} added you to ${project.name}.`, read: 0, created_at: at }),
+        touched(env, project),
+      ]);
+    }
+    return json(await projectOut(env, project, me, mine));
+  });
+
   router.on("PUT", "/api/projects/:uuid/members/:user", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const project = await liveProject(env, params.uuid);

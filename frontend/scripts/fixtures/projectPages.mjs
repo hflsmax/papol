@@ -27,6 +27,11 @@ const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
 const ana = user(ANA, 'Ana Reyes', 'ESO');
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 const mia = user(MIA, 'Mia Tanaka', 'Subaru Telescope');
+// People in Papol who are not in the project, for a keeper to add.
+const outsiders = [
+  user('a1b2c3d4-0000-4000-8000-000000000005', 'Marta Lindqvist', 'Stockholm University'),
+  user('a1b2c3d4-0000-4000-8000-000000000006', 'Mark Osei', null),
+];
 
 const digest = (n) => n.toString(16).padStart(2, '0').repeat(32);
 export const P_ERROR = digest(0xa1);
@@ -226,6 +231,10 @@ function answer(method, path, search) {
   if (path === '/admin-messages/pending') return [];
   if (path === '/projects') return [summary, other, closed];
   if (path === `/projects/${PROJECT}`) return project;
+  if (path === `/projects/${PROJECT}/people`) {
+    const asked = (search?.get('q') ?? '').toLowerCase();
+    return asked ? outsiders.filter((u) => u.display_name.toLowerCase().includes(asked)) : [];
+  }
   if (path === `/projects/${PROJECT}/digs`) {
     const key = search.get('subject');
     const on = digs.filter((x) => x.subject.key === key);
