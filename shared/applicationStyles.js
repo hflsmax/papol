@@ -5402,10 +5402,6 @@ ${talkStyles}
 .paper-brief-dig .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
 .paper-brief-dig .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
 .paper-brief-dig .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; background: var(--card); font-size: var(--fs-sm); }
-/* Grown while it holds words, not only while focused: shrinking on blur
-   would pull the send button from under the press that blurred it. */
-.paper-brief-dig .talk-compose textarea:is(:focus, :not(:placeholder-shown)) { min-height: 88px; }
-.paper-brief-dig .talk-compose textarea:not(:focus):placeholder-shown { height: 32px; overflow: hidden; }
 .paper-brief-dig .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 3px; }
 .paper-brief-dig .talk-compose .talk-send:disabled { display: none; }
 /* Post comes after the last post, where the conversation continues. */

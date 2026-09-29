@@ -1385,7 +1385,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
 .dig-margin-card .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
 .dig-margin-card .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
-.dig-margin-card .talk-compose textarea:is(:focus, :not(:placeholder-shown)) { min-height: 88px; }
 .dig-margin-card .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
 .dig-margin-card .talk-compose .talk-send:disabled { display: none; }
 

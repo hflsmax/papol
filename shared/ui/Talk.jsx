@@ -623,7 +623,7 @@ export function TalkCard({
           {currentUser && <Face user={currentUser} />}
           <textarea
             ref={box}
-            rows={body ? 4 : 2}
+            rows={2}
             value={body}
             maxLength={POST_LIMIT}
             placeholder={`Post to ${whose} dig`}

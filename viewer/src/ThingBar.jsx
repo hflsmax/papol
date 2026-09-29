@@ -78,6 +78,7 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
           label={label}
           dig={asked}
           currentUser={digs.me}
+          tucked
           onChanged={changed}
           onClose={() => { setOpen(false); setAsked(null); face.current?.focus({ preventScroll: true }); }}
         />,
