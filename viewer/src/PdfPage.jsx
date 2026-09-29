@@ -1395,6 +1395,9 @@ function PdfPage({
   };
 
   // An anchor the eraser may take: the reader's own, with no dig on it.
+  // Whose colour a pin wears: with a project on, its member's, the
+  // reader's own included.
+  const wearer = (pin) => (project?.uuid ? (pin.theirs ? pin.user : project.me) ?? null : null);
   const erasable = (pin) => pin.anchor && !pin.theirs && !project?.digs?.[pin.uuid];
 
   // The same reckoning the eraser itself uses, so what lights up is exactly
@@ -2386,7 +2389,7 @@ function PdfPage({
                 pin.uuid === activeAnchorUuid ? ' active' : ''
               }${
                 drag?.uuid === pin.uuid && drag.moved ? ' dragging' : ''
-              }${pin.theirs ? ' theirs' : ''}`}
+              }${pin.theirs ? ' theirs' : ''}${wearer(pin) ? ' worn' : ''}`}
               style={drag?.uuid === pin.uuid && drag.moved ? {
                 position: 'fixed',
                 left: drag.screen.x,
@@ -2397,8 +2400,9 @@ function PdfPage({
                 // drawn from the top in CSS.
                 left: `${(drag?.uuid === pin.uuid ? drag.anchor : pin.anchor).x * 100}%`,
                 top: `${(1 - (drag?.uuid === pin.uuid ? drag.anchor : pin.anchor).y) * 100}%`,
-                // Another member's pin wears their colour, as their ink does.
-                ...(pin.theirs ? { '--who': memberInk(pin.user) } : {}),
+                // With a project on, every pin wears its member's colour, as
+                // their ink does: the reader's own too.
+                ...(wearer(pin) ? { '--who': memberInk(wearer(pin)) } : {}),
               }}
               aria-label={`An anchor on page ${pin.page}`}
               data-annotation={pin.uuid}

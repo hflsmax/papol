@@ -187,7 +187,7 @@ function newPost(dig: Dig, me: User, body: string, at: string): Row {
 // latest). With no project, the reader's own digs outside any.
 export async function pinsOf(env: Env, projectUuid: string | null, me: User, member: Member, subjects?: string[]) {
   const rows = await all<Row>(env.DB,
-    `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase,
+    `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase, d.created_at,
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
@@ -198,10 +198,14 @@ export async function pinsOf(env: Env, projectUuid: string | null, me: User, mem
   // The dig a pin opens on, the reader's own else the latest, in a line:
   // whose it is, where it stands and how it begins.
   const lead = (d: Row) => ({ owner: people.get(String(d.user_uuid)) ?? null, phase: d.phase, excerpt: excerpt(String(d.text)) });
-  const pins: Record<string, { uuid: string; mine: string | null; dig_count: number; post_count: number; unread: number; is_new: boolean; voices: unknown[]; lead: unknown }> = {};
+  // Each dig on the thing, oldest first: whose it is and whether it holds
+  // news, for the viewer's margin to show one face per dig.
+  type Each = { uuid: string; owner: unknown; created_at: string; is_new: boolean };
+  const pins: Record<string, { uuid: string; mine: string | null; dig_count: number; post_count: number; unread: number; is_new: boolean; voices: unknown[]; lead: unknown; digs: Each[] }> = {};
   for (const d of rows) {
     const key = String(d.subject);
-    const pin = pins[key] ??= { uuid: String(d.uuid), mine: null, dig_count: 0, post_count: 0, unread: 0, is_new: false, voices: [], lead: lead(d) };
+    const pin = pins[key] ??= { uuid: String(d.uuid), mine: null, dig_count: 0, post_count: 0, unread: 0, is_new: false, voices: [], lead: lead(d), digs: [] };
+    pin.digs.push({ uuid: String(d.uuid), owner: people.get(String(d.user_uuid)) ?? null, created_at: String(d.created_at), is_new: Number(d.unread) > 0 });
     if (d.user_uuid === me.uuid) { pin.uuid = pin.mine = String(d.uuid); pin.lead = lead(d); }
     pin.dig_count += 1;
     pin.post_count += Number(d.post_count);
@@ -212,6 +216,7 @@ export async function pinsOf(env: Env, projectUuid: string | null, me: User, mem
       if (person && !pin.voices.some((v) => (v as { uuid?: string }).uuid === person.uuid)) pin.voices.push(person);
     }
   }
+  for (const pin of Object.values(pins)) pin.digs.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.uuid.localeCompare(b.uuid));
   return pins;
 }
 

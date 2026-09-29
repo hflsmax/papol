@@ -100,8 +100,9 @@ ${talkStyles}
 .project-menu a[aria-checked='true'] { font-weight: 600; }
 .project-menu a[aria-checked='true']::before { content: ''; position: absolute; left: 10px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); }
 
-/* Another member's pin wears their colour, as their ink does. */
-.pin.theirs { color: var(--who); cursor: pointer; }
+/* With a project on, each pin wears its member's colour, as their ink does. */
+.pin.worn { color: var(--who); }
+.pin.theirs { cursor: pointer; }
 /* The bar every picked thing wears — an anchor, ink, a clip: whose it is
    (another member's, with a project on), its dig as the spade, then the
    rest of what can be done to it, all in one pill. The actions come from
@@ -117,6 +118,14 @@ ${talkStyles}
 .thing-dig { display: inline-grid; min-width: 32px; height: 32px; padding: 0 2px; place-items: center; box-sizing: border-box; }
 .thing-dig .talk-pin { padding: 0 4px; }
 .thing-dig .talk-pin.is-empty { opacity: 1; }
+/* The bar is for acting on the thing, not counting what is written on it. */
+.thing-dig .talk-count { display: none; }
+/* A dig opened over the page shows its Edit and Delete outright, not only
+   under the pointer. */
+.talk-card .talk-post-head .item-actions { position: static; width: auto; height: auto; visibility: visible; }
+.talk-card .talk-post-head .item-actions-surface { position: static; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.talk-card .talk-post-head .item-action { width: 24px; height: 24px; }
+.talk-card .talk-post-head .item-action svg { width: 14px; height: 14px; }
 /* Over a clip, above its top edge at its right. */
 .paper-clip.theirs { cursor: default; }
 .clip-bar { position: absolute; z-index: 2; right: -1px; bottom: calc(100% + 6px); }
@@ -446,6 +455,10 @@ ${talkStyles}
 
 .viewer-bar .navigator-lane .navigator-anchor:hover:not(:disabled),
 .viewer-bar .navigator-lane .navigator-anchor:focus-visible { color: var(--ink); }
+/* With a project on, a mark wears its member's colour, as their pin does. */
+.viewer-bar .navigator-lane .navigator-anchor.worn { color: var(--who); }
+.viewer-bar .navigator-lane .navigator-anchor.worn:hover:not(:disabled),
+.viewer-bar .navigator-lane .navigator-anchor.worn:focus-visible { color: color-mix(in srgb, var(--who) 70%, black); }
 
 .navigator-anchor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
@@ -1336,64 +1349,45 @@ ${talkStyles}
 body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
-.dig-margin-line { position: absolute; box-sizing: border-box; z-index: 5; }
-/* Folded, a line is its writer's face, level with its place; an open one
-   stands over the page's edge, above the faces. */
-.dig-margin-line.is-open { z-index: 6; }
+/* A thing's digs: a column of their writers' faces, level with its place. */
+.dig-margin-line { position: absolute; z-index: 5; display: flex; flex-direction: column; box-sizing: border-box; }
 .dig-margin-face { position: relative; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; cursor: pointer; }
 .dig-margin-face .mini-avatar { width: 24px; height: 24px; font-size: 11px; }
-.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-line.is-picked .dig-margin-face { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+/* With a project on, a face is ringed in its member's colour, as their
+   marks are. */
+.dig-margin-face.worn .mini-avatar { box-shadow: 0 0 0 2px var(--who); }
+.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-face.is-open, .dig-margin-line.is-picked .dig-margin-face { background: color-mix(in srgb, var(--ink) 9%, transparent); outline: none; }
 .dig-margin-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--paper-sunken); }
-.dig-margin.is-folded .dig-margin-line.is-open { box-shadow: var(--shadow-md); }
-/* The fold, quiet at the head of the column. */
-.dig-margin-fold { position: absolute; z-index: 5; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); cursor: pointer; }
-.dig-margin.is-folded .dig-margin-fold { width: 32px; }
-.dig-margin-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.dig-margin-fold:hover:not(:disabled), .dig-margin-fold:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); outline: none; }
-.dig-margin-head {
-  display: grid; gap: 4px; box-sizing: border-box; width: 100%; margin: 0; padding: 8px 12px;
-  border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink);
-  font: inherit; text-align: left; cursor: pointer;
-}
-.dig-margin-head:hover, .dig-margin-head:focus-visible, .dig-margin-line.is-picked .dig-margin-head { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.dig-margin-who { display: flex; align-items: center; gap: 6px; min-width: 0; font: 600 var(--fs-sm)/20px var(--font-ui); }
-.dig-margin-who .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
-.dig-margin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dig-margin-more { color: var(--ink-faint); font-weight: 400; }
-.dig-margin-who .phase-glyph { width: 14px; height: 14px; }
-.dig-margin-text {
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
-  color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif);
-}
-/* Open, a line is the dig card on a sheet of its own. */
-.dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
-.dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
-.dig-margin-line .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+/* The dig a face opens: beside the faces, over the page's edge when the
+   window has no room past them. */
+.dig-margin-card { position: absolute; z-index: 6; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
+.dig-margin-card .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.dig-margin-card .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 /* Inside, the card keeps the margin's one column: owners, posts and the
    box all start where the line's name did, and the phase stands on the
    dig's own line after its date, as in the brief. */
-.dig-margin-line .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
-.dig-margin-line .talk-card.is-inline .talk-card-error { margin-left: 0; }
-.dig-margin-line .talk-post { margin: 0; padding: 4px 0; }
-.dig-margin-line .talk-post:hover { background: none; }
-.dig-margin-line .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
-.dig-margin-line .talk-post-head { margin-bottom: 2px; }
-.dig-margin-line .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
-.dig-margin-line .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
-.dig-margin-line .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
-.dig-margin-line .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
-.dig-margin-line .talk-post-body > :last-child { margin-bottom: 0; }
-.dig-margin-line .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
-.dig-margin-line .talk-post-head .dig-phase-word::before { content: '·'; margin-right: 6px; color: var(--ink-faint); }
-.dig-margin-line .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
-.dig-margin-line .talk-post-head .dig-phase-pick { margin-left: 0; }
-.dig-margin-line .talk-post-head .dig-phase-menu { right: auto; left: 0; }
-.dig-margin-line .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
-.dig-margin-line .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
-.dig-margin-line .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
-.dig-margin-line .talk-compose textarea:focus { min-height: 88px; }
-.dig-margin-line .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
-.dig-margin-line .talk-compose .talk-send:disabled { display: none; }
+.dig-margin-card .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
+.dig-margin-card .talk-card.is-inline .talk-card-error { margin-left: 0; }
+.dig-margin-card .talk-post { margin: 0; padding: 4px 0; }
+.dig-margin-card .talk-post:hover { background: none; }
+.dig-margin-card .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.dig-margin-card .talk-post-head { margin-bottom: 2px; }
+.dig-margin-card .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.dig-margin-card .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
+.dig-margin-card .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.dig-margin-card .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.dig-margin-card .talk-post-body > :last-child { margin-bottom: 0; }
+.dig-margin-card .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
+.dig-margin-card .talk-post-head .dig-phase-word::before { content: '·'; margin-right: 6px; color: var(--ink-faint); }
+.dig-margin-card .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
+.dig-margin-card .talk-post-head .dig-phase-pick { margin-left: 0; }
+.dig-margin-card .talk-post-head .dig-phase-menu { right: auto; left: 0; }
+.dig-margin-card .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
+.dig-margin-card .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
+.dig-margin-card .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
+.dig-margin-card .talk-compose textarea:is(:focus, :not(:placeholder-shown)) { min-height: 88px; }
+.dig-margin-card .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
+.dig-margin-card .talk-compose .talk-send:disabled { display: none; }
 
 .animal-gutter {
   position: relative;
@@ -2080,7 +2074,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   color: var(--accent-strong);
   transform: translate(-50%, -50%) scale(1.15);
 }
-.pin.theirs.active { color: color-mix(in srgb, var(--who) 80%, black); }
+.pin.worn.active { color: color-mix(in srgb, var(--who) 80%, black); }
 .pin:not(.active) { opacity: 0.9; }
 
 .pin.dragging { cursor: grabbing; opacity: 0.85; }

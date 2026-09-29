@@ -23,8 +23,7 @@ import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations,
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
-import { confirmAction } from '../../shared/confirmAction.js';
-import DigMargin, { MARGIN_FOLDED, MARGIN_GAP, MARGIN_MAX, MARGIN_MIN } from './DigMargin.jsx';
+import DigMargin, { MARGIN_GAP, MARGIN_WIDTH } from './DigMargin.jsx';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
@@ -145,8 +144,6 @@ function usePageGroups(items, include = null) {
 const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
 // The pages' padding on every side (`.pages` in styles.js).
 const PAGES_PADDING = 24;
-// Where the reader's choice to fold the dig margin is remembered.
-const MARGIN_FOLDED_KEY = 'papol.viewer.marginFolded';
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -1706,13 +1703,14 @@ export default function App() {
         ...next,
         lead: keep ? was.lead : (fresh ?? next.lead ?? was?.lead),
         voices: next.voices?.length ? next.voices : was?.voices ?? [],
+        digs: next.digs ?? was?.digs ?? [],
       } : undefined;
       if (paperKey) return { ...view, paperDigs: summary ?? null };
       return { ...view, digs: { ...view.digs, [key.slice('annotation:'.length)]: summary } };
     });
   });
   const marginDigChanged = useEvent((key, discussion, total) => digChanged(key, discussion ? {
-    uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts?.length ?? 0, is_new: false,
+    uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts?.length ?? 0, is_new: false, digs: total?.list,
   } : null, discussion));
   // What PdfPage needs to pin a dig on an annotation, and nothing else of
   // the project: one object, so the pages are not redrawn for the bar.
@@ -2204,24 +2202,13 @@ export default function App() {
   // The margin: every dig on the paper (the project's, else the reader's
   // own) beside the page it is about (DigMargin.jsx). One line per thing
   // dug, the paper's own at the head of the first page, the rest in
-  // reading order by where their annotation sits. It lives in the room the
-  // page leaves beside it at the zoom it is read at, as wide as that room
-  // allows up to MARGIN_MAX. Folded — by the reader, or because there is
-  // less than MARGIN_MIN — it is a column of faces; with no room even for
-  // that, only the pins. It never makes the page smaller.
+  // reading order by where their annotation sits, each dig as its
+  // writer's face. It lives in the room the page leaves beside it at the
+  // zoom it is read at, one face wide; with no room even for that, only the
+  // pins. It never makes the page smaller.
   const viewWidth = useWidth(scrollerRef);
   const pageAcross = scale && defaultPageSize ? scale * defaultPageSize.width : Infinity;
   const marginRoom = Math.floor(viewWidth - 2 * PAGES_PADDING - pageAcross - MARGIN_GAP);
-  const [marginFoldedByReader, setMarginFoldedByReader] = useState(() => {
-    try { return localStorage.getItem(MARGIN_FOLDED_KEY) === '1'; } catch { return false; }
-  });
-  const foldMargin = useCallback((folded) => {
-    setMarginFoldedByReader(folded);
-    try { localStorage.setItem(MARGIN_FOLDED_KEY, folded ? '1' : '0'); } catch { /* only remembered */ }
-  }, []);
-  const marginUnfoldable = marginRoom >= MARGIN_MIN;
-  const marginFolded = marginFoldedByReader || !marginUnfoldable;
-  const marginWidth = marginFolded ? MARGIN_FOLDED : Math.min(MARGIN_MAX, marginRoom);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
     () => (digView && paper ? marginLinesOf({
@@ -2229,12 +2216,15 @@ export default function App() {
     }) : []),
     [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
-  const withMargin = Boolean(digView) && marginRoom >= MARGIN_FOLDED && marginLines.length > 0;
+  const withMargin = Boolean(digView) && marginRoom >= MARGIN_WIDTH && marginLines.length > 0;
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
   const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
     setMarginOpen({ key: line.key, dig, writing, landed });
+    // A face opens only the dig. A link that lands on a thing picks it out
+    // too, so the reader sees where they arrived.
+    if (!landed) return;
     if (line.kind === 'anchor') setActiveAnchorUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
@@ -2258,36 +2248,14 @@ export default function App() {
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
-    if (key && key === activeAnchorUuid) setActiveAnchorUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
-        scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
+        scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-face`)?.focus({ preventScroll: true });
       });
     }
   });
   // The thing picked on the page, whose line answers it.
   const marginPicked = activeAnchorUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
-  // An anchor the margin holds is the place of its digs: pressing it opens
-  // its line there.
-  const marginHolds = useMemo(
-    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'anchor').map((l) => l.annotation) : []),
-    [withMargin, marginLines],
-  );
-  useEffect(() => {
-    if (!activeAnchorUuid || !marginHolds.has(activeAnchorUuid)) return;
-    if (marginOpen?.key === activeAnchorUuid) return;
-    const line = marginLines.find((l) => l.annotation === activeAnchorUuid);
-    if (line) openInMargin(line);
-  }, [activeAnchorUuid, marginHolds]);
-  // An anchor dropped to dig at, left without a dig written there, is
-  // taken away again when the reader moves on: a place with nothing said.
-  const freshSpot = useRef(null);
-  useEffect(() => {
-    const spot = freshSpot.current;
-    if (!spot || marginOpen?.key === spot || activeAnchorUuid === spot || landing?.annotation === spot) return;
-    freshSpot.current = null;
-    if (!digView?.digs[spot]) removeAnchor(spot);
-  }, [marginOpen?.key, activeAnchorUuid, landing?.annotation, digView?.digs]);
   const pageProject = useMemo(() => (digView ? {
     uuid: digView.uuid, me: digView.me, digs: digView.digs, onDigChanged: digChanged, landing, inMargin,
   } : null), [digView?.uuid, digView?.me, digView?.digs, landing, inMargin]);
@@ -3314,7 +3282,7 @@ export default function App() {
     setAnchors((prev) => [...prev, optimistic]);
     // An anchor is a place to dig: once saved, the reader's dig there opens
     // to be written, in the margin level with it or off its pin. Left
-    // without a dig, it goes again (freshSpot).
+    // without one, the anchor stays, a place marked.
     setActiveAnchorUuid(tempUuid);
 
     const saving = annotations.anchors
@@ -3324,7 +3292,6 @@ export default function App() {
           n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
         )));
         setActiveAnchorUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
-        freshSpot.current = saved.uuid;
         if (withMargin) openInMargin({ key: saved.uuid, annotation: saved.uuid, kind: 'anchor' }, 'mine', true);
         else setLanding({ annotation: saved.uuid, dig: 'mine' });
         return saved;
@@ -3499,10 +3466,12 @@ export default function App() {
     setActiveAnchorUuid((open) => (uuid == null || open === uuid ? null : uuid));
   };
 
-  // An anchor taken away takes its digs with it, so there is nothing an
-  // undo could put back.
-  const removeAnchor = async (uuid) => {
+  // An anchor taken away takes its digs out of sight with it; undo brings
+  // the anchor back under its own name, and its digs with it. So nothing
+  // asks first.
+  const removeAnchor = async (uuid, record = true) => {
     if (theirs(uuid)) return;
+    const was = anchors.find((n) => n.uuid === uuid);
     setAnchors((prev) => prev.filter((n) => n.uuid !== uuid));
     // Let go of it everywhere. SQLite hands out a deleted row's uuid again,
     // so a number kept here after the anchor it named has gone will one day
@@ -3511,7 +3480,17 @@ export default function App() {
     setActiveAnchorUuid((open) => (open === uuid ? null : open));
     try {
       const real = await settledUuid(uuid);
-      if (real != null) await annotations.anchors.remove(real);
+      if (real == null) return;
+      await annotations.anchors.remove(real);
+      if (record && was && annotations.anchors.restore) {
+        remember({
+          undo: async () => {
+            await annotations.anchors.restore(real, { page: was.page, anchor: was.anchor });
+            setAnchors((prev) => (prev.some((n) => n.uuid === real) ? prev : [...prev, { ...was, uuid: real }]));
+          },
+          redo: () => removeAnchor(real, false),
+        });
+      }
     } catch (e) {
       setError(e.message);
     }
@@ -3757,9 +3736,11 @@ export default function App() {
         anchor,
         label: (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
           || `Page ${anchor.page}`,
+        // With a project on, the mark wears its member's colour.
+        who: projectView && (anchor.user ?? projectView.me) ? memberInk(anchor.user ?? projectView.me) : null,
       };
     }),
-    [numbered, digView?.digs],
+    [numbered, digView?.digs, projectView?.me],
   );
 
   // Once imported, leave the ephemeral file URL. The canonical nook viewer
@@ -3883,12 +3864,8 @@ export default function App() {
   });
   const pageEraseStroke = useEvent(eraseStroke);
   const pageEraseAnchor = useEvent(removeAnchor);
-  // Removed from its bar or with Delete, an anchor with a dig on it asks
-  // first: the dig goes with it.
-  const pageRemoveAnchor = useEvent(async (uuid) => {
-    if (digView?.digs[uuid] && !(await confirmAction('Remove this anchor and its dig?', { confirmLabel: 'Remove', destructive: true }))) return;
-    removeAnchor(uuid);
-  });
+  // Removed from its bar or with Delete; undo brings it back.
+  const pageRemoveAnchor = useEvent((uuid) => removeAnchor(uuid));
   const pageHover = useEvent((spot) => { hoverRef.current = spot; });
   const pageDropAnchor = useEvent(dropAnchor);
   const pageCreateClip = useEvent(createClip);
@@ -4692,7 +4669,7 @@ export default function App() {
         </ReturnPill>
         <div
           className={`pages${withMargin ? ' with-margin' : ''}`}
-          style={withMargin ? { paddingRight: PAGES_PADDING + MARGIN_GAP + marginWidth } : undefined}
+          style={withMargin ? { paddingRight: PAGES_PADDING + MARGIN_GAP + MARGIN_WIDTH } : undefined}
           ref={scrollerRef}
           aria-busy={!doc}
           onPointerDown={(e) => {
@@ -4827,9 +4804,8 @@ export default function App() {
           ))}
           {withMargin && scale && (
             <DigMargin
-              scrollerRef={scrollerRef} lines={marginLines} layoutKey={`${scale}|${marginWidth}`} width={marginWidth}
-              folded={marginFolded} canUnfold={marginUnfoldable} onFold={foldMargin}
-              open={marginOpen} picked={marginPicked} onOpen={(line) => openInMargin(line)} onClose={() => closeMargin()}
+              scrollerRef={scrollerRef} lines={marginLines} layoutKey={scale}
+              open={marginOpen} picked={marginPicked} onOpen={(line, dig) => openInMargin(line, dig)} onClose={() => closeMargin()}
               project={digView} onChanged={marginDigChanged}
             />
           )}

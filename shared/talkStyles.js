@@ -63,6 +63,14 @@ export const talkStyles = `
 .dig-phase-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (pointer: coarse) { .dig-phase-word { height: 32px; line-height: 32px; } .dig-phase-menu button { height: 40px; } }
 .dig-phase-pick + .talk-card-close { margin-left: 0; }
+/* On a post's head line the phase sits level with the name and date, in
+   every engine: no button margin or native look to lift it off the line. */
+.talk-post-head .dig-phase-pick { align-self: center; align-items: center; margin: 0; }
+.talk-post-head .dig-phase-word { -webkit-appearance: none; appearance: none; margin: 0; vertical-align: middle; }
+/* The glyph stands on its ground line, which drops below the words'
+   baseline; lifted a pixel its middle meets the middle of the capitals,
+   as the face and the trash already do. */
+.talk-post-head .dig-phase-word svg { flex: none; display: block; position: relative; top: -1px; }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
@@ -93,7 +101,10 @@ export const talkStyles = `
 .talk-dig-new { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); padding: var(--space-2) 0; }
 .talk-dig-new .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
 .talk-dig-new textarea { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; transition: min-height var(--motion-fast) var(--ease-out); }
-.talk-dig-new textarea:focus { min-height: 96px; border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+/* Grown while it holds words, not only while focused: shrinking on blur
+   would pull the Dig button from under the press that blurred it. */
+.talk-dig-new textarea:is(:focus, :not(:placeholder-shown)) { min-height: 96px; }
+.talk-dig-new textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
 /* A folded box: one quiet word that opens it. */
 .talk-unfold { display: inline-flex; align-self: flex-start; width: max-content; align-items: center; gap: 6px; box-sizing: border-box; min-height: 30px; padding: 0 12px; font: 500 var(--fs-sm)/1 var(--font-ui); }

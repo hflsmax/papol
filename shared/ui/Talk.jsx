@@ -176,7 +176,7 @@ export function TalkPin({
 
   const changed = useCallback((discussion, total) => {
     const next = discussion
-      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false, voices: uniqueVoices([{ user: discussion.owner }, ...discussion.posts]) }
+      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false, voices: uniqueVoices([{ user: discussion.owner }, ...discussion.posts]), digs: total?.list }
       : { uuid: null, post_count: 0, is_new: false, voices: [] };
     setLocal(next);
     onChanged?.(key, next, discussion);
@@ -297,6 +297,16 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // With phaseInHead the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
 // With tucked the writing box stays folded to one word until it is pressed.
+// What a change leaves on the thing: how many digs and posts it holds, and
+// each dig, oldest first, whose it is.
+function tally(next, all) {
+  const others = all.filter((d) => d.uuid !== next.uuid);
+  const list = [...others, { uuid: next.uuid, owner: next.owner, created_at: next.created_at, is_mine: next.is_mine }]
+    .map((d) => ({ uuid: d.uuid, owner: d.owner, created_at: d.created_at, is_new: false }))
+    .sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
+  return { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length), list };
+}
+
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, focus = false, unread = 0, seekUnread = () => true,
   single = false, phaseInHead = false, tucked = false,
@@ -412,8 +422,7 @@ export function TalkCard({
       toEnd();
       // The pin counts every dig on its thing and every post, this dig as
       // it now stands.
-      const others = digs.filter((d) => d.uuid !== next.uuid);
-      if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
+      if (onHome) onChanged?.(next, tally(next, digs));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -425,10 +434,7 @@ export function TalkCard({
   // now stands.
   const report = (next, all = digs) => {
     if (!onHome) return;
-    const others = all.filter((d) => d.uuid !== next?.uuid);
-    onChanged?.(next, next
-      ? { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) }
-      : undefined);
+    onChanged?.(next, next ? tally(next, all) : undefined);
   };
 
   // Its writer rewords a post, or its owner the dig's own words.
@@ -494,8 +500,7 @@ export function TalkCard({
       dig={discussion}
       onMoved={(next) => {
         setDiscussion(next);
-        const others = digs.filter((d) => d.uuid !== next.uuid);
-        if (onHome) onChanged?.(next, { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length) });
+        if (onHome) onChanged?.(next, tally(next, digs));
       }}
     />
   );

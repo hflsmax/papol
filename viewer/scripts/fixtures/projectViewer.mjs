@@ -117,7 +117,8 @@ const personalDigs = [
   personal(61, annotationSubject(mine[0], 'Ink on page 1'), 'Check this against the timing we measured on the bench.', daysAgo(2)),
   personal(62, paperSubject, 'Read for the loop redesign. Section 3.2 is the part that matters.', daysAgo(3)),
 ];
-const personalPin = (d) => ({ uuid: d.uuid, mine: true, dig_count: 1, post_count: 0, unread: 0, is_new: false, voices: [me], lead: { owner: me, phase: null, excerpt: d.text } });
+const each = (d, isNew = false) => ({ uuid: d.uuid, owner: d.owner, created_at: d.created_at, is_new: isNew });
+const personalPin = (d) => ({ uuid: d.uuid, mine: d.uuid, dig_count: 1, post_count: 0, unread: 0, is_new: false, voices: [me], lead: { owner: me, phase: null, excerpt: d.text }, digs: [each(d)] });
 
 const allDigs = [dig, inkDig, paperDig, paperDigBen, ...personalDigs];
 
@@ -149,6 +150,8 @@ function answer(method, path, search) {
       paper_digs: personalPin(personalDigs[2]),
     };
   }
+  // A dig written with no project on comes back as the reader's own.
+  if (path === '/digs' && method === 'POST') return personal(70, annotationSubject({ uuid: id(90), kind: 'anchor', page: 1 }, 'An anchor on page 1'), 'Written in the margin.', daysAgo(0));
   if (path === '/digs' && method === 'GET') {
     const key = search.get('subject');
     const on = personalDigs.filter((d) => d.subject.key === key);
@@ -168,10 +171,10 @@ function answer(method, path, search) {
       me: ME,
       annotations: [...mine, ...theirs],
       digs: {
-        [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text } },
-        [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text } },
+        [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
+        [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },
       },
-      paper_digs: { uuid: PAPER_DIG, dig_count: 2, post_count: 0, is_new: false, voices: [ana, ben], lead: { owner: ana, phase: 'gold', excerpt: paperDig.text } },
+      paper_digs: { uuid: PAPER_DIG, dig_count: 2, post_count: 0, is_new: false, voices: [ana, ben], lead: { owner: ana, phase: 'gold', excerpt: paperDig.text }, digs: [each(paperDig), each(paperDigBen)] },
     };
   }
   if (path === `/projects/${PROJECT}`) return { ...projects[0], boards: [], discussions: [], papers: [] };
@@ -213,7 +216,6 @@ const signIn = () => ({
     localStorage.setItem('papol_token', 'fixture');
     localStorage.setItem('papol.macosDownloadBannerDismissed', '1');
     localStorage.setItem('papol_annotation_storage_notice', 'hidden');
-    localStorage.removeItem('papol.viewer.marginFolded');
   </script>`),
 });
 
