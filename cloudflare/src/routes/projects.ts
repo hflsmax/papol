@@ -22,6 +22,7 @@ import { writeSynced } from "../sync/write";
 export interface Project extends Row {
   uuid: string;
   name: string;
+  description: string | null;
   invite_code: string | null;
   created_at: string;
   updated_at: string;
@@ -49,6 +50,14 @@ function projectName(value: unknown): string {
   const name = tidy(check.string("name", value, { min: 1, max: limits.text.project_name }) ?? "");
   check.done();
   return name || refuse(422, "name is required");
+}
+
+// One line, as the name is; empty is none.
+function projectDescription(value: unknown): string | null {
+  const check = validate.checking();
+  const description = check.string("description", value, { max: limits.text.project_description, optional: true });
+  check.done();
+  return tidy(description ?? "") || null;
 }
 
 export async function liveProject(env: Env, uuid: string): Promise<Project> {
@@ -184,6 +193,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
   for (const r of placed) onBoards.set(r.paper_sha256 as string, [...(onBoards.get(r.paper_sha256 as string) ?? []), r.board_uuid as string]);
   return {
     ...summaryOut(project, members, me),
+    description: project.description,
     invite_code: member.is_keeper ? project.invite_code : null,
     boards: boards.map((b) => ({
       uuid: b.uuid, name: b.name, description: b.description,
@@ -381,7 +391,7 @@ export function projectRoutes(router: Router) {
     const me = await currentUser(request, env);
     const data = await readJson<Row>(request);
     const at = now();
-    const project: Project = { uuid: newUuid(), name: projectName(data.name), invite_code: null, created_at: at, updated_at: at, deleted_at: null };
+    const project: Project = { uuid: newUuid(), name: projectName(data.name), description: null, invite_code: null, created_at: at, updated_at: at, deleted_at: null };
     const member: Member = { uuid: newUuid(), project_uuid: project.uuid, user_uuid: me.uuid, is_keeper: 1, joined_at: at, seen_at: at };
     await batch(env.DB, [insert(env.DB, "projects", project), insert(env.DB, "project_members", member)]);
     return json(await projectOut(env, project, me, member));
@@ -410,9 +420,11 @@ export function projectRoutes(router: Router) {
     const project = await liveProject(env, params.uuid);
     const member = await keeping(env, project, me);
     const data = await readJson<Row>(request);
-    project.name = projectName(data.name);
+    // A keeper renames it or says what it is about, one at a time.
+    if (data.name !== undefined) project.name = projectName(data.name);
+    if (data.description !== undefined) project.description = projectDescription(data.description);
     project.updated_at = now();
-    await batch(env.DB, [update(env.DB, "projects", "uuid", project.uuid, { name: project.name, updated_at: project.updated_at })]);
+    await batch(env.DB, [update(env.DB, "projects", "uuid", project.uuid, { name: project.name, description: project.description, updated_at: project.updated_at })]);
     return json(await projectOut(env, project, me, member));
   });
 

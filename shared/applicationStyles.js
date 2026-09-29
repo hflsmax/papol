@@ -176,7 +176,10 @@ ${commonStyles}
 #way-slot .detail-title-row h2 { margin: 0; font: 600 var(--fs-hero)/1.15 var(--font-serif); color: var(--ink); }
 #way-slot > h2 { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 #way-slot > h2 .desk-count { font: 400 var(--fs-md) var(--font-ui); }
-#way-slot > .project-title-row { flex: 1 1 auto; }
+#way-slot > .project-title-row { flex: 1 1 18rem; }
+/* A project's name, like a paper's title, is set smaller to make room for
+   the line under it. */
+#way-slot .project-title { font-size: var(--fs-2xl); line-height: 1.25; }
 #way-slot > .project-seats { margin-left: auto; }
 #way-slot > .detail-title-row { flex: 1; min-width: 0; margin: 0; }
 /* A paper's title runs long, so it is set smaller. Under it, its authors
@@ -5135,14 +5138,25 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-head > .project-tabs { margin: 0; }
 .project-head:has(> .project-title-row) > .project-tabs { order: 3; flex-basis: 100%; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
-.project-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
-.project-title-row .project-title { min-width: 0; }
+/* The name and its badge, and under them what the project is about. */
+.project-title-row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; }
+.project-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+.project-title-line .project-title { min-width: 0; }
 /* The name input takes its text's width: a hidden copy of the name sizes
    the cell both share. */
 .project-title-sizer { display: inline-grid; max-width: 100%; }
 .project-title-sizer::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 var(--space-2); border: 1px solid transparent; }
 .project-title-sizer::after, .project-title-sizer > .project-title-input { grid-area: 1 / 1; min-width: 0; }
 .project-title-sizer > .project-title-input { text-overflow: ellipsis; }
+/* What the project is about, one quiet line under the name, as a paper's
+   authors are under its title: level with the name, cut with an ellipsis
+   when long. A keeper's is written in place, bare until pointed at. */
+.project-description { max-width: 48rem; box-sizing: border-box; margin: 0 0 0 calc(-1 * var(--space-2)); padding: 0 var(--space-2); border: 1px solid transparent; border-radius: var(--radius); background: transparent; box-shadow: none; color: var(--ink-soft); font: var(--fs-md)/1.4 var(--font-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-toolbar .project-description { font-size: var(--fs-xs); line-height: 1.3; }
+.project-description-input { transition: border-color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.project-description-input::placeholder { color: var(--ink-faint); }
+.project-description-input:hover { border-color: var(--line); background: var(--card); }
+.project-description-input:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: 0; }
 .project-tally { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 
 .project-seats { position: relative; display: flex; align-items: flex-start; gap: var(--space-2); }
@@ -5383,11 +5397,11 @@ ${talkStyles}
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people. */
-.project-toolbar { display: flex; flex: 1 1 0; align-items: center; gap: var(--space-2); min-width: 0; }
+.project-toolbar { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; align-items: stretch; gap: 0; min-width: 0; }
+.project-toolbar .project-title-line { flex-wrap: nowrap; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
-.desktop-toolbar .project-tabs { flex: none; margin: 0; }
-.desktop-toolbar .project-tab { padding: 3px var(--space-3); }
-.desktop-toolbar .project-seats { flex: 1 1 0; justify-content: flex-end; align-items: center; gap: var(--space-1); }
+[data-shell='desktop'] .project-page > .project-tabs { margin: 0 0 var(--space-4); }
+.desktop-toolbar .project-seats { flex: none; margin-left: auto; justify-content: flex-end; align-items: center; gap: var(--space-1); }
 .desktop-toolbar .project-seat-row { gap: 0; }
 .desktop-toolbar .project-seat-more { align-self: center; margin: 0 0 0 var(--space-1); }
 .desktop-toolbar .project-seat { width: auto; margin-left: -4px; padding: 2px; border-radius: 50%; }

@@ -188,7 +188,10 @@ sidebar, toolbar and document windows.
   starts where the page does, so the page begins at the top of the window;
   on a narrow window the title takes the line under it. A page puts its
   title there with `InWay`; without the bar (a visitor, the Mac app) the
-  title stays in the page.
+  title stays in the page. A project's description rides the bar too: one
+  quiet line under a smaller name, as a paper's authors sit under its
+  title, written in place by a keeper, cut with an ellipsis when long (all
+  of it on pointing), absent when there is none.
 - **In-app moves never reload.** Links are real `<a href>`s (so Cmd-click
   opens a tab) and plain clicks go through `navigate`.
 - **History.** Opening a place or a paper is one Back step. Stepping through

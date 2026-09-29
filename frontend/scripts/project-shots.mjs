@@ -26,6 +26,8 @@ const desk = (tab, settled, then = null, search = '') => ({
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
+  // A keeper writing what the project is about, under its name.
+  'desk-description': { ...desk('papers', '.project-description-input:focus', "document.querySelector('.project-description-input').focus(); return true;"), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
   // The Digs tab with its buried band unfolded.

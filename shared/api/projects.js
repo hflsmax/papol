@@ -25,6 +25,10 @@ export function renameProject(uuid, name) {
   return jsonRequest(`/projects/${uuid}`, 'PUT', { name });
 }
 
+export function describeProject(uuid, description) {
+  return jsonRequest(`/projects/${uuid}`, 'PUT', { description });
+}
+
 export function deleteProject(uuid) {
   return request(`/projects/${uuid}`, { method: 'DELETE' });
 }
