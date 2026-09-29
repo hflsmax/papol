@@ -49,7 +49,7 @@ const isCaption = (l: Line) => CAPTION_LABEL.pattern!.test(l.text) || (l.bold &&
 // What bounds it is the paper's own running text, and what that looks like
 // is measured from the paper, not assumed.
 
-interface Type {
+export interface Type {
   bodySize: number;
   font: string; // the font most of the running text is set in
   leading: number; // baseline to baseline, in running text

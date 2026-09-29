@@ -232,6 +232,10 @@ export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: u
     if (sx !== null && sw !== null && sy !== null && sh !== null && (sx + sw > 1.000001 || sy + sh > 1.000001)) {
       check.fail("rectangle must stay on its page");
     }
+    // A clip of another page — a named rule brought to where it is cited —
+    // names the page it was cut from; without it, the source is the page the
+    // clip sits on.
+    check.integer("source.page", source.page, { min: 1, optional: true });
     const frame = (body.frame ?? {}) as Record<string, unknown>;
     const reach = annotations.clip_frame_coordinate_abs_max;
     check.number("frame.x", frame.x, { min: -reach, max: reach });
@@ -259,7 +263,7 @@ export function normalizedBody(kind: string, body: Record<string, unknown>): Rec
   }
   const source = body.source as Record<string, unknown>, frame = body.frame as Record<string, unknown>;
   return {
-    source: { x: source.x, y: source.y, w: source.w, h: source.h },
+    source: { x: source.x, y: source.y, w: source.w, h: source.h, ...(source.page !== undefined ? { page: source.page } : {}) },
     frame: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
     floating: Boolean(body.floating ?? false),
   };

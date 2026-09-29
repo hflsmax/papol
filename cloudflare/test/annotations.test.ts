@@ -29,17 +29,27 @@ describe("annotations", () => {
       kind: "clip", page: 2, name: "Figure 3", body: { source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } },
     } });
     expect(clip.body.floating).toBe(false);
+    expect(clip.body.source.page).toBeUndefined();
+    // A clip cut from another page (a named rule brought to where it is
+    // cited) keeps that page; a page that is none is refused.
+    const cut = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: {
+      kind: "clip", page: 2, body: { source: { page: 6, x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } },
+    } });
+    expect(cut.body.source).toEqual({ page: 6, x: 0.1, y: 0.1, w: 0.2, h: 0.2 });
+    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: {
+      kind: "clip", page: 2, body: { source: { page: 0, x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } },
+    } })).status).toBe(422);
     // A stroke drawn without saying its colour has one on every device.
     const bare = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.5, y: 0.5 }] } } });
     expect(bare.body).toEqual({ points: [{ x: 0.5, y: 0.5 }], color: "#b3923d", width: 0.004, opacity: 1, shape: "flat" });
 
     const all = await ok("GET", `/api/papers/${name}/annotations`, { headers: account.headers });
-    expect(all.map((a: any) => a.uuid)).toEqual([note.uuid, ink.uuid, clip.uuid, bare.uuid]);
+    expect(all.map((a: any) => a.uuid)).toEqual([note.uuid, ink.uuid, clip.uuid, cut.uuid, bare.uuid]);
     const inks = await ok("GET", `/api/papers/${name}/annotations?kind=ink`, { headers: account.headers });
     expect(inks.map((a: any) => a.uuid)).toEqual([ink.uuid, bare.uuid]);
     expect((await call("GET", `/api/papers/${name}/annotations?kind=laser`, { headers: account.headers })).status).toBe(422);
     // Each one is a version a replica hears of.
-    expect(await count("_server_change_log", "table_name = 'annotations'")).toBe(4);
+    expect(await count("_server_change_log", "table_name = 'annotations'")).toBe(5);
   });
 
   it("is only for a paper the user keeps", async () => {

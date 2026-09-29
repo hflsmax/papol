@@ -21,7 +21,9 @@ const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
 const ana = user(ANA, 'Ana Reyes', 'ESO');
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 
-const pdfFile = fileURLToPath(new URL('../../../frontend/scripts/fixtures/attention.pdf', import.meta.url));
+// Another paper stands in for the fixture's when a picture needs one (a
+// paper with named rules, for rule-shots.mjs): PAPOL_FIXTURE_PDF names it.
+const pdfFile = process.env.PAPOL_FIXTURE_PDF || fileURLToPath(new URL('../../../frontend/scripts/fixtures/attention.pdf', import.meta.url));
 const pdfBytes = readFileSync(pdfFile);
 export const PAPER = 'f1'.repeat(32);
 
@@ -29,8 +31,8 @@ const hoursAgo = (h) => new Date(Date.now() - h * 3600e3).toISOString();
 const daysAgo = (d) => hoursAgo(d * 24);
 
 const paper = {
-  sha256: PAPER, title: 'Attention Is All You Need', authors: '["A. Vaswani", "N. Shazeer", "N. Parmar"]',
-  journal: 'NeurIPS', year: 2017, doi: null, file_path: `${PAPER}.pdf`, file_url: '/uploads/attention.pdf',
+  sha256: PAPER, title: process.env.PAPOL_FIXTURE_TITLE || 'Attention Is All You Need', authors: '["A. Vaswani", "N. Shazeer", "N. Parmar"]',
+  journal: process.env.PAPOL_FIXTURE_TITLE ? '' : 'NeurIPS', year: 2017, doi: null, file_path: `${PAPER}.pdf`, file_url: '/uploads/attention.pdf',
   copy_uuid: 'c0000000-0000-4000-8000-000000000001', shelf_uuid: 'ab000000-0000-4000-8000-000000000001', is_public: true,
   summary: null, thought: null, tags: [], also_read_by: [], sharable_uuid: null, created_at: daysAgo(30),
 };

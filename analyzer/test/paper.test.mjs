@@ -20,16 +20,18 @@ const { analyzeWithRules, headerWithRules } = await import(pathToFileURL(out).hr
 // A one-page PDF written here, line by line in Helvetica at 10pt: enough
 // for the rules to find a caption, a mention of it, citations and a
 // bibliography of three entries (fewer is not taken for a bibliography).
-// A string instead of a line is drawing operators, put in as they are.
+// A string instead of a line is drawing operators, put in as they are; a
+// fifth item "italic" sets the line in Helvetica-Oblique.
 function writtenPdf(lines) {
   const content = lines.map((line) => (typeof line === "string" ? line
-    : `BT /F1 ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
+    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>",
   ];
   let pdf = "%PDF-1.4\n";
   const offsets = objects.map((body, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${body}\nendobj\n`; return at; });
@@ -152,6 +154,150 @@ describe("the paper", () => {
       const notes = body.floats.filter((f) => f.kind === "footnote");
       assert.deepEqual(notes.map((f) => [f.label, f.page]), [["1", 1]]);
       assert.deepEqual(body.links.filter((l) => l.float === notes[0].key).map((l) => [l.label, l.page]), [["1", 1]]);
+    }
+  });
+
+  it("links a rule's name in the text to the rule its label stands beside", async () => {
+    // Two typing rules, each a bar with premises over it and the conclusion
+    // under it, named at the bar's right: "T-App" in faked small capitals
+    // ("T-A" at 8pt, "PP" at 6.4pt on one baseline), "(T-Var)" in brackets.
+    // A law named at its right, an em from its text: "(RUNIT)".
+    const pdf = writtenPdf([
+      [60, 740, "Application is typed by T-App, as [T-Abs] and (T-Var) are, and the"],
+      [60, 725, "law (RUNIT) holds. By T-App the argument is checked; see also T-Sub."],
+      [100, 600, "G |- e1 : t1 -> t2"],
+      [220, 600, "G |- e2 : t1"],
+      "0 0 0 RG 0.4 w 100 596 m 320 596 l S",
+      [150, 585, "G |- e1 e2 : t2"],
+      [330, 592, "T-A", 8],
+      [342.9, 592, "PP", 6.4],
+      [100, 560, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 556 m 200 556 l S",
+      [110, 545, "G |- x : t"],
+      [210, 552, "(T-Var)", 8],
+      [100, 500, "m >>= return = m"],
+      [189, 500, "(RUNIT)"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => [f.label, f.page]), [["RUNIT", 1], ["T-APP", 1], ["T-Var", 1]]);
+      const [law, app, variable] = rules;
+      // T-App is its bar's width and its label, from its premises at 800 −
+      // 608 down to its conclusion at 800 − 575, not the rule under it.
+      assert.ok(app.x < 100 / 600 && app.x + app.w > 350 / 600 && app.x + app.w < 400 / 600, `T-App is as wide as its bar and label: ${JSON.stringify(app)}`);
+      assert.ok(app.y < 192 / 800 && app.y + app.h > 215 / 800 && app.y + app.h < 235 / 800, `T-App is its premises and conclusion: ${JSON.stringify(app)}`);
+      assert.ok(variable.y >= 229 / 800 && variable.y + variable.h < 262 / 800, `T-Var is under T-App, apart from it: ${JSON.stringify(variable)}`);
+      assert.ok(law.x < 100 / 600 && law.x + law.w > 220 / 600 && law.h < 20 / 800, `the law is its one line: ${JSON.stringify(law)}`);
+      // "T-App" twice and "(T-Var)" once, from the text; "[T-Abs]" and
+      // "T-Sub" name no rule, and the labels are not mentions of themselves.
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [[app.key, "T-App", 52], [variable.key, "(T-Var)", 52], [law.key, "(RUNIT)", 67], [app.key, "T-App", 67]]);
+    }
+  });
+
+  it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {
+    // Small capitals from a text font reach the text layer in lowercase
+    // ("s-refl"); Sequent Core names its rules with a bare word beside
+    // the bar ("Cut"). "(Kinding)" at the text's right margin, level with
+    // the judgement's form, heads the rules, "(value)" comments a grammar
+    // production, "sql-01" is a benchmark, and "Max" is a cell over a
+    // table's rule: none is a rule.
+    const pdf = writtenPdf([
+      [60, 740, "By s-refl every type is its own subtype. The Cut rule is admissible, and"],
+      [60, 725, "the cut of two proofs, as (value) shows, is cheap; sql-01 runs in a second."],
+      [60, 690, "G |- t : k", 10],
+      [346, 690, "(Kinding)", 10, "italic"],
+      [60, 670, "e ::= v"],
+      [160, 670, "(value)"],
+      [75, 672, "| e e"],
+      [100, 630, "t <: t"],
+      [160, 630, "s-refl", 8],
+      [100, 590, "G |- e : t"],
+      [180, 590, "G, x : t |- f : u"],
+      "0 0 0 RG 0.4 w 100 586 m 300 586 l S",
+      [150, 575, "G |- f[e/x] : u"],
+      [304, 584, "Cut", 8],
+      [60, 540, "sql-01"],
+      [200, 540, "12.3"],
+      [60, 500, "Max"],
+      "0 0 0 RG 0.4 w 60 496 m 340 496 l S",
+      [60, 485, "42"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => f.label), ["Cut", "s-refl"]);
+      const [cut, refl] = rules;
+      assert.ok(cut.x < 100 / 600 && cut.x + cut.w > 315 / 600 && cut.y < 210 / 800 && cut.y + cut.h > 225 / 800, `Cut is its premises, bar, conclusion and name: ${JSON.stringify(cut)}`);
+      assert.ok(refl.h < 20 / 800, `s-refl is its one line: ${JSON.stringify(refl)}`);
+      // "s-refl" and "Cut" beside "rule" from the text; "cut" in prose,
+      // "(value)" and "sql-01" name no rule.
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [[refl.key, "s-refl", 52], [cut.key, "Cut", 52]]);
+    }
+  });
+
+  it("finds a label under a boxed form, over a stack of premises, beside a bracketed word's bar, and takes no heading, listing or grammar word for one", async () => {
+    // Kind Inference boxes each judgement form, and the box's bottom edge
+    // lies right over "k-var", set mathpar-style over an axiom's bar with
+    // nothing else over it. "a-dt-decl" stands over three lines of
+    // premises, its bar as wide as the text, the conclusion centred under
+    // it. "[sapp]" is a bracketed word beside its bar, cited bare as "the
+    // sapp rule"; "[fvar]" is beside its bar with the next rule's bar a
+    // few points off, not a group heading. "1 INTRODUCTION" has only a
+    // number on its row, "m-bind" is a listing's line in a framed box over
+    // a rule it overhangs, and "Syntax" ends a grammar's row: none names
+    // a rule.
+    const pdf = writtenPdf([
+      [60, 740, "The sapp rule splits the environment, and k-var and a-dt-decl are standard"],
+      [60, 725, "rules of the declarative system, as the appendix shows at length here."],
+      [60, 700, "1 INTRODUCTION"],
+      [64, 663, "G |- t : k"],
+      "0 0 0 RG 0.4 w 60 672 m 130 672 l S", "0 0 0 RG 0.4 w 60 672 m 60 651 l S", "0 0 0 RG 0.4 w 130 672 m 130 651 l S", "0 0 0 RG 0.4 w 60 651 m 130 651 l S",
+      [62, 646, "k-var", 8],
+      "0 0 0 RG 0.4 w 62 636 m 100 636 l S",
+      [64, 626, "G |- x : k"],
+      [205, 600, "a-dt-decl", 8],
+      [120, 588, "D, a |- k ~ (a -> *) -| T"],
+      [300, 588, "T |- D : t -| T2"],
+      [120, 576, "T2, a : k |- e : t"],
+      "0 0 0 RG 0.4 w 60 570 m 400 570 l S",
+      [176, 558, "D |- data T a = D : t -| T2"],
+      "0 0 0 RG 0.4 w 60 520 m 340 520 l S", "0 0 0 RG 0.4 w 60 520 m 60 470 l S", "0 0 0 RG 0.4 w 340 520 m 340 470 l S", "0 0 0 RG 0.4 w 60 470 m 340 470 l S",
+      [70, 508, "[m-result identity"],
+      [76, 496, "m-bind"],
+      [130, 496, "(fn m-result-id [mv f] (f mv)) ; bind"],
+      [140, 484, "(fn m-zero [] nil)"],
+      "0 0 0 RG 0.4 w 76 462 m 200 462 l S",
+      [80, 452, "x = 1"],
+      [100, 420, "G1 |- e1 : t1"],
+      [200, 420, "G2 |- e2 : t2"],
+      "0 0 0 RG 0.4 w 100 416 m 300 416 l S",
+      [130, 405, "G1 + G2 |- e1 e2 : t"],
+      [306, 413, "[sapp]", 8],
+      [100, 380, "x : s in G"],
+      "0 0 0 RG 0.4 w 100 376 m 160 376 l S",
+      [102, 365, "G |- x : s"],
+      [164, 373, "[fvar]", 8],
+      [190, 388, "G |- v : s"],
+      "0 0 0 RG 0.4 w 186 376 m 260 376 l S",
+      [188, 365, "G |- /\\a. v : s"],
+      [60, 340, "Syntax"],
+      [200, 340, "e ::= x | e e"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => f.label), ["a-dt-decl", "fvar", "k-var", "sapp"]);
+      const [decl, , variable] = rules;
+      // k-var is its bar, name and conclusion under the box, not the box.
+      assert.ok(variable.y > 140 / 800 && variable.y + variable.h < 180 / 800, `k-var is under the boxed form: ${JSON.stringify(variable)}`);
+      // a-dt-decl reaches from its name at 800 − 606 over the premises to
+      // the conclusion at 800 − 550, across the wide bar.
+      assert.ok(decl.y < 196 / 800 && decl.y + decl.h > 240 / 800 && decl.x < 70 / 600 && decl.x + decl.w > 390 / 600, `a-dt-decl is its name, premises, bar and conclusion: ${JSON.stringify(decl)}`);
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [["sapp", 52], ["k-var", 52], ["a-dt-decl", 52]]);
     }
   });
 
