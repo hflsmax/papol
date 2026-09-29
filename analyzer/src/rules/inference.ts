@@ -75,7 +75,9 @@ interface Token {
   end: number;
 }
 
-const TOKEN = "(?:[A-Z]{1,2} )?[\\p{L}\\d][\\p{L}\\d'′<:=→⇒⇓∀∃⊢⊗⊕⊸~*∧∨¬|/\\-‐‑–]{0,23}";
+// A token begins with a letter or digit, or with the connectives of a
+// symbol name (→L, ∀R) where a capital follows them.
+const TOKEN = "(?:[A-Z]{1,2} )?(?:[\\p{L}\\d]|[→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<:=]{1,2}(?=[A-Z]))[\\p{L}\\d'′<:=→⇒⇓∀∃⊢⊗⊕⊸~*∧∨¬|/\\-‐‑–]{0,23}";
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s*(?<close>[\\])]))?\\s*$`, "u");

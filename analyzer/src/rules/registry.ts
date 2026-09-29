@@ -222,8 +222,8 @@ export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,3}|[a-z]{1,3})(?:[-‐‑–]" + RU
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
-  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest, may label a rule: up to 24 characters with no inner space (one between a one- or two-letter prefix and a capitalised word), a letter in it, brackets that pair, not a number or a citation.",
-  why: "Every label in the corpus is set apart from its rule by a line break or a gap; none runs into prose. \"Cut\", \"(value)\", \"k-var\", \"E Beta\" and \"Definition\" all pass here and are told apart by their setting.",
+  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest, may label a rule: up to 24 characters with no inner space (one between a one- or two-letter prefix and a capitalised word), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\"), brackets that pair, not a number or a citation.",
+  why: "Every label in the corpus is set apart from its rule by a line break or a gap; none runs into prose. \"Cut\", \"(value)\", \"k-var\", \"E Beta\" and \"Definition\" all pass here and are told apart by their setting; Sequent Core's →R and ∀R open with their connective.",
 });
 export const RULE_BAR = rule({
   id: "rule.bar", stage: "rule",
