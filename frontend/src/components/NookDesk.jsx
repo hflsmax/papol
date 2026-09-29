@@ -33,6 +33,10 @@ function Faces({ users, max }) {
   );
 }
 
+// Everyone in a project, the member among them and first, so their own face
+// is never the one cut off.
+const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users.filter((u) => u.uuid !== me)];
+
 // A member's own nook on the web: a rail of places beside the main area.
 // Every place in the rail opens in the main area: a project its desk, a
 // shelf (or all papers) its papers, a board its jacket; and a paper picked
@@ -109,7 +113,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                     >
                       <span className="desk-project-name">{p.name}</span>
                       <span className="desk-project-foot">
-                        <Faces users={(p.members ?? []).map((m) => m.user).filter((u) => u.uuid !== me)} max={4} />
+                        <Faces users={youFirst((p.members ?? []).map((m) => m.user), me)} max={4} />
                         {p.new_count > 0 && <NewsDot />}
                       </span>
                     </a>
