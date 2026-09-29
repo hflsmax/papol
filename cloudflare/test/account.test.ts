@@ -31,24 +31,28 @@ function untar(bytes: Uint8Array): Record<string, Uint8Array> {
 const PDF = "c".repeat(64);
 const PDF_BYTES = new TextEncoder().encode("%PDF-1.4\n%%EOF");
 
-// Ada's nook: one paper with a note on the page, a note about the paper,
-// a stroke and a clip; and Grace's stroke on the same PDF, which must survive.
+// Ada's nook: one paper with an anchor on the page and her dig at it, her
+// dig on the paper, a stroke and a clip; and Grace's stroke on the same
+// PDF, which must survive.
 async function adasNook(ada: Account, grace: Account) {
   await paperWithCopy(ada, PDF, "On leaving", { shelfUuid: await defaultShelf(ada) });
   await exec("UPDATE papers SET year = 2024, doi = '10.1234/leave' WHERE sha256 = ?", PDF);
   await env.FILES.put(`uploads/${PDF}.pdf`, PDF_BYTES);
   const at = (i: number) => new Date(Date.now() - 60_000 + i * 1000).toISOString();
-  const marks: [Account, string, number | null, string, string | null, object][] = [
-    [ada, "note", 4, "Placed here", "Lemma 2", { anchor: { type: "point", x: 0.2, y: 0.8 } }],
-    [ada, "note", null, "About the paper", null, {}],
-    [ada, "ink", 4, "", null, { points: [{ x: 0.1, y: 0.2 }, { x: 0.4, y: 0.2 }], color: "#d92b1f", width: 0.006, opacity: 0.8, shape: "round" }],
-    [ada, "clip", 5, "", null, { source: { x: 0.1, y: 0.1, w: 0.3, h: 0.2 }, frame: { x: 0.5, y: 0.5, w: 0.3, h: 0.2 }, floating: true }],
-    [grace, "ink", 4, "", null, { points: [{ x: 0.9, y: 0.9 }], color: "#b3923d", width: 0.004, opacity: 1.0, shape: "flat" }],
+  const marks: [Account, string, number, object][] = [
+    [ada, "anchor", 4, { anchor: { type: "point", x: 0.2, y: 0.8 } }],
+    [ada, "ink", 4, { points: [{ x: 0.1, y: 0.2 }, { x: 0.4, y: 0.2 }], color: "#d92b1f", width: 0.006, opacity: 0.8, shape: "round" }],
+    [ada, "clip", 5, { source: { x: 0.1, y: 0.1, w: 0.3, h: 0.2 }, frame: { x: 0.5, y: 0.5, w: 0.3, h: 0.2 }, floating: true }],
+    [grace, "ink", 4, { points: [{ x: 0.9, y: 0.9 }], color: "#b3923d", width: 0.004, opacity: 1.0, shape: "flat" }],
   ];
-  for (const [i, [who, kind, page, content, name, body]] of marks.entries()) {
-    await exec("INSERT INTO annotations (uuid, kind, user_uuid, paper_sha256, page, content, name, body, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-      uuid(), kind, who.uuid, PDF, page, content, name, JSON.stringify(body), at(i), at(i));
+  const made: string[] = [];
+  for (const [i, [who, kind, page, body]] of marks.entries()) {
+    made.push(uuid());
+    await exec("INSERT INTO annotations (uuid, kind, user_uuid, paper_sha256, page, content, body, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, 0)",
+      made[i], kind, who.uuid, PDF, page, JSON.stringify(body), at(i), at(i));
   }
+  await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${made[0]}`, text: "Placed here" } });
+  await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${PDF}`, text: "About the paper" } });
 }
 
 describe("the profile", () => {
@@ -122,24 +126,25 @@ describe("the export", () => {
     expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="papol-export-\d{4}-\d{2}-\d{2}\.tar"$/);
     const archive = untar(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(archive).map((n) => n.replace(/^papol-export-\d{4}-\d{2}-\d{2}\//, ""));
-    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "notes.json", "notes.md", "ink.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
+    expect(names).toEqual(expect.arrayContaining(["README.txt", "profile.json", "nook.json", "anchors.json", "digs.json", "digs.md", "ink.json", "notifications.json", "uploads.json", "boards.json", "files.json"]));
     // The files themselves are not in it: the browser fetches them.
     expect(names.filter((n) => /^(pdfs|board-files|avatar)/.test(n))).toEqual([]);
     const read = (name: string) => JSON.parse(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith(`/${name}`))!]));
 
     expect(read("profile.json")).toMatchObject({ email: "leaver@example.com", display_name: "Ada" });
-    const notes = read("notes.json");
-    expect(notes.map((n: Json) => n.content).sort()).toEqual(["About the paper", "Placed here"]);
-    const placed = notes.find((n: Json) => n.content === "Placed here");
-    expect(placed).toMatchObject({ page: 4, anchor: { type: "point", x: 0.2, y: 0.8 }, name: "Lemma 2", paper: { title: "On leaving", doi: "10.1234/leave" } });
-    // A note never placed on a page says so rather than inventing a spot.
-    expect(notes.find((n: Json) => n.content === "About the paper").anchor).toBeNull();
+    const anchors = read("anchors.json");
+    expect(anchors).toEqual([expect.objectContaining({ page: 4, anchor: { type: "point", x: 0.2, y: 0.8 }, paper: expect.objectContaining({ title: "On leaving", doi: "10.1234/leave" }) })]);
+    const digs = read("digs.json");
+    expect(digs.map((d: Json) => d.text).sort()).toEqual(["About the paper", "Placed here"]);
+    expect(digs.find((d: Json) => d.text === "Placed here")).toMatchObject({ anchor: anchors[0].uuid, page: 4, paper: { title: "On leaving" } });
+    // A dig on the paper as a whole names no place on it.
+    expect(digs.find((d: Json) => d.text === "About the paper")).toMatchObject({ anchor: null, page: null });
     const ink = read("ink.json");
     expect(ink).toHaveLength(1);
     expect(ink[0]).toMatchObject({ color: "#d92b1f", shape: "round", page: 4 });
     expect(ink[0].points).toHaveLength(2);
     expect(read("nook.json")).toEqual([expect.objectContaining({ paper: expect.objectContaining({ title: "On leaving" }), on_display: true, tags: [] }), expect.objectContaining({ paper: expect.objectContaining({ title: "Lost" }) })]);
-    expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/notes.md"))!])).toContain("### Lemma 2 — page 4");
+    expect(new TextDecoder().decode(archive[Object.keys(archive).find((n) => n.endsWith("/digs.md"))!])).toContain("### Page 4\n\nPlaced here");
     expect(read("files.json")).toEqual([
       { path: "avatar.png", url: `/uploads/${avatar}`, size: 3 },
       { path: "pdfs/on-leaving-2024.pdf", url: `/uploads/${PDF}.pdf`, size: PDF_BYTES.length },
@@ -224,7 +229,7 @@ describe("closing the account", () => {
 
     const avatar = (await ok("POST", "/api/auth/avatar", { headers: ada.headers, body: (() => { const f = new FormData(); f.set("file", new File([new Uint8Array(3)], "me.png")); return f; })() })).avatar_path;
     const closed = await ok("DELETE", "/api/auth/account", { headers: ada.headers, json: { confirm_email: " Leaver@example.com " } });
-    expect(closed.removed).toMatchObject({ annotations: 4, papers_in_nook: 1, shelves: 2, tags: 1, sessions: 1, pdfs_kept: 1 });
+    expect(closed.removed).toMatchObject({ annotations: 3, digs: 2, papers_in_nook: 1, shelves: 2, tags: 1, sessions: 1, pdfs_kept: 1 });
     expect((await rows("SELECT user_uuid FROM annotations")).map((r) => r.user_uuid)).toEqual([grace.uuid]);
 
     // The row stays, with the person scrubbed out of it, and cannot be signed into.

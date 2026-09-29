@@ -22,7 +22,7 @@ const reading = {
   },
   annotations: [
     {
-      uuid: 'note-1', kind: 'note', content: 'Here', page: 2,
+      uuid: 'anchor-1', kind: 'anchor', page: 2,
       body: { anchor: { type: 'point', x: 0.1, y: 0.2 } },
     },
     { uuid: 'stroke-1', kind: 'ink', page: 2, body: { points: [{ x: 0.1, y: 0.2 }] } },
@@ -194,14 +194,14 @@ test('a nook lookup that fails leaves the paper on offer', async () => {
 
 test('a shared reading carries the paper, the user, and their annotations', async () => {
   const source = resolveSource();
-  const { doc, notes } = await source.load();
+  const { doc, anchors } = await source.load();
 
   assert.equal(doc.title, 'On the shared reading');
   assert.equal(doc.sha256, HASH);
   assert.equal(doc.file_path, `${HASH}.pdf`);
   assert.equal(doc.shared_by.display_name, 'Ada Lovelace');
   assert.equal(doc.shared_kind, 'rich');
-  assert.deepEqual(notes.map((row) => row.uuid), ['note-1']);
+  assert.deepEqual(anchors.map((row) => row.uuid), ['anchor-1']);
   assert.deepEqual(
     (await source.annotations.list('ink')).map((row) => row.uuid), ['stroke-1'],
   );
@@ -241,13 +241,13 @@ test('a lean link carries the paper and none of the user\u2019s annotations', as
   Object.assign(reading, { kind: 'lean', user: null, annotations: [] });
   try {
     const source = resolveSource();
-    const { doc, notes } = await source.load();
+    const { doc, anchors } = await source.load();
 
     // A lean link is nobody's: it names no user, so the viewer has none
     // to show and says the paper was shared rather than whose reading it is.
     assert.equal(doc.shared_kind, 'lean');
     assert.equal(doc.shared_by, null);
-    assert.deepEqual(notes, []);
+    assert.deepEqual(anchors, []);
     assert.deepEqual(await source.annotations.list(), []);
   } finally {
     Object.assign(reading, rich);
@@ -286,11 +286,11 @@ test('a paper’s own address opens the paper alone for a visitor, as a lean lin
     assert.equal(source.requiresSignIn, false);
     assert.equal(source.readOnly, true);
     assert.equal(source.annotationsRequireNook, true);
-    const { doc, notes } = await source.load();
+    const { doc, anchors } = await source.load();
     assert.equal(doc.sha256, HASH);
     assert.equal(doc.shared_kind, 'lean');
     assert.equal(doc.shared_by, null);
-    assert.deepEqual(notes, []);
+    assert.deepEqual(anchors, []);
     assert.deepEqual(pathsAsked(), [`/api/viewer/${HASH}/lean`]);
     // What it cites and what it is are read without a link to read them by.
     assert.equal(source.references, undefined);

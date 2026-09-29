@@ -294,9 +294,8 @@ impl LocalStore {
                     .ok_or("board_group query requires a uuid")?;
                 query_board_group(&connection, account_uuid, uuid)
             }
-            // Asked for by paper, because a note written about the paper and
-            // never placed on a page has no PDF to be found by. Narrowing to
-            // one PDF, or to one kind, is the caller's business.
+            // Asked for by paper: narrowing to one kind is the caller's
+            // business.
             "annotations" => query_annotations(&connection, account_uuid, parameters),
             "shelves" => {
                 query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid")
@@ -1543,51 +1542,19 @@ fn validate_local_row(connection: &Connection, table: &str, uuid: &str) -> Resul
     };
     let page = row.get("page").and_then(Value::as_i64);
 
-    if kind == "note" {
-        if row
-            .get("content")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .chars()
-            .count()
-            > app_limit("text", "comment") as usize
-            || row
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .chars()
-                .count()
-                > app_limit("text", "annotation_name") as usize
-        {
-            return Err("Note text is too long".into());
-        }
-        let anchor = body.get("anchor").filter(|anchor| !anchor.is_null());
-        if anchor.is_none() != page.is_none() || page.is_some_and(|value| value < 1) {
-            return Err("A located note needs a positive page and an anchor".into());
-        }
-        if anchor.is_none()
-            && row
-                .get("content")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .trim()
-                .is_empty()
-        {
-            return Err("An unlocated note needs text".into());
-        }
-        if let Some(anchor) = anchor {
-            if anchor.get("type").and_then(Value::as_str) != Some("point") {
-                return Err("Unknown note anchor type".into());
-            }
-            if !on_page(anchor) {
-                return Err("Note coordinates must be within the page".into());
-            }
-        }
-        return Ok(());
-    }
-
     if page.is_none_or(|page| page < 1) {
         return Err("Annotation page must be positive".into());
+    }
+
+    if kind == "anchor" {
+        let anchor = &body["anchor"];
+        if anchor.get("type").and_then(Value::as_str) != Some("point") {
+            return Err("Unknown anchor type".into());
+        }
+        if !on_page(anchor) {
+            return Err("Anchor coordinates must be within the page".into());
+        }
+        return Ok(());
     }
 
     if kind == "ink" {
@@ -2648,8 +2615,8 @@ mod tests {
 
     /// A library from before anybody was counting schema versions — which
     /// is to say at version 1 — as an older Papol left it: a paper named by
-    /// a UUID, notes and ink in tables of their own, and the migration ids
-    /// that carried it recorded as applied.
+    /// a UUID, comments in a table of their own, and the migration ids that
+    /// carried it recorded as applied.
     fn replica_from_an_older_papol(path: &Path) {
         let connection = Connection::open(path).unwrap();
         connection
@@ -2952,8 +2919,6 @@ mod tests {
             "paper_sha256",
             "group_uuid",
             "page",
-            "content",
-            "name",
             "body",
             "deleted_at",
         ] {
@@ -3898,7 +3863,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("papol.sqlite3");
         let paper_sha256 = "e".repeat(64);
-        let note_uuid = Uuid::new_v4().to_string();
+        let anchor_uuid = Uuid::new_v4().to_string();
         let store = LocalStore::open(&path).unwrap();
         store
             .apply_snapshot(
@@ -3924,12 +3889,11 @@ mod tests {
                 "7",
                 vec![DataChange {
                     table: "annotations".into(),
-                    uuid: note_uuid.clone(),
+                    uuid: anchor_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("kind".into(), json!("note")),
+                        ("kind".into(), json!("anchor")),
                         ("paper_sha256".into(), json!(paper_sha256.clone())),
-                        ("content".into(), json!("Written offline")),
                         ("page".into(), json!(2)),
                         (
                             "body".into(),
@@ -3942,17 +3906,70 @@ mod tests {
         drop(store);
 
         let reopened = LocalStore::open(&path).unwrap();
-        let notes = reopened
+        let anchors = reopened
             .query(
                 "7",
                 "annotations",
-                json!({"paper_sha256": paper_sha256, "kind": "note"}),
+                json!({"paper_sha256": paper_sha256, "kind": "anchor"}),
             )
             .unwrap();
-        assert_eq!(notes[0]["uuid"], note_uuid);
-        assert_eq!(notes[0]["content"], "Written offline");
-        assert_eq!(notes[0]["body"]["anchor"]["type"], "point");
+        assert_eq!(anchors[0]["uuid"], anchor_uuid);
+        assert_eq!(anchors[0]["page"], 2);
+        assert_eq!(anchors[0]["body"]["anchor"]["type"], "point");
         assert_eq!(reopened.outbox_count(), 1);
+    }
+
+    #[test]
+    fn an_anchor_is_a_point_on_a_page_and_nothing_else() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let paper_sha256 = "e".repeat(64);
+        {
+            let connection = store.connection.lock().unwrap();
+            connection
+                .execute(
+                    "INSERT INTO papers(sha256,title,file_path,created_at,updated_at,revision) \
+                     VALUES (?1,'Paper','paper.pdf',?2,?2,1)",
+                    params![paper_sha256, chrono_text()],
+                )
+                .unwrap();
+        }
+        let anchor = |fields: Value| DataChange {
+            table: "annotations".into(),
+            uuid: Uuid::new_v4().to_string(),
+            operation: "upsert".into(),
+            values: Map::from_iter(
+                json!({
+                    "kind": "anchor",
+                    "paper_sha256": paper_sha256.clone(),
+                    "page": 1,
+                    "body": r#"{"anchor":{"type":"point","x":0.5,"y":0.5}}"#,
+                })
+                .as_object()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .chain(fields.as_object().unwrap().clone()),
+            ),
+        };
+
+        for wrong in [
+            json!({"page": null}),
+            json!({"page": 0}),
+            json!({"body": "{}"}),
+            json!({"body": r#"{"anchor":{"type":"point","x":1.5,"y":0.5}}"#}),
+            json!({"body": r#"{"anchor":{"type":"rect","x":0.5,"y":0.5}}"#}),
+            json!({"content": "Words belong in a dig"}),
+            json!({"name": "Named"}),
+            json!({"kind": "note"}),
+        ] {
+            assert!(
+                store.mutate("7", vec![anchor(wrong.clone())]).is_err(),
+                "{wrong} should be refused"
+            );
+        }
+        store.mutate("7", vec![anchor(json!({}))]).unwrap();
+        assert_eq!(store.outbox_count(), 1);
     }
 
     #[test]

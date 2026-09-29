@@ -2,7 +2,7 @@ import {
   ANNOTATION_STORAGE_NOTICE_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 
-// Notes, ink and clips live in Papol, not in the PDF: a downloaded or
+// Anchors, ink, clips and digs live in Papol, not in the PDF: a downloaded or
 // shared file carries none of them. The viewer says so each time a paper
 // opens that could hold them, until the reader ticks "Don't show again".
 // Only to someone signed in: a visitor has no annotations yet to keep. A

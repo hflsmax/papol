@@ -1,4 +1,4 @@
-// Notes, ink and clips through the API.
+// Anchors, ink and clips through the API.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, ok, paperWithCopy, register, row, type Account } from "./helpers";
@@ -15,11 +15,14 @@ async function stroke(account: Account, name: string) {
 }
 
 describe("annotations", () => {
-  it("takes a note, a stroke and a clip, lists them oldest first, and narrows by kind", async () => {
+  it("takes an anchor, a stroke and a clip, lists them oldest first, and narrows by kind", async () => {
     const account = await register();
     const name = await kept(account);
-    const note = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: { kind: "note", content: "About the paper" } });
-    expect(note).toMatchObject({ kind: "note", content: "About the paper", page: null, body: {} });
+    const note = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: { kind: "anchor", page: 2, content: "ignored", body: { anchor: { x: 0.2, y: 0.3 } } } });
+    expect(note).toEqual({ uuid: note.uuid, kind: "anchor", page: 2, group_uuid: null, body: { anchor: { type: "point", x: 0.2, y: 0.3 } }, created_at: note.created_at });
+    // An anchor is a place: one with no place, and a note of the old kind, are refused.
+    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: { kind: "anchor", body: {} } })).status).toBe(422);
+    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: { kind: "note", content: "About the paper" } })).status).toBe(422);
     const ink = await stroke(account, name);
     expect(ink.body).toEqual({ points: [{ x: 0.1, y: 0.2 }], color: "#112233", width: 0.005, opacity: 0.9, shape: "round" });
     const clip = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: {
@@ -43,7 +46,7 @@ describe("annotations", () => {
     const keeper = await register(), other = await register();
     const name = await kept(keeper);
     expect((await call("GET", `/api/papers/${name}/annotations`, { headers: other.headers })).status).toBe(403);
-    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: other.headers, json: { kind: "note", content: "hi" } })).status).toBe(403);
+    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: other.headers, json: { kind: "anchor", page: 1, body: { anchor: { x: 0.5, y: 0.5 } } } })).status).toBe(403);
     expect((await call("GET", `/api/papers/${"2".repeat(32)}/annotations`, { headers: keeper.headers })).status).toBe(404);
   });
 
@@ -53,9 +56,10 @@ describe("annotations", () => {
     const made = await stroke(account, name);
     const moved = await ok("PUT", `/api/annotations/${made.uuid}`, { headers: account.headers, json: { body: { points: [{ x: 0.8, y: 0.8 }] } } });
     expect(moved.body).toMatchObject({ points: [{ x: 0.8, y: 0.8 }], color: "#112233", shape: "round" });
-    const reworded = await ok("PUT", `/api/annotations/${made.uuid}`, { headers: account.headers, json: { content: "said later", page: 3 } });
-    expect(reworded).toMatchObject({ content: "said later", page: 3 });
-    expect(reworded.body.points).toEqual([{ x: 0.8, y: 0.8 }]);
+    const carried = await ok("PUT", `/api/annotations/${made.uuid}`, { headers: account.headers, json: { content: "said later", page: 3 } });
+    expect(carried).toMatchObject({ page: 3 });
+    expect(carried.content).toBeUndefined();
+    expect(carried.body.points).toEqual([{ x: 0.8, y: 0.8 }]);
   });
 
   it("refuses a change that would break the shape, with a reason to read", async () => {

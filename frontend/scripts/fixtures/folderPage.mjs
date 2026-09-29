@@ -78,11 +78,11 @@ function folderFixture(server) {
         // letter's pictures; the smoke's own rows stay as its checks expect.
         const letter = location.search.includes('letter');
         const manifest = new File([JSON.stringify({papol: 1, papers: letter ? [
-          {file: 'attention.pdf', title: 'Attention Is All You Need', note: 'Introduces the Transformer. Start here: every later paper in this review builds on it.'},
-          {doi: '10.1145/3530811', title: 'Efficient Transformers: A Survey', note: 'Maps the ways to make attention cheaper on long inputs.'},
-          {file: 'language-models.pdf', title: 'Language Models are Unsupervised Multitask Learners', note: 'GPT-2: scaling a decoder-only Transformer.'},
+          {file: 'attention.pdf', title: 'Attention Is All You Need', dig: 'Introduces the Transformer. Start here: every later paper in this review builds on it.'},
+          {doi: '10.1145/3530811', title: 'Efficient Transformers: A Survey', dig: 'Maps the ways to make attention cheaper on long inputs.'},
+          {file: 'language-models.pdf', title: 'Language Models are Unsupervised Multitask Learners', dig: 'GPT-2: scaling a decoder-only Transformer.'},
         ] : [
-          {file: 'attention.pdf', note: 'Where transformers start.', title: 'Manifest title', tags: ['ignored']},
+          {file: 'attention.pdf', dig: 'Where transformers start.', title: 'Manifest title', tags: ['ignored']},
           {file: 'gone.pdf'},
           {doi: '10.1000/paywalled', title: 'Behind a paywall'},
         ]})], 'papol.json', {type: 'application/json'});

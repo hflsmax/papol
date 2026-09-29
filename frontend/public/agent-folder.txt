@@ -30,7 +30,7 @@ PAPOL.JSON
       "doi": "10.15607/RSS.2023.XIX.026",
       "arxiv": "2303.04137",
       "title": "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion",
-      "note": "Foundational: first to model action sequences with diffusion; the baseline for section 3."
+      "dig": "Foundational: first to model action sequences with diffusion; the baseline for section 3."
     }
   ]
 }
@@ -47,9 +47,9 @@ Each entry:
   "doi"    The DOI, bare ("10.1000/xyz") or as a doi.org link.
   "arxiv"  The arXiv id ("2303.04137"), if it is on arXiv.
   "title"  The paper's title.
-  "note"   Why this paper is in the review, in a sentence or two. It
-           becomes a private note on the reader's copy, so write it
-           for them. At most 4000 characters.
+  "dig"    Why this paper is in the review, in a sentence or two. It
+           becomes the reader's own dig on the paper, private to them,
+           so write it for them. At most 4000 characters.
 
 Every field but "papol" and "papers" is optional. Papol reads each PDF
 for its details itself; the DOI, arXiv id and title here are used only

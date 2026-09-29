@@ -3,7 +3,7 @@
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
-import { all, batch, newUuid, now, one, type Row } from "../db";
+import { all, batch, insert, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
 import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
@@ -194,7 +194,7 @@ export function paperRoutes(router: Router) {
     const check = validate.checking();
     const thought = check.string("thought", data.thought, { max: limits.text.paper_thought, optional: true });
     const summary = check.string("summary", data.summary, { optional: true });
-    const initialComment = check.string("initial_comment", data.initial_comment, { optional: true });
+    const initialComment = check.string("initial_comment", data.initial_comment, { max: limits.text.dig_post, optional: true });
     const discard = check.string("discard_file_path", data.discard_file_path, { pattern: PDF_FILE, optional: true });
     for (const field of ["rating_expertise", "rating_reading", "rating_liking"]) {
       check.integer(field, data[field], { min: limits.ratings.min, max: limits.ratings.max, optional: true });
@@ -223,10 +223,12 @@ export function paperRoutes(router: Router) {
     };
     const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, true)];
     statements.push(...await setCopyTags(env, copy, tagUuids));
-    if (initialComment?.trim()) {
-      const note = { uuid: newUuid(), kind: "note", user_uuid: user.uuid, paper_sha256: paper.sha256, page: null, group_uuid: null,
-        content: initialComment.trim(), name: null, body: "{}", created_at: at, updated_at: at, revision: 0, deleted_at: null };
-      statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, true));
+    // A first thought is its writer's own dig on the paper, unless one is
+    // still there from an earlier time in their nook.
+    if (initialComment?.trim() && !(await one(env.DB, "SELECT 1 FROM digs WHERE user_uuid = ? AND project_uuid IS NULL AND subject = ?", user.uuid, `paper:${paper.sha256}`))) {
+      statements.push(insert(env.DB, "digs", { uuid: newUuid(), user_uuid: user.uuid, project_uuid: null, subject: `paper:${paper.sha256}`,
+        paper_sha256: paper.sha256, board_item_uuid: null, annotation_uuid: null, text: initialComment.trim(), phase: "digging",
+        edited_at: null, created_at: at, updated_at: at }));
     }
     await batch(env.DB, statements);
     if (discard && discard !== filePath) await dropUnreferenced(env, discard);
@@ -307,22 +309,17 @@ export function paperRoutes(router: Router) {
     return json(await paperDetail(env,paper, user));
   });
 
-  // Remove the paper from the viewer's nook: their copy and their notes.
-  // The paper and its file stay, and the paper stays in the Library. Ink
-  // and clips are left where they are: leaving a nook is not a deletion,
-  // and a user who adds the paper again finds their paint still on the page.
+  // Remove the paper from the viewer's nook: their copy. The paper and its
+  // file stay, and the paper stays in the Library. Anchors, ink, clips and
+  // digs are left where they are: leaving a nook is not a deletion, and a
+  // user who adds the paper again finds them still on the page.
   router.on("DELETE", "/api/papers/:name", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
     const copy = await requireCopy(env.DB, paper.sha256, user);
     const at = now();
     copy.deleted_at = at;
-    const statements = await writeSynced(env.DB, "copies", copy, user.uuid, false);
-    for (const note of await all<Row>(env.DB, "SELECT * FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND kind = 'note' AND deleted_at IS NULL", paper.sha256, user.uuid)) {
-      note.deleted_at = at;
-      statements.push(...await writeSynced(env.DB, "annotations", note, user.uuid, false));
-    }
-    await batch(env.DB, statements);
+    await batch(env.DB, await writeSynced(env.DB, "copies", copy, user.uuid, false));
     return json({ message: "Paper removed from your nook" });
   });
 

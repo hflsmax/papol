@@ -113,7 +113,7 @@ async function annotate(who, paper, body) {
   return out.uuid ?? out.annotation?.uuid;
 }
 // An anchor is a place; what is said there is its author's dig.
-const anchor = (who, paper, page, x, y) => annotate(who, paper, { kind: 'note', page, content: '', body: { anchor: { type: 'point', x, y } } });
+const anchor = (who, paper, page, x, y) => annotate(who, paper, { kind: 'anchor', page, body: { anchor: { type: 'point', x, y } } });
 const ink = (who, paper, page, y, x0, x1, color) => annotate(who, paper, {
   kind: 'ink', page, body: { points: [{ x: x0, y }, { x: x1, y }], color, width: 0.018, opacity: 0.35, shape: 'flat' },
 });

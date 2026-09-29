@@ -21,6 +21,8 @@ import { useDismiss } from '../useDismiss.js';
 // if you have one. The same pin and card serve a paper, a card on a board
 // and an annotation; never the project, a board as a whole, or another
 // dig. (In code the pin and card keep their first name, Talk.)
+// With no project (`projectUuid` null) the dig is personal: the reader's
+// own alone, which nobody else sees, so it has no posts and no phase.
 
 const POST_LIMIT = appLimits.text.dig_post;
 
@@ -120,7 +122,6 @@ export function kindOf(subject) {
   return subjectKey(subject).split(':')[0];
 }
 
-// The viewer's note glyph: a speech bubble, filled or drawn as an outline.
 // The dig mark: a spade, tipped as if in use. Its blade takes the accent
 // wash once there is a dig to open.
 export function TalkGlyph({ outline = false }) {
@@ -317,6 +318,7 @@ export function TalkCard({
   const list = useRef(null);
   const box = useRef(null);
   const onHome = topic.subject === subject;
+  const personal = !projectUuid;
 
   useEffect(() => {
     let active = true;
@@ -451,7 +453,7 @@ export function TalkCard({
   // and the card moves on to the next dig on the thing, if any.
   const remove = async (post) => {
     const whole = post.uuid === discussion.uuid;
-    if (!(await confirmAction(whole ? 'Remove this dig and its posts?' : 'Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
+    if (!(await confirmAction(whole ? (personal ? 'Remove this dig?' : 'Remove this dig and its posts?') : 'Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
     setError(null);
     try {
       if (!whole) {
@@ -482,12 +484,12 @@ export function TalkCard({
   // Whose dig this is, when there is a choice, it is not yours, or yours is
   // still to be written: starting a dig always happens on your own chip. A
   // card opened on one dig alone (single) shows only that one.
-  const owners = !single && discussion !== undefined && (digs.length > 1 || !digs.some((d) => d.is_mine));
+  const owners = !single && !personal && discussion !== undefined && (digs.length > 1 || !digs.some((d) => d.is_mine));
   // A dig is started in the body, where its words will stand; the box at
   // the foot only ever adds a post to the dig that is open.
   const writing = discussion === null && currentUser;
   const whose = discussion && (discussion.is_mine ? 'your' : `${discussion.owner?.display_name?.split(' ')[0]}'s`);
-  const picker = discussion && (
+  const picker = discussion && !personal && (
     <PhasePicker
       dig={discussion}
       onMoved={(next) => {
@@ -509,7 +511,7 @@ export function TalkCard({
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
-      {(!inline || (discussion && !pickerWithOwners && !phaseInHead)) && (
+      {(!inline || (picker && !pickerWithOwners && !phaseInHead)) && (
       <header className="talk-card-header">
         {!pickerWithOwners && picker}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
@@ -608,10 +610,10 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {discussion && folded && (
+      {discussion && !personal && folded && (
         <button type="button" className="talk-unfold is-post" onClick={() => setUnfolded(true)}>Post</button>
       )}
-      {discussion && !folded && (
+      {discussion && !personal && !folded && (
         <form className="talk-compose" onSubmit={send}>
           {currentUser && <Face user={currentUser} />}
           <textarea

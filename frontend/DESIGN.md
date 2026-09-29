@@ -30,7 +30,7 @@ than design tokens.
 | `--fill` / `--fill-strong` | `#ccd4dd` / `#b8c2cf` | Neutral control fills (switch tracks) |
 | `--accent` | `#2b4a6f` | Brand navy: links, primary buttons, selection |
 | `--accent-strong` | `#1e3752` | Primary button hover |
-| `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
+| `--accent-soft` | `#eaeff5` | Tinted cards (digs, summaries, quotes) |
 | `--focus` / `--focus-soft` | accent / translucent accent | Keyboard focus and inset field focus |
 | `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol macOS sidebar ground; light red distinguishes development builds |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
@@ -82,7 +82,7 @@ Form controls (`input`, `textarea`, `select`) **inherit** their context's
 family rather than setting one, so a field is serif inside a panel, mono
 inside an admin data table. Never leave a control unstyled: a bare
 `<textarea>` falls back to the browser's monospace default. Prose the user
-writes (notes, summaries, messages) is serif.
+writes (digs, summaries, messages) is serif.
 
 Scale (use the nearest step, never a bespoke rem value):
 
@@ -91,7 +91,7 @@ Scale (use the nearest step, never a bespoke rem value):
 | `--fs-2xs` | 0.7rem | Badge/pill text only — never body or control labels |
 | `--fs-xs` | 0.78rem | Fine print, row actions, small buttons |
 | `--fs-sm` | 0.85rem | Hints, dates, section kickers |
-| `--fs-md` | 0.92rem | Compact body (cards, notes) |
+| `--fs-md` | 0.92rem | Compact body (cards, digs) |
 | `--fs-base` | 0.95rem | Body, nav, inputs |
 | `--fs-lg` | 1.05rem | Emphasized body, small headings |
 | `--fs-xl` | 1.2rem | Panel headings |
@@ -211,10 +211,11 @@ sidebar, toolbar and document windows.
 Decided by the owner on 2026-09-28. Most of what a reader leaves in Papol
 is a dig: one person's writing about one thing, under the one spade pin.
 
-- **One word, one mark.** A thought on a paper and the words of a note at
-  a place on a page become digs; the spade is the only glyph for them,
-  everywhere. An anchor, ink and a clip stand on their own and can be dug
-  when someone wants to; nothing makes a dig for them. No speech bubbles: a dig is one person's
+- **One word, one mark.** A thought on a paper and what is written at a
+  place on a page are digs; there is no note. The spade is the only glyph
+  for them, everywhere, and the one way an anchor, ink or a clip offers to
+  be dug. Each stands on its own and can be dug when someone wants to;
+  nothing makes a dig for them. No speech bubbles: a dig is one person's
   inquiry, not a chat.
 - **Dig with words.** A dig carries its own text: pressing the spade on a
   thing you have not dug opens the box to write your dig, and sending it
@@ -253,7 +254,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   to length, evened out enough that every section can be read. Nothing opens. It is 40px tall — all the room the desktop title
   bar has to give — and centred in the bar, in three lanes at one scale: a
   7px lane of subsection ticks over the strip, the 18px strip of sections,
-  and a 15px lane of anchors and notes under it (strip to lower lane is
+  and a 15px lane of anchors under it (strip to lower lane is
   six parts to five). What the paper says
   about itself stands above the strip and what the reader has put on it
   hangs below. A lane with nothing in it takes no room, except that the
@@ -339,21 +340,16 @@ is a dig: one person's writing about one thing, under the one spade pin.
   left edge of a segment is where its section begins, exactly — bring the
   marker to that edge and the heading is at the middle of the window. The
   rest of the height is the lane under the strip, where every anchor is a
-  triangle pointing up at its place and every note is a dialog box with
-  its tip turned up from the middle to do the same. Its corners are as
-  round as a box can take: square, a box with a tip in the middle of its
-  lid reads as a briefcase at this size, and rounder still as an acorn.
+  triangle pointing up at its place.
   The lane has no ground of its own — the marks stand on the bar's white.
-  That makes the pair top-heavy: the strip is a solid band and the marks
+  That makes the two top-heavy: the strip is a solid band and the marks
   are specks, so a box centred by the ruler reads as sitting high, and the
   Navigator is set 2px below centre, where it looks centred. With no
-  anchors or notes there is no lane, the box is only the strip, and it is
+  anchors there is no lane, the box is only the strip, and it is
   centred exactly. A mark under the middle of Results is *in*
   Results and nothing has to say so; that shared scale is the whole idea,
-  and it is why the two lanes are stacked rather than merged. The marks
-  differ in silhouette, not only in colour (`--accent` for an anchor,
-  `--accent-strong` for a note), and each is a button that goes to its
-  place. **The Navigator is a scrubber.** A press anywhere on it — the
+  and it is why the two lanes are stacked rather than merged. Each mark
+  is a button that goes to its place. **The Navigator is a scrubber.** A press anywhere on it — the
   strip, or the lane between two marks — goes to *exactly* that place, not
   to the head of the section it falls in, and the press can be held and
   drawn along: the paper closes on the pointer a fraction of the way each

@@ -2,7 +2,7 @@
   "views": {
     "board": ["groups", "items", "papers", "staged_items"],
     "nook": ["boards", "papers", "shelves", "tags"],
-    "paper": ["also_read_by", "notes", "tags"],
+    "paper": ["also_read_by", "anchors", "tags"],
     "paper_list": ["tags", "users"]
   }
 }

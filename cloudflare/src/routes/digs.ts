@@ -10,6 +10,11 @@
 //
 // A thought is its member's dig on the paper, and a board as a whole is
 // not dug.
+//
+// Outside any project a dig is its owner's alone: about a paper in their
+// nook or one of their own anchors, ink or clips, seen by nobody else,
+// with no posts and no phase to move. What someone writes at a place on
+// a page, or about a paper, is always a dig.
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
@@ -17,7 +22,8 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { digsOf, excerpt, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
+import { copyOf, paperOr404 } from "../papers/detail";
+import { digsFrom, digsOf, excerpt, liveProject, membership, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
@@ -29,7 +35,7 @@ type Phase = typeof PHASES[number];
 interface Dig extends Row {
   uuid: string;
   user_uuid: string;
-  project_uuid: string;
+  project_uuid: string | null;
   subject: string;
   paper_sha256: string | null;
   board_item_uuid: string | null;
@@ -96,11 +102,40 @@ async function subjectOf(env: Env, project: Project, key: unknown): Promise<Subj
   return refuse(422, "That is not something a dig can be about");
 }
 
+// Which subject a dig of one's own names: a paper in their nook, or one
+// of their own anchors, ink or clips on a paper.
+async function ownSubjectOf(env: Env, me: User, key: unknown): Promise<Subject> {
+  if (typeof key !== "string" || !key) return refuse(422, "Say what the dig is about");
+  const [kind, first, second] = key.split(":");
+  if (kind === "paper" && first && second === undefined) {
+    const digest = first.toLowerCase();
+    if (!DIGEST.test(digest) || !(await copyOf(env.DB, digest, me))) refuse(404, "That paper is not in your nook");
+    return { ...NONE, subject: `paper:${digest}`, paper_sha256: digest };
+  }
+  if (kind === "annotation" && first && second === undefined) {
+    const annotation = await one<{ paper_sha256: string }>(env.DB,
+      "SELECT paper_sha256 FROM annotations WHERE uuid = ? AND user_uuid = ? AND deleted_at IS NULL", first, me.uuid);
+    if (!annotation) refuse(404, "That annotation is not yours");
+    return { ...NONE, subject: `annotation:${first}`, paper_sha256: annotation!.paper_sha256, annotation_uuid: first };
+  }
+  return refuse(422, "That is not something a dig can be about");
+}
+
+// A dig of one's own, read the way a project's are: nothing in it is new.
+const OWN: Member = { seen_at: "9999" } as Member;
+
+async function ownDigsOn(env: Env, me: User, subject: string) {
+  const { results } = await statement(env.DB,
+    `SELECT d.*, ${SUBJECT_COLUMNS}, 0 AS post_count, 0 AS unread, d.user_uuid AS voices
+     FROM digs d ${SUBJECT_JOINS} WHERE d.project_uuid IS NULL AND d.user_uuid = ? AND d.subject = ?`, me.uuid, subject).all<Row>();
+  return digsFrom(env, results, me);
+}
+
 function mine(env: Env, project: Project, subject: Subject, me: User) {
   return one<Dig>(env.DB, "SELECT * FROM digs WHERE project_uuid = ? AND subject = ? AND user_uuid = ?", project.uuid, subject.subject, me.uuid);
 }
 
-async function subjectRow(env: Env, projectUuid: string, subject: Subject): Promise<Row> {
+async function subjectRow(env: Env, projectUuid: string | null, subject: Subject): Promise<Row> {
   return (await one<Row>(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS}
      FROM (SELECT ? AS subject, ? AS project_uuid, ? AS paper_sha256, ? AS board_item_uuid, ? AS annotation_uuid) d
@@ -108,9 +143,11 @@ async function subjectRow(env: Env, projectUuid: string, subject: Subject): Prom
     subject.subject, projectUuid, subject.paper_sha256, subject.board_item_uuid, subject.annotation_uuid))!;
 }
 
-async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project; member: Member }> {
+// A dig and where it is read: its project, or nowhere but its owner's.
+async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member }> {
   const dig = await one<Dig>(env.DB, "SELECT * FROM digs WHERE uuid = ?", uuid);
-  if (!dig) refuse(404, "Dig not found");
+  if (!dig || (dig.project_uuid === null && dig.user_uuid !== me.uuid)) refuse(404, "Dig not found");
+  if (dig!.project_uuid === null) return { dig: dig!, project: null, member: OWN };
   const project = await liveProject(env, dig!.project_uuid);
   const member = await membership(env, project, me);
   return { dig: dig!, project, member };
@@ -119,7 +156,7 @@ async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; pr
 const PERSON = "u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public";
 
 // A dig as its card reads it: its owner's text, then every post in order.
-async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Member) {
+async function digOut(env: Env, dig: Dig, project: Project | null, me: User, member: Member) {
   const posts = await all<Row>(env.DB,
     `SELECT dp.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
      WHERE dp.dig_uuid = ? ORDER BY dp.created_at, dp.uuid`, dig.uuid);
@@ -131,8 +168,8 @@ async function digOut(env: Env, dig: Dig, project: Project, me: User, member: Me
   });
   return {
     uuid: dig.uuid, created_at: dig.created_at, updated_at: dig.updated_at,
-    project: { uuid: project.uuid, name: project.name },
-    subject: subjectOut(await subjectRow(env, project.uuid, dig)),
+    project: project && { uuid: project.uuid, name: project.name },
+    subject: subjectOut(await subjectRow(env, dig.project_uuid, dig)),
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
     text: dig.text, phase: dig.phase, edited_at: dig.edited_at,
     can_moderate: Boolean(member.is_keeper),
@@ -147,16 +184,16 @@ function newPost(dig: Dig, me: User, body: string, at: string): Row {
 // Every dig on each of the given subjects, folded into what one pin on it
 // shows: how many digs and posts, whether any of it is new to this
 // member, who wrote, and the dig the pin opens (their own, or else the
-// latest).
-export async function pinsOf(env: Env, projectUuid: string, me: User, member: Member, subjects?: string[]) {
+// latest). With no project, the reader's own digs outside any.
+export async function pinsOf(env: Env, projectUuid: string | null, me: User, member: Member, subjects?: string[]) {
   const rows = await all<Row>(env.DB,
     `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase,
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
-     FROM digs d WHERE d.project_uuid = ? ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
+     FROM digs d WHERE ${projectUuid ? "d.project_uuid = ?" : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
-    member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(subjects ?? []));
+    member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid ?? me.uuid, ...(subjects ?? []));
   const people = await usersByUuid(env, rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]));
   // The dig a pin opens on, the reader's own else the latest, in a line:
   // whose it is, where it stands and how it begins.
@@ -226,6 +263,43 @@ export function digRoutes(router: Router) {
     return json(await digOut(env, made, project, me, member));
   });
 
+  // A dig of one's own: where its pin leads, and writing it.
+  router.on("GET", "/api/digs", async ({ request, env, url }) => {
+    const me = await currentUser(request, env);
+    const subject = await ownSubjectOf(env, me, url.searchParams.get("subject"));
+    const digs = await ownDigsOn(env, me, subject.subject);
+    return json({ mine: digs[0]?.uuid ?? null, digs, project: null, subject: subjectOut(await subjectRow(env, null, subject)) });
+  });
+
+  router.on("POST", "/api/digs", async ({ request, env }) => {
+    const me = await currentUser(request, env);
+    const data = await readJson<Row>(request);
+    const subject = await ownSubjectOf(env, me, data.subject);
+    if (await one(env.DB, "SELECT 1 FROM digs WHERE project_uuid IS NULL AND subject = ? AND user_uuid = ?", subject.subject, me.uuid)) refuse(409, "You have dug this already");
+    const text = postBody(data.text, "text");
+    const at = now();
+    const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
+    await batch(env.DB, [insert(env.DB, "digs", made)]);
+    return json(await digOut(env, made, null, me, OWN));
+  });
+
+  // The reader's own digs on a paper and on their marks on it, as the pins
+  // with a project on read them.
+  router.on("GET", "/api/papers/:name/digs", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    const pins = await pinsOf(env, null, me, OWN);
+    const paperKey = `paper:${paper.sha256}`;
+    const marks = new Set((await all<{ uuid: string }>(env.DB,
+      "SELECT uuid FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NULL", paper.sha256, me.uuid)).map((a) => a.uuid));
+    const digs: Record<string, unknown> = {};
+    for (const [key, pin] of Object.entries(pins)) {
+      const uuid = key.slice("annotation:".length);
+      if (key.startsWith("annotation:") && marks.has(uuid)) digs[uuid] = pin;
+    }
+    return json({ digs, paper_digs: pins[paperKey] ?? null });
+  });
+
   router.on("GET", "/api/digs/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { dig, project, member } = await openDig(env, params.uuid, me);
@@ -247,6 +321,7 @@ export function digRoutes(router: Router) {
   router.on("PUT", "/api/digs/:uuid/phase", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { dig, project, member } = await openDig(env, params.uuid, me);
+    if (!project) refuse(403, "A dig of your own has no phase to move");
     const phase = (await readJson<Row>(request)).phase;
     if (!PHASES.includes(phase as Phase)) refuse(422, "That is not a phase");
     await batch(env.DB, [update(env.DB, "digs", "uuid", dig.uuid, { phase })]);
@@ -269,6 +344,7 @@ export function digRoutes(router: Router) {
   router.on("POST", "/api/digs/:uuid/posts", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { dig, project, member } = await openDig(env, params.uuid, me);
+    if (!project) refuse(403, "Nobody posts in a dig of your own");
     const body = postBody((await readJson<Row>(request)).body);
     const at = now();
     await batch(env.DB, [

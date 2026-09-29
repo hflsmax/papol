@@ -1,24 +1,24 @@
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
-import { notesIn } from './annotationKinds.js';
+import { anchorsIn } from './annotationKinds.js';
 import { appPath } from './base.js';
 import { paperName } from '../../shared/paperName.js';
 import { addToNook as addPaperToNook } from '../../shared/api/papers.js';
 import {
-  getPaperByPdf, getPaperLink, getPaperNotes, getNookPaperByPdf, addOpenedFileToNook,
+  getPaperByPdf, getPaperLink, getPaperAnchors, getNookPaperByPdf, addOpenedFileToNook,
   lookUpViewerReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
-  getToken,
+  getToken, getReader,
 } from './api.js';
-import { listProjectAnnotations } from '../../shared/api/projects.js';
+import { listProjectAnnotations, personalDigsOn } from '../../shared/api/projects.js';
 import { projectParam } from './project.js';
 
 /**
- * Where this document and its notes come from — decided once, from the URL,
+ * Where this document and its annotations come from — decided once, from the URL,
  * so nothing below has to care which it is.
  *
- *   ?pdf=<sha256>          an exact PDF in the user's nook: notes live in Papol;
+ *   ?pdf=<sha256>          an exact PDF in the user's nook: annotations live in Papol;
  *                          for anyone else, the PDF alone, as a lean link
  *   &project=<uuid>        the same, with one of the user's projects on: every
  *                          member's annotations on the pages (project.js)
@@ -68,7 +68,7 @@ export function handoffOpenedFileToNookViewer(
 function apiSource(
   pdfHash,
   loadPaper = () => getPaperByPdf(pdfHash),
-  loadPaperNotes = (paper) => getPaperNotes(paper),
+  loadPaperAnchors = (paper) => getPaperAnchors(paper),
   project = null,
 ) {
   let paperReady = null;
@@ -88,11 +88,11 @@ function apiSource(
     async load() {
       const loaded = await paper();
       source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
-      return { doc: loaded, notes: [] };
+      return { doc: loaded, anchors: [] };
     },
-    async loadNotes() {
+    async loadAnchors() {
       const loaded = await paper();
-      return notesIn(await loadPaperNotes(loaded));
+      return anchorsIn(await loadPaperAnchors(loaded));
     },
     // One interface for every kind of annotation. A caller says which kind it is
     // making and what its geometry is; nothing else differs between them.
@@ -111,6 +111,12 @@ function apiSource(
     // who wrote them.
     project,
     loadProject: project ? () => listProjectAnnotations(project, pdfHash) : null,
+    // With no project on, the digs on these pages are the reader's own
+    // (personal digs): the same pins and margin, nobody else's.
+    loadPersonalDigs: project ? null : async () => {
+      const [read, me] = await Promise.all([personalDigsOn(pdfHash), getReader()]);
+      return { ...read, me };
+    },
   };
   return source;
 }
@@ -210,7 +216,7 @@ function linkSource({ load, loadNookPaper, addToNook, references, info }) {
           // not a reading and must not be named as one.
           shared_kind: shared.kind,
         },
-        notes: notesIn(shared.annotations),
+        anchors: anchorsIn(shared.annotations),
       };
     },
     annotations: {
@@ -261,7 +267,7 @@ function openedFileSource(pdfHash, name) {
       nativeHashMs: measured('native_hash_ms'),
     },
     async load() {
-      return { doc: initialPaper, notes: [] };
+      return { doc: initialPaper, anchors: [] };
     },
     async loadNookPaper() {
       const nookPaper = await getNookPaperByPdf(pdfHash);
@@ -274,7 +280,7 @@ function openedFileSource(pdfHash, name) {
     info: () => Promise.resolve({}),
     async addToNook({ onProgress, identifier } = {}) {
       return addOpenedFileToNook({
-        sha256: pdfHash, name: title, identifier, notes: [], ink: [], clips: [], onProgress,
+        sha256: pdfHash, name: title, identifier, anchors: [], ink: [], clips: [], onProgress,
       });
     },
   };

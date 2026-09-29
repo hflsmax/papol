@@ -53,7 +53,7 @@ test('reading annotations names the paper the way the service answers to', async
 
 test('writing an annotation names it the same way', async () => {
   asked.length = 0;
-  await createAnnotation(PAPER, { kind: 'note', page: 1, content: 'Hello', body: {} });
+  await createAnnotation(PAPER, { kind: 'anchor', page: 1, body: { anchor: { type: 'point', x: 0.5, y: 0.5 } } });
   assert.equal(asked.length, 1);
   assert.equal(asked[0].method, 'POST');
   assert.equal(paperSegmentOf(asked[0].url), NAME);

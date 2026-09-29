@@ -1,7 +1,7 @@
 import React from 'react';
 
 // A small Markdown subset for the prose a user writes — summaries and
-// notes. It renders to React elements, never to HTML, so nothing typed in
+// digs. It renders to React elements, never to HTML, so nothing typed in
 // an edit box can inject markup: text is text, and the only tags that
 // appear are the ones this file names.
 //

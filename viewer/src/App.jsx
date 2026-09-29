@@ -18,12 +18,13 @@ import {
 } from './api';
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
-import { annotationKinds, clipsIn, inkIn, notesIn } from './annotationKinds.js';
+import { anchorsIn, annotationKinds, clipsIn, inkIn } from './annotationKinds.js';
 import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
-import { TalkPin } from '../../shared/ui/Talk.jsx';
-import DigMargin, { MARGIN_WIDTH } from './DigMargin.jsx';
+import ThingBar from './ThingBar.jsx';
+import { confirmAction } from '../../shared/confirmAction.js';
+import DigMargin, { MARGIN_FOLDED, MARGIN_GAP, MARGIN_MAX, MARGIN_MIN } from './DigMargin.jsx';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
@@ -106,7 +107,12 @@ const PdfPage = lazy(preloadPdfPage);
 const MIN_SCALE = appLimits.viewer.zoom_min;
 const MAX_SCALE = appLimits.viewer.zoom_max;
 
-const hasAnchor = (note) => note.anchor != null;
+const hasAnchor = (annotation) => annotation.anchor != null;
+
+// What a press may land on without putting down the thing picked out: its
+// bar, the dig card that bar opened, the margin line writing its dig, and
+// the question a removal asks.
+const KEEPS_PICKED = '.thing-bar, .talk-card, .dig-margin-line, .dig-margin-fold, .papol-confirm-overlay';
 
 // Preserve each unchanged page's array as annotation state changes. PdfPage
 // uses shallow prop comparison, so rebuilding every bucket made a move on one
@@ -137,6 +143,10 @@ function usePageGroups(items, include = null) {
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
+// The pages' padding on every side (`.pages` in styles.js).
+const PAGES_PADDING = 24;
+// Where the reader's choice to fold the dig margin is remembered.
+const MARGIN_FOLDED_KEY = 'papol.viewer.marginFolded';
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -211,17 +221,18 @@ const PAGE_PREVIEW_QUALITY = 0.72;
 // in particular, avoids calling pdf.js getPage() for the whole document —
 // on the opening frame.
 // Whether the window has room for something beside the sheets.
-function useRoomy(query) {
-  const [roomy, setRoomy] = useState(() => window.matchMedia?.(query).matches ?? false);
-  useEffect(() => {
-    const media = window.matchMedia?.(query);
-    if (!media) return undefined;
-    const update = () => setRoomy(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, [query]);
-  return roomy;
+// How wide an element is, kept as it changes.
+function useWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    observer.observe(el);
+    setWidth(el.clientWidth);
+    return () => observer.disconnect();
+  }, [ref.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  return width;
 }
 
 // A dig's words as one plain line, as the Worker gives them.
@@ -264,8 +275,8 @@ function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
 const TOOLS = [
   { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' },
   { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper' },
-  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page. Kept with your notes' },
-  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with nothing written on them' },
+  { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page' },
+  { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with no dig' },
   { id: 'anchor', key: 'a', badge: 'A', label: 'Anchor', hint: 'Click the page to drop an anchor' },
   { id: 'cow', key: 'm', badge: 'M', label: 'Animal', hint: 'Put an animal on the page. It wanders, and is not kept' },
 ];
@@ -429,7 +440,7 @@ export default function App() {
   // put there by them: it can be read, followed and searched, and nothing
   // in the viewer may change it.
   const readOnly = Boolean(source?.readOnly);
-  // Notes, ink and clips are one interface underneath and three things to
+  // Anchors, ink and clips are one interface underneath and three things to
   // draw. This is where the one becomes the three.
   const annotations = useMemo(() => annotationKinds(source?.annotations), [source]);
   // Whether an annotation this user makes would have somewhere to live. A
@@ -502,8 +513,8 @@ export default function App() {
     () => setFirstPageInteractive(true)
   ), []);
 
-  // Papol's Notes list links straight to one note: ?paper=9&note=42.
-  const wantedNoteUuid = new URLSearchParams(window.location.search).get('note');
+  // A link to one anchor, ?anchor=<uuid>: the reading goes to its place.
+  const wantedAnchorUuid = new URLSearchParams(window.location.search).get('anchor');
   // A project's link to a dig on an annotation, ?annotation=<uuid>&dig=<uuid>:
   // the annotation, whichever kind, picked out in the middle of the view
   // with that dig open beside it.
@@ -512,7 +523,6 @@ export default function App() {
   const [landing, setLanding] = useState(null);
   // Whether the dig margin takes room beside the sheets, which the fitted
   // zoom has to leave for it.
-  const [marginShown, setMarginShown] = useState(false);
   // The margin's open line: { key, dig, writing } (DigMargin.jsx).
   const [marginOpen, setMarginOpen] = useState(null);
   const wantedPage = numberParam('page');
@@ -560,7 +570,7 @@ export default function App() {
   // fraction of a second. Local files keep the stable page-shaped skeleton;
   // detailed progress is reserved for slower downloads.
   const [showPdfLoading, setShowPdfLoading] = useState(false);
-  const [notes, setNotes] = useState([]);
+  const [anchors, setAnchors] = useState([]);
   const [error, setError] = useState(null);
   // Null until the page is measured: the document opens at the width of
   // the viewer, so nothing is drawn at a guessed scale first.
@@ -605,23 +615,16 @@ export default function App() {
   const [sendBusy, setSendBusy] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [sendComplete, setSendComplete] = useState(false);
-  const [activeNoteUuid, setActiveNoteUuid] = useState(null);
-  // The anchor whose card is open is the active one. This says which of the
-  // card's fields should take the keyboard as it opens: the note for an
-  // anchor just dropped, the one asked for from the context menu, and
-  // neither for a pin that was only clicked to be read.
-  const [noteCardFocus, setNoteCardFocus] = useState(null);
-  // A card is left by clicking anywhere that is not the card — the page,
-  // the bar, the gutter. Pins are left out: they open and close cards
-  // themselves, and closing here first would turn every second click on a
-  // pin into a reopening.
+  // The anchor in hand: the one whose pin was pressed.
+  const [activeAnchorUuid, setActiveAnchorUuid] = useState(null);
+  // It is put down by pressing anywhere that is not it — the page, the
+  // bar, the gutter. Pins are left out: they pick and put down themselves,
+  // and putting down here first would turn every second press on a pin
+  // into a picking up.
   useDismiss(
-    activeNoteUuid != null,
-    (event) => Boolean(event.target.closest?.('.note-pop, .pin, .context-menu')),
-    () => {
-      setActiveNoteUuid(null);
-      setNoteCardFocus(null);
-    },
+    activeAnchorUuid != null,
+    (event) => Boolean(event.target.closest?.(`.pin, .context-menu, ${KEEPS_PICKED}`)),
+    () => setActiveAnchorUuid(null),
     { escape: false },
   );
   // The paper's bibliography, and where it is cited in the PDF. Null until
@@ -733,10 +736,10 @@ export default function App() {
   // Cows. Nowhere near the server and gone on reload: they are not an annotation
   // on the paper, they are company.
   const [placedAnimals, setPlacedAnimals] = useState([]);
-  const notesRef = useRef(notes);
+  const anchorsRef = useRef(anchors);
   const inkRef = useRef(ink);
   const animalsRef = useRef(placedAnimals);
-  notesRef.current = notes;
+  anchorsRef.current = anchors;
   inkRef.current = ink;
   animalsRef.current = placedAnimals;
   const nextAnimalId = useRef(0);
@@ -773,7 +776,7 @@ export default function App() {
     return true;
   };
   const tempInkUuid = useRef(0);
-  const tempNoteUuid = useRef(0);
+  const tempAnchorUuid = useRef(0);
   // Strokes already asked to go, so the eraser cannot ask twice.
   const erasing = useRef(new Set());
   // Strokes still being saved, by the temporary uuid they are wearing until
@@ -980,15 +983,15 @@ export default function App() {
       return undefined;
     }
     const loaded = source.load();
-    const loadedNotes = source.loadNotes?.();
+    const loadedAnchors = source.loadAnchors?.();
     // Not this user's paper, or not a user at all: the URL still names the
     // PDF, which anyone may read.
     const notKept = (e) => source.leanFallback && (e?.status === 401 || e?.status === 403);
     loaded
-      .then(({ doc: paperDoc, notes: loaded }) => {
+      .then(({ doc: paperDoc, anchors: loaded }) => {
         if (cancelled) return;
         setPaper(paperDoc);
-        setNotes(loaded);
+        setAnchors(loaded);
         markViewerPerformance('paper-loaded');
       })
       .catch((e) => {
@@ -996,16 +999,16 @@ export default function App() {
         if (notKept(e)) setSource(source.leanFallback());
         else setError(e.message);
       });
-    if (loadedNotes) {
-      Promise.all([loaded, loadedNotes])
+    if (loadedAnchors) {
+      Promise.all([loaded, loadedAnchors])
         .then(([, found]) => {
-          if (!cancelled) setNotes(found);
+          if (!cancelled) setAnchors(found);
         })
         .catch((e) => { if (!cancelled && !notKept(e)) setError(e.message); });
     }
     // Do not delay an opened file while checking its exact-hash nook
     // membership. If it is already there, replace the ephemeral URL with the
-    // canonical nook URL so notes, ink, clips, and the rest of its paper state
+    // canonical nook URL so anchors, ink, clips, and the rest of its paper state
     // are loaded by the same source as when it is opened from the library.
     if (source.loadNookPaper) {
       const nookPaper = source.loadNookPaper();
@@ -1448,7 +1451,7 @@ export default function App() {
   // since placing an anchor does not depend on either, and quietly did not.
   const onKeyRef = useRef(null);
 
-  // Not while the user is writing a note: in a textarea, x is an x.
+  // Not while the user is writing: in a textarea, x is an x.
   onKeyRef.current = (e) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key?.toLowerCase() === 'f') {
         e.preventDefault();
@@ -1518,21 +1521,20 @@ export default function App() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      // The anchor in hand — the one whose pin was clicked and whose card
-      // is open. Delete and Backspace take it away, the same way as the
-      // card's own bin, undo and all; Escape puts it down. Beside the clip
+      // The anchor in hand — the one whose pin was pressed. Delete and
+      // Backspace take it away; Escape puts it down. Beside the clip
       // and the ink, which the same keys serve the same way; and only with
       // an anchor in hand, so Backspace on the bare page stays whatever
       // the browser makes of it.
-      const anchorAction = anchorKeyAction(e, { selected: activeNoteUuid != null, readOnly });
+      const anchorAction = anchorKeyAction(e, { selected: activeAnchorUuid != null, readOnly });
       if (anchorAction === 'deselect') {
         e.preventDefault();
-        pointAtNote(null);
+        pointAtAnchor(null);
         return;
       }
       if (anchorAction === 'delete') {
         e.preventDefault();
-        removeNote(activeNoteUuid);
+        pageRemoveAnchor(activeAnchorUuid);
         return;
       }
       if (e.key === 'Escape') {
@@ -1586,15 +1588,15 @@ export default function App() {
     const onKey = (e) => onKeyRef.current?.(e);
     // Capture before pdf.js's selectable text layer or the browser consumes
     // editing shortcuts. onKeyRef still leaves actual form fields alone, so
-    // typing a note keeps its native undo history.
+    // typing a dig keeps its native undo history.
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
   useEffect(() => {
     const clearInkSelection = (event) => {
-      if (!event.target.closest?.('.ink-grab') && !event.target.closest?.('.ink-actions')) setSelectedInk(null);
-      if (!event.target.closest?.('.paper-clip') && !event.target.closest?.('.clip-actions')) setSelectedClipUuid(null);
+      if (!event.target.closest?.(`.ink-grab, ${KEEPS_PICKED}`)) setSelectedInk(null);
+      if (!event.target.closest?.(`.paper-clip, ${KEEPS_PICKED}`)) setSelectedClipUuid(null);
     };
     document.addEventListener('pointerdown', clearInkSelection, true);
     return () => document.removeEventListener('pointerdown', clearInkSelection, true);
@@ -1646,7 +1648,7 @@ export default function App() {
           me: members.find((u) => u.uuid === read.me) ?? null,
           digs: read.digs ?? {},
           paperDigs: read.paper_digs ?? null,
-          notes: notesIn(theirs), ink: inkIn(theirs), clips: clipsIn(theirs),
+          anchors: anchorsIn(theirs), ink: inkIn(theirs), clips: clipsIn(theirs),
         });
       })
       .catch(() => {
@@ -1656,6 +1658,25 @@ export default function App() {
       });
     return () => { cancelled = true; };
   }, [paper?.sha256, source]);
+
+  // With no project on, the digs on the paper are the reader's own
+  // (personal digs), and they are read, pinned and kept in the margin the
+  // same way a project's are. Only for a paper the reader can write on.
+  const [personalView, setPersonalView] = useState(null);
+  useEffect(() => {
+    if (!paper?.sha256 || !source?.loadPersonalDigs || readOnly) return undefined;
+    let cancelled = false;
+    source.loadPersonalDigs()
+      .then((read) => {
+        if (cancelled) return;
+        setPersonalView({ uuid: null, me: read.me ?? null, digs: read.digs ?? {}, paperDigs: read.paper_digs ?? null });
+      })
+      .catch(() => { if (!cancelled) setPersonalView(null); });
+    return () => { cancelled = true; };
+  }, [paper?.sha256, source, readOnly]);
+  // Everything about digs reads this: the project's when one is on, else
+  // the reader's own. `projectView` still says whether a project is on.
+  const digView = projectView ?? personalView;
 
   // Which of the reader's projects hold this paper, so the bar can offer
   // them. Only a paper of the reader's own has a project to be read in.
@@ -1675,7 +1696,7 @@ export default function App() {
   // else the latest) unless that is the dig just changed, or the reader's
   // own was just written.
   const digChanged = useEvent((key, next, discussion) => {
-    setProjectView((view) => {
+    (projectView ? setProjectView : setPersonalView)((view) => {
       if (!view) return view;
       const paperKey = key.startsWith('paper:');
       const was = paperKey ? view.paperDigs : view.digs[key.slice('annotation:'.length)];
@@ -1698,7 +1719,7 @@ export default function App() {
   // Whether an annotation is another member's: theirs to keep, not the
   // reader's to move, reword or erase.
   const theirs = (uuid) => Boolean(projectView) && (
-    projectView.notes.some((n) => n.uuid === uuid)
+    projectView.anchors.some((n) => n.uuid === uuid)
     || projectView.ink.some((s) => s.uuid === uuid)
     || projectView.clips.some((c) => c.uuid === uuid));
 
@@ -1990,7 +2011,7 @@ export default function App() {
   // Hiding the return pill is for good, in this browser: the user has
   // said they do not want it, so later jumps do not bring it back. What
   // they lose is only the button — [ and ] still move through the jumps,
-  // and the note that confirms the choice says so.
+  // and the message that confirms the choice says so.
   const hideReturnPill = () => {
     setReturnPillHidden(true);
     setReturnPillNotice(true);
@@ -2125,11 +2146,9 @@ export default function App() {
 
     const fit = () => {
       if (gone || pageWidth == null || chosenZoom.current) return;
-      const style = getComputedStyle(el);
-      const room =
-        el.clientWidth -
-        parseFloat(style.paddingLeft) -
-        parseFloat(style.paddingRight);
+      // The pages' own padding on both sides: the margin, when it shows,
+      // takes only room the page does not need, never room from the page.
+      const room = el.clientWidth - 2 * parseFloat(getComputedStyle(el).paddingLeft);
       if (room <= 0) return; // laid out but not yet given a size
       const next = clampScale(Math.min(room, FIT_MAX_WIDTH) / pageWidth);
       setScale(next);
@@ -2143,7 +2162,7 @@ export default function App() {
       gone = true;
       window.removeEventListener('resize', fit);
     };
-  }, [doc, defaultPageSize, marginShown]);
+  }, [doc, defaultPageSize]);
 
   useEffect(() => {
     if (scale == null) return;
@@ -2151,14 +2170,12 @@ export default function App() {
   }, [scale]);
 
   // Anchors run in page order, and within a page in the order they were
-  // made. A note with no place in the PDF has no page to sort by, so it
-  // sits at the end; it has no pin and no mark, and is kept on the paper's
-  // own page in Papol, where it was written.
+  // made.
   // With a project on, what the other members left joins the reader's own
   // on the pages, and every stroke is drawn in its author's colour.
-  const shownNotes = useMemo(
-    () => (projectView ? [...notes, ...projectView.notes] : notes),
-    [notes, projectView],
+  const shownAnchors = useMemo(
+    () => (projectView ? [...anchors, ...projectView.anchors] : anchors),
+    [anchors, projectView],
   );
   const shownInk = useMemo(
     () => (projectView
@@ -2171,39 +2188,54 @@ export default function App() {
     [clips, projectView],
   );
   const numbered = useMemo(
-    () => [...shownNotes].sort(
+    () => [...shownAnchors].sort(
       (a, b) =>
         (a.page ?? Infinity) - (b.page ?? Infinity) ||
         String(a.created_at).localeCompare(String(b.created_at)) ||
         String(a.uuid).localeCompare(String(b.uuid))
     ),
-    [shownNotes]
+    [shownAnchors]
   );
 
-  const notesByPage = usePageGroups(numbered, hasAnchor);
+  const anchorsByPage = usePageGroups(numbered, hasAnchor);
   const inkByPage = usePageGroups(shownInk);
   const clipsByPage = usePageGroups(shownClips);
 
-  // The margin: with a project on and room beside the sheets, every dig on
-  // the paper beside the page it is about (DigMargin.jsx). One line per
-  // thing dug, the paper's own at the head of the first page, the rest in
-  // reading order by where their annotation sits.
-  const roomy = useRoomy(`(min-width: ${Math.round(MARGIN_WIDTH * 3.6)}px)`);
+  // The margin: every dig on the paper (the project's, else the reader's
+  // own) beside the page it is about (DigMargin.jsx). One line per thing
+  // dug, the paper's own at the head of the first page, the rest in
+  // reading order by where their annotation sits. It lives in the room the
+  // page leaves beside it at the zoom it is read at, as wide as that room
+  // allows up to MARGIN_MAX. Folded — by the reader, or because there is
+  // less than MARGIN_MIN — it is a column of faces; with no room even for
+  // that, only the pins. It never makes the page smaller.
+  const viewWidth = useWidth(scrollerRef);
+  const pageAcross = scale && defaultPageSize ? scale * defaultPageSize.width : Infinity;
+  const marginRoom = Math.floor(viewWidth - 2 * PAGES_PADDING - pageAcross - MARGIN_GAP);
+  const [marginFoldedByReader, setMarginFoldedByReader] = useState(() => {
+    try { return localStorage.getItem(MARGIN_FOLDED_KEY) === '1'; } catch { return false; }
+  });
+  const foldMargin = useCallback((folded) => {
+    setMarginFoldedByReader(folded);
+    try { localStorage.setItem(MARGIN_FOLDED_KEY, folded ? '1' : '0'); } catch { /* only remembered */ }
+  }, []);
+  const marginUnfoldable = marginRoom >= MARGIN_MIN;
+  const marginFolded = marginFoldedByReader || !marginUnfoldable;
+  const marginWidth = marginFolded ? MARGIN_FOLDED : Math.min(MARGIN_MAX, marginRoom);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
-    () => (projectView && paper ? marginLinesOf({
-      paper, paperDigs: projectView.paperDigs, digs: projectView.digs, notes: shownNotes, ink: shownInk, clips: shownClips, writing: marginWriting,
+    () => (digView && paper ? marginLinesOf({
+      paper, paperDigs: digView.paperDigs, digs: digView.digs, anchors: shownAnchors, ink: shownInk, clips: shownClips, writing: marginWriting,
     }) : []),
-    [projectView, paper?.sha256, paper?.title, shownNotes, shownInk, shownClips, marginWriting],
+    [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
-  const withMargin = Boolean(projectView) && roomy && marginLines.length > 0;
-  useEffect(() => { setMarginShown(withMargin); }, [withMargin]);
+  const withMargin = Boolean(digView) && marginRoom >= MARGIN_FOLDED && marginLines.length > 0;
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
   const openInMargin = useEvent((line, dig = null, writing = false, landed = false) => {
     setMarginOpen({ key: line.key, dig, writing, landed });
-    if (line.kind === 'note') setActiveNoteUuid(line.annotation);
+    if (line.kind === 'anchor') setActiveAnchorUuid(line.annotation);
     if (line.kind === 'ink') {
       const stroke = shownInk.find((x) => x.uuid === line.annotation);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
@@ -2217,16 +2249,16 @@ export default function App() {
     if (!withMargin) return null;
     const line = marginLines.find((l) => l.annotation === uuid);
     if (line) return () => openInMargin(line);
-    const kind = shownNotes.some((a) => a.uuid === uuid) ? 'note'
+    const kind = shownAnchors.some((a) => a.uuid === uuid) ? 'anchor'
       : shownInk.some((a) => a.uuid === uuid) ? 'ink'
       : shownClips.some((a) => a.uuid === uuid) ? 'clip' : null;
     return kind ? () => openInMargin({ key: uuid, annotation: uuid, kind }, 'mine', true) : null;
-  }, [withMargin, marginLines, shownNotes, shownInk, shownClips]);
+  }, [withMargin, marginLines, shownAnchors, shownInk, shownClips]);
   // Escape folds the open line and hands the keyboard back to it.
   const closeMargin = useEvent(({ refocus = false } = {}) => {
     const key = marginOpen?.key;
     setMarginOpen(null);
-    if (key && key === activeNoteUuid) setActiveNoteUuid(null);
+    if (key && key === activeAnchorUuid) setActiveAnchorUuid(null);
     if (refocus && key) {
       window.requestAnimationFrame(() => {
         scrollerRef.current?.querySelector(`.dig-margin-line[data-key="${CSS.escape(key)}"] .dig-margin-head`)?.focus({ preventScroll: true });
@@ -2234,31 +2266,31 @@ export default function App() {
     }
   });
   // The thing picked on the page, whose line answers it.
-  const marginPicked = activeNoteUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
+  const marginPicked = activeAnchorUuid ?? selectedInk?.uuid ?? selectedClipUuid ?? null;
   // An anchor the margin holds is the place of its digs: pressing it opens
   // its line there.
   const marginHolds = useMemo(
-    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'note').map((l) => l.annotation) : []),
+    () => new Set(withMargin ? marginLines.filter((l) => l.kind === 'anchor').map((l) => l.annotation) : []),
     [withMargin, marginLines],
   );
   useEffect(() => {
-    if (!activeNoteUuid || !marginHolds.has(activeNoteUuid)) return;
-    if (marginOpen?.key === activeNoteUuid) return;
-    const line = marginLines.find((l) => l.annotation === activeNoteUuid);
+    if (!activeAnchorUuid || !marginHolds.has(activeAnchorUuid)) return;
+    if (marginOpen?.key === activeAnchorUuid) return;
+    const line = marginLines.find((l) => l.annotation === activeAnchorUuid);
     if (line) openInMargin(line);
-  }, [activeNoteUuid, marginHolds]);
+  }, [activeAnchorUuid, marginHolds]);
   // An anchor dropped to dig at, left without a dig written there, is
   // taken away again when the reader moves on: a place with nothing said.
   const freshSpot = useRef(null);
   useEffect(() => {
     const spot = freshSpot.current;
-    if (!spot || marginOpen?.key === spot || activeNoteUuid === spot || landing?.annotation === spot) return;
+    if (!spot || marginOpen?.key === spot || activeAnchorUuid === spot || landing?.annotation === spot) return;
     freshSpot.current = null;
-    if (!projectView?.digs[spot]) removeNote(spot, false);
-  }, [marginOpen?.key, activeNoteUuid, landing?.annotation, projectView?.digs]);
-  const pageProject = useMemo(() => (projectView ? {
-    uuid: projectView.uuid, me: projectView.me, digs: projectView.digs, onDigChanged: digChanged, landing, inMargin, marginHolds,
-  } : null), [projectView?.uuid, projectView?.me, projectView?.digs, landing, inMargin, marginHolds]);
+    if (!digView?.digs[spot]) removeAnchor(spot);
+  }, [marginOpen?.key, activeAnchorUuid, landing?.annotation, digView?.digs]);
+  const pageProject = useMemo(() => (digView ? {
+    uuid: digView.uuid, me: digView.me, digs: digView.digs, onDigChanged: digChanged, landing, inMargin,
+  } : null), [digView?.uuid, digView?.me, digView?.digs, landing, inMargin]);
 
 
   // A stroke appears the instant the pointer lifts and is saved behind it.
@@ -2490,7 +2522,7 @@ export default function App() {
     const top = pageBox.top + (bounds.top / size.height) * pageBox.height;
     const bottom = pageBox.top + (bounds.bottom / size.height) * pageBox.height;
     const scrollerBox = scroller.getBoundingClientRect();
-    const above = top - 38;
+    const above = top - 48;
     const position = {
       left: Math.max(22, Math.min(window.innerWidth - 22, right)) - scrollerBox.left + scroller.scrollLeft,
       top: (above >= 8 ? above : Math.min(window.innerHeight - 44, bottom + 8)) - scrollerBox.top + scroller.scrollTop,
@@ -2630,7 +2662,7 @@ export default function App() {
     const backlink = new URL(backendPath('/viewer/'), window.location.href);
     backlink.search = window.location.search;
     backlink.hash = window.location.hash;
-    backlink.searchParams.delete('note');
+    backlink.searchParams.delete('anchor');
     backlink.searchParams.set('page', String(sendSelection.page));
     backlink.searchParams.set('y', String(sendSelection.y));
     if (sendSelection.kind === 'clip') {
@@ -3268,53 +3300,38 @@ export default function App() {
       return null;
     }
     // Counted, not clocked. This was -Date.now(), so two anchors dropped in
-    // the same millisecond took the same temporary uuid: two notes with one
-    // key, and a `pending` entry for the second standing in for the first,
-    // whose real uuid could then never be found — leaving an anchor that
-    // could not be moved, renamed or deleted until the page was reloaded.
+    // the same millisecond took the same temporary uuid: two anchors with
+    // one key, and a `pending` entry for the second standing in for the
+    // first, whose real uuid could then never be found — leaving an anchor
+    // that could not be moved or deleted until the page was reloaded.
     // Negative still, so it can never be mistaken for one of the server's.
-    const tempUuid = -(tempNoteUuid.current += 1);
+    const tempUuid = -(tempAnchorUuid.current += 1);
     const optimistic = {
       uuid: tempUuid,
       ...spot,
-      content: '',
       created_at: new Date().toISOString(),
-      // What its card is mounted under. The uuid is about to change, and a
-      // card being typed into must not be torn down when it does.
-      _cardKey: `new${tempUuid}`,
     };
-    setNotes((prev) => [...prev, optimistic]);
-    // Its card opens with the note in hand: type and it is a note, click
-    // away and it is an anchor. With a project on, an anchor is a place to
-    // dig: once saved, the reader's dig there opens to be written.
-    setActiveNoteUuid(tempUuid);
-    if (!projectView) setNoteCardFocus('text');
+    setAnchors((prev) => [...prev, optimistic]);
+    // An anchor is a place to dig: once saved, the reader's dig there opens
+    // to be written, in the margin level with it or off its pin. Left
+    // without a dig, it goes again (freshSpot).
+    setActiveAnchorUuid(tempUuid);
 
-    const saving = annotations.notes
-      .create({ ...spot, content: '' })
+    const saving = annotations.anchors
+      .create(spot)
       .then((saved) => {
-        setNotes((prev) => prev.map((n) => (
+        setAnchors((prev) => prev.map((n) => (
           n.uuid === tempUuid ? { ...saved, ...n, uuid: saved.uuid } : n
         )));
-        setActiveNoteUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
-        if (projectView) {
-          freshSpot.current = saved.uuid;
-          if (withMargin) openInMargin({ key: saved.uuid, annotation: saved.uuid, kind: 'note' }, 'mine', true);
-          else setLanding({ annotation: saved.uuid, dig: 'mine' });
-        }
-        const entry = { uuid: saved.uuid, snapshot: saved };
-        remember({
-          undo: () => removeNote(entry.uuid, false),
-          redo: async () => {
-            const restored = await restoreNote(entry.snapshot);
-            entry.uuid = restored.uuid;
-          },
-        });
+        setActiveAnchorUuid((uuid) => (uuid === tempUuid ? saved.uuid : uuid));
+        freshSpot.current = saved.uuid;
+        if (withMargin) openInMargin({ key: saved.uuid, annotation: saved.uuid, kind: 'anchor' }, 'mine', true);
+        else setLanding({ annotation: saved.uuid, dig: 'mine' });
         return saved;
       })
       .catch((e) => {
         // Nothing was saved, so the annotation should not linger.
-        setNotes((prev) => prev.filter((n) => n.uuid !== tempUuid));
+        setAnchors((prev) => prev.filter((n) => n.uuid !== tempUuid));
         pending.current.delete(tempUuid);
         setError(e.message);
         return null;
@@ -3457,19 +3474,19 @@ export default function App() {
     return saved ? saved.uuid : null;
   };
 
-  // Dragging a pin moves the anchor; the words it carries are untouched.
-  const moveNote = async (uuid, spot, record = true) => {
+  // Dragging a pin moves the anchor, and its digs go with it.
+  const moveAnchor = async (uuid, spot, record = true) => {
     if (theirs(uuid)) return;
-    const was = notesRef.current.find((note) => note.uuid === uuid);
-    setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, ...spot } : n)));
+    const was = anchorsRef.current.find((anchor) => anchor.uuid === uuid);
+    setAnchors((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, ...spot } : n)));
     try {
       const real = await settledUuid(uuid);
       if (real == null) return;
-      const saved = await annotations.notes.move(real, spot);
+      const saved = await annotations.anchors.move(real, spot);
       if (record && was && saved) {
         remember({
-          undo: () => moveNote(saved.uuid, { page: was.page, anchor: was.anchor }, false),
-          redo: () => moveNote(saved.uuid, spot, false),
+          undo: () => moveAnchor(saved.uuid, { page: was.page, anchor: was.anchor }, false),
+          redo: () => moveAnchor(saved.uuid, spot, false),
         });
       }
     } catch (e) {
@@ -3477,105 +3494,24 @@ export default function App() {
     }
   };
 
-  // Clicking a pin opens its card, and clicking it again puts the card
-  // away. Nothing takes the keyboard: a pin is clicked to be read far more
-  // often than to be rewritten, and the fields are one click further.
-  const pointAtNote = (uuid) => {
-    setNoteCardFocus(null);
-    setActiveNoteUuid((open) => (uuid == null || open === uuid ? null : uuid));
+  // Pressing a pin picks it up, and pressing it again puts it down.
+  const pointAtAnchor = (uuid) => {
+    setActiveAnchorUuid((open) => (uuid == null || open === uuid ? null : uuid));
   };
 
-  // From the context menu, where what is wanted has already been said.
-  const updateNoteContent = async (uuid, content) => {
-    if (theirs(uuid)) return null;
-    const real = await settledUuid(uuid);
-    if (real == null) return null;
-    const updated = await annotations.notes.update(real, content);
-    // Laid over the note rather than put in its place: what the viewer
-    // keeps on a note for itself — the key its open card is mounted under —
-    // has to outlive a save made from that card.
-    setNotes((prev) => prev.map((note) => (note.uuid === real ? { ...note, ...updated } : note)));
-    return updated;
-  };
-
-  const renameNote = async (uuid, name, record = false) => {
-    if (theirs(uuid)) return null;
-    const note = notesRef.current.find((candidate) => candidate.uuid === uuid);
-    if (note && (note.name || '') === name) return note;
-    setNotes((prev) => prev.map((n) => (n.uuid === uuid ? { ...n, name } : n)));
-    const real = await settledUuid(uuid);
-    if (real == null) return null;
-    let saved = null;
-    try {
-      saved = await annotations.notes.rename(real, name);
-    } catch (e) {
-      setNotes((prev) => prev.map((n) => (n.uuid === real ? { ...n, name: note?.name || '' } : n)));
-      setError(e.message);
-      return null;
-    }
-    if (saved) setNotes((prev) => prev.map((n) => (n.uuid === real ? { ...n, ...saved } : n)));
-    if (record && note && saved) {
-      remember({
-        undo: () => renameNote(saved.uuid, note.name || '', false),
-        redo: () => renameNote(saved.uuid, name, false),
-      });
-    }
-    return saved;
-  };
-
-  // What the card's note field hands back when it is left. An anchor may
-  // go back to having nothing written on it.
-  const writeNote = async (uuid, content, record = true) => {
-    const before = notesRef.current.find((note) => note.uuid === uuid)?.content || '';
-    if (content === before) return;
-    setNotes((prev) => prev.map((note) => (note.uuid === uuid ? { ...note, content } : note)));
-    try {
-      const updated = await updateNoteContent(uuid, content);
-      if (record && updated) {
-        remember({
-          undo: () => updateNoteContent(updated.uuid, before),
-          redo: () => updateNoteContent(updated.uuid, content),
-        });
-      }
-    } catch (e) {
-      setNotes((prev) => prev.map((note) => (note.uuid === uuid ? { ...note, content: before } : note)));
-      setError(e.message);
-    }
-  };
-
-  const restoreNote = async (snapshot) => {
-    const restored = await annotations.notes.create({
-      page: snapshot.page,
-      anchor: snapshot.anchor,
-      content: snapshot.content || '',
-      name: snapshot.name,
-    });
-    setNotes((prev) => [...prev, restored]);
-    return restored;
-  };
-
-  const removeNote = async (uuid, record = true) => {
+  // An anchor taken away takes its digs with it, so there is nothing an
+  // undo could put back.
+  const removeAnchor = async (uuid) => {
     if (theirs(uuid)) return;
-    const gone = notesRef.current.find((note) => note.uuid === uuid);
-    setNotes((prev) => prev.filter((n) => n.uuid !== uuid));
+    setAnchors((prev) => prev.filter((n) => n.uuid !== uuid));
     // Let go of it everywhere. SQLite hands out a deleted row's uuid again,
-    // so a number kept here after the note it named has gone will one day
-    // name a different note — and open its card, or light its row, for no
-    // reason anyone could see.
-    setActiveNoteUuid((open) => (open === uuid ? null : open));
+    // so a number kept here after the anchor it named has gone will one day
+    // name a different anchor — and pick it out for no reason anyone could
+    // see.
+    setActiveAnchorUuid((open) => (open === uuid ? null : open));
     try {
       const real = await settledUuid(uuid);
-      if (real != null) await annotations.notes.remove(real);
-      if (record && gone) {
-        const entry = { uuid: real, snapshot: gone };
-        remember({
-          undo: async () => {
-            const restored = await restoreNote(entry.snapshot);
-            entry.uuid = restored.uuid;
-          },
-          redo: () => removeNote(entry.uuid, false),
-        });
-      }
+      if (real != null) await annotations.anchors.remove(real);
     } catch (e) {
       setError(e.message);
     }
@@ -3585,7 +3521,7 @@ export default function App() {
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
   useLayoutEffect(() => {
-    if (readingViewRestored.current || wantedNoteUuid || wantedAnnotationUuid || wantedPage || !doc || !scale) return;
+    if (readingViewRestored.current || wantedAnchorUuid || wantedAnnotationUuid || wantedPage || !doc || !scale) return;
     const saved = readingView.current.view;
     if (!saved) {
       readingViewRestored.current = true;
@@ -3622,7 +3558,7 @@ export default function App() {
       cancelled = true;
       if (frame != null) cancelAnimationFrame(frame);
     };
-  }, [doc, scale, wantedNoteUuid, wantedAnnotationUuid, wantedPage]);
+  }, [doc, scale, wantedAnchorUuid, wantedAnnotationUuid, wantedPage]);
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
@@ -3666,7 +3602,7 @@ export default function App() {
     if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
     const save = () => {
-      if (!readingViewRestored.current && !wantedNoteUuid && !wantedAnnotationUuid) return;
+      if (!readingViewRestored.current && !wantedAnchorUuid && !wantedAnnotationUuid) return;
       const box = scroller.getBoundingClientRect();
       const cx = box.left + box.width / 2;
       const cy = box.top + box.height / 2;
@@ -3698,14 +3634,14 @@ export default function App() {
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, hasScale, wantedNoteUuid, wantedAnnotationUuid]);
+  }, [doc, hasScale, wantedAnchorUuid, wantedAnnotationUuid]);
 
-  // Arriving from a link to one note: show it, once the pages exist.
+  // Arriving from a link to one anchor: show it, once the pages exist.
   useEffect(() => {
-    if (!wantedNoteUuid || !doc || notes.length === 0) return;
-    const note = notes.find((n) => String(n.uuid) === wantedNoteUuid);
-    if (note) goToNoteWhenLaid(note);
-  }, [wantedNoteUuid, doc, notes]);
+    if (!wantedAnchorUuid || !doc || anchors.length === 0) return;
+    const anchor = anchors.find((n) => String(n.uuid) === wantedAnchorUuid);
+    if (anchor) goToAnchorWhenLaid(anchor);
+  }, [wantedAnchorUuid, doc, anchors]);
 
   // Arriving from a project's link to a dig on an annotation: once the
   // annotation is known and its page laid, bring it to the middle of the
@@ -3713,10 +3649,10 @@ export default function App() {
   const landed = useRef(false);
   useEffect(() => {
     if (!wantedAnnotationUuid || landed.current || !doc || !scale) return;
-    const note = shownNotes.find((n) => n.uuid === wantedAnnotationUuid);
-    const stroke = note ? null : shownInk.find((s) => s.uuid === wantedAnnotationUuid);
-    const clip = note || stroke ? null : shownClips.find((c) => c.uuid === wantedAnnotationUuid);
-    const found = note ?? stroke ?? clip;
+    const anchor = shownAnchors.find((n) => n.uuid === wantedAnnotationUuid);
+    const stroke = anchor ? null : shownInk.find((s) => s.uuid === wantedAnnotationUuid);
+    const clip = anchor || stroke ? null : shownClips.find((c) => c.uuid === wantedAnnotationUuid);
+    const found = anchor ?? stroke ?? clip;
     if (!found) return;
     landed.current = true;
     const down = annotationDown(found);
@@ -3733,53 +3669,51 @@ export default function App() {
       const line = marginLinesRef.current.find((l) => l.annotation === found.uuid);
       if (line) openInMargin(line, wantedDigUuid, false, true);
       else setLanding({ annotation: found.uuid, dig: wantedDigUuid });
-      if (note) setActiveNoteUuid(note.uuid);
+      if (anchor) setActiveAnchorUuid(anchor.uuid);
       if (stroke) setSelectedInk({ uuid: stroke.uuid, groupUuid: stroke.group_uuid || null });
       if (clip) setSelectedClipUuid(clip.uuid);
     };
     land();
-  }, [wantedAnnotationUuid, doc, scale, shownNotes, shownInk, shownClips]);
+  }, [wantedAnnotationUuid, doc, scale, shownAnchors, shownInk, shownClips]);
   // The landing opens its dig once: when the reader moves off the
   // annotation, picking it again later opens its pin as any press does.
   useEffect(() => {
     if (!landing) return;
-    const still = activeNoteUuid === landing.annotation || selectedInk?.uuid === landing.annotation || selectedClipUuid === landing.annotation;
+    const still = activeAnchorUuid === landing.annotation || selectedInk?.uuid === landing.annotation || selectedClipUuid === landing.annotation;
     if (!still) setLanding(null);
-  }, [activeNoteUuid, selectedInk?.uuid, selectedClipUuid]);
+  }, [activeAnchorUuid, selectedInk?.uuid, selectedClipUuid]);
 
   // Each page learns its size from pdf.js a moment after the document
-  // opens, so scrolling to a note on load has to wait for the page to have
-  // a height — otherwise it scrolls to where the page will be, which is
-  // nowhere.
-  const goToNoteWhenLaid = (note, tries = 0) => {
-    const pageEl = scrollerRef.current?.querySelector(`[data-page="${note.page}"]`);
+  // opens, so scrolling to an anchor on load has to wait for the page to
+  // have a height — otherwise it scrolls to where the page will be, which
+  // is nowhere.
+  const goToAnchorWhenLaid = (anchor, tries = 0) => {
+    const pageEl = scrollerRef.current?.querySelector(`[data-page="${anchor.page}"]`);
     if (pageEl && pageEl.getBoundingClientRect().height > 10) {
-      goToNote(note);
+      goToAnchor(anchor);
       return;
     }
-    if (tries < 60) requestAnimationFrame(() => goToNoteWhenLaid(note, tries + 1));
+    if (tries < 60) requestAnimationFrame(() => goToAnchorWhenLaid(anchor, tries + 1));
   };
 
-  // Go to the note's own place on the page, not merely the page: the
+  // Go to the anchor's own place on the page, not merely the page: the
   // anchor lands in the middle of the view.
   //
-  // Going is not opening. A mark on the Navigator, a link to a note and
-  // "Go to Anchor" are all ways of getting to a place; the card is for
-  // working on the anchor, and it opens from the pin — or on its own for an
-  // anchor just dropped. Arriving anywhere puts away whatever card was open
-  // where the reader came from.
-  const goToNote = (note) => {
-    setActiveNoteUuid(null);
-    setNoteCardFocus(null);
-    if (!note.anchor) return;
+  // Going is not opening. A mark on the Navigator and a link to an anchor
+  // are ways of getting to a place; its dig opens from the pin — or on its
+  // own for an anchor just dropped. Arriving anywhere puts down whatever
+  // anchor was in hand where the reader came from.
+  const goToAnchor = (anchor) => {
+    setActiveAnchorUuid(null);
+    if (!anchor.anchor) return;
     const scroller = scrollerRef.current;
-    const pageEl = scroller?.querySelector(`[data-page="${note.page}"]`);
+    const pageEl = scroller?.querySelector(`[data-page="${anchor.page}"]`);
     if (!scroller || !pageEl) return;
     const page = pageEl.getBoundingClientRect();
     const box = scroller.getBoundingClientRect();
     // The anchor's y is a fraction from the bottom of the page in PDF
     // space; on screen it is that far down from the top.
-    const anchorY = page.top + (1 - note.anchor.y) * page.height;
+    const anchorY = page.top + (1 - anchor.anchor.y) * page.height;
     const top = scroller.scrollTop + anchorY - box.top - box.height / 2;
     // A short hop is easier to follow when it glides; a jump of several
     // pages is just waiting, so it lands at once.
@@ -3809,25 +3743,23 @@ export default function App() {
   };
 
   // An anchor in the contents is one line, so it says the shortest true
-  // thing about itself: its name, else the opening of the note written on
-  // it, else the page it holds.
+  // thing about itself: the opening of the dig on it, else the page it
+  // holds.
   const contentsAnchors = useMemo(
-    () => numbered.filter(hasAnchor).map((note) => {
-      const name = (note.name || '').trim();
-      const written = (note.content || '').trim().split('\n')[0].trim();
+    () => numbered.filter(hasAnchor).map((anchor) => {
+      const written = (digView?.digs[anchor.uuid]?.lead?.excerpt || '').trim().split('\n')[0].trim();
       return {
-        uuid: note.uuid,
-        page: note.page,
+        uuid: anchor.uuid,
+        page: anchor.page,
         // The map places an anchor at the point it holds, not merely on
         // its page, so a paper of few pages still spreads its anchors out.
-        anchorY: note.anchor?.y ?? 0.5,
-        note,
-        label: name
-          || (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
-          || `Page ${note.page}`,
+        anchorY: anchor.anchor?.y ?? 0.5,
+        anchor,
+        label: (written && (written.length > 60 ? `${written.slice(0, 59)}…` : written))
+          || `Page ${anchor.page}`,
       };
     }),
-    [numbered],
+    [numbered, digView?.digs],
   );
 
   // Once imported, leave the ephemeral file URL. The canonical nook viewer
@@ -3933,11 +3865,8 @@ export default function App() {
 
   const pageOpenReference = useEvent(openCitation);
   const pageFollowLink = useEvent(followLink);
-  const pageSelectNote = useEvent(pointAtNote);
-  const pageRenameNote = useEvent((uuid, name) => renameNote(uuid, name, true));
-  const pageWriteNote = useEvent((uuid, content) => writeNote(uuid, content));
-  const pageRemoveNote = useEvent((uuid) => removeNote(uuid));
-  const pageMoveNote = useEvent(moveNote);
+  const pageSelectAnchor = useEvent(pointAtAnchor);
+  const pageMoveAnchor = useEvent(moveAnchor);
   const pageDrawStroke = useEvent(drawStroke);
   const pageSelectInk = useEvent((stroke) => setSelectedInk(stroke ? {
     uuid: stroke.uuid,
@@ -3953,7 +3882,13 @@ export default function App() {
     setHoveredInk({ pages, objects });
   });
   const pageEraseStroke = useEvent(eraseStroke);
-  const pageEraseNote = useEvent(removeNote);
+  const pageEraseAnchor = useEvent(removeAnchor);
+  // Removed from its bar or with Delete, an anchor with a dig on it asks
+  // first: the dig goes with it.
+  const pageRemoveAnchor = useEvent(async (uuid) => {
+    if (digView?.digs[uuid] && !(await confirmAction('Remove this anchor and its dig?', { confirmLabel: 'Remove', destructive: true }))) return;
+    removeAnchor(uuid);
+  });
   const pageHover = useEvent((spot) => { hoverRef.current = spot; });
   const pageDropAnchor = useEvent(dropAnchor);
   const pageCreateClip = useEvent(createClip);
@@ -4155,7 +4090,7 @@ export default function App() {
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
           onSection={goToSection}
-          onAnchor={(anchor) => goToNote(anchor.note)}
+          onAnchor={(mark) => goToAnchor(mark.anchor)}
           onTop={goToTop}
         />
         {/* A failed sync is reported, not offered again: the viewer is for
@@ -4546,7 +4481,7 @@ export default function App() {
                   </svg>
                   {projectView && (
                     <span className="project-faces">
-                      {whoMarked([...projectView.notes, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (
+                      {whoMarked([...projectView.anchors, ...projectView.ink, ...projectView.clips], projectView.me).map((user) => (
                         <span key={user.uuid} className="who" style={{ '--who': memberInk(user) }} title={user.display_name}>
                           <Avatar user={user} className="mini-avatar" />
                         </span>
@@ -4578,8 +4513,8 @@ export default function App() {
                   {nookStep === 'waiting'
                     ? 'Continue in the Papol window. The paper is added as soon as you are signed in.'
                     : nookStep === 'confirm'
-                      ? 'Notes, ink, clips and other paper state are available after this file is added to your nook.'
-                      : 'Sign in first. Notes, ink and clips are available after the paper is added to your nook.'}
+                      ? 'Anchors, ink, clips and digs are available after this file is added to your nook.'
+                      : 'Sign in first. Anchors, ink, clips and digs are available after the paper is added to your nook.'}
                 </p>
                 <div className="nook-ask-actions">
                   <button type="button" onClick={() => { setNookPromptOpen(false); setNookStep('idle'); }}>Not now</button>
@@ -4616,7 +4551,7 @@ export default function App() {
                 </button>
                 <strong id="storage-notice-title">Annotations aren’t in the PDF</strong>
                 <p>
-                  Papol keeps your notes, ink and clips separately from the PDF file.
+                  Papol keeps your anchors, ink, clips and digs separately from the PDF file.
                 </p>
                 <label className="storage-notice-opt-out">
                   <input
@@ -4757,6 +4692,7 @@ export default function App() {
         </ReturnPill>
         <div
           className={`pages${withMargin ? ' with-margin' : ''}`}
+          style={withMargin ? { paddingRight: PAGES_PADDING + MARGIN_GAP + marginWidth } : undefined}
           ref={scrollerRef}
           aria-busy={!doc}
           onPointerDown={(e) => {
@@ -4832,18 +4768,14 @@ export default function App() {
               previewUrl={previewUrls.get(n)}
               scale={scale}
               renderScaleStore={renderScaleStore}
-              notes={notesByPage.get(n) || EMPTY_INK}
-              activeNoteUuid={notesByPage.get(n)?.some((note) => note.uuid === activeNoteUuid) ? activeNoteUuid : null}
-              noteCardFocus={notesByPage.get(n)?.some((note) => note.uuid === activeNoteUuid) ? noteCardFocus : null}
-              onRenameNote={pageRenameNote}
-              onWriteNote={pageWriteNote}
-              onRemoveNote={pageRemoveNote}
+              anchors={anchorsByPage.get(n) || EMPTY_INK}
+              activeAnchorUuid={anchorsByPage.get(n)?.some((anchor) => anchor.uuid === activeAnchorUuid) ? activeAnchorUuid : null}
               analysis={analysis}
               openReferenceUuid={openReferencePage === n ? openCite?.referenceUuid ?? null : null}
               onOpenReference={pageOpenReference}
               onFollowLink={pageFollowLink}
-              onSelectNote={pageSelectNote}
-              onMoveNote={pageMoveNote}
+              onSelectAnchor={pageSelectAnchor}
+              onMoveAnchor={pageMoveAnchor}
               readOnly={readOnly}
               tool={tool}
               ink={inkByPage.get(n) || EMPTY_INK}
@@ -4860,7 +4792,8 @@ export default function App() {
               onSelectInk={pageSelectInk}
               onHoverInkObjects={pageHoverInk}
               onEraseStroke={pageEraseStroke}
-              onEraseNote={pageEraseNote}
+              onEraseAnchor={pageEraseAnchor}
+              onRemoveAnchor={pageRemoveAnchor}
               onHover={pageHover}
               onDropAnchor={pageDropAnchor}
               clips={clipsByPage.get(n) || EMPTY_INK}
@@ -4894,9 +4827,10 @@ export default function App() {
           ))}
           {withMargin && scale && (
             <DigMargin
-              scrollerRef={scrollerRef} lines={marginLines} layoutKey={scale}
+              scrollerRef={scrollerRef} lines={marginLines} layoutKey={`${scale}|${marginWidth}`} width={marginWidth}
+              folded={marginFolded} canUnfold={marginUnfoldable} onFold={foldMargin}
               open={marginOpen} picked={marginPicked} onOpen={(line) => openInMargin(line)} onClose={() => closeMargin()}
-              project={projectView} onChanged={marginDigChanged}
+              project={digView} onChanged={marginDigChanged}
             />
           )}
           {openCite && (
@@ -4981,32 +4915,15 @@ export default function App() {
               className="selection-actions ink-actions"
               style={{ left: inkActions.left, top: inkActions.top }}
             >
-              {/* Another member's ink, picked out: whose it is, and the
-                  way to dig into it. It is theirs, so nothing here
-                  sends or removes it. */}
-              {selectedStrokes[0]?.theirs && (
-                <span className="ink-who" style={{ '--who': memberInk(selectedStrokes[0].user) }}>
-                  <Avatar user={selectedStrokes[0].user} className="mini-avatar" />
-                  <span>{selectedStrokes[0].user.display_name}</span>
-                </span>
-              )}
-              {projectView && typeof selectedStrokes[0]?.uuid === 'string' && !selectedStrokes[0].uuid.startsWith('wet-') && (
-                <TalkPin
-                  projectUuid={projectView.uuid}
-                  subject={{ annotation: selectedStrokes[0].uuid }}
-                  label={`ink on page ${selectedStrokes[0].page}`}
-                  summary={projectView.digs[selectedStrokes[0].uuid]}
-                  currentUser={projectView.me}
-                  onChanged={digChanged}
-                  size="sm"
-                  openOn={landing?.annotation === selectedStrokes[0].uuid ? landing.dig : null}
-                  onPress={inMargin(selectedStrokes[0].uuid)}
-                />
-              )}
-              {!selectedStrokes[0]?.theirs && <ItemActions
-                label="Paint actions"
-                placement="above-end"
-                actions={[
+              {/* The bar every picked thing wears: whose it is with a
+                  project on, its dig, and — the reader's own — sending
+                  what is under it, or removing it. */}
+              <ThingBar
+                digs={pageProject}
+                annotation={selectedStrokes[0] ?? {}}
+                label={`ink on page ${selectedStrokes[0]?.page}`}
+                actionsLabel="Paint actions"
+                actions={selectedStrokes[0]?.theirs ? [] : [
                   {
                     label: 'Send painted text to a board',
                     title: inkActions.text == null
@@ -5025,7 +4942,7 @@ export default function App() {
                     onSelect: removeSelectedInk,
                   },
                 ]}
-              />}
+              />
             </span>
           )}
         </div>

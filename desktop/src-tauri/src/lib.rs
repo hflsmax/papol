@@ -44,7 +44,7 @@ struct WindowLaunch {
 }
 
 impl WindowLaunch {
-    fn note_standalone_viewer(&self) -> bool {
+    fn record_standalone_viewer(&self) -> bool {
         if self.finished.load(Ordering::SeqCst) {
             return false;
         }
@@ -128,7 +128,7 @@ fn open_handed_over_links(app: &tauri::AppHandle, links: Vec<tauri::Url>) {
         // launch opens into it — but only once a window has actually been
         // made for it, or the Desk would stay hidden behind nothing.
         if show_document_window(app, &origin, target) {
-            app.state::<WindowLaunch>().note_standalone_viewer();
+            app.state::<WindowLaunch>().record_standalone_viewer();
         }
     }
 }
@@ -874,7 +874,9 @@ fn handoff_scheme(identifier: &str) -> String {
 /// document and a place inside it survive the crossing, so the worst a
 /// stranger's link can do is open a document this user already has.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-const HANDOFF_QUERY_KEYS: [&str; 8] = ["pdf", "board", "share", "page", "note", "y", "mark", "box"];
+const HANDOFF_QUERY_KEYS: [&str; 8] = [
+    "pdf", "board", "share", "page", "anchor", "y", "mark", "box",
+];
 
 /// Rewrites a handed-over address onto the bundled origin that serves it.
 ///
@@ -977,9 +979,9 @@ fn should_navigate_existing_document(document: &DocumentWindow, url: &tauri::Url
     // A plain Read request is only asking for the paper. Its window already
     // has the user's live position and UI state, so navigating it would
     // needlessly reload the PDF. Deep links still need to move the existing
-    // viewer to the note, page, excerpt, or clip they identify.
+    // viewer to the anchor, page, excerpt, or clip they identify.
     url.query_pairs()
-        .any(|(key, _)| matches!(key.as_ref(), "note" | "page" | "y" | "mark" | "box"))
+        .any(|(key, _)| matches!(key.as_ref(), "anchor" | "page" | "y" | "mark" | "box"))
 }
 
 /// The identifier of the application users actually install.
@@ -1134,7 +1136,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
                     .map(|path| path.to_string_lossy().into_owned()),
             );
             if !paths.is_empty() {
-                app.state::<WindowLaunch>().note_standalone_viewer();
+                app.state::<WindowLaunch>().record_standalone_viewer();
             }
             open_pdf_files(app, paths);
             return;
@@ -1321,7 +1323,7 @@ pub fn run() {
             *opened.origin.lock().expect("opened files") = opened_origin;
             files.extend(pdf_paths(std::env::args().skip(1)));
             if !files.is_empty() {
-                app.state::<WindowLaunch>().note_standalone_viewer();
+                app.state::<WindowLaunch>().record_standalone_viewer();
             }
             open_pdf_files(app.handle(), files);
             // Addresses that arrived before there was a window to show them
@@ -1398,9 +1400,8 @@ mod tests {
 
     #[test]
     fn the_unified_annotations_query_is_accepted_by_name() {
-        // What the frontend actually sends. It was refused here while notes,
-        // ink and clips still had three names of their own, which took every
-        // mark on the desktop with it.
+        // What the frontend actually sends: anchors, ink and clips are one
+        // table, asked for by one name.
         let asked: LocalDataQuery = serde_json::from_str("\"annotations\"")
             .expect("the IPC must accept the name the frontend asks by");
         assert_eq!(asked.as_str(), "annotations");
@@ -1461,13 +1462,13 @@ mod tests {
         assert_eq!(bundled.path(), "/boards/index.html");
         assert_eq!(bundled.query(), Some("board=board-123"));
 
-        let original = parse("tauri://localhost/viewer/?pdf=paper-123&page=4#note");
+        let original = parse("tauri://localhost/viewer/?pdf=paper-123&page=4#anchor");
         let document = document_window(&original, "tauri://localhost")
             .expect("local viewer URL should be recognized");
         let bundled = bundled_document_url(original, &document);
         assert_eq!(bundled.path(), "/viewer/index.html");
         assert_eq!(bundled.query(), Some("pdf=paper-123&page=4"));
-        assert_eq!(bundled.fragment(), Some("note"));
+        assert_eq!(bundled.fragment(), Some("anchor"));
     }
 
     #[test]
@@ -1491,7 +1492,7 @@ mod tests {
         .expect("viewer URL should be recognized");
 
         for target in [
-            "note=note-456",
+            "anchor=anchor-456",
             "page=4&y=0.25",
             "page=4&mark=selection",
             "page=4&box=clip",
@@ -1565,9 +1566,9 @@ mod tests {
     fn standalone_viewer_launch_keeps_the_desk_hidden() {
         let launch = WindowLaunch::default();
 
-        assert!(launch.note_standalone_viewer());
+        assert!(launch.record_standalone_viewer());
         assert_eq!(launch.finish(), Some(false));
-        assert!(!launch.note_standalone_viewer());
+        assert!(!launch.record_standalone_viewer());
     }
 
     #[test]
@@ -1695,7 +1696,7 @@ mod tests {
         assert!(!should_navigate_existing_document(&document, &plain));
 
         let placed = deep_link_url(
-            &parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123&note=n-7"),
+            &parse("papol://mc-pony.com/papol/viewer/?pdf=paper-123&anchor=a-7"),
             "tauri://localhost",
             "papol",
         )
@@ -1762,7 +1763,9 @@ mod tests {
     fn the_keys_carried_across_are_the_ones_the_viewer_reads() {
         // Kept in step with shared/macHandoff.js: a key the browser sends and
         // the application drops is a handoff that silently loses the place.
-        for key in ["pdf", "board", "share", "page", "note", "y", "mark", "box"] {
+        for key in [
+            "pdf", "board", "share", "page", "anchor", "y", "mark", "box",
+        ] {
             assert!(HANDOFF_QUERY_KEYS.contains(&key), "{key} should cross over");
         }
     }

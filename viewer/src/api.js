@@ -76,11 +76,21 @@ export async function getPaperByPdf(hash) {
   return request(`/viewer/${hash}`);
 }
 
-export async function getPaperNotes(paper) {
+export async function getPaperAnchors(paper) {
   if (nativeDataActive()) {
-    return listAnnotations(paper.sha256, { kind: 'note' });
+    return listAnnotations(paper.sha256, { kind: 'anchor' });
   }
-  return paper.notes;
+  return paper.anchors;
+}
+
+// Who is reading: the signed-in account, as the replica knows it on the
+// Mac and as the service does on the web.
+export async function getReader() {
+  if (nativeDataActive()) {
+    const account = await nativeRepository.account();
+    if (account) return account;
+  }
+  return request('/auth/me');
 }
 
 // A share uuid stands in for a session: the same public metadata, asked for
@@ -115,7 +125,7 @@ export async function getNookPaperByPdf(hash) {
   }
 }
 
-// A file opened from disk becomes a nook paper, and the notes, ink and clips
+// A file opened from disk becomes a nook paper, and the anchors, ink and clips
 // made on it before then come along. It comes in as the upload form's PDF
 // does (shared/api/papers.js): kept in the nook, sent to be read, and read.
 // Only the last step differs: there is no form to fill in later, so the
@@ -126,11 +136,11 @@ export async function getNookPaperByPdf(hash) {
 // `identifier` is what the open document's first pages print
 // (shared/identifiers.js). `onProgress` hears the send of the bytes to
 // Papol as it goes (shared/api/files.js), the one measurable part of it.
-export async function addOpenedFileToNook({ sha256, name, identifier = null, notes = [], ink = [], clips = [], onProgress }) {
+export async function addOpenedFileToNook({ sha256, name, identifier = null, anchors = [], ink = [], clips = [], onProgress }) {
   if (!nativeDataActive()) throw new Error('Sign in to add this paper to your nook.');
   const pending = openedFileImports.get(sha256);
   if (pending) return pending;
-  const importing = importOpenedFileToNook({ sha256, name, identifier, notes, ink, clips, onProgress });
+  const importing = importOpenedFileToNook({ sha256, name, identifier, anchors, ink, clips, onProgress });
   openedFileImports.set(sha256, importing);
   try {
     return await importing;
@@ -139,7 +149,7 @@ export async function addOpenedFileToNook({ sha256, name, identifier = null, not
   }
 }
 
-async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, clips, onProgress }) {
+async function importOpenedFileToNook({ sha256, name, identifier, anchors, ink, clips, onProgress }) {
   let paper = await getNookPaperByPdf(sha256);
   if (!paper) {
     // Opening a file remains private. Only once the user adds it do its
@@ -181,17 +191,16 @@ async function importOpenedFileToNook({ sha256, name, identifier, notes, ink, cl
 
   // One table now, so the three kinds are the same mapping with a different
   // kind and a different body.
-  const stored = (kind, { uuid, page, content, name, group_uuid: groupUuid, ...body }) => ({
+  const stored = (kind, { uuid, page, group_uuid: groupUuid, ...body }) => ({
     table: 'annotations', uuid, operation: 'upsert',
     values: {
       kind, paper_sha256: paperSha256,
       page: page ?? null, group_uuid: groupUuid ?? null,
-      content: content || '', name: name || null,
       body: JSON.stringify(body),
     },
   });
   const annotations = [
-    ...notes.map(({ anchor, ...note }) => stored('note', { ...note, anchor: anchor ?? null })),
+    ...anchors.map(({ uuid, page, anchor }) => stored('anchor', { uuid, page, anchor })),
     ...ink.map(({ created_at: _drawn, ...stroke }) => stored('ink', stroke)),
     ...clips.map(({ created_at: _cut, ...clip }) => stored('clip', clip)),
   ];
@@ -271,7 +280,7 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
 
 // ---- Annotations ----
 //
-// Notes, ink and clips are one kind of thing with three shapes, so they are
+// Anchors, ink and clips are one kind of thing with three shapes, so they are
 // made, changed and erased through one pair of calls. `kind` says which, and
 // `body` carries the geometry only that kind has.
 
@@ -300,8 +309,6 @@ export function createAnnotation(paperSha256, annotation) {
         paper_sha256: paperSha256,
         page: annotation.page ?? null,
         group_uuid: annotation.group_uuid ?? null,
-        content: annotation.content ?? '',
-        name: annotation.name ?? null,
         body: JSON.stringify(annotation.body ?? {}),
       },
     }]).then((receipt) => annotationView(receipt.rows[0]));
@@ -312,9 +319,7 @@ export function createAnnotation(paperSha256, annotation) {
 export function updateAnnotation(uuid, changes) {
   if (nativeDataActive() && typeof uuid === 'string') {
     const values = {};
-    for (const field of ['page', 'content', 'name']) {
-      if (changes[field] !== undefined) values[field] = changes[field];
-    }
+    if (changes.page !== undefined) values.page = changes.page;
     if (changes.body !== undefined) values.body = JSON.stringify(changes.body);
     return nativeRepository
       .transact([{ table: 'annotations', uuid, operation: 'upsert', values }])

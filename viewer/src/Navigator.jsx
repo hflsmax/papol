@@ -17,7 +17,7 @@ import { PHONE } from './styles';
  * Method is half the paper and Conclusion is a paragraph — a list of names
  * can never say that. Three lanes at one scale: the subsections' ticks
  * point down at the strip from above, the strip of sections, and the
- * reader's anchors and notes point up at it from below. So a triangle under
+ * reader's anchors point up at it from below. So a triangle under
  * the middle of Results is *in* Results, and nothing has to say so — and
  * what the paper says about itself stands on one side of the strip, what
  * the reader has put on it on the other.
@@ -61,25 +61,11 @@ const SubMark = () => (
   </svg>
 );
 
-// The reader's two marks, told apart by silhouette rather than colour, and
-// both aimed up at the place on the strip they belong to. An anchor is a
-// place and nothing more, so it is only the pointer. A note has words on it,
-// so it is the bubble words come in, with its tip turned upwards from the
-// middle of it. Its corners are as round as the box can take and still be a
-// box: square, with a tip in the middle of its lid, it reads as a briefcase
-// and its handle at this size; rounder still, as an acorn. Both were tried.
+// The reader's mark, aimed up at the place on the strip it belongs to. An
+// anchor is a place, so it is only the pointer.
 const AnchorMark = () => (
   <svg viewBox="0 0 14 14" aria-hidden="true">
     <path fill="currentColor" d="M7 1.2 12.6 12a.7.7 0 0 1-.62 1H2.02a.7.7 0 0 1-.62-1Z" />
-  </svg>
-);
-
-const NoteMark = () => (
-  <svg viewBox="0 0 14 14" aria-hidden="true">
-    <path
-      fill="currentColor"
-      d="M3.8 4H10.2A3 3 0 0 1 13.2 7V10.4A3 3 0 0 1 10.2 13.4H3.8A3 3 0 0 1 .8 10.4V7A3 3 0 0 1 3.8 4ZM5.4 4.4 7 .6 8.6 4.4Z"
-    />
   </svg>
 );
 
@@ -584,21 +570,21 @@ export default function Navigator({
         className="navigator-lane"
         ref={laneRef}
         role="toolbar"
-        aria-label="Anchors and notes"
+        aria-label="Anchors"
         onKeyDown={(event) => walk(event, laneRef)}
       >
         {marks.map((mark, index) => (
           <button
             key={mark.uuid}
             type="button"
-            className={`navigator-anchor${mark.note?.content ? ' written' : ''}`}
+            className="navigator-anchor"
             style={{ left: percent(mark.at) }}
             tabIndex={index === 0 ? 0 : -1}
             data-tip={`${mark.label} — page ${mark.page}`}
             aria-label={`${mark.label}, page ${mark.page}`}
             onClick={() => onAnchor(mark)}
           >
-            {mark.note?.content ? <NoteMark /> : <AnchorMark />}
+            <AnchorMark />
           </button>
         ))}
       </div>

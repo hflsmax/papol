@@ -12,7 +12,6 @@ import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
 import { InWay, WayShown } from './Way';
 import { readPrintedAt } from '../pdfIdentifier.js';
-import CommentSection from './CommentSection';
 import HintPop from './HintPop';
 import Avatar from './Avatar';
 import { RatingInput } from './Rating';
@@ -28,6 +27,7 @@ import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import { VISIBILITY_TIP, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { TalkCard } from '../../../shared/ui/Talk.jsx';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -61,7 +61,7 @@ export default function PaperJacket({
   // while the menu is open, and never loaded on arrival: it is nobody's, and
   // showing it on the page would say something of theirs was out.
   const [paperLink, setPaperLink] = useState(null);
-  // Off to begin with. Handing someone your private notes is a thing to
+  // Off to begin with. Handing someone your annotations is a thing to
   // choose, not a thing to find out you have done.
   const [shareIncludesAnnotations, setShareIncludesAnnotations] = useState(false);
   // Set while the user is being asked what "stop sharing" should mean for
@@ -98,7 +98,7 @@ export default function PaperJacket({
   }, [paperSha256]);
 
   // Coming back from the viewer is a history step, so the browser restores
-  // this page from its cache with whatever notes it had when the user
+  // this page from its cache with whatever it showed when the user
   // left. Refetch when the page is shown again, unless a form is open and
   // would lose what is in it.
   useEffect(() => {
@@ -151,11 +151,6 @@ export default function PaperJacket({
   const viewerHref = () => {
     if (!paper?.sha256) return null;
     return appPath(`/viewer/?pdf=${paper.sha256}`);
-  };
-
-  const noteHref = (comment) => {
-    const href = viewerHref();
-    return href ? `${href}&note=${comment.uuid}` : null;
   };
 
   const startMetadataEdit = () => {
@@ -258,7 +253,7 @@ export default function PaperJacket({
     return shareCopied.status === 'copied' ? 'Copied!' : 'Copy failed';
   };
 
-  // A sharable hands this reading — this PDF, with this user's notes, ink
+  // A sharable hands this reading — this PDF, with this user's anchors, ink
   // and clips on it — to anyone holding the link. Nothing is copied: what a
   // visitor sees is what the user has now, until the link is taken back.
   const handleShareReading = async () => {
@@ -291,7 +286,7 @@ export default function PaperJacket({
   // Taking a link back and taking your annotations out of it are different
   // things, and a link that carries annotations can do either. Asking is what
   // stops someone breaking a colleague's link when all they wanted was
-  // their notes back.
+  // their annotations back.
   const handleStopSharing = () => setStoppingShare(true);
 
   const revokeShare = async () => {
@@ -327,7 +322,7 @@ export default function PaperJacket({
   };
 
   const handleDelete = async () => {
-    if (!(await confirmAction('Remove this paper from your nook? Your ratings and notes will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
+    if (!(await confirmAction('Remove this paper from your nook? Your ratings and annotations will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
       await deletePaper(paper.sha256);
       onBack();
@@ -495,7 +490,7 @@ export default function PaperJacket({
       <button
         className="icon-button danger-icon"
         onClick={handleDelete}
-        title="Remove this paper from my nook — my ratings and notes go with it"
+        title="Remove this paper from my nook — my ratings and annotations go with it"
         aria-label="Remove from my nook"
       >
         <svg
@@ -712,7 +707,7 @@ export default function PaperJacket({
           <div className="paper-actions">
             {/* Reading does not wait for the paper to be taken: the viewer
                 opens one that is not yet theirs as a lean link, and asks
-                for it only when they reach for a note or the ink. Until
+                for it only when they reach for an anchor or the ink. Until
                 it is theirs, adding it is the step that carries the weight. */}
             {currentUser && viewerHref() && (
               <a
@@ -816,7 +811,7 @@ export default function PaperJacket({
                       {paper.sharable_uuid ? (
                         <>
                           <p className="share-note">
-                            Opens in Papol’s viewer, with your notes, paint and
+                            Opens in Papol’s viewer, with your anchors, paint and
                             clips on it.
                           </p>
                           <div className="share-link-row">
@@ -852,7 +847,7 @@ export default function PaperJacket({
                                 setShareIncludesAnnotations(event.target.checked);
                               }}
                             />
-                            Include my notes, paint and clips
+                            Include my anchors, paint and clips
                           </label>
                           {/* Without the annotations there is nothing of theirs to
                               create: the PDF has a link, and this is the
@@ -900,7 +895,7 @@ export default function PaperJacket({
               <div className="shared-reading-head">
                 <span className="badge visibility-badge shared">reading shared</span>
                 <p>
-                  Anyone with this link can read this PDF with your notes, paint
+                  Anyone with this link can read this PDF with your anchors, paint
                   and clips on it. They cannot change anything, and what they see
                   keeps up with what you write.
                 </p>
@@ -934,7 +929,7 @@ export default function PaperJacket({
               {stoppingShare && (
                 <div className="shared-reading-ask" role="group" aria-label="Stop sharing">
                   <p>
-                    Keep the link and take your notes, paint and clips out of it,
+                    Keep the link and take your anchors, paint and clips out of it,
                     or revoke the link altogether?
                   </p>
                   <div className="shared-reading-ask-actions">
@@ -1071,7 +1066,7 @@ export default function PaperJacket({
       )}
 
       {/* Below the separator, what the user keeps of the paper: summary,
-          tags and notes. Notes are theirs alone; summary and tags, like
+          tags and their dig. The dig is theirs alone; summary and tags, like
           the thought and ratings above, are whichever their chip says. */}
       {hasEntry && editMode !== 'metadata' && (
         <div className="paper-notes">
@@ -1198,15 +1193,16 @@ export default function PaperJacket({
             </div>
           </section>
 
-          <CommentSection
-            paperSha256={paper.sha256}
-            shared={Boolean(paper.sharable_uuid)}
-            comments={paper.notes.filter((note) => note.content)}
-            noteHref={noteHref}
-            onOpenNote={onRead}
-            currentUser={currentUser}
-            onCommentChange={loadPaper}
-          />
+          <section className="paper-dig" aria-labelledby="paper-dig-title">
+            <h4 id="paper-dig-title">
+              Your dig
+              <span className="badge visibility-badge private">private</span>
+            </h4>
+            <TalkCard
+              key={paper.sha256} inline single tucked dig="mine" projectUuid={null}
+              subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
+            />
+          </section>
 
         </div>
       )}

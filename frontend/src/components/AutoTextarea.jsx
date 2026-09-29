@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 
-// A textarea that grows with what is typed, so a note is never written
+// A textarea that grows with what is typed, so nothing is ever written
 // through a four-line window with the top of it scrolled away. `rows`
 // keeps its meaning: the height the box opens at and never shrinks below.
 export default function AutoTextarea({ value, className, ...rest }) {

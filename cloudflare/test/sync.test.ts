@@ -394,7 +394,7 @@ describe("the nook", () => {
 
     const ids = [uuid(), uuid(), uuid()];
     const pushedRows = await pushed(account, mutation([
-      { table: "annotations", uuid: ids[0], operation: "upsert", values: { kind: "note", paper_sha256: digest, content: "offline note", page: 1,
+      { table: "annotations", uuid: ids[0], operation: "upsert", values: { kind: "anchor", paper_sha256: digest, page: 1,
         body: JSON.stringify({ anchor: { type: "point", x: 0.2, y: 0.3 } }) } },
       { table: "annotations", uuid: ids[1], operation: "upsert", values: { kind: "ink", paper_sha256: digest, page: 1,
         body: JSON.stringify({ points: [{ x: 0.1, y: 0.2 }], color: "#b3923d", width: 0.004, opacity: 1, shape: "flat" }) } },
@@ -404,7 +404,7 @@ describe("the nook", () => {
     expect(new Set(pushedRows.rows.map((r: any) => r.uuid))).toEqual(new Set(ids));
     const refreshed = await ok("GET", "/api/sync/snapshot", { headers: account.headers });
     expect(new Set(refreshed.rows.map((r: any) => r.table))).toContain("annotations");
-    expect((await rows<{ kind: string }>("SELECT kind FROM annotations ORDER BY kind")).map((r) => r.kind)).toEqual(["clip", "ink", "note"]);
+    expect((await rows<{ kind: string }>("SELECT kind FROM annotations ORDER BY kind")).map((r) => r.kind)).toEqual(["anchor", "clip", "ink"]);
   });
 
   it("refuses an annotation that is not its kind's shape", async () => {
@@ -413,7 +413,8 @@ describe("the nook", () => {
     await paperWithCopy(account, digest, "Shapes");
     for (const values of [
       { kind: "ink", paper_sha256: digest, page: 1, body: JSON.stringify({ points: [] }) },
-      { kind: "note", paper_sha256: digest, content: "", body: "{}" },
+      { kind: "anchor", paper_sha256: digest, body: "{}" },
+      { kind: "note", paper_sha256: digest, page: 1, body: JSON.stringify({ anchor: { type: "point", x: 0.2, y: 0.3 } }) },
       { kind: "clip", paper_sha256: digest, page: 1, body: JSON.stringify({ source: { x: 0.9, y: 0.9, w: 0.5, h: 0.5 }, frame: { x: 0, y: 0, w: 1, h: 1 } }) },
     ]) {
       const response = await push(account, mutation([{ table: "annotations", uuid: uuid(), operation: "upsert", values }]));

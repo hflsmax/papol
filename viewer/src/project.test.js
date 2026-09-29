@@ -28,7 +28,7 @@ describe('what the project reads', () => {
     me: ana.uuid,
     annotations: [
       { uuid: 'a', kind: 'ink', user: ana, body: { color: '#d92b1f' } },
-      { uuid: 'b', kind: 'note', user: ben, body: {} },
+      { uuid: 'b', kind: 'anchor', user: ben, body: {} },
     ],
   };
 
@@ -74,25 +74,25 @@ describe('the dig margin', () => {
       paper: { sha256: 'f1', title: 'Attention' },
       paperDigs: pin,
       digs: { low: pin, high: pin, ink: pin, later: pin },
-      notes: [
-        { uuid: 'low', page: 1, anchor: { x: 0.5, y: 0.2 }, name: 'Low' },
-        { uuid: 'high', page: 1, anchor: { x: 0.5, y: 0.9 }, content: 'High' },
+      anchors: [
+        { uuid: 'low', page: 1, anchor: { x: 0.5, y: 0.2 } },
+        { uuid: 'high', page: 1, anchor: { x: 0.5, y: 0.9 } },
         { uuid: 'bare', page: 1, anchor: { x: 0.5, y: 0.5 } },
       ],
       ink: [{ uuid: 'ink', page: 1, points: [{ x: 0, y: 0.5 }] }],
       clips: [{ uuid: 'later', page: 3, frame: { x: 0, y: 0.1, w: 0.2, h: 0.2 } }],
     });
     assert.deepEqual(lines.map((l) => [l.key, l.label]), [
-      ['paper', 'Attention'], ['high', 'High'], ['ink', 'Ink on page 1'], ['low', 'Low'], ['later', 'A clip on page 3'],
+      ['paper', 'Attention'], ['high', 'An anchor on page 1'], ['ink', 'Ink on page 1'], ['low', 'An anchor on page 1'], ['later', 'A clip on page 3'],
     ]);
   });
 
   it('holds nothing when nobody has dug', () => {
-    assert.deepEqual(marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 1, anchor: { x: 0, y: 0 } }] }), []);
+    assert.deepEqual(marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, anchors: [{ uuid: 'n', page: 1, anchor: { x: 0, y: 0 } }] }), []);
   });
 
   it('gives a thing nobody has dug a line while the reader starts a dig on it', () => {
-    const lines = marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, notes: [{ uuid: 'n', page: 2, anchor: { x: 0, y: 0.75 } }], writing: 'n' });
+    const lines = marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, anchors: [{ uuid: 'n', page: 2, anchor: { x: 0, y: 0.75 } }], writing: 'n' });
     assert.deepEqual(lines.map((l) => [l.key, l.page, l.down, l.pin]), [['n', 2, 0.25, {}]]);
   });
 });

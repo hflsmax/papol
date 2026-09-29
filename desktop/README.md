@@ -18,7 +18,7 @@ and synchronization happen afterward in the background. An expired credential
 removes network access but does not remove the local identity or its data;
 explicit sign-out or account switching is the identity boundary.
 
-The user's boards, nook, papers, notes, ink, clips, tags, and shelves are stored
+The user's boards, nook, papers, anchors, ink, clips, tags, and shelves are stored
 in a Rust-owned SQLite database under Tauri's application data directory.
 Files use content-addressed SHA-256 names in a `blobs` directory beside that
 database. A local row change and its outbox entry commit in one SQLite
@@ -30,9 +30,9 @@ soon as that verified blob is stored. Unsynchronized files are durable; only the
 replaceable cache has no automatic size limit and can be removed with Clear cache.
 
 Offline writes are deliberately limited to data owned by that user: adding
-or removing a personal PDF, private paper fields, notes, ink, clips, tags, and
+or removing a personal PDF, private paper fields, anchors, ink, clips, tags, and
 private shelves. All operations on the user's own boards are supported too,
-including board creation, cards, files, notes, groups, layout, staging, and
+including board creation, cards, files, comments, groups, layout, staging, and
 sending excerpts or clips from the viewer. These rows use permanent UUIDs and
 the same synchronized schema locally and remotely.
 Shared actions—projects, public shelf/profile changes, feedback, and administration—show an
@@ -70,7 +70,7 @@ file's SHA-256. A viewer may read only files the system handed to this process.
 
 Opening a file needs no account and makes no network request. If the user's
 nook already holds those exact bytes, the window works on that paper. Otherwise
-the file is read only — a note, a stroke or a clip needs a nook to go into —
+the file is read only — an anchor, a stroke or a clip needs a nook to go into —
 and **Add to nook** copies the file into the replica; without an account it
 first asks the Desk window to sign in. The Desk banner and
 Settings can make Papol the default PDF viewer (macOS only).

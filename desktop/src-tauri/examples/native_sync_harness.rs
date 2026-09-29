@@ -86,7 +86,7 @@ async fn main() {
         .synchronize(&seeded, account_uuid, backend, token)
         .await
         .expect("synchronize local database");
-    let note_uuid = Uuid::new_v4().to_string();
+    let anchor_uuid = Uuid::new_v4().to_string();
     let ink_uuid = Uuid::new_v4().to_string();
     let paper_clip_uuid = Uuid::new_v4().to_string();
     let imported_copy_uuid = Uuid::new_v4().to_string();
@@ -95,15 +95,14 @@ async fn main() {
             account_uuid,
             vec![
                 DataChange {
-                    // Notes, ink and clips are one table: the same mapping
+                    // Anchors, ink and clips are one table: the same mapping
                     // with a different kind and a different body.
                     table: "annotations".into(),
-                    uuid: note_uuid.clone(),
+                    uuid: anchor_uuid.clone(),
                     operation: "upsert".into(),
                     values: Map::from_iter([
-                        ("kind".into(), json!("note")),
+                        ("kind".into(), json!("anchor")),
                         ("paper_sha256".into(), json!(paper_sha256)),
-                        ("content".into(), json!("Native offline note")),
                         ("page".into(), json!(1)),
                         (
                             "body".into(),
@@ -188,13 +187,13 @@ async fn main() {
 
     let reopened =
         LocalStore::open(Path::new(database)).expect("restart after offline annotations");
-    let offline_notes = reopened
+    let offline_anchors = reopened
         .query(
             account_uuid,
             "annotations",
-            json!({"paper_sha256": paper_sha256, "kind": "note"}),
+            json!({"paper_sha256": paper_sha256, "kind": "anchor"}),
         )
-        .expect("offline notes survive restart");
+        .expect("offline anchors survive restart");
     // Asked for by its name, the first half of its digest, as a link would.
     let offline_import = reopened
         .query(account_uuid, "paper", json!({"uuid": &pdf.sha256[..32]}))
@@ -214,14 +213,14 @@ async fn main() {
             "item_uuid": item_uuid,
             "clip_uuid": clip_uuid,
             "sha256": sha256,
-            "note_uuid": note_uuid,
+            "anchor_uuid": anchor_uuid,
             "ink_uuid": ink_uuid,
             "paper_clip_uuid": paper_clip_uuid,
             "imported_paper_sha256": pdf.sha256,
             "imported_pdf_sha256": pdf.sha256,
             "offline_import": offline_import,
             "before": before,
-            "offline_notes": offline_notes,
+            "offline_anchors": offline_anchors,
             "initial_sync": initial_sync,
             "sync": sync,
             "status": status,

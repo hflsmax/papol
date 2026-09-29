@@ -184,39 +184,31 @@ export function boardLink(value: unknown): string {
 
 // ----------------------------------------------------------- annotations
 
-export const ANNOTATION_KINDS = ["note", "ink", "clip"] as const;
+export const ANNOTATION_KINDS = ["anchor", "ink", "clip"] as const;
 
 function fraction(check: Check, field: string, value: unknown, { exclusiveMin = false } = {}) {
   return check.number(field, value, { min: 0, max: 1, exclusiveMin });
 }
 
-// `kind` decides which body is required, and which of the shared fields
-// mean anything: ink and clips are always on a page of a PDF, while a note
-// may be about the paper and placed nowhere.
-export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: unknown; content?: unknown; name?: unknown; body?: unknown }) {
+// `kind` decides which body is required. All three are on a page of a
+// PDF; none holds words: what is written about one is a dig.
+export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: unknown; body?: unknown }) {
   const check = checking();
   const kind = check.oneOf("kind", row.kind, ANNOTATION_KINDS);
   const page = check.integer("page", row.page, { min: 1, optional: true });
   check.string("group_uuid", row.group_uuid, { max: 36, optional: true });
-  const content = check.string("content", row.content ?? "", { max: text.comment }) ?? "";
-  check.string("name", row.name, { max: text.annotation_name, optional: true });
   let body: Record<string, unknown> = {};
   if (typeof row.body === "string") {
     try { body = JSON.parse(row.body || "{}"); } catch { check.fail("body is not JSON"); }
   } else if (row.body && typeof row.body === "object") {
     body = row.body as Record<string, unknown>;
   }
-  if (kind === "note") {
-    const anchor = body.anchor as Record<string, unknown> | null | undefined;
-    if (anchor != null) {
-      if (anchor.type !== undefined && anchor.type !== "point") check.fail("anchor.type must be point");
-      fraction(check, "anchor.x", anchor.x);
-      fraction(check, "anchor.y", anchor.y);
-    }
-    // A bare anchor is allowed: the user anchors a place first and writes
-    // about it later. A note with no place must say something.
-    if ((page === null) !== (anchor == null)) check.fail("a located note needs both a page and an anchor");
-    if (anchor == null && !content.trim()) check.fail("a note with no place needs something written in it");
+  if (kind === "anchor") {
+    if (page === null) check.fail("an anchor belongs on a page");
+    const anchor = (body.anchor ?? {}) as Record<string, unknown>;
+    if (anchor.type !== undefined && anchor.type !== "point") check.fail("anchor.type must be point");
+    fraction(check, "anchor.x", anchor.x);
+    fraction(check, "anchor.y", anchor.y);
   } else if (kind === "ink") {
     if (page === null) check.fail("an ink belongs on a page");
     const points = body.points;
@@ -255,9 +247,9 @@ export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: u
 // defaults filled in, so a stroke drawn without saying its colour has one
 // on every device. Asked only of a body `annotation()` has passed.
 export function normalizedBody(kind: string, body: Record<string, unknown>): Record<string, unknown> {
-  if (kind === "note") {
-    const anchor = body.anchor as Record<string, unknown> | null | undefined;
-    return anchor == null ? {} : { anchor: { type: "point", x: anchor.x, y: anchor.y } };
+  if (kind === "anchor") {
+    const anchor = body.anchor as Record<string, unknown>;
+    return { anchor: { type: "point", x: anchor.x, y: anchor.y } };
   }
   if (kind === "ink") {
     return {

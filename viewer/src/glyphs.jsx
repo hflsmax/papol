@@ -1,9 +1,8 @@
 import React from 'react';
 import { animalFor } from './animals';
 
-// Two annotations, one meaning each: an anchor holds a place, a note says
-// something about it. Both are filled shapes in currentColor, so the same
-// drawing serves as a pin on the page and as a bullet in the rail.
+// An anchor holds a place. It is a filled shape in currentColor, so the
+// same drawing serves as a pin on the page and as the cursor that drops one.
 
 // The shape alone, for putting inside another drawing.
 // The anchor, as one string. The pin on the page, the row in the rail and
@@ -30,21 +29,6 @@ export function AnchorGlyph() {
       <AnchorPath />
     </svg>
   );
-}
-
-export function NoteGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.6L6 21.4V17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
-      />
-    </svg>
-  );
-}
-
-export function GlyphFor({ note }) {
-  return note.content ? <NoteGlyph /> : <AnchorGlyph />;
 }
 
 // The four things a user can be holding. Drawn to be told apart at the

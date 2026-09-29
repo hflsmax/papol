@@ -53,7 +53,7 @@ def main():
             assert result["status"]["pending"] == 0
             assert result["initial_sync"]["pushed"] == 1
             assert result["sync"]["pushed"] == 2
-            assert result["offline_notes"][0]["content"] == "Native offline note"
+            assert result["offline_anchors"][0]["body"]["anchor"] == {"type": "point", "x": 0.25, "y": 0.5}
             assert result["offline_import"]["summary"] == "Imported entirely offline"
             board = request(
                 f"{backend}/api/boards/{result['board_uuid']}", token=auth["token"],
@@ -73,11 +73,11 @@ def main():
                 (row["table"], row["sha256"] if row["table"] == "papers" else row["uuid"]): row
                 for row in snapshot["rows"]
             }
-            # Notes, ink and clips share one table; each is told apart by
+            # Anchors, ink and clips share one table; each is told apart by
             # its kind and carries its geometry in its body.
-            note = rows[("annotations", result["note_uuid"])]
-            assert note["content"] == "Native offline note"
-            assert note["kind"] == "note"
+            anchor = rows[("annotations", result["anchor_uuid"])]
+            assert (anchor["kind"], anchor["page"]) == ("anchor", 1)
+            assert '"anchor"' in anchor["body"]
             ink = rows[("annotations", result["ink_uuid"])]
             assert (ink["kind"], ink["page"]) == ("ink", 1)
             assert '"points"' in ink["body"]

@@ -80,10 +80,10 @@ test('a deployment prefix and a port are carried across whole', () => {
 });
 
 test('the place in the document is carried, because arriving at page 1 is worse than not arriving', () => {
-  const deep = `${VIEWER}&page=14&note=n-7&y=0.5&mark=m1&box=b2`;
+  const deep = `${VIEWER}&page=14&anchor=a-7&y=0.5&mark=m1&box=b2`;
   const address = handoffAddress(deep);
   assert.match(address, /pdf=abc123/);
-  for (const part of ['page=14', 'note=n-7', 'y=0.5', 'mark=m1', 'box=b2']) {
+  for (const part of ['page=14', 'anchor=a-7', 'y=0.5', 'mark=m1', 'box=b2']) {
     assert.match(address, new RegExp(part.replace('.', '\\.')));
   }
 });
@@ -424,12 +424,12 @@ test('a handoff from the page the reader has moved to names that page', () => {
 });
 
 test('a reader still where the address opened keeps its finer place', () => {
-  const noted = `${VIEWER}&note=n-7`;
-  assert.equal(handoffAddressAt(noted, { page: 3, openingPage: 3 }), handoffAddress(noted));
+  const anchored = `${VIEWER}&anchor=a-7`;
+  assert.equal(handoffAddressAt(anchored, { page: 3, openingPage: 3 }), handoffAddress(anchored));
 });
 
-test('a reader who moved on from a named note leaves the note behind', () => {
-  const address = handoffAddressAt(`${VIEWER}&note=n-7&y=0.4`, { page: 9, openingPage: 3 });
+test('a reader who moved on from a named anchor leaves the anchor behind', () => {
+  const address = handoffAddressAt(`${VIEWER}&anchor=a-7&y=0.4`, { page: 9, openingPage: 3 });
   assert.equal(address, 'papol://mc-pony.com/papol/viewer/?pdf=abc123&page=9');
 });
 

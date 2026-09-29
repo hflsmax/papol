@@ -53,13 +53,12 @@ paper, and is private until that user shares a reading.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Annotation** | The umbrella over the three kinds. | `annotations.kind` is `note`, `ink` or `clip`. One noun in all three registers. |
-| **Note** | Words, optionally **anchored** to a place on a page. A located note is a note with an anchor: one list, not two. | `kind = 'note'`; `page` is null for a note not on a page. |
-| **Anchor** | A note's place on a page, as a PDF-space fraction. Typed: `point` today; `rect`, `polygon` and `quote` can join without a migration. | `anchor` in `cloudflare/src/validate.ts`. Drawn as a **pin** on the page and a mark on the Navigator; edited in its **card** (`NoteCard.jsx`, `.note-pop`), which hangs off the pin. "Anchor" is the datum; "pin" is the thing on screen. |
+| **Annotation** | The umbrella over the three kinds. None holds words: what anyone writes about one is a **dig** on it (§7). | `annotations.kind` is `anchor`, `ink` or `clip`. One noun in all three registers. |
+| **Anchor** | A place on a page, as a PDF-space fraction. Typed: `point` today; `rect`, `polygon` and `quote` can join without a migration. Writing at an anchor is digging it. | `kind = 'anchor'`, `anchor` in `cloudflare/src/validate.ts`. Drawn as a **pin** on the page and a mark on the Navigator. "Anchor" is the datum; "pin" is the thing on screen. There is no *note*. |
 | **Ink** | A stroke drawn over the page, in one of five colours and four widths. Ink is the noun; **paint** is the verb. | `kind = 'ink'`, `InkPoint`, `INK_COLORS`, `selectionInk.js`, `paintText.js`; labels say "Paint selected text", "Remove paint". |
 | **Stroke group** | Several stored strokes that are one annotation: text painted across lines is drawn as separate paths and picked up and erased as one. | `annotations.group_uuid`. Not a board group (§5). |
 | **Clip** | A movable view of one rectangle of the page. The rectangle it shows is its **frame**. | `kind = 'clip'`; `ClipRect` is the source rectangle, `ClipFrame` where it sits. |
-| **Reading** | One user's annotations on one paper, taken together. The unit a rich sharable carries. | Named, not copied: reword a note and everyone holding the link sees the rewording. |
+| **Reading** | One user's annotations on one paper, taken together. The unit a rich sharable carries. | Named, not copied: move a clip and everyone holding the link sees it moved. |
 | **PDF-space fraction** | A coordinate as a fraction of the page with origin bottom-left and y up, as PDF measures. The convention of anchors, ink points and clip rectangles. | `Anchor`, `InkPoint`, `ClipRect`. |
 | **Screen-space fraction** | A coordinate as a fraction of the page with origin top-left and y down. The convention of citation boxes, link boxes and backlink bands. | `Citation`, `DocumentLinkOut`, `references.js`. A `y` that crosses between the two conventions changes name when it changes convention. |
 | **Page units** | PDF points from the top-left, inside the viewer's text-layer geometry. Neither fraction. | `PdfPage.jsx`. |
@@ -80,7 +79,7 @@ What the PDF itself says.
 | **Job** | Work the server took on and finishes after answering: reading an upload, a card's picture, an email. A request queues it; the **worker** runs it; the client polls it. | `jobs`, `services/jobs.py`, `worker.py`, `GET /api/jobs/<uuid>` (`JobOut`: `queued`, `running`, `done`, `failed`). A paper's pass is also visible as `papers.references_status`. |
 | **Resolution** | What the bibliographic lookup added to a reference. | `resolved_status` is null until the reference is first opened, then `ok` or `bibliography` (the lookup found nothing and the printed line stands). Kept once filled. |
 | **Section** | One heading the paper declares, and the run of the paper under it — down to a subsection, no further. | Read from the PDF's own outline and from nowhere else; a paper without an outline has no sections. Float bookmarks (`Fig. 3 …`, `Table 1 …`) are dropped. An **appendix** is a section marked as back matter: the part after the bibliography, or one that names itself. A journal's **end-of-paper notices** (Acknowledgements, Competing interests, Data availability…) are headings but not sections. `sections.js`. |
-| **Navigator** | The viewer's navigation, and the only kind it has: the paper drawn to length across the bar, its sections as segments as wide as they are long, the reader's anchors (triangles) and notes (dialog boxes) in a lane beneath at the same scale, and a marker at the middle of the window. A press goes to exactly that place. | `Navigator.jsx`, `.navigator-*`. It draws apparatus and annotations on one scale, which is what makes an anchor legible as being *in* a section. |
+| **Navigator** | The viewer's navigation, and the only kind it has: the paper drawn to length across the bar, its sections as segments as wide as they are long, the reader's anchors (triangles) in a lane beneath at the same scale, and a marker at the middle of the window. A press goes to exactly that place. | `Navigator.jsx`, `.navigator-*`. It draws apparatus and annotations on one scale, which is what makes an anchor legible as being *in* a section. |
 
 Reading a bibliography happens once per **paper** and is kept, so only the
 first user of a PDF waits.
@@ -121,20 +120,23 @@ says who may *read this PDF*. Neither moves the other.
 | **Post** | One piece of writing in someone's dig, after its own words; anyone can post in any dig. Its writer edits it; its writer or a keeper takes it back, and the dig stays. | `dig_posts`. |
 | **Subject** | What a dig is about, as a key: `paper:<sha256>`, `card:<uuid>`, `annotation:<uuid>`. | `subjectKey()`, `subjectOut()`. The database holds it to exactly that: a `CHECK` on `digs` (migration 0018) accepts only these three kinds, each matching the one link column it names, so no dig can be about another dig, a post or anything else. |
 | **Phase** | Where a dig stands: **Digging** (still being explored), **Stashed** (needs more effort, and nobody is taking it on now), **Gold** (a great insight, settled for now, worth following up later) or **Buried** (irrelevant, not worth following). Anyone in the project moves a dig from one phase to any other, and only that explicit move changes it; writing in a dig does not. Only a dig that is Digging raises news, and the Digs tab lists those first. | `digs.phase` (migration 0017), `PUT /api/digs/<uuid>/phase`, `PhasePicker` in `Talk.jsx`. |
-| **Project on** | The viewer's optional project: a paper opened with one of the reader's projects on (`?project=<uuid>`) shows every member's notes, ink and clips on it, each in its author's colour, the reader's own included. The reader's own are theirs to change; the others' can be read, followed and dug into. Off, the paper shows the reader's own alone. | `viewer/src/project.js`, `GET /api/projects/<uuid>/papers/<sha256>/annotations`, the project pill in the viewer bar (`.project-pill`), `annotationViewerPath()`. A brief's Read opens the viewer with its project on; a link to a dig on an annotation adds `&annotation=<uuid>&dig=<uuid>`, and the viewer lands on it with the dig open. |
+| **Project on** | The viewer's optional project: a paper opened with one of the reader's projects on (`?project=<uuid>`) shows every member's anchors, ink and clips on it, each in its author's colour, the reader's own included. The reader's own are theirs to change; the others' can be read, followed and dug into. Off, the paper shows the reader's own alone. | `viewer/src/project.js`, `GET /api/projects/<uuid>/papers/<sha256>/annotations`, the project pill in the viewer bar (`.project-pill`), `annotationViewerPath()`. A brief's Read opens the viewer with its project on; a link to a dig on an annotation adds `&annotation=<uuid>&dig=<uuid>`, and the viewer lands on it with the dig open. |
 
 **A dig is always about something.** There is no dig about nothing and no
 project-wide chat room, and so no dig about the project itself.
 A dig cannot be dug, nor can a post in one: when talk wanders onto another
 thing, the reader starts a dig on that thing.
 
-**Everything written about a thing is a dig** (decided 2026-09-28). Most of
-what a reader leaves in Papol moves into digs, one step at a time: a
-member's **thought** on a paper becomes their dig on the paper, its words
-the line on their chip; the words of a **note** on a page become a
-dig on its **anchor**. An anchor, ink and a clip each stand on their own,
-and each can be dug when someone wants to. *Discussion* has left the vocabulary; when the rest lands, *thought*,
-*take* and *note* follow. Until then they name what the code still holds.
+**Everything written about a thing is a dig** (decided 2026-09-28). A
+member's **thought** on a paper is their dig on the paper, its words the
+line on their chip. There is no *note* (2026-09-29): what anyone writes at
+a place on a page is their dig on its **anchor**, with or without a
+project on. An anchor, ink and a clip each stand on their own, and each
+can be dug when someone wants to; every one offers the dig the same way,
+under the spade. Outside any project a dig is its writer's own: about a
+paper in their nook or one of their own marks, seen by nobody else, with
+no posts and no phase (`project_uuid` null). *Discussion* and *note* have
+left the vocabulary.
 
 ## 8. Handoff to Papol for Mac
 

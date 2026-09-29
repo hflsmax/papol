@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-// The viewer with a project on, as the real app renders it over a pretend
-// server: a Vite server for the viewer that answers `/api/…` itself with
-// one paper the reader keeps, one project holding it, and what three of
-// its members left on the pages — and signs the tab in as one of them
-// before the app loads. No account or Worker is needed. project-shots.mjs
+// The viewer, with a project on or none, as the real app renders it over a
+// pretend server: a Vite server for the viewer that answers `/api/…` itself
+// with one paper the reader keeps, the reader's own digs on it, one project
+// holding it, and what three of its members left on the pages — and signs
+// the tab in as one of them before the app loads. No account or Worker is needed. project-shots.mjs
 // photographs it.
 
 const ME = 'a1b2c3d4-0000-4000-8000-000000000001';
@@ -32,17 +32,17 @@ const paper = {
   sha256: PAPER, title: 'Attention Is All You Need', authors: '["A. Vaswani", "N. Shazeer", "N. Parmar"]',
   journal: 'NeurIPS', year: 2017, doi: null, file_path: `${PAPER}.pdf`, file_url: '/uploads/attention.pdf',
   copy_uuid: 'c0000000-0000-4000-8000-000000000001', shelf_uuid: 'ab000000-0000-4000-8000-000000000001', is_public: true,
-  summary: null, thought: null, tags: [], notes: [], also_read_by: [], sharable_uuid: null, created_at: daysAgo(30),
+  summary: null, thought: null, tags: [], also_read_by: [], sharable_uuid: null, created_at: daysAgo(30),
 };
 
 // A line of paint across a page: PDF-space fractions, y up. `at` is the
 // line's height from the bottom, x from `from` to `to`.
 const paint = (uuid, u, page, at, from, to, color, created) => ({
-  uuid, kind: 'ink', page, group_uuid: null, content: '', name: null, created_at: created, user: u,
+  uuid, kind: 'ink', page, group_uuid: null, created_at: created, user: u,
   body: { points: [{ x: from, y: at }, { x: to, y: at }], color, width: 0.021, opacity: 0.25, shape: 'flat' },
 });
-const note = (uuid, u, page, x, y, content, name, created) => ({
-  uuid, kind: 'note', page, group_uuid: null, content, name, created_at: created, user: u, body: { anchor: { type: 'point', x, y } },
+const anchor = (uuid, u, page, x, y, created) => ({
+  uuid, kind: 'anchor', page, group_uuid: null, created_at: created, user: u, body: { anchor: { type: 'point', x, y } },
 });
 const id = (n) => `d1b2c3d4-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`;
 
@@ -50,27 +50,33 @@ const id = (n) => `d1b2c3d4-0000-4000-8000-0000000000${String(n).padStart(2, '0'
 const mine = [
   paint(id(1), me, 1, 0.612, 0.13, 0.87, '#d92b1f', daysAgo(2)),
   paint(id(2), me, 1, 0.596, 0.13, 0.62, '#d92b1f', daysAgo(2)),
-  note(id(3), me, 1, 0.885, 0.604, 'The whole argument in one sentence.', null, daysAgo(2)),
+  anchor(id(3), me, 1, 0.885, 0.604, daysAgo(2)),
+  // A view of the abstract's opening, set in the blank head of the page.
+  {
+    uuid: id(12), kind: 'clip', page: 1, group_uuid: null, created_at: daysAgo(2), user: me,
+    body: { source: { x: 0.24, y: 0.592, w: 0.54, h: 0.069 }, frame: { x: 0.32, y: 0.035, w: 0.36, h: 0.046 }, floating: false },
+  },
 ];
 // What the others left.
 const theirs = [
   paint(id(4), ana, 1, 0.505, 0.13, 0.87, '#e0a020', daysAgo(1)),
   paint(id(5), ana, 1, 0.489, 0.13, 0.87, '#e0a020', daysAgo(1)),
   paint(id(6), ana, 1, 0.473, 0.13, 0.42, '#e0a020', daysAgo(1)),
-  note(id(7), ana, 1, 0.885, 0.49, 'Is this still true at 8 heads? Their ablation in Table 3 says the gain flattens.', 'Parallelism claim', daysAgo(1)),
+  anchor(id(7), ana, 1, 0.885, 0.49, daysAgo(1)),
   paint(id(8), ben, 1, 0.352, 0.13, 0.87, '#1668dc', hoursAgo(6)),
   paint(id(9), ben, 1, 0.336, 0.13, 0.55, '#1668dc', hoursAgo(6)),
-  note(id(10), ben, 1, 0.115, 0.35, '', null, hoursAgo(6)),
-  note(id(11), ben, 2, 0.5, 0.6, 'Figure 1 is the one to reproduce on the bench.', null, hoursAgo(5)),
+  anchor(id(10), ben, 1, 0.115, 0.35, hoursAgo(6)),
+  anchor(id(11), ben, 2, 0.5, 0.6, hoursAgo(5)),
 ];
 
 const digPosts = [
+  { uuid: 'f0000000-0000-4000-8000-000000000010', user: ana, body: 'Is this still true at 8 heads? Their ablation in Table 3 says the gain flattens.', created_at: hoursAgo(20), edited_at: null, is_mine: false },
   { uuid: 'f0000000-0000-4000-8000-000000000011', user: me, body: 'It flattens for translation. For our loop the heads would be doing different work, so I would not read Table 3 as a ceiling.', created_at: hoursAgo(20), edited_at: null, is_mine: true },
   { uuid: 'f0000000-0000-4000-8000-000000000012', user: ana, body: 'Fair. Then the claim to test is whether the heads specialise at all on our data.', created_at: hoursAgo(3), edited_at: null, is_mine: false },
 ];
 const digSubject = {
   key: `annotation:${id(7)}`, kind: 'annotation', annotation_uuid: id(7), paper_sha256: PAPER, paper_title: paper.title,
-  annotation_kind: 'note', page: 1, user_uuid: ANA, by: 'Ana Reyes', label: 'Parallelism claim',
+  annotation_kind: 'anchor', page: 1, user_uuid: ANA, by: 'Ana Reyes', label: 'An anchor on page 1',
 };
 const dig = {
   uuid: DIG, created_at: hoursAgo(20), updated_at: hoursAgo(3), project: { uuid: PROJECT, name: 'Adaptive optics control' },
@@ -95,7 +101,25 @@ const paperDigBen = {
   uuid: 'e1b2c3d4-0000-4000-8000-000000000053', created_at: daysAgo(1), updated_at: daysAgo(1), project: dig.project, subject: paperSubject,
   owner: ben, is_mine: false, phase: 'digging', text: 'Section 6 is where they admit the limits.', can_moderate: true, posts: [],
 };
-const allDigs = [dig, inkDig, paperDig, paperDigBen];
+
+// The reader's own digs, with no project on: on their anchor, on their
+// paint, and on the paper itself. Nobody else sees them.
+const personal = (n, subject, text, created) => ({
+  uuid: `e1b2c3d4-0000-4000-8000-0000000000${n}`, created_at: created, updated_at: created, project: null,
+  subject, owner: me, is_mine: true, phase: null, text, can_moderate: false, posts: [],
+});
+const annotationSubject = (a, label) => ({
+  key: `annotation:${a.uuid}`, kind: 'annotation', annotation_uuid: a.uuid, paper_sha256: PAPER, paper_title: paper.title,
+  annotation_kind: a.kind, page: a.page, user_uuid: ME, by: me.display_name, label,
+});
+const personalDigs = [
+  personal(60, annotationSubject(mine[2], 'An anchor on page 1'), 'The whole argument in one sentence: attention alone, no recurrence, and it trains faster.', daysAgo(2)),
+  personal(61, annotationSubject(mine[0], 'Ink on page 1'), 'Check this against the timing we measured on the bench.', daysAgo(2)),
+  personal(62, paperSubject, 'Read for the loop redesign. Section 3.2 is the part that matters.', daysAgo(3)),
+];
+const personalPin = (d) => ({ uuid: d.uuid, mine: true, dig_count: 1, post_count: 0, unread: 0, is_new: false, voices: [me], lead: { owner: me, phase: null, excerpt: d.text } });
+
+const allDigs = [dig, inkDig, paperDig, paperDigBen, ...personalDigs];
 
 const members = [
   { user: me, is_keeper: true, joined_at: daysAgo(20) },
@@ -110,11 +134,28 @@ const projects = [
 // What the pretend server says to each request the viewer makes.
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
-  if (path === `/viewer/${PAPER}`) return { ...paper, notes: mine.filter((a) => a.kind === 'note') };
+  if (path === `/viewer/${PAPER}`) return { ...paper, anchors: mine.filter((a) => a.kind === 'anchor') };
   if (path === `/viewer/${PAPER}/info`) return { paper: { ...paper }, references_status: 'done' };
   // An anchor the reader drops is saved under a name of its own.
   if (method === 'POST' && path === `/papers/${PAPER.slice(0, 32)}/annotations`) {
-    return { uuid: id(90), kind: 'note', page: 1, content: '', name: null, body: {}, created_at: daysAgo(0), updated_at: daysAgo(0), revision: 1 };
+    return { uuid: id(90), kind: 'anchor', page: 1, body: {}, created_at: daysAgo(0), updated_at: daysAgo(0), revision: 1 };
+  }
+  // The reader's personal digs on the paper, by annotation, and the one on
+  // the paper itself.
+  if (path === `/papers/${PAPER.slice(0, 32)}/digs`) {
+    const on = (a) => personalDigs.find((d) => d.subject.key === `annotation:${a.uuid}`);
+    return {
+      digs: Object.fromEntries(mine.filter(on).map((a) => [a.uuid, personalPin(on(a))])),
+      paper_digs: personalPin(personalDigs[2]),
+    };
+  }
+  if (path === '/digs' && method === 'GET') {
+    const key = search.get('subject');
+    const on = personalDigs.filter((d) => d.subject.key === key);
+    const [, uuid] = key.split(':');
+    const about = mine.find((a) => a.uuid === uuid) ?? { uuid: id(90), kind: 'anchor', page: 1 };
+    const subject = on[0]?.subject ?? (key.startsWith('paper:') ? paperSubject : annotationSubject(about, about.kind === 'ink' ? `Ink on page ${about.page}` : `An anchor on page ${about.page}`));
+    return { mine: on[0]?.uuid ?? null, digs: on.map(({ posts, ...d }) => ({ ...d, post_count: posts.length })), project: null, subject };
   }
   if (path === `/papers/${PAPER.slice(0, 32)}/annotations`) {
     const kind = search.get('kind');
@@ -140,7 +181,7 @@ function answer(method, path, search) {
     if (on.length) return { mine: null, digs: on.map(({ posts, ...d }) => ({ ...d, post_count: posts.length })), project: dig.project, subject: on[0].subject };
     const [, uuid] = key.split(':');
     const about = [...mine, ...theirs].find((a) => a.uuid === uuid);
-    const label = about?.kind === 'ink' ? `Ink on page ${about.page}` : about?.name || about?.content || `An anchor on page ${about?.page}`;
+    const label = about?.kind === 'ink' ? `Ink on page ${about.page}` : `An anchor on page ${about?.page}`;
     return { mine: null, digs: [], project: dig.project, subject: { key, kind: 'annotation', annotation_uuid: uuid, paper_sha256: PAPER, page: about?.page, annotation_kind: about?.kind, by: about?.user.display_name, label } };
   }
   const asked = allDigs.find((d) => path === `/digs/${d.uuid}`);
@@ -172,6 +213,7 @@ const signIn = () => ({
     localStorage.setItem('papol_token', 'fixture');
     localStorage.setItem('papol.macosDownloadBannerDismissed', '1');
     localStorage.setItem('papol_annotation_storage_notice', 'hidden');
+    localStorage.removeItem('papol.viewer.marginFolded');
   </script>`),
 });
 

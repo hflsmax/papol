@@ -102,23 +102,26 @@ ${talkStyles}
 
 /* Another member's pin wears their colour, as their ink does. */
 .pin.theirs { color: var(--who); cursor: pointer; }
-.pin.theirs.bare { color: var(--who); }
-/* The card of another member's note names them where the glyph would be. */
-.note-pop .note-pop-avatar { width: 18px; height: 18px; font-size: 10px; flex: none; }
-.note-pop-by { margin: -2px 0 0 5px; color: var(--ink-faint); font-size: var(--fs-xs); }
-/* With a project on, a card wears its dig pin in plain sight: a card is
-   already the reader reaching for the thing. */
-.note-pop .talk-pin.is-empty, .ink-who ~ .talk-pin-wrap .talk-pin.is-empty, .ink-actions .talk-pin.is-empty, .clip-who .talk-pin.is-empty { opacity: .9; }
-.note-pop .talk-pin-wrap { margin-left: auto; }
-/* Whose ink is picked out, beside the way to dig into it. */
-.ink-actions { align-items: center; gap: 4px; }
-.ink-who { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: 500 var(--fs-xs) var(--font-ui); white-space: nowrap; }
-.ink-who .mini-avatar { width: 18px; height: 18px; font-size: 10px; box-shadow: 0 0 0 2px var(--who); }
-.ink-actions .talk-pin-wrap { padding: 2px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); }
-/* A clip picked out with a project on: whose it is, and its pin. */
+/* The bar every picked thing wears — an anchor, ink, a clip: whose it is
+   (another member's, with a project on), its dig as the spade, then the
+   rest of what can be done to it, all in one pill. The actions come from
+   ItemActions, laid into the bar rather than floating off it. */
+.thing-bar { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-md); color: var(--ink); font-family: var(--font-ui); white-space: nowrap; pointer-events: auto; cursor: default; }
+.thing-bar .item-actions { position: static; width: auto; height: auto; }
+.thing-bar .item-actions-surface { position: static; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.thing-bar.is-theirs { padding: 2px; }
+.thing-face { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 32px; min-width: 32px; padding: 0 4px; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-2xs) var(--font-ui); cursor: pointer; }
+.thing-face .mini-avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px var(--who); }
+.thing-face:hover:not(:disabled), .thing-face:focus-visible, .thing-face.is-open { background: var(--accent-soft); outline: none; }
+.thing-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--card); }
+.thing-dig { display: inline-grid; min-width: 32px; height: 32px; padding: 0 2px; place-items: center; box-sizing: border-box; }
+.thing-dig .talk-pin { padding: 0 4px; }
+.thing-dig .talk-pin.is-empty { opacity: 1; }
+/* Over a clip, above its top edge at its right. */
 .paper-clip.theirs { cursor: default; }
-.clip-who { position: absolute; z-index: 2; left: -1px; top: -30px; display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: 500 var(--fs-xs) var(--font-ui); white-space: nowrap; }
-.clip-who .mini-avatar { width: 18px; height: 18px; font-size: 10px; box-shadow: 0 0 0 2px var(--who); }
+.clip-bar { position: absolute; z-index: 2; right: -1px; bottom: calc(100% + 6px); }
+/* Over an anchor: centred above its pin. */
+.anchor-bar { position: absolute; transform: translate(-50%, calc(-100% - 20px)); z-index: 4; }
 
 .shell { max-width: 480px; margin: 18vh auto 80px; padding: 0 16px; }
 /* Why there is nothing to read. The title is the reason itself. */
@@ -195,7 +198,7 @@ ${talkStyles}
 /* The paper drawn to length across the bar, in the room the spacer used to
    hold, as tall as the bar's other controls and centred among them. Two
    lanes at one scale: the strip of sections takes six parts of the height
-   to the lane's five, and the anchors and notes stand in the lane, under
+   to the lane's five, and the anchors stand in the lane, under
    it, each pointing up at its place — so a triangle under the middle of
    Results is in Results and nothing has to say so. Flat by construction — there is
    nothing to open. It is pressed and drawn along like a scrubber, so the
@@ -207,7 +210,7 @@ ${talkStyles}
   min-width: 72px;
   /* Three lanes at one scale, and all the room the desktop title bar has
      to give (40px): the subsections' ticks over the strip, the strip, and
-     the anchors and notes under it. Strip to lower lane is six parts to
+     the anchors under it. Strip to lower lane is six parts to
      five. The upper lane is kept even when
      it is empty, because it is also what sets the strip a little below
      centre: the strip is a solid band and the marks under it are specks on
@@ -403,7 +406,7 @@ ${talkStyles}
   .navigator-name { display: none; }
 }
 
-/* The anchors and notes, under the strip and at its scale. The lane is
+/* The anchors, under the strip and at its scale. The lane is
    part of the scrubber like the strip above it: a press between two marks
    goes to that place, and only a mark itself keeps its own click. */
 .navigator-lane {
@@ -429,17 +432,10 @@ ${talkStyles}
      is pointing at. */
   place-items: start center;
   border-radius: 0;
-  /* The colours the pins wear on the page: an anchor, and an anchor with
-     something written on it. The shapes differ too — a triangle and a
-     dialog box — so the difference does not rest on colour. */
+  /* The colour the pins wear on the page. */
   color: var(--accent);
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-out);
-}
-
-.viewer-bar .navigator-lane .navigator-anchor.written,
-.viewer-bar .navigator-lane .navigator-anchor.written:hover:not(:disabled) {
-  color: var(--accent-strong);
 }
 
 .navigator-anchor svg {
@@ -1332,16 +1328,28 @@ ${talkStyles}
   background: var(--paper-sunken);
 }
 
-/* With a project on and room to spare, the sheets make way on the right
-   for the dig margin (DigMargin.jsx): 20px from the sheet, 300px wide, and
-   the pages' own 24px beyond it. The fitted zoom reads this padding. */
-.pages.with-margin { padding-right: 344px; }
+/* With room beside the sheet, the dig margin (DigMargin.jsx) stands 20px
+   from it in the room the page leaves; App.jsx sets the padding on the
+   right to hold it, so the sheet and its margin are centred together. */
 /* The margin's column runs to the window's foot, so the feedback chip
    steps to the other corner rather than sit over a dig. */
 body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
 .dig-margin-line { position: absolute; box-sizing: border-box; z-index: 5; }
+/* Folded, a line is its writer's face, level with its place; an open one
+   stands over the page's edge, above the faces. */
+.dig-margin-line.is-open { z-index: 6; }
+.dig-margin-face { position: relative; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; cursor: pointer; }
+.dig-margin-face .mini-avatar { width: 24px; height: 24px; font-size: 11px; }
+.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-line.is-picked .dig-margin-face { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+.dig-margin-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--paper-sunken); }
+.dig-margin.is-folded .dig-margin-line.is-open { box-shadow: var(--shadow-md); }
+/* The fold, quiet at the head of the column. */
+.dig-margin-fold { position: absolute; z-index: 5; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); cursor: pointer; }
+.dig-margin.is-folded .dig-margin-fold { width: 32px; }
+.dig-margin-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dig-margin-fold:hover:not(:disabled), .dig-margin-fold:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); outline: none; }
 .dig-margin-head {
   display: grid; gap: 4px; box-sizing: border-box; width: 100%; margin: 0; padding: 8px 12px;
   border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink);
@@ -1357,8 +1365,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
   color: var(--ink-soft); font: var(--fs-sm)/1.45 var(--font-serif);
 }
-/* With no margin, a pressed anchor's dig pin stands just right of it. */
-.place-dig { position: absolute; transform: translate(14px, -50%); pointer-events: auto; }
 /* Open, a line is the dig card on a sheet of its own. */
 .dig-margin-line.is-open { padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); }
 .dig-margin-line .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
@@ -1879,6 +1885,8 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 }
 
 .pin-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+/* The anchor in hand's bar stands over clips, as a clip's own bar does. */
+.pin-layer:has(.anchor-bar) { z-index: 13; }
 
 
 /* Under the eraser. The same lift a pointer gives it, and nothing else:
@@ -1991,14 +1999,6 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);
 }
-.clip-actions {
-  position: absolute;
-  z-index: 2;
-  right: -1px;
-  top: 0;
-  display: inline-flex;
-  cursor: default;
-}
 .clip-canvas {
   display: block;
   width: 100%;
@@ -2042,7 +2042,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   width: 30px;
   height: 30px;
   padding: 0;
-  color: var(--accent-strong);
+  color: var(--accent);
   cursor: grab;
   touch-action: none;
 }
@@ -2071,154 +2071,19 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   transform: translate(-50%, -50%) scale(1.12);
 }
 
-/* The anchor in hand: the one whose pin was clicked, whose card is open,
-   and which Delete would take away. A ring behind the glyph, in the
-   selection colour the clip uses, and the glyph itself untouched — the
-   pin is still that pin, it has only been picked out. The ring sits
-   under the drawing: the button's transform makes it a stacking context
-   of its own, so a negative z-index stays inside it. */
-.pin.active { opacity: 1; }
-.pin.active::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2);
-  pointer-events: none;
+/* The anchor in hand: the one whose pin was clicked, whose dig is open,
+   and which Delete would take away. No ring around it: the glyph itself
+   is picked out, drawn in the deeper accent and at the lift keyboard
+   focus gives, so the pin is still that pin, only highlighted. */
+.pin.active {
+  opacity: 1;
+  color: var(--accent-strong);
+  transform: translate(-50%, -50%) scale(1.15);
 }
+.pin.theirs.active { color: color-mix(in srgb, var(--who) 80%, black); }
 .pin:not(.active) { opacity: 0.9; }
 
-/* An anchor with nothing written on it yet: an annotation, not a note. */
-.pin.bare { color: var(--accent); }
-
 .pin.dragging { cursor: grabbing; opacity: 0.85; }
-
-/* ---------- Anchor card ---------- */
-
-/* An anchor's card, hung off its pin on the page: its name, what is
-   written on it, and the way to delete it. It is the only place an anchor
-   is edited — the list of them is the Navigator, and the rail that used to
-   hold both is gone. Set in the page's own percentages, so it keeps its
-   place through any zoom; centred under the pin and held inside the sheet,
-   because the next sheet is painted over whatever hangs past this one. */
-.note-pop {
-  --note-pop-w: min(280px, calc(100% - 16px));
-  position: absolute;
-  z-index: 6;
-  left: clamp(8px, calc(var(--pin-x) - var(--note-pop-w) / 2), calc(100% - var(--note-pop-w) - 8px));
-  width: var(--note-pop-w);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  font-family: var(--font-ui);
-  pointer-events: auto;
-  cursor: default;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.note-pop-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-/* The glyph its pin is wearing, and it changes with the pin: an anchor
-   until something is written, a note from the first letter. */
-.note-pop-glyph {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
-}
-
-.note-pop-glyph svg { display: block; width: 100%; height: 100%; }
-
-/* The name is a field that does not look like one until it is wanted. Empty,
-   it asks for a title rather than showing the page: a page number there
-   read as the anchor's name, and it is only the lack of one. */
-.note-pop .note-pop-name {
-  flex: 1;
-  min-width: 0;
-  padding: 3px 5px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: none;
-  box-shadow: none;
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.note-pop input.note-pop-name::placeholder { color: var(--ink-faint); font-weight: 500; }
-.note-pop input.note-pop-name:hover { border-color: var(--line); }
-.note-pop input.note-pop-name:focus {
-  border-color: var(--accent);
-  background: var(--card);
-  outline: none;
-}
-
-.note-pop .note-pop-delete,
-.note-pop .note-pop-delete:hover:not(:disabled) {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 5px;
-  color: var(--ink-faint);
-}
-
-.note-pop .note-pop-delete:hover:not(:disabled) {
-  background: var(--red-soft);
-  color: var(--red);
-}
-
-.note-pop-delete svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Words about a paper are set in the paper's own kind of type. */
-.note-pop .note-pop-text {
-  width: 100%;
-  margin: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  line-height: 1.45;
-  resize: none;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.note-pop textarea.note-pop-text:focus {
-  border-color: var(--accent);
-  background: var(--card);
-  outline: none;
-}
-
-.note-pop p.note-pop-text { max-height: 220px; overflow: auto; }
 
 /* Closing buttons of the cards that have them. */
 .card-x {
@@ -2279,10 +2144,6 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
      of the row to be found: the palette keeps its printed order. */
   .tools .tool-slot { display: flex; }
   .tools .tool-slot.held { order: 0; }
-  /* The name looks like a field on hover; with no hover to give, it just
-     looks like one. */
-  .note-pop input.note-pop-name { border-color: var(--line); }
-  .note-pop .note-pop-delete { width: 30px; height: 30px; }
   .card-x { width: 26px; height: 26px; }
 }
 
