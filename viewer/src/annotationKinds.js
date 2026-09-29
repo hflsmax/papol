@@ -22,7 +22,7 @@ export const clipsIn = ofKind('clip');
 
 export function annotationKinds(annotations) {
   if (!annotations) return null;
-  const { list, create, update, remove } = annotations;
+  const { list, create, update, remove, restore } = annotations;
   const made = (kind) => async (annotation) => flatten(await create({ kind, ...annotation }));
   const changed = async (uuid, changes) => flatten(await update(uuid, changes));
 
@@ -32,6 +32,7 @@ export function annotationKinds(annotations) {
       create: create && (({ page, anchor }) => made('anchor')({ page, body: { anchor } })),
       move: update && ((uuid, { page, anchor }) => changed(uuid, { page, body: { anchor } })),
       remove,
+      restore: restore && ((uuid, { page, anchor }) => restore(uuid, { page, body: { anchor } })),
     },
     ink: list && {
       list: async () => inkIn(await list('ink')),

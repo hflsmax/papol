@@ -8,7 +8,7 @@ import { addToNook as addPaperToNook } from '../../shared/api/papers.js';
 import {
   getPaperByPdf, getPaperLink, getPaperAnchors, getNookPaperByPdf, addOpenedFileToNook,
   lookUpViewerReference, getViewerPaperInfo,
-  listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
+  listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation, restoreAnnotation,
   getToken, getReader,
 } from './api.js';
 import { listProjectAnnotations, personalDigsOn } from '../../shared/api/projects.js';
@@ -103,6 +103,7 @@ function apiSource(
       create: (annotation) => createAnnotation(pdfHash, annotation),
       update: (uuid, changes) => updateAnnotation(uuid, changes),
       remove: (uuid) => deleteAnnotation(uuid),
+      restore: (uuid, was) => restoreAnnotation(uuid, was),
     },
     // The project on, if one is: its name and members, and what every
     // member left on this paper. Read from the service, as projects always

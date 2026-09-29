@@ -93,7 +93,10 @@ export const talkStyles = `
 .talk-dig-new { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); padding: var(--space-2) 0; }
 .talk-dig-new .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
 .talk-dig-new textarea { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; transition: min-height var(--motion-fast) var(--ease-out); }
-.talk-dig-new textarea:focus { min-height: 96px; border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+/* Grown while it holds words, not only while focused: shrinking on blur
+   would pull the Dig button from under the press that blurred it. */
+.talk-dig-new textarea:is(:focus, :not(:placeholder-shown)) { min-height: 96px; }
+.talk-dig-new textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
 /* A folded box: one quiet word that opens it. */
 .talk-unfold { display: inline-flex; align-self: flex-start; width: max-content; align-items: center; gap: 6px; box-sizing: border-box; min-height: 30px; padding: 0 12px; font: 500 var(--fs-sm)/1 var(--font-ui); }

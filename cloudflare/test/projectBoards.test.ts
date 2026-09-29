@@ -180,12 +180,14 @@ describe("digs", () => {
     expect(dug.subject).toMatchObject({ kind: "card", board_uuid: board.uuid, label: "Adaptive optics for retinal imaging" });
     const shown = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
     expect(shown.digs).toEqual({
-      [`card:${card.uuid}`]: { uuid: dug.uuid, mine: null, dig_count: 1, post_count: 0, unread: 1, is_new: true, voices: [expect.objectContaining({ uuid: ana.uuid })], lead: { owner: expect.objectContaining({ uuid: ana.uuid }), phase: "digging", excerpt: "Who has tried this?" } },
+      [`card:${card.uuid}`]: { uuid: dug.uuid, mine: null, dig_count: 1, post_count: 0, unread: 1, is_new: true, voices: [expect.objectContaining({ uuid: ana.uuid })], lead: { owner: expect.objectContaining({ uuid: ana.uuid }), phase: "digging", excerpt: "Who has tried this?" }, digs: [{ uuid: dug.uuid, owner: expect.objectContaining({ uuid: ana.uuid }), created_at: dug.created_at, is_new: true }] },
     });
     const own = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `card:${card.uuid}`, text: "Me." } });
     await ok("POST", `/api/digs/${dug.uuid}/posts`, { headers: dana.headers, json: { body: "And me." } });
     const again = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
     expect(again.digs[`card:${card.uuid}`]).toMatchObject({ uuid: own.uuid, mine: own.uuid, dig_count: 2, post_count: 1, unread: 1 });
+    // One face per dig, oldest first; Dana's own holds no news for her.
+    expect(again.digs[`card:${card.uuid}`].digs.map((d: { uuid: string; is_new: boolean }) => [d.uuid, d.is_new])).toEqual([[dug.uuid, true], [own.uuid, false]]);
   });
 
   it("digs a paper and a card, never a thought, a board, the project itself, another dig or a post", async () => {

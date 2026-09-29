@@ -328,6 +328,16 @@ export function updateAnnotation(uuid, changes) {
   return jsonRequest(`/annotations/${uuid}`, 'PUT', changes);
 }
 
+// Undoing a delete. On the Mac an upsert of the row brings it back.
+export function restoreAnnotation(uuid, { page, body } = {}) {
+  if (nativeDataActive() && typeof uuid === 'string') {
+    return nativeRepository
+      .transact([{ table: 'annotations', uuid, operation: 'upsert', values: { page, body: JSON.stringify(body ?? {}) } }])
+      .then((receipt) => annotationView(receipt.rows[0]));
+  }
+  return request(`/annotations/${uuid}/restore`, { method: 'POST' });
+}
+
 export function deleteAnnotation(uuid) {
   if (nativeDataActive() && typeof uuid === 'string') {
     return nativeRepository

@@ -577,8 +577,8 @@ export default function Navigator({
           <button
             key={mark.uuid}
             type="button"
-            className="navigator-anchor"
-            style={{ left: percent(mark.at) }}
+            className={`navigator-anchor${mark.who ? ' worn' : ''}`}
+            style={{ left: percent(mark.at), ...(mark.who ? { '--who': mark.who } : {}) }}
             tabIndex={index === 0 ? 0 : -1}
             data-tip={`${mark.label} — page ${mark.page}`}
             aria-label={`${mark.label}, page ${mark.page}`}

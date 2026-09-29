@@ -84,4 +84,15 @@ export function annotationRoutes(router: Router) {
     await batch(env.DB, await writeSynced(env.DB, "annotations", annotation, user.uuid, false));
     return json({ message: "Annotation deleted" });
   });
+
+  // Undoing a delete: the annotation comes back as it was, under its own
+  // name, so the digs on it come back with it.
+  router.on("POST", "/api/annotations/:uuid/restore", async ({ request, env, params }) => {
+    const user = await currentUser(request, env);
+    const annotation = await one<Row>(env.DB, "SELECT * FROM annotations WHERE uuid = ? AND user_uuid = ? AND deleted_at IS NOT NULL", params.uuid, user.uuid)
+      ?? refuse(404, "Annotation not found");
+    annotation.deleted_at = null;
+    await batch(env.DB, await writeSynced(env.DB, "annotations", annotation, user.uuid, false));
+    return json(annotationOut(annotation));
+  });
 }

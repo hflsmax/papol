@@ -49,4 +49,20 @@ describe("a dig of one's own", () => {
     expect((await call("DELETE", `/api/digs/${dig.uuid}`, { headers: ada.headers })).status).toBe(204);
     expect((await ok("GET", `/api/papers/${name}/digs`, { headers: ada.headers })).digs).toEqual({});
   });
+
+  it("comes back with its anchor when a removed anchor is restored", async () => {
+    const ada = await register(), grace = await register();
+    await paperWithCopy(ada, PAPER, "Alone", { shelfUuid: await defaultShelf(ada) });
+    const anchor = await ok("POST", `/api/papers/${name}/annotations`, { headers: ada.headers, json: { kind: "anchor", page: 2, body: { anchor: { x: 0.5, y: 0.5 } } } });
+    const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${anchor.uuid}`, text: "Here" } });
+    // Nothing to restore while it stands.
+    expect((await call("POST", `/api/annotations/${anchor.uuid}/restore`, { headers: ada.headers })).status).toBe(404);
+    await ok("DELETE", `/api/annotations/${anchor.uuid}`, { headers: ada.headers });
+    expect((await ok("GET", `/api/papers/${name}/annotations`, { headers: ada.headers }))).toEqual([]);
+    // Only its owner brings it back.
+    expect((await call("POST", `/api/annotations/${anchor.uuid}/restore`, { headers: grace.headers })).status).toBe(404);
+    expect(await ok("POST", `/api/annotations/${anchor.uuid}/restore`, { headers: ada.headers })).toMatchObject({ uuid: anchor.uuid, kind: "anchor", page: 2 });
+    expect((await ok("GET", `/api/papers/${name}/annotations`, { headers: ada.headers })).map((a: { uuid: string }) => a.uuid)).toEqual([anchor.uuid]);
+    expect((await ok("GET", `/api/papers/${name}/digs`, { headers: ada.headers })).digs[anchor.uuid]).toMatchObject({ uuid: dig.uuid, digs: [{ uuid: dig.uuid, is_new: false }] });
+  });
 });

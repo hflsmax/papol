@@ -33,7 +33,7 @@ export function DigPin({ digs, annotation, label, startOpen = false }) {
 // Another member's thing is theirs, so it wears their face and nothing
 // else: pressing the face opens the digs on it, where the spade would for
 // the reader's own. A gold dot on the face says someone wrote since the
-// reader looked; +N, that N more people have digs of their own on it.
+// reader looked.
 function FaceDig({ digs, annotation, label, startOpen = false }) {
   const who = annotation.user;
   const uuid = annotation.uuid;
@@ -48,13 +48,12 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
   useEffect(() => { setSeen(false); }, [summary?.post_count, summary?.uuid]);
   const changed = useCallback((discussion, total) => {
     const next = discussion
-      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false }
+      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false, digs: total?.list }
       : { uuid: null, post_count: 0, is_new: false };
     setSeen(true);
     digs?.onDigChanged?.(key, next, discussion);
   }, [key, digs]);
   const fresh = !seen && Boolean(summary?.is_new);
-  const more = (summary?.dig_count ?? 0) - 1;
   return (
     <>
       <button
@@ -69,7 +68,6 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
         onClick={() => { setSeen(true); if (inMargin) inMargin(); else setOpen(!open); }}
       >
         <Avatar user={who} className="mini-avatar" />
-        {more > 0 && <span className="thing-face-more">+{more}</span>}
         {fresh && <span className="news-dot" role="img" aria-label="New" />}
       </button>
       {open && !inMargin && createPortal(
