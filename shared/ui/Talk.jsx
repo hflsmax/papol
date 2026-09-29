@@ -616,13 +616,11 @@ export function TalkCard({
                     <time dateTime={post.created_at} title={phaseInHead ? when(post.created_at, { time: true }) : undefined}>{when(post.created_at, { time: !phaseInHead })}</time>
                     {phaseInHead && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
-                    {editing?.uuid !== post.uuid && (post.is_mine || discussion.can_moderate) && (
+                    {editing?.uuid !== post.uuid && post.is_mine && (
                       <span className="talk-post-actions" role="group" aria-label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}>
-                        {post.is_mine && (
-                          <button type="button" aria-label="Edit" title="Edit" onClick={() => setEditing({ uuid: post.uuid, body: post.body })}>
-                            <ActionGlyph name="edit" />
-                          </button>
-                        )}
+                        <button type="button" aria-label="Edit" title="Edit" onClick={() => setEditing({ uuid: post.uuid, body: post.body })}>
+                          <ActionGlyph name="edit" />
+                        </button>
                         <button type="button" className="is-danger" aria-label="Delete" title="Delete" onClick={() => remove(post)}>
                           <ActionGlyph name="trash" />
                         </button>

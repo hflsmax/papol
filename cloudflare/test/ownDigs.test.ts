@@ -21,7 +21,7 @@ describe("a dig of one's own", () => {
     expect(empty).toMatchObject({ mine: null, digs: [], project: null, subject: { kind: "annotation", annotation_kind: "anchor", page: 3, down: 0.75, label: "An anchor on page 3" } });
 
     const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${anchor.uuid}`, text: "Lemma 2 again" } });
-    expect(dig).toMatchObject({ project: null, is_mine: true, text: "Lemma 2 again", posts: [], can_moderate: false, subject: { annotation_uuid: anchor.uuid } });
+    expect(dig).toMatchObject({ project: null, is_mine: true, text: "Lemma 2 again", posts: [], subject: { annotation_uuid: anchor.uuid } });
     expect((await call("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${anchor.uuid}`, text: "twice" } })).status).toBe(409);
     const onPaper = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${PAPER}`, text: "Worth rereading" } });
 
