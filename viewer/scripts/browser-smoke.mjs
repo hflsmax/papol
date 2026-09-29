@@ -343,15 +343,22 @@ const probe = `<script>
       run();
     }
 
-    // A named rule: its name pressed brings the rule into the window at the
-    // zoom the reader had; [ goes back; Cmd-pressed, the name gets a clip of
-    // the rule under its line, which Escape lets go of.
+    // A named rule: its name under the pointer shows the rule under its
+    // line, at the size it is printed, and the pointer gone lets it go; the
+    // name pressed brings the rule into the window at the zoom the reader
+    // had, and [ goes back.
     function followRule() {
       const $ = (selector) => document.querySelector(selector);
       const pages = () => $('.pages');
       const link = () => $('.pdf-page[data-page="1"] .pdf-link');
       const press = (key, code = key) => window.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }));
       const near = (a, b) => Math.abs(a - b) < 3;
+      // The pointer put somewhere on page 1: at the name, or off it.
+      const pointer = (dx, dy) => {
+        const box = link().getBoundingClientRect();
+        const at = { clientX: box.left + box.width / 2 + dx, clientY: box.top + box.height / 2 + dy, bubbles: true, pointerId: 1, isPrimary: true };
+        document.elementFromPoint(at.clientX, at.clientY).dispatchEvent(new PointerEvent('pointermove', at));
+      };
       let width = null;
       let start = null;
       let why = '';
@@ -364,13 +371,7 @@ const probe = `<script>
         return top >= view.top && bottom <= view.top + pages().clientHeight;
       };
       const stages = [
-        ['go', () => {
-          width = $('.pdf-page[data-page="1"]').getBoundingClientRect().width;
-          start = pages().scrollTop;
-          link().click();
-        }, () => ruleInView() && near($('.pdf-page[data-page="1"]').getBoundingClientRect().width, width)],
-        ['back', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
-        ['peek', () => link().dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })), () => {
+        ['peek', () => { start = pages().scrollTop; pointer(0, 0); }, () => {
           const peek = $('.pdf-page[data-page="1"] .paper-clip.peek canvas');
           if (!peek || !peek.width) { why = peek ? 'unpainted' : 'no-peek'; return false; }
           const clip = peek.getBoundingClientRect();
@@ -384,7 +385,12 @@ const probe = `<script>
             && Math.abs(clip.width - ${RULE.w} * page.width) < 10 && Math.abs(clip.height - ${RULE.h} * page.height) < 8
             && near(pages().scrollTop, start);
         }],
-        ['let-go', () => press('Escape'), () => !$('.paper-clip.peek')],
+        ['let-go', () => pointer(0, 120), () => !$('.paper-clip.peek')],
+        ['go', () => {
+          width = $('.pdf-page[data-page="1"]').getBoundingClientRect().width;
+          link().click();
+        }, () => ruleInView() && near($('.pdf-page[data-page="1"]').getBoundingClientRect().width, width)],
+        ['back', () => press('[', 'BracketLeft'), () => near(pages().scrollTop, start)],
       ];
       let stage = 0;
       let acted = false;
@@ -562,7 +568,7 @@ console.log(
   'Viewer browser smoke: a citation marker opened its reference card, search '
   + 'found and highlighted a phrase, a figure link zoomed the figure to fill '
   + 'the window in its middle, a card stepped through the places its work '
-  + 'is cited and every way out stayed with [ to go back, a named rule was '
-  + 'gone to and brought to its name as a clip, a link taken back said so, and '
+  + 'is cited and every way out stayed with [ to go back, a named rule showed '
+  + 'under its name and was gone to, a link taken back said so, and '
   + 'the layout held from 320px to 1920px.',
 );

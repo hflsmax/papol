@@ -134,15 +134,21 @@ const boxHolds = (box, x, y) => (
 );
 
 // What a PDF link says it does, for its tooltip and its label.
+// How long a rule's name is under the pointer before its rule shows, and
+// how long the pointer is off both before the rule goes.
+const PEEK_AFTER_MS = 150;
+const LET_GO_AFTER_MS = 200;
+
 const linkTitle = (link) => {
   if (link.href) return link.href;
   if (link.kind) return `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`;
   return `Go to page ${link.spot.page}`;
 };
 
-// A named rule, with the command (or control) key held, is brought here as
-// a clip rather than gone to.
-const peeks = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
+// A named rule, with the command (or control) key held, is kept here as a
+// clip rather than gone to.
+const keepsRule = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
+const isRule = (link) => link?.spot?.kind === 'rule';
 
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
@@ -152,8 +158,10 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-// `peek` is a clip of a named rule brought to its mention, not kept: it
-// is only looked at, and pressed, it leads to the rule.
+// `peek` is a clip of a named rule shown while its name is under the
+// pointer, not kept: the pointer may come onto it (`hold`), and pressed,
+// it leads to the rule. A clip's source may be on another page than the
+// clip sits on (`source.page`): a rule brought to where it is cited.
 function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
@@ -203,7 +211,7 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
       const height = Math.max(1, Math.round(bounds.height * ratio));
       const wanted = {
         doc,
-        page: clip.page,
+        page: clip.source.page ?? clip.page,
         source: `${clip.source.x}:${clip.source.y}:${clip.source.w}:${clip.source.h}`,
         width,
         height,
@@ -219,7 +227,7 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
       clipPaintedRef.current = wanted;
       if (output.width !== width) output.width = width;
       if (output.height !== height) output.height = height;
-      const page = await doc.getPage(clip.page);
+      const page = await doc.getPage(clip.source.page ?? clip.page);
       if (cancelled) return;
       const viewport = page.getViewport({ scale: 1 });
       const sx = width / (clip.source.w * viewport.width);
@@ -274,6 +282,7 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
   }, [
     doc,
     clip.page,
+    clip.source.page,
     clip.source.x,
     clip.source.y,
     clip.source.w,
@@ -478,6 +487,8 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
       onPointerCancel={readOnly ? undefined : finish}
+      onPointerEnter={peek ? () => peek.hold(true) : undefined}
+      onPointerLeave={peek ? () => peek.hold(false) : undefined}
       onClick={readOnly && !project && !peek ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
@@ -519,6 +530,8 @@ function PdfPage({
   onOpenReference,
   onFollowLink,
   onPeekRule,
+  onLetGoRule,
+  onClipRule,
   peek = null,
   onSelectAnchor,
   onMoveAnchor,
@@ -619,6 +632,23 @@ function PdfPage({
   // The PDF's own links: "see Section 3", "Figure 4", a URL in a footnote.
   const [links, setLinks] = useState([]);
   const [hoveredLink, setHoveredLink] = useState(-1);
+  // A rule's name under the pointer shows the rule beside it after a
+  // moment; the pointer gone from the name, and not onto the rule, lets
+  // it go after another. One timer serves both: whichever comes last wins.
+  const peekTimerRef = useRef(null);
+  const overPeekRef = useRef(false);
+  useEffect(() => {
+    const link = hoveredLink >= 0 ? links[hoveredLink] : null;
+    clearTimeout(peekTimerRef.current);
+    if (isRule(link)) peekTimerRef.current = setTimeout(() => onPeekRule(link, pageNumber, linkTitle(link)), PEEK_AFTER_MS);
+    else if (peek && !overPeekRef.current) peekTimerRef.current = setTimeout(() => onLetGoRule(), LET_GO_AFTER_MS);
+    return () => clearTimeout(peekTimerRef.current);
+  }, [hoveredLink, peek]);
+  const holdPeek = (over) => {
+    overPeekRef.current = over;
+    clearTimeout(peekTimerRef.current);
+    if (!over) peekTimerRef.current = setTimeout(() => onLetGoRule(), LET_GO_AFTER_MS);
+  };
   // The drag lives in a ref, because pointermove fires faster than React
   // re-renders and a stale `moved` flag would read a drag as a click. The
   // state alongside it exists only to redraw the pin under the pointer.
@@ -2053,7 +2083,7 @@ function PdfPage({
           const link = links.find((l) => boxHolds(l, x, y));
           if (!link) return;
           if (link.href) window.open(link.href, '_blank', 'noopener,noreferrer');
-          else if (peeks(link, e)) onPeekRule(link, pageNumber, linkTitle(link));
+          else if (keepsRule(link, e)) onClipRule(link, pageNumber);
           else onFollowLink(link.spot);
           return;
         }
@@ -2312,7 +2342,7 @@ function PdfPage({
                 style={boxStyle(link)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (peeks(link, e)) onPeekRule(link, pageNumber, linkTitle(link));
+                  if (keepsRule(link, e)) onClipRule(link, pageNumber);
                   else onFollowLink(link.spot);
                   e.currentTarget.blur();
                 }}
@@ -2468,7 +2498,7 @@ function PdfPage({
           clip={peek.clip}
           doc={doc}
           readOnly
-          peek={peek}
+          peek={{ ...peek, hold: holdPeek }}
           selected={false}
           onSelect={() => onFollowLink(peek.spot)}
         />

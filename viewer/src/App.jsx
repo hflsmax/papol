@@ -677,7 +677,7 @@ export default function App() {
   // page fractions, so they survive zoom and are restored with the paper.
   const [clips, setClips] = useState([]);
   const [selectedClipUuid, setSelectedClipUuid] = useState(null);
-  // A named rule brought to its mention as a clip (Cmd-click on the name):
+  // A named rule shown at its mention while the name is under the pointer:
   // one at a time, looked at and let go of, never kept.
   const [ruleClip, setRuleClip] = useState(null);
   // The project on, once it has answered (project.js): its name and
@@ -1966,18 +1966,29 @@ export default function App() {
     if (Math.abs(top - from) > box.height * 0.25) rememberJump(viewBeforeJump);
   };
 
-  // A named rule's mention, Cmd-clicked: the rule as printed, as a clip
-  // under the mention's line. Pressed, the clip leads to the rule; a press
-  // anywhere else, or Escape, lets it go.
-  const peekRule = (link, page, title) => {
+  // A named rule's mention under the pointer: the rule as printed, as a
+  // clip under the mention's line. Pressed, the clip leads to the rule; the
+  // pointer gone, a press anywhere else, or Escape lets it go. Cmd-click on
+  // the name keeps that clip: a clip on this page cut from the rule's.
+  const ruleFrame = (link, page) => {
     const scroller = scrollerRef.current;
     const sizeOf = (number) => {
       const el = scroller?.querySelector(`[data-page="${number}"]`);
       return el ? { width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) } : null;
     };
     const { box, page: rulePage } = link.spot;
-    const frame = ruleClipFrame(link, box, { mention: sizeOf(page), rule: sizeOf(rulePage) });
-    setRuleClip({ page, title, spot: link.spot, clip: { uuid: 'peek', page: rulePage, source: { x: box.x, y: box.y, w: box.w, h: box.h }, frame, floating: false } });
+    return {
+      source: { page: rulePage, x: box.x, y: box.y, w: box.w, h: box.h },
+      frame: ruleClipFrame(link, box, { mention: sizeOf(page), rule: sizeOf(rulePage) }),
+    };
+  };
+  const peekRule = (link, page, title) => {
+    setRuleClip((shown) => (shown?.spot === link.spot && shown.page === page ? shown : { page, title, spot: link.spot, clip: { uuid: 'peek', page, ...ruleFrame(link, page), floating: false } }));
+  };
+  const letGoRule = () => setRuleClip(null);
+  const clipRule = (link, page) => {
+    setRuleClip(null);
+    createClip({ page, ...ruleFrame(link, page), floating: false });
   };
   useEffect(() => {
     if (!ruleClip) return undefined;
@@ -3918,6 +3929,8 @@ export default function App() {
   const pageOpenReference = useEvent(openCitation);
   const pageFollowLink = useEvent(followLink);
   const pagePeekRule = useEvent(peekRule);
+  const pageLetGoRule = useEvent(letGoRule);
+  const pageClipRule = useEvent(clipRule);
   const pageSelectAnchor = useEvent(pointAtAnchor);
   const pageMoveAnchor = useEvent(moveAnchor);
   const pageDrawStroke = useEvent(drawStroke);
@@ -4826,6 +4839,8 @@ export default function App() {
               onOpenReference={pageOpenReference}
               onFollowLink={pageFollowLink}
               onPeekRule={pagePeekRule}
+              onLetGoRule={pageLetGoRule}
+              onClipRule={pageClipRule}
               peek={ruleClip?.page === n ? ruleClip : null}
               onSelectAnchor={pageSelectAnchor}
               onMoveAnchor={pageMoveAnchor}

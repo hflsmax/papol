@@ -4,10 +4,10 @@ import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 import { PAPER, viewerServer } from './fixtures/projectViewer.mjs';
 
 // Pictures of a named rule in the viewer, on a paper that has them (set
-// PAPOL_FIXTURE_PDF to it and PAPOL_FIXTURE_TITLE to its title): the name
-// under the pointer on the page it is cited from, the rule brought into
-// view by a press on it, and the rule brought to the name as a clip by a
-// Cmd-press.
+// PAPOL_FIXTURE_PDF to it and PAPOL_FIXTURE_TITLE to its title): the rule
+// shown under its name while the pointer is on it, the rule brought into
+// view by a press on the name, and a clip of the rule kept beside the name
+// by a Cmd-press.
 //
 //   PAPOL_FIXTURE_PDF=paper.pdf node scripts/rule-shots.mjs <out dir> <page> [name ...]
 const settled = "document.fonts.ready.then(() => new Promise((done) => setTimeout(done, 700)))";
@@ -23,9 +23,9 @@ const hover = `const el = ${link}; const box = el.getBoundingClientRect();
   document.elementFromPoint(at.clientX, at.clientY).dispatchEvent(new PointerEvent('pointermove', at));
   return true;`;
 const SHOTS = {
-  mention: { then: hover },
+  hover: { then: hover, settled: '.paper-clip.peek canvas' },
   jump: { then: `${link}.click(); return true;`, wait: 900 },
-  clip: { then: `${link}.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })); return true;`, settled: '.paper-clip.peek canvas' },
+  clip: { then: `${link}.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })); return true;`, settled: '.paper-clip:not(.peek) canvas' },
 };
 if (!outDir) {
   console.error(`usage: PAPOL_FIXTURE_PDF=paper.pdf node scripts/rule-shots.mjs <out dir> <page> [${Object.keys(SHOTS).join(' | ')} ...]`);
