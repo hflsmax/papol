@@ -199,8 +199,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
         <>
           <InToolbar>
             <div className="project-toolbar talk-host" data-toolbar-title>
-              {title}
-              <ExperimentalBadge />
+              <div className="project-title-line">
+                {title}
+                <ExperimentalBadge />
+              </div>
               {about}
             </div>
             {tabs}
@@ -212,8 +214,10 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
           <header className="project-head talk-host">
             <InWay>
               <div className="project-title-row">
-                {title}
-                <ExperimentalBadge />
+                <div className="project-title-line">
+                  {title}
+                  <ExperimentalBadge />
+                </div>
                 {about}
               </div>
               {seats}
@@ -763,7 +767,7 @@ function BoardMap({ boxes = [] }) {
   );
 }
 
-// What the project is about, one quiet line in the bar beside its name: a
+// What the project is about, one quiet line in the bar under its name: a
 // keeper writes it in place, kept when left, taken back with Escape; the
 // whole of a long one shows on pointing at it. With none, a member who is
 // not a keeper sees nothing.
