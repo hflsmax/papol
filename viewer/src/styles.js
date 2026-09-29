@@ -1371,6 +1371,9 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    window has no room past them. */
 /* Over everything else on the page: anchors, ink, clips and their bars. */
 .dig-margin-card { position: absolute; z-index: 20; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
+/* Unseen until what it holds has come, so it appears once, whole, rather
+   than as a thin strip that then grows. */
+.dig-margin-card:has(.talk-card-body:empty):not(:has(.talk-card-error)) { visibility: hidden; }
 .dig-margin-card .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .dig-margin-card .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 /* Inside, the card keeps the margin's one column: owners, posts and the
