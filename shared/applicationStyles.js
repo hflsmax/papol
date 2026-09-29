@@ -5208,6 +5208,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* Members panel: flat, between two hairlines. */
 .project-people { position: absolute; z-index: 300; top: calc(100% + var(--space-1)); right: 0; width: min(380px, calc(100vw - 2 * var(--space-4))); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); font: var(--fs-sm) var(--font-ui); text-align: left; cursor: auto; }
 .desktop-toolbar .project-people { top: calc(100% + var(--space-2)); }
+/* On a phone the seats start at the left edge, and so does their card. */
+@media (max-width: 640px) { .project-people { left: 0; right: auto; } }
 .project-people button:not(.project-quiet) { padding: var(--space-1) var(--space-3); font-size: var(--fs-xs); }
 .project-invite { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
 .project-invite-note { color: var(--ink-faint); font-size: var(--fs-xs); }
@@ -5215,6 +5217,12 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-invite-link + button + button + .project-invite-note { flex-basis: 100%; }
 .project-invite-link { flex: 1 1 10rem; min-width: 0; overflow: hidden; padding: var(--space-1) var(--space-2); border-radius: var(--radius); background: var(--paper-sunken); color: var(--ink-soft); font: var(--fs-xs) var(--font-mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; }
 .project-people-list { margin: 0; padding: 0; list-style: none; }
+.project-add { margin-bottom: var(--space-3); }
+.project-add-field { width: 100%; box-sizing: border-box; padding: var(--space-1) var(--space-2); }
+.project-add-found { margin-top: var(--space-2); }
+.project-add-found .project-person-actions { opacity: 1; }
+.project-add-found .project-person-name:hover { color: var(--ink); }
+.project-add-found .project-person-role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-person { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; }
 .project-person-name { color: var(--ink); text-decoration: none; }
 .project-person-name:hover { color: var(--accent); }

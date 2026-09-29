@@ -95,6 +95,46 @@ describe("joining by invitation", () => {
   });
 });
 
+describe("a keeper adding someone already in Papol", () => {
+  it("finds people by name or whole address, and makes them members at once", async () => {
+    const tag = crypto.randomUUID().slice(0, 8);
+    const dana = await register(), ana = await register(`ana-${tag}@example.test`, `Ana Quill ${tag}`);
+    const ben = await register(`ben-${tag}@example.test`, `Ben 100%_ ${tag}`);
+    await exec("UPDATE users SET email_public = 0 WHERE uuid = ?", ana.uuid);
+    const project = await start(dana);
+    const people = `/api/projects/${project.uuid}/people`;
+
+    const byName = await ok("GET", `${people}?q=${encodeURIComponent(`quill ${tag}`)}`, { headers: dana.headers });
+    expect(byName.map((u: any) => u.uuid)).toEqual([ana.uuid]);
+    // Part of a hidden address finds no one; the whole of it does.
+    expect(await ok("GET", `${people}?q=ana-${tag}`, { headers: dana.headers })).toEqual([]);
+    const byEmail = await ok("GET", `${people}?q=${encodeURIComponent(`ANA-${tag}@example.test`)}`, { headers: dana.headers });
+    expect(byEmail).toEqual([expect.objectContaining({ uuid: ana.uuid, email: null })]);
+    // Wildcards are only letters.
+    expect((await ok("GET", `${people}?q=${encodeURIComponent(`100%_ ${tag}`)}`, { headers: dana.headers })).map((u: any) => u.uuid)).toEqual([ben.uuid]);
+    expect((await ok("GET", `${people}?q=${encodeURIComponent(`%${tag}`)}`, { headers: dana.headers }))).toEqual([]);
+    expect(await ok("GET", `${people}?q=`, { headers: dana.headers })).toEqual([]);
+
+    const added = await ok("POST", `/api/projects/${project.uuid}/members`, { headers: dana.headers, json: { user_uuid: ana.uuid } });
+    expect(added.members.map((m: any) => [m.user.uuid, m.is_keeper])).toEqual([[dana.uuid, true], [ana.uuid, false]]);
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).is_member).toBe(true);
+    const inbox = await ok("GET", "/api/notifications", { headers: ana.headers });
+    expect(inbox.notifications.map((n: any) => n.content)).toContain("Desktop Test added you to Error dynamics.");
+    // Members are not offered again, and adding one twice changes nothing.
+    expect(await ok("GET", `${people}?q=${encodeURIComponent(`quill ${tag}`)}`, { headers: dana.headers })).toEqual([]);
+    expect((await ok("POST", `/api/projects/${project.uuid}/members`, { headers: dana.headers, json: { user_uuid: ana.uuid } })).members).toHaveLength(2);
+  });
+
+  it("is a keeper's alone", async () => {
+    const dana = await register(), ana = await register(), ben = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+    expect((await call("GET", `/api/projects/${project.uuid}/people?q=test`, { headers: ana.headers })).status).toBe(403);
+    expect((await call("POST", `/api/projects/${project.uuid}/members`, { headers: ana.headers, json: { user_uuid: ben.uuid } })).status).toBe(403);
+    expect((await call("POST", `/api/projects/${project.uuid}/members`, { headers: dana.headers, json: { user_uuid: crypto.randomUUID() } })).status).toBe(404);
+  });
+});
+
 describe("what members see of each other", () => {
   it("shows every member's copy of a project paper, on any shelf, with only its public fields", async () => {
     const dana = await register(), ana = await register();

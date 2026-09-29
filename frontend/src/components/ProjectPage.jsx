@@ -6,8 +6,8 @@ import { PHASES, PhaseGlyph, TalkCard, phaseRank, when } from '../../../shared/u
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  annotationViewerPath, createProjectBoard, getProject, invitationPath, openInvitation, removeMember, renameProject,
-  revokeInvitation, setKeeper,
+  addMember, annotationViewerPath, createProjectBoard, findPeople, getProject, invitationPath, openInvitation, removeMember,
+  renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import { appPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
@@ -260,7 +260,10 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
   };
   return (
     <section id="project-people" className="project-people" aria-label={showing === 'invite' ? 'Invite' : 'Members'} ref={self}>
-      {showing === 'invite' && project.is_keeper && <Invitation project={project} act={act} />}
+      {showing === 'invite' && project.is_keeper && <>
+        <AddPerson project={project} act={act} />
+        <Invitation project={project} act={act} />
+      </>}
       {showing === 'people' && <ul className="project-people-list">
         {project.members.map((member) => {
           const me = member.user.uuid === currentUser?.uuid;
@@ -292,6 +295,54 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
         })}
       </ul>}
     </section>
+  );
+}
+
+// Someone already in Papol, found by name or by their whole address, is a
+// member the moment a keeper picks them.
+function AddPerson({ project, act }) {
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState([]);
+  const input = useRef(null);
+  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => {
+    const asked = query.trim();
+    if (!asked) { setFound([]); return undefined; }
+    let live = true;
+    const timer = setTimeout(() => {
+      findPeople(project.uuid, asked).then((people) => { if (live) setFound(people); }).catch(() => { if (live) setFound([]); });
+    }, 150);
+    return () => { live = false; clearTimeout(timer); };
+  }, [project.uuid, project.members.length, query]);
+  const add = async (user) => {
+    if (await act(() => addMember(project.uuid, user.uuid))) {
+      setQuery('');
+      input.current?.focus();
+    }
+  };
+  return (
+    <div className="project-add">
+      <input
+        ref={input} type="search" className="project-add-field" value={query} aria-label="Name or email" placeholder="Name or email"
+        autoComplete="off" spellCheck={false}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && found.length === 1) { e.preventDefault(); add(found[0]); } }}
+      />
+      {found.length > 0 && (
+        <ul className="project-people-list project-add-found">
+          {found.map((user) => (
+            <li key={user.uuid} className="project-person">
+              <Face user={user} />
+              <span className="project-person-name">{user.display_name}</span>
+              {user.affiliation && <span className="project-person-role">{user.affiliation}</span>}
+              <span className="project-person-actions">
+                <button type="button" onClick={() => add(user)}>Add</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

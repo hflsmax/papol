@@ -44,6 +44,15 @@ export function acceptInvitation(code) {
   return request(`/project-invites/${encodeURIComponent(code)}`, { method: 'POST' });
 }
 
+// People in Papol a keeper can add, found by name or whole address.
+export function findPeople(uuid, query) {
+  return request(`/projects/${uuid}/people?q=${encodeURIComponent(query)}`);
+}
+
+export function addMember(uuid, userUuid) {
+  return jsonRequest(`/projects/${uuid}/members`, 'POST', { user_uuid: userUuid });
+}
+
 export function setKeeper(uuid, userUuid, isKeeper) {
   return jsonRequest(`/projects/${uuid}/members/${userUuid}`, 'PUT', { is_keeper: isKeeper });
 }
