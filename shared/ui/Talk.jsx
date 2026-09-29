@@ -494,6 +494,13 @@ export function TalkCard({
       await removeDig(post.uuid);
       const rest = digs.filter((d) => d.uuid !== post.uuid);
       setDigs(rest);
+      // A card for one dig alone, once yours is gone, is the line to write
+      // it again, in the same place.
+      if (single && post.is_mine) {
+        setDiscussion(null);
+        report(null, rest);
+        return;
+      }
       const after = rest.length ? await getDig(rest[rest.length - 1].uuid) : null;
       report(after, rest);
       setTopic({ ...topic, dig: after ? after.uuid : 'mine' });

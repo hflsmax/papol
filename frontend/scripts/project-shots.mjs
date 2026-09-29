@@ -22,6 +22,8 @@ const desk = (tab, settled, then = null, search = '') => ({
   then: `document.getElementById('project-tab-${tab}').click(); ${then ?? 'return true;'}`,
   settled: `document.querySelector('${settled}')`,
 });
+// Words for a dig written in the pictures.
+const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunning with 1.3 frames before we tune anything.';
 // A PDF dropped on the window, as the browser hands one over.
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
@@ -128,6 +130,12 @@ const SHOTS = {
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: phone },
   // On a phone the brief opens under its row.
   'phone-paper': { ...desk('papers', '.project-paper-open .talk-post', `if (!document.querySelector('.project-paper-open')) document.querySelector('[data-paper^="${paper}"]').click(); return true;`, '?shell=web'), size: phone },
+  // Your dig written in a brief's line and sent: the line holds the words,
+  // then the same card is the dig, in the same place (the mark set on the
+  // line is still on it). Last, as it adds a dig
+  // to the pretend project.
+  'desk-paper-typed': { ...desk('papers', '.project-papers-panel .is-yours .md-field:not([data-empty])', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .is-yours .md-field'); if (!b) { setTimeout(go, 100); return; } b.focus(); document.execCommand('insertText', false, TYPED); }; go(); return true;`.replace('TYPED', JSON.stringify(TYPED))), size: wide },
+  'desk-paper-sent': { ...desk('papers', '.project-papers-panel .paper-brief-dig[data-kept]:first-child:not(.is-yours) .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .is-yours .md-field'); if (!b) { setTimeout(go, 100); return; } b.closest('.paper-brief-dig').dataset.kept = ''; b.focus(); document.execCommand('insertText', false, TYPED); setTimeout(() => { document.querySelector('.project-papers-panel .is-yours .talk-send').click(); document.activeElement?.blur(); }, 200); }; go(); return true;`.replace('TYPED', JSON.stringify(TYPED))), size: wide },
 };
 
 const [outDir, ...asked] = process.argv.slice(2);
