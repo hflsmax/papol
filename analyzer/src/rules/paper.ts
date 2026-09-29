@@ -48,7 +48,7 @@ function analyzed(layout: Layout) {
   const flows = layout.pages.map((page) => flowOf(page.lines.filter(readable)));
   const floats = findFloats(layout, trace);
   const sections = findSections(layout, bibliography.lines, floats.values(), trace);
-  const rules = findRules(layout, bibliography.lines, trace);
+  const rules = findRules(layout, bibliography.lines, flows, trace);
   const links = flows.flatMap((flow) => [
     ...findMentions(flow, floats, layout, trace), ...findSectionMentions(flow, sections, layout, trace), ...findRuleMentions(flow, rules, layout, trace),
   ]);
@@ -63,7 +63,7 @@ function analyzed(layout: Layout) {
     citations,
     floats: [
       ...floats.values(), ...sections.values(), ...notes.values(),
-      ...[...rules.values()].map(({ name: _n, word: _w, labels: _l, ...rule }) => rule),
+      ...[...rules.values()].map(({ name: _n, shape: _s, bracketed: _b, category: _c, labels: _l, ...rule }) => rule),
     ].map(({ caption: _, ...float }) => float),
     links,
   };

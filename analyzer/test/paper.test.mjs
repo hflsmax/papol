@@ -238,6 +238,69 @@ describe("the paper", () => {
     }
   });
 
+  it("finds a label under a boxed form, over a stack of premises, beside a bracketed word's bar, and takes no heading, listing or grammar word for one", async () => {
+    // Kind Inference boxes each judgement form, and the box's bottom edge
+    // lies right over "k-var", set mathpar-style over an axiom's bar with
+    // nothing else over it. "a-dt-decl" stands over three lines of
+    // premises, its bar as wide as the text, the conclusion centred under
+    // it. "[sapp]" is a bracketed word beside its bar, cited bare as "the
+    // sapp rule"; "[fvar]" is beside its bar with the next rule's bar a
+    // few points off, not a group heading. "1 INTRODUCTION" has only a
+    // number on its row, "m-bind" is a listing's line in a framed box over
+    // a rule it overhangs, and "Syntax" ends a grammar's row: none names
+    // a rule.
+    const pdf = writtenPdf([
+      [60, 740, "The sapp rule splits the environment, and k-var and a-dt-decl are standard"],
+      [60, 725, "rules of the declarative system, as the appendix shows at length here."],
+      [60, 700, "1 INTRODUCTION"],
+      [64, 663, "G |- t : k"],
+      "0 0 0 RG 0.4 w 60 672 m 130 672 l S", "0 0 0 RG 0.4 w 60 672 m 60 651 l S", "0 0 0 RG 0.4 w 130 672 m 130 651 l S", "0 0 0 RG 0.4 w 60 651 m 130 651 l S",
+      [62, 646, "k-var", 8],
+      "0 0 0 RG 0.4 w 62 636 m 100 636 l S",
+      [64, 626, "G |- x : k"],
+      [205, 600, "a-dt-decl", 8],
+      [120, 588, "D, a |- k ~ (a -> *) -| T"],
+      [300, 588, "T |- D : t -| T2"],
+      [120, 576, "T2, a : k |- e : t"],
+      "0 0 0 RG 0.4 w 60 570 m 400 570 l S",
+      [176, 558, "D |- data T a = D : t -| T2"],
+      "0 0 0 RG 0.4 w 60 520 m 340 520 l S", "0 0 0 RG 0.4 w 60 520 m 60 470 l S", "0 0 0 RG 0.4 w 340 520 m 340 470 l S", "0 0 0 RG 0.4 w 60 470 m 340 470 l S",
+      [70, 508, "[m-result identity"],
+      [76, 496, "m-bind"],
+      [130, 496, "(fn m-result-id [mv f] (f mv)) ; bind"],
+      [140, 484, "(fn m-zero [] nil)"],
+      "0 0 0 RG 0.4 w 76 462 m 200 462 l S",
+      [80, 452, "x = 1"],
+      [100, 420, "G1 |- e1 : t1"],
+      [200, 420, "G2 |- e2 : t2"],
+      "0 0 0 RG 0.4 w 100 416 m 300 416 l S",
+      [130, 405, "G1 + G2 |- e1 e2 : t"],
+      [306, 413, "[sapp]", 8],
+      [100, 380, "x : s in G"],
+      "0 0 0 RG 0.4 w 100 376 m 160 376 l S",
+      [102, 365, "G |- x : s"],
+      [164, 373, "[fvar]", 8],
+      [190, 388, "G |- v : s"],
+      "0 0 0 RG 0.4 w 186 376 m 260 376 l S",
+      [188, 365, "G |- /\\a. v : s"],
+      [60, 340, "Syntax"],
+      [200, 340, "e ::= x | e e"],
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const rules = body.floats.filter((f) => f.kind === "rule").sort((a, b) => a.label.localeCompare(b.label));
+      assert.deepEqual(rules.map((f) => f.label), ["a-dt-decl", "fvar", "k-var", "sapp"]);
+      const [decl, , variable] = rules;
+      // k-var is its bar, name and conclusion under the box, not the box.
+      assert.ok(variable.y > 140 / 800 && variable.y + variable.h < 180 / 800, `k-var is under the boxed form: ${JSON.stringify(variable)}`);
+      // a-dt-decl reaches from its name at 800 − 606 over the premises to
+      // the conclusion at 800 − 550, across the wide bar.
+      assert.ok(decl.y < 196 / 800 && decl.y + decl.h > 240 / 800 && decl.x < 70 / 600 && decl.x + decl.w > 390 / 600, `a-dt-decl is its name, premises, bar and conclusion: ${JSON.stringify(decl)}`);
+      const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.label, Math.round(l.y * 800)]);
+      assert.deepEqual(mentions, [["sapp", 52], ["k-var", 52], ["a-dt-decl", 52]]);
+    }
+  });
+
   it("does not take a mention wrapped onto a line's start for a caption (caption.not-wrapped)", async () => {
     // "…as shown in / Fig. 2. Most passes…": the paragraph runs on into the
     // line. Fig. 2 is the real caption further down, under its drawing.
