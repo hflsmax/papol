@@ -28,18 +28,19 @@ import { useDismiss } from '../useDismiss.js';
 const POST_LIMIT = appLimits.text.dig_post;
 
 // Where a dig stands. Anyone in the project moves it; nothing else does.
+// A stashed dig is out of the way: folded in the Digs tab, and shown
+// nowhere else.
 export const PHASES = [
   { key: 'digging', word: 'Digging' },
-  { key: 'stashed', word: 'Stashed' },
   { key: 'gold', word: 'Gold' },
-  { key: 'buried', word: 'Buried' },
+  { key: 'stashed', word: 'Stashed' },
 ];
 export const phaseWord = (phase) => PHASES.find((p) => p.key === phase)?.word ?? 'Digging';
 
 // One glyph per phase, drawn like the spade: the spade in the ground while
-// digging, a box for what is stashed, stacked ingots for gold, a headstone
-// for what is buried. Each has its own colour: green while it grows, blue
-// when put away, gold, and grey underground. Gold's glint is drawn solid.
+// digging, a box for what is stashed, stacked ingots for gold. Each has its
+// own colour: green while it grows, blue when put away, and gold. Gold's
+// glint is drawn solid.
 const GLINT = 'M19.5 1.8c.3 1.5.9 2.1 2.3 2.4-1.4.3-2 .9-2.3 2.4-.3-1.5-.9-2.1-2.3-2.4 1.4-.3 2-.9 2.3-2.4Z';
 // Gold's three ingots, tinted with their colour.
 const INGOTS = 'M1.8 21h9.6l-1.7-6H3.5ZM12.6 21h9.6l-1.7-6h-6.2ZM7.2 14h9.6l-1.7-6H8.9Z';
@@ -47,11 +48,10 @@ const PHASE_PATHS = {
   digging: ['M3 16.5h4.6M16.4 16.5H21', 'M12 4.2v4.3M9.6 2.2h4.8v2H9.6Z', 'M7.5 8.5h9v4c0 2.6-2 4.8-4.5 6-2.5-1.2-4.5-3.4-4.5-6Z'],
   stashed: ['M3.5 6h17v4h-17Z', 'M5 10h14v8.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5Z', 'M10 13.5h4'],
   gold: [INGOTS, GLINT],
-  buried: ['M3.5 20h17', 'M7.5 20V10a4.5 4.5 0 0 1 9 0v10', 'M10.5 12.5h3'],
 };
 // Each drawing moved to sit on the middle of its box, so every glyph lines
 // up with the word beside it.
-const PHASE_NUDGE = { digging: 1.6, stashed: -1, gold: 0.5, buried: -0.8 };
+const PHASE_NUDGE = { digging: 1.6, stashed: -1, gold: 0.5 };
 export function PhaseGlyph({ phase }) {
   return (
     <svg className={`phase-glyph is-${PHASE_PATHS[phase] ? phase : 'digging'}`} viewBox="0 0 24 24" aria-hidden="true">
@@ -61,10 +61,10 @@ export function PhaseGlyph({ phase }) {
     </svg>
   );
 }
-// Digging first, then stashed, gold and buried: how lists of digs run.
+// Digging first, then gold, then stashed: how lists of digs run.
 export const phaseRank = (phase) => Math.max(0, PHASES.findIndex((p) => p.key === phase));
 
-// A dig's phase: its glyph and word. Pressed, the four phases drop down
+// A dig's phase: its glyph and word. Pressed, the three phases drop down
 // under it, one per line; picking one moves the dig.
 export function PhasePicker({ dig, onMoved, className = '' }) {
   const current = dig.phase ?? 'digging';

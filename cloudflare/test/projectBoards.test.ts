@@ -143,10 +143,11 @@ describe("digs", () => {
     await ok("POST", `/api/digs/${danas.uuid}/posts`, { headers: dana.headers, json: { body: "Still worth it." } });
     const stashed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs.find((d: { uuid: string }) => d.uuid === danas.uuid);
     expect(stashed).toMatchObject({ phase: "stashed", unread: 0, is_new: false });
-    for (const phase of ["gold", "buried", "digging"]) {
+    for (const phase of ["gold", "digging"]) {
       expect((await ok("PUT", `/api/digs/${danas.uuid}/phase`, { headers: dana.headers, json: { phase } })).phase).toBe(phase);
     }
     expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "done" } })).status).toBe(422);
+    expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "buried" } })).status).toBe(422);
     expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: sam.headers, json: { phase: "gold" } })).status).toBe(403);
 
     expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(403);

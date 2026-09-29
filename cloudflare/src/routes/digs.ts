@@ -27,9 +27,9 @@ import { digsFrom, digsOf, excerpt, liveProject, membership, LIVE_SUBJECT, SUBJE
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
-// Where a dig stands: still being dug, stashed for later, gold worth
-// keeping, or buried. Anyone in the project moves it; nothing else does.
-export const PHASES = ["digging", "stashed", "gold", "buried"] as const;
+// Where a dig stands: still being dug, stashed out of the way, or gold
+// worth keeping. Anyone in the project moves it; nothing else does.
+export const PHASES = ["digging", "stashed", "gold"] as const;
 type Phase = typeof PHASES[number];
 
 interface Dig extends Row {
@@ -184,14 +184,15 @@ function newPost(dig: Dig, me: User, body: string, at: string): Row {
 // Every dig on each of the given subjects, folded into what one pin on it
 // shows: how many digs and posts, whether any of it is new to this
 // member, who wrote, and the dig the pin opens (their own, or else the
-// latest). With no project, the reader's own digs outside any.
+// latest). A stashed dig is out of the way: no pin shows it. With no
+// project, the reader's own digs outside any.
 export async function pinsOf(env: Env, projectUuid: string | null, me: User, member: Member, subjects?: string[]) {
   const rows = await all<Row>(env.DB,
     `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase, d.created_at,
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
             (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
-     FROM digs d WHERE ${projectUuid ? `d.project_uuid = ? AND ${LIVE_SUBJECT}` : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
+     FROM digs d WHERE ${projectUuid ? `d.project_uuid = ? AND d.phase != 'stashed' AND ${LIVE_SUBJECT}` : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid ?? me.uuid, ...(subjects ?? []));
   const people = await usersByUuid(env, rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]));

@@ -160,7 +160,7 @@ await dig(ana, group, `annotation:${anaNote}`, 'Is this still true at 8 heads? T
 await dig(ben, group, `annotation:${benInk}`, '3.5 days on eight GPUs is the number to beat for our budget.', [[dana, 'We have two. Call it a week.']]);
 await dig(chen, group, `annotation:${chenClip}`, 'This figure is the clearest picture of multi-head attention I know. Keep it on the board.', [], 'stashed');
 await dig(dana, group, `annotation:${danaNote}`, 'Residual around every sub-layer: the same trick as ResNet. Pre-norm moves it inside the residual.');
-await dig(ana, group, `annotation:${anaInk}`, 'Masked LM is the idea; next-sentence prediction turned out not to matter.', [[chen, 'RoBERTa dropped it and did better.']], 'buried');
+await dig(ana, group, `annotation:${anaInk}`, 'Masked LM is the idea; next-sentence prediction turned out not to matter.', [[chen, 'RoBERTa dropped it and did better.']], 'stashed');
 await dig(ben, group, `paper:${adam.sha}`, 'The bias correction is the part people forget when they write it by hand.');
 await dig(chen, club, `paper:${ddpm.sha}`, 'Read this before the score-based papers; it is the same model from the other side.', [[dana, 'Starting it tonight.']]);
 await dig(chen, club, `annotation:${chenNote}`, 'The simplified loss drops the weighting and trains better. It is the whole practical contribution.');

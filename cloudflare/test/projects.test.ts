@@ -300,6 +300,38 @@ describe("a paper with the project on", () => {
     expect(listed.map((d: any) => d.subject.label).sort()).toEqual(["An anchor on page 2", "Ink on page 1", "Loss Curves"]);
   });
 
+  it("leaves a stashed dig out of the paper's margin, and has no buried phase", async () => {
+    const dana = await register(), ana = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const name = A_PAPER.slice(0, 32);
+    const anchor = await ok("POST", `/api/papers/${name}/annotations`, { headers: dana.headers, json: { kind: "anchor", page: 2, body: { anchor: { type: "point", x: 0.5, y: 0.5 } } } });
+    const onAnchor = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `annotation:${anchor.uuid}`, text: "Which panel?" } });
+    const onPaper = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Read it for the curves." } });
+    await ok("POST", `/api/digs/${onAnchor.uuid}/posts`, { headers: ana.headers, json: { body: "The second." } });
+    const margin = () => ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers });
+    expect(Object.keys((await margin()).digs)).toEqual([anchor.uuid]);
+
+    for (const dig of [onAnchor, onPaper]) await ok("PUT", `/api/digs/${dig.uuid}/phase`, { headers: ana.headers, json: { phase: "stashed" } });
+    const hidden = await margin();
+    // Stashed, the dig and the anchor only it stood at are gone from the margin.
+    expect(hidden.digs).toEqual({});
+    expect(hidden.paper_digs).toBeNull();
+    expect(hidden.annotations).toEqual([]);
+    // The Digs tab still lists both, and the dig still opens.
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs.map((d: any) => d.phase)).toEqual(["stashed", "stashed"]);
+    expect((await ok("GET", `/api/projects/${project.uuid}/digs?subject=annotation:${anchor.uuid}`, { headers: dana.headers })).mine).toBe(onAnchor.uuid);
+
+    // Buried is no phase: the database refuses it, and 0026 keeps every dig and post.
+    await expect(exec("UPDATE digs SET phase = 'buried' WHERE uuid = ?", onPaper.uuid)).rejects.toThrow();
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0026_"))!;
+    await env.DB.batch(migration.queries.map((query) => env.DB.prepare(query)));
+    expect(await row("SELECT count(*) AS n FROM digs WHERE phase = 'stashed'")).toEqual({ n: 2 });
+    expect(await row("SELECT count(*) AS n FROM dig_posts WHERE dig_uuid = ?", onAnchor.uuid)).toEqual({ n: 1 });
+  });
+
   it("lists only the digs whose subject is still the project's", async () => {
     const dana = await register(), ana = await register();
     const project = await start(dana);

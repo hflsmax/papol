@@ -542,14 +542,14 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
 // Every dig, latest first. Each is a card that opens its dig right there.
 export const SUBJECT_WORDS = { paper: 'Paper', card: 'Card', annotation: 'Annotation' };
 
-// Digs still digging lead, unheaded; stashed, gold and buried ones follow
-// in bands of their own, each by latest writing. Buried starts folded; how
+// Digs still digging lead, unheaded; gold and stashed ones follow in bands
+// of their own, each by latest writing. Stashed starts folded; how
 // each band is folded is kept per viewer and project.
 const foldKey = (projectUuid) => `papol:dig-bands:${projectUuid}`;
 
 function useFolded(projectUuid) {
   const [folded, setFolded] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(foldKey(projectUuid))) ?? { buried: true }; } catch { return { buried: true }; }
+    try { return JSON.parse(localStorage.getItem(foldKey(projectUuid))) ?? { stashed: true }; } catch { return { stashed: true }; }
   });
   const toggle = (phase, to = !folded[phase]) => {
     const next = { ...folded, [phase]: to };

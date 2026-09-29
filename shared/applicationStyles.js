@@ -5268,7 +5268,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk-band-fold { flex: none; width: 10px; height: 10px; margin-left: -2px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-faint); transform: rotate(90deg); transition: transform var(--motion-fast) var(--ease-out); }
 .project-talk-band-head[aria-expanded="false"] .project-talk-band-fold { transform: none; }
 .project-talk-band-head + .project-talk-list { margin-top: 2px; }
-.project-talk-band.is-buried .project-talk-item:not(.is-selected) .project-talk-label { color: var(--ink-soft); }
+.project-talk-band.is-stashed .project-talk-item:not(.is-selected) .project-talk-label { color: var(--ink-soft); }
 .project-talk .project-talk-item:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
 .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); }
 .project-talk .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -5377,23 +5377,15 @@ ${talkStyles}
    their post boxes start. */
 .paper-brief-dig.is-yours .talk-dig-new.is-tucked { grid-template-columns: 18px minmax(0, 1fr) auto; }
 .paper-brief-dig.is-yours .talk-dig-new.is-tucked .mini-avatar { width: 18px; height: 18px; margin-top: 5px; font-size: 9px; }
-/* A buried dig folds to its owner's line; pressing it opens the dig. */
-.paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
-.paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink-soft); }
 /* The digs made inside the paper, in reading order. Each sheet opens with
    its place: an anchor, or the ink or clip, and its page. The place is
    the way into the paper there, with the dig open beside it. */
 .paper-brief-inside { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
 .paper-brief-place { padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--paper-sunken); }
 .paper-brief-place .paper-brief-dig { padding: 0; background: none; }
-.paper-brief-place .paper-brief-dig-folded { padding-left: 0; padding-right: 0; }
-.paper-brief-place .paper-brief-dig-folded:hover:not(:disabled) { background: none; }
 .paper-brief-place-link { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-bottom: var(--space-1); color: var(--ink-soft); font: italic var(--fs-sm)/1.4 var(--font-serif); text-decoration: none; }
 .paper-brief-place-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.paper-brief-dig-folded .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .paper-brief-dig-owner { color: var(--ink-soft); font-weight: 600; }
-.paper-brief-dig-folded .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: inherit; font: inherit; pointer-events: none; }
-.paper-brief-dig-folded .paper-brief-dig-owner ~ span::before { content: '·'; margin-right: var(--space-2); }
 
 /* In the Mac app a project's pages keep their header in the window's
    toolbar: the desk's name, its three views in the middle and its people. */
