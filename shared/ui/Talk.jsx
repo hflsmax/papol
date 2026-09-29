@@ -165,6 +165,7 @@ export function TalkPin({
   const [asked, setAsked] = useState(openOn);
   const [local, setLocal] = useState(null);
   const pin = useRef(null);
+  const host = useTalkHost(pin, open);
   const key = subjectKey(subject);
   const state = local ?? summary ?? null;
   // Every dig on the thing and every post in them.
@@ -201,7 +202,7 @@ export function TalkPin({
         <TalkGlyph outline={!dug} />
         {count > 0 && <span className="talk-count">{count > 99 ? '99+' : count}</span>}
       </button>
-      {open && createPortal(
+      {host && createPortal(
         <TalkCard
           anchor={pin}
           projectUuid={projectUuid}
@@ -212,7 +213,7 @@ export function TalkPin({
           onChanged={changed}
           onClose={() => { setOpen(false); setAsked(null); pin.current?.focus({ preventScroll: true }); }}
         />,
-        document.body,
+        host,
       )}
     </span>
   );
@@ -286,6 +287,22 @@ function place(anchor, card) {
   };
 }
 
+// Where a card opened from an element goes: into the scrolling page that
+// holds it, when that page asks for its cards (data-talk-host), so the card
+// scrolls with what it is about in the same frame; else over everything.
+// On a phone the card is a sheet over everything.
+function talkHost(element) {
+  if (window.innerWidth <= 560) return document.body;
+  return element?.closest?.('[data-talk-host]') ?? document.body;
+}
+// The host for a card opened from `ref`, known once that element is laid
+// (a card can open on the first render, before it is).
+export function useTalkHost(ref, open) {
+  const [host, setHost] = useState(null);
+  useLayoutEffect(() => { if (open) setHost(talkHost(ref.current)); }, [open, ref]);
+  return open ? host : null;
+}
+
 // Digs seen in this tab, by where they were opened, so opening one again
 // shows it at once while it is fetched again.
 const seenTalk = new Map();
@@ -357,14 +374,29 @@ export function TalkCard({
   }, [discussion, digs]);
 
   const reposition = useCallback(() => {
-    if (!inline && anchor.current) setSpot(place(anchor.current, card.current));
+    if (inline || !anchor.current) return;
+    const next = place(anchor.current, card.current);
+    // Hosted in a scrolling page, the card stands in the page's own terms.
+    const host = card.current?.parentElement;
+    if (!next.sheet && host && host !== document.body && host.matches('[data-talk-host]')) {
+      const box = host.getBoundingClientRect();
+      next.left += host.scrollLeft - box.left;
+      next.top += host.scrollTop - box.top;
+      // Never past the page's own edge, which stops short of its scroll bar.
+      next.left = Math.min(next.left, host.scrollLeft + host.clientWidth - next.width - 8);
+      next.hosted = true;
+    }
+    setSpot(next);
   }, [anchor, inline]);
   useLayoutEffect(() => { reposition(); }, [reposition, discussion]);
   useEffect(() => {
     if (inline) return undefined;
+    // A hosted card scrolls with its page by itself; only a card over
+    // everything follows its anchor on a scroll.
+    const follow = () => { if (!card.current?.parentElement?.matches?.('[data-talk-host]')) reposition(); };
     window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    return () => { window.removeEventListener('resize', reposition); window.removeEventListener('scroll', reposition, true); };
+    window.addEventListener('scroll', follow, true);
+    return () => { window.removeEventListener('resize', reposition); window.removeEventListener('scroll', follow, true); };
   }, [reposition, inline]);
 
   useEffect(() => {
@@ -512,7 +544,7 @@ export function TalkCard({
   return (
     <section
       ref={card}
-      className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot ? ' is-placed' : ''}`}
+      className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot?.hosted ? ' is-hosted' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
       role={inline ? 'region' : 'dialog'}
       aria-label={`Digs on ${plainTitle(topic.label)}`}

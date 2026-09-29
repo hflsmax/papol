@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
-import { TalkCard, TalkPin } from '../../shared/ui/Talk.jsx';
+import { TalkCard, TalkPin, useTalkHost } from '../../shared/ui/Talk.jsx';
 import { subjectKey } from '../../shared/api/projects.js';
 import { memberInk } from './project.js';
 
@@ -45,6 +45,7 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
   const face = useRef(null);
   const key = subjectKey({ annotation: uuid });
   const inMargin = digs?.inMargin?.(uuid);
+  const host = useTalkHost(face, open && !inMargin);
   useEffect(() => { setSeen(false); }, [summary?.post_count, summary?.uuid]);
   const changed = useCallback((discussion, total) => {
     const next = discussion
@@ -70,7 +71,7 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
         <Avatar user={who} className="mini-avatar" />
         {fresh && <span className="news-dot" role="img" aria-label="New" />}
       </button>
-      {open && !inMargin && createPortal(
+      {host && createPortal(
         <TalkCard
           anchor={face}
           projectUuid={digs.uuid}
@@ -82,7 +83,7 @@ function FaceDig({ digs, annotation, label, startOpen = false }) {
           onChanged={changed}
           onClose={() => { setOpen(false); setAsked(null); face.current?.focus({ preventScroll: true }); }}
         />,
-        document.body,
+        host,
       )}
     </>
   );
