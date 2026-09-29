@@ -1,7 +1,7 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Avatar from '../../shared/ui/Avatar.jsx';
-import { TalkCard } from '../../shared/ui/Talk.jsx';
+import { DigThread } from '../../shared/ui/Talk.jsx';
 import { useDismiss } from '../../shared/useDismiss.js';
 import { memberInk } from './project.js';
 
@@ -178,9 +178,9 @@ export default function DigMargin({
             width: CARD_WIDTH,
           }}
         >
-          <TalkCard
+          <DigThread
             key={`${openLine.key}|${openDig ?? 'mine'}`}
-            inline focus single phaseInHead tucked={!open.writing} projectUuid={project.uuid} subject={openLine.subject} label={openLine.label}
+            focus tucked={!open.writing} projectUuid={project.uuid} subject={openLine.subject} label={openLine.label}
             dig={openDig ?? 'mine'} currentUser={project.me} askBeforeRemoving={false}
             onChanged={(discussion, total) => onChanged(openLine.subject, discussion, total)}
           />

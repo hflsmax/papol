@@ -1368,35 +1368,16 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* Unseen until what it holds has come, so it appears once, whole, rather
    than as a thin strip that then grows. */
 .dig-margin-card:has(.talk-card-body:empty):not(:has(.talk-card-error)) { visibility: hidden; }
-.dig-margin-card .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
-.dig-margin-card .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 /* Inside, the card keeps the margin's one column: owners, posts and the
    box all start where the line's name did, and the phase stands on the
    dig's own line after its date, as in the brief. */
 .dig-margin-card .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
-.dig-margin-card .talk-card.is-inline .talk-card-error { margin-left: 0; }
 /* A dig being written wears no face of its own: the margin's face beside
    it is the writer's. */
 .dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr); }
 .dig-margin-card .talk-dig-new > .mini-avatar { display: none; }
 .dig-margin-card .talk-dig-new-foot { grid-column: 1; }
 .dig-margin-card .talk-dig-new.is-tucked { grid-template-columns: minmax(0, 1fr) auto; }
-.dig-margin-card .talk-post { margin: 0; padding: 4px 0; }
-.dig-margin-card .talk-post:hover { background: none; }
-.dig-margin-card .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
-.dig-margin-card .talk-post-head { margin-bottom: 2px; }
-.dig-margin-card .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
-.dig-margin-card .talk-post + .talk-post .talk-post-head { font-size: var(--fs-xs); }
-.dig-margin-card .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
-.dig-margin-card .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
-.dig-margin-card .talk-post-body > :last-child { margin-bottom: 0; }
-.dig-margin-card .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
-.dig-margin-card .talk-post-head .dig-phase-word::before { content: '·'; margin-right: 6px; color: var(--ink-faint); }
-.dig-margin-card .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
-.dig-margin-card .talk-post-head .dig-phase-pick { margin-left: 0; }
-.dig-margin-card .talk-post-head .dig-phase-menu { right: auto; left: 0; }
-/* The box that posts starts where the posts begin. */
-.dig-margin-card .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
 
 .animal-gutter {
   position: relative;

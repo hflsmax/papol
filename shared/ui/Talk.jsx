@@ -311,7 +311,7 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // Inline, the card is part of a page (a paper's brief) rather than a
 // popover: it is not placed, closes on nothing, and opens at its first post,
 // the one that says what the dig is about.
-// With phaseInHead the phase word sits on the dig's own line, after its date,
+// With conversation the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
 // With tucked, the box that starts your dig and the box that posts are each
 // one thin line with a send button at its end, opening downward when pressed.
@@ -325,9 +325,16 @@ function tally(next, all) {
   return { digs: others.length + 1, posts: others.reduce((n, d) => n + Number(d.post_count ?? 0), next.posts.length), list };
 }
 
+// One dig read as a conversation: the dig's words, its posts a step in,
+// the phase a word on the dig's own line, Edit and Delete on each of your
+// own. The same in a paper's brief, the Digs tab and the viewer's margin.
+export function DigThread(props) {
+  return <TalkCard inline single conversation tucked {...props} />;
+}
+
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, askBeforeRemoving = true, focus = false, unread = 0, seekUnread = () => true,
-  single = false, phaseInHead = false, tucked = false,
+  single = false, conversation = false, tucked = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
@@ -539,13 +546,13 @@ export function TalkCard({
   return (
     <section
       ref={card}
-      className={`talk-card${inline ? ' is-inline' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot?.hosted ? ' is-hosted' : ''}${spot ? ' is-placed' : ''}`}
+      className={`talk-card${inline ? ' is-inline' : ''}${conversation ? ' is-conversation' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot?.hosted ? ' is-hosted' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
       role={inline ? 'region' : 'dialog'}
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
-      {(!inline || (picker && !pickerWithOwners && !phaseInHead)) && (
+      {(!inline || (picker && !pickerWithOwners && !conversation)) && (
       <header className="talk-card-header">
         {!pickerWithOwners && picker}
         {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
@@ -573,7 +580,7 @@ export function TalkCard({
               <Face user={currentUser} />You
             </button>
           )}
-          {pickerWithOwners && !phaseInHead && picker}
+          {pickerWithOwners && !conversation && picker}
         </nav>
       )}
 
@@ -613,8 +620,8 @@ export function TalkCard({
                   <p className="talk-post-head">
                     <Face user={post.user} />
                     <b>{post.is_mine ? 'You' : post.user.display_name}</b>
-                    <time dateTime={post.created_at} title={phaseInHead ? when(post.created_at, { time: true }) : undefined}>{when(post.created_at, { time: !phaseInHead })}</time>
-                    {phaseInHead && index === 0 && picker}
+                    <time dateTime={post.created_at} title={conversation ? when(post.created_at, { time: true }) : undefined}>{when(post.created_at, { time: !conversation })}</time>
+                    {conversation && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
                     {editing?.uuid !== post.uuid && post.is_mine && (
                       <span className="talk-post-actions" role="group" aria-label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}>

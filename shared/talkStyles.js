@@ -91,6 +91,27 @@ export const talkStyles = `
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
 .talk-post.is-new .talk-post-head time { display: inline-flex; align-items: center; }
 .talk-post.is-new .talk-post-head time::after { content: ''; flex: none; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--gold); }
+/* One dig read as a conversation, the same in the brief, the Digs tab and
+   the viewer's margin: the dig's words, then its posts a step in, the
+   phase a word after the dig's date, and the box that posts starting where
+   the posts begin. */
+.talk-card.is-inline.is-conversation { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.talk-card.is-conversation .talk-card-body { overflow: visible; padding: 0; }
+.talk-card.is-conversation .talk-card-error { margin-left: 0; }
+.talk-card.is-conversation .talk-post { margin: 0; padding: var(--space-1) 0; }
+.talk-card.is-conversation .talk-post:hover { background: none; }
+.talk-card.is-conversation .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.talk-card.is-conversation .talk-post-head { margin-bottom: 2px; }
+.talk-card.is-conversation .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.talk-card.is-conversation .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.talk-card.is-conversation .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.talk-card.is-conversation .talk-post-body > :last-child { margin-bottom: 0; }
+.talk-card.is-conversation .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
+.talk-card.is-conversation .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
+.talk-card.is-conversation .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
+.talk-card.is-conversation .talk-post-head .dig-phase-pick { margin-left: 0; }
+.talk-card.is-conversation .talk-post-head .dig-phase-menu { right: auto; left: 0; }
+.talk-card.is-conversation .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
 /* Edit and Delete sit on the post's own head line, at its end, in every
    place a dig is read: the brief, the Digs tab and the viewer's margin. */
 .talk-post-actions { display: inline-flex; gap: 2px; margin: -3px -4px -3px auto; }
