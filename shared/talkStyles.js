@@ -67,7 +67,10 @@ export const talkStyles = `
    every engine: no button margin or native look to lift it off the line. */
 .talk-post-head .dig-phase-pick { align-self: center; align-items: center; margin: 0; }
 .talk-post-head .dig-phase-word { -webkit-appearance: none; appearance: none; margin: 0; vertical-align: middle; }
-.talk-post-head .dig-phase-word svg { flex: none; display: block; }
+/* The glyph stands on its ground line, which drops below the words'
+   baseline; lifted a pixel its middle meets the middle of the capitals,
+   as the face and the trash already do. */
+.talk-post-head .dig-phase-word svg { flex: none; display: block; position: relative; top: -1px; }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
