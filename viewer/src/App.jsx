@@ -23,6 +23,7 @@ import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations,
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
+import { selectionBarPlace } from './selectionBar.js';
 import DigMargin, { MARGIN_GAP, MARGIN_WIDTH } from './DigMargin.jsx';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
@@ -2366,16 +2367,20 @@ export default function App() {
       }));
       const strokes = selectionStrokes(usable, pageBoxes);
       if (!strokes.length) return false;
-      const last = usable[usable.length - 1];
-      const above = last.top - 38;
       const scrollerBox = scroller.getBoundingClientRect();
-      const viewportLeft = Math.max(22, Math.min(window.innerWidth - 22, last.right));
-      const viewportTop = above >= 8 ? above : Math.min(window.innerHeight - 44, last.bottom + 8);
+      const backward = !range.collapsed
+        && range.startContainer === selection.focusNode
+        && range.startOffset === selection.focusOffset;
+      const place = selectionBarPlace(usable, {
+        backward,
+        bounds: { top: scrollerBox.top, bottom: scrollerBox.bottom, left: 0, right: window.innerWidth },
+      });
       const snapshot = {
         strokes,
         text: null,
-        left: viewportLeft - scrollerBox.left + scroller.scrollLeft,
-        top: viewportTop - scrollerBox.top + scroller.scrollTop,
+        left: place.left - scrollerBox.left + scroller.scrollLeft,
+        top: place.top - scrollerBox.top + scroller.scrollTop,
+        placement: place.placement,
       };
       if (synchronous === true) {
         flushSync(() => setSelectionPaint(snapshot));
@@ -4893,8 +4898,9 @@ export default function App() {
               }}
             >
               <ItemActions
+                key={selectionPaint.placement}
                 label="Selected text actions"
-                placement="above-end"
+                placement={selectionPaint.placement}
                 preserveFocus
                 actions={[
                   {
