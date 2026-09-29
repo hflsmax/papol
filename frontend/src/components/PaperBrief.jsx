@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
+import { DigThread, phaseRank } from '../../../shared/ui/Talk.jsx';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { annotationViewerPath, findDigs, removePaperFromProject } from '../../../shared/api/projects.js';
@@ -107,8 +107,8 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
               line to the dig it becomes, so sending it moves nothing. */}
           {currentUser && !digs.some((d) => d.is_mine && d.phase === 'stashed') && (
             <div className={`paper-brief-dig${mine ? '' : ' is-yours'}`} key="yours">
-              <TalkCard
-                inline single phaseInHead tucked unread={mine ? unread[mine.uuid] ?? 0 : 0} seekUnread={() => false} dig={mine?.uuid ?? 'mine'}
+              <DigThread
+                unread={mine ? unread[mine.uuid] ?? 0 : 0} seekUnread={() => false} dig={mine?.uuid ?? 'mine'}
                 projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                 onChanged={changed}
               />
@@ -116,8 +116,8 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
           )}
           {digs.filter((d) => !d.is_mine && d.phase !== 'stashed').sort((a, b) => phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
             <div className="paper-brief-dig" key={d.uuid}>
-              <TalkCard
-                inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+              <DigThread
+                unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
                 projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
                 onChanged={changed}
               />
@@ -138,8 +138,8 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
                   <PaperTitle title={d.subject.label} />
                 </a>
                 <div className="paper-brief-dig">
-                  <TalkCard
-                    inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                  <DigThread
+                    unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
                     projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser}
                     onChanged={changed}
                   />

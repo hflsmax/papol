@@ -219,7 +219,7 @@ describe("digs", () => {
     await expect(insert(`paper:${A_PAPER}`, A_PAPER, board.uuid, null)).rejects.toThrow(/CHECK/);
   });
 
-  it("lets its owner reword or remove a dig, a writer edit a post, and a writer or keeper take one back", async () => {
+  it("lets only its owner reword or remove a dig, and only its writer edit or take back a post, keepers included", async () => {
     const { dana, ana, project } = await group();
     await paperWithCopy(dana, A_PAPER, "Error dynamics", { shelfUuid: await defaultShelf(dana) });
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
@@ -230,11 +230,13 @@ describe("digs", () => {
     const post = (await ok("POST", `/api/digs/${dug.uuid}/posts`, { headers: ana.headers, json: { body: "More" } })).posts[0].uuid;
     expect((await call("PUT", `/api/dig-posts/${post}`, { headers: dana.headers, json: { body: "Nope" } })).status).toBe(403);
     expect((await ok("PUT", `/api/dig-posts/${post}`, { headers: ana.headers, json: { body: "More still" } })).posts[0]).toMatchObject({ body: "More still", edited_at: expect.any(String) });
-    expect((await ok("DELETE", `/api/dig-posts/${post}`, { headers: dana.headers })).posts).toEqual([]);
+    expect((await call("DELETE", `/api/dig-posts/${post}`, { headers: dana.headers })).status).toBe(403);
+    expect((await ok("DELETE", `/api/dig-posts/${post}`, { headers: ana.headers })).posts).toEqual([]);
     expect(await row("SELECT 1 FROM digs WHERE uuid = ?", dug.uuid)).not.toBeNull();
 
     const danas = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `paper:${A_PAPER}`, text: "Hers" } });
     expect((await call("DELETE", `/api/digs/${danas.uuid}`, { headers: ana.headers })).status).toBe(403);
+    expect((await call("DELETE", `/api/digs/${dug.uuid}`, { headers: dana.headers })).status).toBe(403);
     expect((await call("DELETE", `/api/digs/${dug.uuid}`, { headers: ana.headers })).status).toBe(204);
     expect(await row("SELECT 1 FROM digs WHERE uuid = ?", dug.uuid)).toBeNull();
   });

@@ -5,8 +5,9 @@
 //
 // A dig carries its owner's own text: digging is writing it. A thing
 // holds one dig per person. Anyone who can see a dig can post in it; that
-// is the other act. The dig stays until its owner, or a keeper, removes
-// it, whatever is taken back from it.
+// is the other act. The dig stays until its owner removes it, whatever
+// is taken back from it. Only its writer changes or removes what they
+// wrote; being a keeper grants nothing over others' words.
 //
 // A thought is its member's dig on the paper, and a board as a whole is
 // not dug.
@@ -172,7 +173,6 @@ async function digOut(env: Env, dig: Dig, project: Project | null, me: User, mem
     subject: subjectOut(await subjectRow(env, dig.project_uuid, dig)),
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
     text: dig.text, phase: dig.phase, edited_at: dig.edited_at,
-    can_moderate: Boolean(member.is_keeper),
     posts: posts.map(postOut),
   };
 }
@@ -334,11 +334,11 @@ export function digRoutes(router: Router) {
     return json(await digOut(env, { ...dig, phase: phase as Phase }, project, me, member));
   });
 
-  // Its owner, or a keeper, removes a dig and everything posted in it.
+  // Only its owner removes a dig and everything posted in it.
   router.on("DELETE", "/api/digs/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { dig, member } = await openDig(env, params.uuid, me);
-    if (dig.user_uuid !== me.uuid && !member.is_keeper) refuse(403, "Only its owner or a keeper can remove a dig");
+    const { dig } = await openDig(env, params.uuid, me);
+    if (dig.user_uuid !== me.uuid) refuse(403, "Only its owner can remove a dig");
     await batch(env.DB, [
       statement(env.DB, "DELETE FROM dig_posts WHERE dig_uuid = ?", dig.uuid),
       statement(env.DB, "DELETE FROM digs WHERE uuid = ?", dig.uuid),
@@ -370,11 +370,11 @@ export function digRoutes(router: Router) {
     return json(await digOut(env, dig, project, me, member));
   });
 
-  // Its writer, or a keeper, takes a post back. The dig stays.
+  // Only its writer takes a post back. The dig stays.
   router.on("DELETE", "/api/dig-posts/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const { post, dig, project, member } = await postIn(env, params.uuid, me);
-    if (post.user_uuid !== me.uuid && !member.is_keeper) refuse(403, "Only its writer or a keeper can take a post back");
+    if (post.user_uuid !== me.uuid) refuse(403, "Only its writer can take a post back");
     await batch(env.DB, [statement(env.DB, "DELETE FROM dig_posts WHERE uuid = ?", post.uuid)]);
     return json(await digOut(env, dig, project, me, member));
   });

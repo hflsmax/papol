@@ -91,9 +91,37 @@ export const talkStyles = `
 .talk-post.is-mine .talk-post-head b { color: var(--accent); }
 .talk-post.is-new .talk-post-head time { display: inline-flex; align-items: center; }
 .talk-post.is-new .talk-post-head time::after { content: ''; flex: none; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--gold); }
-.talk-post-head .item-actions { margin-left: auto; visibility: hidden; }
-.talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
-@media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }
+/* One dig read as a conversation, the same in the brief, the Digs tab and
+   the viewer's margin: the dig's words, then its posts a step in, the
+   phase a word after the dig's date, and the box that posts starting where
+   the posts begin. */
+.talk-card.is-inline.is-conversation { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.talk-card.is-conversation .talk-card-body { overflow: visible; padding: 0; }
+.talk-card.is-conversation .talk-card-error { margin-left: 0; }
+.talk-card.is-conversation .talk-post { margin: 0; padding: var(--space-1) 0; }
+.talk-card.is-conversation .talk-post:hover { background: none; }
+.talk-card.is-conversation .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
+.talk-card.is-conversation .talk-post-head { margin-bottom: 2px; }
+.talk-card.is-conversation .talk-post-head .mini-avatar { width: 18px; height: 18px; font-size: 9px; }
+.talk-card.is-conversation .talk-post-body { font-size: var(--fs-sm); line-height: 1.45; }
+.talk-card.is-conversation .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.talk-card.is-conversation .talk-post-body > :last-child { margin-bottom: 0; }
+.talk-card.is-conversation .talk-post-head .dig-phase-word { height: auto; margin-left: 0; padding: 0; background: none; color: var(--ink-faint); font: inherit; line-height: inherit; }
+.talk-card.is-conversation .talk-post-head .dig-phase-word::before { content: '·'; margin-right: var(--space-2); color: var(--ink-faint); }
+.talk-card.is-conversation .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
+.talk-card.is-conversation .talk-post-head .dig-phase-pick { margin-left: 0; }
+.talk-card.is-conversation .talk-post-head .dig-phase-menu { right: auto; left: 0; }
+.talk-card.is-conversation .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
+/* Edit and Delete sit on the post's own head line, at its end, in every
+   place a dig is read: the brief, the Digs tab and the viewer's margin. */
+.talk-post-actions { display: inline-flex; gap: 2px; margin: -3px -4px -3px auto; }
+.talk-post-actions button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); }
+.talk-post-actions svg { display: block; width: 14px; height: 14px; }
+.talk-post-actions .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.talk-post-actions .action-glyph-fill { fill: currentColor; stroke: none; }
+.talk-post-actions button:hover:not(:disabled), .talk-post-actions button:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+.talk-post-actions button.is-danger:hover:not(:disabled), .talk-post-actions button.is-danger:focus-visible { background: var(--red-soft); color: var(--red); }
+@media (pointer: coarse) { .talk-post-actions { margin-block: -8px; } .talk-post-actions button { width: 32px; height: 32px; } }
 .talk-post-edit { display: grid; gap: var(--space-1); }
 .talk-post-edit :is(textarea, .md-field) { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
 .talk-post-edit :is(textarea, .md-field):focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { PHASES, PhaseGlyph, TalkCard, phaseRank, when } from '../../../shared/ui/Talk.jsx';
+import { PHASES, PhaseGlyph, DigThread, phaseRank, when } from '../../../shared/ui/Talk.jsx';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
@@ -598,9 +598,9 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
           ? <a href={appPath(subjectHome(project, d.subject, d.uuid))} data-document={d.subject.kind === 'annotation' || undefined}><PaperTitle title={d.subject.label} /></a>
           : <span><PaperTitle title={d.subject.label} /></span>}
       </h3>
-      <TalkCard
-        key={d.uuid} inline
-        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked} single
+      <DigThread
+        key={d.uuid}
+        projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} dig={d.uuid} currentUser={currentUser} onChanged={onTalked}
       />
     </>
   );
