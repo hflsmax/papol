@@ -49,7 +49,6 @@ export const talkStyles = `
 .phase-glyph.is-digging { color: color-mix(in srgb, var(--green) 80%, var(--green-ink)); }
 .phase-glyph.is-stashed { color: #5a6fa3; }
 .phase-glyph.is-gold { color: var(--gold); }
-.phase-glyph.is-buried { color: var(--ink-faint); }
 .phase-glyph path.is-solid { fill: currentColor; stroke-width: 1; }
 .phase-glyph path.is-tinted { fill: currentColor; fill-opacity: .28; }
 .phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

@@ -28,8 +28,8 @@ const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
-  // The Digs tab with its buried band unfolded.
-  'desk-digs-buried': { ...desk('digs', '.project-talk-band.is-buried .project-talk-item', "const go = () => { const b = document.querySelector('.project-talk-band.is-buried .project-talk-band-head'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;"), size: wide },
+  // The Digs tab with its stashed band unfolded.
+  'desk-digs-stashed': { ...desk('digs', '.project-talk-band.is-stashed .project-talk-item', "const go = () => { const b = document.querySelector('.project-talk-band.is-stashed .project-talk-band-head'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;"), size: wide },
   // The open dig's phase, pressed.
   'desk-digs-phase': { ...desk('digs', '.project-talk-panel .dig-phase-menu', "const go = () => { const w = document.querySelector('.project-talk-panel .dig-phase-word'); if (w) w.click(); else setTimeout(go, 100); }; go(); return true;"), size: wide },
   'desk-invite': { ...desk('papers', '#project-people .project-invite', "document.querySelector('.project-invite-open').click(); return true;"), size: wide },
@@ -49,10 +49,8 @@ const SHOTS = {
   // The digs made inside a paper, in its brief: each led by its place.
   'desk-paper-inside': { ...desk('papers', '.project-papers-panel .paper-brief-inside .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .paper-brief-inside'); if (f) f.scrollIntoView({ block: 'center' }); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   'phone-paper-inside': { ...desk('papers', '.project-paper-open .paper-brief-inside .talk-post', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-paper-open .paper-brief-inside'); if (f) f.scrollIntoView({ block: 'start' }); else setTimeout(go, 100); }; go(); return true;`, '?shell=web'), size: phone },
-  // A dig's phase in a brief, pressed: the four phases drop down under it.
+  // A dig's phase in a brief, pressed: the three phases drop down under it.
   'desk-paper-phase': { ...desk('papers', '.project-papers-panel .dig-phase-menu', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const w = document.querySelector('.project-papers-panel .dig-phase-word'); if (w) w.click(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
-  // A buried dig in a brief, folded to its owner's line.
-  'desk-paper-buried': { ...desk('papers', '.project-papers-panel .paper-brief-dig-folded', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .paper-brief-dig-folded'); if (f) f.scrollIntoView({ block: 'center' }); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // A brief's dig with its folded post box opened.
   'desk-paper-post': { ...desk('papers', '.project-papers-panel .talk-compose .md-field', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .talk-compose .md-field'); if (b) b.focus(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // Your own post in a brief's dig, its options shown.

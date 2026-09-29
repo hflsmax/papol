@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import { PhaseGlyph, TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
+import { TalkCard, phaseRank } from '../../../shared/ui/Talk.jsx';
 import Avatar from './Avatar';
 import { confirmAction } from '../../../shared/confirmAction';
 import { annotationViewerPath, findDigs, removePaperFromProject } from '../../../shared/api/projects.js';
@@ -20,12 +20,11 @@ function day(iso) {
 // tab beside the list (or under its row on a narrow window). Where the
 // Library's jacket says what the paper is, the brief says what this group
 // makes of it: its digs, one per member who wrote about it, each on its
-// own, with yours, or the line to write it, first.
+// own, with yours, or the line to write it, first. A stashed dig is out of
+// the way and shows only in the Digs tab.
 export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead }) {
   const [notice, setNotice] = useState(null);
   const [digs, setDigs] = useState(null);
-  // Buried digs fold to their owner's line until one is opened.
-  const [unfolded, setUnfolded] = useState(() => new Set());
   const subject = `paper:${paper.sha256}`;
 
   const loadDigs = useCallback(() => findDigs(project.uuid, subject)
@@ -54,7 +53,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
   // The digs made inside the paper, on its anchors, ink and clips, in
   // reading order: page by page, top to bottom.
   const inside = (project.digs ?? [])
-    .filter((d) => d.subject?.kind === 'annotation' && d.subject.paper_sha256 === paper.sha256)
+    .filter((d) => d.subject?.kind === 'annotation' && d.subject.paper_sha256 === paper.sha256 && d.phase !== 'stashed')
     .sort((a, b) => (a.subject.page ?? 0) - (b.subject.page ?? 0) || (a.subject.down ?? 0) - (b.subject.down ?? 0));
   // A link into the paper opens it here, as Read does.
   const open = (href) => (e) => {
@@ -63,18 +62,6 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
     onRead(href);
   };
   const changed = () => { loadDigs(); onChanged().catch(() => {}); };
-  const folded = (d) => (
-    <button
-      type="button" className="paper-brief-dig-folded" key={d.uuid} aria-expanded="false"
-      onClick={() => setUnfolded((was) => new Set(was).add(d.uuid))}
-    >
-      {d.owner && <Avatar user={d.owner} className="mini-avatar" />}
-      <span className="paper-brief-dig-owner">{d.is_mine ? 'You' : d.owner?.display_name}</span>
-      <span className="dig-phase-word is-buried"><PhaseGlyph phase="buried" />Buried</span>
-      <span>{day(d.updated_at)}</span>
-    </button>
-  );
-
   const takeOut = async () => {
     const ok = await confirmAction(`Take this paper out of ${project.name}? Its digs stay in the project.`, { confirmLabel: 'Take out', destructive: true });
     if (ok) await act(() => removePaperFromProject(project.uuid, paper.sha256));
@@ -119,16 +106,14 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
               />
             </div>
           )}
-          {[...digs].sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
-            d.phase === 'buried' && !unfolded.has(d.uuid) ? folded(d) : (
-              <div className="paper-brief-dig" key={d.uuid}>
-                <TalkCard
-                  inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
-                  projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
-                  onChanged={changed}
-                />
-              </div>
-            )
+          {digs.filter((d) => d.phase !== 'stashed').sort((a, b) => Number(b.is_mine) - Number(a.is_mine) || phaseRank(a.phase) - phaseRank(b.phase)).map((d) => (
+            <div className="paper-brief-dig" key={d.uuid}>
+              <TalkCard
+                inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                projectUuid={project.uuid} subject={subject} label={paper.title} currentUser={currentUser}
+                onChanged={changed}
+              />
+            </div>
           ))}
         </section>
       )}
@@ -144,15 +129,13 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
                 <a className="paper-brief-place-link" href={place} data-document onClick={open(place)}>
                   <PaperTitle title={d.subject.label} />
                 </a>
-                {d.phase === 'buried' && !unfolded.has(d.uuid) ? folded(d) : (
-                  <div className="paper-brief-dig">
-                    <TalkCard
-                      inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
-                      projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser}
-                      onChanged={changed}
-                    />
-                  </div>
-                )}
+                <div className="paper-brief-dig">
+                  <TalkCard
+                    inline single phaseInHead tucked unread={unread[d.uuid] ?? 0} seekUnread={() => false} dig={d.uuid}
+                    projectUuid={project.uuid} subject={d.subject.key} label={d.subject.label} currentUser={currentUser}
+                    onChanged={changed}
+                  />
+                </div>
               </div>
             );
           })}
