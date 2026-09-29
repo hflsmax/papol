@@ -124,6 +124,13 @@ export const talkStyles = `
 .talk-compose .talk-send { align-self: end; }
 .talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
 .talk-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+/* Tucked, the box that posts is one thin line with send beside it, and it
+   opens downward once pressed or written in. */
+.talk-compose.is-tucked { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px; }
+.talk-compose.is-tucked textarea { box-sizing: border-box; scroll-margin-bottom: 16px; height: 28px; min-height: 28px; padding: 4px 10px; border-radius: 8px; font-size: var(--fs-sm); line-height: 1.35; }
+.talk-compose.is-tucked textarea:is(:focus, :not(:placeholder-shown)) { min-height: 76px; }
+.talk-compose.is-tucked .talk-send { align-self: start; width: 28px; height: 28px; }
+.talk-compose.is-tucked .talk-send svg { width: 15px; height: 15px; }
 .talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: opacity var(--motion-fast) var(--ease-out); }
 .talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); }

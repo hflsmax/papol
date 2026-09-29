@@ -46,7 +46,7 @@ const SHOTS = {
   // A buried dig in a brief, folded to its owner's line.
   'desk-paper-buried': { ...desk('papers', '.project-papers-panel .paper-brief-dig-folded', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const f = document.querySelector('.project-papers-panel .paper-brief-dig-folded'); if (f) f.scrollIntoView({ block: 'center' }); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // A brief's dig with its folded post box opened.
-  'desk-paper-post': { ...desk('papers', '.project-papers-panel .talk-compose textarea', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .talk-unfold.is-post'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
+  'desk-paper-post': { ...desk('papers', '.project-papers-panel .talk-compose textarea', `document.querySelector('[data-paper^="${paper}"]').click(); const go = () => { const b = document.querySelector('.project-papers-panel .talk-compose textarea'); if (b) b.focus(); else setTimeout(go, 100); }; go(); return true;`), size: wide },
   // Your own post in a brief's dig, its options shown.
   'desk-post-actions': { ...desk('papers', '.project-papers-panel .talk-post.is-mine .item-actions button', `document.querySelector('[data-paper^="${paper}"]').click(); return true;`), size: wide },
   // A member's face in a paper's dig, and where it leads: their nook.

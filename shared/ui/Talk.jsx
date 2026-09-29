@@ -296,7 +296,8 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // the one that says what the dig is about.
 // With phaseInHead the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
-// With tucked the writing box stays folded to one word until it is pressed.
+// With tucked a new dig's box stays folded to one word until it is pressed,
+// and the box that posts is one thin line that opens downward when pressed.
 // What a change leaves on the thing: how many digs and posts it holds, and
 // each dig, oldest first, whose it is.
 function tally(next, all) {
@@ -388,7 +389,8 @@ export function TalkCard({
   useEffect(() => {
     if (discussion === undefined) return;
     const field = box.current;
-    if (!inline || body || focus) field?.focus({ preventScroll: true });
+    // A tucked box that posts stays one thin line until it is pressed.
+    if ((!inline || body || focus) && !(tucked && discussion)) field?.focus({ preventScroll: true });
     field?.setSelectionRange(field.value.length, field.value.length);
     if (list.current && !inline) list.current.scrollTop = list.current.scrollHeight;
     // In a page, the reader lands on the first post they have not read,
@@ -612,20 +614,18 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {discussion && !personal && folded && (
-        <button type="button" className="talk-unfold is-post" onClick={() => setUnfolded(true)}>Post</button>
-      )}
-      {discussion && !personal && !folded && (
-        <form className="talk-compose" onSubmit={send}>
-          {currentUser && <Face user={currentUser} />}
+      {discussion && !personal && (
+        <form className={`talk-compose${tucked ? ' is-tucked' : ''}`} onSubmit={send}>
+          {currentUser && !tucked && <Face user={currentUser} />}
           <textarea
             ref={box}
-            rows={2}
+            rows={tucked ? 1 : 2}
             value={body}
             maxLength={POST_LIMIT}
-            placeholder={`Post to ${whose} dig`}
+            placeholder={tucked ? 'Post' : `Post to ${whose} dig`}
             aria-label={`Post to ${whose} dig`}
-            onChange={(e) => setBody(e.target.value)} onBlur={tucked ? leave : undefined}
+            onChange={(e) => setBody(e.target.value)}
+            onFocus={tucked ? (e) => { const field = e.target; requestAnimationFrame(() => field.scrollIntoView({ block: 'nearest' })); } : undefined}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
           />
           <button type="submit" className="talk-send" disabled={!body.trim() || busy} aria-label="Post" title="Post (⌘↩)">

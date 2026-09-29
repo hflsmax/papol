@@ -1381,13 +1381,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-post-head .dig-phase-word:hover:not(:disabled) { background: none; color: var(--ink); }
 .dig-margin-card .talk-post-head .dig-phase-pick { margin-left: 0; }
 .dig-margin-card .talk-post-head .dig-phase-menu { right: auto; left: 0; }
-.dig-margin-card .talk-compose { grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; margin-top: 4px; padding: 0 0 0 24px; background: none; }
-.dig-margin-card .talk-compose .mini-avatar { width: 18px; height: 18px; margin-top: 7px; font-size: 9px; }
-.dig-margin-card .talk-compose textarea { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
-.dig-margin-card .talk-compose .talk-send { align-self: end; width: 30px; height: 30px; margin-bottom: 1px; }
-.dig-margin-card .talk-compose .talk-send:disabled { display: none; }
-/* Post, tucked, stands where the posts begin. */
-.dig-margin-card .talk-unfold.is-post { min-height: 26px; margin: var(--space-1) 0 0 24px; padding: 0 10px; font-size: var(--fs-xs); }
+/* The box that posts starts where the posts begin. */
+.dig-margin-card .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
 
 .animal-gutter {
   position: relative;
