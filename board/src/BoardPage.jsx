@@ -349,35 +349,36 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
     load();
   }, [boardUuid]);
   useEffect(() => { document.body.classList.add('board-workspace-open'); return () => document.body.classList.remove('board-workspace-open'); }, []);
-  useEffect(() => {
-    if (!board?.items.length || !centerInitialView.current) return undefined;
-    const frame = requestAnimationFrame(() => {
-      if (!centerInitialView.current || !viewportRef.current || !stageRef.current) return;
-      const weighted = board.items.map((item) => {
-        const element = stageRef.current.querySelector(`[data-item-uuid="${item.uuid}"]`);
-        const width = element?.offsetWidth || item.width;
-        const height = element?.offsetHeight || 1;
-        return { x: item.x + width / 2, y: item.y + height / 2, width, height };
-      });
-      if (!weighted.length) return;
-      const bounds = viewportRef.current.getBoundingClientRect();
-      const minX = Math.min(...weighted.map((item) => item.x - item.width / 2));
-      const maxX = Math.max(...weighted.map((item) => item.x + item.width / 2));
-      const minY = Math.min(...weighted.map((item) => item.y - item.height / 2));
-      const maxY = Math.max(...weighted.map((item) => item.y + item.height / 2));
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const contentWidth = maxX - minX;
-      const contentHeight = maxY - minY;
-      const zoom = clamp(Math.min(
-        viewRef.current.zoom,
-        contentWidth ? (bounds.width - 32) / contentWidth : 1,
-        contentHeight ? (bounds.height - 32) / contentHeight : 1,
-      ), 0.05, 3);
-      centerInitialView.current = false;
-      queueView({ x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom });
+  // Fitted before the board is first painted, so it opens once, already
+  // framing its cards, rather than opening and then jumping to them.
+  useLayoutEffect(() => {
+    if (!board?.items.length || !centerInitialView.current) return;
+    if (!viewportRef.current || !stageRef.current) return;
+    const weighted = board.items.map((item) => {
+      const element = stageRef.current.querySelector(`[data-item-uuid="${item.uuid}"]`);
+      const width = element?.offsetWidth || item.width;
+      const height = element?.offsetHeight || 1;
+      return { x: item.x + width / 2, y: item.y + height / 2, width, height };
     });
-    return () => cancelAnimationFrame(frame);
+    if (!weighted.length) return;
+    const bounds = viewportRef.current.getBoundingClientRect();
+    const minX = Math.min(...weighted.map((item) => item.x - item.width / 2));
+    const maxX = Math.max(...weighted.map((item) => item.x + item.width / 2));
+    const minY = Math.min(...weighted.map((item) => item.y - item.height / 2));
+    const maxY = Math.max(...weighted.map((item) => item.y + item.height / 2));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const zoom = clamp(Math.min(
+      viewRef.current.zoom,
+      contentWidth ? (bounds.width - 32) / contentWidth : 1,
+      contentHeight ? (bounds.height - 32) / contentHeight : 1,
+    ), 0.05, 3);
+    centerInitialView.current = false;
+    const fitted = { x: bounds.width / 2 - centerX * zoom, y: bounds.height / 2 - centerY * zoom, zoom };
+    queueView(fitted);
+    paintView(fitted);
   }, [board?.uuid]);
   const imageItems = board ? [...board.items, ...board.staged_items]
     .filter((item) => ['image', ...VIDEO_KINDS, 'webpage'].includes(item.kind) && hasCardPreview(item)) : [];

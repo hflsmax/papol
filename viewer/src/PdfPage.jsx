@@ -1128,7 +1128,6 @@ function PdfPage({
       activeHighlight.scrollIntoView({
         block: 'nearest',
         inline: 'nearest',
-        behavior: 'smooth',
       });
     }
     followedSearchRef.current = activeSearchId;

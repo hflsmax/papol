@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { useDismiss } from '../../../shared/useDismiss.js';
 import { addPaperToProject, createProject, listProjects } from '../../../shared/api/projects.js';
 import { updatePaper } from '../../../shared/api/papers.js';
-import { Working } from '../../../shared/ui/Waiting.js';
 import appLimits from '../../../shared/appLimits.js';
 
 const membersLabel = (project) => {
@@ -22,13 +21,17 @@ export default function ProjectPicker({ paper, onThought }) {
   const ref = useRef(null);
   useDismiss(open, ref, () => setOpen(false));
 
+  // The first time, the menu opens once its projects are read, rather than
+  // on a wait that then fills; after that it opens at once and refreshes.
   const toggle = () => {
     if (open) { setOpen(false); return; }
-    setOpen(true);
+    const known = Boolean(projects);
+    if (known) setOpen(true);
     setError(null);
     listProjects({ paperSha256: paper.sha256 })
       .then((list) => setProjects(list.filter((project) => project.is_member)))
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => { if (!known) setOpen(true); });
   };
 
   const add = async (project) => {
@@ -81,7 +84,6 @@ export default function ProjectPicker({ paper, onThought }) {
       </button>
       {open && (
         <div className="share-menu project-picker" role="menu">
-          {!projects && !error && <Working className="project-picker-wait" label="Loading…" />}
           {projects?.length === 0 && (
             <form className="share-menu-section" onSubmit={start}>
               <input

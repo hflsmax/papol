@@ -2496,7 +2496,8 @@ export default function App() {
   // layers of its pages (paintText.js); PdfPage builds those for a selected
   // annotation even where scrolling has kept them waiting, so this waits for them.
   const [inkActions, setInkActions] = useState(null);
-  useEffect(() => {
+  // Before the paint, so the stroke shows as picked and its bar together.
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (!selectedStrokes.length || !scroller) {
       setInkActions(null);
@@ -2609,10 +2610,10 @@ export default function App() {
     });
   };
 
+  // The boards stay from the last send, so the sheet opens with them and
+  // refreshes them in place.
   const closeSendSelection = () => {
     setSendSelection(null);
-    setSendBoards([]);
-    setSendBoardUuid('');
     setSendError(null);
     setSendComplete(false);
   };
@@ -2646,7 +2647,7 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardUuid(boards[0]?.uuid || '');
+      setSendBoardUuid((picked) => (boards.some((board) => board.uuid === picked) ? picked : boards[0]?.uuid || ''));
     } catch (e) {
       setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
     }
@@ -3465,7 +3466,7 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardUuid(boards[0]?.uuid || '');
+      setSendBoardUuid((picked) => (boards.some((board) => board.uuid === picked) ? picked : boards[0]?.uuid || ''));
     } catch (e) {
       setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
     }

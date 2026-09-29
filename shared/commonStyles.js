@@ -532,11 +532,7 @@ button:disabled {
   right: 20px;
   bottom: 20px;
   z-index: 90;
-  /* A flex row, not a line of text. The × that slides in on hover is an
-     inline-block with its overflow hidden, and such a box takes its
-     baseline from its bottom edge — which swelled the line and set the
-     word five pixels low in a chip taller than its own padding. Flex
-     items have no baseline to argue about. */
+  /* A flex row, so the word sits centred in the chip's height. */
   display: inline-flex;
   align-items: center;
   height: 30px;
@@ -552,28 +548,10 @@ button:disabled {
   box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
 }
 
-.feedback-button::after {
-  content: '×';
-  display: inline-block;
-  width: 0;
-  margin-left: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateX(4px);
-  transition: width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
-}
-
 .feedback-button:hover {
   color: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 4px 16px rgba(29, 33, 41, 0.22);
-}
-
-.feedback-button:hover::after {
-  width: 0.7em;
-  margin-left: 6px;
-  opacity: 1;
-  transform: translateX(0);
 }
 
 .feedback-sheet { width: min(420px, 100%); }

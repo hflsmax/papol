@@ -3,6 +3,7 @@ import { getActivity } from '../../../shared/api/activity.js';
 import { flushActivity } from '../../../shared/activity.js';
 import { paperHref } from '../../../shared/api/papers.js';
 import { Working } from '../../../shared/ui/Waiting.js';
+import { keep, kept } from '../lastMember.js';
 import {
   blocksOfDay, clockTime, coloursFor, dailyBySubject, formatDuration, formatDurationShort, ownDays, papersWithin,
   periodLabel, periodOf, secondsIn, shadeOf, SHADE_MARKS, stepPeriod, VIEWS,
@@ -305,10 +306,18 @@ function Papers({ papers, data, paint }) {
   );
 }
 
+// The figure last read, so coming back to My activity opens on it and
+// refreshes it in place.
+const KEPT = 'activity';
+function lastRead() {
+  const last = kept(KEPT);
+  return last ? { ...last.answer, view: last.view, period: periodOf(last.view, new Date(last.at)) } : null;
+}
+
 export default function ActivityPanel() {
   const [view, setView] = useState(storedView);
   const [anchor, setAnchor] = useState(() => new Date());
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(lastRead);
   const [error, setError] = useState(null);
   const [tip, setTip] = useState(null);
   const [focus, setFocus] = useState(null);
@@ -322,7 +331,10 @@ export default function ActivityPanel() {
     setFocus(null);
     flushActivity()
       .then(() => getActivity(period.from, period.to))
-      .then((answer) => { if (active) setData({ ...answer, key: +period.from }); })
+      .then((answer) => {
+        keep(KEPT, { answer, view, at: +period.start });
+        if (active) setData({ ...answer, period, view });
+      })
       .catch((failure) => { if (active) setError(failure.message || 'Your activity could not be loaded.'); });
     return () => { active = false; };
   }, [period]);
@@ -340,7 +352,10 @@ export default function ActivityPanel() {
     setFocus(null);
     try { localStorage.setItem(SPLIT_KEY, next); } catch { /* only remembered */ }
   };
-  const byPaper = split === 'paper' && view !== 'day';
+  // The figure keeps showing the last period read until the next one
+  // arrives, then changes once, rather than dropping to a wait between.
+  const shownView = data?.view ?? view;
+  const byPaper = split === 'paper' && shownView !== 'day';
   const showTip = (event, content) => {
     if (!event || !chartRef.current) { setTip(null); return; }
     const box = chartRef.current.getBoundingClientRect(), mark = event.currentTarget.getBoundingClientRect();
@@ -351,10 +366,11 @@ export default function ActivityPanel() {
   const atPresent = period.end > now;
   const first = data?.first_at ? new Date(data.first_at) : null;
   const atBeginning = !first || period.start <= first;
-  const loaded = data && data.key === +period.from;
+  const loaded = Boolean(data?.period);
+  const shown = data?.period ?? period;
   const spans = loaded ? data.spans : [];
-  const seconds = secondsIn(spans, period.start, period.end);
-  const papers = loaded ? papersWithin(spans, period.start, period.end) : [];
+  const seconds = secondsIn(spans, shown.start, shown.end);
+  const papers = loaded ? papersWithin(spans, shown.start, shown.end) : [];
   const paint = { colours: coloursFor(papers), focus, pick: setFocus };
 
   return (
@@ -397,12 +413,12 @@ export default function ActivityPanel() {
           )}
 
           <div className="activity-figure" ref={chartRef} onMouseLeave={() => setTip(null)}>
-            {view === 'day' && <DayChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} />}
+            {shownView === 'day' && <DayChart period={shown} spans={spans} data={data} paint={paint} onTip={showTip} />}
             {byPaper && seconds > 0 && (
-              <PaperRows period={period} spans={spans} papers={papers} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />
+              <PaperRows period={shown} spans={spans} papers={papers} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />
             )}
-            {view === 'week' && !byPaper && <WeekChart period={period} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
-            {view === 'month' && !byPaper && <MonthChart period={period} spans={spans} onTip={showTip} onOpenDay={openDay} />}
+            {shownView === 'week' && !byPaper && <WeekChart period={shown} spans={spans} data={data} paint={paint} onTip={showTip} onOpenDay={openDay} />}
+            {shownView === 'month' && !byPaper && <MonthChart period={shown} spans={spans} onTip={showTip} onOpenDay={openDay} />}
             {tip && (
               <div className="activity-tip" aria-hidden="true" style={{ left: tip.x, top: tip.y }}>
                 <strong><PaperTitle title={tip.title} /></strong>
@@ -412,9 +428,9 @@ export default function ActivityPanel() {
           </div>
 
           {seconds > 0
-            ? !byPaper && <Papers key={+period.from + view} papers={papers} data={data} paint={paint} />
+            ? !byPaper && <Papers key={+shown.from + shownView} papers={papers} data={data} paint={paint} />
             : (
-              <p className="activity-empty">Nothing read this {STEP_NAMES[view]}.</p>
+              <p className="activity-empty">Nothing read this {STEP_NAMES[shownView]}.</p>
             )}
         </>
       )}

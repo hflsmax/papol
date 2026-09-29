@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getPaperActivity } from '../../../shared/api/activity.js';
 import { useDismiss } from '../../../shared/useDismiss.js';
-import { Working } from '../../../shared/ui/Waiting.js';
 import { appPath } from '../base';
 import {
   clockTime, dayName, daysOf, EFFORT_MARKS, effortLevel, effortRange, formatDuration, formatDurationShort, lastWhen,
@@ -26,25 +25,29 @@ function LevelKey({ level }) {
 }
 
 const WEEKS = 12;
+// What each paper's pop showed last, so it opens with it and refreshes in
+// place.
+const readBefore = new Map();
 const DAYS_LISTED = 5;
 
 // The time a user has spent on one paper, from the clock on its line in
 // their nook: the whole of it, the last weeks as a small calendar shaded
 // as My activity's month is, and the latest days one by one.
 function EffortDetail({ subject, onClose }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readBefore.get(subject) ?? null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let active = true;
     getPaperActivity(subject)
-      .then((answer) => { if (active) setData(answer); })
+      .then((answer) => { readBefore.set(subject, answer); if (active) setData(answer); })
       .catch((failure) => { if (active) setError(failure.message || 'Could not load the time spent.'); });
     return () => { active = false; };
   }, [subject]);
 
   if (error) return <p className="error" role="alert">{error}</p>;
-  if (!data) return <Working label="Loading…" />;
+  // Nothing until it is read: the pop opens once, whole.
+  if (!data) return null;
 
   const days = daysOf(data.spans);
   const weeks = recentWeeks(data.spans, WEEKS);

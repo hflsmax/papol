@@ -1433,12 +1433,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   border-radius: var(--radius);
   background: var(--card);
   box-shadow: 0 6px 20px rgba(29, 33, 41, 0.18);
-  animation: pdfLoadingArrive 160ms ease-out both;
-}
-
-@keyframes pdfLoadingArrive {
-  from { opacity: 0; transform: translateY(3px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* The shape of a page before there is one, so the viewer opens into
@@ -1448,15 +1442,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   width: min(100%, 1100px);
   aspect-ratio: 1 / 1.294;
   border-radius: 2px;
-  background: linear-gradient(100deg, var(--card) 30%, var(--paper) 50%, var(--card) 70%);
-  background-size: 300% 100%;
-  animation: skeletonSweep 1.4s ease-in-out infinite;
+  background: var(--card);
   box-shadow: 0 1px 6px rgba(29, 33, 41, 0.12);
-}
-
-@keyframes skeletonSweep {
-  from { background-position: 150% 0; }
-  to { background-position: -50% 0; }
 }
 
 .pdf-page {

@@ -295,13 +295,12 @@ ${commonStyles}
 .learn-lesson {
   border-radius: var(--radius-lg);
   box-shadow: 0 2px 8px rgba(29, 33, 41, 0.04);
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .learn-lesson:hover {
   border-color: var(--accent-line);
   box-shadow: 0 8px 24px rgba(29, 33, 41, 0.1);
-  transform: translateY(-2px);
 }
 
 .learn-lesson-open {
@@ -2448,7 +2447,7 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   background: var(--card);
   color: var(--ink);
   box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 /* A user who wrote the paper. Authors are squared off while every
@@ -2506,7 +2505,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 .avatar-chip:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
-  transform: translateY(-1px);
   z-index: 30;
 }
 
@@ -4537,10 +4535,9 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
 .board-marquee { position: absolute; z-index: 3; border: 1px solid var(--accent); background: rgba(43,74,111,.1); pointer-events: none; }
 .board-selection-menu { position: fixed; z-index: 45; top: 64px; left: 50%; display: flex; align-items: center; gap: 10px; transform: translateX(-50%); padding: 5px 6px 5px 12px; border-color: var(--accent-line); border-radius: var(--radius-pill); color: var(--ink-soft); font: var(--fs-xs) var(--font-ui); }
 .board-selection-menu button { padding: 5px 10px; border: 0; border-radius: var(--radius-pill); background: var(--accent); color: white; box-shadow: none; font: 600 var(--fs-xs) var(--font-ui); }
-.board-new-hint { position: fixed; z-index: 46; top: 66px; left: 50%; display: flex; align-items: center; gap: 12px; transform: translateX(-50%); max-width: min(520px, calc(100vw - 32px)); padding: 9px 10px 9px 14px; border-color: var(--accent-line); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); animation: board-hint-in .2s ease-out; }
+.board-new-hint { position: fixed; z-index: 46; top: 66px; left: 50%; display: flex; align-items: center; gap: 12px; transform: translateX(-50%); max-width: min(520px, calc(100vw - 32px)); padding: 9px 10px 9px 14px; border-color: var(--accent-line); color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
 .board-new-hint span { min-width: 0; }
 .board-new-hint button { width: 24px; height: 24px; flex: none; padding: 0;border-radius: 50%;color: var(--ink-faint); font: var(--fs-lg) var(--font-ui); line-height: 1; }
-@keyframes board-hint-in { from { opacity: 0; transform: translate(-50%, -6px); } }
 .board-drop-target { position: fixed; z-index: 4; inset: 75px 20px 20px; display: grid; place-items: center; border: 2px dashed var(--accent-line); border-radius: var(--radius); background: rgba(234,239,245,.72); color: var(--accent); font: var(--fs-base) var(--font-ui); pointer-events: none; }
 .board-stage { position: absolute; left: 0; top: 0; width: 1px; height: 1px; transform-origin: 0 0; will-change: transform; }
 .board-booklet { --booklet-line: #8d99a8; position: absolute; z-index: 0; left: 0; top: 0; width: 24px; pointer-events: none; transition: height 180ms cubic-bezier(.22,.9,.3,1); }
@@ -4613,25 +4610,24 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
    it did, with the way back, at the foot of the canvas. */
 .board-stage.board-gliding .board-canvas-card,
 .board-stage.board-gliding .board-booklet { transition: transform 180ms cubic-bezier(.22,.9,.3,1), width 180ms cubic-bezier(.22,.9,.3,1), height 180ms cubic-bezier(.22,.9,.3,1); }
-.board-notice { position: fixed; z-index: 45; bottom: 22px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; transform: translateX(-50%); border-radius: var(--radius-pill); color: var(--ink); font: var(--fs-sm) var(--font-ui); animation: board-notice-in 160ms var(--ease-out); }
+.board-notice { position: fixed; z-index: 45; bottom: 22px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; transform: translateX(-50%); border-radius: var(--radius-pill); color: var(--ink); font: var(--fs-sm) var(--font-ui); }
 .board-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-notice button { padding: 5px 12px; border-radius: var(--radius-pill); color: var(--accent); font: 600 var(--fs-sm) var(--font-ui); }
 .board-notice button:hover:not(:disabled) { background: var(--accent-soft); }
 .board-notice:not(:has(button)) { padding-right: 16px; }
-@keyframes board-notice-in { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (hover: none) {
   .board-group-more { opacity: 1; }
 }
 @media (pointer: coarse) {
   .board-group-arrange button { height: 36px; }
 }
-.board-card-drag-handle { position: absolute; z-index: -1; top: -5px; left: -5px; display: grid; width: 58px; height: 54px; place-items: center; padding: 0; border: 2px solid var(--ink-faint); border-radius: 18px 9px 16px 7px; backface-visibility: hidden; background: linear-gradient(145deg, var(--card) 8%, var(--paper) 78%); box-shadow: inset 2px 2px rgba(255,255,255,.72), 2px 4px 9px rgba(29,33,41,.22); opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); transform-origin: bottom right; will-change: transform, opacity; cursor: grab; transition: opacity .16s ease, transform .2s cubic-bezier(.2,.85,.25,1.15), border-color .14s ease, box-shadow .14s ease, z-index 0s .16s; }
+.board-card-drag-handle { position: absolute; z-index: -1; top: -5px; left: -5px; display: grid; width: 58px; height: 54px; place-items: center; padding: 0; border: 2px solid var(--ink-faint); border-radius: 18px 9px 16px 7px; backface-visibility: hidden; background: linear-gradient(145deg, var(--card) 8%, var(--paper) 78%); box-shadow: inset 2px 2px rgba(255,255,255,.72), 2px 4px 9px rgba(29,33,41,.22); opacity: 0; pointer-events: none; transform: translate3d(-18px, -15px, 0) rotate(-5deg); will-change: opacity; cursor: grab; transition: opacity .12s ease, border-color .14s ease, box-shadow .14s ease, z-index 0s .12s; }
 .board-card-drag-handle span { width: 27px; height: 23px; border-radius: 7px; backface-visibility: hidden; background: repeating-linear-gradient(0deg, var(--ink-faint) 0 2px, transparent 2px 6px); opacity: .82; transform: translateZ(0); }
-.board-card-drag-handle.grip-visible, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; transform: translate3d(-18px, -15px, 0) rotate(-5deg) scale(1); }
+.board-card-drag-handle.grip-visible, .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible, .board-card-drag-handle:active { opacity: 1; pointer-events: auto; }
 .board-card-drag-handle:hover, .board-card-drag-handle:focus-visible { border-color: var(--accent); outline: none; box-shadow: inset 2px 2px rgba(255,255,255,.8), 3px 6px 13px rgba(43,74,111,.28); }
-.board-card-drag-handle.grip-foreground { z-index: 4; transform: translate3d(-20px, -17px, 0) rotate(-3deg) scale(1.04); box-shadow: inset 2px 2px rgba(255,255,255,.84), 4px 8px 17px rgba(43,74,111,.3); transition: opacity .16s ease, transform .24s cubic-bezier(.18,.9,.25,1.18), border-color .14s ease, box-shadow .2s ease, z-index 0s; }
-.board-canvas-card > .board-card-drag-handle.grip-dragging { z-index: 4; opacity: 1; pointer-events: auto; transform: translate3d(-20px, -17px, 0) rotate(-3deg) scale(1.04); }
-.board-canvas-card.selected > .board-card-drag-handle:not(.grip-visible):not(.grip-dragging) { opacity: 0; pointer-events: none; transform: translate3d(9px, 8px, 0) rotate(-2deg) scale(.62); }
+.board-card-drag-handle.grip-foreground { z-index: 4; box-shadow: inset 2px 2px rgba(255,255,255,.84), 4px 8px 17px rgba(43,74,111,.3); transition: opacity .12s ease, border-color .14s ease, box-shadow .14s ease, z-index 0s; }
+.board-canvas-card > .board-card-drag-handle.grip-dragging { z-index: 4; opacity: 1; pointer-events: auto; }
+.board-canvas-card.selected > .board-card-drag-handle:not(.grip-visible):not(.grip-dragging) { opacity: 0; pointer-events: none; }
 .board-card-drag-handle:active { cursor: grabbing; }
 .board-canvas-card.booklet-reorder-peer { z-index: 3; transition: transform 180ms cubic-bezier(.22,.9,.3,1), box-shadow 180ms ease, scale 180ms ease; }
 .board-canvas-card.booklet-reordering { z-index: 5; transition: none; box-shadow: 0 16px 36px rgba(29,33,41,.22); cursor: grabbing; }
@@ -4728,7 +4724,6 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   .board-canvas-card.booklet-reorder-peer,
   .board-stage.board-gliding .board-canvas-card,
   .board-stage.board-gliding .board-booklet { transition-duration: 0ms; }
-  .board-notice { animation: none; }
 }
 
 @media (max-width: 700px) {
@@ -5445,7 +5440,6 @@ ${talkStyles}
 .project-picker-why { margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .project-picker-why input { display: block; width: 100%; margin-top: var(--space-1); padding: 6px 7px; font-size: var(--fs-xs); }
 .project-picker-why .share-note { margin-bottom: 0; }
-.project-picker-wait { padding: var(--space-2) 3px; font-size: var(--fs-xs); }
 .paper-actions .project-picker > .project-picker-item {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: center;
 }
@@ -5596,6 +5590,7 @@ ${talkStyles}
    opens beneath it, from its right edge so it stays on the page. */
 .desk-col-effort { width: 5rem; white-space: nowrap; }
 .desk-col-effort .effort-pop { left: auto; right: -4px; }
+.effort-pop:empty { visibility: hidden; }
 .desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
 /* Inside a project the rail folds to a strip of project letters and the
    project takes the width. Resting on the strip, or tabbing into it, lays
