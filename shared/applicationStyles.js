@@ -135,8 +135,14 @@ ${commonStyles}
 .way a:hover,
 .way-aside a:hover { color: var(--accent); }
 
+/* Papol's mark is as wide as the strip of project letters under it, so
+   the two stand in one column, and it sits on the middle of the title's
+   first line. */
 .way a.way-mark { display: inline-flex; align-self: center; }
-.way-mark img { display: block; width: 28px; height: 28px; border-radius: 7px; }
+.way-mark img { display: block; width: 2.25rem; height: 2.25rem; border-radius: 9px; }
+@media (min-width: 761px) {
+  .way:has(.paper-way-head) .way-mark { align-self: flex-start; margin-top: calc((var(--fs-2xl) * 1.25 - 2.25rem) / 2); }
+}
 
 /* Beside the trail home: everyone else's papers, boards and projects, and
    the inbox, as quiet as the trail. */
@@ -224,6 +230,7 @@ ${commonStyles}
 
 @media (max-width: 640px) {
   .way-bar { gap: var(--space-3); }
+  .way-mark img { width: 2rem; height: 2rem; border-radius: 8px; }
   .way-aside { gap: var(--space-3); }
 }
 /* Where the nook has no room for its rail, the title takes a line of its
