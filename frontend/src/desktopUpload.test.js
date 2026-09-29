@@ -100,7 +100,7 @@ test('a PDF the nook cannot keep is not sent anywhere', async () => {
   assert.deepEqual(native.requests(), [], 'nothing leaves for a file the nook does not hold');
 });
 
-test('a PDF added offline is named by its file, and its first thought is a note', async () => {
+test('a PDF added offline is named by its file, and its first thought is not kept', async () => {
   // A paper is its PDF on this side of the wire too. Naming the row anything
   // else is refused by the replica before it is refused by the service, so
   // the import simply never lands.
@@ -125,11 +125,40 @@ test('a PDF added offline is named by its file, and its first thought is a note'
   const byTable = Object.fromEntries(mutation.changes.map((change) => [change.table, change]));
   assert.equal(byTable.papers.uuid, digest, 'the paper is named by its file');
   assert.equal(byTable.copies.values.paper_sha256, digest);
-  // Notes, ink and clips are one table; `comments` is not synchronized at all.
+  // A first thought is a dig, and digs are not in the replica: offline
+  // there is nowhere to put it.
+  assert.equal(byTable.annotations, undefined);
   assert.equal(byTable.comments, undefined);
-  assert.equal(byTable.annotations.values.kind, 'note');
-  assert.equal(byTable.annotations.values.paper_sha256, digest);
-  assert.equal(byTable.annotations.values.content, 'Worth a second read');
+  assert.deepEqual(native.requests(), []);
+});
+
+test('a PDF added on the Mac while online has its first thought dug on the server', async () => {
+  const file = pdf('dug');
+  const digest = await digestOf(file);
+  serverReadsUploads();
+  const extracted = await uploadPaper(file);
+  const dug = [];
+  native.route('POST /api/digs', (request) => { dug.push(request.json()); return { json: { uuid: 'dig', project: null, posts: [] } }; });
+  native.query('paper', { sha256: digest, copy_uuid: '22222222-2222-4222-8222-222222222222' });
+  await createPaper({ ...extracted, title: 'Added online', shelf_uuid: DEFAULT_SHELF, initial_comment: '  Worth a second read ' });
+
+  const mutation = native.argsOf('data_mutate').at(-1);
+  assert.ok(!mutation.changes.some((change) => change.table === 'annotations'));
+  // The paper is published first, so the dig has a paper to be about.
+  const names = native.commandNames();
+  assert.ok(names.lastIndexOf('sync_now') > names.lastIndexOf('data_mutate'));
+  assert.deepEqual(dug, [{ subject: `paper:${digest}`, text: 'Worth a second read' }]);
+});
+
+test('a first thought that cannot be dug does not undo adding the paper', async () => {
+  const file = pdf('undug');
+  const digest = await digestOf(file);
+  serverReadsUploads();
+  const extracted = await uploadPaper(file);
+  native.route('POST /api/digs', { status: 502, body: 'Bad gateway' });
+  native.query('paper', { sha256: digest, copy_uuid: '22222222-2222-4222-8222-222222222222' });
+  const paper = await createPaper({ ...extracted, title: 'Added anyway', shelf_uuid: DEFAULT_SHELF, initial_comment: 'Worth a read' });
+  assert.equal(paper.sha256, digest);
 });
 
 test('adding a Library paper directly downloads it without running manual sync', async () => {

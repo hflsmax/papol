@@ -4,7 +4,7 @@
 // alike.
 export const talkStyles = `
 /* Talk: one pin and one card for discussing anything in a project. The pin
-   is the viewer's note pin; the card is a board card, lifted. */
+   is a spade; the card is a board card, lifted. */
 .talk-pin-wrap { position: relative; display: inline-flex; flex: none; align-items: center; gap: var(--space-1); vertical-align: middle; }
 /* The dig pin: a spade, then the dig's post count. The spade's size is the
    pin's height; the count sits beside it, so any number fits. */

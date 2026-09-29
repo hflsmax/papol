@@ -37,7 +37,7 @@ describe("a nook", () => {
     const mine = own.papers.find((p: any) => p.sha256 === shown);
     expect(mine).toMatchObject({ summary: "Mine alone", thought: "Worth it", is_public: true, copy_uuid: shownCopy, tags: [{ uuid: tag.uuid, name: "favourite reads" }] });
     expect(mine.users.map((u: any) => u.user.uuid)).toEqual([keeper.uuid]);
-    expect(own.stats).toEqual({ papers: 2, displayed: 1, notes: 0 });
+    expect(own.stats).toEqual({ papers: 2, displayed: 1 });
     // Signing up left a tag too; the list is by name.
     expect(own.tags.map((t: any) => t.name)).toEqual(["favourite", "favourite reads"]);
     expect(own.shelves.map((s: any) => [s.name, s.paper_count, s.board_count])).toEqual([["Display", 1, 1], ["Personal", 1, 1]]);

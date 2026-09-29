@@ -90,7 +90,6 @@ export function nookRoutes(router: Router) {
              (SELECT count(*) FROM boards b WHERE b.shelf_uuid = s.uuid AND b.deleted_at IS NULL) AS board_count
            FROM shelves s WHERE s.user_uuid = ? AND s.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY s.position, s.created_at`),
       ...(hidePrivate ? [] : [
-        own("SELECT count(*) AS n FROM annotations WHERE user_uuid = ? AND kind = 'note' AND deleted_at IS NULL"),
         own("SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)"),
         // The time spent on each paper is its user's alone: how long someone
         // spends on a paper says nothing a shelf was asked to show.
@@ -98,7 +97,7 @@ export function nookRoutes(router: Router) {
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
-    const [copies, paperRows, boards, shelves, notes, tags, effortRows] = results.map((r) => r.results);
+    const [copies, paperRows, boards, shelves, tags, effortRows] = results.map((r) => r.results);
     const papers = new Map(paperRows.map((p) => [p.sha256, p]));
     const effort = effortRows && new Map(effortRows.map((r) => [r.subject as string, { seconds: r.seconds, last_at: r.last_at }]));
     const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
@@ -115,7 +114,6 @@ export function nookRoutes(router: Router) {
       stats: hidePrivate ? null : {
         papers: copies.length,
         displayed: copies.filter((c) => c.shelf_public).length,
-        notes: (notes[0] as { n: number }).n,
       },
       tags: tags ?? [],
       projects,

@@ -7,7 +7,7 @@ import { DESKTOP } from './desktopShell';
 // own; in a browser it is still the browser's dialog.
 //
 // It resolves to true or false, so a caller awaits it:
-//   if (!(await confirmAction('Delete this note?', { confirmLabel: 'Delete', destructive: true }))) return;
+//   if (!(await confirmAction('Delete this post?', { confirmLabel: 'Delete', destructive: true }))) return;
 //
 // The page's tokens are used where the page has them; the fallbacks are for
 // a page that loads this without Papol's stylesheet.

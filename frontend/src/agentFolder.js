@@ -70,7 +70,7 @@ function text(value, max) {
 
 // `papol.json`, read: `{ papers }`, one entry per work it lists, or
 // `{ error }` saying why it could not be. An entry is `{ file, doi,
-// arxiv_id, title, note }`, each null when not given; one with no file
+// arxiv_id, title, dig }`, each null when not given; one with no file
 // is a work the agent could not get a PDF of.
 export function parseManifest(source) {
   let data;
@@ -95,7 +95,7 @@ export function parseManifest(source) {
       doi: bareDoi(entry.doi),
       arxiv_id: bareArxiv(entry.arxiv ?? entry.arxiv_id),
       title: text(entry.title, appLimits.text.paper_title),
-      note: text(entry.note, appLimits.text.comment),
+      dig: text(entry.dig, appLimits.text.comment),
     }))
     .filter((entry) => entry.file || entry.doi || entry.arxiv_id || entry.title);
   return { papers };

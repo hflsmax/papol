@@ -1,6 +1,6 @@
-// Taking your things with you. A user who cannot leave with their notes
-// does not really own them, so everything Papol holds about a user comes
-// out as one archive: the data as JSON, the notes again as Markdown for
+// Taking your things with you. A user who cannot leave with what they
+// wrote does not really own it, so everything Papol holds about a user comes
+// out as one archive: the data as JSON, their digs again as Markdown for
 // a person rather than a parser, and a manifest of the files — the PDFs
 // named after the papers, the board files, the picture — saying where
 // each one lives.
@@ -65,6 +65,10 @@ export async function gather(db: D1Database, user: User) {
   const posts = await all<Row>(db, `SELECT dp.dig_uuid, dp.body, dp.created_at, dp.edited_at, d.project_uuid
     FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid WHERE dp.user_uuid = ? ORDER BY dp.created_at, dp.uuid`, user.uuid);
   const digs = await all<Row>(db, `SELECT uuid, project_uuid, subject, text, created_at, edited_at FROM digs WHERE user_uuid = ? ORDER BY created_at, uuid`, user.uuid);
+  // Digs of one's own, outside any project, with the paper each is on.
+  const ownDigs = await all<Row>(db, `SELECT d.uuid, d.subject, d.text, d.created_at, d.edited_at, d.annotation_uuid, a.page, p.sha256, p.title, p.authors, p.journal, p.year, p.doi
+    FROM digs d LEFT JOIN annotations a ON a.uuid = d.annotation_uuid LEFT JOIN papers p ON p.sha256 = d.paper_sha256
+    WHERE d.user_uuid = ? AND d.project_uuid IS NULL ORDER BY d.created_at, d.uuid`, user.uuid);
   const activity = await all<Row>(db, `SELECT a.subject, a.started_at, a.ended_at, a.seconds, p.title
     FROM activity a LEFT JOIN papers p ON p.sha256 = a.subject WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
 
@@ -78,11 +82,16 @@ export async function gather(db: D1Database, user: User) {
       // What of it others see while it is on display.
       shown: { thought: Boolean(c.thought_public), ratings: Boolean(c.ratings_public), summary: Boolean(c.summary_public), tags: Boolean(c.tags_public) },
     })),
-    notes: annotations.filter((a) => a.kind === "note").map((n) => ({
-      uuid: n.uuid, paper: paperOf(n), name: n.name, content: n.content, page: n.page, anchor: bodyOf(n).anchor ?? null, written: n.created_at,
+    // Places on the page, as fractions of it, y from the bottom.
+    anchors: annotations.filter((a) => a.kind === "anchor").map((n) => ({
+      uuid: n.uuid, paper: paperOf(n), page: n.page, anchor: bodyOf(n).anchor ?? null, placed: n.created_at,
     })),
-    // Fractions of the page, y from the bottom — the same coordinates a
-    // note's anchor uses.
+    // What I wrote about a paper or a place on it, outside any project.
+    digs: ownDigs.map((d) => ({
+      dig: d.uuid, paper: paperOf(d), about: d.subject, anchor: d.annotation_uuid ?? null, page: d.page ?? null, text: d.text, written: d.created_at, edited: d.edited_at,
+    })),
+    // Fractions of the page, y from the bottom — the same coordinates an
+    // anchor uses.
     ink: annotations.filter((a) => a.kind === "ink").map((i) => ({ uuid: i.uuid, paper: paperOf(i), page: i.page, ...bodyOf(i), drawn: i.created_at })),
     notifications: notifications.map((n) => ({ content: n.content, read: Boolean(n.read), received: n.created_at })),
     pdfs_i_uploaded: uploads.map((p) => ({ paper: paperRef(p), file: p.file_path, uploaded: p.created_at })),
@@ -113,23 +122,17 @@ export async function gather(db: D1Database, user: User) {
 
 type Gathered = Awaited<ReturnType<typeof gather>>;
 
-// The notes again, for a person rather than a parser.
-function notesMarkdown(data: Gathered, stamp: string): string {
-  const lines = [`# Notes — ${data.profile.display_name}`, "", `${data.notes.length} notes, exported ${stamp}.`, ""];
-  const byPaper = new Map<string, Gathered["notes"]>();
-  for (const note of data.notes) {
-    const title = note.paper ? String(note.paper.title) : "(paper since removed)";
-    (byPaper.get(title) ?? byPaper.set(title, []).get(title)!).push(note);
+// My own digs again, for a person rather than a parser.
+function digsMarkdown(data: Gathered, stamp: string): string {
+  const lines = [`# Digs — ${data.profile.display_name}`, "", `${data.digs.length} digs, exported ${stamp}.`, ""];
+  const byPaper = new Map<string, Gathered["digs"]>();
+  for (const dig of data.digs) {
+    const title = dig.paper ? String(dig.paper.title) : "(paper since removed)";
+    (byPaper.get(title) ?? byPaper.set(title, []).get(title)!).push(dig);
   }
-  for (const [title, notes] of byPaper) {
+  for (const [title, digs] of byPaper) {
     lines.push(`## ${title}`, "");
-    for (const note of notes) {
-      const where = note.page ? `page ${note.page}` : "not placed on the page";
-      let head = `### ${note.name || where}`;
-      if (note.name && note.page) head += ` — page ${note.page}`;
-      // An anchor with nothing written on it is an annotation, not a note.
-      lines.push(head, "", String(note.content || "") || "*(an annotation, with nothing written on it)*", "");
-    }
+    for (const dig of digs) lines.push(`### ${dig.anchor ? `Page ${dig.page ?? "?"}` : "The paper"}`, "", String(dig.text), "");
   }
   return lines.join("\n");
 }
@@ -142,9 +145,10 @@ Everything Papol holds about you, as of {date}.
   profile.json        Your account: name, email, affiliation, when you joined.
   nook.json           The papers in your nook, with your ratings, your private
                       summaries and your public one-line thoughts.
-  notes.json          Every note you have written, with the page and the exact
-                      spot on it where you placed each one.
-  notes.md            The same notes, written out to be read.
+  anchors.json        Every place you marked on a page.
+  digs.json           What you wrote about a paper or a place on it outside
+                      any project.
+  digs.md             The same digs, written out to be read.
   ink.json            What you drew on the page with the brush, as points on
                       the page rather than as a picture.
   notifications.json  What Papol has told you.
@@ -270,11 +274,11 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
 
       await text("README.txt", README.replace("{date}", stamp).replace("{avatar}", avatarLine));
       const files: [string, unknown][] = [
-        ["profile", data.profile], ["nook", data.nook], ["notes", data.notes], ["ink", data.ink],
+        ["profile", data.profile], ["nook", data.nook], ["anchors", data.anchors], ["digs", data.digs], ["ink", data.ink],
         ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards], ["activity", data.activity], ["files", located],
       ];
       for (const [name, payload] of files) await text(`${name}.json`, JSON.stringify(payload, null, 2));
-      await text("notes.md", notesMarkdown(data, stamp));
+      await text("digs.md", digsMarkdown(data, stamp));
       // Two empty blocks end the archive.
       await send(new Uint8Array(BLOCK * 2));
       await writable.close();

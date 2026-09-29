@@ -59,7 +59,7 @@ const lessons = [
     id: 'note-making',
     art: 'send',
     section: 'Viewer',
-    title: 'Make notes while reading',
+    title: 'Dig a place while reading',
     video: tutorialMedia.noteMaking,
   },
 ];

@@ -198,7 +198,7 @@ describe("a paper with the project on", () => {
     await copyOf(ben, A_PAPER, "Loss Curves");
     await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
     const name = A_PAPER.slice(0, 32);
-    const danas = await ok("POST", `/api/papers/${name}/annotations`, { headers: dana.headers, json: { kind: "note", page: 2, body: { anchor: { type: "point", x: 0.5, y: 0.5 } } } });
+    const danas = await ok("POST", `/api/papers/${name}/annotations`, { headers: dana.headers, json: { kind: "anchor", page: 2, body: { anchor: { type: "point", x: 0.5, y: 0.5 } } } });
     const anas = await ok("POST", `/api/papers/${name}/annotations`, { headers: ana.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.1, y: 0.2 }] } } });
     // Ben is not a member: what he leaves stays his.
     await ok("POST", `/api/papers/${name}/annotations`, { headers: ben.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.3, y: 0.3 }] } } });
@@ -215,7 +215,7 @@ describe("a paper with the project on", () => {
 
     // A dig at Dana's anchor, the place; the dig is Dana's, seen by the project.
     const dig = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `annotation:${danas.uuid}`, text: "Which panel?" } });
-    expect(dig.subject).toMatchObject({ kind: "annotation", key: `annotation:${danas.uuid}`, paper_sha256: A_PAPER, page: 2, down: 0.5, annotation_kind: "note", by: "Desktop Test", label: "An anchor on page 2" });
+    expect(dig.subject).toMatchObject({ kind: "annotation", key: `annotation:${danas.uuid}`, paper_sha256: A_PAPER, page: 2, down: 0.5, annotation_kind: "anchor", by: "Desktop Test", label: "An anchor on page 2" });
     expect((await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers })).annotations.map((a: any) => a.uuid))
       .toEqual([danas.uuid, anas.uuid]);
     // Ana's ink sits by its highest point, measured from the top of the page.
@@ -229,7 +229,7 @@ describe("a paper with the project on", () => {
     await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "The loss curves are the point." } });
     expect((await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: dana.headers })).paper_digs)
       .toMatchObject({ dig_count: 1, lead: { owner: { uuid: ana.uuid }, excerpt: "The loss curves are the point." } });
-    // Nothing outside the project can be dug: Ben's ink, or a note the project's paper does not carry.
+    // Nothing outside the project can be dug: Ben's ink, or a mark the project's paper does not carry.
     const bens = (await ok("GET", `/api/papers/${name}/annotations`, { headers: ben.headers }))[0];
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `annotation:${bens.uuid}`, text: "?" } })).status).toBe(404);
     const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs;

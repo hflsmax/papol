@@ -36,10 +36,11 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   const boardUuids = (await all<{ uuid: string }>(db, "SELECT uuid FROM boards WHERE user_uuid = ?", user.uuid)).map((b) => b.uuid);
   const inBoards = boardUuids.length ? `board_uuid IN (${boardUuids.map(() => "?").join(",")})` : "0";
   // A dig about a card on a board that goes, or an annotation of theirs,
-  // goes too.
+  // goes too, and so do their digs outside any project.
   const goneDigs = (await all<{ uuid: string }>(db,
-    `SELECT uuid FROM digs WHERE board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)`,
-    ...boardUuids, user.uuid)).map((d) => d.uuid);
+    `SELECT uuid FROM digs WHERE board_item_uuid IN (SELECT uuid FROM board_items WHERE ${inBoards}) OR annotation_uuid IN (SELECT uuid FROM annotations WHERE user_uuid = ?)
+       OR (project_uuid IS NULL AND user_uuid = ?)`,
+    ...boardUuids, user.uuid, user.uuid)).map((d) => d.uuid);
   const inDigs = goneDigs.length ? goneDigs.map(() => "?").join(",") : "NULL";
   const files = await boardFiles(env, boardUuids);
   const projects = await leaveAllProjects(env, user.uuid);

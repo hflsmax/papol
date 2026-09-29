@@ -14,10 +14,10 @@ let marks = 0;
 
 // An annotation written straight into the table, as the desktop would
 // leave it, so that a user who keeps no copy can still have marked the page.
-async function mark(user: Account, digest: string, kind: string, content: string, { page = null as number | null, body = {} as object, name = null as string | null } = {}) {
+async function mark(user: Account, digest: string, kind: string, { page, body }: { page: number; body: object }) {
   const at = new Date(Date.now() - 60_000 + marks++ * 1000).toISOString();
-  await exec("INSERT INTO annotations (uuid, kind, user_uuid, paper_sha256, page, content, name, body, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-    uuid(), kind, user.uuid, digest, page, content, name, JSON.stringify(body), at, at);
+  await exec("INSERT INTO annotations (uuid, kind, user_uuid, paper_sha256, page, content, body, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, 0)",
+    uuid(), kind, user.uuid, digest, page, JSON.stringify(body), at, at);
 }
 
 async function privateShelf(user: Account): Promise<string> {
@@ -32,13 +32,13 @@ beforeEach(async () => {
   // Another PDF of the same work. A paper is its file, so this is a paper
   // of its own — and what Ada wrote on it is no part of the reading she shared.
   await paperWithCopy(ada, OTHER, "On sharing a reading", { shelfUuid: shelf });
-  await mark(ada, SHARED, "note", "On the page", { page: 2, body: { anchor: { type: "point", x: 0.25, y: 0.5 } }, name: "Lemma 3" });
-  await mark(ada, SHARED, "note", "About the paper");
-  await mark(ada, OTHER, "note", "On the old PDF", { page: 1, body: { anchor: { type: "point", x: 0.1, y: 0.1 } } });
-  await mark(grace, SHARED, "note", "Not yours", { page: 2, body: { anchor: { type: "point", x: 0.9, y: 0.9 } } });
-  await mark(ada, SHARED, "ink", "", { page: 1, body: { points: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }] } });
-  await mark(grace, SHARED, "ink", "", { page: 1, body: { points: [{ x: 0.5, y: 0.5 }] } });
-  await mark(ada, SHARED, "clip", "", { page: 1, body: { source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } } });
+  await mark(ada, SHARED, "anchor", { page: 2, body: { anchor: { type: "point", x: 0.25, y: 0.5 } } });
+  await mark(ada, SHARED, "anchor", { page: 3, body: { anchor: { type: "point", x: 0.5, y: 0.5 } } });
+  await mark(ada, OTHER, "anchor", { page: 1, body: { anchor: { type: "point", x: 0.1, y: 0.1 } } });
+  await mark(grace, SHARED, "anchor", { page: 2, body: { anchor: { type: "point", x: 0.9, y: 0.9 } } });
+  await mark(ada, SHARED, "ink", { page: 1, body: { points: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.2 }] } });
+  await mark(grace, SHARED, "ink", { page: 1, body: { points: [{ x: 0.5, y: 0.5 }] } });
+  await mark(ada, SHARED, "clip", { page: 1, body: { source: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } } });
 });
 
 async function share(user: Account, includeAnnotations = true) {
@@ -192,9 +192,10 @@ describe("a reading's link", () => {
     // One list, each saying its own kind, in the order they were made.
     const byKind: Record<string, any[]> = {};
     for (const row of reading.annotations) (byKind[row.kind] ??= []).push(row);
-    expect(byKind.note.map((n) => n.content)).toEqual(["On the page", "About the paper"]);
-    expect(byKind.note[0].body.anchor).toEqual({ type: "point", x: 0.25, y: 0.5 });
-    expect(byKind.note[0].name).toBe("Lemma 3");
+    expect(byKind.anchor.map((n) => n.page)).toEqual([2, 3]);
+    expect(byKind.anchor[0].body.anchor).toEqual({ type: "point", x: 0.25, y: 0.5 });
+    // A place carries no words: what is written there is a dig, its writer's own.
+    expect(byKind.anchor[0]).not.toHaveProperty("content");
     expect(byKind.ink).toHaveLength(1);
     expect(byKind.clip).toHaveLength(1);
 

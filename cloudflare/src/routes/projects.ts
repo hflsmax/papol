@@ -223,7 +223,7 @@ function digsStatement(env: Env, projectUuid: string, me: User, member: Member, 
 }
 
 // The last post in each dig and everyone who spoke, read together.
-async function digsFrom(env: Env, rows: Row[], me: User) {
+export async function digsFrom(env: Env, rows: Row[], me: User) {
   if (!rows.length) return [];
   const peopleUuids = [...new Set(rows.flatMap((d) => [String(d.user_uuid), ...String(d.voices ?? "").split(",").filter(Boolean)]))];
   const [lasts, users] = (await env.DB.batch<Row>([
@@ -317,7 +317,7 @@ function annotationLabel(d: Row): string {
   const where = d.annotation_page ? ` on page ${d.annotation_page}` : "";
   if (d.annotation_kind === "ink") return `Ink${where}`;
   if (d.annotation_kind === "clip") return `A clip${where}`;
-  if (d.annotation_kind === "note") return `An anchor${where}`;
+  if (d.annotation_kind === "anchor") return `An anchor${where}`;
   return "An annotation";
 }
 
@@ -536,7 +536,7 @@ export function projectRoutes(router: Router) {
     return json(await projectOut(env, project, me, member));
   });
 
-  // A paper with the project on: every member's notes, ink and clips on
+  // A paper with the project on: every member's anchors, ink and clips on
   // it, each saying whose, and the digs already open on them. Read only;
   // an annotation is written through its author's own routes. Joining is
   // trust, as the copies are: what a member left on a project's paper is
@@ -559,7 +559,7 @@ export function projectRoutes(router: Router) {
     const { [paperKey]: paperPin, ...annotationPins } = pins;
     // Another member's anchor shows only as the place of a dig; one nobody
     // has dug there says nothing to the project.
-    const shown = rows.filter((a) => a.kind !== "note" || a.user_uuid === me.uuid || `annotation:${a.uuid}` in annotationPins);
+    const shown = rows.filter((a) => a.kind !== "anchor" || a.user_uuid === me.uuid || `annotation:${a.uuid}` in annotationPins);
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
       me: me.uuid,

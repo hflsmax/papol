@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { ME, P_ERROR, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
@@ -77,6 +77,12 @@ const SHOTS = {
   'bazaar-projects': { path: '/projects?shell=web', ready: "document.querySelector('.projects-row.closed')", size: wide },
   library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
   paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
+  // A paper's jacket down to the reader's own dig on it: written on the
+  // survey, still to be written on the other.
+  'paper-dig': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-dig .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: wide },
+  'paper-dig-empty': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-dig .talk-unfold')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: wide },
+  'paper-dig-writing': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-dig .talk-unfold')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig .talk-unfold').click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", settled: "document.querySelector('.paper-dig textarea')", size: wide },
+  'phone-paper-dig': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-dig .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: phone },
   you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
   'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: phone },

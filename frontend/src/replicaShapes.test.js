@@ -17,18 +17,20 @@ const queriesNamed = (name) => native.argsOf('data_query').filter(({ queryName }
 // and a replica read asks it alongside.
 const linkOut = (json = null) => native.route(`GET /api/papers/${PAPER.slice(0, 32)}/sharable`, { json });
 
-test('a paper and its notes are read from the replica together, not one after the other', async () => {
+test('a replica paper and its link out are read together, and no annotations with them', async () => {
   linkOut();
   const gate = native.gate();
   native.query('paper', async () => { await gate.promise; return { sha256: PAPER, copy_uuid: COPY }; });
 
   const loading = getPaper(PAPER);
-  // The notes are asked for while the paper is still being read.
-  await native.until(() => queriesNamed('annotations').length === 1, { what: 'the notes query' });
+  // The link out is asked for while the paper is still being read.
+  await native.until(() => native.requests().some(({ url }) => url.endsWith('/sharable')), { what: 'the link out' });
   assert.equal(queriesNamed('paper').length, 1);
-  assert.deepEqual(queriesNamed('annotations')[0].parameters, { paper_sha256: PAPER.slice(0, 32), kind: 'note' });
   gate.open();
   assert.equal((await loading).copy_uuid, COPY);
+  // A jacket holds no annotations: the reader's words on it are a dig,
+  // asked of the service by the jacket itself.
+  assert.equal(queriesNamed('annotations').length, 0);
 });
 
 test('a replica paper carries every list the API declares', async () => {
@@ -69,7 +71,7 @@ test('a paper outside this nook is read from the service instead', async () => {
   native.route(`GET /api/papers/${PAPER.slice(0, 32)}`, { json: { sha256: PAPER, title: 'From the Library' } });
   const paper = await getPaper(PAPER);
   assert.equal(paper.title, 'From the Library');
-  assert.deepEqual(paper.notes, []);
+  assert.equal(queriesNamed('annotations').length, 0);
 });
 
 test('a replica failure other than a missing paper is not hidden behind the service', async () => {
@@ -109,13 +111,13 @@ test('the native repository owns query names and parameter shapes', async () => 
   const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
   native.query('board', { uuid });
   await nativeRepository.board(uuid);
-  await nativeRepository.annotations(uuid, 'note');
+  await nativeRepository.annotations(uuid, 'anchor');
 
   assert.deepEqual(native.argsOf('data_query').map(({ accountUuid, queryName, parameters }) => ({
     accountUuid, queryName, parameters,
   })), [
     { accountUuid: ACCOUNT, queryName: 'board', parameters: { uuid } },
-    { accountUuid: ACCOUNT, queryName: 'annotations', parameters: { paper_sha256: uuid, kind: 'note' } },
+    { accountUuid: ACCOUNT, queryName: 'annotations', parameters: { paper_sha256: uuid, kind: 'anchor' } },
   ]);
 });
 

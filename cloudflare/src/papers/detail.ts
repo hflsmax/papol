@@ -94,17 +94,17 @@ export async function keepPaper(db: D1Database, user: User, paperSha256: string)
   return copy;
 }
 
-// One row shape covers notes, ink and clips: they are three ways of
+// One row shape covers anchors, ink and clips: they are three ways of
 // marking one page, and what differs is geometry, which lives in `body`.
 export function annotationOut(row: Row) {
   return {
     uuid: row.uuid, kind: row.kind, page: row.page ?? null, group_uuid: row.group_uuid ?? null,
-    content: row.content ?? "", name: row.name ?? null, body: JSON.parse((row.body as string) || "{}"), created_at: row.created_at,
+    body: JSON.parse((row.body as string) || "{}"), created_at: row.created_at,
   };
 }
 
 // The canonical paper, merged with the viewer's own copy — summary,
-// ratings, display, private notes — when they have one. `file_url` is
+// ratings, display, anchors — when they have one. `file_url` is
 // where the PDF is fetched from, beside the `file_path` that names it:
 // the bucket's own address when it has one, so the viewer reads the
 // bytes from there and never through the Worker.
@@ -117,7 +117,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     summary: null, thought: null, is_public: null, is_author: null,
     rating_expertise: null, rating_reading: null, rating_liking: null,
     thought_public: null, ratings_public: null, summary_public: null, tags_public: null,
-    notes: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
+    anchors: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {
     const shelf = copy.shelf_uuid ? await one<{ is_public: number }>(db, "SELECT is_public FROM shelves WHERE uuid = ?", copy.shelf_uuid) : null;
@@ -128,7 +128,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
       ...visibilityOut(copy),
       tags: await all(db, `SELECT t.uuid, t.name FROM copy_tags l JOIN tags t ON t.uuid = l.tag_uuid
         WHERE l.copy_uuid = ? AND l.deleted_at IS NULL AND t.deleted_at IS NULL ORDER BY lower(t.name)`, copy.uuid),
-      notes: (await all<Row>(db, `SELECT * FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND kind = 'note' AND deleted_at IS NULL
+      anchors: (await all<Row>(db, `SELECT * FROM annotations WHERE paper_sha256 = ? AND user_uuid = ? AND kind = 'anchor' AND deleted_at IS NULL
         ORDER BY created_at, uuid`, paper.sha256, viewer.uuid)).map(annotationOut),
     });
     // The link this user already has out on this paper, so their share

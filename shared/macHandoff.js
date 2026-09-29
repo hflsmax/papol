@@ -17,7 +17,7 @@ export const HANDOFF_SCHEME = import.meta.env?.DEV ? 'papol-dev' : 'papol';
 // that identify a document and a place in it survive the crossing. Anything
 // else a page might hope to smuggle into the app's own URL is dropped.
 const HANDOFF_QUERY_KEYS = Object.freeze([
-  'pdf', 'board', 'share', 'page', 'note', 'y', 'mark', 'box',
+  'pdf', 'board', 'share', 'page', 'anchor', 'y', 'mark', 'box',
 ]);
 
 export const RETIRED_KEY = 'papol.handoff.retired';
@@ -78,8 +78,8 @@ export function handoffDocument(href) {
   return null;
 }
 
-// The same address, addressed to the application. Note that the path is kept
-// whole: the app is the one that knows which bundled page serves it.
+// The same address, addressed to the application. The path is kept whole:
+// the app is the one that knows which bundled page serves it.
 export function handoffAddress(href) {
   const url = parse(href);
   if (!url || !handoffDocument(href)) return null;
@@ -92,13 +92,13 @@ export function handoffAddress(href) {
   return `${HANDOFF_SCHEME}://${url.host}${url.pathname}${query ? `?${query}` : ''}`;
 }
 
-const PLACE_KEYS = Object.freeze(['page', 'note', 'y', 'mark', 'box']);
+const PLACE_KEYS = Object.freeze(['page', 'anchor', 'y', 'mark', 'box']);
 
 // The address as it stands when the reader asks, rather than as it stood when
 // the tab opened: the viewer does not rewrite its address as it scrolls, so a
 // handoff from page 14 of a paper opened at page 1 must say page 14 itself
 // (US-7.25). While the reader is still on the page the address opened at,
-// the address is kept whole, since the note or excerpt it names is a finer
+// the address is kept whole, since the anchor or excerpt it names is a finer
 // place than its page; once they have moved on, that place is left behind.
 export function handoffAddressAt(href, { page = null, openingPage = null } = {}) {
   const url = parse(href);

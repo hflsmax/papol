@@ -21,7 +21,6 @@ try {
   process.exit(2);
 }
 
-const NOTE = fx.note.slice(0, 30);
 const api = (path, token, options = {}) => fetch(`${fx.base}/api${path}`, {
   ...options,
   headers: { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -47,11 +46,10 @@ const viewerReady = async () => {
 };
 
 const snapshot = () => browser.evaluate(`
-  const note = ${JSON.stringify(NOTE)};
   return {
     title: document.title,
     attribution: document.querySelector('.shared-reading')?.textContent?.trim() ?? null,
-    annotationsInDom: document.documentElement.innerHTML.includes(note),
+    annotationsInDom: !!document.querySelector(${JSON.stringify(`[data-annotation="${fx.anchor}"]`)}),
     bar: !!document.querySelector('.viewer-bar'),
     tools: !!(document.querySelector('[aria-label="Clipper"]')
       && document.querySelector('[aria-label="Brush"]')),
@@ -115,7 +113,7 @@ try {
   s = await snapshot();
   check('it opens just the same', s.bar);
   check('it names nobody', s.attribution === null, String(s.attribution));
-  check('and carries none of the annotations', !s.annotationsInDom, 'a lean link leaked the note');
+  check('and carries none of the annotations', !s.annotationsInDom, 'a lean link leaked the anchor');
   check('the paper is still offered', s.buttons.includes('Add to nook'));
   check('and they are invited to sign in again', s.signInOffer);
 

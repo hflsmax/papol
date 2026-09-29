@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "tables": {
     "boards": {
       "owner": "user_uuid",
@@ -72,10 +72,12 @@
         "paper_sha256",
         "page",
         "group_uuid",
-        "content",
-        "name",
         "body",
         "deleted_at"
+      ],
+      "server_columns": [
+        "content",
+        "name"
       ]
     },
     "shelves": {

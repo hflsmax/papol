@@ -361,7 +361,7 @@ export function DesktopBrowser({
         <span>
           {boardsView
             ? 'Choose a board to preview it and continue where you left off.'
-            : 'Choose a paper from the list to read its notes and discussion.'}
+            : 'Choose a paper from the list.'}
         </span>
       </div>
     );

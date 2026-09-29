@@ -589,7 +589,7 @@ function parsedJson(value, fallback) {
 
 // One shape for every kind of annotation: the geometry that differs between
 // them travels as JSON in `body`, so reading a row back is the same work
-// whether it is a note, a stroke or a clip.
+// whether it is an anchor, a stroke or a clip.
 export function annotationView(row) {
   return { ...row, body: parsedJson(row.body, {}) };
 }
@@ -608,7 +608,7 @@ export function shelfView(row) {
 // because the replica serves one row either way. The library app trusts
 // the declared shape (no guards), so a locally-served paper must carry
 // every list — what the replica cannot know starts empty, and a caller
-// that knows better (getPaper reads the notes beside the row) fills it in.
+// that knows better fills it in.
 const PAPER_LISTS = [...new Set([...apiShapes.views.paper, ...apiShapes.views.paper_list])];
 // Whether others see a copy's thought, ratings, summary and tags.
 export const FIELD_VISIBILITY = ['thought_public', 'ratings_public', 'summary_public', 'tags_public'];

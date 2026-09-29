@@ -491,7 +491,7 @@ describe("saving, opening and editing", () => {
     return digest;
   }
 
-  it("saves a paper with its copy, tags and first note, and a second upload of the same bytes becomes a copy", async () => {
+  it("saves a paper with its copy, tags and first thought, and a second upload of the same bytes becomes a copy", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     const digest = await stored();
     const tag = await ok("POST", "/api/tags", { headers: ada.headers, json: { name: "methods" } });
@@ -501,7 +501,9 @@ describe("saving, opening and editing", () => {
     } });
     expect(saved).toMatchObject({ sha256: digest, title: "Saved paper", doi: "10.1/saved", thought: "Worth it", summary: "Mine", rating_liking: 5, is_public: true,
       tags: [{ uuid: tag.uuid, name: "methods" }], shelf_uuid: await defaultShelf(ada), sharable_uuid: null });
-    expect(saved.notes.map((n: any) => [n.kind, n.content, n.body])).toEqual([["note", "First thought", {}]]);
+    // The first thought is her own dig on the paper.
+    expect(saved.anchors).toEqual([]);
+    expect((await ok("GET", `/api/digs?subject=paper:${digest}`, { headers: ada.headers })).digs.map((d: any) => d.text)).toEqual(["First thought"]);
     expect(saved.also_read_by.map((u: any) => u.user.uuid)).toEqual([ada.uuid]);
     expect((await call("POST", "/api/papers", { headers: ada.headers, json: { title: "Again", file_path: `${digest}.pdf` } })).status).toBe(400);
     expect((await call("POST", "/api/papers", { headers: ada.headers, json: { title: "Nowhere", file_path: `${"0".repeat(64)}.pdf` } })).status).toBe(400);

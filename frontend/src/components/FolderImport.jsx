@@ -190,7 +190,7 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
             ...savedFile(row.uploaded, row.known, useKnown),
             shelf_uuid: shelf,
             tag_uuids: selectedTags.map((tag) => tag.uuid),
-            initial_comment: row.entry?.note || null,
+            initial_comment: row.entry?.dig || null,
           });
           if (useKnown) await discardPaperImport(row.uploaded).catch(() => {});
           update(row.key, { state: 'added' });
@@ -279,9 +279,9 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
       </div>
       {!folder.manifest && !done && (
         // No manifest: likely PDFs gathered by hand. Where an agent could
-        // have gathered them, with a note on each, say how — once, folded.
+        // have gathered them, with a word on each, say how — once, folded.
         <details className="folder-agent-hint">
-          <summary>From an agent? Ask it for a folder instead, with a note on why each paper is there.</summary>
+          <summary>From an agent? Ask it for a folder instead, with a word on why each paper is there.</summary>
           <pre className="folder-import-instructions">{agentInstructions()}</pre>
         </details>
       )}
@@ -320,7 +320,7 @@ export default function FolderImport({ currentUser, incomingFolder = null, onInc
                 <span className="folder-row-meta">
                   {[row.path, identifier].filter(Boolean).join(' · ')}
                 </span>
-                {row.entry?.note && <span className="folder-row-note">{row.entry.note}</span>}
+                {row.entry?.dig && <span className="folder-row-dig">{row.entry.dig}</span>}
                 {row.known && !done && row.state !== 'added' && (
                   <label className="checkbox-row inline folder-row-known">
                     <input type="checkbox" checked={row.useKnown} disabled={saving} onChange={(event) => update(row.key, { useKnown: event.target.checked })} />

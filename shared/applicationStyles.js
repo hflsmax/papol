@@ -1147,7 +1147,7 @@ button.full-width {
 input.folder-row-title { width: 100%; padding: 2px 4px; margin-left: -5px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; }
 input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(--line); background: var(--card); }
 .folder-row-meta { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); overflow-wrap: anywhere; }
-.folder-row-note { color: var(--ink-soft); font-size: var(--fs-sm); font-style: italic; }
+.folder-row-dig { color: var(--ink-soft); font-size: var(--fs-sm); font-style: italic; }
 .folder-row-known { margin-top: 2px; font: var(--fs-xs) var(--font-ui); color: var(--ink-soft); }
 .folder-row-status { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); white-space: nowrap; text-align: right; padding-top: 4px; }
 .folder-row-status.trouble { color: var(--red); white-space: normal; max-width: 180px; }
@@ -4303,8 +4303,8 @@ a.button:hover {
   color: var(--vis-ink, var(--green-ink));
 }
 
-/* Summary sits beside Notes as an equal: same heading level, and its
-   text is carded like a note. */
+/* Summary sits beside the dig as an equal: same heading level, and its
+   text is carded like the dig. */
 .summary-block {
   margin-bottom: 14px;
 }
@@ -4336,7 +4336,7 @@ a.button:hover {
   margin: 0 0 8px;
 }
 
-/* ---------- Markdown prose (summaries and notes) ---------- */
+/* ---------- Markdown prose (summaries and digs) ---------- */
 
 /* The user's own prose, rendered by components/Markdown.jsx. It carries
    its own line breaks, so it drops the pre-wrap the plain-text form leant
@@ -4357,7 +4357,7 @@ a.button:hover {
   margin: 0 0 6px;
 }
 
-/* Headings inside a note are subordinate to the section heading above the
+/* Headings inside a dig are subordinate to the section heading above the
    card, so they start a step below body-emphasis and shrink from there. */
 .md-heading {
   font-size: var(--fs-lg);
@@ -4385,7 +4385,7 @@ a.button:hover {
   margin-bottom: 2px;
 }
 
-/* Code sits on --card: on a tinted note that reads as an inset panel
+/* Code sits on --card: on a tinted card that reads as an inset panel
    without needing a colour of its own. */
 .md code {
   font-family: var(--font-mono);
@@ -4538,60 +4538,16 @@ a.button:hover {
   margin-bottom: 10px;
 }
 
-.comments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.comments-list > .comment {
-  padding: 6px 12px;
-  background: var(--accent-soft);
-  border-radius: var(--radius);
-}
-
-.comment-content {
-  margin-bottom: 2px;
-  white-space: pre-wrap;
-  font-size: var(--fs-md);
-}
-
-/* Where a note sits in the PDF, and the way back to it. */
-.note-page {
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xs);
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.note-page:hover { background: var(--card); }
-
-.comment-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  font-size: var(--fs-xs);
-}
-
-.comment-footer .note-page { justify-self: start; }
-.comment-footer .comment-date { grid-column: 2; justify-self: center; }
-.comment-footer .comment-actions { grid-column: 3; justify-self: end; }
-
-.delete-comment-button {
-  padding: 2px 8px;
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
-}
-
-.delete-comment-button:hover {
-  color: var(--accent);
-  background: none;
-  border: none;
-}
+.paper-dig .talk-card.is-inline { border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.paper-dig .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+.paper-dig .talk-card.is-inline .talk-card-error { margin-left: 0; }
+/* Written, the dig is carded like the summary: private, so tinted blue. */
+.paper-dig .talk-posts { padding: 0; }
+.paper-dig .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
+.paper-dig .talk-post-body { font-size: var(--fs-md); line-height: 1.45; }
+.paper-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
+.paper-dig .talk-post-body > :last-child { margin-bottom: 0; }
+.paper-dig .talk-dig-new { padding: 0; }
 
 .no-comments, .panel-note {
   color: var(--ink-faint);
@@ -5476,7 +5432,7 @@ ${talkStyles}
 .paper-brief-dig-folded { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; width: 100%; min-height: 36px; margin: 0; padding: var(--space-1) var(--space-4); border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); text-align: left; }
 .paper-brief-dig-folded:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink-soft); }
 /* The digs made inside the paper, in reading order. Each sheet opens with
-   its place: a note's words, or the ink or clip and its page. The place is
+   its place: an anchor, or the ink or clip, and its page. The place is
    the way into the paper there, with the dig open beside it. */
 .paper-brief-inside { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
 .paper-brief-place { padding: var(--space-2) var(--space-3); border-radius: 10px; background: var(--paper-sunken); }

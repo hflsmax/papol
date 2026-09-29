@@ -16,13 +16,13 @@ test('the manifest describes papers, and says nothing about where they go', () =
     shelf: 'Thesis review',
     papers: [{
       file: './sub\\diffusion.pdf', doi: 'https://doi.org/10.15607/RSS.2023.XIX.026',
-      arxiv: 'arXiv:2303.04137v2', title: '  Diffusion Policy ', note: 'Why it matters.', tags: ['x'],
+      arxiv: 'arXiv:2303.04137v2', title: '  Diffusion Policy ', dig: 'Why it matters.', tags: ['x'],
     }],
   }));
   assert.equal(error, undefined);
   assert.deepEqual(papers, [{
     file: 'sub/diffusion.pdf', doi: '10.15607/RSS.2023.XIX.026', arxiv_id: '2303.04137v2',
-    title: 'Diffusion Policy', note: 'Why it matters.',
+    title: 'Diffusion Policy', dig: 'Why it matters.',
   }]);
 });
 
@@ -38,10 +38,10 @@ test('a manifest that cannot be read says why', () => {
 test('an identifier that is not one is dropped, and an empty entry with it', () => {
   const { papers } = parseManifest(JSON.stringify({ papers: [
     { file: 'a.pdf', doi: 'not a doi', arxiv: 'hello' },
-    { note: 'nothing to find this by' },
+    { dig: 'nothing to find this by' },
     'a string',
   ] }));
-  assert.deepEqual(papers, [{ file: 'a.pdf', doi: null, arxiv_id: null, title: null, note: null }]);
+  assert.deepEqual(papers, [{ file: 'a.pdf', doi: null, arxiv_id: null, title: null, dig: null }]);
 });
 
 test('the review lists the manifest in its order, then the other PDFs', () => {
@@ -51,14 +51,14 @@ test('the review lists the manifest in its order, then the other PDFs', () => {
     { path: 'notes.txt', file: { name: 'notes.txt', type: 'text/plain', size: 10 } },
   ];
   const manifest = parseManifest(JSON.stringify({ papers: [
-    { file: 'b.pdf', note: 'b' },
-    { file: 'sub/a.pdf', note: 'a, matched ignoring case' },
+    { file: 'b.pdf', dig: 'b' },
+    { file: 'sub/a.pdf', dig: 'a, matched ignoring case' },
     { file: 'gone.pdf', title: 'Missing' },
     { doi: '10.1000/paywalled', title: 'Paywalled' },
-    { file: 'b.pdf', note: 'a second entry for b is not a second paper' },
+    { file: 'b.pdf', dig: 'a second entry for b is not a second paper' },
   ] }));
   const rows = folderRows(files, manifest);
-  assert.deepEqual(rows.map((row) => [row.path, row.problem, row.entry?.note ?? null]), [
+  assert.deepEqual(rows.map((row) => [row.path, row.problem, row.entry?.dig ?? null]), [
     ['b.pdf', null, 'b'],
     ['Sub/A.PDF', null, 'a, matched ignoring case'],
     ['gone.pdf', 'missing', null],
@@ -175,8 +175,8 @@ test('the instructions point the agent at the format, and the format says what t
   const example = JSON.parse(format.slice(format.indexOf('{\n  "papol"'), format.indexOf('\n}\n') + 2));
   const { papers, error } = parseManifest(JSON.stringify(example));
   assert.equal(error, undefined);
-  assert.deepEqual(Object.keys(example.papers[0]).sort(), ['arxiv', 'doi', 'file', 'note', 'title']);
-  assert.ok(papers[0].file && papers[0].doi && papers[0].arxiv_id && papers[0].title && papers[0].note);
+  assert.deepEqual(Object.keys(example.papers[0]).sort(), ['arxiv', 'dig', 'doi', 'file', 'title']);
+  assert.ok(papers[0].file && papers[0].doi && papers[0].arxiv_id && papers[0].title && papers[0].dig);
 });
 
 test('several PDFs dropped together are a batch; one is the one-paper upload\'s', () => {

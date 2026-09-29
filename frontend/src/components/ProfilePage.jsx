@@ -320,7 +320,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
     e.preventDefault();
     setCloseError(null);
     const confirmed = await confirmAction(
-      'This deletes your account, your notes and your nook, and cannot ' +
+      'This deletes your account, your annotations, your digs and your nook, and cannot ' +
         'be undone. Papers you uploaded stay for the users who have ' +
         'them. Continue?',
       { confirmLabel: 'Delete account', destructive: true },
@@ -569,7 +569,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
 
       {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
 
-      {/* Notes you cannot leave with are not really yours. */}
+      {/* Writing you cannot leave with is not really yours. */}
       <div className="panel">
         <h2 className="panel-title">My data</h2>
 
@@ -592,8 +592,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
 
         <p className="panel-note">
         A ZIP file containing all your Papol data: your profile, 
-        papers and PDFs in your nook, ratings, summaries, notes 
-        in both data and readable formats.
+        papers and PDFs in your nook, ratings, summaries, annotations
+        and digs in both data and readable formats.
         </p>
 
         <div className="form-actions">
@@ -609,8 +609,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
         {closeError && <div className="error" role="alert">{closeError}</div>}
 
         <p className="panel-note" id="close-account-note">
-          This permanently deletes your profile, notes, 
-          and discussions. It cannot be undone.
+          This permanently deletes your profile, annotations
+          and digs. It cannot be undone.
           Download your data first if you want to keep it.
         </p>
 

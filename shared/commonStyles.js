@@ -450,7 +450,7 @@ button:disabled {
 }
 
 /* A meta line: when or by whom, quiet under the thing it describes. */
-.meta, .comment-date, .notification-date {
+.meta, .notification-date {
   color: var(--ink-faint);
   font-size: var(--fs-xs);
 }
@@ -492,7 +492,7 @@ button:disabled {
 .bare,
 .switch-toggle, .paper-browser-toggle, .tag-input, .rating-clear,
 .back-button, .icon-button,
-.notification-toggle, .delete-comment-button, .board-booklet-spine,
+.notification-toggle, .board-booklet-spine,
 .board-group-more, .board-group-arrange button, .board-notice button,
 .shelf-name-input, .notice-banner-link, .admin-sort,
 .tag-dropdown button, .shelf-palette button,

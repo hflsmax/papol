@@ -30,7 +30,7 @@ than design tokens.
 | `--fill` / `--fill-strong` | `#ccd4dd` / `#b8c2cf` | Neutral control fills (switch tracks) |
 | `--accent` | `#2b4a6f` | Brand navy: links, primary buttons, selection |
 | `--accent-strong` | `#1e3752` | Primary button hover |
-| `--accent-soft` | `#eaeff5` | Tinted cards (notes, summaries, quotes) |
+| `--accent-soft` | `#eaeff5` | Tinted cards (digs, summaries, quotes) |
 | `--focus` / `--focus-soft` | accent / translucent accent | Keyboard focus and inset field focus |
 | `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol macOS sidebar ground; light red distinguishes development builds |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
@@ -82,7 +82,7 @@ Form controls (`input`, `textarea`, `select`) **inherit** their context's
 family rather than setting one, so a field is serif inside a panel, mono
 inside an admin data table. Never leave a control unstyled: a bare
 `<textarea>` falls back to the browser's monospace default. Prose the user
-writes (notes, summaries, messages) is serif.
+writes (digs, summaries, messages) is serif.
 
 Scale (use the nearest step, never a bespoke rem value):
 
@@ -91,7 +91,7 @@ Scale (use the nearest step, never a bespoke rem value):
 | `--fs-2xs` | 0.7rem | Badge/pill text only — never body or control labels |
 | `--fs-xs` | 0.78rem | Fine print, row actions, small buttons |
 | `--fs-sm` | 0.85rem | Hints, dates, section kickers |
-| `--fs-md` | 0.92rem | Compact body (cards, notes) |
+| `--fs-md` | 0.92rem | Compact body (cards, digs) |
 | `--fs-base` | 0.95rem | Body, nav, inputs |
 | `--fs-lg` | 1.05rem | Emphasized body, small headings |
 | `--fs-xl` | 1.2rem | Panel headings |
@@ -211,10 +211,11 @@ sidebar, toolbar and document windows.
 Decided by the owner on 2026-09-28. Most of what a reader leaves in Papol
 is a dig: one person's writing about one thing, under the one spade pin.
 
-- **One word, one mark.** A thought on a paper and the words of a note at
-  a place on a page become digs; the spade is the only glyph for them,
-  everywhere. An anchor, ink and a clip stand on their own and can be dug
-  when someone wants to; nothing makes a dig for them. No speech bubbles: a dig is one person's
+- **One word, one mark.** A thought on a paper and what is written at a
+  place on a page are digs; there is no note. The spade is the only glyph
+  for them, everywhere, and the one way an anchor, ink or a clip offers to
+  be dug. Each stands on its own and can be dug when someone wants to;
+  nothing makes a dig for them. No speech bubbles: a dig is one person's
   inquiry, not a chat.
 - **Dig with words.** A dig carries its own text: pressing the spade on a
   thing you have not dug opens the box to write your dig, and sending it

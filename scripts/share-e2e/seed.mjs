@@ -51,12 +51,12 @@ const paperName = paperSha256.slice(0, 32);
 const annotate = async (body) => {
   const [code, out] = await call('POST', `/api/papers/${paperName}/annotations`, { token: sharer.token, body });
   if (code !== 200) throw new Error(`could not annotate: ${JSON.stringify(out)}`);
+  return out;
 };
-// A note and a stroke, so the suite can tell a rich link from a lean one by
-// what reaches the page rather than by what the API says.
-const note = `Alice's note ${suffix} — this should reach whoever follows the link`;
-await annotate({
-  kind: 'note', page: 1, content: note,
+// An anchor and a stroke, so the suite can tell a rich link from a lean one
+// by what reaches the page rather than by what the API says.
+const { uuid: anchor } = await annotate({
+  kind: 'anchor', page: 1,
   body: { anchor: { type: 'point', x: 0.3, y: 0.4 } },
 });
 await annotate({
@@ -73,7 +73,7 @@ const [, rich] = await call('POST', `/api/papers/${paperName}/sharable`, { token
 const [, lean] = await call('POST', `/api/papers/${paperName}/sharable`, { token: sharer.token, body: { include_annotations: false } });
 
 writeFileSync(FIXTURE, JSON.stringify({
-  base: BASE, title, note,
+  base: BASE, title, anchor,
   sharer, user,
   paper_sha256: paperSha256, paper_name: paperName,
   rich: rich.uuid, lean: lean.uuid,

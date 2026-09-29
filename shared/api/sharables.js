@@ -8,7 +8,7 @@ import { paperName } from '../paperName.js';
 // A sharable lives only on the service: the link has to open for someone
 // who is not this user, on a machine that is not this one, so there is
 // nothing for the local replica to answer. Desktop callers publish their
-// pending work first, since the link names notes and ink that must have
+// pending work first, since the link names anchors and ink that must have
 // arrived before anyone follows it.
 export function createSharable(paperSha256, { includeAnnotations = false } = {}) {
   return onServer(() => jsonRequest(

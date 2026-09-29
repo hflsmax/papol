@@ -1,7 +1,7 @@
 import { appPath, backendPath } from '../appUrls.js';
 import {
   discardNativeBlob, FIELD_VISIBILITY, importNativeSharedPaper, nativeBlobImport, nativeDataActive,
-  annotationView, nativeRepository, paperView, shelfView, newUuid,
+  nativeRepository, paperView, shelfView, newUuid,
 } from '../nativeData.js';
 import { inOfflineMode, runtimeFetch } from '../connectivity.js';
 import { jsonRequest, request } from '../httpClient.js';
@@ -11,6 +11,7 @@ import { awaitJob } from './jobs.js';
 import { planOfflineNookAddition } from '../nookTransition.js';
 import { onServer } from './serverOperation.js';
 import { mySharable } from './sharables.js';
+import { startDig } from './projects.js';
 import appLimits from '../appLimits.js';
 import { paperName } from '../paperName.js';
 import {
@@ -239,18 +240,18 @@ export async function createPaper(paperData) {
       table: 'copy_tags', uuid: newUuid(), operation: 'upsert',
       values: { copy_uuid: copyUuid, tag_uuid: tagUuid },
     });
-    if (paperData.initial_comment?.trim()) changes.push({
-      // Notes, ink and clips share one table; a first thought is a note
-      // about the paper, placed on no page.
-      table: 'annotations', uuid: newUuid(), operation: 'upsert',
-      values: {
-        kind: 'note', paper_sha256: sha256, page: null, group_uuid: null,
-        content: paperData.initial_comment.trim(), name: null, body: '{}',
-      },
-    });
     await nativeRepository.transact(changes);
     forgetPendingPaperBlob(sha256);
     setPaperCopyUuid(sha256, copyUuid);
+    // A first thought is the reader's personal dig on the paper. Digs are
+    // not in the replica, so it goes to the server once the paper is there;
+    // offline, it is not kept.
+    const thought = paperData.initial_comment?.trim();
+    if (thought) {
+      try {
+        await onServer(() => startDig(null, { paper: sha256 }, thought), { pull: false });
+      } catch { /* best effort */ }
+    }
     return paperView(await nativeRepository.paper(paperName(sha256)));
   }
   return jsonRequest('/papers', 'POST', paperData);
@@ -271,20 +272,15 @@ async function liveLinkOn(uuid) {
 
 export async function getPaper(name) {
   const uuid = paperName(name);
-  let localComments = null;
   if (nativeDataActive()) {
     // A nook paper is read from the replica: the server may not have it yet,
     // or may be out of reach.
     try {
-      localComments = nativeRepository.annotations(uuid, 'note');
       // A link out is a state of the paper, but the replica has no sharables
       // to answer with, so it is asked for beside the paper rather than after
-      // it: one round trip alongside the local reads costs the page nothing.
-      const [row, comments, link] = await Promise.all([
-        nativeRepository.paper(uuid), localComments, liveLinkOn(uuid),
-      ]);
+      // it: one round trip alongside the local read costs the page nothing.
+      const [row, link] = await Promise.all([nativeRepository.paper(uuid), liveLinkOn(uuid)]);
       const paper = paperView(row);
-      paper.notes = comments.map(annotationView);
       paper.sharable_uuid = link;
       // Keyed by the paper's own digest, which is what reads it back.
       setPaperCopyUuid(paper.sha256, paper.copy_uuid);
@@ -294,18 +290,11 @@ export async function getPaper(name) {
       if (String(error?.message ?? error) !== 'Paper not found') throw error;
     }
   }
-  const localState = nativeDataActive()
-    ? Promise.all([
-      localComments || nativeRepository.annotations(uuid, 'note'),
-      nativeRepository.nook(),
-    ])
-    : null;
+  const localNook = nativeDataActive() ? nativeRepository.nook() : null;
   const remotePaper = request(`/papers/${uuid}`);
-  const [paperResult, state] = await Promise.all([remotePaper, localState]);
+  const [paperResult, nook] = await Promise.all([remotePaper, localNook]);
   const paper = rememberPaperIdentity(paperResult);
-  if (state) {
-    const [comments, nook] = state;
-    paper.notes = comments.map(annotationView);
+  if (nook) {
     const copy = nook.copies.find((candidate) => candidate.paper_sha256 === paper.sha256);
     if (copy) {
       Object.assign(paper, {
@@ -485,38 +474,4 @@ export function updateShelf(uuid, data) {
 // publish or hide them, so it happens on the server.
 export function deleteShelf(uuid) {
   return onServer(() => request(`/shelves/${uuid}`, { method: 'DELETE' }));
-}
-
-// ---------- Notes ----------
-//
-// A note written on the paper page is an annotation with no place on a page:
-// the same row a located note uses, without a page.
-
-export function addComment(paperSha256, content) {
-  if (nativeDataActive()) {
-    return nativeRepository.transact([{
-      table: 'annotations', uuid: newUuid(), operation: 'upsert',
-      values: { kind: 'note', paper_sha256: paperSha256, content, body: '{}' },
-    }]).then((receipt) => annotationView(receipt.rows[0]));
-  }
-  return jsonRequest(`/papers/${paperName(paperSha256)}/annotations`, 'POST', {
-    kind: 'note', content,
-  });
-}
-
-export function updateComment(commentUuid, content) {
-  if (nativeDataActive() && typeof commentUuid === 'string') {
-    return nativeRepository.transact([{
-      table: 'annotations', uuid: commentUuid, operation: 'upsert', values: { content },
-    }]).then((receipt) => annotationView(receipt.rows[0]));
-  }
-  return jsonRequest(`/annotations/${commentUuid}`, 'PUT', { content });
-}
-
-export function deleteComment(commentUuid) {
-  if (nativeDataActive() && typeof commentUuid === 'string') {
-    return nativeRepository.transact([{ table: 'annotations', uuid: commentUuid, operation: 'delete', values: {} }])
-      .then(() => null);
-  }
-  return request(`/comments/${commentUuid}`, { method: 'DELETE' });
 }

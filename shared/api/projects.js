@@ -1,5 +1,6 @@
 import { jsonRequest, request } from '../httpClient.js';
 import { onServer } from './serverOperation.js';
+import { paperName } from '../paperName.js';
 
 // ---------- Projects ----------
 
@@ -86,14 +87,23 @@ export function listProjectAnnotations(uuid, paperSha256) {
 }
 
 // Every dig on a subject (one per member who started one), the reader's
-// own among them, and what it is about.
+// own among them, and what it is about. With no project, the reader's own
+// personal dig on it, if any: nobody else sees it.
 export function findDigs(projectUuid, subject) {
-  return request(`/projects/${projectUuid}/digs?subject=${encodeURIComponent(subjectKey(subject))}`);
+  const query = `digs?subject=${encodeURIComponent(subjectKey(subject))}`;
+  return request(projectUuid ? `/projects/${projectUuid}/${query}` : `/${query}`);
 }
 
-// Digging a subject: the member's own dig on it, with its text.
+// Digging a subject: the member's own dig on it, with its text. With no
+// project, a personal dig.
 export function startDig(projectUuid, subject, text) {
-  return jsonRequest(`/projects/${projectUuid}/digs`, 'POST', { subject: subjectKey(subject), text });
+  return jsonRequest(projectUuid ? `/projects/${projectUuid}/digs` : '/digs', 'POST', { subject: subjectKey(subject), text });
+}
+
+// The reader's personal digs on a paper: pins by annotation, and the one on
+// the paper itself.
+export function personalDigsOn(paperSha256) {
+  return request(`/papers/${paperName(paperSha256)}/digs`);
 }
 
 // Its owner rewords a dig.

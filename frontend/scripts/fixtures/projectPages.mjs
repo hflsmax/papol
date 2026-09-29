@@ -91,7 +91,7 @@ const subject = {
   paperError: { key: `paper:${P_ERROR}`, kind: 'paper', paper_sha256: P_ERROR, label: 'Error dynamics in adaptive optics loops' },
   paperSurvey: { key: `paper:${P_SURVEY}`, kind: 'paper', paper_sha256: P_SURVEY, label: 'A survey of predictive control for telescopes' },
   // Digs made inside the error-dynamics paper: on an anchor, on ink, on a clip.
-  anchorDelay: { key: 'annotation:a9000000-0000-4000-8000-000000000001', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000001', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'note', page: 3, down: 0.42, by: 'Ben Hall', label: 'Delay assumed fixed at one frame' },
+  anchorDelay: { key: 'annotation:a9000000-0000-4000-8000-000000000001', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000001', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'anchor', page: 3, down: 0.42, by: 'Ben Hall', label: 'Delay assumed fixed at one frame' },
   inkBudget: { key: 'annotation:a9000000-0000-4000-8000-000000000002', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000002', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'ink', page: 5, down: 0.3, by: 'Ana Reyes', label: 'Ink on page 5' },
   clipFigure: { key: 'annotation:a9000000-0000-4000-8000-000000000003', kind: 'annotation', annotation_uuid: 'a9000000-0000-4000-8000-000000000003', paper_sha256: P_ERROR, paper_title: 'Error dynamics in adaptive optics loops', annotation_kind: 'clip', page: 8, down: 0.2, by: 'Dana Okafor', label: 'A clip on page 8' },
   card: { key: `card:${CARD_SPARSE}`, kind: 'card', board_item_uuid: CARD_SPARSE, board_uuid: BOARD_PLAN, board_name: 'Bench plan', card_kind: 'comment', label: 'Sparse attention at long context' },
@@ -127,6 +127,14 @@ const digs = [
   { uuid: DIG_PAPER_MIA, owner: mia, is_mine: false, phase: 'buried', text: 'Their turbulence model is the wrong one for our site.', subject: subject.paperError, post_count: 0, unread: 0, is_new: false, voices: [mia], updated_at: daysAgo(2), created_at: daysAgo(2), last_post: { user: mia, excerpt: 'Their turbulence model is the wrong one for our site.', created_at: daysAgo(2) } },
   { uuid: DIG_SURVEY, owner: me, is_mine: true, phase: 'gold', text: 'The best map of the field so far; the taxonomy in section 2 is worth keeping.', subject: subject.paperSurvey, post_count: 4, unread: 0, is_new: false, voices: [me, ana, ben], updated_at: daysAgo(5), created_at: daysAgo(6), last_post: { user: me, excerpt: 'Dug into Sparse attention at long context', created_at: daysAgo(5) } },
 ];
+
+// The member's personal digs, outside any project: theirs alone, on the
+// papers in their nook. One on the survey; none on the others.
+const PERSONAL_DIG = 'e1b2c3d4-0000-4000-8000-000000000050';
+const personal = [
+  { uuid: PERSONAL_DIG, subject: subject.paperSurvey, text: 'Read section 2 before the group meets: its taxonomy is the one we should use.\n\nThe table on page 14 compares every controller on the same bench; worth copying for the thesis.', created_at: daysAgo(4) },
+];
+const personalOf = (d) => ({ uuid: d.uuid, created_at: d.created_at, updated_at: d.created_at, edited_at: null, project: null, subject: d.subject, owner: me, is_mine: true, text: d.text, phase: 'digging', can_moderate: false, posts: [] });
 
 const project = {
   uuid: PROJECT, name: 'Adaptive optics control', created_at: daysAgo(20),
@@ -232,8 +240,16 @@ function answer(method, path, search) {
     const mine = on.find((x) => x.is_mine)?.uuid ?? null;
     return { mine, digs: on, project: { uuid: PROJECT, name: project.name }, subject: on[0]?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
   }
+  if (path === '/digs' && method === 'GET') {
+    const key = search.get('subject');
+    const on = personal.filter((x) => x.subject.key === key);
+    return { mine: on[0]?.uuid ?? null, digs: on.map((d) => ({ uuid: d.uuid, owner: me, is_mine: true, post_count: 0 })), project: null, subject: on[0]?.subject ?? { key, kind: key.split(':')[0], label: 'A thing' } };
+  }
   const dig = path.match(/^\/digs\/([0-9a-f-]+)$/);
-  if (dig) return digOf(dig[1]);
+  if (dig) {
+    const own = personal.find((d) => d.uuid === dig[1]);
+    return own ? personalOf(own) : digOf(dig[1]);
+  }
   const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
   if (nookBoardAsked) {
     const onIt = nookBoardAsked === NOOK_BOARDS[1] ? papers.slice(0, 2) : [];
@@ -259,7 +275,7 @@ function answer(method, path, search) {
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
   if (one) {
     const found = papers.find((p) => p.sha256.startsWith(one[1])) ?? papers[1];
-    return { ...listed(found, found.in_my_nook), in_nook: found.in_my_nook, notes: [], comments: [], also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
+    return { ...listed(found, found.in_my_nook), in_nook: found.in_my_nook, also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
   }
   // A paper's time, from its Effort in the nook: two sittings a day apart.
   const time = path.match(/^\/activity\/paper\/([0-9a-f]+)$/);
