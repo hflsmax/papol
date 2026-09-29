@@ -187,6 +187,9 @@ function answer(method, path, search) {
     const label = about?.kind === 'ink' ? `Ink on page ${about.page}` : `An anchor on page ${about?.page}`;
     return { mine: null, digs: [], project: dig.project, subject: { key, kind: 'annotation', annotation_uuid: uuid, paper_sha256: PAPER, page: about?.page, annotation_kind: about?.kind, by: about?.user.display_name, label } };
   }
+  // A post comes back in its dig, as the reader wrote it (the words stand in).
+  const posting = method === 'POST' && allDigs.find((d) => path === `/digs/${d.uuid}/posts`);
+  if (posting) return { ...posting, posts: [...posting.posts, { uuid: id(95), user: me, body: 'Posted from the box.', created_at: hoursAgo(0), edited_at: null, is_mine: true }] };
   const asked = allDigs.find((d) => path === `/digs/${d.uuid}`);
   if (asked) return asked;
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };

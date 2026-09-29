@@ -590,7 +590,7 @@ button:disabled {
 
 /* One writing field, wherever writing happens: a Desk form, the feedback
    sheet, the send-to-board box. */
-.form-group input, .form-group textarea,
+.form-group input, .form-group textarea, .form-group .md-field,
 .feedback-field input, .feedback-field textarea,
 .send-selection-field textarea {
   width: 100%;
@@ -603,7 +603,7 @@ button:disabled {
   font-family: inherit;
 }
 
-.form-group input:focus, .form-group textarea:focus,
+.form-group input:focus, .form-group textarea:focus, .form-group .md-field:focus,
 .feedback-field input:focus, .feedback-field textarea:focus,
 .send-selection-field textarea:focus {
   outline: none;
@@ -670,4 +670,37 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A box for writing Markdown (shared/ui/MarkdownField.jsx): the words as
+   typed, with what each mark does shown on them and the marks kept faint.
+   It stands where a textarea would and takes the same rules. */
+.md-field {
+  display: block;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  cursor: text;
+  text-align: left;
+}
+.md-field[data-empty]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.md-field .mdf-mark { color: var(--ink-faint); font-weight: 400; font-style: normal; }
+.md-field .mdf-code {
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  font-family: var(--font-mono);
+  font-size: .88em;
+}
+.md-field .mdf-b, .md-field .mdf-h { font-weight: 650; }
+.md-field .mdf-i { font-style: italic; }
+.md-field .mdf-s { text-decoration: line-through; }
+.md-field .mdf-link { color: var(--accent); }
+.md-field .mdf-q { color: var(--ink-soft); }
 `;

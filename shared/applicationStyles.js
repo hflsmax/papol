@@ -1213,8 +1213,8 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
 .upload-private-field > label { color: var(--accent); }
 .upload-shelf-select { position: relative; padding: 6px; border-radius: var(--radius); background: var(--accent-soft); }
 .upload-shelf-select svg { right: 16px; }
-.upload-private-summary textarea { display: block; background: var(--card); border-color: var(--accent-line); }
-.upload-private-summary textarea:focus { border-color: var(--accent); }
+.upload-private-summary :is(textarea, .md-field) { display: block; background: var(--card); border-color: var(--accent-line); }
+.upload-private-summary :is(textarea, .md-field):focus { border-color: var(--accent); }
 .upload-public-field > label { color: var(--green-ink); }
 .upload-public-card { padding: 8px 12px; background: var(--green-soft); border-radius: var(--radius); }
 .upload-public-thought input { background: var(--card); border-color: var(--green-line); }
@@ -5399,7 +5399,7 @@ ${talkStyles}
 .paper-brief-dig .talk-post-head .dig-phase-menu { right: auto; left: 0; }
 /* The box that posts starts where the posts begin. */
 .paper-brief-dig .talk-compose { margin-top: var(--space-1); padding: 0 0 0 24px; background: none; }
-.paper-brief-dig .talk-compose textarea { background: var(--card); }
+.paper-brief-dig .talk-compose :is(textarea, .md-field) { background: var(--card); }
 /* Yours, not yet written: no sheet, just your face and a line to write in. */
 .paper-brief-dig.is-yours { padding: 0 var(--space-3); background: none; }
 .paper-brief-dig.is-yours .talk-dig-new { padding: 0; }

@@ -19,6 +19,7 @@ import ReaderPop from './ReaderPop';
 import ProjectPicker from './ProjectPicker';
 import VisibilityChip from './VisibilityChip';
 import Markdown, { MarkdownHint } from './Markdown';
+import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
 import { authorList } from '../paperFormat';
@@ -1088,8 +1089,8 @@ export default function PaperJacket({
             </h4>
             {editingSummary ? (
               <div className="inline-edit">
-                <AutoTextarea
-                  className="inline-edit-box"
+                <MarkdownField
+                  className="inline-edit-box auto-grow"
                   value={summaryDraft}
                   rows={4}
                   autoFocus

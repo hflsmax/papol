@@ -52,7 +52,7 @@ const SHOTS = {
   },
   // No project on: an anchor dropped opens the reader's dig in the margin,
   // level with it, to be written.
-  'yours-place': { path: alone, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: drop(0.62, 0.2), settled: '.dig-margin-card .talk-dig-new textarea', size: wide },
+  'yours-place': { path: alone, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: drop(0.62, 0.2), settled: '.dig-margin-card .talk-dig-new .md-field', size: wide },
   'project-on': { path: on, ready: `${painted} && document.querySelector('.project-pill.on') && document.querySelector('.pin.theirs')`, size: wide },
   // No project on: each thing picked out, with the way to dig it.
   'yours-anchor': { path: alone, ready: `${painted} && document.querySelector('.pin')`, then: pick('.pin'), settled: '.thing-bar', size: wide },
@@ -73,7 +73,7 @@ const SHOTS = {
   'project-place': {
     path: on, ready: `${painted} && document.querySelector('.dig-margin-face')`,
     then: drop(0.62, 0.2),
-    settled: '.dig-margin-card .talk-dig-new textarea', size: wide,
+    settled: '.dig-margin-card .talk-dig-new .md-field', size: wide,
   },
   // A narrower window: the page keeps its width and the faces stay beside
   // it while there is room for one.

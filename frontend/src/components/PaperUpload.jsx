@@ -10,6 +10,7 @@ import TagPicker from './TagPicker';
 import { nativeDataActive } from '../../../shared/nativeData.js';
 import { isPdfFile } from '../../../shared/fileDrop.js';
 import appLimits from '../../../shared/appLimits.js';
+import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { droppedFolder, severalPdfs } from '../agentFolder.js';
@@ -428,8 +429,9 @@ export default function PaperUpload({
           <div className="form-group upload-private-field upload-private-summary">
             <label htmlFor="upload-paper-summary">Private summary</label>
             <div className="upload-private-card">
-              <textarea
+              <MarkdownField
                 id="upload-paper-summary"
+                aria-label="Private summary"
                 name="summary"
                 value={formData.summary}
                 onChange={handleInputChange}
