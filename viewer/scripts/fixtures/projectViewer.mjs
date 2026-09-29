@@ -213,6 +213,7 @@ const signIn = () => ({
     localStorage.setItem('papol_token', 'fixture');
     localStorage.setItem('papol.macosDownloadBannerDismissed', '1');
     localStorage.setItem('papol_annotation_storage_notice', 'hidden');
+    localStorage.removeItem('papol.viewer.marginFolded');
   </script>`),
 });
 

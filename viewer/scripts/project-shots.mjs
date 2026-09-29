@@ -44,6 +44,14 @@ const pick = (selector) => `
 const SHOTS = {
   // No project on: the reader's own digs in the margin beside the page.
   yours: { path: alone, ready: `${painted} && document.querySelector('.dig-margin-head')`, size: wide },
+  // No project on, the margin folded to its faces, and a face pressed:
+  // its line opens over the page's edge.
+  'yours-folded': { path: alone, ready: `${painted} && document.querySelector('.dig-margin-fold')`, then: "document.querySelector('.dig-margin-fold').click(); return true;", settled: '.dig-margin.is-folded .dig-margin-face', size: wide },
+  'yours-folded-open': {
+    path: alone, ready: `${painted} && document.querySelector('.dig-margin-fold')`,
+    then: "document.querySelector('.dig-margin-fold').click(); return new Promise((done) => setTimeout(() => { document.querySelectorAll('.dig-margin-face')[2].click(); done(true); }, 300));",
+    settled: '.dig-margin.is-folded .dig-margin-line.is-open .talk-post', size: wide,
+  },
   // No project on: an anchor dropped opens the reader's dig in the margin,
   // level with it, to be written.
   'yours-place': { path: alone, ready: `${painted} && document.querySelector('.dig-margin-head')`, then: drop(0.62, 0.2), settled: '.dig-margin-line.is-open .talk-dig-new textarea', size: wide },
@@ -54,7 +62,7 @@ const SHOTS = {
   'yours-clip': { path: alone, ready: `${painted} && document.querySelector('.paper-clip canvas')`, then: pick('.paper-clip'), settled: '.clip-bar', size: wide },
   'project-anchor': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: pick('.pin.theirs'), settled: '.dig-margin-line.is-open .talk-post', size: wide },
   'project-dig': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: pick('.pin.theirs'), settled: '.dig-margin-line.is-open .talk-card-body > *', size: wide },
-  'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: pick(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-actions .thing-who', size: wide },
+  'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: pick(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-actions .thing-face', size: wide },
   // A project's link to Ben's dig on his paint: the paint picked out in the
   // middle of the view with that dig open beside it.
   'project-land': { path: `${on}&annotation=d1b2c3d4-0000-4000-8000-000000000008&dig=e1b2c3d4-0000-4000-8000-000000000051`, ready: `${painted} && document.querySelector('.ink-actions')`, settled: '.dig-margin-line.is-open .talk-post', size: wide },
@@ -67,8 +75,12 @@ const SHOTS = {
     then: drop(0.62, 0.2),
     settled: '.dig-margin-line.is-open .talk-dig-new textarea', size: wide,
   },
-  // The margin on a window just wide enough for it.
-  'project-margin-narrow': { path: on, ready: `${painted} && document.querySelector('.dig-margin-head')`, size: { width: 1180, height: 820 } },
+  // A window with no room beside the page: the page keeps its width, the
+  // margin folds away and the pins stay.
+  'project-margin-narrow': { path: on, ready: `${painted} && document.querySelector('.pin') && !document.querySelector('.dig-margin-head')`, size: { width: 1180, height: 820 } },
+  // A window with too little room beside the page for the lines: the
+  // margin is its column of faces.
+  'project-margin-least': { path: on, ready: `${painted} && document.querySelector('.dig-margin.is-folded .dig-margin-face')`, size: { width: 1390, height: 820 } },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 

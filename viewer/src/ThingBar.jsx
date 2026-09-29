@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
-import { TalkPin } from '../../shared/ui/Talk.jsx';
+import { TalkCard, TalkPin } from '../../shared/ui/Talk.jsx';
+import { subjectKey } from '../../shared/api/projects.js';
 import { memberInk } from './project.js';
 
 // Any annotation the reader can see can hold a dig — the project's with a
@@ -28,29 +30,85 @@ export function DigPin({ digs, annotation, label, startOpen = false }) {
   );
 }
 
+// Another member's thing is theirs, so it wears their face and nothing
+// else: pressing the face opens the digs on it, where the spade would for
+// the reader's own. A gold dot on the face says someone wrote since the
+// reader looked; +N, that N more people have digs of their own on it.
+function FaceDig({ digs, annotation, label, startOpen = false }) {
+  const who = annotation.user;
+  const uuid = annotation.uuid;
+  const summary = digs?.digs[uuid];
+  const openOn = digs?.landing?.annotation === uuid ? digs.landing.dig : null;
+  const [open, setOpen] = useState(Boolean(openOn) || startOpen);
+  const [asked, setAsked] = useState(openOn);
+  const [seen, setSeen] = useState(false);
+  const face = useRef(null);
+  const key = subjectKey({ annotation: uuid });
+  const inMargin = digs?.inMargin?.(uuid);
+  useEffect(() => { setSeen(false); }, [summary?.post_count, summary?.uuid]);
+  const changed = useCallback((discussion, total) => {
+    const next = discussion
+      ? { uuid: discussion.uuid, dig_count: total?.digs ?? 1, post_count: total?.posts ?? discussion.posts.length, is_new: false }
+      : { uuid: null, post_count: 0, is_new: false };
+    setSeen(true);
+    digs?.onDigChanged?.(key, next, discussion);
+  }, [key, digs]);
+  const fresh = !seen && Boolean(summary?.is_new);
+  const more = (summary?.dig_count ?? 0) - 1;
+  return (
+    <>
+      <button
+        ref={face}
+        type="button"
+        className={`thing-face${open ? ' is-open' : ''}`}
+        style={{ '--who': memberInk(who) }}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${who.display_name}: the digs on ${label}${fresh ? ', new' : ''}`}
+        title={who.display_name}
+        onClick={() => { setSeen(true); if (inMargin) inMargin(); else setOpen(!open); }}
+      >
+        <Avatar user={who} className="mini-avatar" />
+        {more > 0 && <span className="thing-face-more">+{more}</span>}
+        {fresh && <span className="news-dot" role="img" aria-label="New" />}
+      </button>
+      {open && !inMargin && createPortal(
+        <TalkCard
+          anchor={face}
+          projectUuid={digs.uuid}
+          subject={key}
+          label={label}
+          dig={asked}
+          currentUser={digs.me}
+          onChanged={changed}
+          onClose={() => { setOpen(false); setAsked(null); face.current?.focus({ preventScroll: true }); }}
+        />,
+        document.body,
+      )}
+    </>
+  );
+}
+
 // The bar over an anchor, ink or clip picked out: one bar the same for all
-// three. Whose it is, when it is another member's; then the dig, always
-// first and always the spade; then what else can be done to it.
+// three. The reader's own: the dig first, always the spade, then what else
+// can be done to it. Another member's: only their face, which opens the
+// digs on it.
 export default function ThingBar({ digs, annotation, label, actions = [], actionsLabel, startOpen = false, className = '', style }) {
-  const dig = diggable(digs, annotation) && <DigPin digs={digs} annotation={annotation} label={label} startOpen={startOpen} />;
-  const who = annotation.theirs ? annotation.user : null;
-  if (!dig && !who && !actions.length) return null;
+  const can = diggable(digs, annotation);
+  const theirs = annotation.theirs && annotation.user;
+  const dig = can && !theirs && <DigPin digs={digs} annotation={annotation} label={label} startOpen={startOpen} />;
+  if (!dig && !(theirs && can) && !actions.length) return null;
   const stop = (event) => event.stopPropagation();
   return (
     <span
-      className={`thing-bar${className ? ` ${className}` : ''}`}
-      style={{ ...style, ...(who ? { '--who': memberInk(who) } : {}) }}
+      className={`thing-bar${theirs ? ' is-theirs' : ''}${className ? ` ${className}` : ''}`}
+      style={style}
       onPointerDown={stop}
       onPointerUp={stop}
       onClick={stop}
       onDoubleClick={stop}
     >
-      {who && (
-        <span className="thing-who">
-          <Avatar user={who} className="mini-avatar" />
-          <span>{who.display_name}</span>
-        </span>
-      )}
+      {theirs && can && <FaceDig digs={digs} annotation={annotation} label={label} startOpen={startOpen} />}
       {dig && <span className="thing-dig">{dig}</span>}
       {actions.length > 0 && <ItemActions label={actionsLabel} placement="above-end" actions={actions} />}
     </span>

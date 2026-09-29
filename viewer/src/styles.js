@@ -109,8 +109,11 @@ ${talkStyles}
 .thing-bar { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-md); color: var(--ink); font-family: var(--font-ui); white-space: nowrap; pointer-events: auto; cursor: default; }
 .thing-bar .item-actions { position: static; width: auto; height: auto; }
 .thing-bar .item-actions-surface { position: static; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.thing-who { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px 0 4px; font: 500 var(--fs-xs) var(--font-ui); }
-.thing-who .mini-avatar { width: 20px; height: 20px; font-size: 10px; box-shadow: 0 0 0 2px var(--who); }
+.thing-bar.is-theirs { padding: 2px; }
+.thing-face { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 32px; min-width: 32px; padding: 0 4px; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-2xs) var(--font-ui); cursor: pointer; }
+.thing-face .mini-avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px var(--who); }
+.thing-face:hover:not(:disabled), .thing-face:focus-visible, .thing-face.is-open { background: var(--accent-soft); outline: none; }
+.thing-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--card); }
 .thing-dig { display: inline-grid; min-width: 32px; height: 32px; padding: 0 2px; place-items: center; box-sizing: border-box; }
 .thing-dig .talk-pin { padding: 0 4px; }
 .thing-dig .talk-pin.is-empty { opacity: 1; }
@@ -1325,16 +1328,28 @@ ${talkStyles}
   background: var(--paper-sunken);
 }
 
-/* With a project on and room to spare, the sheets make way on the right
-   for the dig margin (DigMargin.jsx): 20px from the sheet, 300px wide, and
-   the pages' own 24px beyond it. The fitted zoom reads this padding. */
-.pages.with-margin { padding-right: 344px; }
+/* With room beside the sheet, the dig margin (DigMargin.jsx) stands 20px
+   from it in the room the page leaves; App.jsx sets the padding on the
+   right to hold it, so the sheet and its margin are centred together. */
 /* The margin's column runs to the window's foot, so the feedback chip
    steps to the other corner rather than sit over a dig. */
 body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dig-margin { position: absolute; top: 0; left: 0; width: 0; height: 0; }
 .dig-margin-line { position: absolute; box-sizing: border-box; z-index: 5; }
+/* Folded, a line is its writer's face, level with its place; an open one
+   stands over the page's edge, above the faces. */
+.dig-margin-line.is-open { z-index: 6; }
+.dig-margin-face { position: relative; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; cursor: pointer; }
+.dig-margin-face .mini-avatar { width: 24px; height: 24px; font-size: 11px; }
+.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-line.is-picked .dig-margin-face { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+.dig-margin-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--paper-sunken); }
+.dig-margin.is-folded .dig-margin-line.is-open { box-shadow: var(--shadow-md); }
+/* The fold, quiet at the head of the column. */
+.dig-margin-fold { position: absolute; z-index: 5; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); cursor: pointer; }
+.dig-margin.is-folded .dig-margin-fold { width: 32px; }
+.dig-margin-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dig-margin-fold:hover:not(:disabled), .dig-margin-fold:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); outline: none; }
 .dig-margin-head {
   display: grid; gap: 4px; box-sizing: border-box; width: 100%; margin: 0; padding: 8px 12px;
   border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--ink);

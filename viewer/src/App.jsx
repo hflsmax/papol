@@ -24,7 +24,7 @@ import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
 import { confirmAction } from '../../shared/confirmAction.js';
-import DigMargin, { MARGIN_WIDTH } from './DigMargin.jsx';
+import DigMargin, { MARGIN_FOLDED, MARGIN_GAP, MARGIN_MAX, MARGIN_MIN } from './DigMargin.jsx';
 import {
   resolveSource, getToken, handoffOpenedFileToNookViewer, nookViewerHref,
   signedIn as signedInHere,
@@ -112,7 +112,7 @@ const hasAnchor = (annotation) => annotation.anchor != null;
 // What a press may land on without putting down the thing picked out: its
 // bar, the dig card that bar opened, the margin line writing its dig, and
 // the question a removal asks.
-const KEEPS_PICKED = '.thing-bar, .talk-card, .dig-margin-line, .papol-confirm-overlay';
+const KEEPS_PICKED = '.thing-bar, .talk-card, .dig-margin-line, .dig-margin-fold, .papol-confirm-overlay';
 
 // Preserve each unchanged page's array as annotation state changes. PdfPage
 // uses shallow prop comparison, so rebuilding every bucket made a move on one
@@ -143,6 +143,10 @@ function usePageGroups(items, include = null) {
 // the scale the viewer chooses on its own, and .page-skeleton is the same
 // width so the shape shown while loading is the shape that arrives.
 const FIT_MAX_WIDTH = appLimits.viewer.fit_width_max;
+// The pages' padding on every side (`.pages` in styles.js).
+const PAGES_PADDING = 24;
+// Where the reader's choice to fold the dig margin is remembered.
+const MARGIN_FOLDED_KEY = 'papol.viewer.marginFolded';
 // Five colours, not a colour wheel. Ink goes over a printed page, so each
 // has to be legible across black type — but they also have to be legible
 // against *each other*, and Papol's own palette is a set of muted siblings
@@ -217,17 +221,18 @@ const PAGE_PREVIEW_QUALITY = 0.72;
 // in particular, avoids calling pdf.js getPage() for the whole document —
 // on the opening frame.
 // Whether the window has room for something beside the sheets.
-function useRoomy(query) {
-  const [roomy, setRoomy] = useState(() => window.matchMedia?.(query).matches ?? false);
-  useEffect(() => {
-    const media = window.matchMedia?.(query);
-    if (!media) return undefined;
-    const update = () => setRoomy(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, [query]);
-  return roomy;
+// How wide an element is, kept as it changes.
+function useWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    observer.observe(el);
+    setWidth(el.clientWidth);
+    return () => observer.disconnect();
+  }, [ref.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  return width;
 }
 
 // A dig's words as one plain line, as the Worker gives them.
@@ -518,7 +523,6 @@ export default function App() {
   const [landing, setLanding] = useState(null);
   // Whether the dig margin takes room beside the sheets, which the fitted
   // zoom has to leave for it.
-  const [marginShown, setMarginShown] = useState(false);
   // The margin's open line: { key, dig, writing } (DigMargin.jsx).
   const [marginOpen, setMarginOpen] = useState(null);
   const wantedPage = numberParam('page');
@@ -2142,11 +2146,9 @@ export default function App() {
 
     const fit = () => {
       if (gone || pageWidth == null || chosenZoom.current) return;
-      const style = getComputedStyle(el);
-      const room =
-        el.clientWidth -
-        parseFloat(style.paddingLeft) -
-        parseFloat(style.paddingRight);
+      // The pages' own padding on both sides: the margin, when it shows,
+      // takes only room the page does not need, never room from the page.
+      const room = el.clientWidth - 2 * parseFloat(getComputedStyle(el).paddingLeft);
       if (room <= 0) return; // laid out but not yet given a size
       const next = clampScale(Math.min(room, FIT_MAX_WIDTH) / pageWidth);
       setScale(next);
@@ -2160,7 +2162,7 @@ export default function App() {
       gone = true;
       window.removeEventListener('resize', fit);
     };
-  }, [doc, defaultPageSize, marginShown]);
+  }, [doc, defaultPageSize]);
 
   useEffect(() => {
     if (scale == null) return;
@@ -2199,11 +2201,27 @@ export default function App() {
   const inkByPage = usePageGroups(shownInk);
   const clipsByPage = usePageGroups(shownClips);
 
-  // The margin: with room beside the sheets, every dig on the paper (the
-  // project's, else the reader's own) beside the page it is about (DigMargin.jsx). One line per
-  // thing dug, the paper's own at the head of the first page, the rest in
-  // reading order by where their annotation sits.
-  const roomy = useRoomy(`(min-width: ${Math.round(MARGIN_WIDTH * 3.6)}px)`);
+  // The margin: every dig on the paper (the project's, else the reader's
+  // own) beside the page it is about (DigMargin.jsx). One line per thing
+  // dug, the paper's own at the head of the first page, the rest in
+  // reading order by where their annotation sits. It lives in the room the
+  // page leaves beside it at the zoom it is read at, as wide as that room
+  // allows up to MARGIN_MAX. Folded — by the reader, or because there is
+  // less than MARGIN_MIN — it is a column of faces; with no room even for
+  // that, only the pins. It never makes the page smaller.
+  const viewWidth = useWidth(scrollerRef);
+  const pageAcross = scale && defaultPageSize ? scale * defaultPageSize.width : Infinity;
+  const marginRoom = Math.floor(viewWidth - 2 * PAGES_PADDING - pageAcross - MARGIN_GAP);
+  const [marginFoldedByReader, setMarginFoldedByReader] = useState(() => {
+    try { return localStorage.getItem(MARGIN_FOLDED_KEY) === '1'; } catch { return false; }
+  });
+  const foldMargin = useCallback((folded) => {
+    setMarginFoldedByReader(folded);
+    try { localStorage.setItem(MARGIN_FOLDED_KEY, folded ? '1' : '0'); } catch { /* only remembered */ }
+  }, []);
+  const marginUnfoldable = marginRoom >= MARGIN_MIN;
+  const marginFolded = marginFoldedByReader || !marginUnfoldable;
+  const marginWidth = marginFolded ? MARGIN_FOLDED : Math.min(MARGIN_MAX, marginRoom);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
     () => (digView && paper ? marginLinesOf({
@@ -2211,8 +2229,7 @@ export default function App() {
     }) : []),
     [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
-  const withMargin = Boolean(digView) && roomy && marginLines.length > 0;
-  useEffect(() => { setMarginShown(withMargin); }, [withMargin]);
+  const withMargin = Boolean(digView) && marginRoom >= MARGIN_FOLDED && marginLines.length > 0;
   const marginLinesRef = useRef([]);
   marginLinesRef.current = withMargin ? marginLines : [];
   // Opening a line picks out its thing on the page, as a press on it would.
@@ -4675,6 +4692,7 @@ export default function App() {
         </ReturnPill>
         <div
           className={`pages${withMargin ? ' with-margin' : ''}`}
+          style={withMargin ? { paddingRight: PAGES_PADDING + MARGIN_GAP + marginWidth } : undefined}
           ref={scrollerRef}
           aria-busy={!doc}
           onPointerDown={(e) => {
@@ -4809,7 +4827,8 @@ export default function App() {
           ))}
           {withMargin && scale && (
             <DigMargin
-              scrollerRef={scrollerRef} lines={marginLines} layoutKey={scale}
+              scrollerRef={scrollerRef} lines={marginLines} layoutKey={`${scale}|${marginWidth}`} width={marginWidth}
+              folded={marginFolded} canUnfold={marginUnfoldable} onFold={foldMargin}
               open={marginOpen} picked={marginPicked} onOpen={(line) => openInMargin(line)} onClose={() => closeMargin()}
               project={digView} onChanged={marginDigChanged}
             />
