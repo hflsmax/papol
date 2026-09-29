@@ -232,8 +232,8 @@ export const RULE_BAR = rule({
 });
 export const RULE_SETTING = rule({
   id: "rule.setting", stage: "rule",
-  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, the bar as far down as six leadings), at the end of a row with no bar (the rest of the row three characters or more), or at the text column's right margin.",
-  why: "Sequent Core sets Cut beside its bar, Kind Inference k-var over (mathpar) and a-dt-decl over a stack of premises, the Awkward Squad (BIND) at a law's end, Polymorphic Contracts E Op in a column at the margin; \"1 INTRODUCTION\" has nothing on its row but a number.",
+  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, the bar as far down as six leadings), at the end of a row with no bar (the rest of the row three characters or more), or at the text column's right margin. Level with a bar on either side, the token stands on the side most of the paper's other labels do.",
+  why: "Sequent Core sets Cut beside its bar, TypeWhich sets Id's rule, then Const, then its rule on one row (Const is left of its bar, as Id is), Kind Inference k-var over (mathpar) and a-dt-decl over a stack of premises, the Awkward Squad (BIND) at a law's end, Polymorphic Contracts E Op in a column at the margin; \"1 INTRODUCTION\" has nothing on its row but a number.",
 });
 export const RULE_SHAPE_HYPHEN = rule({
   id: "rule.shape.hyphen", stage: "rule",
