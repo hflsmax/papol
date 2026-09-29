@@ -9,6 +9,7 @@ import ItemActions from './ItemActions.jsx';
 import ActionGlyph from './ActionGlyph.jsx';
 import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
+import MarkdownField from './MarkdownField.jsx';
 import PaperTitle from './PaperTitle.jsx';
 import { plainTitle } from '../texTitle.js';
 import { useDismiss } from '../useDismiss.js';
@@ -432,13 +433,6 @@ export function TalkCard({
       if (fresh && fresh.getBoundingClientRect().top > window.innerHeight) fresh.scrollIntoView({ block: 'center' });
     }
   }, [discussion]);
-  // The field grows with what is written, up to the sheet's cap.
-  useLayoutEffect(() => {
-    const field = box.current;
-    if (!field) return;
-    field.style.height = '';
-    if (field.scrollHeight > field.clientHeight) field.style.height = `${field.scrollHeight + 2}px`;
-  }, [body]);
   const toEnd = () => requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight; });
 
   const send = async (e) => {
@@ -588,7 +582,7 @@ export function TalkCard({
         ) : writing ? (
           <form className="talk-dig-new" onSubmit={send}>
             <Face user={currentUser} />
-            <textarea
+            <MarkdownField
               ref={box} rows={1} value={body} maxLength={POST_LIMIT} placeholder="Your dig" aria-label="Your dig"
               onChange={(e) => setBody(e.target.value)} onBlur={leave}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(e); }}
@@ -624,7 +618,7 @@ export function TalkCard({
                   </p>
                   {editing?.uuid === post.uuid ? (
                     <form className="talk-post-edit" onSubmit={(e) => { e.preventDefault(); save(); }}>
-                      <textarea
+                      <MarkdownField
                         rows={Math.min(14, Math.max(3, Math.ceil(editing.body.length / 110) + editing.body.split('\n').length))} value={editing.body} maxLength={POST_LIMIT} aria-label="Edit" autoFocus
                         onChange={(e) => setEditing({ ...editing, body: e.target.value })}
                         onKeyDown={(e) => {
@@ -649,7 +643,7 @@ export function TalkCard({
       {discussion && !personal && (
         <form className={`talk-compose${tucked ? ' is-tucked' : ''}`} onSubmit={send}>
           {currentUser && !tucked && <Face user={currentUser} />}
-          <textarea
+          <MarkdownField
             ref={box}
             rows={tucked ? 1 : 2}
             value={body}

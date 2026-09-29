@@ -472,7 +472,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   );
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
-    if (!step || !chosen || e.target.closest('input, textarea')) return;
+    if (!step || !chosen || e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
     e.preventDefault();
     const at = papers.findIndex((p) => p.sha256 === chosen.sha256);
     const next = papers[Math.max(0, Math.min(papers.length - 1, at + step))];

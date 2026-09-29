@@ -96,17 +96,17 @@ export const talkStyles = `
 .talk-post:hover .talk-post-head .item-actions, .talk-post:focus-within .talk-post-head .item-actions { visibility: visible; }
 @media (hover: none) { .talk-post-head .item-actions { visibility: visible; } }
 .talk-post-edit { display: grid; gap: var(--space-1); }
-.talk-post-edit textarea { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
-.talk-post-edit textarea:focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-post-edit :is(textarea, .md-field) { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
+.talk-post-edit :is(textarea, .md-field):focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-post-edit-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
 /* Your dig, still to be written: it stands in the body, where its words will go. */
 .talk-dig-new { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); padding: var(--space-2) 0; }
 .talk-dig-new .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
-.talk-dig-new textarea { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
+.talk-dig-new :is(textarea, .md-field) { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
 /* The box keeps its size as it is focused and written in, and grows a
    line at a time only as the words need (Talk.jsx), so nothing jumps under
    the hand, and nothing shrinks from under a press on Dig. */
-.talk-dig-new textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-dig-new :is(textarea, .md-field):focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
 /* A folded box: one quiet word that opens it. */
 .talk-unfold { display: inline-flex; align-self: flex-start; width: max-content; align-items: center; gap: 6px; box-sizing: border-box; min-height: 30px; padding: 0 12px; font: 500 var(--fs-sm)/1 var(--font-ui); }
@@ -124,13 +124,13 @@ export const talkStyles = `
 .talk-compose { flex: none; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); background: color-mix(in srgb, var(--paper) 50%, var(--card)); }
 .talk-compose .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
 .talk-compose .talk-send { align-self: end; }
-.talk-compose textarea { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
-.talk-compose textarea:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
+.talk-compose :is(textarea, .md-field) { width: 100%; min-height: 0; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
+.talk-compose :is(textarea, .md-field):focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 /* Tucked, the box that posts is one thin line with send beside it, and it
    opens downward once pressed or written in. */
 .talk-compose.is-tucked { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px; }
-.talk-compose.is-tucked textarea { box-sizing: border-box; scroll-margin-bottom: 16px; height: 28px; min-height: 28px; padding: 4px 10px; border-radius: 8px; font-size: var(--fs-sm); line-height: 1.35; }
-.talk-compose.is-tucked textarea:is(:focus, :not(:placeholder-shown)) { min-height: 76px; }
+.talk-compose.is-tucked :is(textarea, .md-field) { box-sizing: border-box; scroll-margin-bottom: 16px; min-height: 28px; padding: 4px 10px; border-radius: 8px; font-size: var(--fs-sm); line-height: 1.35; }
+.talk-compose.is-tucked :is(textarea, .md-field):is(:focus, :not(:placeholder-shown, [data-empty])) { min-height: 76px; }
 .talk-compose.is-tucked .talk-send { align-self: start; width: 28px; height: 28px; }
 .talk-compose.is-tucked .talk-send svg { width: 15px; height: 15px; }
 .talk-send { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--accent); box-shadow: none; color: var(--ink-inverse); transition: opacity var(--motion-fast) var(--ease-out); }

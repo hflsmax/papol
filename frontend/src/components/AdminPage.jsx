@@ -19,6 +19,7 @@ import {
 import appLimits from '../../../shared/appLimits.js';
 import { nextSort, sortIndicator, sortRows } from '../adminSort.js';
 import { NEWSLETTER_DRAFTS } from '../newsletterDrafts.js';
+import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 
 // The open accounts a broadcast can go to, for the audience picker.
 function useRecipients(setError) {
@@ -353,8 +354,9 @@ function EmailPanel() {
         </div>
         <div className="form-group">
           <label htmlFor="admin-email-body">Email</label>
-          <textarea
+          <MarkdownField
             id="admin-email-body"
+            aria-label="Email"
             rows="12"
             maxLength={appLimits.text.announcement_body}
             value={body}
