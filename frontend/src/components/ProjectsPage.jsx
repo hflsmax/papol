@@ -24,7 +24,8 @@ function Crowd({ members, currentUser }) {
 
 // Every project: mine first, where the work is, then everyone else's by
 // name and keepers, so anyone can see who to ask to be let in. On the web
-// it is a section of the Bazaar, beside everyone's papers and boards.
+// it is a section of the Bazaar, beside everyone's papers and boards, and
+// a project is started from the nook's rail instead.
 export default function ProjectsPage({ currentUser, onOpenProject, onChanged, section = false }) {
   const Title = section ? 'h3' : 'h2';
   const [projects, setProjects] = useState(() => kept('projects'));
@@ -70,7 +71,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
       <div className="projects-head">
         <Title>Projects</Title>
         <ExperimentalBadge />
-        {projects && !naming && (
+        {projects && !naming && !section && (
           <button type="button" onClick={() => setNaming(true)}>New project</button>
         )}
       </div>
@@ -109,7 +110,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                 ))}
               </ul>
             ) : (
-              !naming && (
+              !naming && !section && (
                 <p className="projects-empty">
                   A project gathers papers and thinking for one question. Start one alone; invite others when you like.
                 </p>

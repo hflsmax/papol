@@ -4,6 +4,8 @@ import Avatar from './Avatar';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
+import { createProject } from '../../../shared/api/projects.js';
+import appLimits from '../../../shared/appLimits.js';
 import Effort from './EffortPop';
 import { RatingDots } from './Rating';
 import { appPath } from '../base';
@@ -33,6 +35,44 @@ function Faces({ users, max }) {
   );
 }
 
+// A project begins with only its name, and opens at once: members, papers
+// and boards come afterwards, from inside it.
+function ProjectCreate({ onCreated, onCancel }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onCreated(await createProject(name.trim()));
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="desk-new" onSubmit={submit}>
+      <input
+        autoFocus
+        value={name}
+        maxLength={appLimits.text.project_name}
+        placeholder="Project name"
+        aria-label="Project name"
+        disabled={busy}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
+        onBlur={() => { if (!name.trim()) onCancel(); }}
+      />
+      {error && <div className="error" role="alert">{error}</div>}
+    </form>
+  );
+}
+
 // Everyone in a project, the member among them and first, so their own face
 // is never the one cut off.
 const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users.filter((u) => u.uuid !== me)];
@@ -44,7 +84,7 @@ const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users
 // still chosen. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged }) {
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
   const [tag, setTag] = useState(null);
@@ -63,6 +103,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
     return () => observer.disconnect();
   }, []);
   const [creatingBoard, setCreatingBoard] = useState(false);
+  const [naming, setNaming] = useState(false);
   const me = nook.user.uuid;
   const shelfOf = (uuid) => nook.shelves.find((s) => s.uuid === uuid);
 
@@ -100,9 +141,13 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           </ul>
         )}
         <div className="desk-rail-body">
-          {nook.projects?.length > 0 && (
-            <section className="desk-rail-part" aria-labelledby="desk-projects">
-              <h3 className="desk-rail-head" id="desk-projects">Projects</h3>
+          <section className="desk-rail-part" aria-labelledby="desk-projects">
+            <div className="desk-rail-head">
+              <h3 id="desk-projects">Projects</h3>
+              {!naming && <button type="button" className="desk-quiet" onClick={() => setNaming(true)}>New</button>}
+            </div>
+            {naming && <ProjectCreate onCreated={(p) => { setNaming(false); onChanged?.(); onOpenProject?.(p.uuid); }} onCancel={() => setNaming(false)} />}
+            {nook.projects?.length > 0 && (
               <ul className="desk-rail-list">
                 {nook.projects.map((p) => (
                   <li key={p.uuid}>
@@ -120,8 +165,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
+            )}
+          </section>
 
           <section className="desk-rail-part" aria-labelledby="desk-shelves">
             <div className="desk-rail-head">

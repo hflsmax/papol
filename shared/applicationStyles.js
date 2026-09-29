@@ -5511,6 +5511,8 @@ ${talkStyles}
 .desk-rail-head h3 { margin: 0; font: inherit; color: inherit; }
 .desk-quiet { padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); letter-spacing: 0; text-transform: none; }
 .desk-quiet:hover, .desk-quiet:focus-visible { color: var(--accent); background: none; }
+.desk-new { display: grid; gap: var(--space-1); }
+.desk-new input { width: 100%; min-height: 32px; box-sizing: border-box; padding: 0 var(--space-2); font: 400 var(--fs-sm) var(--font-ui); }
 .desk-rail-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .desk-row {
   display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 32px; box-sizing: border-box;
