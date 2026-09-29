@@ -81,9 +81,7 @@ export default function DigMargin({
     place();
     const observer = new ResizeObserver(() => {
       place();
-      if (Date.now() < revealUntil.current) {
-        window.requestAnimationFrame(() => card.current?.scrollIntoView({ block: 'nearest' }));
-      }
+      if (Date.now() < revealUntil.current) card.current?.scrollIntoView({ block: 'nearest' });
     });
     elements.current.forEach((el) => observer.observe(el));
     if (card.current) observer.observe(card.current);

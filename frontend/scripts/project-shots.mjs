@@ -78,6 +78,8 @@ const SHOTS = {
   'nook-add': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.upload-section.is-trigger > button').click(); return true;", settled: "document.querySelector('.upload-menu')", size: wide },
   'nook-scrolled': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const body = document.querySelector('.desk-table tbody'); const rows = [...body.children]; for (let i = 0; i < 4; i += 1) rows.forEach((row) => body.append(row.cloneNode(true))); window.scrollTo(0, 700); return true;", size: { width: 1440, height: 560 } },
   // A paper's Effort in the nook, pressed: the time spent on it.
+  // The clock's pop while its time is still being read: nothing yet.
+  'nook-effort-waiting': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", holdThen: ['/activity/paper/*'], then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop')", size: wide },
   'nook-effort': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop-total')", size: wide },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },

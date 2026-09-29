@@ -37,10 +37,11 @@ export default function ItemActions({
       }
       setResolvedPlacement(next);
     };
-    const frame = window.requestAnimationFrame(place);
+    // Before the first paint, so a bar near an edge opens on its fitting
+    // side rather than appearing on the other and jumping across.
+    place();
     window.addEventListener('resize', place);
     return () => {
-      window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', place);
     };
   }, [placement, actions.length]);

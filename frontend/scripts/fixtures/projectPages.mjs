@@ -327,13 +327,14 @@ function answer(method, path, search) {
 }
 
 // Paths the pretend server leaves unanswered, so a picture can show a
-// page while it waits for them.
+// page while it waits for them. A path ending in * holds every path under it.
 export const held = new Set();
+const isHeld = (path) => [...held].some((each) => (each.endsWith('*') ? path.startsWith(each.slice(0, -1)) : each === path));
 
 function projectFixture(server) {
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    if (held.has(url.pathname)) return;
+    if (isHeld(url.pathname)) return;
     const body = answer(req.method, url.pathname, url.searchParams);
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = body === null ? 404 : 200;

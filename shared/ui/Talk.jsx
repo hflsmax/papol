@@ -414,7 +414,7 @@ export function TalkCard({
     return () => { document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', escape, true); };
   }, [anchor, onClose, inline]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (discussion === undefined) return;
     const field = box.current;
     // A tucked box that posts stays one thin line until it is pressed.
