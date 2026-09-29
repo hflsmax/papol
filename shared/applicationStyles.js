@@ -135,14 +135,10 @@ ${commonStyles}
 .way a:hover,
 .way-aside a:hover { color: var(--accent); }
 
-/* Papol's mark is as wide as the strip of project letters under it, so
-   the two stand in one column, and it sits on the middle of the title's
-   first line. */
+/* Papol's mark stands as tall as the bar's line: a title, a paper's title
+   over its authors, a project's people. */
 .way a.way-mark { display: inline-flex; align-self: center; }
-.way-mark img { display: block; width: 2.25rem; height: 2.25rem; border-radius: 9px; }
-@media (min-width: 761px) {
-  .way:has(.paper-way-head) .way-mark { align-self: flex-start; margin-top: calc((var(--fs-2xl) * 1.25 - 2.25rem) / 2); }
-}
+.way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
 /* Beside the trail home: everyone else's papers, boards and projects, and
    the inbox, as quiet as the trail. */
@@ -198,6 +194,10 @@ ${commonStyles}
 .app:has(.nook-desk) .way { gap: 0; }
 .app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
 .app:has(.nook-desk.is-folded) .way-mark { width: calc(2.25rem + var(--space-5)); }
+/* Over the open rail the mark starts where the rail's words do. */
+@media (min-width: 761px) {
+  .app:has(.nook-desk:not(.is-folded)) .way-mark { padding-left: var(--space-2); }
+}
 
 .way-count {
   display: inline-block;
@@ -230,7 +230,7 @@ ${commonStyles}
 
 @media (max-width: 640px) {
   .way-bar { gap: var(--space-3); }
-  .way-mark img { width: 2rem; height: 2rem; border-radius: 8px; }
+  .way-mark img { width: 2.5rem; height: 2.5rem; border-radius: 10px; }
   .way-aside { gap: var(--space-3); }
 }
 /* Where the nook has no room for its rail, the title takes a line of its
