@@ -1360,11 +1360,17 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* With a project on, a face is ringed in its member's colour, as their
    marks are. */
 .dig-margin-face.worn .mini-avatar { box-shadow: 0 0 0 2px var(--who); }
-.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-face.is-open, .dig-margin-line.is-picked .dig-margin-face { background: color-mix(in srgb, var(--ink) 9%, transparent); outline: none; }
+.dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-face.is-open { background: color-mix(in srgb, var(--ink) 9%, transparent); outline: none; }
+/* The thing picked on the page: its faces stand out, ringed in their
+   member's colour on a white ground, and every other line falls back. */
+.dig-margin-line { transition: opacity var(--motion-fast) var(--ease-out); }
+.pages:has(.dig-margin-line.is-picked) .dig-margin-line:not(.is-picked) { opacity: 0.35; }
+.dig-margin-line.is-picked .dig-margin-face { background: var(--card); box-shadow: 0 0 0 2px var(--who, var(--ink)); }
 .dig-margin-face .news-dot { position: absolute; top: 2px; right: 2px; box-sizing: content-box; border: 2px solid var(--paper-sunken); }
 /* The dig a face opens: beside the faces, over the page's edge when the
    window has no room past them. */
-.dig-margin-card { position: absolute; z-index: 6; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
+/* Over everything else on the page: anchors, ink, clips and their bars. */
+.dig-margin-card { position: absolute; z-index: 20; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
 .dig-margin-card .talk-card.is-inline { position: relative; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
 .dig-margin-card .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 /* Inside, the card keeps the margin's one column: owners, posts and the
@@ -1372,6 +1378,11 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    dig's own line after its date, as in the brief. */
 .dig-margin-card .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
 .dig-margin-card .talk-card.is-inline .talk-card-error { margin-left: 0; }
+/* A dig being written wears no face of its own: the margin's face beside
+   it is the writer's. */
+.dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr); }
+.dig-margin-card .talk-dig-new > .mini-avatar { display: none; }
+.dig-margin-card .talk-dig-new-foot { grid-column: 1; }
 .dig-margin-card .talk-post { margin: 0; padding: 4px 0; }
 .dig-margin-card .talk-post:hover { background: none; }
 .dig-margin-card .talk-post + .talk-post { margin-top: 0; padding-left: 24px; }
