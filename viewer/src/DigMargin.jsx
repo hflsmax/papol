@@ -1,4 +1,5 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import { TalkCard } from '../../shared/ui/Talk.jsx';
 import { useDismiss } from '../../shared/useDismiss.js';
@@ -27,9 +28,11 @@ export function facesOf(pin) {
 // With room beside the sheets, the viewer's margin holds every dig on the
 // paper — the project's with one on, else the reader's own — as the face
 // of whoever wrote it: the paper's own at the head of the first page, then
-// the digs inside it level with their anchor, ink or clip. It lives in the
-// pages' own scroller, so it moves with them and nothing scrolls on its
-// own. A gold dot on a face says there is news in that dig.
+// the digs inside it level with their anchor, ink or clip. Each thing's
+// faces live in its own page, placed in fractions of it, so a zoom — which
+// resizes the pages directly, frame by frame — carries them with the page
+// with nothing to measure first: they never flicker or lag. A gold dot on
+// a face says there is news in that dig.
 //
 // Pressing a face opens that dig and the posts under it beside the face;
 // pressing anywhere else closes it. When faces would meet, a thing's faces
@@ -38,7 +41,12 @@ export function facesOf(pin) {
 export default function DigMargin({
   scrollerRef, lines, layoutKey, open, picked, onOpen, onClose, project, onChanged,
 }) {
-  const [places, setPlaces] = useState({});
+  // Each page by number, once laid; how far each thing's faces give way
+  // below their place (px); and which side of its faces the open dig
+  // stands.
+  const [pages, setPages] = useState({});
+  const [pushes, setPushes] = useState({});
+  const [past, setPast] = useState(false);
   const [seen, setSeen] = useState(() => new Set());
   const elements = useRef(new Map());
   const card = useRef(null);
@@ -49,32 +57,26 @@ export default function DigMargin({
   const place = useCallback(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    const found = {};
     const next = {};
     let floor = -Infinity;
     for (const line of lines) {
-      const pageEl = scroller.querySelector(`.pdf-page[data-page="${line.page}"]`);
+      const pageEl = found[line.page] ?? scroller.querySelector(`.pdf-page[data-page="${line.page}"]`);
       if (!pageEl) continue;
-      const wanted = pageEl.offsetTop + Math.max(0, line.down * pageEl.offsetHeight - MARGIN_WIDTH / 2);
+      found[line.page] = pageEl;
+      const wanted = pageEl.offsetTop + line.down * pageEl.offsetHeight - MARGIN_WIDTH / 2;
       const top = Math.max(wanted, floor);
-      const left = pageEl.offsetLeft + pageEl.offsetWidth + MARGIN_GAP;
-      next[line.key] = { top: Math.round(top), left: Math.round(left) };
+      if (top - wanted > 0.5) next[line.key] = Math.round(top - wanted);
       floor = top + (elements.current.get(line.key)?.offsetHeight ?? MARGIN_WIDTH) + THING_GAP;
     }
-    // The open dig beside its faces: past them when the window has room
-    // there, else over the page's edge.
-    const at = openLine && next[openLine.key];
-    if (at) {
-      const past = at.left + MARGIN_WIDTH + CARD_GAP;
-      const fits = past + CARD_WIDTH <= scroller.scrollWidth - CARD_GAP;
-      next.card = { top: at.top, left: fits ? past : Math.max(CARD_GAP, at.left - CARD_GAP - CARD_WIDTH) };
-    }
-    setPlaces((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    setPages((was) => (Object.keys(found).length === Object.keys(was).length && Object.entries(found).every(([k, el]) => was[k] === el) ? was : found));
+    setPushes((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    const pageEl = openLine && found[openLine.page];
+    if (pageEl) setPast(pageEl.offsetLeft + pageEl.offsetWidth + MARGIN_GAP + MARGIN_WIDTH + CARD_GAP + CARD_WIDTH <= scroller.scrollWidth - CARD_GAP);
   }, [lines, scrollerRef, openLine]);
 
-  // Placed once the pages are laid, again whenever they change size: a
-  // zoom, a window resized. The pages are watched too: pdf.js gives a page
-  // its true height only once it has read it, which moves every page below
-  // without resizing the scroller.
+  // Placed once the pages are laid, again whenever they change size. The
+  // faces already move with their page; this only settles which give way.
   useLayoutEffect(() => {
     place();
     const observer = new ResizeObserver(() => {
@@ -109,21 +111,27 @@ export default function DigMargin({
   // else the one the thing opens on.
   const openDig = openLine && (open.dig && open.dig !== 'mine' ? open.dig : (openLine.pin.mine || (open.dig === 'mine' ? null : openLine.pin.uuid)));
 
+  // Where a thing's faces stand in its page: level with its place, and
+  // as far below as they gave way.
+  const topOf = (line) => `calc(${(line.down * 100).toFixed(4)}% - ${MARGIN_WIDTH / 2}px + ${pushes[line.key] ?? 0}px)`;
+
   return (
-    <div className="dig-margin" aria-label="Digs">
+    <>
       {lines.map((line) => {
-        const at = places[line.key];
+        const pageEl = pages[line.page];
+        if (!pageEl) return null;
         const faces = facesOf(line.pin);
         // A dig still being written wears the reader's face.
         const shown = faces.length || !project.me ? faces : [{ uuid: null, owner: project.me, is_new: false }];
-        return (
+        return createPortal(
           <div
             key={line.key}
             ref={(el) => { if (el) elements.current.set(line.key, el); else elements.current.delete(line.key); }}
             className={`dig-margin-line${line.annotation && line.annotation === picked ? ' is-picked' : ''}`}
             data-key={line.key}
             data-subject={line.subject}
-            style={{ top: at?.top ?? 0, left: at?.left ?? 0, width: MARGIN_WIDTH, gap: FACE_GAP, visibility: at ? 'visible' : 'hidden' }}
+            aria-label="Digs"
+            style={{ top: topOf(line), left: `calc(100% + ${MARGIN_GAP}px)`, width: MARGIN_WIDTH, gap: FACE_GAP }}
           >
             {shown.map((face) => {
               const isOpen = openLine?.key === line.key && (face.uuid ?? null) === (openDig ?? null);
@@ -152,15 +160,21 @@ export default function DigMargin({
                 </button>
               );
             })}
-          </div>
+          </div>,
+          pageEl,
+          line.key,
         );
       })}
-      {openLine && (
+      {openLine && pages[openLine.page] && createPortal(
         <div
           ref={card}
           className="dig-margin-card"
           data-key={openLine.key}
-          style={{ top: places.card?.top ?? 0, left: places.card?.left ?? 0, width: CARD_WIDTH, visibility: places.card ? 'visible' : 'hidden' }}
+          style={{
+            top: topOf(openLine),
+            left: past ? `calc(100% + ${MARGIN_GAP + MARGIN_WIDTH + CARD_GAP}px)` : `calc(100% + ${MARGIN_GAP - CARD_GAP - CARD_WIDTH}px)`,
+            width: CARD_WIDTH,
+          }}
         >
           <TalkCard
             key={`${openLine.key}|${openDig ?? 'mine'}`}
@@ -168,8 +182,9 @@ export default function DigMargin({
             dig={openDig ?? 'mine'} currentUser={project.me}
             onChanged={(discussion, total) => onChanged(openLine.subject, discussion, total)}
           />
-        </div>
+        </div>,
+        pages[openLine.page],
       )}
-    </div>
+    </>
   );
 }
