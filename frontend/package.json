@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser && npm run smoke:upload && npm run smoke:folder && npm run smoke:postbox",
+    "test": "npm run test:unit && VITE_BASE=/papol/ npm run build && npm run smoke:browser && npm run smoke:upload && npm run smoke:folder && npm run smoke:postbox && npm run smoke:digs",
     "smoke:postbox": "node scripts/post-box-smoke.mjs",
+    "smoke:digs": "node scripts/digs-refresh-smoke.mjs",
     "test:unit": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:upload": "node scripts/upload-smoke.mjs",
