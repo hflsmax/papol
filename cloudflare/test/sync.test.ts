@@ -407,6 +407,28 @@ describe("the nook", () => {
     expect((await rows<{ kind: string }>("SELECT kind FROM annotations ORDER BY kind")).map((r) => r.kind)).toEqual(["anchor", "clip", "ink"]);
   });
 
+  it("pulls a logged row in the shape a snapshot sends, whatever it was logged as", async () => {
+    const account = await register();
+    const digest = "3".repeat(64);
+    await paperWithCopy(account, digest, "Logged before anchors", { filePath: "logged.pdf" });
+    const anchor = uuid();
+    await pushed(account, mutation([
+      { table: "annotations", uuid: anchor, operation: "upsert", values: { kind: "anchor", paper_sha256: digest, page: 1,
+        body: JSON.stringify({ anchor: { type: "point", x: 0.2, y: 0.3 } }) } },
+    ]));
+    // An entry logged before anchors lost their words: a replica has no
+    // column for `content` or `name`, and refuses a page that names one.
+    const [logged] = await rows<{ row_json: string }>("SELECT row_json FROM _server_change_log WHERE row_uuid = ?", anchor);
+    await exec("UPDATE _server_change_log SET row_json = ? WHERE row_uuid = ?",
+      JSON.stringify({ ...JSON.parse(logged.row_json), content: "old words", name: "old name" }), anchor);
+    const pulled = await ok("GET", "/api/sync/pull?cursor=0", { headers: account.headers });
+    const snapshot = await ok("GET", "/api/sync/snapshot", { headers: account.headers });
+    const { table: _t, ...sent } = snapshot.rows.find((r: any) => r.uuid === anchor);
+    const change = pulled.changes.find((c: any) => c.row.uuid === anchor);
+    expect(Object.keys(change.row).sort()).toEqual(Object.keys(sent).sort());
+    expect(change.row).not.toHaveProperty("content");
+  });
+
   it("refuses an annotation that is not its kind's shape", async () => {
     const account = await register();
     const digest = "5".repeat(64);

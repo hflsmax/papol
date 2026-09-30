@@ -8,7 +8,7 @@ import { json, refuse, type RouteContext } from "../http";
 import { appVersion, requireSupportedClient } from "./client";
 import { forgetAcknowledged, forgetOldReplays } from "./log";
 import { WRITE_ORDER } from "./registry";
-import { rowSnapshot } from "./rows";
+import { loggedRow, rowSnapshot } from "./rows";
 
 // The account's synchronized rows, complete, with the papers its copies
 // name. This is the authoritative half of a pull: every reconciliation
@@ -88,6 +88,9 @@ export async function pull({ request, env, url }: RouteContext): Promise<Respons
     has_more: records.length > limit,
     // A change is the row as it was after it: that carries its name, its
     // revision and whether it is a tombstone, so nothing is said twice.
-    changes: page.map((record) => ({ table: record.table_name, row: JSON.parse(record.row_json) })),
+    changes: await Promise.all(page.map(async (record) => ({
+      table: record.table_name,
+      row: await loggedRow(env.DB, record.table_name, JSON.parse(record.row_json)),
+    }))),
   });
 }
