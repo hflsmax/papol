@@ -8,9 +8,14 @@
 // 0.6 of their union). Boxes in an inventory were drawn by eye, so a box a
 // little off is reported, not judged; a missed name, a false one or an
 // overlap fails.
-//   node scripts/run-script.mjs rule-truth <dir>... [-v] [--only=paper,paper]
+//   node scripts/run-script.mjs rule-truth <dir>... [-v] [--only=paper,paper] [--jobs=N]
+// The papers are scored on every core (--jobs, default all): one child
+// process per core, each given every N-th paper, their reports printed
+// in paper order.
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { spawn } from "node:child_process";
 import { analyzeWithRules } from "../src/rules/analyze";
 import { readPdf } from "../src/rules/pdf";
 
@@ -30,8 +35,35 @@ const norm = (s: string) => s.normalize("NFKC").replace(/^[[(\s]+|[\])\s•]+$/g
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
 const area = (a: Box) => Math.max(0, a[2] - a[0]) * Math.max(0, a[3] - a[1]);
 
+const papers = fs.readdirSync(truthDir).filter((f) => f.endsWith(".json") && (!only || only.includes(f.slice(0, -5)))).sort();
+const jobs = Math.min(Number(args.find((a) => a.startsWith("--jobs="))?.slice(7) ?? os.availableParallelism()), papers.length);
+if (!args.includes("--child") && jobs > 1) {
+  const runner = path.resolve("scripts", "run-script.mjs");
+  const shares = Array.from({ length: jobs }, (_, i) => papers.filter((p, k) => k % jobs === i).map((f) => f.slice(0, -5)));
+  const outputs = await Promise.all(shares.map((share) => new Promise<string>((resolve, reject) => {
+    const child = spawn(process.execPath, [runner, "rule-truth", ...dirs, "--child", "--jobs=1", `--only=${share.join(",")}`, ...(verbose ? ["-v"] : [])], { stdio: ["ignore", "pipe", "inherit"] });
+    let out = "";
+    child.stdout.on("data", (chunk) => { out += chunk; });
+    child.on("error", reject);
+    child.on("close", () => resolve(out));
+  })));
+  // Each report is a paper's line and the indented lines under it.
+  const reports = new Map<string, string>();
+  for (const out of outputs) for (const block of out.split(/^(?=\S)/m)) {
+    const name = block.slice(0, block.indexOf(":"));
+    if (block.startsWith(`${name}: `)) reports.set(name, block);
+  }
+  let failed = 0;
+  for (const file of papers) {
+    const report = reports.get(file.slice(0, -5)) ?? `${file.slice(0, -5)}: no report\n`;
+    process.stdout.write(report);
+    if (/^\S.*: (?:no report|no PDF)|^   (?:missed|false|overlap):/m.test(report)) failed += 1;
+  }
+  if (failed) { console.log(`${failed} paper(s) miss a rule, find a false one or overlap two`); process.exit(1); }
+  process.exit(0);
+}
 let failed = 0;
-for (const file of fs.readdirSync(truthDir).filter((f) => f.endsWith(".json") && (!only || only.includes(f.slice(0, -5)))).sort()) {
+for (const file of papers) {
   const paper = file.slice(0, -5);
   const pdf = dirs.map((d) => path.join(d, `${paper}.pdf`)).find((f) => fs.existsSync(f));
   if (!pdf) { console.log(`${paper}: no PDF in ${dirs.join(", ")}`); continue; }

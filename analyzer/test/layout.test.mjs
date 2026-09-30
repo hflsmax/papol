@@ -12,10 +12,10 @@ import * as esbuild from "esbuild";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(os.tmpdir(), `papol-rules-layout-${process.pid}.mjs`);
 await esbuild.build({
-  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
+  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf, offsetsAlong } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
   outfile: out, bundle: true, platform: "node", format: "esm", logLevel: "error",
 });
-const { boxesOf, offsetsOf } = await import(pathToFileURL(out).href);
+const { boxesOf, offsetsOf, offsetsAlong } = await import(pathToFileURL(out).href);
 
 // Times Roman's widths, as the page draws them, for what the line below uses.
 const times = new Map(Object.entries({
@@ -36,6 +36,24 @@ test("a character's place is its font's widths stretched to the run", () => {
   assert.equal(narrowFirst.length, 3);
   assert.ok(Math.abs(narrowFirst[1] - 27.8) < 0.01);
   assert.equal(narrowFirst[2], 111.1);
+});
+
+test("a run's characters take the widths of the glyphs it was drawn with (Virtualizing Continuations, page 11)", () => {
+  // "are raise," in Libertine: "raise" set in small capitals, wider than
+  // the lowercase glyphs the font's table has for the same letters.
+  const glyph = (unicode, width) => ({ unicode, width });
+  const drawn = [glyph("x", 500), glyph("a", 444), glyph("r", 333), glyph("e", 444), glyph(" ", 250),
+    glyph("r", 400), glyph("a", 520), glyph("i", 330), glyph("s", 450), glyph("e", 500), glyph(",", 250)];
+  const along = offsetsAlong("are raise,", 3.921, drawn, 1);
+  assert.equal(along.next, drawn.length);
+  assert.equal(along.offsets.length, "are raise,".length + 1);
+  assert.ok(Math.abs(along.offsets[4] - 1.471) < 0.01, "raise starts after the small capitals' neighbours");
+  assert.ok(Math.abs(along.offsets[9] - 3.671) < 0.01, "and ends by their own widths");
+  // A space pdf.js inserted for a gap has no glyph; a ligature's characters share one.
+  const ligature = offsetsAlong("a fi", 1.5, [glyph("a", 500), glyph("fi", 600)], 0);
+  assert.deepEqual(ligature.offsets.map((o) => Math.round(o * 1000) / 1000), [0, 0.556, 0.833, 1.167, 1.5]);
+  // Glyphs that do not spell the run place nothing.
+  assert.equal(offsetsAlong("raise", 10, drawn, 0), undefined);
 });
 
 test("a font whose glyphs were not read leaves the run evenly spaced", () => {

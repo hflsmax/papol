@@ -121,25 +121,65 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
 // word: in "shearing and rigid cells. Figure 3" the narrow letters before
 // "Figure" put it eight points to the right of where it is printed. The
 // fonts' own widths put it within a fraction of a point.
-type Glyph = { unicode?: string; width?: number };
-function glyphWidths(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>): Map<string, Map<string, number>> {
-  const fonts = new Map<string, Map<string, number>>();
+// Beside the table, every glyph each font draws, in the order drawn: the
+// same character is drawn by different glyphs of different widths (an "a"
+// and the small capital a Libertine sets it in), and only the glyphs a
+// run was drawn with place its characters.
+export type Glyph = { unicode?: string; width?: number };
+type Glyphs = { widths: Map<string, Map<string, number>>; glyphs: Map<string, Glyph[]> };
+function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>): Glyphs {
+  const widths = new Map<string, Map<string, number>>();
+  const glyphs = new Map<string, Glyph[]>();
   let font: Map<string, number> | null = null;
+  let drawn: Glyph[] | null = null;
   ops.fnArray.forEach((fn, i) => {
     const args = ops.argsArray[i] as unknown[];
     if (fn === OPS.setFont) {
       const id = String(args?.[0] ?? "");
-      font = fonts.get(id) ?? new Map();
-      fonts.set(id, font);
-    } else if (fn === OPS.showText && font && Array.isArray(args?.[0])) {
+      font = widths.get(id) ?? new Map();
+      widths.set(id, font);
+      drawn = glyphs.get(id) ?? [];
+      glyphs.set(id, drawn);
+    } else if (fn === OPS.showText && font && drawn && Array.isArray(args?.[0])) {
       for (const glyph of args[0] as (Glyph | number)[]) {
-        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width) || font.has(glyph.unicode)) continue;
-        font.set(glyph.unicode, glyph.width!);
+        if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width)) continue;
+        drawn.push(glyph);
+        if (!font.has(glyph.unicode)) font.set(glyph.unicode, glyph.width!);
       }
     }
   });
-  return fonts;
+  return { widths, glyphs };
 }
+
+// A run's character offsets from the glyphs it was drawn with, read from
+// `from` in its font's glyphs: each character takes its own glyph's
+// width (a ligature's characters share theirs), a space pdf.js inserted
+// for a gap a quarter of the size, the whole stretched to the width
+// pdf.js measured. Undefined where the glyphs there do not spell the run.
+export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number } | undefined {
+  if ([...text].length !== text.length) return undefined;
+  const widths: number[] = [];
+  let i = 0, j = from;
+  while (i < text.length) {
+    const glyph = glyphs[j], unicode = glyph?.unicode ?? "";
+    if (unicode && text.startsWith(unicode, i)) {
+      for (let k = 0; k < unicode.length; k += 1) widths.push(glyph!.width! / unicode.length);
+      i += unicode.length; j += 1;
+    } else if (text[i] === " " && /^\s$/.test(unicode)) { widths.push(glyph!.width!); i += 1; j += 1; }
+    else if (text[i] === " ") { widths.push(250); i += 1; }
+    else return undefined;
+  }
+  const sum = widths.reduce((s, w) => s + w, 0);
+  if (!(sum > 0)) return undefined;
+  const offsets = [0];
+  let at = 0;
+  for (const w of widths) { at += w; offsets.push((at / sum) * width); }
+  return { offsets, next: j };
+}
+
+// How far ahead in a font's glyphs a run is looked for when the glyphs
+// at the cursor do not spell it (text pdf.js dropped or reordered).
+const LOOK_AHEAD = 400;
 
 // A run's character offsets, from its font's widths stretched to the width
 // pdf.js measured, which carries what the widths do not: kerning, and the
@@ -180,7 +220,21 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   // it is also what the page draws.
   const operators = await page.getOperatorList();
   const drawn = drawnOn(operators, OPS, page.view);
-  const widths = glyphWidths(operators, OPS);
+  const { widths, glyphs } = glyphsDrawn(operators, OPS);
+  const cursors = new Map<string, number>();
+  // The run's offsets from the glyphs it was drawn with, taken in order
+  // from its font's glyphs; from the font's widths where they do not spell it.
+  const offsetsFor = (id: string, text: string, width: number): number[] | undefined => {
+    const drawn = glyphs.get(id);
+    if (drawn?.length) {
+      const at = cursors.get(id) ?? 0;
+      for (let from = at; from < Math.min(drawn.length, at + LOOK_AHEAD); from += 1) {
+        const along = offsetsAlong(text, width, drawn, from);
+        if (along) { cursors.set(id, along.next); return along.offsets; }
+      }
+    }
+    return offsetsOf(text, width, widths.get(id));
+  };
   const fonts = new Map<string, string>();
   const fontName = (id: string) => {
     if (!fonts.has(id)) {
@@ -204,7 +258,7 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
       x: e - left,
       baseline: top - f,
       width: raw.width,
-      offsets: offsetsOf(raw.str, raw.width, widths.get(raw.fontName)),
+      offsets: offsetsFor(raw.fontName, raw.str, raw.width),
       size,
       font,
       bold: BOLD.test(font),
