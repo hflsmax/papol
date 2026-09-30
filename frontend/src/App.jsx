@@ -595,7 +595,7 @@ export default function App({ startupUser = null, startupError = null }) {
         <div className="app has-way" data-page={route.page}>
           <WayBar route={route} />
           <main className="main-content"><div className="nook is-desk" /></main>
-          <WayFoot user={{}} macDownloadUrl={MACOS_DOWNLOAD_URL} />
+          <WayFoot macDownloadUrl={MACOS_DOWNLOAD_URL} />
         </div>
       </>
     );
@@ -1069,7 +1069,7 @@ export default function App({ startupUser = null, startupError = null }) {
           )}
         </header>}
         <WayShown.Provider value={hasWay}>{pages}</WayShown.Provider>
-        {hasWay && !insideProject && <WayFoot user={user} macDownloadUrl={MACOS_DOWNLOAD_URL} />}
+        {hasWay && !insideProject && <WayFoot macDownloadUrl={MACOS_DOWNLOAD_URL} />}
       </div>
     </>
   );

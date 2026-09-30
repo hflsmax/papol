@@ -10,7 +10,8 @@ export const BAZAAR = 'Bazaar';
 
 // The one bar over a signed-in member's pages on the web: the trail home
 // on the left, and on the right the Bazaar beside it and the member, who
-// wears the count of what has come for them. A page names its own trail through InWay;
+// wears the count of what has come for them; an admin also finds Admin
+// there, on every page. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none. Before the member is
 // known (their sign-in still being checked) the bar stands without them.
 export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
@@ -24,6 +25,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
         </span>
       </nav>
       <nav className="way-aside" aria-label="Elsewhere">
+        {user?.is_admin && <a href={appPath('/admin')} aria-current={route.page === 'admin' ? 'page' : undefined}>Admin</a>}
         <a href={appPath('/bazaar')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
           {BAZAAR}
         </a>
@@ -60,13 +62,12 @@ export function InWay({ children, held = false }) {
 
 // Where Papol's pages for visitors live once a member is signed in: at
 // the foot of the page, out of the way of the work.
-export function WayFoot({ user, macDownloadUrl }) {
+export function WayFoot({ macDownloadUrl }) {
   return (
     <footer className="way-foot">
       <a href={appPath('/about')}>About</a>
       <a href={appPath('/learn')}>Learn</a>
       <a href={macDownloadUrl} target="_blank" rel="noreferrer">Mac app</a>
-      {user.is_admin && <a href={appPath('/admin')}>Admin</a>}
     </footer>
   );
 }
