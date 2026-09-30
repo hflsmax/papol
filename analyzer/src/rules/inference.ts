@@ -943,7 +943,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // plot's axis labels ("pgn ppm sexp" under ParTS's legend swatch),
     // on one line or each word a line of its own.
     // A lone constant ("False", "Proph") concludes all the same.
-    const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && (l.text.trim().split(/\s+/).length >= 3 || concluding.length >= 3) && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
+    // Braces set as lines of their own round its words make it a formula
+    // (inv-open-clwp's "clwp 𝑒 {𝑥. 𝑄}").
+    const braced = (l: Line) => lines.some((o) => o !== l && /[{}⟨⟩]/u.test(o.text) && STRETCHED.test(o.text) && level(o, l) && o.x0 >= l.x0 - label.size && o.x1 <= l.x1 + label.size);
+    const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && !braced(l) && (l.text.trim().split(/\s+/).length >= 3 || concluding.length >= 3) && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
       && !/[\u{1D400}-\u{1D7FF}]/u.test(l.text) && l.runs.every((r) => !/\p{L}/u.test(r.text) || (!ITALIC.test(r.font) && !SYMBOLIC.test(r.font) && !MONO.test(r.font))));
     if (under && token.side === "whole" && aligned && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
