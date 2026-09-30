@@ -74,6 +74,7 @@ const ruleLink = (page, rule, nth = 0) => `return [...document.querySelectorAll(
 const telescoping = {
   viewport: { width: 1180, height: 760 },
   crop: { x: 130, y: 56, width: 940, height: 704 },
+  seconds: 8,
   setup: viewerPage,
   url: ({ origin, paper }) => `${origin}/viewer/?pdf=${paper}&page=8`,
   async prepare(stage) {
@@ -201,14 +202,14 @@ export const SCENES = {
     ...telescoping,
     async play(stage) {
       await stage.move({ x: 880, y: 640 }, { ms: 10 });
-      await stage.wait(700);
+      await stage.wait(300);
       for (const rule of ['T-Var', 'T-Abs', 'T-App']) {
-        await stage.move(ruleLink(8, rule, 1), { ms: 900 });
+        await stage.move(ruleLink(8, rule, 1), { ms: 600 });
         await stage.waitFor('document.querySelector(".paper-clip.peek canvas")', { timeout: 10_000 });
-        await stage.wait(2200);
+        await stage.wait(1500);
       }
-      await stage.move({ x: 960, y: 640 }, { ms: 700 });
-      await stage.wait(1200);
+      await stage.move({ x: 960, y: 640 }, { ms: 500 });
+      await stage.wait(500);
     },
   },
 
@@ -218,40 +219,38 @@ export const SCENES = {
     ...telescoping,
     async play(stage) {
       await stage.move({ x: 880, y: 640 }, { ms: 10 });
-      await stage.wait(700);
-      await stage.click(ruleLink(8, 'T-App'), { ms: 1000 });
-      await stage.wait(2200);
+      await stage.wait(300);
+      await stage.click(ruleLink(8, 'T-App'), { ms: 700 });
+      await stage.wait(1700);
       await stage.key('[', { code: 'BracketLeft' });
-      await stage.wait(1800);
+      await stage.wait(1500);
       await stage.key(']', { code: 'BracketRight' });
-      await stage.wait(1800);
+      await stage.wait(1500);
       await stage.key('[', { code: 'BracketLeft' });
-      await stage.wait(2000);
+      await stage.wait(1600);
     },
   },
 
   // Cmd-click keeps a clip of each rule beside its name: T-Var, T-Abs and
-  // T-App, cited together on one line.
+  // T-App, cited together on one line. Each kept clip is dragged to its own
+  // place under the line, left to right, so the three sit side by side.
   'telescoping-clip': {
     ...telescoping,
     async play(stage) {
       await stage.move({ x: 880, y: 640 }, { ms: 10 });
-      await stage.wait(700);
-      // Each kept clip is dragged to its own place under the line, left to
-      // right, so the three sit side by side.
+      await stage.wait(200);
       const places = [{ x: 330, y: 530 }, { x: 590, y: 530 }, { x: 850, y: 530 }];
       for (const [i, rule] of ['T-Var', 'T-Abs', 'T-App'].entries()) {
-        await stage.click(ruleLink(8, rule, 1), { ms: 900, modifiers: 4 });
+        await stage.click(ruleLink(8, rule, 1), { ms: 450, modifiers: 4 });
         await stage.waitFor(`document.querySelectorAll('.paper-clip:not(.peek)').length === ${i + 1}`, { timeout: 10_000 });
         // The rule shown on hover sits over the kept clip until the pointer
         // leaves the name.
-        await stage.move({ x: 1000, y: 300 }, { ms: 500 });
+        await stage.move({ x: 1000, y: 300 }, { ms: 250 });
         await stage.waitFor('!document.querySelector(".paper-clip.peek")', { timeout: 10_000 });
-        await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.peek)')].at(-1);`, places[i]);
-        await stage.wait(700);
+        await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.peek)')].at(-1);`, places[i], { ms: 450 });
       }
-      await stage.move({ x: 960, y: 660 }, { ms: 800 });
-      await stage.wait(3000);
+      await stage.move({ x: 960, y: 660 }, { ms: 400 });
+      await stage.wait(1400);
     },
   },
 };
