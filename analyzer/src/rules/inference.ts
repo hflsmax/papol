@@ -626,11 +626,11 @@ function related(text: string, token: Token): boolean {
 
 // A line's text without its subscripts, smaller runs set below its
 // baseline: a relation indexed so ("⊢CSL") stands between its terms.
-// A symbol font's arrows and turnstile may reach the text layer as the
-// ASCII signs at their places in the font (cmsy's ⊢ as "`", its ⇒ as
-// ")"): a sign so set, a blank on each side, is the relation it stands
-// for ("Γ ` 〈 〉 . ·" under T-CtxEmp).
-const MISREAD = /(?<=^|\s)[!"#$%&()*+,\-./`](?=\s|$)/gu;
+// A symbol font's turnstile may reach the text layer as the grave accent
+// at its place in the font (cmsy's ⊢ as "`"): so set, a blank on each
+// side, it is the relation ("Γ ` 〈 〉 . ·" under T-CtxEmp). Its other
+// places hold signs of their own ("+" is a plus in most).
+const MISREAD = /(?<=^|\s)`(?=\s|$)/gu;
 function unscripted(line: Line): string {
   let text = line.text, at = 0;
   for (const r of line.runs) {
@@ -1429,10 +1429,13 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         // ("No ⊤L rules"), no premise; with a relation between them they
         // are one ("idx(Q₁) ⊆ supp(t₁)").
         if (faceOf(line) === family(type.font) && !RELATION.test(line.text) && line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2) continue;
-        // Another bar over it or under it makes it another rule's.
-        const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
-          && ((d.y >= line.top - 0.8 * type.leading && d.y <= line.top + 1) || (d.y >= line.bottom - 1 && d.y <= start + 1)));
-        if (barred) continue;
+        // Another bar over it or under it makes it another rule's; so does
+        // one hard over another piece of the line the layout read, parted
+        // at that bar (parted): the line is that rule's conclusion's row
+        // (axioms set along DISP's conclusion, over DUP's premises).
+        const barred = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < l.x1 && d.x + d.w > l.x0
+          && ((d.y >= l.top - 0.8 * type.leading && d.y <= l.top + 1) || (l === line && d.y >= l.bottom - 1 && d.y <= start + 1)));
+        if (barred(line) || page.lines.some((o) => o !== line && parents.get(o) !== undefined && parents.get(o) === parents.get(line) && barred(o))) continue;
         taken.add(line); grew = true;
       }
     }
@@ -1726,7 +1729,12 @@ function parted(page: Page, type: Type): Page {
       for (let k = 1; k < line.runs.length; k += 1) {
         const end = Math.max(...line.runs.slice(0, k).map((r) => r.x + r.width)), start = Math.min(...line.runs.slice(k).map((r) => r.x));
         if (start - end < line.size) continue;
-        if (hard.some((d) => [d.x, d.x + d.w].some((x) => x >= end - 1 && x <= start + 1)) || heads.some((o) => o.x0 >= end - 0.5 * line.size && o.x0 <= start + 0.5 * line.size)) cuts.push(k);
+        if (hard.some((d) => [d.x, d.x + d.w].some((x) => x >= end - 1 && x <= start + 1)) || heads.some((o) => o.x0 >= end - 0.5 * line.size && o.x0 <= start + 0.5 * line.size)) {
+          // Each part states a rule's line, a relation in it: a table's
+          // header run on under its rules parts into no cells here.
+          const text = (from: number, to: number) => line.runs.slice(from, to).map((r) => r.text).join(" ");
+          if (RELATION.test(text(cuts.at(-1) ?? 0, k)) && RELATION.test(text(k, line.runs.length))) cuts.push(k);
+        }
       }
     }
     if (!cuts.length) { out.push(line); continue; }
