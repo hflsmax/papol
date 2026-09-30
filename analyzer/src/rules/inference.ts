@@ -991,7 +991,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
     // A token centred hard over the bar, nothing between, is its premise
     // ("is_mask(𝑡)" over "is_mask(nested(𝑡))"): a label over its rule stands
     // over the premises, or flush with the bar's start.
-    const premise = !between.length && bar.y - label.bottom <= 0.6 * type.leading && Math.abs(label.x0 - bar.x) > 2 * label.size;
+    // A label on its premises' row ("Join" heading "Nbind(…) ⇒ …") heads them.
+    const premise = !between.length && !row.some(spans) && bar.y - label.bottom <= 0.6 * type.leading && Math.abs(label.x0 - bar.x) > 2 * label.size
+      && Math.abs((label.x0 + label.x1) / 2 - (bar.x + bar.w / 2)) <= 2 * label.size;
     if (under && token.side === "whole" && aligned && !premise && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Over the one line of an axiom set without a bar, aligned with it:
@@ -2077,8 +2079,11 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // beside it laid claim to it (wp-projᵢ left barless by "proj(𝑡)").
   const atBars = (category: Category) => candidates.filter((c) => c.setting.category === category && c.setting.bar).length;
   const overs = atBars("over") > atBars("beside");
+  // Level with the bar, not under the conclusion by its end (containConcat
+  // under local's conclusion stands over a rule of its own).
+  const aside = (c: Candidate) => c.setting.perched || (overs && Math.abs((c.line.top + c.line.bottom) / 2 - c.setting.bar!.y) <= LEVEL * c.line.size);
   for (const c of candidates) {
-    if (c.setting.category !== "beside" || !c.setting.bar || !(c.setting.perched || overs)) continue;
+    if (c.setting.category !== "beside" || !c.setting.bar || !aside(c)) continue;
     for (const o of candidates) {
       if (o.page !== c.page || o.setting.category !== "over" || o.setting.bar) continue;
       const again = settingOf(o.page, o.line, o.token, type, new Set([c.line]));
@@ -2087,7 +2092,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   }
   const overBars = new Set(candidates.filter((c) => c.setting.category === "over" && c.setting.bar).map((c) => c.setting.bar));
   for (const c of ordered) {
-    if (c.setting.category === "beside" && (c.setting.perched || overs) && overBars.has(c.setting.bar)) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
+    if (c.setting.category === "beside" && c.setting.bar && aside(c) && overBars.has(c.setting.bar)) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
     const key = keyOf(fold(c.token.text));
     const premise = c.setting.category === "over" && c.setting.bar && labelled.get(c.setting.bar) !== undefined && c.line.top - labelled.get(c.setting.bar)! <= 3 * type.leading
       && c.setting.bar.y - labelled.get(c.setting.bar)! <= 3.5 * type.leading;
