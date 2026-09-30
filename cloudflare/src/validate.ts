@@ -282,3 +282,43 @@ export function registration(row: { email?: unknown; display_name?: unknown; aff
   check.done();
   return { email: email!, display_name: displayName!, affiliation, password: password! };
 }
+
+// -------------------------------------------------------------- feedback
+
+// Where a report's writer was and what they had just done
+// (shared/feedbackTrail.js), held to its known fields and kept as JSON.
+export function feedbackContext(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) refuse(422, "context must be an object");
+  const given = value as Record<string, unknown>;
+  const check = checking();
+  const short = (field: string) => check.string(`context.${field}`, given[field], { max: text.feedback_page, optional: true });
+  const context = {
+    app: check.oneOf("context.app", given.app, ["nook", "viewer", "board"] as const),
+    runtime: check.oneOf("context.runtime", given.runtime, ["web", "mac"] as const),
+    window: short("window"),
+    version: short("version"),
+    page: short("page"),
+    title: short("title"),
+    project: short("project"),
+    viewport: short("viewport"),
+    browser: short("browser"),
+    system: short("system"),
+    language: short("language"),
+    online: check.boolean("context.online", given.online, { optional: true }),
+    sent_at: check.integer("context.sent_at", given.sent_at, { min: 0 }),
+    trail: [] as { at: number; kind: string; what: string }[],
+  };
+  const trail = given.trail ?? [];
+  if (!Array.isArray(trail) || trail.length > counts.feedback_trail) check.fail(`context.trail must be a list of at most ${counts.feedback_trail} steps`);
+  else {
+    for (const step of trail as Record<string, unknown>[]) {
+      const at = check.integer("context.trail.at", step?.at, { min: 0 });
+      const kind = check.oneOf("context.trail.kind", step?.kind, ["open", "click", "error"] as const);
+      const what = check.string("context.trail.what", step?.what, { min: 1, max: text.feedback_page });
+      if (at !== null && kind && what) context.trail.push({ at, kind, what });
+    }
+  }
+  check.done();
+  return JSON.stringify(context);
+}

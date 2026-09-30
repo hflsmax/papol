@@ -448,6 +448,7 @@ ${commonStyles}
 
 .feedback-head {
   margin: 0 0 4px;
+  overflow-wrap: anywhere;
   font-size: var(--fs-sm);
   color: var(--ink-faint);
 }
@@ -455,6 +456,37 @@ ${commonStyles}
 .feedback-content {
   margin: 0 0 6px;
   white-space: pre-wrap;
+}
+
+.feedback-context {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.feedback-context p {
+  margin: 0 0 2px;
+}
+
+.feedback-context summary {
+  cursor: pointer;
+}
+
+.feedback-context ol {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback-step {
+  display: grid;
+  grid-template-columns: 5.5em 1fr;
+}
+
+.feedback-step.failed {
+  color: var(--red);
 }
 
 .admin-email-actions {

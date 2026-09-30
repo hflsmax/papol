@@ -32,9 +32,33 @@ function userBase(user: Row) {
 
 export function feedbackOut(fb: Row, user: Row | null) {
   return {
-    uuid: fb.uuid, content: fb.content, page: fb.page ?? null, contact: fb.contact ?? null, resolved: Boolean(fb.resolved), created_at: fb.created_at,
+    uuid: fb.uuid, content: fb.content, page: fb.page ?? null, context: fb.context ? JSON.parse(String(fb.context)) : null,
+    contact: fb.contact ?? null, resolved: Boolean(fb.resolved), created_at: fb.created_at,
     user: user ? userBase(user) : null, user_email: user?.email ?? null,
   };
+}
+
+type Step = { at: number; kind: string; what: string };
+
+// How long before the report a step came, by the reporter's own clock.
+function before(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+const DID: Record<string, string> = { open: "opened", click: "pressed", error: "error" };
+
+// A report's context as the lines of the email an admin reads.
+export function feedbackContextLines(json: string | null): string[] {
+  if (!json) return [];
+  const c = JSON.parse(json);
+  const where = [c.page, c.title && `"${c.title}"`, c.project && `in ${c.project}`].filter(Boolean).join(" ");
+  const app = [c.runtime === "mac" ? "Mac" : "Web", c.app, c.window && `${c.window} window`, c.version].filter(Boolean).join(" · ");
+  const device = [`${c.browser} on ${c.system}`, c.viewport, c.language, c.online === false && "offline"].filter(Boolean).join(" · ");
+  const trail = (c.trail as Step[]).map((step) => `  ${before(c.sent_at - step.at)} before: ${DID[step.kind]} ${step.what}`);
+  return [`Where: ${where}`, `App: ${app}`, `Device: ${device}`, ...(trail.length ? ["Leading up to it, oldest first:", ...trail] : [])];
 }
 
 export function inboxRoutes(router: Router) {
@@ -125,13 +149,15 @@ export function inboxRoutes(router: Router) {
     const page = check.string("page", data.page, { max: limits.text.feedback_page, optional: true });
     const contact = check.string("contact", data.contact, { max: limits.text.email, optional: true });
     check.done();
+    const context = validate.feedbackContext(data.context);
     const at = now();
-    const fb = { uuid: newUuid(), user_uuid: user?.uuid ?? null, content: content!.trim(), page: page || null, contact: contact?.trim() || null, resolved: 0, created_at: at };
+    const fb = { uuid: newUuid(), user_uuid: user?.uuid ?? null, content: content!.trim(), page: page || null, context, contact: contact?.trim() || null, resolved: 0, created_at: at };
     const reporter = user ? `${user.display_name} <${user.email}>` : fb.contact ? `a visitor <${fb.contact}>` : "an anonymous visitor";
     const where = fb.page ? ` (from ${fb.page})` : "";
     const admins = await all<{ uuid: string; email: string }>(env.DB, "SELECT uuid, email FROM users WHERE is_admin = 1 AND deleted_at IS NULL");
     const headline = fb.content.split(/\r?\n/)[0].slice(0, limits.text.notification_email_headline);
-    const body = [`Feedback from ${reporter}`, ...(fb.page ? [`Page: ${fb.page}`] : []), "", fb.content, "",
+    const body = [`Feedback from ${reporter}`, ...(fb.context ? [] : fb.page ? [`Page: ${fb.page}`] : []), "", fb.content, "",
+      ...(fb.context ? [...feedbackContextLines(fb.context), ""] : []),
       `Reports are listed on the admin page: ${(await siteUrl(env)).replace(/\/$/, "")}/admin`, "", "— Papol"].join("\n");
     const statements: D1PreparedStatement[] = [insert(env.DB, "feedback", fb)];
     const wakeups: string[] = [];

@@ -223,6 +223,33 @@ function theirNook(owner) {
   };
 }
 
+const reports = [];
+const REPORT = (() => {
+  const sentAt = Date.parse('2026-09-30T14:02:10Z');
+  const step = (s, kind, what) => ({ at: sentAt - s * 1000, kind, what });
+  return {
+    uuid: 'fb000000-0000-4000-8000-000000000000',
+    content: 'The rule boxes on page 7 cover the premises of T-App, so I cannot read them.',
+    page: `/viewer/${P_ERROR}`,
+    context: {
+      app: 'viewer', runtime: 'web', window: null, version: 'd75b409', page: `/viewer/${P_ERROR}`,
+      title: 'Error dynamics in adaptive optics loops', project: 'Adaptive optics control',
+      viewport: '1440×900 at 2x', browser: 'Chrome 131', system: 'macOS', language: 'en-GB', online: true, sent_at: sentAt,
+      trail: [
+        step(412, 'open', '/'),
+        step(398, 'click', 'link "Adaptive optics control" /project/' + PROJECT),
+        step(390, 'open', '/project/' + PROJECT),
+        step(371, 'click', 'button "Read"'),
+        step(366, 'open', `/viewer/${P_ERROR}`),
+        step(122, 'click', 'div.telescope'),
+        step(95, 'error', 'TypeError: Cannot read properties of undefined (reading \'box\')'),
+        step(40, 'click', 'button "Feedback"'),
+      ],
+    },
+    contact: null, resolved: false, created_at: '2026-09-30T14:02:11', user: me, user_email: 'dana@example.org',
+  };
+})();
+
 // What the pretend server says to each request the pages make.
 function answer(method, path, search, sent = {}) {
   if (path === '/auth/me') return { ...me, is_admin: process.env.PAPOL_ADMIN === '1', email: 'dana@example.org' };
@@ -239,6 +266,17 @@ function answer(method, path, search, sent = {}) {
     };
   }
   if (path === '/admin-messages/pending') return [];
+  // Reports as the admin page lists them: whatever the pages sent in this
+  // visit, else one sent from the viewer with the steps before it.
+  if (path === '/feedback' && method === 'POST') {
+    const report = { uuid: `fb000000-0000-4000-8000-00000000000${reports.length + 1}`, ...sent, resolved: false, created_at: hoursAgo(0).slice(0, 19), user: me, user_email: 'dana@example.org' };
+    reports.unshift(report);
+    return report;
+  }
+  if (path === '/admin/feedback') return reports.length ? reports : [REPORT];
+  if (path === '/admin/message-recipients') return [];
+  if (path === '/admin/tables') return { tables: [] };
+  if (path === '/admin/emails') return { configured: true, sends: [] };
   // A project started from the rail opens as the fixture's own.
   if (path === '/projects' && method === 'POST') return project;
   if (path === '/projects') return [summary, other, closed];

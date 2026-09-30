@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// The commit this build came from, which a feedback report names.
+const build = (process.env.GITHUB_SHA || '').slice(0, 7) || 'local'
+
 export default defineConfig({
   // History API routes such as /paper/<doi> must load the same root assets;
   // a relative base would incorrectly request /paper/<doi>/assets/….
   base: process.env.VITE_BASE || '/',
   plugins: [react()],
+  define: { __PAPOL_BUILD__: JSON.stringify(build) },
   // shared/ sits outside the root and names its packages bare; these are
   // resolved from this app, where they are installed.
   resolve: { dedupe: ['react', 'react-dom', '@noble/hashes', 'linkpeek', 'katex'] },
