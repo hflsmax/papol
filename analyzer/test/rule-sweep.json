@@ -608,7 +608,7 @@
     ]
   },
   "kokke-popl19": {
-    "rules": 99,
+    "rules": 100,
     "mentions": 82,
     "names": [
       ":!",
@@ -673,6 +673,7 @@
       "c",
       "c",
       "c",
+      "disp",
       "dup",
       "h-cut",
       "h-cut",
@@ -800,7 +801,7 @@
   },
   "named-handlers": {
     "rules": 38,
-    "mentions": 59,
+    "mentions": 58,
     "names": [
       "abs",
       "app",
