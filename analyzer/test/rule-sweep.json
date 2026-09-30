@@ -35,7 +35,7 @@
   },
   "consistent-subtyping": {
     "rules": 66,
-    "mentions": 42,
+    "mentions": 43,
     "names": [
       "AAnno",
       "AApp",
@@ -212,7 +212,7 @@
   },
   "dep-js": {
     "rules": 35,
-    "mentions": 31,
+    "mentions": 32,
     "names": [
       "DS-APPLY",
       "DS-ARRLIT",
@@ -361,8 +361,8 @@
     ]
   },
   "flap": {
-    "rules": 12,
-    "mentions": 28,
+    "rules": 10,
+    "mentions": 23,
     "names": [
       "alt",
       "bot",
@@ -370,8 +370,6 @@
       "fix",
       "fix1",
       "fix2",
-      "ParTS",
-      "pgn",
       "seq",
       "seq1",
       "token",
@@ -451,7 +449,7 @@
     ]
   },
   "kind-inference": {
-    "rules": 74,
+    "rules": 72,
     "mentions": 70,
     "names": [
       "a-dc-decl",
@@ -485,10 +483,8 @@
       "a-pgm-expr",
       "a-pgm-expr-alt",
       "a-pgm-sig",
-      "a-pr-app",
       "a-pr-arrow",
       "a-pr-kuvarL",
-      "a-pr-kuvarR",
       "a-pr-kuvarR",
       "a-pr-kuvarR-tt",
       "a-pr-star",
@@ -609,7 +605,7 @@
   },
   "kokke-popl19": {
     "rules": 100,
-    "mentions": 82,
+    "mentions": 83,
     "names": [
       ":!",
       ":?",
@@ -658,12 +654,15 @@
       "⊕2N",
       "⊗",
       "⊗",
+      "⊗",
+      "⊗O",
       "⊗O",
       "⊥",
       "⊥",
       "⊥",
+      "⊥",
       "1",
-      "1",
+      "1⊥",
       "1⊥",
       "ax",
       "ax",
@@ -684,12 +683,10 @@
       "h-cut",
       "h-cut",
       "h-cut",
-      "h-cut",
       "h-mix",
       "h-mix",
       "h-mix",
       "h-mix",
-      "h-mix0",
       "h-mix0",
       "mix",
       "N",
@@ -709,13 +706,12 @@
       "syn",
       "w",
       "w",
-      "w",
       "π"
     ]
   },
   "let-arguments": {
-    "rules": 57,
-    "mentions": 59,
+    "rules": 55,
+    "mentions": 61,
     "names": [
       "Abs-Chk",
       "APP",
@@ -759,7 +755,6 @@
       "T-Int",
       "T-Lam",
       "T-Lam",
-      "T-Lam",
       "T-Lam-Alt",
       "T-Lam2",
       "T-LamAnn1",
@@ -769,7 +764,6 @@
       "T-Snd1",
       "T-Snd2",
       "T-Var",
-      "T-Var",
       "WF-All",
       "WF-Arrow",
       "WF-Int",
@@ -777,10 +771,11 @@
     ]
   },
   "liquid_types": {
-    "rules": 17,
-    "mentions": 13,
+    "rules": 18,
+    "mentions": 14,
     "names": [
       "<:-POLY",
+      "<:-VAR",
       "DEC-<:-BASE",
       "DEC-<:-FUN",
       "LT-APP",
@@ -1000,16 +995,21 @@
     ]
   },
   "samth-esop14": {
-    "rules": 7,
+    "rules": 12,
     "mentions": 5,
     "names": [
       "dispatch",
       "dispatch",
+      "feedback",
       "relay-in",
       "relay-out",
       "routes-in",
       "routes-out",
-      "schedule"
+      "schedule",
+      "send",
+      "send",
+      "spawn",
+      "spawn"
     ]
   },
   "samth-pldi11": {
@@ -1018,7 +1018,7 @@
     "names": []
   },
   "sequent": {
-    "rules": 55,
+    "rules": 53,
     "mentions": 36,
     "names": [
       "→L",
@@ -1033,7 +1033,6 @@
       "∃×",
       "Act",
       "Ax",
-      "Case",
       "Case",
       "Case",
       "casecons",
@@ -1064,7 +1063,6 @@
       "Ret",
       "TLK",
       "TLK",
-      "TLK",
       "TRK",
       "TRK",
       "TyApp",
@@ -1079,8 +1077,8 @@
     ]
   },
   "staging": {
-    "rules": 79,
-    "mentions": 98,
+    "rules": 65,
+    "mentions": 112,
     "names": [
       "c-abs",
       "c-app",
@@ -1116,14 +1114,11 @@
       "s-abs",
       "s-app",
       "s-cabs",
-      "s-cabs",
-      "s-capp",
       "s-capp",
       "s-clap-empty",
       "s-clap-rec",
       "s-cls",
       "s-def",
-      "s-inj-cons",
       "s-inj-cons",
       "s-inj-cons",
       "s-inj-empty",
@@ -1136,29 +1131,18 @@
       "s-k-tc",
       "s-k-tvar",
       "s-kvar",
-      "s-kvar",
-      "s-kvar",
       "s-lit",
       "s-pgm-cls",
       "s-pgm-def",
       "s-pgm-expr",
       "s-pgm-inst",
       "s-qote",
-      "s-qote",
-      "s-qote",
       "s-solve-decr",
       "s-solve-global",
       "s-solve-incr",
-      "s-solve-incr",
       "s-solve-local",
-      "s-solve-local",
-      "s-solve-local",
-      "s-splice",
-      "s-splice",
       "s-splice",
       "s-tabs",
-      "s-tabs",
-      "s-tapp",
       "s-tapp",
       "s-var"
     ]

@@ -1488,9 +1488,9 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   const found: Found[] = [];
   // A bare word is cited where a name it is listed with is ("are raise,
   // unw-intra-zone, and then invoke"; "unw-intra-zone, and invoke"): a
-  // word set off by a comma or an "and" from a hyphenated or spaced
-  // name's citation names its rule too. Such a match waits for its
-  // neighbours.
+  // word set off by a comma, an "and" or an "and then" from a hyphenated
+  // or spaced name's citation names its rule too. Such a match waits
+  // for its neighbours.
   const listed: (Found & { fits: number[] })[] = [];
   let match: RegExpExecArray | null;
   while ((match = re.exec(text))) {
@@ -1506,7 +1506,7 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     else if (!bracketed && fits.some((i) => rules[i].shape === "word" && !rules[i].bracketed)) listed.push({ ...m, fits: fits.filter((i) => rules[i].shape === "word" && !rules[i].bracketed) });
   }
   const strong = (m: Found) => rules[m.rule].shape === "hyphen" || rules[m.rule].shape === "spaced";
-  const LIST = /^(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)$/u;
+  const LIST = /^(?:\s*,\s*(?:(?:and|or)\s+(?:then\s+)?)?|\s+(?:and|or)\s+(?:then\s+)?)$/u;
   const joined = (a: Found, b: Found) => a.index + a.length <= b.index && LIST.test(text.slice(a.index + a.length, b.index));
   for (const m of listed) {
     if (!found.some((o) => strong(o) && (joined(o, m) || joined(m, o)))) continue;
