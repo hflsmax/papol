@@ -19,16 +19,6 @@ export async function rowSnapshot(db: D1Database, table: string, row: Row): Prom
   return snapshot;
 }
 
-// A logged row as a replica can store it today. The log keeps each row as
-// it was written, and a column the service has since dropped or stopped
-// sending would otherwise reach a replica that has no place for it and
-// refuses the whole page.
-export async function loggedRow(db: D1Database, table: string, row: Row): Promise<Row> {
-  const skipped = serverColumns(table);
-  const current = new Set((await columns(db, table)).map((column) => column.name));
-  return Object.fromEntries(Object.entries(row).filter(([name]) => current.has(name) && !skipped.has(name)));
-}
-
 export function rowKey(table: string, row: Row): string {
   return String(row[keyColumn(table)]);
 }

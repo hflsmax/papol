@@ -615,6 +615,7 @@ impl LocalStore {
         &self,
         account_uuid: &str,
         rows: Vec<Map<String, Value>>,
+        cursor: i64,
     ) -> Result<usize, String> {
         let mut connection = self
             .connection
@@ -683,6 +684,14 @@ impl LocalStore {
             apply_remote_row(&transaction, &table, row, pending == 0)?;
             refresh_blob_reference(&transaction, &table, &uuid)?;
         }
+        // The snapshot holds every change logged up to its cursor, so the
+        // pull that follows starts there rather than replaying history.
+        transaction
+            .execute(
+                "INSERT INTO _local_sync_state(account_uuid,pull_cursor) VALUES (?1,?2) ON CONFLICT(account_uuid) DO UPDATE SET pull_cursor=excluded.pull_cursor",
+                params![account_uuid, cursor],
+            )
+            .map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(count)
     }
@@ -3814,6 +3823,7 @@ mod tests {
                     ("revision".into(), json!(1)),
                     ("deleted_at".into(), Value::Null),
                 ])],
+                0,
             )
             .unwrap();
         store
@@ -3882,6 +3892,7 @@ mod tests {
                     ("revision".into(), json!(1)),
                     ("deleted_at".into(), Value::Null),
                 ])],
+                0,
             )
             .unwrap();
         store
@@ -3973,6 +3984,15 @@ mod tests {
     }
 
     #[test]
+    fn a_snapshot_sets_where_the_next_pull_starts() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        assert_eq!(store.pull_cursor("7").unwrap(), 0);
+        store.apply_snapshot("7", vec![], 42).unwrap();
+        assert_eq!(store.pull_cursor("7").unwrap(), 42);
+    }
+
+    #[test]
     fn snapshot_replaces_the_account_mirror_without_erasing_pending_work() {
         fn shelf(uuid: &str, name: &str) -> Map<String, Value> {
             Map::from_iter([
@@ -3999,10 +4019,11 @@ mod tests {
             .apply_snapshot(
                 "7",
                 vec![shelf(&stale_uuid, "Old"), shelf(&current_uuid, "Current")],
+                0,
             )
             .unwrap();
         store
-            .apply_snapshot("7", vec![shelf(&current_uuid, "Current")])
+            .apply_snapshot("7", vec![shelf(&current_uuid, "Current")], 0)
             .unwrap();
         let nook = store.query("7", "nook", json!({})).unwrap();
         assert_eq!(nook["shelves"].as_array().unwrap().len(), 1);
@@ -4024,7 +4045,7 @@ mod tests {
                 }],
             )
             .unwrap();
-        store.apply_snapshot("7", vec![]).unwrap();
+        store.apply_snapshot("7", vec![], 0).unwrap();
         let nook = store.query("7", "nook", json!({})).unwrap();
         assert!(nook["shelves"]
             .as_array()
@@ -4051,7 +4072,7 @@ mod tests {
 
         let mut snapshot_board = remote_board(&board_uuid, 2, "Server board");
         snapshot_board.insert("table".into(), json!("boards"));
-        store.apply_snapshot("7", vec![snapshot_board]).unwrap();
+        store.apply_snapshot("7", vec![snapshot_board], 0).unwrap();
 
         let boards = store.query("7", "boards", json!({})).unwrap();
         assert_eq!(boards.as_array().unwrap().len(), 1);
@@ -4068,7 +4089,7 @@ mod tests {
         let board_uuid = Uuid::new_v4().to_string();
         let mut original = remote_board(&board_uuid, 1, "Server board");
         original.insert("table".into(), json!("boards"));
-        store.apply_snapshot("7", vec![original]).unwrap();
+        store.apply_snapshot("7", vec![original], 0).unwrap();
         store
             .mutate(
                 "7",
@@ -4083,7 +4104,7 @@ mod tests {
 
         let mut stale_snapshot = remote_board(&board_uuid, 1, "Stale server board");
         stale_snapshot.insert("table".into(), json!("boards"));
-        store.apply_snapshot("7", vec![stale_snapshot]).unwrap();
+        store.apply_snapshot("7", vec![stale_snapshot], 0).unwrap();
 
         let boards = store.query("7", "boards", json!({})).unwrap();
         assert_eq!(boards[0]["name"], "Offline edit");
@@ -4120,7 +4141,7 @@ mod tests {
                 .unwrap();
         }
 
-        store.apply_snapshot("7", vec![]).unwrap();
+        store.apply_snapshot("7", vec![], 0).unwrap();
 
         assert!(store
             .query("7", "boards", json!({}))
@@ -4207,6 +4228,7 @@ mod tests {
                             ("deleted_at".into(), Value::Null),
                         ]),
                     ],
+                    0,
                 )
                 .unwrap();
             store
@@ -4514,6 +4536,7 @@ mod tests {
                     ("revision".into(), json!(1)),
                     ("deleted_at".into(), Value::Null),
                 ])],
+                0,
             )
             .expect("a pull must not be refused by work the replica has in flight");
 
