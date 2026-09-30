@@ -82,15 +82,15 @@ interface Token {
 }
 
 // A token begins with a letter or digit, or with the connectives of a
-// symbol name (→L, ∀R, ×T) where a capital follows them; it may end in a
+// symbol name (→L, ∀R, ×T, <:-Param) where a capital or a hyphened part follows them; it may end in a
 // sign (WF-var+), a parenthesised tag (Choice(L)) or a spaced capital,
-// digit or arrow (Val T, Interchange 1, Propagate ↓).
+// digit or arrow (Val T, Interchange 1, Propagate ↓, Propagate-Var ↓1).
 // A capital as a rule name has it: in the text's face, or a mathematical
 // bold or italic one (𝑇 in ×𝑇); a Greek letter likewise (𝛽 in 𝛽 Box).
 const CAP = "A-Z\\u{1D400}-\\u{1D419}\\u{1D434}-\\u{1D44D}\\u{1D468}-\\u{1D481}";
 const GREEK = "\\p{Script=Greek}\\u{1D6A8}-\\u{1D7CB}";
 const CONNECTIVE = RULE_CONNECTIVES;
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]))[\\p{L}\\d\\p{Co}'′${CONNECTIVE}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]?(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]))?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′${CONNECTIVE}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]?(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
@@ -149,7 +149,9 @@ function tokenOf(line: Line, column = false): Token | null {
     if (/^\p{L}/u.test(token) && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
     const start = match.index + match[0].indexOf(token);
     const font = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run].font : "");
-    if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
+    // A letter from a symbol font is a glyph the PDF maps wrong (txsyc's
+    // "F" is ⩴), so a token holding one is a formula.
+    if ([...token.matchAll(/\p{L}/gu)].some((m) => SYMBOLIC.test(font(start + m.index!)))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
     // not a name.
     if (!open && /^\p{L}{1,2}\d*['′]*$/u.test(token) && [...token].every((c, i) => !/\p{L}/u.test(c) || ITALIC.test(font(start + i)))) return null;
@@ -323,7 +325,7 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
   return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
-    && lines.some((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
+    && lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
@@ -365,10 +367,12 @@ function spanOf(label: Line, token: Token): [number, number] {
 
 // An upright stroke closed by a stroke across at each end is the side of
 // a box no taller than two lines: a judgment's form set in a box beside
-// its rules, not a table's rule.
+// its rules, not a table's rule. A stroke across closing three uprights
+// level with it or more is a table's row (a grid of ticks and "n/a").
 function boxSide(page: Page, d: Drawn, label: Line): boolean {
   if (d.h >= 3 * label.size) return false;
-  const closes = (y: number) => page.drawn.some((h) => across(h) && Math.abs(h.y - y) <= 1 && h.x <= d.x + 1 && h.x + h.w >= d.x - 1);
+  const sides = (h: Drawn) => page.drawn.filter((u) => upright(u) && Math.abs(u.y - d.y) <= 1 && Math.abs(u.h - d.h) <= 1 && u.x >= h.x - 1 && u.x <= h.x + h.w + 1).length;
+  const closes = (y: number) => page.drawn.some((h) => across(h) && Math.abs(h.y - y) <= 1 && h.x <= d.x + 1 && h.x + h.w >= d.x - 1 && sides(h) <= 2);
   return closes(d.y) && closes(d.y + d.h);
 }
 
@@ -540,6 +544,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // listing's lines run past a rule drawn under it.
     const between = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.bottom <= bar.y + 1 && spans(l));
     const overhangs = between.some((l) => !fits(l)) || concluding.some((l) => !fits(l));
+    // A hyphenated, spaced or symbol name between them labels the bar
+    // itself: the label over it heads the group ("Implements" over <:-Param).
+    const relabelled = between.some((l) => { const t = tokenOf(l); return t?.side === "whole" && ["hyphen", "spaced", "symbol"].includes(shapeOf(fold(t.text)) ?? ""); });
     // No other bar between the label and this one spans the label, but a
     // premise's own: the label is that rule's, or its premise.
     const barred = page.drawn.some((d) => d !== bar && across(d) && main(d) !== bar && !overline(page, d, type) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y && d.x < label.x1 && d.x + d.w > label.x0
@@ -549,7 +556,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // bar of its own is the next rule's (ENV-R-KVAR's beside ENV-R-EMPTY).
     const premised = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2);
     const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l));
-    if (under && token.side === "whole" && aligned && !overhangs && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
+    if (under && token.side === "whole" && aligned && !overhangs && !relabelled && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
@@ -557,7 +564,8 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     for (const bar of bars) {
       if (bar.y >= label.top || !concluded1(bar)) continue;
       const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
-      const conclusion = lines.filter((l) => spans(l) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading);
+      // Ticks on the label's own row are a table's cells, no conclusion.
+      const conclusion = lines.filter((l) => spans(l) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading && !onRow(l, label));
       if (!conclusion.length || Math.min(...conclusion.map((l) => l.top)) >= label.top || label.top - Math.max(...conclusion.map((l) => l.bottom)) > type.leading) continue;
       // Its right edge at the bar's, or hanging past it from within (JFP
       // sets F_Compat under the conclusion's end, past the bar's; SWF_Refine

@@ -115,6 +115,16 @@ function opensColumn(runs: Placed[], from: number, left: number, right: number, 
   });
 }
 
+// Whether blank space between two runs on one baseline parts two rules
+// set side by side: one rule's bar ends in it and the next one's starts
+// there, level, just under or over the baseline (T-Assert_I's premises
+// beside T-Assert_S's, a word space apart).
+function partsBars(drawn: Drawn[], left: number, right: number, baseline: number, size: number): boolean {
+  const bars = drawn.filter((d) => d.h <= 1 && d.w >= 3 * size && Math.abs(d.y - baseline) <= 2 * size);
+  return bars.some((a) => a.x + a.w >= left - 0.5 * size && a.x + a.w <= right
+    && bars.some((b) => b !== a && Math.abs(b.y - a.y) <= 0.5 && b.x >= left && b.x <= right + 0.5 * size && b.x >= a.x + a.w));
+}
+
 // Whether the blank on a baseline between two runs is taken by a script
 // raised or lowered off it: "enables⁵⁻⁸, or" is one line with a
 // superscript in it, not two lines either side of a gap.
@@ -172,6 +182,7 @@ export function buildLines(page: Page): Placed[][] {
         const split = (gap > GUTTER * size && !bridged)
           || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
           || (gap > size && !bridged && run.text.trim().length > 1 && opensColumn(runs, line[0].x, last.x + last.width, run.x, run.baseline, size))
+          || (gap > 0.5 * size && partsBars(page.drawn, last.x + last.width, run.x, run.baseline, size))
           || (resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size));
         if (split) { groups.push({ runs: line }); line = []; }
       }
