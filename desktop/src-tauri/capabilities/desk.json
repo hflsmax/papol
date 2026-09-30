@@ -9,6 +9,7 @@
     "allow-open-storage-in-finder",
     "allow-diagnostic-log",
     "allow-diagnostic-recent",
+    "allow-clipboard-write-text",
     "allow-open-diagnostic-logs",
     "allow-data-query",
     "allow-data-mutate",

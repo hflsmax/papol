@@ -313,6 +313,14 @@ export async function nativeBlobUrl(sha256, mimeType = 'application/octet-stream
   return URL.createObjectURL(new Blob([await nativeBlobBytes(sha256)], { type: mimeType }));
 }
 
+// Text onto the clipboard. On the Mac the application writes it: WebKit lets
+// a page write the clipboard only straight from a click, and a link the
+// service makes first (Share's Copy link) arrives after the click lapsed.
+export function copyText(text) {
+  if (IS_DESKTOP) return invoke('clipboard_write_text', { text });
+  return navigator.clipboard.writeText(text);
+}
+
 export function openNativeStorageInFinder() {
   if (!IS_DESKTOP) return Promise.resolve();
   return invoke('open_storage_in_finder');

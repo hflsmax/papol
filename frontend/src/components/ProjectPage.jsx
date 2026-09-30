@@ -10,8 +10,9 @@ import {
   describeProject, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
-import { appPath } from '../base';
+import { appPath, backendPath } from '../base';
 import { DESKTOP } from '../../../shared/desktopShell';
+import { copyText } from '../../../shared/nativeData.js';
 import { InToolbar } from './DesktopChrome';
 import { InWay } from './Way';
 import ExperimentalBadge from '../../../shared/ui/ExperimentalBadge.jsx';
@@ -364,10 +365,11 @@ function AddPerson({ project, act }) {
 // The one invitation link a project has, for a keeper to hand out or stop.
 function Invitation({ project, act }) {
   const [copied, setCopied] = useState(false);
-  const linkFor = (code) => `${window.location.origin}${appPath(invitationPath(code))}`;
+  // On the service's address, not this window's, which on the Mac is the app's.
+  const linkFor = (code) => new URL(backendPath(invitationPath(code)), window.location.origin).toString();
   const link = project.invite_code ? linkFor(project.invite_code) : null;
   const copy = async (text) => {
-    try { await navigator.clipboard.writeText(text); setCopied(true); } catch { /* the link can be selected by hand */ }
+    try { await copyText(text); setCopied(true); } catch { /* the link can be selected by hand */ }
   };
   if (!link) {
     return (
