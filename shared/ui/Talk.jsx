@@ -543,11 +543,16 @@ export function TalkCard({
   // Inline, the phase sits at the end of the owners' row rather than on a
   // line of its own.
   const pickerWithOwners = inline && owners;
+  // Nothing to show yet: the dig is still being read. Said on the card
+  // itself, not left for a stylesheet to find with :has(:empty), which
+  // WebKit (the Mac app) does not look at again once the words arrive.
+  const blank = !error && !discussion && !writing;
   return (
     <section
       ref={card}
       className={`talk-card${inline ? ' is-inline' : ''}${conversation ? ' is-conversation' : ''}${spot?.sheet ? ' is-sheet' : ''}${spot?.hosted ? ' is-hosted' : ''}${spot ? ' is-placed' : ''}`}
       style={style}
+      data-blank={blank || undefined}
       role={inline ? 'region' : 'dialog'}
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
