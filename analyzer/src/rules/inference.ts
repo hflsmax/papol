@@ -273,11 +273,11 @@ function overline(page: Page, d: Drawn, type: Type): boolean {
     && r.x >= d.x + d.w - 2 && r.x <= d.x + d.w + 3 && r.baseline <= d.y + 0.6 * r.size && r.baseline >= d.y - 1.5 * r.size));
 }
 
-// Text reaching up to a stroke from under it, within its span, or another
+// Text reaching up to a stroke from under it, or another
 // stroke just under it, is what it overlines (TCInst's "‾Γ ⊢ τ′ₖ : κₖ‾",
 // PRODORSUM's): a conclusion stands clear of its bar.
 function hugs(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.25 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1)
+  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.6 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && l.x0 < d.x + d.w && l.x1 > d.x)
     || page.drawn.some((e) => e !== d && across(e) && e.y > d.y + 0.2 && e.y - d.y <= 0.4 * type.bodySize && e.x >= d.x - 1 && e.x + e.w <= d.x + d.w + 1);
 }
 
@@ -321,7 +321,6 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
   // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's).
   const held = (d: Drawn) => lines.some((l) => (l.top > from && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
-  if (process.env.DBGD) for (const d of page.drawn) if (d !== bar && across(d) && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w && Math.abs(bar.y - Number(process.env.DBGD)) < 1) console.error("DERIV", bar.x.toFixed(1), bar.y.toFixed(1), d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ over: overline(page, d, type), held: held(d), from, lines: lines.filter((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1).map((l) => [l.text.slice(0, 12), (l.top - d.y).toFixed(2), l.size.toFixed(1), (Math.min(...l.runs.map((r) => r.baseline)) - d.y).toFixed(2)]) }));
   return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
     && lines.some((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
@@ -331,7 +330,6 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 // another's conclusion is not a step, nor is a frame's edge under it (the
 // judgment's box under NEVER) a bar.
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
-  if (process.env.DBGD && Math.abs(bar.y - Number(process.env.DBGD)) < 1) for (const d of page.drawn) if (d !== bar && across(d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w) console.error("STEP", d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), framed(page, d), lines.filter((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1).map((l) => l.text));
   return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
     && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
     && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
@@ -438,7 +436,6 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     && (d.w <= wide || concluded(d) || besides(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
     && d.y >= label.top - OVER_REACH * type.leading && d.y <= label.bottom + OVER_REACH * type.leading
     && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
-  if (process.env.DBG && label.text.includes(process.env.DBG)) for (const d of page.drawn.filter((d) => across(d) && d.y > label.top - 2 * label.size && d.y < label.bottom + OVER_REACH * type.leading)) console.error("NEAR", label.text, d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ near: near.includes(d), besides: besides(d), framed: framed(page, d), over: overline(page, d, type), struck: struck(page, d), ul: underline(page, d), conc: concluded(d), top: topping(d), cap: capping(d), prose: inProse(page, d, type), wide: d.w <= wide, widest: d.w <= widest, measure, textw: type.text.x1 - type.text.x0 }));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
     .sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid) || gapTo(a) - gapTo(b));
   // The nearest bar under the label, for a label standing over its premises.
@@ -468,9 +465,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     if (perched) beside.push({ category: "beside", bar, row, side: "right", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     else if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
       // Level with the bar: beside it, or a cell over a table's rule.
-      // A premise's overline running under the label is neither.
+      // A premise's overline running under the label is neither, nor
+      // one the label only clips (a table's header stands over its rule).
       if (label.x0 < bar.x + bar.w - slack && label.x1 > bar.x + slack) {
-        if (hugs(page, bar, type)) continue;
+        if (hugs(page, bar, type) || Math.min(label.x1, bar.x + bar.w) - Math.max(label.x0, bar.x) < 0.5 * (label.x1 - label.x0)) continue;
         return { category: "cell", bar, row, side: "over" };
       }
       const right = bar.x + bar.w <= label.x0 + slack;
@@ -510,7 +508,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   };
   // On its own line over the premises, aligned with the rule's left edge
   // or its middle: mathpar's label, as far up as the premises stack.
-  for (const bar of below.flatMap((lower) => (claimed(lower) ? [] : main(lower) === lower ? [lower] : [main(lower), lower]))) {
+  // A stroke with nothing between it and the label that runs straight
+  // into a wider bar under it is a premise's overline (ROW's "‾Γ ⊢ ξᵢ : L‾").
+  const overlining = (d: Drawn) => !lines.some((l) => l !== label && l.top >= label.bottom - 1 && l.bottom <= d.y + 1 && l.x0 < d.x + d.w && l.x1 > d.x)
+    && Boolean(stepInto(page, d, lines, type, slack));
+  for (const bar of below.flatMap((lower) => (claimed(lower) || overlining(lower) ? [] : main(lower) === lower ? [lower] : [main(lower), lower]))) {
     const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
     const under = concluded1(bar);
     const fits = (l: Line) => l.x0 >= bar.x - 2 * label.size && l.x1 <= bar.x + bar.w + 2 * label.size;
@@ -547,7 +549,6 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // bar of its own is the next rule's (ENV-R-KVAR's beside ENV-R-EMPTY).
     const premised = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2);
     const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l));
-    if (process.env.DBG && label.text.includes(process.env.DBG)) console.error("OVER", label.text, bar.x.toFixed(1), bar.y.toFixed(1), label.size, JSON.stringify({ under, whole: token.side, aligned, overhangs, barred, rowed, blocks: row.filter(blocks).map((l) => l.text), over: between.filter((l) => !fits(l)).map((l) => l.text), conc: concluding.filter((l) => !fits(l)).map((l) => l.text) }));
     if (under && token.side === "whole" && aligned && !overhangs && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Under the conclusion, its edge at the bar's: the bar just over the
@@ -585,7 +586,6 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       const aligned = Math.abs(x0 - label.x0) <= 2 * label.size || Math.abs((x0 + x1) / 2 - centre) <= 2 * label.size;
       const stroke = page.drawn.some((d) => across(d) && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
       const blocked = row.some((l) => l.x0 < x1 && l.x1 > x0 && /[\p{L}\d]/u.test(l.text));
-      if (process.env.DBG && label.text.includes(process.env.DBG)) console.error("AXIOM", label.text, JSON.stringify({ under: under.map((l) => l.text), aligned, stroke, blocked, prod: under.some((l) => production(l, page, type)), between: BETWEEN.test(under.map((l) => l.text).join(" ")) }));
       if (aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && BETWEEN.test(under.map((l) => l.text).join(" "))) return { category: "over", bar: null, row: under, side: "over" };
     }
   }
