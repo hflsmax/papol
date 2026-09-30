@@ -132,14 +132,23 @@ function scriptFills(runs: Placed[], left: number, right: number, baseline: numb
   const scripts = runs.filter((r) => {
     if (r.size > SCRIPT_SIZE * size || r.x < left - 1 || r.x + r.width > right + 1) return false;
     const lift = (baseline - r.baseline) / size;
-    return (lift >= RAISED[0] && lift <= RAISED[1]) || (-lift >= LOWERED[0] && -lift <= LOWERED[1]);
+    // A script's own script ("σ_id" under "↑") sits further off.
+    const deeper = r.size <= SCRIPT_SIZE * SCRIPT_SIZE * size ? RAISED[1] : LOWERED[1];
+    return (lift >= RAISED[0] && lift <= RAISED[1]) || (-lift >= LOWERED[0] && -lift <= deeper);
   });
   if (!scripts.length) return false;
   // The script has to sit against the text on its left, and leave no more
   // than a word space before the text on its right: a gutter with a
   // superscript at its edge is still a gutter.
-  const from = least(scripts.map((r) => r.x)), to = most(scripts.map((r) => r.x + r.width));
-  return from - left <= 0.5 * size && right - to <= 0.8 * size;
+  // Nor may the scripts leave a gap between them: two rules' subscripts
+  // either side of the blank parting them do not fill it.
+  scripts.sort((a, b) => a.x - b.x);
+  let reach = left;
+  for (const r of scripts) {
+    if (r.x - reach > (reach === left ? 0.5 : 0.8) * size) return false;
+    reach = Math.max(reach, r.x + r.width);
+  }
+  return right - reach <= 0.8 * size;
 }
 
 export function buildLines(page: Page): Placed[][] {
@@ -201,7 +210,7 @@ export function buildLines(page: Page): Placed[][] {
     const letters = small.reduce((n, r) => n + (r.text.match(/\p{L}/gu) ?? []).length, 0);
     const x0 = least(small.map((r) => r.x)), x1 = most(small.map((r) => r.x + r.width));
     const base = median(small.map((r) => r.baseline));
-    let best = -1, bestGap = Infinity, raised = false;
+    let best = -1, bestGap = Infinity, bestLift = Infinity, raised = false;
     lines.forEach((big, j) => {
       if (j === i || merged.has(j)) return;
       const bigSize = median(big.map((r) => r.size));
@@ -220,7 +229,9 @@ export function buildLines(page: Page): Placed[][] {
       // between two of its runs stacks under a drawn arrow ("dir").
       const past = x0 >= most(big.map((r) => r.x + r.width)) || x1 <= least(big.map((r) => r.x));
       if (gap > APART_WORD * bigSize && letters >= 3 && past) return;
-      if (gap < bestGap) { best = j; bestGap = gap; raised = up; }
+      // Touching two lines alike, a script belongs to the nearer baseline
+      // (Pₓ's subscript against the big operator under it).
+      if (Math.abs(gap - bestGap) <= 0.5 ? Math.abs(lift) < bestLift : gap < bestGap) { best = j; bestGap = gap; bestLift = Math.abs(lift); raised = up; }
     });
     if (best < 0) return;
     for (const r of small) { r.sup = raised; r.sub = !raised; }
