@@ -497,6 +497,7 @@ ${fileDropStyles}
   z-index: 2000;
   top: calc(100% + 8px);
   transform: translateX(-50%);
+  width: max-content;
   max-width: min(420px, 100%);
   padding: 4px 8px;
   border-radius: 5px;
@@ -504,9 +505,9 @@ ${fileDropStyles}
   color: var(--ink-inverse);
   font-size: var(--fs-xs);
   line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* A figure's caption can run past one line: the name wraps rather than
+     losing its page at the end. */
+  overflow-wrap: break-word;
   box-shadow: var(--shadow-md);
   pointer-events: none;
 }

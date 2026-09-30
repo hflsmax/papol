@@ -77,7 +77,7 @@ export function viewerAnalysis(analysis) {
         boxes: c.boxes.map(({ page, x, y, w, h }) => ({ page, x, y, w, h })),
       }))
       .filter((c) => c.reference_uuids.length && c.boxes.length),
-    floats: analysis.floats.map((f) => ({ uuid: f.key, kind: f.kind, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
+    floats: analysis.floats.map((f) => ({ uuid: f.key, kind: f.kind, label: f.label, title: f.title, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h })),
     links: analysis.links.map((l) => ({ float_uuid: l.float, label: l.label ?? null, page: l.page, x: l.x, y: l.y, w: l.w, h: l.h })),
   };
 }

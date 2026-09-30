@@ -5,10 +5,10 @@ import { NAV_KINDS, NAV_NAMES, NAV_SHOWN, floatMarks } from './navMarks.js';
 
 const floats = [
   { uuid: 't1', kind: 'proof', label: 'Proof', page: 2, y: 0.5 },
-  { uuid: 'f0', kind: 'figure', label: '1', page: 1, y: 0.25 },
+  { uuid: 'f0', kind: 'figure', label: '1', title: 'The Transformer', page: 1, y: 0.25, h: 0.5 },
   { uuid: 'b0', kind: 'box', label: '1', page: 3, y: 0 },
   { uuid: 'l0', kind: 'listing', label: '2', page: 3, y: 0.5 },
-  { uuid: 't0', kind: 'theorem', label: 'Proposition 3', page: 2, y: 0.25 },
+  { uuid: 't0', kind: 'theorem', label: 'Proposition 3', title: 'Progress', page: 2, y: 0.25 },
   { uuid: 's0', kind: 'section', label: '2', page: 2, y: 0 },
   { uuid: 'n0', kind: 'footnote', label: '1', page: 2, y: 0.9 },
 ];
@@ -18,10 +18,10 @@ test('every kind the bar can mark has a name in the gear', () => {
   for (const kind of NAV_SHOWN) assert.ok(NAV_KINDS.includes(kind), kind);
 });
 
-test('marks the kinds asked for, where they are, named as the paper names them', () => {
+test('marks the kinds asked for, at their middles, named as the paper names them with what they are about', () => {
   assert.deepEqual(floatMarks(floats, ['figure', 'algorithm', 'theorem'], 3).map(({ kind, name, at }) => [kind, name, at]), [
-    ['figure', 'Figure 1', 0.25],
-    ['theorem', 'Proposition 3', 1.25],
+    ['figure', 'Figure 1: The Transformer', 0.5], // the middle of its box
+    ['theorem', 'Proposition 3: Progress', 1.25],
     ['figure', 'Box 1', 2],
     ['algorithm', 'Listing 2', 2.5],
   ]);
