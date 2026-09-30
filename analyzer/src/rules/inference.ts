@@ -297,6 +297,7 @@ interface Setting {
   other?: Setting; // beside a bar on either side: the setting on the other side
   derived?: boolean; // the bar is a step of a derivation, not a rule's definition
   step?: Drawn | null; // the wider bar under it the conclusion leads into: a step, unless that bar has a label
+  perched?: boolean; // raised onto the last premise's line at the bar's end, not level with the bar
 }
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
@@ -707,7 +708,7 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 // How a token stands to notation: beside a bar, over it, at the end of a
 // row, at the margin (rule.setting); or as a cell, a group heading or a
 // comment (rule.cell, rule.heading).
-function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
+function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed: Set<Line> = new Set()): Setting {
   const lines = ruleLines(page, label);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
   const slack = BESIDE * label.size;
@@ -831,7 +832,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
   // A bar with a label of its own set beside it (SSub_Refine) is that
   // label's rule: a label over it is the axiom's under the rule above.
-  const claimed = (bar: Drawn) => lines.some((l) => Math.abs((l.top + l.bottom) / 2 - bar.y) <= LEVEL * label.size && l.x0 >= bar.x + bar.w - slack && l.x0 - bar.x - bar.w <= 2 * label.size
+  const claimed = (bar: Drawn) => lines.some((l) => !unclaimed.has(l) && Math.abs((l.top + l.bottom) / 2 - bar.y) <= LEVEL * label.size && l.x0 >= bar.x + bar.w - slack && l.x0 - bar.x - bar.w <= 2 * label.size
     && Math.abs(l.size - label.size) <= 0.5 && tokenOf(l)?.side === "whole" && faceOf(l) === faceOf(label));
   const beside: Setting[] = [];
   for (const bar of bars) {
@@ -841,7 +842,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // same. A table's header over its rule has no premise beside it, and
     // a bar with its own label level beside it (Cex-Emp) is that one's.
     const perched = token.side === "whole" && !claimed(bar) && !RELATION.test(label.text) && row.some((l) => l.x1 <= label.x0 && RELATION.test(l.text)) && row.every((l) => l.x1 <= label.x0 - label.size || l.x0 >= label.x1) && label.x0 > bar.x && Math.abs(label.x1 - bar.x - bar.w) <= 2 * slack && bar.y >= label.bottom - 1 && bar.y - label.bottom <= 0.5 * type.leading;
-    if (perched) beside.push({ category: "beside", bar, row, side: "right", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
+    if (perched) beside.push({ category: "beside", bar, row, side: "right", perched, derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     else if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
       // Level with the bar: beside it, or a cell over a table's rule.
       // A premise's overline running under the label is neither, nor
@@ -972,7 +973,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // A lone constant ("False", "Proph") concludes all the same.
     const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && (l.text.trim().split(/\s+/).length >= 3 || concluding.length >= 3) && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
       && !/[\u{1D400}-\u{1D7FF}]/u.test(l.text) && l.runs.every((r) => !/\p{L}/u.test(r.text) || (!ITALIC.test(r.font) && !SYMBOLIC.test(r.font) && !MONO.test(r.font))));
-    if (under && token.side === "whole" && aligned && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
+    // A token centred hard over the bar, nothing between, is its premise
+    // ("is_mask(𝑡)" over "is_mask(nested(𝑡))"): a label over its rule stands
+    // over the premises, or flush with the bar's start.
+    const premise = !between.length && bar.y - label.bottom <= 0.6 * type.leading && Math.abs(label.x0 - bar.x) > 2 * label.size;
+    if (under && token.side === "whole" && aligned && !premise && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Over the one line of an axiom set without a bar, aligned with it:
   // the line under the label holds a relation between terms and nothing
@@ -1100,6 +1105,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     return RELATION.test(rest + " " + levelled) ? { category: "row", bar: null, row, side: token.side === "head" ? "left" : "right" } : { category: "none", bar: null, row, side: "right" };
   }
   if (!row.length) return { category: "none", bar: null, row, side: "right" };
+  // Hard under a bar spanning it, the token is that bar's conclusion
+  // ("is_mask(mask)" under an axiom's bar), its row the other rules'.
+  if (page.drawn.some((d) => across(d) && d.w >= 2 * label.size && !framed(page, d) && d.y <= label.top + 1 && label.top - d.y <= 0.5 * type.leading && d.x <= label.x0 + label.size && d.x + d.w >= label.x1 - label.size)) return { category: "none", bar: null, row, side: "right" };
   if (row.some((l) => production(l, page, type))) return { category: "comment", bar: null, row, side: "right" };
   if (ruledAside(page, label, span, type) || walled(page, label, span, row)) return { category: "cell", bar: null, row, side: "right" };
   const right = columnRight(page, label);
@@ -1368,6 +1376,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   if (bar) {
     x0 = Math.min(bar.x, label.x0); x1 = Math.max(bar.x + bar.w, label.x1);
     for (const l of lines) if (l.x0 <= x1 + slack && l.x1 >= x0 - slack && l.bottom >= bar.y - 0.8 * type.leading && l.top <= bar.y + 0.8 * type.leading) taken.add(l);
+    // A side condition set level with the bar just past its end, under a
+    // label over the rule, is the rule's ("proj(𝑡)" by wp-projᵢ's bar).
+    if (setting.side === "over") {
+      for (const l of lines) if (Math.abs((l.top + l.bottom) / 2 - bar.y) <= LEVEL * l.size && l.x0 >= x1 - 1 && l.x0 - x1 <= 2 * label.size && sameColumn(page, l, label)) { taken.add(l); x1 = Math.max(x1, l.x1); }
+    }
   } else {
     for (const l of setting.row) if (!flushLeft(l)) taken.add(l);
     x0 = Math.min(...[...taken].map((l) => l.x0)); x1 = Math.max(...[...taken].map((l) => l.x1));
@@ -2023,7 +2036,27 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // token over the same bar is a premise ("⌉A⌈" under TL-and).
   const labelled = new Map<Drawn, number>();
   const placed: Placed[] = [];
+  // A token raised onto the premises' line at the bar's end, where a
+  // label over the premises heads that bar, is the last premise: a side
+  // condition ("atomic(e)" after SC-CInv-Acc's premise, "is_mask(𝑡₂)"
+  // on Ty-mask's row), no second name for the rule. So is one level with
+  // the bar where the paper sets more labels over their rules than beside
+  // ("proj(𝑡)" beside wp-projᵢ's bar).
+  // The label over the premises stands over that bar, however the token
+  // beside it laid claim to it (wp-projᵢ left barless by "proj(𝑡)").
+  const atBars = (category: Category) => candidates.filter((c) => c.setting.category === category && c.setting.bar).length;
+  const overs = atBars("over") > atBars("beside");
+  for (const c of candidates) {
+    if (c.setting.category !== "beside" || !c.setting.bar || !(c.setting.perched || overs)) continue;
+    for (const o of candidates) {
+      if (o.page !== c.page || o.setting.category !== "over" || o.setting.bar) continue;
+      const again = settingOf(o.page, o.line, o.token, type, new Set([c.line]));
+      if (again.category === "over" && again.bar === c.setting.bar) o.setting = again as Candidate["setting"];
+    }
+  }
+  const overBars = new Set(candidates.filter((c) => c.setting.category === "over" && c.setting.bar).map((c) => c.setting.bar));
   for (const c of ordered) {
+    if (c.setting.category === "beside" && (c.setting.perched || overs) && overBars.has(c.setting.bar)) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
     const key = keyOf(fold(c.token.text));
     const premise = c.setting.category === "over" && c.setting.bar && labelled.get(c.setting.bar) !== undefined && c.line.top - labelled.get(c.setting.bar)! <= 3 * type.leading
       && c.setting.bar.y - labelled.get(c.setting.bar)! <= 3.5 * type.leading;
