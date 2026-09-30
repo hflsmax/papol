@@ -135,6 +135,10 @@ const SHOTS = {
   // An admin's bar, with Admin beside the Bazaar (run with PAPOL_ADMIN=1).
   'admin-bar': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
   'admin-bar-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-paper') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
+  // A report on the admin page, with where its writer was and the steps
+  // before it opened (run with PAPOL_ADMIN=1).
+  'admin-feedback': { path: '/admin?shell=web', ready: "document.querySelector('.feedback-context details')", then: "const d = document.querySelector('.feedback-context details'); d.open = true; d.closest('.panel').scrollIntoView({ block: 'start' }); return true;", size: wide },
+  'phone-admin-feedback': { path: '/admin?shell=web', ready: "document.querySelector('.feedback-context details')", then: "const d = document.querySelector('.feedback-context details'); d.open = true; d.closest('.panel').scrollIntoView({ block: 'start' }); return true;", size: phone },
   'phone-admin-bar': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: phone },
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
   'phone-paper': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: phone },

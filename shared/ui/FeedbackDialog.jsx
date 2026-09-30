@@ -3,6 +3,7 @@ import appLimits from '../appLimits.js';
 import { recentDiagnosticEvents } from '../nativeData.js';
 import { diagnosticLogExcerpt, feedbackWithDiagnosticLog } from '../diagnosticLog.js';
 import { useModalDialog } from '../useModalDialog.js';
+import { feedbackContext } from '../feedbackTrail.js';
 
 /** The one feedback dialog, over whichever surface raised it. Each surface
     hands in its own transport and its own words for the two prompts; the
@@ -13,6 +14,7 @@ export default function FeedbackDialog({
   errorNote = 'Papol encountered an unexpected error. Review or edit the diagnostic details below, then choose whether to send them to the developer.',
   initialContent = '',
   reportError = false,
+  context = null,
   onClose,
 }) {
   const [content, setContent] = useState(initialContent);
@@ -40,8 +42,10 @@ export default function FeedbackDialog({
           includeLog ? logExcerpt : '',
           appLimits.text.feedback,
         ),
-        // Where the reporter was standing, so an admin can retrace it.
+        // Where the reporter was standing and what they had just done,
+        // so an admin can retrace it.
         page: window.location.pathname || '/',
+        context: feedbackContext(context || {}),
         contact: null,
       });
       setSent(true);

@@ -84,7 +84,11 @@ const rulesVersion = (() => {
 export default defineConfig(({ command }) => ({
   base: command === 'serve' ? '/viewer/' : './',
   plugins: [react(), pdfjsAssets()],
-  define: { __PAPOL_RULES_VERSION__: JSON.stringify(rulesVersion) },
+  define: {
+    __PAPOL_RULES_VERSION__: JSON.stringify(rulesVersion),
+    // The commit this build came from, which a feedback report names.
+    __PAPOL_BUILD__: JSON.stringify((process.env.GITHUB_SHA || '').slice(0, 7) || 'local'),
+  },
   // Desktop-only UI is shared from the frontend package. Without deduping,
   // a production build resolves React once from each package's node_modules;
   // hooks in the shared components then run against the wrong dispatcher.

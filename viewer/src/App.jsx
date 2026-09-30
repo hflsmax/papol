@@ -5063,6 +5063,7 @@ export default function App() {
             errorNote="Papol encountered an unexpected error while opening this PDF. Review the details below and choose whether to send them to the developer."
             initialContent={feedbackContent}
             reportError={feedbackReportError}
+            context={{ project: projectView?.name }}
             onClose={closeFeedback}
           />
         )}

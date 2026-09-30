@@ -382,10 +382,11 @@ export function lookUpViewerReference(paperSha256, reference, share = null) {
 
 // ---- Feedback ----
 
-export function submitFeedback({ content, page, contact }) {
+export function submitFeedback({ content, page, context, contact }) {
   return jsonRequest('/feedback', 'POST', {
     content,
     page: page || null,
+    context: context || null,
     contact: contact || null,
   });
 }

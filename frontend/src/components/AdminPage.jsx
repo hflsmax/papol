@@ -422,6 +422,42 @@ function EmailPanel() {
   );
 }
 
+// How long before the report a step came, by the reporter's own clock.
+function before(ms) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+const DID = { open: 'opened', click: 'pressed', error: 'error' };
+
+// Where the reporter was and what they had just done.
+function FeedbackContext({ context: c }) {
+  const where = [c.title && `“${c.title}”`, c.project && `in ${c.project}`].filter(Boolean).join(' ');
+  const app = [c.runtime === 'mac' ? 'Mac' : 'Web', c.app, c.window && `${c.window} window`, c.version].filter(Boolean).join(' · ');
+  const device = [`${c.browser} on ${c.system}`, c.viewport, c.language, c.online === false && 'offline'].filter(Boolean).join(' · ');
+  return (
+    <div className="feedback-context">
+      {where && <p>{where}</p>}
+      <p>{app} · {device}</p>
+      {c.trail.length > 0 && (
+        <details>
+          <summary>Leading up to it</summary>
+          <ol>
+            {c.trail.map((step, index) => (
+              <li key={index} className={step.kind === 'error' ? 'feedback-step failed' : 'feedback-step'}>
+                <span>−{before(c.sent_at - step.at)}</span>
+                <span>{DID[step.kind]} {step.what}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function FeedbackPanel() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -479,10 +515,11 @@ function FeedbackPanel() {
             >
               <p className="feedback-head">
                 {who(fb)}
-                {fb.page ? ` · ${fb.page}` : ''} ·{' '}
+                {fb.page && <> · <a href={fb.page}>{fb.page}</a></>} ·{' '}
                 {new Date(fb.created_at + 'Z').toLocaleString()}
               </p>
               <p className="feedback-content">{fb.content}</p>
+              {fb.context && <FeedbackContext context={fb.context} />}
               <button className="link-button" onClick={() => toggle(fb)}>
                 {fb.resolved ? 'Reopen' : 'Mark done'}
               </button>

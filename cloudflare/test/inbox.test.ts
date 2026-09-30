@@ -70,4 +70,25 @@ describe("feedback", () => {
     expect(mail[0].body).toContain("Page: /library");
     expect((await call("POST", "/api/feedback", { json: { content: "" } })).status).toBe(422);
   });
+
+  it("keeps where the reporter was and what they had just done, and mails it", async () => {
+    const admin = await register("admin@example.test", "Admin"), reporter = await register("reporter@example.test", "Reporter");
+    await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", admin.uuid);
+    const context = {
+      app: "viewer", runtime: "web", window: null, version: "abc1234", page: "/viewer/p1", title: "Effect Handlers, Evidently",
+      project: "Effects", viewport: "1440×900 at 2x", browser: "Chrome 131", system: "macOS", language: "en-US", online: true, sent_at: 100_000,
+      trail: [{ at: 10_000, kind: "open", what: "/nook" }, { at: 95_000, kind: "click", what: 'button "Feedback"' }],
+    };
+    const sent = await ok("POST", "/api/feedback", { headers: reporter.headers, json: { content: "Boxes overlap", page: "/viewer/p1", context } });
+    expect(sent.context).toEqual(context);
+    const [listed] = await ok("GET", "/api/admin/feedback", { headers: admin.headers });
+    expect(listed.context).toEqual(context);
+    const [mail] = (await rows("SELECT payload FROM jobs WHERE kind = 'send_email'")).map((j) => JSON.parse(j.payload as string));
+    expect(mail.body).toContain('Where: /viewer/p1 "Effect Handlers, Evidently" in Effects');
+    expect(mail.body).toContain("App: Web · viewer · abc1234");
+    expect(mail.body).toContain("Device: Chrome 131 on macOS · 1440×900 at 2x · en-US");
+    expect(mail.body).toContain('  1m 30s before: opened /nook\n  5s before: pressed button "Feedback"');
+    const bad = await call("POST", "/api/feedback", { json: { content: "x", context: { ...context, trail: [{ at: 1, kind: "typed", what: "secret" }] } } });
+    expect(bad.status).toBe(422);
+  });
 });
