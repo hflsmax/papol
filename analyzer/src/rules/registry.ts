@@ -75,6 +75,11 @@ export const LAYOUT_COLUMN = rule({
   summary: "Blank space wider than the size (a quad) between two runs on one baseline opens a column where a line just above or below (within two and a half sizes) leaves a blank of the size there too, its text before the blank starting where this line's does and its text after starting where the right run does: a grid. A lone character after the blank stays on the line (\"Interchange 1\" over \"Interchange 2\").",
   why: "OOPSLA's bottom-up linearization sets three labelled equations side by side a word space apart; read as one line, [MergeIdempotence] and [MergeCommutativity] are one label and the equations under them one line. The caption under the figure crosses the gap, so it is no gutter. An aligned display (\"Θ₁ = …\" over \"Θ₂ = …\") is a grid too, but its blank is under a quad and stays one line.",
 });
+export const LAYOUT_RULES_APART = rule({
+  id: "layout.rules-apart", stage: "layout",
+  summary: "Blank space wider than half the size between two runs on one baseline parts them where one level stroke at least three sizes long ends in the blank and another level with it starts there, within two sizes of the baseline: two rules set side by side, each line its own rule's premise or conclusion.",
+  why: "Featherweight Go sets T-Assert_I, T-Assert_S and T-Stupid a word space apart, their premises one baseline; read as one line, the premises of both rules run past each rule's bar and neither label finds its rule.",
+});
 export const LAYOUT_SIZE_CHANGE = rule({
   id: "layout.size-change", stage: "layout",
   summary: "Two runs on the same baseline (not a raised or lowered script) that differ in size (beyond the 3% a size read off a transform is rounded to), with more than half an em between them, are two lines side by side, not one.",
@@ -262,11 +267,11 @@ export const RULE_SHAPE_HYPHEN = rule({
 });
 export const RULE_SHAPE_SPACED = rule({
   id: "rule.shape.spaced", stage: "rule",
-  summary: "A spaced name: a prefix of one or two capitals or a Greek letter, a space, and a capitalised word (\"E Beta\", \"T FUNC\", \"E PreCheck\", \"β Box\"); or a capitalised word, a space, and one or two capitals, a digit or an arrow (\"Val T\", \"Clos E\", \"Interchange 1\", \"Propagate ↓\").",
+  summary: "A spaced name: a prefix of one or two capitals or a Greek letter, a space, and a capitalised word (\"E Beta\", \"T FUNC\", \"E PreCheck\", \"β Box\"); or a capitalised word, a space, and one or two capitals, a digit or an arrow (\"Val T\", \"Clos E\", \"Interchange 1\", \"Propagate ↓\"); or capitalised words joined by hyphens, a space and an arrow with an optional digit (\"Insert-Abs ↓\", \"Propagate-Var ↓1\").",
   why: "LNCS and JFP papers set \\rulename{E}{Beta} with a rule between the parts that reaches the text layer as a space; a call-by-push-value paper names its rules Val T and Eval T after the judgement.",
-  pattern: /^(?:(?:[A-Z]{1,2}|\p{Script=Greek}) [A-Z][\p{L}\d]{1,15}|[A-Z]\p{L}{1,11} (?:[A-Z]{1,2}|\d{1,2}|[↓↑]))$/u,
-  matches: ["E Beta", "T FUNC", "E PreCheck", "WF Empty", "S SUB", "Val T", "Clos E", "Interchange 1", "Propagate ↓", "β Box"],
-  rejects: ["e beta", "ABC Def", "E beta", "E B", "A note", "the T"],
+  pattern: /^(?:(?:[A-Z]{1,2}|\p{Script=Greek}) [A-Z][\p{L}\d]{1,15}|[A-Z]\p{L}{1,11} (?:[A-Z]{1,2}|\d{1,2}|[↓↑])|[A-Z]\p{L}{1,11}(?:-[A-Z]\p{L}{1,11})+ [↓↑]\d?)$/u,
+  matches: ["E Beta", "T FUNC", "E PreCheck", "WF Empty", "S SUB", "Val T", "Clos E", "Interchange 1", "Propagate ↓", "β Box", "Insert-Abs ↓", "Propagate-Var ↓1", "Fallthrough-Error ↑"],
+  rejects: ["e beta", "ABC Def", "E beta", "E B", "A note", "the T", "Insert-Abs 1"],
 });
 export const RULE_SHAPE_WORD = rule({
   id: "rule.shape.word", stage: "rule",
@@ -316,7 +321,7 @@ export const RULE_CONVENTION = rule({
 });
 export const RULE_HEADING = rule({
   id: "rule.heading", stage: "rule",
-  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar, or with one set as three times as many of the paper's labels are. None names a rule.",
+  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar, or with one set as three times as many of the paper's labels are. None names a rule. A hyphenated, spaced or symbol name set smaller than a label, between it and the bar under it, labels that bar; the label over it heads the group (\"Implements\" over <:-Param).",
   why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin; \"(Reduction)\" stands in italics over R-Proj2Beta's rule, \"All\" underlined over allEmpty; omit_all_labels(t) is a listing's line over an example.",
 });
 export const RULE_DERIVATION = rule({
@@ -326,7 +331,7 @@ export const RULE_DERIVATION = rule({
 });
 export const RULE_CELL = rule({
   id: "rule.cell", stage: "rule",
-  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's.",
+  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's. An upright closed at both ends by strokes across is a judgment's box, not a wall, unless those strokes close three uprights or more: a grid's row (ticks and \"n/a\" in a table of formats).",
   why: "Program, Line, Char over a table's rule; \"——— Structural ———\" between groups of rules, while [fvar] has a gap before the next rule's bar; (base) and (offset) in a ruled table's cell.",
 });
 export const RULE_BOX = rule({
