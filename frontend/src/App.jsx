@@ -130,6 +130,12 @@ function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
+// A board picked in a project opens its jacket in the project's frame,
+// under the project's tabs; none picked is the project's Boards again.
+const openProjectBoard = (projectUuid) => (boardUuid, options) => {
+  navigate(boardUuid ? `/project/${projectUuid}/board/${boardUuid}` : `/project/${projectUuid}`, options);
+};
+
 // Paths served by the board canvas and the PDF viewer, not by this app.
 const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
 
@@ -763,7 +769,7 @@ export default function App({ startupUser = null, startupError = null }) {
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
             onSelectBoard={(uuid) => navigate(uuid ? `/board/${uuid}` : '/')}
             shelf={route.page === 'shelf' ? route.uuid : route.shelf ?? null}
-            board={route.page === 'board' ? route.uuid : route.board ?? null}
+            board={route.page === 'board' ? route.uuid : route.page === 'paper' ? route.board ?? null : null}
             project={route.page === 'project' ? route.uuid : null}
             paper={route.page === 'paper' ? route.uuid : null}
             renderPaper={(name) => (
@@ -780,10 +786,12 @@ export default function App({ startupUser = null, startupError = null }) {
               <ProjectPage
                 key={uuid}
                 projectUuid={uuid}
+                board={route.board ?? null}
                 currentUser={user}
                 onChanged={() => setProjectsRevision((r) => r + 1)}
                 onLeft={() => navigate('/', { replace: true })}
-                onOpenBoard={openBoard}
+                onOpenBoard={openProjectBoard(uuid)}
+                onOpenCanvas={openBoardCanvas}
               />
             )}
             onOpenProject={(uuid) => {
@@ -872,12 +880,14 @@ export default function App({ startupUser = null, startupError = null }) {
         <ProjectPage
           key={route.uuid}
           projectUuid={route.uuid}
+          board={route.board ?? null}
           currentUser={user}
           onBack={goBack}
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
-          onOpenBoard={openBoard}
+          onOpenBoard={openProjectBoard(route.uuid)}
+          onOpenCanvas={openBoardCanvas}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
         />
       )}
