@@ -843,5 +843,3 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
   return links;
 }
 
-// Internals for the corpus tools (not part of the analyzer).
-export const internals = { boxOf, typeOf, settingOf, tokenOf };
