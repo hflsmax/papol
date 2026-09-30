@@ -1463,10 +1463,12 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* The dig a face opens: beside the faces, over the page's edge when the
    window has no room past them. */
 /* Over everything else on the page: anchors, ink, clips and their bars. */
-.dig-margin-card { position: absolute; z-index: 20; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
-/* Unseen until what it holds has come, so it appears once, whole, rather
-   than as a thin strip that then grows. */
-.dig-margin-card:has(.talk-card-body:empty):not(:has(.talk-card-error)) { visibility: hidden; }
+/* The white card is the dig itself, so it is hidden with it: unseen until
+   what it holds has come, it appears once, whole, rather than as a thin
+   strip that then grows. */
+.dig-margin-card { position: absolute; z-index: 20; }
+.dig-margin-card > .talk-card.is-inline.is-conversation { box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md); }
+.dig-margin-card > .talk-card[data-blank] { visibility: hidden; }
 /* Inside, the card keeps the margin's one column: owners, posts and the
    box all start where the line's name did, and the phase stands on the
    dig's own line after its date, as in the brief. */

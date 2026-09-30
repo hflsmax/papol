@@ -225,7 +225,7 @@ function theirNook(owner) {
 
 // What the pretend server says to each request the pages make.
 function answer(method, path, search, sent = {}) {
-  if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
+  if (path === '/auth/me') return { ...me, is_admin: process.env.PAPOL_ADMIN === '1', email: 'dana@example.org' };
   if (path === '/notifications') {
     const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
     return {

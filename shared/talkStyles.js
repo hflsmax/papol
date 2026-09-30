@@ -35,7 +35,7 @@ export const talkStyles = `
 .talk-card.is-placed { visibility: visible; opacity: 1; }
 /* A dig read for the first time opens once it is read, whole and in its
    place, rather than as a header that then grows. */
-.talk-card.is-placed:not(.is-inline):has(.talk-card-body:empty):not(:has(.talk-card-error)) { visibility: hidden; }
+.talk-card.is-placed:not(.is-inline)[data-blank] { visibility: hidden; }
 .talk-card.is-sheet { left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 14px 14px 0 0; border-bottom: 0; transform-origin: 50% 100%; }
 /* Hosted in a scrolling page, the card rides in it rather than over it. */
 .talk-card.is-hosted { position: absolute; }
