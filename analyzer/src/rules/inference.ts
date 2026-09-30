@@ -416,9 +416,12 @@ function concludes(page: Page, d: Drawn, type: Type): boolean {
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
 // over its boxed judgments, a table's rule), no rule's bar.
-// The conclusion may reach the layout in pieces on one row, a big brace
-// apart (ConstructTerm's), and is centred as one.
+// A conclusion the layout broke into pieces is measured whole: pieces on
+// one row inside the bar, a big brace apart (ConstructTerm's), or pieces
+// a word space or so apart (tall braces and a big operator split
+// "{ I(0, ∅) ∗ ⊛ Rᵢ } [ι : while …]" under WHILE's bar).
 function dividing(page: Page, d: Drawn, type: Type): boolean {
+  if (d.w < BAR_SHARE * (type.text.x1 - type.text.x0)) return false;
   const centre = d.x + d.w / 2;
   const centred = (x0: number, x1: number) => Math.abs((x0 + x1) / 2 - centre) <= 2 * type.bodySize && x1 - x0 >= 0.3 * d.w;
   const inside = (l: Line) => !l.furniture && l.x0 >= d.x - type.bodySize && l.x1 <= d.x + d.w + type.bodySize;
@@ -426,8 +429,22 @@ function dividing(page: Page, d: Drawn, type: Type): boolean {
     const row = page.lines.filter((o) => o === l || (inside(o) && onRow(o, l)));
     return centred(Math.min(...row.map((o) => o.x0)), Math.max(...row.map((o) => o.x1)));
   };
-  return d.w >= BAR_SHARE * (type.text.x1 - type.text.x0) && !page.lines.some((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading
-    && (centred(l.x0, l.x1) || (inside(l) && joined(l))));
+  const under = page.lines.filter((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading);
+  // A brace reaching up past the bar is a piece all the same.
+  const pieces = page.lines.filter((l) => !l.furniture && l.bottom > d.y + 1 && l.top <= d.y + type.leading);
+  const whole = (l: Line): [number, number] => {
+    const taken = [l];
+    let [x0, x1] = [l.x0, l.x1];
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const o of pieces) {
+        if (taken.includes(o) || !taken.some((t) => level(o, t)) || !((o.x1 <= x0 + 1 && x0 - o.x1 <= type.bodySize) || (o.x0 >= x1 - 1 && o.x0 - x1 <= type.bodySize))) continue;
+        taken.push(o); x0 = Math.min(x0, o.x0); x1 = Math.max(x1, o.x1); grew = true;
+      }
+    }
+    return [x0, x1];
+  };
+  return !under.some((l) => centred(l.x0, l.x1) || (inside(l) && joined(l)) || centred(...whole(l)));
 }
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
@@ -838,7 +855,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // stops short of the bar's).
       const right = Math.abs(label.x1 - bar.x - bar.w) <= 2 * slack || (label.x0 > bar.x && label.x1 >= Math.max(...conclusion.map((l) => l.x1)) - 2 * slack && label.x1 - bar.x - bar.w <= 4 * slack);
       const left = Math.abs(label.x0 - bar.x) <= 2 * slack;
-      if ((right || left) && !row.some((l) => spans(l) && /[\p{L}\d]/u.test(l.text))) return { category: "beside", bar, row, side: right ? "right" : "left" };
+      // Figures level with the label make it a table's row, in whatever
+      // column the layout read them ("Facile  97.5 ± 0.09" under a rule).
+      const figured = lines.some((l) => onRow(l, label) && spans(l) && NUMERALS.test(l.text));
+      if ((right || left) && !figured && !row.some((l) => spans(l) && /[\p{L}\d]/u.test(l.text))) return { category: "beside", bar, row, side: right ? "right" : "left" };
     }
   }
   {
@@ -1065,11 +1085,15 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       if (!over.length) break;
       const start = Math.min(...over.map((t) => t.top));
       for (const line of lines) {
-        if (taken.has(line) || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        // A row centred over the bar may run past its ends (Wp-Conj's side
+        // conditions "idx(Q₁) ⊆ supp(t₁) …" over its premise).
+        const centred = Math.abs((line.x0 + line.x1) / 2 - (bar.x + bar.w / 2)) <= label.size && line.x1 - line.x0 <= 2 * bar.w;
+        if (taken.has(line) || (!centred && (line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
         if (line.bottom > start + 1 || start - line.bottom > 0.6 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
         // Upright words in the text's face are a note beside the rules
-        // ("No ⊤L rules"), no premise.
-        if (faceOf(line) === family(type.font) && line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2) continue;
+        // ("No ⊤L rules"), no premise; with a relation between them they
+        // are one ("idx(Q₁) ⊆ supp(t₁)").
+        if (faceOf(line) === family(type.font) && !RELATION.test(line.text) && line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2) continue;
         // Another bar over it or under it makes it another rule's.
         const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
           && ((d.y >= line.top - 0.8 * type.leading && d.y <= line.top + 1) || (d.y >= line.bottom - 1 && d.y <= start + 1)));
@@ -1253,6 +1277,37 @@ const textBars = (page: Page): Drawn[] => page.lines.flatMap((l) => {
   return bars;
 });
 
+// A paragraph wrapped round a figure can reach the layout with the
+// figure's label on its line, a blank apart past the paragraph's edge
+// ("… for 𝑚’s   Focus" over the rule the paragraph wraps): the lines under
+// it end at that edge, short of the label. The label is split off as a
+// line of its own; `parents` maps it back to the line it came from.
+const parents = new WeakMap<Line, Line>();
+function unwrapped(page: Page, type: Type): Page {
+  const out: Line[] = [];
+  let split = false;
+  for (const line of page.lines) {
+    const token = line.furniture ? null : tokenOf(line);
+    const k = token?.side === "tail" ? line.chars[token.start]?.run ?? -1 : -1;
+    const whole = k > 0 && line.chars.slice(token!.start).every((c) => c.run < 0 || c.run >= k) && line.chars.slice(0, token!.start).every((c) => c.run < k)
+      && line.runs.slice(k).map((r) => r.text).join("").trim() === line.text.slice(token!.start).trim();
+    if (!whole || !prose({ ...line, text: line.text.slice(0, token!.start) } as Line, type)) { out.push(line); continue; }
+    const edge = line.runs[k - 1].x + line.runs[k - 1].width;
+    const wrapped = page.lines.some((l) => l !== line && !l.furniture && l.top > line.bottom - 1 && l.top <= line.bottom + type.leading && prose(l, type)
+      && Math.abs(l.x1 - edge) <= 0.5 * line.size && l.x0 <= line.x0 + 2 * line.size);
+    if (!wrapped) { out.push(line); continue; }
+    const piece = (runs: typeof line.runs, from: number, to: number, shift: number): Line => ({
+      ...line, runs, text: line.text.slice(from, to), chars: line.chars.slice(from, to).map((c) => (c.run < 0 ? c : { run: c.run - shift, at: c.at })),
+      x0: runs[0].x, x1: Math.max(...runs.map((r) => r.x + r.width)),
+    });
+    const rest = piece(line.runs.slice(0, k), 0, token!.start, 0), label = piece(line.runs.slice(k), token!.start, line.text.length, k);
+    parents.set(rest, line); parents.set(label, line);
+    out.push(rest, label);
+    split = true;
+  }
+  return split ? { ...page, lines: out } : page;
+}
+
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
   let candidates: Candidate[] = [];
@@ -1265,10 +1320,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of layout.pages) for (const l of page.lines) if (!l.furniture && l.text.length >= 60) sizes.set(Math.round(l.size * 2) / 2, (sizes.get(Math.round(l.size * 2) / 2) ?? 0) + 1);
   const proseSize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? layout.bodySize;
   const bodySize = Math.max(layout.bodySize, proseSize);
-  const pages = layout.pages.map((page) => { const bars = textBars(page); return bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page; });
+  const pages = layout.pages.map((page) => { const bars = textBars(page); return unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type); });
   for (const page of pages) {
     for (const line of page.lines) {
-      if (line.furniture || skip.has(line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
+      if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
       const token = tokenOf(line);
       if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
     }
@@ -1281,7 +1336,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const rows = seen.filter((s) => s.page === page && (s.setting.category === "row" || s.setting.category === "margin"));
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
-      if (line.furniture || skip.has(line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
+      if (line.furniture || skip.has(parents.get(line) ?? line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
       const token = tokenOf(line, true) ?? phraseOf(line);
       if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       const column = rows.filter((s) => (s.token.side === token.side || s.token.side === "whole") && Math.abs(edge(s.line, token.side) - edge(line, token.side)) <= 1 && Math.abs(s.line.size - line.size) <= 0.5
@@ -1402,7 +1457,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     conventions.set(c.convention, (conventions.get(c.convention) ?? 0) + 1);
     if (!weak(c)) strong.set(c.convention, (strong.get(c.convention) ?? 0) + 1);
   }
-  const labels = new Set(candidates.map((c) => c.line));
+  const labels = new Set(candidates.flatMap((c) => [c.line, ...(parents.has(c.line) ? [parents.get(c.line)!] : [])]));
   const confirmed = new Set<string>();
   // A paper that sets eight or more strong names at bars is a paper of
   // rules: a bare word at a bar of its own, in the face those
@@ -1426,6 +1481,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     for (const c of candidates) if (weak(c) && !confirmed.has(c.convention)) byConvention.set(c.convention, [...(byConvention.get(c.convention) ?? []), c]);
     for (const [convention, members] of byConvention) {
       if ((strong.get(convention) ?? 0) >= 2) { confirmed.add(convention); continue; }
+      // Words set alike over their rules, two of them over premises over
+      // a bar and the rest over a triple or relation each, are a figure's
+      // labels (Snapshottable Stores' CREATE, REF, GET, CAPTURE, SET,
+      // RESTORE); a table's headers stand right over its rule.
+      const premised = (c: Candidate) => c.setting.category === "over" && Boolean(c.setting.bar)
+        && c.page.lines.some((l) => l !== c.line && l.top >= c.line.bottom - 1 && l.bottom <= c.setting.bar!.y + 1 && l.x0 < c.setting.bar!.x + c.setting.bar!.w && l.x1 > c.setting.bar!.x);
+      if (members.length >= 3 && members.filter(premised).length >= 2) { confirmed.add(convention); continue; }
       const names = members.map((c) => ({ name: c.token.text, shape: c.shape, bracketed: c.token.bracketed }));
       const face = faceOf(members[0].line, members[0].token);
       if (flows.some((flow) => [...mentionsIn(flow.text, names)].some((m) => { const at = flow.at[m.nameStart]; return at && !labels.has(at.line) && inText(at, m.nameEnd - m.nameStart, face, type); }))) confirmed.add(convention);
@@ -1470,7 +1532,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     }
     rules.set(again, {
       key: `r${rules.size}`, kind: "rule", label: c.token.text, caption: c.line, page: c.page.number, ...box,
-      name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, category: c.setting.category, labels: [c.line],
+      name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, category: c.setting.category, labels: [c.line, ...(parents.has(c.line) ? [parents.get(c.line)!] : [])],
     });
     if (c.setting.category === "over" && c.setting.bar && !labelled.has(c.setting.bar)) labelled.set(c.setting.bar, c.line.top);
     trace.add(c.rule, c.page.number, c.token.text, boxes);
