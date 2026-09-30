@@ -1374,7 +1374,14 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // broken font: it takes part, and carries what it brackets (Acq-Read's
   // postcondition in braces after "{⊒𝑉 ∗ ℓ ↦ ℎ} ∗acq ℓ").
   const tall = page.lines.filter((l) => !l.furniture && /\S/.test(l.text) && STRETCHED.test(l.text) && l.size > 2 * label.size && l.size <= 12 * label.size);
-  const lines = [...ruleLines(page, label), ...tall].filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  // A line hard under another bar with a label of its own beside it is
+  // that rule's conclusion, found or not (T-While's "while (e) do c, s →
+  // …" over T-Read's premise).
+  const labelled = (d: Drawn) => page.lines.some((o) => o !== label && !o.furniture && tokenOf(o)?.side === "whole" && Math.abs((o.top + o.bottom) / 2 - d.y) <= LEVEL * o.size
+    && (Math.abs(o.x0 - d.x - d.w) <= 2 * o.size || Math.abs(d.x - o.x1) <= 2 * o.size));
+  const concluding = (l: Line) => Boolean(bar) && l.bottom <= bar!.y + 1 && page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && l.top >= d.y - 1 && l.top <= d.y + 0.5 * type.leading
+    && Math.min(l.x1, d.x + d.w) - Math.max(l.x0, d.x) >= 0.5 * Math.min(l.x1 - l.x0, d.w) && !hugs(page, d, type) && labelled(d));
+  const lines = [...ruleLines(page, label), ...tall].filter((l) => !others.lines.has(l) && !another(l) && !concluding(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
@@ -1533,9 +1540,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         const centred = !tallOne && line.top > end - 1 && talls.some((d) => opens(d) && levelBy(d, line, label.size));
         if (!opening && !centred && !bracketed(line) && (tallOne && line.x0 > to || line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2))) continue;
         // Upright words with no relation among them head what follows
-        // ("Rules for the post-crash modality" under pfs-pf).
-        const words = line.text.split(/\s+/).filter((w) => /^\p{L}{3,}$/u.test(w) && line.runs.some((r) => r.text.includes(w) && !ITALIC.test(r.font) && !MONO.test(r.font) && !SYMBOLIC.test(r.font)));
-        if (words.length >= 3 && !RELATION.test(line.text)) continue;
+        // ("Rules for the post-crash modality" under pfs-pf, "Termination-
+        // preserving refinements in RefinementSHL:" under StoreT).
+        const words = line.text.split(/\s+/).map((w) => w.replace(/[:.,]$/, "")).filter((w) => /^\p{L}[\p{L}-]{2,}$/u.test(w));
+        const face = faceOf(line);
+        if (words.length >= 3 && !RELATION.test(line.text) && !/[\u{1D400}-\u{1D7FF}]/u.test(line.text) && !MONO.test(face) && !SYMBOLIC.test(face) && !/cmmi|lmmi|MathMI/i.test(face)) continue;
         taken.add(line); grew = true;
       }
     }
