@@ -1,0 +1,5330 @@
+[
+ {
+  "share": 1,
+  "author": "sumit-gulwani",
+  "paper": "2010-OOPSLA-a-simple-inductive-synthesis-methodology-and-its-application",
+  "page": "p04",
+  "kind": "extra",
+  "text": "\"Inductive-SynthesisL(ϕ)\" box covers the Figure 2 pseudocode",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2011-PLDI-precise-and-compact-modular-procedure-summaries-for-heap-man",
+  "page": "p05",
+  "kind": "extra",
+  "text": "\"Program P\" and \"Function F\" boxes on the §3 grammar, overlapping and misaligned",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "martin-t-vechev",
+  "paper": "2012-PLDI-dynamic-synthesis-for-relaxed-memory-models",
+  "page": "p04",
+  "kind": "other",
+  "text": "Semantics 1 stacked rules: LOAD-B, FLUSH, CAS-F, JOIN tabs hide the last conclusion line of the rule above; boxes right",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "martin-t-vechev",
+  "paper": "2012-PLDI-dynamic-synthesis-for-relaxed-memory-models",
+  "page": "p05",
+  "kind": "partial",
+  "text": "Semantics 2: STORE leaves out its last conclusion line \"B′♮(x) = l·pc\", CAS leaves out \"B′♮(x) = ε\"",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2013-OOPSLA-relaxed-separation-logic-a-program-logic-for-c11-concurrency",
+  "page": "p07",
+  "kind": "missed",
+  "text": "CAS* (left column, five premises, label on the right) has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2013-OOPSLA-relaxed-separation-logic-a-program-logic-for-c11-concurrency",
+  "page": "p07",
+  "kind": "overlap",
+  "text": "right column stacked one-line axioms: A-R box reaches over the A-M line; R-NA tab sits inside the W-NA line (few px, unsure)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2014-ICFP-refinement-types-for-haskell",
+  "page": "p03",
+  "kind": "missed",
+  "text": "≼-BASE (right column, name right of the bar) has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2014-ICFP-refinement-types-for-haskell",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Fig. 4 ≼-BASE and ≼-FUN have no boxes",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2014-ICFP-refinement-types-for-haskell",
+  "page": "p08",
+  "kind": "missed",
+  "text": "Fig. 6 ≼-BASE-D has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2014-POPL-backpack-retrofitting-haskell-with-interfaces",
+  "page": "p05",
+  "kind": "extra",
+  "text": "\"stamps\" box covers the definition \"(stamps) K ν̄ ≝ μα.K ν̄ for some α∉fv(ν̄)\", not a rule",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2014-POPL-backpack-retrofitting-haskell-with-interfaces",
+  "page": "p22",
+  "kind": "overrun",
+  "text": "WfDepsMod box takes in the definition line \"Φ ⊢ Φ′ deps-wf ⇔def …\" above its premises",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2014-POPL-backpack-retrofitting-haskell-with-interfaces",
+  "page": "p26",
+  "kind": "extra",
+  "text": "\"dspc\" box covers the merge definition \"dspc₁ ⊕ dspc₂ ≝ … where {…}\" (§6.5); p40 mention links to it",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2014-POPL-backpack-retrofitting-haskell-with-interfaces",
+  "page": "p27",
+  "kind": "extra",
+  "text": "\"f:ftypm\" box covers grammar right-hand sides in the §7.1 syntax table; p45 mention links to it",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "sumit-gulwani",
+  "paper": "2015-OOPSLA-flashmeta-a-framework-for-inductive-program-synthesis",
+  "page": "p16",
+  "kind": "extra",
+  "text": "two overlapping \"N/A\" boxes cover Table 1 rows (Gulwani [7]…Udupa et al. [37], Katayama [15])",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p07",
+  "kind": "overrun",
+  "text": "Fig. 3 top row: S-VAR box is one strip across S-VAR, S-THIS and S-VARDECL's premises, overlapping S-VARDECL",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p07",
+  "kind": "missed",
+  "text": "S-THIS has no box of its own",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p07",
+  "kind": "partial",
+  "text": "S-VARDECL box holds only the conclusion; S-DOTASGN and S-SEQ boxes leave out their names and cut through the premise line",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p07",
+  "kind": "wrong-name",
+  "text": "\"S-SKIP\" box is a thin strip across the S-DOTASGN premise and the S-SEQ and S-SKIP names; the real S-SKIP rule \"δ ⊩ skip ↪ ⟨⟩;δ\" is not boxed, overlaps S-SEQ",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p07",
+  "kind": "overrun",
+  "text": "Fig. 4: Q-CAST box is a strip across its name and the premises of R-CAST and R-LIF, leaving out its own conclusion; R-CAST and R-LIF boxes hold only their conclusions and overlap it",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p08",
+  "kind": "missed",
+  "text": "Fig. 5 T-CST has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p08",
+  "kind": "wrong-name",
+  "text": "\"T-CTXEMP\" box is a thin strip across the conclusions of T-NEW and T-CAST; the real T-CTXEMP \"Γ ⊢ ⟨⟩ ▷ ·\" is not boxed",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2016-PLDI-refinement-types-for-typescript",
+  "page": "p08",
+  "kind": "partial",
+  "text": "T-NEW and T-CAST boxes stop above their conclusions",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2017-PLDI-repairing-sequential-consistency-in-c-c-11",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"reads-before\" and \"happens-before\" boxes cover relation definitions (rb ≜ rf⁻¹;mo, hb ≜ (sb∪sw)⁺)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2017-PLDI-repairing-sequential-consistency-in-c-c-11",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "Def. 1 and Prop. 1 lists of named one-line constraints: every box sits one line above its own line, so boxes overlap their neighbours; IRREFLEXIVE-HB takes in the \"Proposition 1\" sentence, COHERENCE-RR's own line is in no box; NO-THIN-AIR is boxed but COHERENCE, ATOMICITY, SC in the same list are not (whether named one-line constraints count as rules is a call to make)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2017-PLDI-repairing-sequential-consistency-in-c-c-11",
+  "page": "p11",
+  "kind": "overlap",
+  "text": "Def. 6 Power constraints: SC-PER-LOC, POWER-ATOMICITY, POWER-NO-THIN-AIR boxed one line off (POWER-ATOMICITY takes in PROPAGATION), OBSERVATION and PROPAGATION not boxed",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2017-OOPSLA-robust-and-compositional-verification-of-object-capability-p",
+  "page": "p15",
+  "kind": "extra",
+  "text": "CanWrap (and IsRmon, IsWmon p17, IsMon p19, IsPrivval p21) are named ≜ definitions in rule figures; the paper calls IsPrivval a \"rule\", so possibly acceptable (unsure)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2017-OOPSLA-robust-and-compositional-verification-of-object-capability-p",
+  "page": "p19",
+  "kind": "missed",
+  "text": "MEMBRANESPEC in Fig. 9 (triple below IsMon) has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "martin-t-vechev",
+  "paper": "2018-PLDI-inferring-crypto-api-rules-from-code-changes",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"No-duplicates (fdup)\" box covers prose in a list of filter conditions (tail of No-additions plus half of No-duplicates)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-POPL-effective-stateless-model-checking-for-c-c-concurrency",
+  "page": "p09",
+  "kind": "extra",
+  "text": "\"init\" box covers Fig. 6 (SB litmus program and execution graph), name taken from the \"[init]\" node; spurious \"[init]\" mentions on p07, p19",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-POPL-effective-stateless-model-checking-for-c-c-concurrency",
+  "page": "p12",
+  "kind": "extra",
+  "text": "\"happens-before\" box on the definition \"G.hb ≜ (G.sb ∪ G.sw)⁺\"; prose \"happens-before\" becomes mention links on p12, p14, p30",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-POPL-effective-stateless-model-checking-for-c-c-concurrency",
+  "page": "p13",
+  "kind": "extra",
+  "text": "\"SC-before\" box on the G.scb definition and \"sc-acyclicity\" box on one bullet of Def. 3.7 (siblings COMPLETENESS, VALID MO, COHERENCE, ATOMICITY, SBRF unboxed)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2018-POPL-refinement-reflection-complete-verification-with-smt",
+  "page": "p14",
+  "kind": "missed",
+  "text": "Fig. 5: ⇒-I and ⇒-E have no boxes of their own",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2018-POPL-refinement-reflection-complete-verification-with-smt",
+  "page": "p14",
+  "kind": "overrun",
+  "text": "Fig. 5: ∀-I box takes in ⇒-I stacked above it; ∀-E box takes in ⇒-E and ∨-E's conclusion; ∨-E box stops before its conclusion's second line",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2018-POPL-refinement-reflection-complete-verification-with-smt",
+  "page": "p14",
+  "kind": "overlap",
+  "text": "Fig. 5: ∧-R-E overlaps ∧-L-E's conclusion; ∨-R-I overlaps ∀-I; ∨-E overlaps ∀-E",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2018-POPL-refinement-reflection-complete-verification-with-smt",
+  "page": "p21",
+  "kind": "extra",
+  "text": "\"where\" box covers the PLE rows of the Fig. 9 algorithm table",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2019-POPL-iron-managing-obligations-in-higher-order-concurrent-separat",
+  "page": "p04",
+  "kind": "missed",
+  "text": "displayed \"P ∗ Q ⊢ P\" labelled (AFFINE) has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2019-POPL-iron-managing-obligations-in-higher-order-concurrent-separat",
+  "page": "p10",
+  "kind": "partial",
+  "text": "tinv-open (Fig. 4): box ends about 200px short of the premise's right end, cutting the premise and the bar",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2019-POPL-iron-managing-obligations-in-higher-order-concurrent-separat",
+  "page": "p10",
+  "kind": "other",
+  "text": "hoare-fork-emp, inv-open, tinv-dup tabs hide part of the section headings above them; hoare-bind leaves out its side condition \"K a call-by-value evaluation context\" (unsure)",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-on-library-correctness-under-weak-memory-consistency-specify",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"MP-lib\" box covers program code (right thread of the MP-lib litmus test)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-on-library-correctness-under-weak-memory-consistency-specify",
+  "page": "p15",
+  "kind": "extra",
+  "text": "\"P1\" box covers the example client programs (P1) and (P2); bogus P1 mention links on p15, p16",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "alex-aiken",
+  "paper": "2020-PLDI-first-order-quantified-separators",
+  "page": "p05",
+  "kind": "extra",
+  "text": "Table 1 cells boxed as rules \"NP-complete\", \"k-depth\", \"k-prenex\" (overlapping each other); the paper has no inference rules, so every mention link to them on p01, p02, p04, p05, p08, p09, p14 is spurious",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "alex-aiken",
+  "paper": "2020-PLDI-first-order-quantified-separators",
+  "page": "p06",
+  "kind": "extra",
+  "text": "\"X V1\" box on the Figure 2 structure tables m0/m1; spurious mention on the \"X V1\" header cell",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "robbert-krebbers",
+  "paper": "2020-POPL-actris-session-type-based-reasoning-in-separation-logic",
+  "page": "p14",
+  "kind": "extra",
+  "text": "\"sort_protheadfg\" and \"sort_prottailfg\" boxes cover protocol definitions (≜ μ(rec…)), not rules",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "viktor-vafeiadis",
+  "paper": "2021-OOPSLA-making-weak-memory-models-fair",
+  "page": "p14",
+  "kind": "extra",
+  "text": "\"TSO-happens-before\" and \"RA-happens-before\" boxes cover relation definitions (G.hb_TSO ≜ …, G.hb_RA ≜ …), two definitions each",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p05",
+  "kind": "partial",
+  "text": "Acq-Read box covers only \"{⊒V ∗ ℓ ↦ h} ∗acq ℓ\"; the whole postcondition to its right is outside; Rel-Write clips its closing brace",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p06",
+  "kind": "partial",
+  "text": "Abs-Hb-Enq (Fig. 2) box covers only the name and \"SeenQueue(q,G0,M0) ∗ ⊒V ⊢\"; both lines of the triple are outside",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p06",
+  "kind": "other",
+  "text": "Fig. 2 stacked rules: Seq-Deq, SC-Deq, Abs-So-Deq tabs cover their printed names; Abs-Hb-Deq tab sits on Abs-Hb-Enq's last line and its right edge clips ⟩ (boxes touch, unsure whether they overlap)",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p10",
+  "kind": "overrun",
+  "text": "Hist-Hb-Stack-Linearizable box also takes in the \"interp(to, vs) ::= …\" definition block under it (unsure)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p12",
+  "kind": "partial",
+  "text": "Hb-Exchange (Fig. 5) box stops after the first postcondition line; the ∨ case block and the red local postcondition below are outside; Hb-Push and Hb-Pop right edges clip the closing ⟩",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p12",
+  "kind": "overlap",
+  "text": "Hb-Push/Hb-Pop/Hb-Exchange stacked edge to edge; Hb-Pop tab inside Hb-Push, Hb-Exchange tab over Hb-Pop's second line (minor)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p13",
+  "kind": "overrun",
+  "text": "VA-intro box also takes in the separate unnamed \"objective(@V P)\" to its left (unsure)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-compass-strong-and-compositional-library-specifications-in-r",
+  "page": "p13",
+  "kind": "partial",
+  "text": "AT-Rel-Write and AT-Acq-Read right edges clip closing braces (minor)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu",
+  "page": "p10",
+  "kind": "missed",
+  "text": "Fig. 11: BASE-TRANS, BASE-REF (axiom), TABLE-WIDTH (axiom), FUNC; Fig. 12: SYMMETRY, DATA have no boxes",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu",
+  "page": "p13",
+  "kind": "extra",
+  "text": "\"hCLS\" box on the BERT architecture diagram (Fig. 15); p14 mention links to it",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu",
+  "page": "p31",
+  "kind": "missed",
+  "text": "Fig. 21: SUB, SCATTER, BIN have no boxes (Bar, Line, Area are boxed)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu",
+  "page": "p32",
+  "kind": "missed",
+  "text": "Fig. 22: FILTER, SELECT, SUMM-MEAN, SUMM-COUNT have no boxes (SUMM-MEAN's label got a mention link instead)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu",
+  "page": "p35",
+  "kind": "missed",
+  "text": "Fig. 24: LOGICAL OPERATORS, SEMANTIC TERM, CARD, VAR-1, VAR-2, FILTER OP-1, FILTER OP-2, PROJ-1, PROJ-2, FILTER-2 have no boxes (only Syn-1, Syn-2, Max, Min, Filter-1 boxed)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-automated-transpilation-of-imperative-to-functional-code-usi",
+  "page": "p11",
+  "kind": "missed",
+  "text": "Fig. 9: ≠-↑, ≃-↑, NTerm-↑, VarTerm-↑, FirstOrderTerm-↑, HigherOrderTerm-↑ have no boxes (only S-NTerm-↑ boxed)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-automated-transpilation-of-imperative-to-functional-code-usi",
+  "page": "p17",
+  "kind": "extra",
+  "text": "\"Application A\", \"Expression E\", \"Variable V\", \"Constant C\" boxes on the Fig. 11 grammar",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2022-OOPSLA-seq2parse-neurosymbolic-parse-error-repair",
+  "page": "p11",
+  "kind": "extra",
+  "text": "Fig. 12 API/type-signature table: \"PCFG\", \"partialParse\", \"predictDL\", \"predict\" boxes, offset a row, partialParse and predictDL overlapping",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2022-OOPSLA-seq2parse-neurosymbolic-parse-error-repair",
+  "page": "p15",
+  "kind": "extra",
+  "text": "\"Program 𝑃\" box on Algorithm 2 pseudocode, cutting off lines 3–4",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "ranjit-jhala",
+  "paper": "2022-OOPSLA-seq2parse-neurosymbolic-parse-error-repair",
+  "page": "p19",
+  "kind": "extra",
+  "text": "\"Abstracted\" and \"NoPCFG\" boxes on column-group headers of the Fig. 14 table",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p10",
+  "kind": "missed",
+  "text": "REFL+ and SEQ+ (bottom of page, full premise/bar/conclusion rules) have no boxes",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p14",
+  "kind": "other",
+  "text": "prose word \"dual\" linked as a mention of DUAL (also p22 \"(dual)\", p24)",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p19",
+  "kind": "extra",
+  "text": "\"ii\" box around the (i)/(ii)/(iii) list of implications in §5.3; gives \"(ii)\" mention links across the paper (p02, p06, p10–p13, p15–p17, p19, p20, p23, p25, p26)",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p20",
+  "kind": "extra",
+  "text": "\"BSim\" and \"FSim\" boxes on the §6.1.1 simulation definitions",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p20",
+  "kind": "overlap",
+  "text": "BSim box spans both lines and contains the FSim box",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2023-OOPSLA-stuttering-for-free",
+  "page": "p21",
+  "kind": "extra",
+  "text": "\"MSim\" and \"EFSim\" boxes on the §6.1.2 simulation definitions",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "robbert-krebbers",
+  "paper": "2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s",
+  "page": "p15",
+  "kind": "missed",
+  "text": "Fig. 6: R−∗∗, R∗⊤, R∗∗, R∗∨, the large R∗A above \"Inversion phase\", L∗ and L−∗ have no boxes (11 others correct; tabs for R𝐴, R−∗𝐻 lose the italic letter in drawing only)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "robbert-krebbers",
+  "paper": "2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s",
+  "page": "p16",
+  "kind": "missed",
+  "text": "displayed rule (R∗A) under the side-condition annotations has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "robbert-krebbers",
+  "paper": "2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s",
+  "page": "p19",
+  "kind": "missed",
+  "text": "Fig. 8: R∃∗A has no box; the labelled definition CONNECTION-DEF is unboxed while BIABD-DEF just above is boxed (inconsistent)",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "robbert-krebbers",
+  "paper": "2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s",
+  "page": "p19",
+  "kind": "partial",
+  "text": "biabd-def: scope arrows above the formula stick out of the box top (minor)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p09",
+  "kind": "missed",
+  "text": "Fig. 5 named axioms LB-PERSISTENT-FLUSH-STORE and OBJ-NOFLUSH-NOBUFFER have no boxes",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "mapsto-store-lb box runs right into MAPSTO-LB-PERS, taking in its conclusion \"ℓ ↪na σ⃗\" and overlapping its box; its tab hides the printed name",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p09",
+  "kind": "partial",
+  "text": "mapsto-lb-pers box stops after the premises, its conclusion left out",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "pfs-pf box reaches over the heading \"Rules for the post-crash modality\" and into REC-IN-IF-REC",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p09",
+  "kind": "partial",
+  "text": "rec-in-if-rec box starts too far right, cutting off \"RE\" of the name and the start of \"crashedIn\"; overlaps pfs-pf",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per",
+  "page": "p10",
+  "kind": "partial",
+  "text": "Ht-na-alloc, Ht-at-alloc, Ht-na-read right edges clip the closing \"}\" (minor)",
+  "group": "A"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-asynchronous-probabilistic-couplings-in-higher-order-separat",
+  "page": "p05",
+  "kind": "missed",
+  "text": "REL-COUPLE-TAPE-L, a rule about as wide as the column (between the REL-ALLOC-TAPE-L and REL-RAND-TAPE-L boxes), has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-asynchronous-probabilistic-couplings-in-higher-order-separat",
+  "page": "p11",
+  "kind": "missed",
+  "text": "Fig. 4: REL-COUPLE-TAPE-L (full-width, between REL-COUPLE-RANDS and REL-COUPLE-TAPE-R) has no box, likely the same cause as p05",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2024-OOPSLA-control-flow-deobfuscation-using-trace-informed-compositiona",
+  "page": "p07",
+  "kind": "extra",
+  "text": "\"Prog 𝑃\", \"Expr 𝐸\", \"Var 𝑉\" boxes on the Fig. 5 grammar, each cutting across rows",
+  "group": "B"
+ },
+ {
+  "share": 1,
+  "author": "isil-dillig",
+  "paper": "2024-OOPSLA-control-flow-deobfuscation-using-trace-informed-compositiona",
+  "page": "p07",
+  "kind": "other",
+  "text": "mention links on prose \"(ite)\" p07, \"while\" p12, and table cells \"ite\" p32, p37",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2024-PLDI-quiver-guided-abductive-inference-of-separation-logic-specif",
+  "page": "p07",
+  "kind": "other",
+  "text": "one-rule-per-row wp table: each tab sits on the row above and hides its start (wp-let … wp-assert); abd-res-ctx tab covers the \"Abduction Rules\" heading; box extents correct",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2024-PLDI-quiver-guided-abductive-inference-of-separation-logic-specif",
+  "page": "p10",
+  "kind": "other",
+  "text": "Fig. 5: ex-inst, ex-loc, ex-pointsto, ex-unfold, ex-pred tabs cover the row above",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2024-PLDI-quiver-guided-abductive-inference-of-separation-logic-specif",
+  "page": "p14",
+  "kind": "other",
+  "text": "Fig. 8: ex-pure, ex-pure-blocked, ex-eq, ex-lift, ex-done tabs cover the row above",
+  "group": "D"
+ },
+ {
+  "share": 1,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-modular-reasoning-about-error-bounds-for-concurrent-probabil",
+  "page": "p03",
+  "kind": "missed",
+  "text": "ERR-1 (bottom row, right of HT-RAND-EXP; premise ↯(1), conclusion False) has no box",
+  "group": "C"
+ },
+ {
+  "share": 1,
+  "author": "derek-dreyer",
+  "paper": "2026-POPL-endangered-by-the-language-but-saved-by-the-compiler-robust",
+  "page": "p07",
+  "kind": "other",
+  "text": "Fig. 3: wp-load tab hides part of the paper's framed definition \"{P} e {v.Q} ≜ …\"; wp-borrow and wp-return tabs touch the boxes above (minor)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p03",
+  "kind": "extra",
+  "text": "(VAE-sts) is a state-transition diagram (circles and arrows), not a rule; the box is also a thin strip through the circles",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p06",
+  "kind": "partial",
+  "text": "awkward-spec box leaves out the first line \"{True}\" and the postcondition's left brace",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p09",
+  "kind": "wrong-name",
+  "text": "tab \"wbHoare-conseqence\" for WBHOARE-CONSEQUENCE (small-caps \"qu\" ligature text-layer quirk)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p11",
+  "kind": "wrong-name",
+  "text": "tabs \"stack-system-uniqe\", \"stack-user-uniqe\" for STACK-SYSTEM-UNIQUE, STACK-USER-UNIQUE (same \"qu\" quirk)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p12",
+  "kind": "partial",
+  "text": "VAE-spec box leaves out the first line \"(|True|)\" and the left bracket, as awkward-spec on p06",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p16",
+  "kind": "partial",
+  "text": "wbwp-definition box covers only the second line; leaves out \"wbwp e (|Φ|)^O ≜ ∀S. AllStacksExcept(S,O) −∗\" (and it is a definition, not a rule)",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p18",
+  "kind": "extra",
+  "text": "(bad-concurrency) is a program, not a rule; box also covers only its second line",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p21",
+  "kind": "extra",
+  "text": "(VAE-check) is a one-line program, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p25",
+  "kind": "overrun",
+  "text": "stacksIN-agree box spans three labelled lines: stacksIN-agree, stacks•IN-unique, stacks∘IN-unique",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p25",
+  "kind": "missed",
+  "text": "(stacks•IN-unique) and (stacks∘IN-unique) have no box of their own",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-the-logical-essence-of-well-bracketed-control-flow",
+  "page": "p25",
+  "kind": "overlap",
+  "text": "stacksIN-update box crosses the bottom of stacksIN-agree; stacksIN-create box and tab cross the bottom of stacksIN-update",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2022-POPL-bottom-up-synthesis-of-recursive-functional-programs-using-a",
+  "page": "p14",
+  "kind": "missed",
+  "text": "ANGELIC RECURSION, UNEVAL PROD, SWITCH LEFT, SWITCH RIGHT (two-word names) have no box",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2022-POPL-bottom-up-synthesis-of-recursive-functional-programs-using-a",
+  "page": "p14",
+  "kind": "other",
+  "text": "mention of \"UNEVAL PROD\" links only \"UNEVAL\" (to the Uneval rule)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "zhendong-su",
+  "paper": "2025-OOPSLA-api-guided-dataset-synthesis-to-finetune-large-code-models",
+  "page": "p23",
+  "kind": "extra",
+  "text": "\"CodeLlama-7b\" box on Table 8 cells",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "zhendong-su",
+  "paper": "2025-OOPSLA-api-guided-dataset-synthesis-to-finetune-large-code-models",
+  "page": "p20",
+  "kind": "other",
+  "text": "mention links on \"CodeLlama-7b\" in Table 7 (follow from the false rule on p23; same on p22 in the Fig. 6a legend)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Ht-newsocket (Fig. 2, top right) has no box",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p07",
+  "kind": "partial",
+  "text": "Ht-send, Ht-recv: right edge cuts through the closing brace",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p10",
+  "kind": "other",
+  "text": "proto-⊑-l tab covers the second line of proto-recv-l (Fig. 3 boxes stacked edge to edge)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p13",
+  "kind": "overrun",
+  "text": "RC-init-alloc box takes in the heading \"Server Setup Specifications:\"",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p13",
+  "kind": "missed",
+  "text": "Ht-make-server-socket [S], Ht-listen [S], Ht-accept [S], Ht-make-client-socket [S], Ht-connect [S] (names ending in \"[S]\")",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p13",
+  "kind": "partial",
+  "text": "Ht-reliable-send, Ht-reliable-try-recv: right edge clips the closing brace",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p20",
+  "kind": "overrun",
+  "text": "RPC-init-alloc box takes in the heading \"RPC Specifications:\"",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p20",
+  "kind": "missed",
+  "text": "Ht-rpc-start [S], Ht-rpc-connect [S], Ht-rpc-request [S]",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p24",
+  "kind": "partial",
+  "text": "write-spec (and slightly follower-read-spec): right edge cuts off the closing brace",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ",
+  "page": "p24",
+  "kind": "other",
+  "text": "observe-at-leader, leader-observes-first, linear-order stacked with no gap; tabs hide the line above (\"GlobalInv\", prose \"Coq formalization\")",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesis-powered-optimization-of-smart-contracts-via-data-t",
+  "page": "p09",
+  "kind": "missed",
+  "text": "Fig. 6 Wrap1-Fld, Wrap2-Fld, Unwrap1-Fld, Unwrap2-Fld",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesis-powered-optimization-of-smart-contracts-via-data-t",
+  "page": "p13",
+  "kind": "overlap",
+  "text": "Stale1/NStale and NStale/Hole boxes share or slightly cross their vertical edges",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2011-PLDI-partial-coherence-abstractions-for-relaxed-memory-models",
+  "page": "p04",
+  "kind": "other",
+  "text": "boxes stacked with no gap; tabs of LOAD-B, FLUSH, CAS-F cover the conclusion above (LOAD-G, STORE, CAS-T)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2011-PLDI-partial-coherence-abstractions-for-relaxed-memory-models",
+  "page": "p07",
+  "kind": "other",
+  "text": "same in Sem. 3: tabs of STORE-H, STORE-S, FLUSH-H, FLUSH-SN, FENCE, CAS-F, FLUSH-E cover the conclusion above",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2011-PLDI-partial-coherence-abstractions-for-relaxed-memory-models",
+  "page": "p05",
+  "kind": "other",
+  "text": "mention link on the plain word \"fence\" in prose (also \"flush\" on p06, p07)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-grounding-thin-air-reads-with-event-structures",
+  "page": "p05",
+  "kind": "extra",
+  "text": "Coh-ES box on an event-structure diagram, also cutting off the St(X,1)/St(X,2) row",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-grounding-thin-air-reads-with-event-structures",
+  "page": "p11",
+  "kind": "extra",
+  "text": "\"non-initialization\" box on a prose bullet of Definition 2",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-grounding-thin-air-reads-with-event-structures",
+  "page": "p11",
+  "kind": "extra",
+  "text": "Synchronizes-with, Happens-before are relation definitions (≜); Synchronizes-with also misses its second line",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2025-PLDI-refinedprosa-connecting-response-time-analysis-with-c-verifi",
+  "page": "p14",
+  "kind": "other",
+  "text": "read-step-failure tab covers the grammar line above; boxes correct",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2023-OOPSLA-automated-translation-of-functional-big-data-queries-to-sql",
+  "page": "p09",
+  "kind": "extra",
+  "text": "\"Aggregate G\" box on the Fig. 7 grammar; tab covers \"Sub-sketch\"",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic",
+  "page": "p11",
+  "kind": "missed",
+  "text": "IRIS-□-INTRO, □-ELIM, □-DUP (names starting with a modality glyph)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic",
+  "page": "p11",
+  "kind": "wrong-name",
+  "text": "tab \"◁-intro\" for ▷-INTRO",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic",
+  "page": "p19",
+  "kind": "partial",
+  "text": "AU-ACCESS-DIAFRAME leaves out the last line (\"⇛ match mv with None ⇒ … end\")",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic",
+  "page": "p20",
+  "kind": "missed",
+  "text": "ABDUCT-WP-VAL (left of ABDUCT-SYM-EX-LOGATOM)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-an-axiomatic-basis-for-computer-programming-on-the-relaxed-a",
+  "page": "p14",
+  "kind": "partial",
+  "text": "HT-MICRO-MEMREAD-RDEP-EXT stops after \"MemRead os vr x d\": whole postcondition and closing brace left out",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-an-axiomatic-basis-for-computer-programming-on-the-relaxed-a",
+  "page": "p19",
+  "kind": "partial",
+  "text": "HT-INS-STR-PLN-ARTIFICIALDATA, HT-INS-LDR-PLN-EXT: right edge cuts the precondition's closing brace",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-an-axiomatic-basis-for-computer-programming-on-the-relaxed-a",
+  "page": "p28",
+  "kind": "partial",
+  "text": "HT-MICRO-MEMWRITE ends mid-precondition; leaves out \"MemWrite os vr x v d\", the postcondition and braces",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-an-axiomatic-basis-for-computer-programming-on-the-relaxed-a",
+  "page": "p29",
+  "kind": "partial",
+  "text": "HT-MICRO-MEMREAD-RDEP-EXT-LOCAL leaves out both right braces, a trailing \"∗\" and the tid,Φ subscript",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "ranjit-jhala",
+  "paper": "2012-POPL-nested-refinements-a-logic-for-duck-typing",
+  "page": "p07",
+  "kind": "missed",
+  "text": "bar-less axioms with [NAME] labels in Fig. 2: E-APP, E-LET, E-TAPP, E-IFTRUE, E-IFFALSE",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2018-POPL-verifying-equivalence-of-database-driven-applications",
+  "page": "p15",
+  "kind": "extra",
+  "text": "\"Sufficiency\", \"Inductiveness\" boxes on numbered proof conditions (1), (2)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2018-POPL-verifying-equivalence-of-database-driven-applications",
+  "page": "p15",
+  "kind": "overrun",
+  "text": "Inductiveness box takes in the prose line after it and touches the Sufficiency box",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2018-POPL-verifying-equivalence-of-database-driven-applications",
+  "page": "p18",
+  "kind": "extra",
+  "text": "\"Πσ introduction\" box on a numbered list of equational axioms (Fig. 11); if these count, the other 10 are missed",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2018-POPL-verifying-equivalence-of-database-driven-applications",
+  "page": "p18",
+  "kind": "overrun",
+  "text": "Πσ introduction box covers axioms 10 and 11; tab covers axiom 9",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2021-POPL-verifying-correct-usage-of-context-free-api-protocols",
+  "page": "p11",
+  "kind": "missed",
+  "text": "Fig. 10: only (If) boxed; (API), (Seq), (Method), (Class) missed",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2016-POPL-lightweight-verification-of-separate-compilation",
+  "page": "p05",
+  "kind": "other",
+  "text": "mention link on \"return\" in \"the return state\" (prose, not the RETURN rule)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p05",
+  "kind": "extra",
+  "text": "two \"NOM\" boxes on the arrow subscript in the conclusions of NOMS-EXCHANGES-FUEL and NOMS-INCREASES-EB, overlapping those rules",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p05",
+  "kind": "partial",
+  "text": "noms-exchanges-fuel, noms-increases-eb stop at the bar; conclusions left out",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p09",
+  "kind": "extra",
+  "text": "two \"OM\" boxes on the conclusions of OMS-EXCHANGES-FUEL, OMS-INCREASES-EB (same as p05)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p09",
+  "kind": "partial",
+  "text": "oms-exchanges-fuel, oms-increases-eb cut off their conclusions",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "oms-expects-ep takes in the sub-heading \"Fuel burning, fork and the full transition of OM\"",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "oms-expects-ep crosses the top of om-forks and its tab",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p14",
+  "kind": "extra",
+  "text": "nondet-inv is an invariant definition (≜), not a rule",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p15",
+  "kind": "missed",
+  "text": "axiom OU-EB-0 (\"OU {elb 0}\", Fig. 10 top left)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe",
+  "page": "p16",
+  "kind": "overrun",
+  "text": "MU-inv-alloc-simpl spans the full text width, taking in wrapped prose to its left",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2016-OOPSLA-modeling-and-analysis-of-remote-memory-access-programming",
+  "page": "p05",
+  "kind": "extra",
+  "text": "\"wa\" box on a row of the Fig. 3 litmus-test header; stray mention links on sub-figure captions a)–d)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2016-OOPSLA-modeling-and-analysis-of-remote-memory-access-programming",
+  "page": "p09",
+  "kind": "missed",
+  "text": "rule (C) under no-C in Fig. 4",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2016-OOPSLA-modeling-and-analysis-of-remote-memory-access-programming",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "R1, F1, GA, PG, CAS-F, LO, WS take in their group headings (\"Reads-from relation:\" …); no-C and IR do not",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "martin-t-vechev",
+  "paper": "2016-OOPSLA-modeling-and-analysis-of-remote-memory-access-programming",
+  "page": "p09",
+  "kind": "other",
+  "text": "mention link on \"lo-\" (hyphenated \"local\")",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p06",
+  "kind": "missed",
+  "text": "(THREAD: FULFILL UPDATE) in Fig. 2",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p06",
+  "kind": "other",
+  "text": "mention links on lowercase prose words \"update\", \"write\", \"happens-before\" (also \"promise\" on p04)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p09",
+  "kind": "missed",
+  "text": "(MEMORY: NEW), (MEMORY: FULFILL), (SYSTEM CALL), (MACHINE STEP) in Fig. 3 (colon and spaced names)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "UPDATE box top covers the end of the WRITE-HELPER conclusion; SC-FENCE tab covers the end of WRITE",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p12",
+  "kind": "extra",
+  "text": "sb-loc, release-seq, to-be-released, sync, happens-before are relation definitions; boxes and tabs overlap each other and hide the text",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p13",
+  "kind": "extra",
+  "text": "WW/RW/WR/RR-coherence, No-promises are bullet-list consistency axioms; tabs hide text; Atomicity and SC left unboxed",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency",
+  "page": "p13",
+  "kind": "missed",
+  "text": "(MACHINE STEP) in Fig. 6",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2014-OOPSLA-gps-navigating-weak-memory-with-ghosts-protocols-and-separat",
+  "page": "p26",
+  "kind": "extra",
+  "text": "\"∀tF\" box on an unnamed ghost-move rule, name taken from the premise",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2014-OOPSLA-gps-navigating-weak-memory-with-ghosts-protocols-and-separat",
+  "page": "p52",
+  "kind": "missed",
+  "text": "axioms GetPerms, LkPermExclusive, UnusedUnPerms, UseUnPerm, UsedPermsPure, MyAllCoherence, NewGhost (only GetTicket boxed)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2014-OOPSLA-gps-navigating-weak-memory-with-ghosts-protocols-and-separat",
+  "page": "p52",
+  "kind": "overrun",
+  "text": "GetTicket box and tab cover parts of the MyAllCoherence and NewGhost lines",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "zhendong-su",
+  "paper": "2013-OOPSLA-detecting-api-documentation-errors",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"sentence\" box on Figure 1 screenshot text; its mention links on \"sentence\" in prose follow (p11)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "sumit-gulwani",
+  "paper": "2015-PLDI-flashrelate-extracting-relational-data-from-semi-structured",
+  "page": "p06",
+  "kind": "extra",
+  "text": "\"Type T\" box on grammar productions in Fig. 5(a)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2024-POPL-semantic-code-refactoring-for-abstract-data-types",
+  "page": "p12",
+  "kind": "extra",
+  "text": "Stmt, Atom, Expr, LHS, Pred boxes on Fig. 7 grammar productions; they also overlap one another",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-ICFP-later-credits-resourceful-reasoning-for-the-later-modality",
+  "page": "p10",
+  "kind": "missed",
+  "text": "CreditTimeless (\"timeless(£n)\", Fig. 3)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-ICFP-later-credits-resourceful-reasoning-for-the-later-modality",
+  "page": "p26",
+  "kind": "missed",
+  "text": "ReceiptTimeless (\"timeless(⧗n)\", Fig. 7)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-ICFP-later-credits-resourceful-reasoning-for-the-later-modality",
+  "page": "p26",
+  "kind": "wrong-name",
+  "text": "tab \"InvPreAlloc N\" for InvPreAlloc (premise superscript 𝒩 taken into the name)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-rusthornbelt-a-semantic-foundation-for-functional-verificati",
+  "page": "p05",
+  "kind": "overrun",
+  "text": "mutbor box takes in the next prose line",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-rusthornbelt-a-semantic-foundation-for-functional-verificati",
+  "page": "p05",
+  "kind": "missed",
+  "text": "ENDLFT (right column)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-rusthornbelt-a-semantic-foundation-for-functional-verificati",
+  "page": "p10",
+  "kind": "partial",
+  "text": "LftL-borrow starts right of \"▷P ⇛\" and stops before \"⇛∗ ▷P)\"; LftL-bor-acc stops before \"⇛∗ &αP ∗ [α]q)\"",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2022-PLDI-rusthornbelt-a-semantic-foundation-for-functional-verificati",
+  "page": "p10",
+  "kind": "overlap",
+  "text": "LftL-bor-acc box and tab cross LftL-borrow and hide its conclusion; mut-update tab hides \"VOx(â)\" of mut-agree",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2014-POPL-an-operational-and-axiomatic-semantics-for-non-determinism-a",
+  "page": "p10",
+  "kind": "missed",
+  "text": "(add funs) at the bottom of Fig. 1",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2014-POPL-an-operational-and-axiomatic-semantics-for-non-determinism-a",
+  "page": "p10",
+  "kind": "other",
+  "text": "tightly packed rules: tabs of e-base, e-free, e-load, expr, return, label, block cover the conclusion above",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-PLDI-promising-2-0-global-optimizations-in-relaxed-memory-concurr",
+  "page": "p11",
+  "kind": "missed",
+  "text": "Fig. 2 (MEMORY: NEW), (MEMORY: FULFILL), (SYSTEM CALL), (MACHINE NORMAL), (MACHINE SYSTEM CALL), (MACHINE FAIL); the 10 boxed ones are right",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-PLDI-promising-2-0-global-optimizations-in-relaxed-memory-concurr",
+  "page": "p10",
+  "kind": "other",
+  "text": "mention links on READ-HELPER, WRITE-HELPER stop one letter short",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "isil-dillig",
+  "paper": "2017-OOPSLA-synthesis-of-data-completion-scripts-using-finite-tree-autom",
+  "page": "p06",
+  "kind": "other",
+  "text": "every \"GetCell\" in prose links to the GetCell rule though it names the DSL construct (p06, p07, p10, p14, p16, p18, p22, p23, p24; p24 inside the Fig. 18 grammar); rule boxes on p12 are right",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p11",
+  "kind": "other",
+  "text": "MoSeL-entail (a definition) boxed but the equally labelled definition (persistence-simple) is not; same kind on p06 MoSeL-entail-1",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p12",
+  "kind": "missed",
+  "text": "Fig. 5 □-MONO, □-IDEM, □-AFFINE, □-ELIM, □-DUP, □-SEP-AND (names starting with a modality glyph)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p13",
+  "kind": "missed",
+  "text": "□-INTRO",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p14",
+  "kind": "missed",
+  "text": "⟨affine⟩-INTRO, ⊡-INTRO",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p15",
+  "kind": "missed",
+  "text": "Fig. 8 RA-ASSOC, RA-COMM, RA-CORE-ID, RA-VALID-OP, RA-UNIT-OP (only RA-CORE-IDEM, RA-CORE-MONO, RA-UNIT-VALID boxed)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p17",
+  "kind": "overrun",
+  "text": "Fig. 9 two-column axioms: ora-assoc, ora-comm, ora-core-id span the row and take in ORA-⊑-REFL, ORA-⊑-TRANS, ORA-⊑-OP",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p17",
+  "kind": "overlap",
+  "text": "ora-valid-mono reaches into the right column and crosses the ora-unit-valid box",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p17",
+  "kind": "partial",
+  "text": "ora-unit-valid covers only the label, not V(ε)",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p17",
+  "kind": "missed",
+  "text": "ORA-CORE-IDEM, ORA-CORE-MONO, ORA-VALID-OP, ORA-⊑-OP-CORE, ORA-⊑-UNIT-CORE, ORA-UNIT-OP",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "derek-dreyer",
+  "paper": "2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p",
+  "page": "p22",
+  "kind": "missed",
+  "text": "CONSEQUENCE-FRAME (top of page)",
+  "group": "C"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2026-PLDI-backwards-compatible-row-based-exceptions-in-ml",
+  "page": "p07",
+  "kind": "overlap",
+  "text": "Fig. 2 packed tightly: Rec-Typed meets Exn-Typed/Raise-Typed, Let-Exn-Typed meets Match-Exn-Typed; Raise-Typed, Match-Exn-Typed and Sub-Typed tabs cover conclusions",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2026-PLDI-backwards-compatible-row-based-exceptions-in-ml",
+  "page": "p07",
+  "kind": "overlap",
+  "text": "Arrow-Sub box bottom and the Forall-Row-Intro-Sub tab run through Arrow-Sub's conclusion; Exn-Sub tab on the bottom of Row-Sub",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2026-PLDI-backwards-compatible-row-based-exceptions-in-ml",
+  "page": "p14",
+  "kind": "partial",
+  "text": "Inv-Open right edge cuts the closing \"}\" and trailing \"∗\"; Fork-R's trailing \"∗\" also outside",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2026-PLDI-backwards-compatible-row-based-exceptions-in-ml",
+  "page": "p18",
+  "kind": "overlap",
+  "text": "Exn-Map-Proj box and tab cross the bottom of Exn-Map-Agree and cover its conclusion",
+  "group": "A"
+ },
+ {
+  "share": 2,
+  "author": "robbert-krebbers",
+  "paper": "2026-PLDI-backwards-compatible-row-based-exceptions-in-ml",
+  "page": "p08",
+  "kind": "other",
+  "text": "mention links shifted about one character left, clipping the last small-caps letter (p08, p09, p14, p15, p17, p18, p19)",
+  "group": "D"
+ },
+ {
+  "share": 2,
+  "author": "zhendong-su",
+  "paper": "2020-OOPSLA-on-the-unusual-effectiveness-of-type-aware-operator-mutation",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Approach\" box on the Fig. 2 comparison table",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "zhendong-su",
+  "paper": "2020-OOPSLA-on-the-unusual-effectiveness-of-type-aware-operator-mutation",
+  "page": "p11",
+  "kind": "extra",
+  "text": "\"Z3\", \"CVC4\" boxes on Fig. 9 table column headers; mention links on \"CVC4\" in prose follow (p20)",
+  "group": "B"
+ },
+ {
+  "share": 2,
+  "author": "sumit-gulwani",
+  "paper": "2010-PLDI-the-reachability-bound-problem",
+  "page": "p02",
+  "kind": "extra",
+  "text": "\"Transition-system(휋6)\" box on the Fig. 1(e) transition-system formulas; garbled glyph in the name",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2018-OOPSLA-relational-program-synthesis",
+  "page": "p04",
+  "kind": "extra",
+  "text": "inversion, reflexivity, anti-symmetry, transitivity, totality, equals-hashcode: labelled conjuncts of a relational spec, not rules; the stacked boxes are also a line off. Their \"anti-symmetry\" mention links on p02, p18, p21–p23 follow.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2018-OOPSLA-relational-program-synthesis",
+  "page": "p05",
+  "kind": "extra",
+  "text": "\"associativity\" box on a spec conjunction.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2018-OOPSLA-relational-program-synthesis",
+  "page": "p08",
+  "kind": "extra",
+  "text": "Two \"v3\" boxes on Fig. 5 diagram nodes (hierarchical trees T1, T2).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2018-OOPSLA-relational-program-synthesis",
+  "page": "p13",
+  "kind": "extra",
+  "text": "\"+1\" box on an HFTA hypergraph edge and two \"x1\" boxes on tree edges in Fig. 9; the \"+1\" mentions (and one on p32 inside \"j+1\") follow.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2018-OOPSLA-relational-program-synthesis",
+  "page": "p16",
+  "kind": "extra",
+  "text": "\"+1\" box on the HFTA H3 hypergraph edges in Fig. 10.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p05",
+  "kind": "missed",
+  "text": "Fig. 4 \"□I\" and \"LÖB\" have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p06",
+  "kind": "overrun",
+  "text": "ACSQ box also takes in the table of seven unnamed atomic-triple axioms above it; its right edge cuts the CAS lines.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p06",
+  "kind": "overrun",
+  "text": "AIN box reaches down into the \"Derived rules\" heading.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p06",
+  "kind": "missed",
+  "text": "RET (named axiom, no premises) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Fig. 6 SPLITISL (named two-line ⇔ axiom) has no box (borderline: no bar).",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for",
+  "page": "p09",
+  "kind": "missed",
+  "text": "Fig. 7 SFORK (named axiom, no premises) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2011-POPL-step-indexed-kripke-models-over-recursive-worlds",
+  "page": "p06",
+  "kind": "missed",
+  "text": "Fig. 8 PROJ-1 and PROJ-2 (right of APP) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2011-POPL-step-indexed-kripke-models-over-recursive-worlds",
+  "page": "p06",
+  "kind": "partial",
+  "text": "∀-INTRO box clips \"∀ξ.τ\" at the right and leaves the side condition \"ξ ∉ Δ\" outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "zhendong-su",
+  "paper": "2020-POPL-detecting-floating-point-errors-via-atomic-conditions",
+  "page": "p13",
+  "kind": "extra",
+  "text": "\"j/N\" box on a displayed equation σ_j = σ_st^((N−j)/N) · σ_end^(j/N).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p05",
+  "kind": "partial",
+  "text": "wp-conj0 box stops just under the bar; the conclusion \"wp t1{Q1} ∧ wp t2{Q2} ⊢ wp (t1+t2){Q1∧Q2}\" is outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p07",
+  "kind": "extra",
+  "text": "The §2.3 derivation tree (steps WP-CONJ0, WP-PROJi) is boxed as \"wp-conj0\" and \"wp-proj\"; derivation steps, and the two boxes overlap on the middle judgment.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p08",
+  "kind": "partial",
+  "text": "wp-proj (WP-PROJi) box covers only the name and premise; the conclusion \"Πi.P ⊢ wp t′ {Πi.Q}\" is outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p08",
+  "kind": "overlap",
+  "text": "A blue \"proj( )\" box on WP-PROJi's conclusion and side condition proj(t) overlaps the wp-proj box and hides its premise under its tab; proj(t) is a side condition, not a rule (also extra).",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"hyper-store\" box on three lines of prose (\"index i, while keeping ... and obtain\").",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"IdemSeq\" box on the displayed spec triple (IDEMSEQt), an equation tag, not a rule; its top edge also cuts through the prose line above.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p09",
+  "kind": "extra",
+  "text": "Derivation tree (steps WP-CONJ0, (3), (2)) boxed as \"wp-conj0\"; the box also cuts through the struck-through line under step (3).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p09",
+  "kind": "partial",
+  "text": "wp-idx-post0 and wp-idx-swap0: side conditions \"j ∉ supp(t)\" and \"i ∉ idx(Q)\" right of each bar are outside the boxes.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p10",
+  "kind": "extra",
+  "text": "\"IdemLoop\" box on the displayed spec triple (IDEMLOOPt), not a rule.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p16",
+  "kind": "missed",
+  "text": "WP-IFI in Fig. 7 (between wp-assign and wp-while) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p17",
+  "kind": "partial",
+  "text": "wp-proj (WP-PROJ): side condition \"I = supp(t1)\" right of the bar is outside the box.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p22",
+  "kind": "extra",
+  "text": "\"IdemSeq\" box on the (IDEMSEQt) spec triple, not a rule; also runs into the struck-through (IDEM3t) line below.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-proving-hypersafety-compositionally",
+  "page": "p22",
+  "kind": "extra",
+  "text": "\"Idem 3\" box on three lines of prose (\"generality of LHC rules ... (i) ... (iv)\").",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2022-PLDI-diaframe-automated-verification-of-fine-grained-concurrent-p",
+  "page": "p03",
+  "kind": "wrong-name",
+  "text": "Tab reads \"locked-uniqe\" for LOCKED-UNIQUE (small-caps \"qu\" ligature in the text layer).",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-PLDI-active-learning-of-points-to-specifications",
+  "page": "p04",
+  "kind": "partial",
+  "text": "assign: box cuts through the conclusion \"x →Assign y\", whose bottom is outside, partly under the \"load\" tab.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-PLDI-active-learning-of-points-to-specifications",
+  "page": "p04",
+  "kind": "partial",
+  "text": "allocation: box ends just below the \"New\" label; conclusion \"x → o\" is cut off, under the \"backwards\" tab.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-PLDI-active-learning-of-points-to-specifications",
+  "page": "p04",
+  "kind": "missed",
+  "text": "(call parameter) and (call return) in Fig. 2 have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p06",
+  "kind": "missed",
+  "text": "RU-INIT-CLIENT-SPEC and RU-INIT-KVS-SPEC (top of Fig. 3) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p06",
+  "kind": "partial",
+  "text": "ru-start-spec box leaves out the \"(k,V)∈m\" subscript and closing bracket of the postcondition.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p06",
+  "kind": "partial",
+  "text": "ru-commit-spec box covers only the name and first precondition line; the rest of the precondition, \"commit c\" and the postcondition are outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p11",
+  "kind": "missed",
+  "text": "RC-INIT-CLIENT-SPEC and RC-INIT-KVS-SPEC (top of Fig. 5) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p11",
+  "kind": "partial",
+  "text": "rc-start-spec cuts off the \"(k,V)∈m\" subscript and closing bracket; rc-write-spec's right edge clips \"Some v⟩\".",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p11",
+  "kind": "partial",
+  "text": "rc-commit-spec ends after \"v. ConnectionState(c, CanStart) ∗\"; the two-case postcondition disjunction is outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p16",
+  "kind": "missed",
+  "text": "SI-INIT-CLIENT-SPEC and SI-INIT-KVS-SPEC (top of Fig. 10) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p16",
+  "kind": "partial",
+  "text": "si-commit-spec ends after \"v. ConnectionState(c, CanStart) ∗\" (postcondition disjunction outside, precondition bracket sticks out right); si-write-spec's right edge cuts \"True)\"; si-read-spec clips the final \"⟩\".",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p22",
+  "kind": "partial",
+  "text": "Ht-read-handler box's right edge cuts the postcondition before its closing \"}^srv\".",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic",
+  "page": "p29",
+  "kind": "partial",
+  "text": "Wait-spec and Weak-wait-spec boxes cover only name and precondition; \"wait c k cond\" and the postcondition below are outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p07",
+  "kind": "missed",
+  "text": "β ((λx.e1) e2 → e1[x := e2]) beside APP in Fig. 1 has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p10",
+  "kind": "missed",
+  "text": "β ((λs.e1) e2 → e1[s := e2]) below ABS/APP in Fig. 3 has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p15",
+  "kind": "missed",
+  "text": "β and LET-ATTR-ATTR in Fig. 4 have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p15",
+  "kind": "partial",
+  "text": "β-MATCH box ends at the bar; the conclusion \"(λm.e1) {nonrec d} →μ e1[indirects α]\" is outside.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p15",
+  "kind": "overrun",
+  "text": "bin-op box extends over the \"Evaluation contexts:\" heading and the K^deep ::= [e1,□,e2] grammar line.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "robbert-krebbers",
+  "paper": "2025-ICFP-verified-interpreters-for-dynamic-languages-with-application",
+  "page": "p16",
+  "kind": "partial",
+  "text": "binop-eq-attr box leaves out the rule's last line \"dom e = dom d and x1 ⊏ ... ⊏ xn cover dom e}\".",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2013-PLDI-terra-a-multi-stage-language-for-high-performance-computing",
+  "page": "p04",
+  "kind": "overrun",
+  "text": "SLET box also takes in SAPP above it (top edge cuts SAPP's premises); SAPP has no box of its own.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2013-PLDI-terra-a-multi-stage-language-for-high-performance-computing",
+  "page": "p04",
+  "kind": "overrun",
+  "text": "TYFUN2 box also takes in TYFUN1 (top edge cuts its premise \"F̂(l) = Ṫ\"); TYFUN1 has no box of its own.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2013-PLDI-terra-a-multi-stage-language-for-high-performance-computing",
+  "page": "p04",
+  "kind": "missed",
+  "text": "SBAS, SVAR (Fig. 2), TVAR, TAPP (Fig. 3), LTQUOTE (Fig. 1) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h",
+  "page": "p21",
+  "kind": "missed",
+  "text": "PRESAMPLE-EXP and PRESAMPLE-PLANNER (names on the right) have no box; alloc-tape, load-tape, presample are fine.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h",
+  "page": "p24",
+  "kind": "overrun",
+  "text": "step-simple box starts one line high and takes in the prose line \"of the premises above the line holds):\"; its tab sits on the line before.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h",
+  "page": "p25",
+  "kind": "partial",
+  "text": "step-exp box misses the first premise row \"red(ρ1) Pr_step(ρ1)[¬R] ≤ ε1 ∃r.∀ρ2.E2(ρ2) ≤ r\" and its bottom edge runs into the next prose line.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h",
+  "page": "p28",
+  "kind": "missed",
+  "text": "STATESTEP-SIMPLE has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h",
+  "page": "p29",
+  "kind": "missed",
+  "text": "STATESTEP-EXP (top of page, three premise rows) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "ranjit-jhala",
+  "paper": "2020-PLDI-type-error-feedback-via-analytic-program-repair",
+  "page": "p07",
+  "kind": "extra",
+  "text": "\"DataSet\" and \"Predictor\" boxed in the Fig. 6 API table (≐ definition rows), not rules; boxes are also shifted a row down.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p08",
+  "kind": "wrong-name",
+  "text": "Tabs \"seqence-prophecy-creation\", \"seqence-prophecy-simple-resolution\" for SEQUENCE-… (small-caps U lost); same on p09, p10, p13.",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p09",
+  "kind": "wrong-name",
+  "text": "\"seqence-prophecy-creation-typed\" for SEQUENCE-PROPHECY-CREATION-TYPED.",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p09",
+  "kind": "missed",
+  "text": "SEQUENCE-PROPHECY-SIMPLE-RESOLUTION-TYPED (under the creation-typed box) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p10",
+  "kind": "wrong-name",
+  "text": "\"seqence-prophecy-resolution\" for SEQUENCE-PROPHECY-RESOLUTION; also a mention link on the rule's own premise phys_atomic(e).",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p13",
+  "kind": "wrong-name",
+  "text": "\"seqence-prophecy-creation\", \"seqence-prophecy-simple-resolution\".",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p15",
+  "kind": "partial",
+  "text": "RDCSS-SPEC-SEQ box starts at the RDCSS(...) line; the precondition {ℓm ↦ m ∗ ℓn ↦ n} above is left out.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p16",
+  "kind": "extra",
+  "text": "Blue \"phys_atomic(e)\" box on the INV rule's premise line (a side condition), overlapping the inv box.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p16",
+  "kind": "partial",
+  "text": "inv box's top edge runs through the premise {R ∗ P} e {v. R ∗ Q(v)}.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic",
+  "page": "p17",
+  "kind": "partial",
+  "text": "RDCSS-SPEC-IDEAL and RDCSS-SPEC boxes start at the RDCSS(...) line and leave out the precondition line above each.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2023-PLDI-automated-detection-of-under-constrained-circuits-in-zero-kn",
+  "page": "p13",
+  "kind": "partial",
+  "text": "Op (Fig. 9) box's bottom edge cuts through the conclusion Δ ⊢ e1 ⊙ e2 : {v1 ⊙ v2 | (v1,v2) ∈ Ω1 × Ω2}.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-synthetiq-fast-and-versatile-quantum-circuit-synthesis",
+  "page": "p06",
+  "kind": "extra",
+  "text": "\"Circuit 𝐶\" box on a node of the Fig. 1 flowchart.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-synthetiq-fast-and-versatile-quantum-circuit-synthesis",
+  "page": "p17",
+  "kind": "extra",
+  "text": "\"C SWAP\" box on two Table 4 cells (C√SWAP, C√iSWAP rows).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-synthetiq-fast-and-versatile-quantum-circuit-synthesis",
+  "page": "p19",
+  "kind": "extra",
+  "text": "\"T-depth\" box on the Table 6 column-group header.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-synthetiq-fast-and-versatile-quantum-circuit-synthesis",
+  "page": "p01",
+  "kind": "other",
+  "text": "Paper has no rules, so every mention link (\"C√SWAP\", \"T-depth\", incl. a figure axis label) is false: p01, p02, p11, p13, p14, p16, p17, p19–p23, p25.",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-OOPSLA-model-checking-for-a-multi-execution-memory-model",
+  "page": "p10",
+  "kind": "extra",
+  "text": "non-contradictory, well-justified, no-thin-air, coherent, well-fenced, certified: named axioms in a bullet list (Def. 3.8), no premises or bar.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-OOPSLA-model-checking-for-a-multi-execution-memory-model",
+  "page": "p11",
+  "kind": "extra",
+  "text": "grounded, no-bait-and-switch: bullet-list axioms; no-bait-and-switch also takes in the prose line \"and also:\" of Def. 3.10.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-OOPSLA-model-checking-for-a-multi-execution-memory-model",
+  "page": "p12",
+  "kind": "extra",
+  "text": "no-thin-air, coherent (Def. 3.11, RC11 axioms): bullet-list axioms.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2012-PLDI-automated-error-diagnosis-using-abductive-inference",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Program P\" box on the language grammar; it also cuts through it, leaving out the \"Predicate p\" lines.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2017-POPL-interactive-proofs-in-higher-order-concurrent-separation-log",
+  "page": "p58",
+  "kind": "extra",
+  "text": "Slide derivation tree: \"wp-seq\" box on the last derivation step (WP-SEQ conclusion), not a rule; its left edge also starts right of the bar.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2017-POPL-interactive-proofs-in-higher-order-concurrent-separation-log",
+  "page": "p59",
+  "kind": "extra",
+  "text": "Same derivation: \"wp-store\" and \"wp-seq\" boxes on derivation steps; they overlap (wp-seq tab on the WP-STORE conclusion).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2017-POPL-interactive-proofs-in-higher-order-concurrent-separation-log",
+  "page": "p63–p69",
+  "kind": "extra",
+  "text": "Each later build of the derivation has one large \"wp-store\" box wrapping several stacked steps (∗-MONO, −∗-INTRO, WP-STORE, more on p66–p69); bottom edge cuts across the lower WP-STORE step. p60–p62 correctly have none.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-implementing-a-modal-dependent-type-theory",
+  "page": "p15",
+  "kind": "wrong-name",
+  "text": "Tabs read \"qo/var\", \"qo/reflect\", \"qo/ty\", \"qo/pi-tp\", ... for printed QUO/VAR, QUO/REFLECT, ... (small-caps \"qu\" ligature); 11 rules.",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2019-PLDI-synthesizing-database-programs-for-schema-refactoring",
+  "page": "p04",
+  "kind": "extra",
+  "text": "Fig. 5 grammar boxed as \"Update U\", \"Query Q\", \"Join J\"; boxes overlap each other and cut through grammar lines.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2019-PLDI-synthesizing-database-programs-for-schema-refactoring",
+  "page": "p07",
+  "kind": "extra",
+  "text": "Fig. 6 sketch grammar boxed as \"Update U\", \"Query Q\", \"Join J\", \"TabList L\", overlapping each other (Fig. 7 Attrs and JoinChain are fine).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "isil-dillig",
+  "paper": "2015-PLDI-static-detection-of-asymptotic-performance-bugs-in-collectio",
+  "page": "p04",
+  "kind": "extra",
+  "text": "Fig. 4 grammar boxed as \"Program P\" (and the box leaves out its last line).",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2014-PLDI-first-class-runtime-generation-of-high-performance-types-usi",
+  "page": "p06",
+  "kind": "missed",
+  "text": "Fig. 2 TyVar, TyApp, TyFun, TyInt; Fig. 3 TCtx, TApp, TUnwrap; Fig. 4 LApp, LRunProp, LProp: 10 named rules, no box (names beside, some under, the rule).",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2014-PLDI-first-class-runtime-generation-of-high-performance-types-usi",
+  "page": "p06",
+  "kind": "overlap",
+  "text": "TYCTOR/TYUNWRAP/TYEXOAPP boxes are stacked with each tab inside the box above; LCTX and LERROR tabs cover the C′ grammar line.",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"δ2\" box on the fraction 1/a(x) δ″ inside the inv(...) definition, an equation.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p09",
+  "kind": "partial",
+  "text": "R3 box's bottom edge cuts through the last where-line \"K′ = K2[e1 ⊛ e2 ↦ (A′δ, false)]\".",
+  "group": "A"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p15",
+  "kind": "missed",
+  "text": "R10, R11, R12 in Fig. 6 (Dekker rules) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p19",
+  "kind": "missed",
+  "text": "R4′ (extended bit-mask rule in the text) has no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p21",
+  "kind": "missed",
+  "text": "R1′ and R2′ (two axioms side by side, each with a bar) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "alex-aiken",
+  "paper": "2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement",
+  "page": "p28",
+  "kind": "extra",
+  "text": "\"δ2\" box on the same fraction in the inv(A) definition, Appendix A.1.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-efficient-and-provable-local-capability-revocation-using-uni",
+  "page": "p06",
+  "kind": "missed",
+  "text": "Fig. 3: RepeatStandby, RepeatHalt, RepeatFail, ExecSingle (bar-less reduction rules with small-caps names) have no box; only RepeatSingle is boxed.",
+  "group": "C"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-efficient-and-provable-local-capability-revocation-using-uni",
+  "page": "p13",
+  "kind": "extra",
+  "text": "Two \"SingleStep\" boxes: SingleStep is the execution mode inside each Fig. 6 Hoare triple, not a rule name (the rules are unnamed). Each box runs from one rule's postcondition into the next rule's premises, cutting both in half.",
+  "group": "B"
+ },
+ {
+  "share": 3,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-efficient-and-provable-local-capability-revocation-using-uni",
+  "page": "p05",
+  "kind": "other",
+  "text": "Mention links \"SingleStep\" (also p12, p14) point at the execution mode; follow-on of p13.",
+  "group": "D"
+ },
+ {
+  "share": 3,
+  "author": "martin-t-vechev",
+  "paper": "2019-POPL-an-abstract-domain-for-certifying-neural-networks",
+  "page": "p11",
+  "kind": "extra",
+  "text": "\"ex−e−x\" box on the fraction (e^x − e^−x)/(e^x + e^−x) in the prose tanh definition; the page has no rules.",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2010-POPL-a-relational-modal-logic-for-higher-order-stateful-adts",
+  "page": "p09",
+  "kind": "missed",
+  "text": "many named rules in Fig. 8 have no box: L-WEAKEN, ▷-MONO, ▷-WEAKEN, LÖB, □-INTRO, □-INTRO-ABS, □-INTRO-TERM, □-ELIM, ▷□-SWAP, ∝-INTRO, ∝-ELIM, ↑-EXPAND, ↑-REDUCE, ↑-UNROLL, ↑-RETURN, ↑-BIND, ↑-IMPURE",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2010-POPL-a-relational-modal-logic-for-higher-order-stateful-adts",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "POP-MONO box also takes in the line below it, \"p ∝ a.(B′,H′) ∈ C.L\", which is the first premise of ∝-INTRO",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2010-POPL-a-relational-modal-logic-for-higher-order-stateful-adts",
+  "page": "p10",
+  "kind": "missed",
+  "text": "□-SHIFT (left of SEP-∨ in Fig. 9) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2011-POPL-precise-reasoning-for-programs-using-containers",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Program P\" box around the language grammar (Program P ::= e+ / Expression e ::= ...), not a rule; it also cuts off the last production line",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2011-POPL-precise-reasoning-for-programs-using-containers",
+  "page": "p06",
+  "kind": "missed",
+  "text": "Fig. 6 rules titled \"Read from Position Dependent Container\", \"Read from Value Dependent Container\", \"Write to Value Dependent Container\", \"Write to Position Dependent Container\" and \"Container Allocation\" have no box; Newval/Update in the same style are boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2011-POPL-precise-reasoning-for-programs-using-containers",
+  "page": "p06",
+  "kind": "partial",
+  "text": "Update box stops at the bar's right end and leaves out the rule's side condition \"(⊗ ∈ {◇, ♣})\" printed just right of the conclusion (minor)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2011-POPL-precise-reasoning-for-programs-using-containers",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Fig. 7 rules \"Key, value pair at kth Iteration for pos_adt\" and \"Key, value pair at kth Iteration for val_adt\" have no box; Foreach/Fix in the same style are boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2011-POPL-precise-reasoning-for-programs-using-containers",
+  "page": "p14",
+  "kind": "extra",
+  "text": "\"ii\" box around the proof case list \"(i) v ≁ ... or (ii) S(l,i) ≁ ...\" in the soundness proof, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "alex-aiken",
+  "paper": "2012-PLDI-concurrent-data-representation-synthesis",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Concurrency-safety\", \"W/W\" and \"S/S\" boxes are all on the Fig. 1 table (column header / header cells / data rows), not rules; the S/S box also cuts through the table rows",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-mtac-a-monad-for-typed-tactic-programming-in-coq",
+  "page": "p06",
+  "kind": "extra",
+  "text": "All 10 boxes (ret, bind, raise, mtry, mfix, mmatch, nu, abs, is_var, is_evar) are on Fig. 2, a table of inductive-type constructor signatures (\"name : type\"), not inference rules. The boxes are also shifted one row off their labels (e.g. the \"ret\" box covers the ○ row).",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-mtac-a-monad-for-typed-tactic-programming-in-coq",
+  "page": "p06",
+  "kind": "overlap",
+  "text": "the extra signature-table boxes cross each other (mfix/mmatch rows, is_var/is_evar rows)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2013-ICFP-mtac-a-monad-for-typed-tactic-programming-in-coq",
+  "page": "p38",
+  "kind": "extra",
+  "text": "All 4 boxes (hash, array_make, array_get, array_set) are on Fig. 16, a constructor-signature table, not rules. They are also shifted one row off their labels (e.g. the \"hash\" box covers the ○ / ... rows, and \"array_set\" covers the array_set and array_length rows).",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "sumit-gulwani",
+  "paper": "2013-PLDI-static-analysis-for-probabilistic-programs-inferring-whole-p",
+  "page": "p04",
+  "kind": "extra",
+  "text": "\"b−a\" box covers the Density Function column of Table 2 plus the Figure 4 code listing, not a rule (and the listing's last line is cut)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "sumit-gulwani",
+  "paper": "2013-PLDI-static-analysis-for-probabilistic-programs-inferring-whole-p",
+  "page": "p06",
+  "kind": "extra",
+  "text": "\"non-terminating\" box on the prose \"p_non-terminating ≥ 1 − c\", not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2014-PLDI-commutativity-race-detection",
+  "page": "p05",
+  "kind": "extra",
+  "text": "Two boxes labelled \"o:w:k\" and \"o:r:k\" sit on rows of the Fig. 7(b) table (access-point cells plus the condition column); these are table cells, not rules, and the two boxes also overlap each other",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "alex-aiken",
+  "paper": "2015-OOPSLA-conditionally-correct-superoptimization",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"UnsafeAxioms U\" box around the Figure 5 grammar of conditions, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2015-POPL-iris-monoids-and-invariants-as-an-orthogonal-basis-for-concu",
+  "page": "p04",
+  "kind": "partial",
+  "text": "RET box's bottom edge runs through the conclusion text \"{v. v = w}\", cutting off the lower half; FRAME box's bottom edge also grazes the conclusion \"{P ∗ R} e {v. Q ∗ R}\" (minor)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2015-POPL-iris-monoids-and-invariants-as-an-orthogonal-basis-for-concu",
+  "page": "p09",
+  "kind": "partial",
+  "text": "STS box's bottom edge cuts the subscript E⊎{ι} off the conclusion (minor)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2016-PLDI-sdnracer-concurrency-analysis-for-software-defined-networks",
+  "page": "p02",
+  "kind": "extra",
+  "text": "\"S1\" box around the network diagram in Fig. 1",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2016-PLDI-sdnracer-concurrency-analysis-for-software-defined-networks",
+  "page": "p05",
+  "kind": "missed",
+  "text": "SWITCHDATAPLANE, SWITCHCONTROLPLANE, SWITCHBUFFER, HOST, CONTROLLER, DATAPLANE, CONTROLPLANETO, CONTROLPLANEFROM, TIME1, TIME2 have no box (Fig. 2; only BARRIERPRE/BARRIERPOST are boxed)",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2016-POPL-learning-programs-from-noisy-data",
+  "page": "p08",
+  "kind": "extra",
+  "text": "box \"rules\" drawn on the label \"rules:\" in the Fig. 4 tree-completion diagram (a list of grammar productions Property → x/y/log/info), not an inference rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2017-POPL-a-relational-model-of-types-and-effects-in-higher-order-conc",
+  "page": "p05",
+  "kind": "overrun",
+  "text": "The ACSQ box's top edge sits one text line too high: it takes in the prose line \"consequence.\" (the end of the sentence \"Iris features the following atomic rule-of-consequence.\") above the rule.",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2017-POPL-a-relational-model-of-types-and-effects-in-higher-order-conc",
+  "page": "p13",
+  "kind": "extra",
+  "text": "The \"!hI\" box is on a step of a proof outline (the program line \"!h_I\" plus its surrounding {..} assertions, down to \"h_I := inj2 ...\"), not a rule.",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2018-PLDI-static-serializability-analysis-for-causal-consistency",
+  "page": "p05",
+  "kind": "extra",
+  "text": "box \"R2\" on the definition \"(R2) ⟲ ⊆ U×Q, and u⟲q iff uq≡qu and for all v∈U,\" — a prose relation definition, not an inference rule; also partial, since the definition goes on to the next displayed line \"uv≡vu or v⟲q or u▷v\" that sits outside the box. Siblings R1, D1–D3 (same style) are correctly left unboxed",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p16",
+  "kind": "wrong-name",
+  "text": "tab reads \"F-conseqence\" but the rule is F-CONSEQUENCE (missing \"u\")",
+  "group": "D"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p23",
+  "kind": "missed",
+  "text": "LftL-begin (top-left of Fig. 4) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p23",
+  "kind": "partial",
+  "text": "LftL-borrow box stops before the final \"⇛* ▷P)\"; LftL-bor-acc box stops after \"[κ]_q\" and leaves out \"⇛* ▷P * (▷P ⇛* &full P * [κ]_q)\"; LftL-reborrow box stops after \"&full P\" and leaves out \"⇛* &κ'full P * ([†κ'] ⇛* &κfull P)\" (each box ends at the ⇛* update glyph)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p25",
+  "kind": "missed",
+  "text": "LftL-bor-fracture (left of LftL-fract-acc in Fig. 5) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p27",
+  "kind": "missed",
+  "text": "LftL-bor-na (left of Fig. 6) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la",
+  "page": "p27",
+  "kind": "partial",
+  "text": "LftL-na-acc box stops at the ⇛* glyph and leaves out \"⇛* ▷P * (▷P ⇛* [κ]_q * [Na:t])\"",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2018-POPL-intrinsically-typed-definitional-interpreters-for-imperative",
+  "page": "p10",
+  "kind": "extra",
+  "text": "\"weaken-val\" box around Agda type signatures weaken-val / weaken-env (code), not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2018-POPL-intrinsically-typed-definitional-interpreters-for-imperative",
+  "page": "p13",
+  "kind": "extra",
+  "text": "\"included-refl\" box around the Agda instance declaration (included-refl / included-step), code, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2019-PLDI-fact-a-dsl-for-timing-sensitive-computation",
+  "page": "p08",
+  "kind": "partial",
+  "text": "The Tr-Br-If box's bottom edge cuts off the last line of the conclusion (\"S1'; S2' }\"), which sits below the box.",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-OOPSLA-effective-lock-handling-in-stateless-model-checking",
+  "page": "p09",
+  "kind": "extra",
+  "text": "box \"init\" drawn around prose line \"tion, wb ⊆ mo, which (similarly to lb) infers the order between writes.\" spanning into the Fig. 8 graph's \"[init]\" node; not a rule (the paper has no inference rules on this page)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2019-POPL-stktokens-enforcing-well-bracketed-control-flow-and-stack-en",
+  "page": "p18",
+  "kind": "extra",
+  "text": "The \"local_data\" box is on the first line of the splitStack definition in Fig. 11 (auxiliary function definitions), not a rule; the name comes from the subscript c_local_data.",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p04",
+  "kind": "extra",
+  "text": "box \"atomic(e)\" drawn on the side condition atomic(e) on SC-CInv-Acc's premise line (not a rule)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p04",
+  "kind": "overlap",
+  "text": "extra \"atomic(e)\" box crosses the SC-CInv-Acc box interior",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p04",
+  "kind": "partial",
+  "text": "SC-CInv-Acc box's top edge sits mid-premise: it cuts off the rule name \"SC-CInv-Acc\" and the top half of the premise {P} e {v. I * Q}",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p07",
+  "kind": "extra",
+  "text": "Alloc-Safe and Free-Safe boxed, but they are prose safety conditions (italic sentences with a label), not inference rules (low confidence)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p10",
+  "kind": "missed",
+  "text": "Fig. 3: Ghost-Mod, iRC11-CInv-New, iRC11-CInv-FAA-Rlx (the only one with a bar), iRC11-CInv-Tok, iRC11-CInv-Cancel have no box; neighbours NA-Write/NA-Read/Dealloc/Rel-fence/Acq-fence in the same style are boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p17",
+  "kind": "extra",
+  "text": "Cancel-Safe boxed, but it is a prose safety condition, not a rule (low confidence; same as Alloc-Safe)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p18",
+  "kind": "extra",
+  "text": "box \"atomic(e)\" drawn on the side condition on Raw-CInv-Acc's premise line",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p18",
+  "kind": "overlap",
+  "text": "extra \"atomic(e)\" box crosses the Raw-CInv-Acc box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p18",
+  "kind": "partial",
+  "text": "Raw-CInv-Acc box's top edge cuts through the premise and leaves out the rule name \"Raw-CInv-Acc\"",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p19",
+  "kind": "extra",
+  "text": "Sync-Ghost boxed, but it is a prose property statement, not a rule (low confidence)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p20",
+  "kind": "partial",
+  "text": "Raw-CInv-Model-Update box ends after \"PartialV(q,Vtok)\" and leaves out the ⇛ and the whole right-hand side \"FullV(V' ⊔ Vi) * PartialV(q, V' ⊔ Vtok)\"",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p26",
+  "kind": "extra",
+  "text": "two \"atomic(e)\" boxes drawn on the side conditions of SC-LftL-at-Acc and Rlx-LftL-at-Acc",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p26",
+  "kind": "overlap",
+  "text": "each \"atomic(e)\" box crosses its rule's box (SC-LftL-at-Acc, Rlx-LftL-at-Acc)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p26",
+  "kind": "partial",
+  "text": "SC-LftL-at-Acc and Rlx-LftL-at-Acc boxes start mid-premise, cutting off the rule name and the upper part of the premise",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2020-POPL-rustbelt-meets-relaxed-memory",
+  "page": "p27",
+  "kind": "partial",
+  "text": "LftL-full-acc and LftL-full-ret boxes stop at the ⇛ and leave out the right-hand side (\"P * Ret(κ,P,q)\" and \"&full P * [κ]q\")",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-OOPSLA-persistent-owicki-gries-reasoning-a-program-logic-for-reason",
+  "page": "p11",
+  "kind": "missed",
+  "text": "(REC) at the bottom of Fig. 3, just above the caption, has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2021-PLDI-robustness-certification-with-generative-models",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"Probabilistic\" box and \"CelebA\" box on rows of Table 1 (a results table, not a rule); the two boxes also overlap each other",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-distributed-causal-memory-modular-specification-and-verifica",
+  "page": "p17",
+  "kind": "extra",
+  "text": "box \"Consistent DB\" drawn over the Fig. 10 architecture diagram (Session Manager / Causally Consistent DB blocks), not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2021-POPL-automatically-eliminating-speculative-leaks-from-cryptograph",
+  "page": "p20",
+  "kind": "missed",
+  "text": "Sol-Empty (axiom \"SOL-EMPTY / σ ⊢ ∅\" in Fig. 11, set alongside the boxed Sol-Set/Sol-Trans/Sol-Stable/Sol-Flow) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p17",
+  "kind": "missed",
+  "text": "RACE-1, RACE-2, WAIT, MIN-LOCK, MAX-PAR have no box (Fig. 8; labels sit left of each rule)",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p17",
+  "kind": "other",
+  "text": "L-Order box actually covers the WAIT rule body plus the L-ORDER label; L-ORDER's own rule (IsEdge(e) / LockOrder(e,N) ∈ H, to the right of its label) is outside the box. The label was paired with the rule to its left, not its right",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p17",
+  "kind": "other",
+  "text": "Min-Atom box covers the MIN-LOCK rule body plus the MIN-ATOM label; MIN-ATOM's own rule (this.fld ∈ F / ¬a_fld ∈ S) is outside the box. Same left/right label mix-up",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p17",
+  "kind": "extra",
+  "text": "Aux-Defs box on the auxiliary definitions line (Mutex(F,N) = …, LockOrder(...) = …). It is a definition with no bar, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p22",
+  "kind": "extra",
+  "text": "\"ArrayBlockingeue\" box (tab also misspelled) and \"CountableThreadPool\" box on plot titles/legends in Fig. 9 performance charts",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p27",
+  "kind": "extra",
+  "text": "\"ArrayBlockingeue\" box on plot title/legend in Fig. 10 chart",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p30",
+  "kind": "extra",
+  "text": "\"ConcurrencyroleSupport\" box and \"RoundTripWorker\" box on plot titles/legends in Fig. 13 charts",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "missed",
+  "text": "ENTRY-FRAG, METHOD, FLD-2 (as its own box), MTR have no box (Fig. 16)",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "partial",
+  "text": "Reg-Frag-1 box covers only the REG-FRAG-1 label and the left line-number margin; the rule body (Exit(v) ≡ goto l … / L,(F,E) ⊢ v ↪ v') is outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "partial",
+  "text": "CCR-Statement box covers only the CCR-STATEMENT label and the line-number margin; the rule (G ≡ (F,E) … / S,G ⊢ s ⇝ s'1;…;s'n) is outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "other",
+  "text": "Frag-Stmt box covers the FRAG-STMT label plus the top premises of the SIG rule (SigOp(s) …, s'' = s'[ExplSig…]); FRAG-STMT's own rule (Frag(s) … / (L,A,P),G ⊢ s ⇝ s'') is outside it",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "other",
+  "text": "Sig box covers FRAG-STMT's rule body plus the SIG label, not SIG's rule on the right (SigOp(s) … / … ⊢ s ⇝ s')",
+  "group": "D"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "overlap",
+  "text": "Frag-Stmt box and Sig box cross each other (Sig box's top-right corner is inside the Frag-Stmt box)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "other",
+  "text": "CCR box covers METHOD's rule body (S,G ⊢ ci ⇝ c'i / S,G ⊢ m(v){…} ⇝ …) plus the CCR label; CCR's own rule (right of its label) is outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "isil-dillig",
+  "paper": "2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl",
+  "page": "p38",
+  "kind": "overrun",
+  "text": "Fld-1 box spans both FLD-1 and FLD-2 (the FLD-2 label and its whole rule are inside the Fld-1 box)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "alex-aiken",
+  "paper": "2022-POPL-induction-duality-primal-dual-search-for-invariants",
+  "page": "p11",
+  "kind": "extra",
+  "text": "all 5 boxes (k-provability, k-abstract-reachability ×3, k-provability) are on cells/rows of Table 1 (concept table), not rules. The paper has no inference rules here",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "alex-aiken",
+  "paper": "2022-POPL-induction-duality-primal-dual-search-for-invariants",
+  "page": "p16",
+  "kind": "extra",
+  "text": "box with tab \"𝛼 𝑆Ƹ𝐻\" on part of the Fig. 4 lattice diagram (\"α̂(S_H) / Ñ = 0\") — a diagram, not a rule. Its right edge also clips \"α̂(S_H)\"",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p09",
+  "kind": "extra",
+  "text": "blue box \"is_mask(𝑡2)\" drawn over the premise row of the Ty-mask rule; is_mask(t2) is a premise, not a rule. Its tab also covers the spot where the rule's name label sits",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p09",
+  "kind": "partial",
+  "text": "Ty-mask box starts partway down the premise row (top edge runs through the premise text \"e1 ▷e t1@bf_term…\"), so the name label and the top of the premises are outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "the is_mask(𝑡2) box and the Ty-mask box cross over the premise row",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p14",
+  "kind": "overrun",
+  "text": "Fig. 6 is a table with one named rule per row. The \"Ty-concat\" box covers three rows (Ty-merge, Ty-set, Ty-concat), and the \"Ty-clear\" box covers two rows (Ty-not, Ty-clear)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p18",
+  "kind": "extra",
+  "text": "the four inductive is_mask rules under \"Predicates\" are unnamed (no labels), yet they carry 3 boxes named \"is_mask(𝑡)\", \"is_mask(𝑡)\", \"is_mask(mask)\"",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "derek-dreyer",
+  "paper": "2022-OOPSLA-bff-foundational-and-automated-verification-of-bitfield-mani",
+  "page": "p18",
+  "kind": "overlap",
+  "text": "the purple \"is_mask(mask)\" box spans the whole conclusion row of all four rules and crosses the two orange is_mask(𝑡) boxes. The right orange box also cuts off the first premise is_mask(v)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "viktor-vafeiadis",
+  "paper": "2023-POPL-kater-automating-weak-memory-model-metatheory-and-consistenc",
+  "page": "p09",
+  "kind": "extra",
+  "text": "\"po-properties\" box is on a single displayed line of assumptions with an equation tag (rf = rfi ∪ rfe, rfi ⊆ po, po;po ⊆ po); no bar and no rule list, so it looks like a tagged equation rather than an inference rule (low confidence)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2024-POPL-mechanizing-refinement-types",
+  "page": "p26",
+  "kind": "extra",
+  "text": "S-BASE and T-SUB boxes sit on steps of a worked example derivation (get 10 4 : ArrayN a 10 -> a), not on rule definitions. The T-SUB box also leaves out its own premises (Γ ⊢ 4 : Int{v:v=4} and the subtyping premise sit above the box top)",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2024-POPL-mechanizing-refinement-types",
+  "page": "p54",
+  "kind": "extra",
+  "text": "\"Typing\" (orange box) is on the figure heading \"Typing\" of Fig 4.2, not a rule; its box covers empty space and runs down to the FT-PRIM box",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2024-POPL-mechanizing-refinement-types",
+  "page": "p54",
+  "kind": "partial",
+  "text": "FT-PRIM box is a thin strip (about y 708-728) through the middle of the conclusion \"Γ ⊢F c : ⌊ty(c)⌋\" and the name \"FT-PRIM\": the top half of the name and the bottom of the conclusion fall outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "ranjit-jhala",
+  "paper": "2024-POPL-mechanizing-refinement-types",
+  "page": "p96",
+  "kind": "missed",
+  "text": "Rule \"WFLIST\" (WF-List, Figure 9.4 left, name typeset \"WFL̄IST\" with a stray macron) has no box; its neighbour WF-LISTR is boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2024-PLDI-a-proof-recipe-for-linearizability-in-relaxed-memory-separat",
+  "page": "p11",
+  "kind": "overrun",
+  "text": "OmoAuth-Insert-Last box runs down past its conclusion and takes in the section heading \"Proof rules for read-only events (§3.3):\"",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2024-PLDI-a-proof-recipe-for-linearizability-in-relaxed-memory-separat",
+  "page": "p11",
+  "kind": "overrun",
+  "text": "OmoAuth-Insert-Ro box runs down past its conclusion and takes in the heading \"Proof rule for general write events (§3.4):\"",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2024-PLDI-a-proof-recipe-for-linearizability-in-relaxed-memory-separat",
+  "page": "p15",
+  "kind": "partial",
+  "text": "Stack-Try-Pop-Spec-Comp box ends after the first conclusion line (\"v. ··· * Token(γo,e) *\"); the rest of the conclusion (⟨H, omo. Stack(...)⟩ try_pop(s) and the two disjunct lines) is outside the box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2024-PLDI-a-proof-recipe-for-linearizability-in-relaxed-memory-separat",
+  "page": "p15",
+  "kind": "partial",
+  "text": "OmoLoc-CAS box covers only the name and premise; the bar and the whole three-line conclusion (⟨H,omo. ℓ↦(H,omo)⟩ CAS^o(ℓ,vr,vw) ⟨b. ...⟩) are outside it",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-modular-synthesis-of-efficient-quantum-uncomputation",
+  "page": "p15",
+  "kind": "extra",
+  "text": "\"Synthesize-Uncomputation(f)\" box is on algorithm pseudocode in Fig. 7 (it also takes in the Ensure-Uncomputed subprocedure), not an inference rule",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-modular-synthesis-of-efficient-quantum-uncomputation",
+  "page": "p18",
+  "kind": "extra",
+  "text": "boxes \"Synthesize-Classical(f)\", \"Make-Classical( )\", \"Make-Adjoint( )\" and \"Synthesize-Adjoint(f)\" are on pseudocode in Fig. 8, not rules; they also cut the code off (Synthesize-Adjoint stops at line 9 of 15, Synthesize-Classical cuts line 9) and overlap each other",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "martin-t-vechev",
+  "paper": "2024-OOPSLA-modular-synthesis-of-efficient-quantum-uncomputation",
+  "page": "p19",
+  "kind": "extra",
+  "text": "boxes \"Erase-Uncomputation(f)\" and two \"Propagate-Garbage( )\" boxes are on pseudocode in Fig. 9, not rules; the Propagate-Garbage boxes span both code columns (mixing Connect-Garbage and Erase-Uncomputation lines) and cross each other",
+  "group": "B"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2025-POPL-approximate-relational-reasoning-for-higher-order-probabilis",
+  "page": "p07",
+  "kind": "missed",
+  "text": "wp-couple-rand-rand-err-le (named rule with a bar, name above it) has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2025-POPL-approximate-relational-reasoning-for-higher-order-probabilis",
+  "page": "p15",
+  "kind": "missed",
+  "text": "wp-couple-rand-rand-err-le and wp-couple-rand-rand-err-ge (displayed rules with a bar, name above) have no box; wp-couple-tape-tape-err-ge in the same style on the same page is boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2025-POPL-affect-an-affine-type-and-effect-system",
+  "page": "p19",
+  "kind": "missed",
+  "text": "ModeSub-O, ModeSub-Nil and RowSub-Nil (axioms in Fig. 5, set among the boxed ModeSub-M, ModeSub-Cons, RowSub-Once, RowSub-Multi and RowSub-Cons) have no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2025-POPL-affect-an-affine-type-and-effect-system",
+  "page": "p20",
+  "kind": "missed",
+  "text": "ModeSub-MBang and RowSub-FMBang (displayed named axioms at the top of the page, same style as the boxed axioms on p14, p17 and p19) have no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c",
+  "page": "p09",
+  "kind": "partial",
+  "text": "In Fig. 5's top row, Wp-load's box covers only the \"WP-LOAD\" name; Wp-store's box covers name and premise but stops above the bar; Wp-free's box stops partway through the conclusion; Wp-alloc's box leaves out its own \"WP-ALLOC\" name",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "Wp-alloc's box is a thin strip across the whole conclusion row, taking in the conclusions of Wp-load (wp !ℓ ...), Wp-store (wp ℓ ← w ...) and Wp-free (wp free ℓ {True}); its edges also cut through that text",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "Wp-alloc strip crosses the lower part of the Wp-free box",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c",
+  "page": "p12",
+  "kind": "missed",
+  "text": "PROTO-IN-REFL (p ∈ p), printed right next to the boxed PROTO-IN-CHOICE, has no box",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "lars-birkedal",
+  "paper": "2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c",
+  "page": "p17",
+  "kind": "partial",
+  "text": "Wp-new-sync box's right edge cuts off the closing brace \"}\" of the postcondition (minor)",
+  "group": "A"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2026-POPL-a-relational-separation-logic-for-effect-handlers",
+  "page": "p10",
+  "kind": "missed",
+  "text": "BIND (displayed rule \"BIND  traversable(Kl,Kr,T)  T⊑F / el≲er⟨T⟩{...} ⊢ Kl[el]≲Kr[er]⟨F⟩{R}\", mid-page below \"a sound bind rule ... is formulated as follows\") has no box, while its neighbours STANDARD-BIND and UNSOUND-BIND are boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2026-POPL-a-relational-separation-logic-for-effect-handlers",
+  "page": "p11",
+  "kind": "missed",
+  "text": "BETA in Fig. 1c (pure-reduction rules, left of MULTI-SHOT) has no box; the other Fig. 1 rules are boxed",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2026-POPL-a-relational-separation-logic-for-effect-handlers",
+  "page": "p19",
+  "kind": "missed",
+  "text": "whole of Fig. 5 \"Reasoning rules of blaze\" unboxed: EFFECT-L-★, EFFECT-R-★, ADD-LABEL-L-★, ADD-LABEL-R-★, NEW-THEORY-★, INTRODUCTION-★, BIND-★, EXHAUSTION-★ (8 rules; names end in ★)",
+  "group": "C"
+ },
+ {
+  "share": 4,
+  "author": "robbert-krebbers",
+  "paper": "2026-POPL-a-relational-separation-logic-for-effect-handlers",
+  "page": "p23",
+  "kind": "missed",
+  "text": "whole of Fig. 7 \"Reasoning rules for concurrency\" unboxed: FORK-L-★, FORK-R-★, LOGICAL-FORK-★, THREAD-SWAP-★ (4 rules; names end in ★)",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p08",
+  "kind": "missed",
+  "text": "DC-Error axiom (top-left of Fig. 4, name \"DC-Error\" above \"[emp] L:error [er(L): emp]\") has no box; the other 9 DC-* axioms are boxed correctly",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p14",
+  "kind": "overrun",
+  "text": "RD-Assign box spans the whole bottom row of axioms, taking in the RD-Lock and RD-Unlock axiom bodies (\"[τ↦H] lock l [...]\" and \"[τ↦H] unlock l [...]\"); it should cover only \"RD-Assign / [emp] x:=e [ok: emp]\"",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p14",
+  "kind": "partial",
+  "text": "RD-Lock and RD-Unlock boxes cover only the name labels; their axiom lines (below the names) are outside their boxes (inside the RD-Assign box instead). The RD-Lock box also has the RD-Assign box's top edge running through its label",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p14",
+  "kind": "overlap",
+  "text": "RD-Lock and RD-Unlock boxes overlap the RD-Assign box",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p18",
+  "kind": "extra",
+  "text": "Box \"Par\" drawn around an example derivation (PAR then CONS steps, \"(derived via Seq, Atom and CISL_RD axioms on p. 14)\") that is not a rule definition; the box also starts partway through, leaving out the left \"(derived\" text",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p24",
+  "kind": "missed",
+  "text": "SV-CS and SV-CS-G (named derived rules with premises, bar and conclusion in Fig. 13) have no boxes",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p24",
+  "kind": "extra",
+  "text": "\"Subv-Split\" box is on an equivalence (res(k) ⇔ ∃k1…kn …, tagged (SUBV-SPLIT) at the right), not an inference rule; its tab also sits on the prose line above (\"that a global view ... always be split\")",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p24",
+  "kind": "partial",
+  "text": "SV-Acq, SV-Rel, SV-Acq-G and SV-Rel-G boxes' right edges sit on or just inside the closing \"]\" of each postcondition, so the final bracket is clipped/hidden (minor)",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p25",
+  "kind": "extra",
+  "text": "All four boxes (Par, SeqEr, ParEr, Cons) are on steps of the proof derivations in Fig. 14 (Examples 7.1/7.2), not on rule definitions",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p25",
+  "kind": "overlap",
+  "text": "The same derivation boxes cut through the formulas and overlap each other: SeqEr/ParEr/Cons are stacked across the middle derivation, and the ParEr and Cons tabs cover formula text",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2015-POPL-common-compiler-optimisations-are-invalid-in-the-c11-memory",
+  "page": "p11",
+  "kind": "extra",
+  "text": "\"OW-adj\" box is on a transformation equation \"W_X(l,v');W_X(l,v) ~> skip;W_X(l,v) (OW-adj)\", not an inference rule (the matching RAR-adj/RAW-adj equations are not boxed)",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2015-POPL-common-compiler-optimisations-are-invalid-in-the-c11-memory",
+  "page": "p11",
+  "kind": "overrun",
+  "text": "The same OW-adj box spans both columns, taking in the left column's \"Repeated Read. The first transformation we consider is eliminat-...\" prose and the 5.1 section heading line",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2015-POPL-common-compiler-optimisations-are-invalid-in-the-c11-memory",
+  "page": "p14",
+  "kind": "extra",
+  "text": "\"rf\" box is on part of an execution graph (A.7, around the rf edge and the \"(RACE)\" label), not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p06",
+  "kind": "extra",
+  "text": "\"Domain-Bad\" box sits on a displayed recursive domain equation (SemType/SemVal ≅ ...), not an inference rule; the matching (Domain) equation below has no box, so the two are handled inconsistently",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p09",
+  "kind": "missed",
+  "text": "Fig. 4: T-{}-I, T-{}-E and T-∀-E_p (name tabs beside the bar) have no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p09",
+  "kind": "overrun",
+  "text": "P-Var box takes in the \"Path typing\" section heading above the rule",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p09",
+  "kind": "other",
+  "text": "P-μ-I and P-μ-E tabs draw as \"P- -I\" / \"P- -E\" because the μ glyph is missing from the tab font (same on p13; Sngl_pq-<: / Sngl_qp-<: tabs draw as \"Sngl  -<:\" on p10 and p14)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p10",
+  "kind": "missed",
+  "text": "Fig. 5: <:-⊤, ∧1-<:, ∧2-<:, ⊥-<:, <:-Refl (named axioms), <:-∧ and ∀-<:-∀ (rules with a bar) have no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p13",
+  "kind": "missed",
+  "text": "Fig. 6: T-{}-I, T-∀-E_p and D-∀ have no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p14",
+  "kind": "missed",
+  "text": "Fig. 7: <:-⊤, ∧1-<:, ∧2-<:, ⊥-<:, <:-Refl, <:-∨1, <:-∨2, Distr-∧-∨-<: (axioms; the axiom <:-Add-Later on the same page is boxed) plus <:-∧, ∨-<:, μ-<:-μ, μ-<:, <:-μ and ∀-<:-∀ have no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic",
+  "page": "p17",
+  "kind": "missed",
+  "text": "Fig. 8: Impl-▷, Löb, ⇛-Mono, ⇛-Intro, ⇛-Trans and ⇛-Frame have no box (only ▷-Intro/Mono/Impl and Saved-Pred-* are boxed)",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p12",
+  "kind": "extra",
+  "text": "Two overlapping \"TId:Lab\" boxes cover the Fig. 4a header lines (thread and program transition signatures plus the Lab definition); these are not rules",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p12",
+  "kind": "missed",
+  "text": "T-Seq1 has no box; T-While has no box of its own (see next line)",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p12",
+  "kind": "wrong-name",
+  "text": "Box tabbed \"T-Read\" covers the T-While rule (while ... → if ...) plus T-Read's premise line; T-Read's bar, conclusion and name sit outside it",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p12",
+  "kind": "partial",
+  "text": "T-ReadL box cuts off its premise (s'=s[a↦s(e)] is at the top edge, under the tab); T-Write box holds only the conclusion line, with its premise, bar and (T-Write) name above it",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p12",
+  "kind": "overlap",
+  "text": "Boxes and tabs overlap in Fig. 4: T-ReadL/T-CAS0, T-CAS0/T-FAA (FAA tab over the CAS0 conclusion), T-CAS1 tab over the T-Read conclusion, T-Fence/P-Step (P-Step tab over the \"fence\" conclusion), M-Read*/M-RMW* (RMW tab over the Read* conclusion), M-RMW*/M-BProp* (BProp* tab over the RMW* conclusion)",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p13",
+  "kind": "partial",
+  "text": "SilentP box's left edge is right of its conclusion's start, so \"P, S\" of the conclusion is outside the box",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p13",
+  "kind": "overlap",
+  "text": "SilentM tab sits on SilentP's conclusion (\"P, S ... M, PB, B ⇒\")",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p15",
+  "kind": "extra",
+  "text": "tso-total, tso-po, tso-rf1, tso-rf2, nvo-total, nvo-tso are bullet-list axioms of a definition (PTSO-validity), not inference rules; their tabs also hide the start of each line, and the tso-rf2 tab sits on the tso-rf1 line",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p16",
+  "kind": "extra",
+  "text": "nvo-psf, nvo-pre, nvo-pers: bullet-list definition axioms boxed as rules; tabs hide the start of each line",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2024-PLDI-recursive-program-synthesis-using-paramorphisms",
+  "page": "p05",
+  "kind": "missed",
+  "text": "TVar (named axiom Γ,v:τ ⊢ v:τ) has no box, while Tabs, Tapp, Tctr and Tpara are boxed",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "sumit-gulwani",
+  "paper": "2011-POPL-automating-string-processing-in-spreadsheets-using-input-out",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Token T\" box is on a grammar production (Token T := C+ | [¬C]+) in Fig. 1, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p07",
+  "kind": "missed",
+  "text": "SIM-CALL (named axiom, centred between SIM-FRAME and SIM-BIND in Fig. 3) has no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p09",
+  "kind": "extra",
+  "text": "Fig. 4 is value-relation definition clauses, not inference rules: VALUE-LOC, VALUE-FNPTR, VALUE-PAIR are boxed (VALUE-INT, VALUE-BOOL on the same figure are not, so it is inconsistent too); the value-fnptr tab sits on top of the value-loc box",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p16",
+  "kind": "extra",
+  "text": "DATA-RACE-CTX is a labelled displayed equation (contextual refinement example), not an inference rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p21",
+  "kind": "extra",
+  "text": "Fig. 13 proof-overview diagram rows boxed as rules \"language-specific\" and \"language-independent\" (the parenthesised labels are row annotations); these false names also produce spurious prose mention boxes on p21 (4x) and on p05/p18 (\"language-independent\", \"(language-specific)\")",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p23",
+  "kind": "extra",
+  "text": "displayed definition of H_C(l_s,q_h) (with a case split) boxed as rule \"exploit_frac( )\"; it is not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2015-OOPSLA-scalable-race-detection-for-android-applications",
+  "page": "p08",
+  "kind": "missed",
+  "text": "Fig. 4: CALLBACKREG#1, CALLBACKREG#2, MSGBEGIN#1, MSGBEGIN#2 have no box; Fig. 5: IPCASYNC has no box (all the names with \"#\" or in the last Fig. 5 rule were skipped)",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-refinedc-automating-the-foundational-verification-of-c-code",
+  "page": "p03",
+  "kind": "extra",
+  "text": "Table 1 (judgment table) cells boxed as rules \"r-expressions\" and \"l-expressions\"; the l-expressions box also covers only the READ row, cutting through the table",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-refinedc-automating-the-foundational-verification-of-c-code",
+  "page": "p04",
+  "kind": "partial",
+  "text": "side conditions printed right of the rules are outside the boxes: T-goto (\"Σ = (C, (ℓ,n), ∃x. τ(x);H(x))\"), T-assign (\"p1 = K[ℓ1]\"), T-return (\"Σ = ...\"), T-annotS (\"p = K[ℓ]\")",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-refinedc-automating-the-foundational-verification-of-c-code",
+  "page": "p05",
+  "kind": "partial",
+  "text": "T-cas box stops at the bar and its conclusion \"⊢EXPR CAS(e1,e2,e3) {v,τ. G(v,τ)}\" is outside; side condition \"p = K[ℓ]\" is outside the boxes of T-use and T-addr-of",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2022-PLDI-distal-the-distributed-tensor-algebra-compiler",
+  "page": "p03",
+  "kind": "extra",
+  "text": "Fig. 4 grammar (syntax of tensor distribution notation) boxed as rule \"Machines M\"",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2022-PLDI-distal-the-distributed-tensor-algebra-compiler",
+  "page": "p08",
+  "kind": "extra",
+  "text": "Fig. 14 grammar (concrete index notation syntax) boxed as rule \"Tensors T\"",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi",
+  "page": "p03",
+  "kind": "missed",
+  "text": "Named rule HOARE-BIND (inadmissible in presence of continuations), drawn with name over bar, has no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi",
+  "page": "p08",
+  "kind": "missed",
+  "text": "Named rule INADMISSIBLE-BIND at page bottom (name over the bar) has no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi",
+  "page": "p14",
+  "kind": "missed",
+  "text": "FST-CLWP (top-left of Fig. 5) has no box; the other Fig. 5 rules are boxed",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi",
+  "page": "p14",
+  "kind": "partial",
+  "text": "INV-OPEN-CLWP box stops after the second premise; the third premise \"e is atomic\" and the right end of the bar are outside the box",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi",
+  "page": "p23",
+  "kind": "extra",
+  "text": "Three unnamed spec-side rules (Cfork rule and the two yield rules) are boxed with the name \"CurTh(j)\", which is their first premise, not a rule name. None of the four rules on the page has a printed name, so no box is needed",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-mechanized-logical-relations-for-termination-insensitive-non",
+  "page": "p18",
+  "kind": "partial",
+  "text": "MWP-bind-gen box covers only the name and the first premise BindCond(a,a',f,g); the second premise (mwp ... K[v] ...), the bar and the conclusion mwp K[e] {Φ} are outside",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2024-OOPSLA-extending-the-c-c-memory-model-with-inline-assembly",
+  "page": "p11",
+  "kind": "extra",
+  "text": "No-Thin-Air box sits on a bulleted consistency condition in Definition 3.1 (\"acyclic(po ∪ rf) (NO-THIN-AIR)\"). It is not an inference rule, and the sibling conditions Coherence/SC/Atomicity are rightly unboxed.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2024-OOPSLA-extending-the-c-c-memory-model-with-inline-assembly",
+  "page": "p13",
+  "kind": "extra",
+  "text": "Coherence-II and Coherence-III boxes sit on bulleted consistency conditions in Definition 3.5, not rules. The two boxes also overlap/touch, and Coherence-III's tab covers the Coherence-II line.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2014-PLDI-stochastic-optimization-of-floating-point-programs-with-tuna",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"NaN\" box on the NaN row of the IEEE-754 table in Figure 1. It is a table row, not a rule, and its tab also covers the \"Infinity\" row above.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2014-PLDI-stochastic-optimization-of-floating-point-programs-with-tuna",
+  "page": "p04",
+  "kind": "extra",
+  "text": "\"β−p\" box on equation (8). It is not a rule, and the box spans both columns, taking in right-column prose and equation (13).",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2012-PLDI-deterministic-parallelism-via-liquid-effects",
+  "page": "p07",
+  "kind": "partial",
+  "text": "T-UNFOLD box starts at the third premise line. The first two premise lines (\"Γ ⊢ v : {ν : ref(l̃, i_y) | ν ≠ 0}\" and \"h = h0 ∗ l̃ ↦ n_k:τ_k, i⁺:τ⁺\") are outside the box, and the tab sits on the second line.",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "isil-dillig",
+  "paper": "2013-OOPSLA-inductive-invariant-generation-via-abductive-inference",
+  "page": "p03",
+  "kind": "extra",
+  "text": "\"Conditional C\" box on the language grammar (Statement/Expression/Conditional productions). It is not a rule, and it starts mid-grammar.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2025-PLDI-destabilizing-iris",
+  "page": "p10",
+  "kind": "extra",
+  "text": "eval-def box covers the displayed definition \"e ⇓ v ≜ ∃h. ...\" (EVAL-DEF). It is a labelled definition (≜), not an inference rule (borderline, since prose later cites it like a rule)",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-iris-wasmfx-modular-reasoning-for-wasm-stack-switching",
+  "page": "p17",
+  "kind": "partial",
+  "text": "ewp-contnew box covers only the name and the premise \"F.inst.types[i] = ft\". The full-width bar and the 3-line conclusion \"ewp [ref.func addr; cont.new i] ; F ⟨Ψ⟩ {w F', ∃kaddr ...}\" are outside it",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "zhendong-su",
+  "paper": "2013-POPL-automatic-detection-of-floating-point-exceptions",
+  "page": "p04",
+  "kind": "extra",
+  "text": "\"Divide-by-Zero\" box covers the lower half of the rewriting-rule definition T(x / y) = {Invalid / Divide-by-Zero / Overflow / ...}, a case-split equation, not a named inference rule. The box also misses the \"T(x / y) =\" left side, and its tab sits on the \"x ⊙ y otherwise\" line of T(x ⊙ y). The name comes from a case label inside the equation",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2017-PLDI-synthesizing-program-input-grammars",
+  "page": "p10",
+  "kind": "extra",
+  "text": "Box named \"by\" drawn around the prose \"Results. We estimate the precision of Ĉ by|E_prec∩L*|/|E_prec|, where E_prec consists of ...\". This is text, not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2018-PLDI-incremental-inference-for-probabilistic-programs",
+  "page": "p16",
+  "kind": "extra",
+  "text": "All 5 boxes (ZQ, ZQ, ZQ, ZP left column; ZP right column) sit on equational derivation steps inside the proofs of Lemma 4 and Lemma 5, cutting through fractions Z_Q/Z_P. None is a rule. The left-column boxes also overlap each other and cut the lines they sit on (e.g. \"Z_Q/Z_P Pr[u~Q]/Σ...\" split)",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-modular-denotational-semantics-for-effects-with-guarded-inte",
+  "page": "p07",
+  "kind": "extra",
+  "text": "Box \"IT\" drawn on the commutative diagram (the P <-h/k-> IT square, with f/g/fold/unfold arrows); this is a diagram, not an inference rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati",
+  "page": "p12",
+  "kind": "partial",
+  "text": "R-Loop-Upd box covers only the name and premises and stops above the inference bar; the conclusion (Γ, Δ, [for q in Q do A end]_p ∥ ∏q:Q.[B;C]_q, Ψ ⇝ Γ, Δ', ∏q:Q.[C]_q, Ψ') is left outside",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati",
+  "page": "p13",
+  "kind": "partial",
+  "text": "R-Recv-Unfold box's bottom edge runs through the middle of the last conclusion line (Γ,Δ,([x ← recv(q*,t)]_p ∥ ∏q:Q'\\{q}.A ∥ [A]_q*),Ψ), so that line is cut in half",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati",
+  "page": "p13",
+  "kind": "overlap",
+  "text": "R-Send-Unfold and R-Recv-Unfold boxes are stacked with no gap: the R-Recv-Unfold tab covers the start of R-Send-Unfold's second conclusion line. R-Recv-Unfold's right edge also touches R-Compose-Resid's left edge",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati",
+  "page": "p14",
+  "kind": "overlap",
+  "text": "R-While-Repeat/R-if-then and R-While-Remove/R-if-else boxes touch with no gap: the R-if-then and R-if-else tabs sit on top of the last conclusion lines of R-While-Repeat (Γ',Δ',[while true do A end]_p ∥ [C]_q, Ψ') and R-While-Remove (Γ',Δ',[C]_q, Ψ'), hiding their start",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "ranjit-jhala",
+  "paper": "2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati",
+  "page": "p15",
+  "kind": "missed",
+  "text": "R-Loop-Repeat (Fig. 4.8) has its name printed above the rule but has no box",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2018-OOPSLA-robust-relational-layout-synthesis-from-examples-for-android",
+  "page": "p06",
+  "kind": "extra",
+  "text": "Box \"Section 6\" drawn on part of the Fig. 4 overview diagram (Robustness Properties / User Feedback / <Button ...> XML); not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2018-OOPSLA-robust-relational-layout-synthesis-from-examples-for-android",
+  "page": "p17",
+  "kind": "extra",
+  "text": "Box \"X YK\" drawn on the display equation Z(ρ,v) = Σ ∏ P_fk(c ∣ f_k(c,v))^w_k; not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "sumit-gulwani",
+  "paper": "2021-OOPSLA-semantic-programming-by-example-with-pre-trained-models",
+  "page": "p20",
+  "kind": "extra",
+  "text": "Box \"subject-verb\" drawn on the body rows of Table 1 (GPT-3 names, taken from a table cell); not a rule",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p12",
+  "kind": "missed",
+  "text": "(T-FO), (T-FL) and (Prog) in the bottom row of Fig. 6 are named rules with no box.",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p12",
+  "kind": "partial",
+  "text": "The T-If2 box holds only the premise, bar and label. Its conclusion \"if (v) then C1 else C2 → C\" is below the box, partly under the T-Write tab.",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p12",
+  "kind": "overlap",
+  "text": "The T-CAS0 box's top-right corner touches or slightly overlaps the bottom-left of the T-FAA box. The rules are packed tight (T-Let1/T-If1 and T-Read/T-CAS0 edges nearly touch too).",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p15",
+  "kind": "missed",
+  "text": "(SilentS) and (Crash) in Fig. 8 are named rules with no box. Only SilentP and Step are boxed.",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p17",
+  "kind": "missed",
+  "text": "(M-PropP), the last rule of Fig. 9, has no box. Its label only has a cyan mention link on it.",
+  "group": "C"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p21",
+  "kind": "extra",
+  "text": "Fig. 10 is a table of axioms, not inference rules, but it has 6 large purple boxes (tso-mo, tso-rf1, tso-rf2, nvo-loc, nvo-wu-fofl, nvo-fofl-d). Each spans several table rows, including the header and the \"✓ in Fig. 3\" column.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p21",
+  "kind": "overlap",
+  "text": "The Fig. 10 table boxes overlap and nest: tso-rf2 overlaps tso-rf1 and nvo-loc, nvo-loc overlaps nvo-wu-fofl and nvo-fofl-d, and all sit inside tso-mo.",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p26",
+  "kind": "extra",
+  "text": "The nvo-fofl-d box covers a prose paragraph (\"nvo has the added benefit … in Def. 2.\").",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p26",
+  "kind": "extra",
+  "text": "The p-tso and p-tso-wu boxes cover bulleted axiom definitions (dom(...) ⊆ P) that have labels but are not inference rules.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "sumit-gulwani",
+  "paper": "2019-OOPSLA-on-the-fly-synthesis-of-edit-suggestions",
+  "page": "p20",
+  "kind": "extra",
+  "text": "The BP-threshold and BP-transient boxes cover rows of Table 2, a configuration table. The paper has no inference rules there.",
+  "group": "B"
+ },
+ {
+  "share": 5,
+  "author": "sumit-gulwani",
+  "paper": "2019-OOPSLA-on-the-fly-synthesis-of-edit-suggestions",
+  "page": "p20",
+  "kind": "overlap",
+  "text": "The BP-threshold box (table header and first row) overlaps the BP-transient box (next rows).",
+  "group": "A"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p06",
+  "kind": "other",
+  "text": "Mention links: \"Par\" in \"Par. 7\" / \"Par. 8\" (short for Parameter) is linked as the PAR rule. The same happens on p08 (\"Par 4\") and p11 (\"Par. 4\")",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-concurrent-incorrectness-separation-logic",
+  "page": "p15",
+  "kind": "other",
+  "text": "Mention links in Fig. 8 and in the text are shifted by one character (e.g. \"R[D-LOCK]\", \"R[D-WRITE]\": the box starts after the first letter). The same happens on p20 (\"D[D-LOCK]\", etc.)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers",
+  "page": "p16",
+  "kind": "other",
+  "text": "Mention links in prose are shifted left by a few characters (e.g. \"(TSO-TOTA|L)\", \"(TSO-P|O)\", \"(TSO-R|F1)\"); same on p25 (\"(NVO-TSO)\", \"(NVO-PSF)\", \"(NVO-PRE)\", \"(NVO-PERS)\")",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr",
+  "page": "p14",
+  "kind": "other",
+  "text": "cyan mention box on \"exploit_frac(c)\" inside the premise of RELEASE-EXPLOIT; it's a function name, not a rule (it comes from the bogus exploit_frac rule on p23)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "derek-dreyer",
+  "paper": "2023-POPL-dimsum-a-decentralized-approach-to-multi-language-semantics",
+  "page": "p19",
+  "kind": "other",
+  "text": "Mention link \"SIM-VIS\" matches a substring of the longer names NO-SIM-VIS-EX-COMM and SIM-VIS-ALL-COMM, both in the Fig. 10 labels and in the prose, so it links to the wrong rule. (Fig. 10's named principles have no inference bar and no boxes, which is consistent with the rest.)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2024-OOPSLA-extending-the-c-c-memory-model-with-inline-assembly",
+  "page": "p14",
+  "kind": "other",
+  "text": "Mention boxes are shifted about one character left of the text (also on p11, p16, p17, p18, p22, p24: TerminateStep, Coherence-II, No-Thin-Air). The \"COHERENCE-III\" mention on p14 (and on p16/p18) is boxed as \"COHERENCE-II\" with the last \"I\" left outside, so it probably resolves to the wrong condition.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2014-PLDI-stochastic-optimization-of-floating-point-programs-with-tuna",
+  "page": "p04",
+  "kind": "other",
+  "text": "Spurious mention links on the ordinary word \"NaN\" (also on p06 twice and p08), caused by the bogus NaN rule.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-iris-wasmfx-modular-reasoning-for-wasm-stack-switching",
+  "page": "p10",
+  "kind": "other",
+  "text": "Small-caps mention boxes sit about one character too far left on every page of this paper (p08, p10, p11, p13, p14, p18, p19, p20): they cut off the last letter (e.g. REDUCE-SUSPEND-TRANSLA|TE, REDUCE-LABE|L, EWP-RESUM|E) and take in the space before the name",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "zhendong-su",
+  "paper": "2013-POPL-automatic-detection-of-floating-point-exceptions",
+  "page": "p01",
+  "kind": "other",
+  "text": "Knock-on from the bogus rule above: every prose use of the exception name \"Divide-by-Zero\" is linked as a rule mention on p01, p02, p03 (including a Table 1 cell) and p10 (including the Table 3 caption)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2017-PLDI-synthesizing-program-input-grammars",
+  "page": "p08",
+  "kind": "other",
+  "text": "Knock-on from the bogus \"by\" rule: the ordinary word \"by\" (\"ruled out by the check\") is linked as a rule mention",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2018-PLDI-incremental-inference-for-probabilistic-programs",
+  "page": "p16",
+  "kind": "other",
+  "text": "Knock-on: stray mention boxes on the Z_P and Z_Q symbols inside the Lemma 6 and Lemma 7 proofs",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2024-POPL-modular-denotational-semantics-for-effects-with-guarded-inte",
+  "page": "p05",
+  "kind": "other",
+  "text": "Cyan mention link on the prose word \"It\" (\"It satisfies the following rule\"), which points at the fake rule \"IT\"; the same thing happens on p08 (the \"IT\" inside get_fun's type) and p14 (\"It combines the computational rule...\")",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2018-OOPSLA-robust-relational-layout-synthesis-from-examples-for-android",
+  "page": "p07",
+  "kind": "other",
+  "text": "Cyan mention link on \"(Section 6)\" in the prose, pointing at the fake rule \"Section 6\"",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "isil-dillig",
+  "paper": "2024-POPL-programming-by-demonstration-for-long-horizon-robot-tasks",
+  "page": "p15",
+  "kind": "other",
+  "text": "Mention links (not boxes) on ordinary words and code: \"loop\" in prose (p14, p15), code keyword `let` (p11), `goto` (p09), \"disjunction\" (p16). None of these refer to a rule.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "sumit-gulwani",
+  "paper": "2019-OOPSLA-on-the-fly-synthesis-of-edit-suggestions",
+  "page": "p21",
+  "kind": "other",
+  "text": "Spurious mention links on BP-threshold / BP-transient table cells in Tables 3–5 (p20, p21), in prose (p21) and on a Fig. 8 axis label (p23). They come from the false rule boxes on p20.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "alex-aiken",
+  "paper": "2016-PLDI-verifying-bit-manipulations-of-floating-point",
+  "page": "p09",
+  "kind": "other",
+  "text": "The RND box's tab sits on FLOP's conclusion line (\"e1 ⊗f e2 ▷ ...\") and hides part of it; the FLOP and RND boxes touch at that point (minor)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "martin-t-vechev",
+  "paper": "2019-PLDI-unsupervised-learning-of-api-aliasing-specifications",
+  "page": "p09",
+  "kind": "other",
+  "text": "Table 2 boxes are packed so tightly that the Assign, FieldW, FieldR and GhostR tabs cover the premise/conclusion of the rule above or their own premise (e.g. Assign's premise \"ρ(y) ⊆ ρ(x)\" and FieldW's conclusion \"ρ(y) ⊆ π(o,f)\" are partly hidden). The boxes do not overlap and all 6 rules are covered (cosmetic)",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "lars-birkedal",
+  "paper": "2021-POPL-mechanized-logical-relations-for-termination-insensitive-non",
+  "page": "p08",
+  "kind": "other",
+  "text": "Minor: the rule boxes fit correctly and touch without overlapping, but in the packed Fig. 1 each name tab sits over the conclusion of the rule above and hides it (T-binop over T-Var, T-llam over T-app, T-tapp over T-tlam, T-match over T-pair, T-unfold over T-match, T-store over T-unpack, T-load over T-alloc). The same happens on p09 (S-tforall/S-trans, S-lforall/S-sum/S-labeled) and p16 (MWP-mono, MWP-mask-mono, MWP-bind tabs). This is only how the tabs are drawn, not a box error",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "isil-dillig",
+  "paper": "2025-PLDI-graphiti-bridging-graph-and-relational-database-queries",
+  "page": "p14",
+  "kind": "other",
+  "text": "Boxes don't overlap, but name tabs sit on top of neighbouring rules' conclusions: the Q-OrderBy tab covers the end of Q-Ret's conclusion (Π_ρ(E')), and the Q-UnionAll tab covers the end of Q-OrderBy's conclusion (OrderBy(Q',a,b)). Cosmetic only.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p12",
+  "kind": "other",
+  "text": "Name tabs hide rule text: T-Let1 tab over the \"Lab ≜ {(R,x,v)…\" line, T-Read tab over \"repeat\" in T-Repeat's conclusion, T-CAS0 tab over \"load\" in T-Read's conclusion, T-FAA tab over T-Repeat's conclusion, T-CAS1 tab over \"FAA(x,v)\", T-Write tab over T-If2's conclusion.",
+  "group": "D"
+ },
+ {
+  "share": 5,
+  "author": "viktor-vafeiadis",
+  "paper": "2020-POPL-persistency-semantics-of-the-intel-x86-architecture",
+  "page": "p13",
+  "kind": "other",
+  "text": "Boxes are correct, but tabs cover conclusion text of the rule above: M-RMW tab (M-Write), M-SF tab (M-RMW), M-FL tab (M-SF, \"↦ b.\"), M-BPropW tab (M-FO), M-BPropFO tab (M-BPropW), M-PropW tab (M-BPropFL). Cosmetic.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2011-ICFP-a-kripke-logical-relation-for-effect-based-program-transform",
+  "page": "p05",
+  "kind": "partial",
+  "text": "Fig. 1: the bottom edge runs through the conclusion (cut off or under the next tab) for T-Ax, T-Unit, T-Int, T-Pair, T-Proji, T-Fix, T-App, T-Alloc, T-Deref.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2011-ICFP-a-kripke-logical-relation-for-effect-based-program-transform",
+  "page": "p05",
+  "kind": "partial",
+  "text": "T-Sub box leaves out the side condition \"(FRV(ε2) ⊆ Π)\" on its right.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2011-ICFP-a-kripke-logical-relation-for-effect-based-program-transform",
+  "page": "p15",
+  "kind": "extra",
+  "text": "A \"ε−ρ\" box is around a line of proof prose in Lemma 22.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2011-POPL-a-kripke-logical-relation-between-ml-and-assembly",
+  "page": "p19",
+  "kind": "extra",
+  "text": "\"List X\" box covers the first 5 rows of a definitions/grammar table (List X, Loc, Word, Val, Lvalue ::= …), stopping partway through it.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p08",
+  "kind": "missed",
+  "text": "Figure 4 left column has no boxes on T-Read, T-Write, T-Reduce, T-New, T-UpRgn, T-DnRgn, T-NewColor, T-Color, T-Partition, T-Unpack, T-Call, T-Program; right column none on E-Read, E-Write, E-DnRgn, E-NewColor, E-Color, E-Partition, E-Pack, E-Call. Only T-Pack, E-Reduce, E-New, E-UpRgn and E-Unpack are boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p08",
+  "kind": "partial",
+  "text": "The E-Unpack box covers only the \"[E-Unpack]\" label and the premise M' = M[ρ1/r1,…]; it leaves out the other premises, the bar and the conclusion.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p08",
+  "kind": "overrun",
+  "text": "The E-Reduce box and its tab start on E-Write's conclusion line (write(e1,e2) ↦ l, E'++…), covering it.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p09",
+  "kind": "missed",
+  "text": "The displayed rule [E-Add] in the left column (5 premises, bar, conclusion) has only a mention box and no rule box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p20",
+  "kind": "extra",
+  "text": "Both \"part_list\" boxes sit on Listing 5 code (lines 170–176 and 188–202); not rules.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p22",
+  "kind": "missed",
+  "text": "The axioms (T-Bool), (T-Int) and (T-Null) in Figure 12 are not boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "alex-aiken",
+  "paper": "2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning",
+  "page": "p23",
+  "kind": "missed",
+  "text": "The axiom (E-Null) in Figure 13 is not boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2013-POPL-the-power-of-parameterization-in-coinductive-proof",
+  "page": "p06",
+  "kind": "overlap",
+  "text": "Fig. 4: INCL, REFL, IF and APPV boxes share edges; the IF tab is inside the INCL box and covers the start of INCL's conclusion \"(e,e') ∈ r^ctx\"; the APPV tab sits on IF's bottom.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2013-POPL-the-power-of-parameterization-in-coinductive-proof",
+  "page": "p12",
+  "kind": "missed",
+  "text": "(COEN), a labelled displayed principle \"x ⊑ f(μy. f(y) ⊔ x ⊔ νf) ⟹ x ⊑ νf\", has no box (written as an implication, no bar; borderline).",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p04",
+  "kind": "partial",
+  "text": "Int: the box's bottom edge runs through the conclusion \"Ψ ⊢i e : e′\" and the Bool 2 tab sits on it.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p05",
+  "kind": "overrun",
+  "text": "Com: the box stretches across the column gap into the right-column prose (\"false under Ψ … (R;C)⊗P\", \"The If 3 rule describes…\").",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p05",
+  "kind": "partial",
+  "text": "If 3: the box covers only the first two premises, missing the third premise, the bar, the conclusion and the \"(If 3)\" label; it also reaches into right-column prose and the top of If 4.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p05",
+  "kind": "partial",
+  "text": "If 4: the box starts at the second premise; \"Ψ ⊢ e : e′\" and most of \"Ψ∧e ⊢ L⊗P : S1\" are outside.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p05",
+  "kind": "overlap",
+  "text": "If 3's box crosses the top of the If 4 box and its tab.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2014-PLDI-consolidation-of-queries-with-user-defined-functions",
+  "page": "p05",
+  "kind": "missed",
+  "text": "Figure 5 rules with the label at the left margin have no box: Skip 1, Skip 2, Skip 3, Assign, Step, Seq, If 1, If 2.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "sumit-gulwani",
+  "paper": "2015-OOPSLA-automating-grammar-comparison",
+  "page": "p09",
+  "kind": "overlap",
+  "text": "The TESTCASES box and tab overlap the bottom of INDUCT and cover the start of INDUCT's conclusion (\"C ⊢ α op β\").",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "sumit-gulwani",
+  "paper": "2015-OOPSLA-automating-grammar-comparison",
+  "page": "p11",
+  "kind": "missed",
+  "text": "BRANCHEXT (labelled \"BRANCHEXT.\", premises x = aw and ∀b∈Σ…, bar, conclusion C ⊢ α op_x β) in the left column has no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2016-ICFP-higher-order-ghost-state",
+  "page": "p10",
+  "kind": "other",
+  "text": "Wrong PDF: the source (pure.au.dk …/3607856.pdf) is Jacobs, Hinrichsen, Krebbers, \"Dependent Session Protocols in Separation Logic from First Principles\" (ICFP 2023), not \"Higher-order ghost state\". Its boxes are correct.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p02",
+  "kind": "extra",
+  "text": "\"Statement S\" box is on the Figure 2 language grammar.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p05",
+  "kind": "missed",
+  "text": "Figure 5: (Expand), (Lift), (♭-intro 1), (♭-intro 2), (♭-elim), (Assoc) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p05",
+  "kind": "partial",
+  "text": "Minor: the right end of the bar sticks a few pixels out of the Step and Consq boxes.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Figure 6: (Transform − single), (Transform − multi), (Fusion 1), (Fusion 2) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p07",
+  "kind": "partial",
+  "text": "Minor: the right end of Flatten's bar sticks out of its box.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties",
+  "page": "p09",
+  "kind": "other",
+  "text": "Mention link on the English word \"If\" in \"If it is the\" points to the If rule.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2017-PLDI-component-based-synthesis-of-table-consolidation-and-transfo",
+  "page": "p04",
+  "kind": "extra",
+  "text": "\"Hypothesis H\" box covers the Figure 4 grammar for hypotheses (Term / Qualifier / Hypothesis productions).",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2017-ICFP-local-refinement-typing",
+  "page": "p27",
+  "kind": "extra",
+  "text": "The \"By 16\" box is on proof steps (Hence / By 16), not a rule.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2017-ICFP-local-refinement-typing",
+  "page": "p28",
+  "kind": "extra",
+  "text": "The \"By IH\", \"By 18\" and \"By 19\" boxes are on steps of the proof table, not rules.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2017-ICFP-local-refinement-typing",
+  "page": "p29",
+  "kind": "extra",
+  "text": "The \"By IH\" (lines 22–23), \"By 23\", \"By IH\" (24) and \"By 24\" boxes are on proof steps, not rules.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2018-POPL-a-logical-relation-for-monadic-encapsulation-of-state-provin",
+  "page": "p05",
+  "kind": "other",
+  "text": "Only \"Λ hoisting\" is boxed out of 12 like-formatted labelled refinements with no bar (Fig. 2: Neutrality, Commutativity, Idempotency, Rec hoisting, Λ hoisting, η expansion rec/Λ, β reduction rec/Λ; Fig. 3: Left/Right Identity, Associativity); box all or none (likely extra). Its tab covers \"e1 in rec\" of the Rec hoisting line.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2018-POPL-a-logical-relation-for-monadic-encapsulation-of-state-provin",
+  "page": "p21",
+  "kind": "wrong-name",
+  "text": "Tab reads \"SavedPred-Eqiv\", label is SAVEDPRED-EQUIV.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2018-POPL-a-logical-relation-for-monadic-encapsulation-of-state-provin",
+  "page": "p22",
+  "kind": "missed",
+  "text": "Fig. 8: EXCLUSIVE (top right), FULL-EXCLUSIVE (second row) and FPFN-OPERATION-SUCCESS (case-split definition) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2019-PLDI-lazy-counterfactual-symbolic-execution",
+  "page": "p08",
+  "kind": "partial",
+  "text": "Let box stops after \"(let x = e1 in e2, H, P) ↪\"; the second conclusion line \"(e2′, H{x′ = e1′}, P)\" is outside.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2019-PLDI-lazy-counterfactual-symbolic-execution",
+  "page": "p08",
+  "kind": "overrun",
+  "text": "App-Lam box's top takes in Let's second conclusion line.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2019-PLDI-lazy-counterfactual-symbolic-execution",
+  "page": "p08",
+  "kind": "overlap",
+  "text": "Tabs cover the conclusion above: Var-Red (App-Lam tab), App (Pr-L), Pr-L (Pr, Case-Ev), Case-Ev (Case-Sym), Ch-L (Assume-Ev), Assert-Ev (Assert-Crash).",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-bridging-the-gap-between-programming-languages-and-hardware",
+  "page": "p02",
+  "kind": "extra",
+  "text": "\"RISC-V\" box covers left-column prose (\"…of Kang et al. [2017] to IMM…\") and part of the Fig. 1 diagram.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-bridging-the-gap-between-programming-languages-and-hardware",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"happens-before\" and \"from-read/read-before\" boxes are around relation definitions (sw ≜ …, hb ≜ …, fr ≜ …); the from-read tab covers the hb line.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-bridging-the-gap-between-programming-languages-and-hardware",
+  "page": "p13",
+  "kind": "extra",
+  "text": "rf-completeness, co-totality, coherence, atomicity, no-thin-air are bullet items of Definition 3.11, not rules; their tabs hide each bullet's start.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2019-POPL-bridging-the-gap-between-programming-languages-and-hardware",
+  "page": "p24",
+  "kind": "extra",
+  "text": "fwbob-cov, ppo-iss, acq-iss, w-strong-iss are bullet conditions of Definition 7.3; fwbob-cov also takes in \"and the following hold:\".",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p09",
+  "kind": "missed",
+  "text": "func-eval (Fig. 9) and λ-abs (Fig. 10), labels right of the bar, have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p19",
+  "kind": "missed",
+  "text": "func-eval and eval-λ-abs (Fig. 28, large grey-shaded rules) have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p19",
+  "kind": "partial",
+  "text": "ite-q box covers only the premise line and the bar; the conclusion (Γc, Γ ⊢ if ec then et else ef …) is outside.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p19",
+  "kind": "overlap",
+  "text": "Boxes share edges: const/var/var-const; !W/W/!C; C's top edge and tab sit on the bottoms of !W and W; rev and call-rev touch, call-rev's tab inside the rev box.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p22",
+  "kind": "extra",
+  "text": "Fig. 34(a)–(c) derivation trees are boxed: var, var, const in (a); built-in-eval, func-eval, C, W in (b); C, W in (c) (rest of (c) unboxed).",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p22",
+  "kind": "partial",
+  "text": "func-eval box in Fig. 34(b) is a thin strip around the bar only, cutting through the built-in-eval conclusion above and the C premise below.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p22",
+  "kind": "overrun",
+  "text": "var-const box (G.2.3) also takes in the heading line \"G.2.3 [var-const]. The rule is\".",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "martin-t-vechev",
+  "paper": "2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a",
+  "page": "p23",
+  "kind": "missed",
+  "text": "Restated rules !W (G.2.4), W (G.2.5), !C (G.2.6), C (G.2.7) have no boxes (the same kind on p22, var and var-const, is boxed).",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2020-POPL-program-synthesis-by-type-guided-abstraction-refinement",
+  "page": "p10",
+  "kind": "overlap",
+  "text": "Minor: stacked T-Var / T-Comp / T-App / T-Fun boxes share borders, each tab inside the box above; the T-Var tab overlaps the judgment box \"Λ;Γ⊢E::t\".",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2020-OOPSLA-knowing-when-to-ask-sound-scheduling-of-name-resolution-in-t",
+  "page": "p12",
+  "kind": "wrong-name",
+  "text": "The tab reads \"Eqivalent\" but the label is EQUIVALENT (small-caps \"qu\" ligature read as q).",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2020-OOPSLA-knowing-when-to-ask-sound-scheduling-of-name-resolution-in-t",
+  "page": "p14",
+  "kind": "missed",
+  "text": "Op-Edge in Figure 8 (named axiom with no bar, below Op-Node-Stale and Op-Data) is not boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-transfinite-iris-resolving-an-existential-dilemma-of-step-in",
+  "page": "p07",
+  "kind": "partial",
+  "text": "StoreT box starts below the rule's own \"StoreT\" label, which is hidden under the tab.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-transfinite-iris-resolving-an-existential-dilemma-of-step-in",
+  "page": "p07",
+  "kind": "overrun",
+  "text": "StoreT box runs across the figure and takes in StoreS's conclusion line and the heading \"Termination-preserving refinements in Refinement_SHL:\"; the TPPureT tab falls inside it.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-PLDI-transfinite-iris-resolving-an-existential-dilemma-of-step-in",
+  "page": "p07",
+  "kind": "partial",
+  "text": "StoreS box ends at its bar; its conclusion \"{ℓ ↦src v1 ∗ src(K[ℓ := v2])} e_t {v.Q}\" falls inside the StoreT box instead (StoreS/StoreT overlap).",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2021-POPL-persevere-persistency-semantics-for-verification-under-ext4",
+  "page": "p07",
+  "kind": "extra",
+  "text": "ow-na box is on a one-line example program (pwrite(df,\"bar\",0); labelled (OW-NA)), not a rule.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2021-POPL-persevere-persistency-semantics-for-verification-under-ext4",
+  "page": "p22",
+  "kind": "other",
+  "text": "Two mention links on \"[REC]\" in \"[REC]; rb; pb; rf; [REC]\" point to the rule, but here [REC] is the set of recovery events.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-ICFP-ghostcell-separating-permissions-from-data-in-rust",
+  "page": "p18",
+  "kind": "missed",
+  "text": "MonoInit (top-left of the monotone counter rules, \"True ⇛ ∃γ. MonoVal(γ,n)\") has no box; its three siblings are boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-ICFP-ghostcell-separating-permissions-from-data-in-rust",
+  "page": "p19",
+  "kind": "missed",
+  "text": "GhostLftLookup (label \"(GhostLftLookup)\", a \"key rule\" in the text) has no box; the same style on p20 (BrandedIndexSub) is boxed.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2021-ICFP-ghostcell-separating-permissions-from-data-in-rust",
+  "page": "p23",
+  "kind": "missed",
+  "text": "TokInit, TokUpdate, TokSplit and TokCombine (GhostToken proof rules) have no boxes.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p17",
+  "kind": "extra",
+  "text": "\"internal\" and \"external\" box labelled consistency axioms (bullet formulas) of Definition 6, not inference rules (policy call).",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p18",
+  "kind": "partial",
+  "text": "T-Repeat box ends above its conclusion \"repeat C →τ:ε if (C) then (repeat C) else 0\".",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p18",
+  "kind": "partial",
+  "text": "T-If2 box ends above its conclusion \"if (v) then C1 else C2 →τ:ε C\"; the T-Write tab sits on it.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p18",
+  "kind": "partial",
+  "text": "Minor: \"nt\" of \"ntstore\" in T-NTW's conclusion starts left of the box and is under the T-CAS0 tab.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p18",
+  "kind": "extra",
+  "text": "\"MM-internal\" and \"MM-external\" box the axiom bullets of Definition 7 (policy call).",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p20",
+  "kind": "missed",
+  "text": "Figure 9: M-PropW+NTW and M-PropFL+FO+SF have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p20",
+  "kind": "other",
+  "text": "Mention link covers only \"M-PropFL\" of \"M-PropFL+FO+SF\" (name cut at \"+\").",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "viktor-vafeiadis",
+  "paper": "2022-POPL-extending-intel-x86-consistency-and-persistency-formalising",
+  "page": "p23",
+  "kind": "extra",
+  "text": "\"external-revised\", \"strict-persist\", \"weak-persist\" box the axiom bullets of Definition 10 (policy call); strict/weak share an edge and each tab covers the axiom above.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2023-OOPSLA-data-extraction-via-semantic-regular-expression-synthesis",
+  "page": "p07",
+  "kind": "other",
+  "text": "Mention links on small-caps rule names in prose sit about one character too far left and cut off the last letter (TRANS/SEMANTIC p07; CONCRETE-INFEASIBLE/HOLE-INFEASIBLE/HOLE-FEASIBLE p12; SKETCH-NESTED-FAIL/HOLE-FAIL p17; CONST-SEMANTIC, STAR-2, OPTIONAL, CONST-CHARSEQ, HOLE-FEASIBLE p30–p32). Rule boxes are all correct.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2023-PLDI-vmsl-a-separation-logic-for-mechanised-robust-safety-of-virt",
+  "page": "p08",
+  "kind": "partial",
+  "text": "SS-mov box ends just below the bar; the conclusion (SSWP Normal @ i {...}) is outside and the edge cuts the reg/mem superscripts.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2023-PLDI-vmsl-a-separation-logic-for-mechanised-robust-safety-of-virt",
+  "page": "p10",
+  "kind": "partial",
+  "text": "SS-share box covers only the name and first premise line; premise lines 2–3, the bar and the SSWP conclusion are outside.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2023-PLDI-vmsl-a-separation-logic-for-mechanised-robust-safety-of-virt",
+  "page": "p10",
+  "kind": "partial",
+  "text": "SS-run box cuts through the second premise line (R0@0 ↦ Run) and leaves out the bar and the conclusion.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2023-PLDI-vmsl-a-separation-logic-for-mechanised-robust-safety-of-virt",
+  "page": "p10",
+  "kind": "missed",
+  "text": "WP-SSWP and RC-hold (named boxed-label rules in Fig. 6) have no boxes.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2023-POPL-conditional-contextual-refinement",
+  "page": "p13",
+  "kind": "overlap",
+  "text": "The CHL tab sits on the CHR box and covers the start of CHR's conclusion (\"T ≲\"); TKL does the same to TKR; CHR/CHL and TKR/TKL share borders.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "derek-dreyer",
+  "paper": "2023-POPL-conditional-contextual-refinement",
+  "page": "p19",
+  "kind": "extra",
+  "text": "\"Prefix-closed\" box is around a two-line display of properties (Prefix-closed) and (Postfix-closed), implications not rules, one box for both.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p07",
+  "kind": "missed",
+  "text": "Fig. 1 rows RWP-ALLOC and RWP-RAND have no box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p07",
+  "kind": "overlap",
+  "text": "Fig. 1 row boxes share borders and tabs cover rule text: rwp-store's hides the start of RWP-LOAD, rwp-frame's hides \"∗ rwp\" in RWP-MONO, rwp-val's part of RWP-RAND.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p10",
+  "kind": "missed",
+  "text": "RWP-TAPE-ALLOC (\"∀ι. ι↪(N,ε) −∗ Φ(ι) ⊢ rwp tape N {Φ}\") has no box; its label carries a mention link on \"RWP-TAPE\" only, pointing to rwp-tape.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p21",
+  "kind": "partial",
+  "text": "ref-model-prog box covers only the label and \"reducible(ρ1) reducible(m1)\"; the other premises, the bar and the conclusion \"m1 ≲ ρ1\" are outside.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p27",
+  "kind": "overrun",
+  "text": "Lemma A.1 rows: rwp-pure takes in RWP-ALLOC, rwp-store takes in RWP-RAND, rwp-frame takes in RWP-TAPE-ALLOC.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p27",
+  "kind": "missed",
+  "text": "RWP-ALLOC, RWP-RAND and RWP-TAPE-ALLOC have no box of their own; the partial \"RWP-TAPE\" mention recurs.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2024-ICFP-almost-sure-termination-by-guarded-refinement",
+  "page": "p27",
+  "kind": "overlap",
+  "text": "Minor: row boxes share borders and tabs cover formula text (rwp-load, rwp-store hide \"(ℓ ↦ v\"; rwp-val the RAND row; rwp-frame the RWP-MONO row; rwp-coupl-rand the \"Lemma A.2 (Model rules)\" heading).",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-POPL-deadlock-free-separation-logic-linearity-yields-progress-for",
+  "page": "p11",
+  "kind": "partial",
+  "text": "The Sub-recv and Sub-send boxes end just below the bar, so each conclusion line (?(x1)⟨v1⟩{P1}; p1 ⊑ … and !(x1)⟨v1⟩{P1}; p1 ⊑ …) is cut off.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p04",
+  "kind": "wrong-name",
+  "text": "Tab reads \"link-qeue-lat\", label is LINK-QUEUE-LAT (small-caps \"qu\" read as q).",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p05",
+  "kind": "wrong-name",
+  "text": "Tab reads \"link-qeue-ghost\", label is LINK-QUEUE-GHOST.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p05",
+  "kind": "overlap",
+  "text": "link-qeue-ghost's tab covers part of make-ghost-link's formula (\"d2 e2 v2 ⇛∗\"); the two boxes share an edge.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p05",
+  "kind": "partial",
+  "text": "The link-spec box's left edge cuts through the opening \"{\" of \"{c ↣ prot ∗ d ↣ prot‾}\".",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p18",
+  "kind": "other",
+  "text": "make-ghost-link-self's tab covers part of make-ghost-link's formula; make-ghost-link's tab covers \"Enq e\" in the enqueue spec line above.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p19",
+  "kind": "overrun",
+  "text": "chan-symmetric box covers three lines: the unlabelled send and recv specs and the CHAN-SYMMETRIC line; it should cover only the last.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p22",
+  "kind": "missed",
+  "text": "PROTO-RECV has no box of its own; it sits inside the proto-symmetric box.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p22",
+  "kind": "overrun",
+  "text": "proto-symmetric box covers both PROTO-RECV (2 lines) and the PROTO-SYMMETRIC line.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p22",
+  "kind": "other",
+  "text": "proto-send's tab covers \"True ⇛∗\" at the start of PROTO-ALLOC; proto-symmetric's tab covers \"prot_own\" in PROTO-SEND.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p23",
+  "kind": "wrong-name",
+  "text": "Tab reads \"uniqe\", label is UNIQUE.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "robbert-krebbers",
+  "paper": "2024-OOPSLA-verified-lock-free-session-channels-with-linking",
+  "page": "p23",
+  "kind": "other",
+  "text": "Tabs cover the rule above: symmetric's tab covers \"R a a' ⊢\" in IRREFLEXIVE, pair-update's covers \"⇆γ R ∗\" in PAIR-ADD.",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "ranjit-jhala",
+  "paper": "2025-POPL-generic-refinement-types",
+  "page": "p16",
+  "kind": "wrong-name",
+  "text": "Tabs read \"≡ /l\" and \"≡ /r\"; labels are ≡κ/L and ≡κ/R (math-italic κ dropped, likely a tab-font glyph).",
+  "group": "D"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2026-PLDI-choose-don-t-label-multiple-choice-query-synthesis-for-progr",
+  "page": "p05",
+  "kind": "extra",
+  "text": "\"Coverage\" box is around the two conditions of Definition 3.1, (Mutual exclusion) and (Coverage); definition clauses, not rules.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "isil-dillig",
+  "paper": "2026-PLDI-choose-don-t-label-multiple-choice-query-synthesis-for-progr",
+  "page": "p08",
+  "kind": "extra",
+  "text": "\"IA\" box is around OMT hard constraints in Fig. 5, not rules, and runs into the (SAT) constraint (a_t ⇒ A_t); the (IA) mention links on p08 and p31–p33 follow it.",
+  "group": "B"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist",
+  "page": "p09",
+  "kind": "partial",
+  "text": "ht-frame: the right edge cuts the end of the conclusion \"{Q ∗ R}\"; the ht-inv-alloc and ht-inv-open tabs sit on the conclusions of ht-frame and ht-load.",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist",
+  "page": "p11",
+  "kind": "overlap",
+  "text": "The ht-rand-tape tab and top edge sit over ht-alloc-tape's conclusion \"{True} tape N {κ. κ ↪ (N,ε)}\".",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist",
+  "page": "p14",
+  "kind": "overrun",
+  "text": "err-split's box also covers the neighbouring rule ERR-1 (⚡(1) / False).",
+  "group": "A"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist",
+  "page": "p14",
+  "kind": "missed",
+  "text": "ERR-1 has no box of its own.",
+  "group": "C"
+ },
+ {
+  "share": 6,
+  "author": "lars-birkedal",
+  "paper": "2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist",
+  "page": "p20",
+  "kind": "overlap",
+  "text": "spec-step-exp's tab and top edge sit on spec-step-err-1 and hide its conclusion \"sstep σ ρ ε {Φ}\"; its top edge also meets spec-step-ret and spec-step-continuous.",
+  "group": "A"
+ }
+]
