@@ -171,7 +171,21 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // A colon after a letter ends the label, no part of its name ("Load:"
     // heading its rule; the colon is a connective only among others, "<:").
     const trailing = /[\p{L}\d]:$/u.test(match.groups.token);
-    const token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
+    let token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
+    // A word after the name whose letters are all read from a symbol font,
+    // off the name's baseline, is a formula's script beside it, not a word
+    // of the name: "InvPreAlloc" with the superscript 𝒩 of its premise's
+    // invariant (txsys's "N") read after it.
+    for (let cut = /\s\S+$/u.exec(token); cut && !open; cut = /\s\S+$/u.exec(token)) {
+      const from = match.index + match[0].indexOf(token) + cut.index + 1;
+      const word = [...cut[0].slice(1)];
+      const letters = word.map((c, i) => ({ c, i: from + word.slice(0, i).join("").length })).filter(({ c }) => /\p{L}/u.test(c));
+      const first = line.chars[match.index + match[0].indexOf(token)];
+      const base = first?.run >= 0 ? line.runs[first.run].baseline : line.baseline;
+      if (!letters.length || !letters.every(({ i }) => line.chars[i]?.run >= 0 && SYMBOLIC.test(line.runs[line.chars[i].run].font)
+        && Math.abs(line.runs[line.chars[i].run].baseline - base) > 0.2 * line.size)) break;
+      token = token.slice(0, cut.index).trimEnd();
+    }
     const colon = match.groups.colon || (trailing ? ":" : undefined);
     // Straight after its last letter the colon closes the word ("Party A:"
     // over a listing), after a bullet it only sets the label off.
@@ -1463,7 +1477,9 @@ const NEAR = 60;
 // "rule" (or a kin) within six words before or after the name: "the
 // sapp rule", "rule containTrans", "rules slam, sbind and sapp".
 const RULE_WORDS = /\b(?:rules?|laws?|axioms?)\b/i;
-const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)\s*[[(]?\s*(?:[^\s,()[\]]+,?\s+(?:and\s+|or\s+)?){0,6}$/iu;
+// Not across a sentence's end: "the more general Fusion 2 rule. If it is
+// the procedure" does not cite the rule If ("(Unit, ..., Inr)" goes on).
+const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)(?![.!?]\s)\s*[[(]?\s*(?:(?:[^\s,()[\]]*[^\s,()[\].!?]|\.{3}|…),?\s+(?:and\s+|or\s+)?){0,6}$/iu;
 const RULE_AFTER = /^\s*(?:[\])]\s*)?(?:,?\s*(?:and\s+|or\s+)?[^\s,()[\]]+){0,6}\s+(?:rules?|laws?|axioms?)\b/iu;
 // ... and for a short name, "rule" hard by it, or a list of names in
 // between: "rule !", "rules ⊗, ⅋, 1 and ⊥", "the c and w rules"; not
@@ -1539,6 +1555,42 @@ function setAsLabel(at: Flow["at"], start: number, rule: Named): boolean {
   });
 }
 
+// A name is cited in the case its label is set in: a label in capitals
+// or small capitals throughout ("dual", "While" and "FENCE" drawn as small
+// capitals) is not cited by the same word in ordinary lowercase letters
+// ("exactly the dual of", "basic while loops", "memory fence semantics").
+// Small capitals reach the text layer as lowercase letters, and their
+// glyphs say what they are (page.ts). A hyphenated name's parts after its
+// prefix may differ in case (T-App for T-APP set in faked small capitals):
+// only the prefix is held to the label's. Only lowercase set as the text
+// around it is prose: a name set off in another face is marked as a name
+// however its label is set ("Rule (step) says" in italic, "the Σfm and
+// Πfm rules" in the sans face, "While. This rule decomposes …" in bold),
+// and so is one with "rule" hard by ("the bind rule"; see mentionsIn).
+const smallCapital = (line: Line, char: number) => {
+  const from = line.chars[char];
+  return Boolean(from && from.run >= 0 && line.runs[from.run]?.smallCaps?.[from.at]);
+};
+const capitalForm = (line: Line, char: number) => /\p{Lu}/u.test(line.text[char] ?? "") || smallCapital(line, char);
+function caseAsLabel(at: Flow["at"], start: number, end: number, rule: Named): boolean {
+  if (!rule.set) return true;
+  const from = rule.set.text.toLowerCase().indexOf(rule.name.toLowerCase());
+  if (from < 0) return true;
+  for (let k = from; k < from + rule.name.length; k += 1) {
+    if (/\p{L}/u.test(rule.set.text[k]) && !capitalForm(rule.set, k)) return true;
+  }
+  const stop = rule.shape === "hyphen" ? start + prefix(rule.name).length : end;
+  for (let i = start; i < Math.min(end, stop); i += 1) {
+    const there = at[i];
+    if (!there) continue;
+    const from = there.line.chars[there.char];
+    const face = from?.run >= 0 ? family(there.line.runs[from.run].font) : "";
+    if (face !== faceOf(there.line)) return true;
+    if (/\p{Ll}/u.test(there.line.text[there.char] ?? "") && !smallCapital(there.line, there.char)) return false;
+  }
+  return true;
+}
+
 function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{ index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number }> {
   if (!rules.length) return;
   const order = rules.map((r, i) => i).sort((a, b) => rules[b].name.length - rules[a].name.length);
@@ -1547,7 +1599,9 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   // asterisk (While−∀∗∃∗ cited as While-∀*∃*).
   const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")
     .replace(/(?<=[\u{1D400}-\u{1D7FF}])(?=[\u{1D400}-\u{1D7FF}])/gu, "\\s?")).join("|");
-  const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
+  // A name is a whole name, not a part of a longer hyphenated one
+  // ("sim-vis" in no-sim-vis-ex-comm).
+  const re = new RegExp(`(?<![\\p{L}\\d]|[\\p{L}\\d][-‐‑])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d]|[-‐‑][\\p{L}\\d])`, "giu");
   type Found = { index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number };
   const found: Found[] = [];
   // A bare word is cited where a name it is listed with is ("are raise,
@@ -1563,8 +1617,12 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const before = text.slice(Math.max(0, match.index - NEAR), match.index);
     const after = text.slice(match.index + match[0].length, match.index + match[0].length + NEAR);
     const nameStart = match.index + (groups.open ? 1 : 0);
-    const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && (!at || setAsLabel(at, nameStart, rules[i])));
-    const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && (!at || setAsLabel(at, nameStart, rules[i])));
+    // "rule" hard by names the word a rule whatever its case ("the bind
+    // rule", "the exhaustion rule").
+    const hard = RULE_JUST_BEFORE.test(before) || RULE_JUST_AFTER.test(after);
+    const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && (hard || caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i])));
+    const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && asLabel(i));
+    const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
     const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
     if (rule !== undefined) found.push(m);
     else if (!bracketed && fits.some((i) => rules[i].shape === "word" && !rules[i].bracketed)) listed.push({ ...m, fits: fits.filter((i) => rules[i].shape === "word" && !rules[i].bracketed) });

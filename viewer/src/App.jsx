@@ -1140,6 +1140,9 @@ export default function App() {
           // Lets pdf.js's own scratch canvases (soft masks, patterns) stay
           // on the GPU rather than being kept readable on the CPU.
           enableHWA: true,
+          // The fonts' glyph names, which the reading rules need to spell a
+          // ligature the text layer shortens (analyzer page.ts, layout.ligature).
+          fontExtraProperties: true,
         });
         task.onProgress = ({ loaded, total }) => {
           if (!cancelled) setPdfProgress({ loaded, total });
