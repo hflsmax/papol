@@ -192,7 +192,12 @@ export function buildLines(page: Page): Placed[][] {
         // side: a caption level with the column beside it.
         const resized = Math.abs(run.size - last.size) > 0.03 * size && gap > 0.5 * Math.min(run.size, last.size)
           && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
-        const split = (gap > GUTTER * size && !bridged)
+        // So is text of one size whose baseline shifts across more than a
+        // word space: two labels each set to its own rule (Comp-Var beside
+        // Comp-Pref, a point lower).
+        const shifted = !resized && Math.abs(run.size - last.size) <= 0.03 * size && gap > 0.5 * size
+          && Math.abs(run.baseline - last.baseline) > 0.1 * size;
+        const split = (gap > GUTTER * size && !bridged) || (shifted && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size))
           || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
           || (gap > size && !bridged && run.text.trim().length > 1 && opensColumn(runs, line[0].x, last.x + last.width, run.x, run.baseline, size))
           || (gap > 0.5 * size && partsBars(page.drawn, last.x + last.width, run.x, run.baseline, size))

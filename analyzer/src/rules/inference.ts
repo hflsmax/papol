@@ -364,6 +364,14 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 function concludes(page: Page, d: Drawn, type: Type): boolean {
   return page.lines.some((l) => !l.furniture && !prose(l, type) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
 }
+// A line across the text's width with no conclusion centred under it
+// and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
+// over its boxed judgments, a table's rule), no rule's bar.
+function dividing(page: Page, d: Drawn, type: Type): boolean {
+  const centre = d.x + d.w / 2;
+  return d.w >= BAR_SHARE * (type.text.x1 - type.text.x0) && !page.lines.some((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading
+    && Math.abs((l.x0 + l.x1) / 2 - centre) <= 2 * type.bodySize && l.x1 - l.x0 >= 0.3 * d.w);
+}
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
 // another's conclusion is not a step, nor is a frame's edge under it (the
@@ -372,7 +380,7 @@ function concludes(page: Page, d: Drawn, type: Type): boolean {
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
   return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
     && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
-    && concludes(page, d, type)
+    && concludes(page, d, type) && !dividing(page, d, type)
     && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
 }
 
@@ -528,7 +536,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)) || (d.w >= label.size && d.y >= label.bottom - 1 && matched(d)))
     && (d.w <= wide || concluded(d) || besides(d) || sized(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
     && d.y >= label.top - OVER_REACH * type.leading && (d.y <= label.bottom + OVER_REACH * type.leading || (d.y <= label.bottom + 2 * OVER_REACH * type.leading && unbroken(d)))
-    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
+    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !dividing(page, d, type) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
     .sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid) || gapTo(a) - gapTo(b));
   // The nearest bar under the label, for a label standing over its premises.
@@ -1192,7 +1200,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
       const shape = shapeOf(fold(token.text));
       if (!shape) continue;
-      if (shape === "hyphen" && !/[-‐‑–:/_][^-‐‑–:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<]/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      // A hyphen before a numeral numbers a capitalised word's variants
+      // (Continuous-1, Continuous-2); after a lone letter it is a formula.
+      if (shape === "hyphen" && !/[-‐‑–:/_][^-‐‑–:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<]/u.test(token.text) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
@@ -1239,11 +1249,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const labels = new Set(candidates.map((c) => c.line));
   const confirmed = new Set<string>();
   // A paper that sets eight or more strong names at bars is a paper of
-  // rules: a bare word at a bar of its own, in the face and size those
+  // rules: a bare word at a bar of its own, in the face those
   // names are set in, stands there too (Löb, LET, Work), as do camelCase
   // words at bars set five or more alike.
   const atBar = (c: Candidate) => (c.setting.category === "beside" || c.setting.category === "over") && Boolean(c.setting.bar);
-  const style = (c: Candidate) => c.convention.split("|").slice(3).join("|");
+  // The face, and whether at the text's size or a figure's, whatever
+  // size a figure is scaled to (Fig. 7's labels set at 6.5pt, Fig. 26's
+  // at 9pt).
+  const style = (c: Candidate) => `${c.convention.split("|")[3]}|${Math.abs(c.line.size - type.bodySize) <= 0.25 ? "text" : "figure"}`;
   const styles = new Map<string, number>();
   for (const c of candidates) if (!weak(c) && atBar(c)) styles.set(style(c), (styles.get(style(c)) ?? 0) + 1);
   const ruled = [...styles.values()].reduce((a, b) => a + b, 0) >= 8;
