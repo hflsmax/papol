@@ -278,10 +278,10 @@ export const RULE_SHAPE_WORD = rule({
 });
 export const RULE_SHAPE_SYMBOL = rule({
   id: "rule.shape.symbol", stage: "rule",
-  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), or one or two capitals and a connective (\"L→\"), as sequent calculi and logical relations name their rules.",
-  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation.",
-  pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2})$", "u"),
-  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V"],
+  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), one or two capitals and a connective (\"L→\"), or a capitalised word, a connective and one to three lowercase letters (\"St+i\", \"St+uu\"), as sequent calculi and logical relations name their rules.",
+  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation; a bidirectional typing paper names its addition's steps St+i and St+uu after the step judgment.",
+  pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2}|[A-Z][a-z]{1,11}[" + RULE_CONNECTIVES + "]\\p{Ll}{1,3})$", "u"),
+  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu"],
   rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
 export const RULE_NAME_BESIDE = rule({

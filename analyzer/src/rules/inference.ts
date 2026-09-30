@@ -301,13 +301,18 @@ function struck(page: Page, d: Drawn): boolean {
 // narrower bar stands within its span just over it with a line between
 // touching both and as wide as the upper bar: that line is the upper
 // step's conclusion and this step's premise (rule.derivation); an accent
-// drawn over part of a premise, or an overline, is no bar.
+// drawn over part of a premise, or an overline, is no bar, nor a stroke
+// with no premise over it and no label beside it.
 // Or a wider bar stands just under it spanning it with a line between:
 // this step's conclusion is the lower step's premise.
 // For a label over its bar the upper bar stands under the label (`from`):
 // a heading's underline over the label is no step.
 function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number, from = -Infinity): boolean {
-  return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
+  // A step's bar has premises over it or its label beside it; a stroke
+  // with neither over a premise is its overline (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾").
+  const held = (d: Drawn) => lines.some((l) => (l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
+    || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
+  return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
     && lines.some((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
