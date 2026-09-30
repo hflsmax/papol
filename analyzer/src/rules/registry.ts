@@ -57,8 +57,8 @@ export function ruleById(id: string): Rule {
 
 export const LAYOUT_SCRIPT = rule({
   id: "layout.script", stage: "layout",
-  summary: "A run smaller than its line and raised (or lowered) against it is a superscript (or subscript) of that line.",
-  why: "Nature, Science and Wiley papers cite with superscript numbers glued to the word before them.",
+  summary: "A run smaller than its line and raised (or lowered) against it is a superscript (or subscript) of that line, unless it is a word of three letters or more set a quarter of the line's size or more past the line's end.",
+  why: "Nature, Science and Wiley papers cite with superscript numbers glued to the word before them; consistent subtyping sets CS-TVar a space past its conclusion, raised to the bar, in smaller type.",
 });
 export const LAYOUT_LABEL_COLUMN = rule({
   id: "layout.label-column", stage: "layout",
@@ -89,6 +89,11 @@ export const LAYOUT_HYPHEN = rule({
   id: "layout.hyphen", stage: "layout",
   summary: "A line ending in a letter and a hyphen, followed by one starting lower-case, is one word broken in two.",
   why: "\"Fig-\" / \"ure 2a-b\": a mention broken across lines is still a mention.",
+});
+export const LAYOUT_UNDERSCORE = rule({
+  id: "layout.underscore", stage: "layout",
+  summary: "A blank between two runs, or a space in one, that a short stroke fills at the baseline (a fifth to four fifths of the size wide) is an underscore.",
+  why: "Polymorphic Contracts and its JFP version set E_Beta in small capitals and draw the underscore as a stroke; read as a space, the name is \"E Beta\" and its mentions in the text never match.",
 });
 export const LAYOUT_SMALL_CAPS = rule({
   id: "layout.small-caps", stage: "layout",
@@ -234,13 +239,13 @@ export const RULE_CANDIDATE = rule({
 });
 export const RULE_BAR = rule({
   id: "rule.bar", stage: "rule",
-  summary: "A rule's bar is a horizontal stroke (a path, a thin image, or a line of four or more dashes set as text, with digits on it or a star at its end) at least two label sizes wide (one and a third, level with the label or under it) with a line under it within its span, not an edge of a box drawn round a form, not an arrow's shaft, not a word's underline, not a stroke inside a paragraph's line, not a figure's or table's caption's rule; one wider than 92% of the text column needs its conclusion centred under it and shorter, or the label level with it and beside it.",
-  why: "Dependent JavaScript paints its bars as thin images; Iris papers set a bar as a line of dashes in the text; Kind Inference boxes each judgement form and its bottom edge lies right over the labels under it; a rule spanning the page in Kind Inference and Featherweight Go keeps its conclusion centred, while a figure's own rule has its content set from the left.",
+  summary: "A rule's bar is a horizontal stroke (a path, a thin image, or a line of four or more dashes set as text, with digits on it or a star at its end) at least two label sizes wide (one and a third, level with the label or under it) with a line under it within its span, not an edge of a box drawn round a form, not an arrow's shaft, not a word's underline, not a stroke inside a paragraph's line, not a stroke striking text through, not an overline with its index at its end, not a figure's or table's caption's rule; a stroke set close under a line is a bar where a conclusion as wide stands under it; one wider than 92% of the text column needs its conclusion centred under it and shorter, premises and a conclusion fitting it, or the label level with it and beside it. A bar a wider one runs under from its left edge ends a premise's own derivation, and the label over them names the wider.",
+  why: "Dependent JavaScript paints its bars as thin images; Iris papers set a bar as a line of dashes in the text; Kind Inference boxes each judgement form and its bottom edge lies right over the labels under it; a rule spanning the page in Kind Inference and Featherweight Go keeps its conclusion centred, while a figure's own rule has its content set from the left. Kind Inference repeats premises over i under an overline; Evidently strikes (tapp) through; a staging paper's CD-ST-DEF sets its bar close under wide premises.",
 });
 export const RULE_SETTING = rule({
   id: "rule.setting", stage: "rule",
-  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span; or under the conclusion, its edge at the bar's), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, no other bar between, the bar as far down as four leadings; a hyphenated, spaced or bracketed name over one line holding a relation between terms stands over an axiom set without a bar), at the end of a row with no bar (the rest of the row three characters or more and a relation level with the token: an arrow, a turnstile, an equation; a table's row of numbers and a paragraph's words are no rule), or at the text column's right margin. Level with a bar on either side, the token stands on the side most of the paper's other labels do. Under a rule's label found over a bar, a token over the same bar within three leadings of the label, the bar within three and a half, is a premise.",
-  why: "Sequent Core sets Cut beside its bar, TypeWhich sets Id's rule, then Const, then its rule on one row (Const is left of its bar, as Id is), Kind Inference k-var over (mathpar) and a-dt-decl over a stack of premises, the Awkward Squad (BIND) at a law's end, Polymorphic Contracts E Op in a column at the margin; \"1 INTRODUCTION\" has nothing on its row but a number.",
+  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span, up to eight sizes off to the bar's right with blank between; or under the conclusion, its edge at the bar's, or reaching the conclusion's end from within the bar's span), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, no other bar between but a premise's own or an overline, the bar as far down as seven leadings, no label of its own beside it, no relation on the label's row clear of the bar that is not over a bar of its own; a hyphenated, spaced or bracketed name over one line holding a relation between terms stands over an axiom set without a bar), at the end of a row with no bar (the rest of the row three characters or more and a relation level with the token: an arrow, a turnstile, an equation; a table's row of numbers and a paragraph's words are no rule), or at the text column's right margin. Level with a bar on either side, the token stands on the side most of the paper's other labels do. Under a rule's label found over a bar, a token over the same bar within three leadings of the label, the bar within three and a half, is a premise.",
+  why: "Sequent Core sets Cut beside its bar, TypeWhich sets Id's rule, then Const, then its rule on one row (Const is left of its bar, as Id is), Kind Inference k-var over (mathpar) and a-dt-decl over a stack of premises, the Awkward Squad (BIND) at a law's end, Polymorphic Contracts E Op in a column at the margin; \"1 INTRODUCTION\" has nothing on its row but a number. The JFP version of Polymorphic Contracts sets T_Var an inch right of its bar and SWF_Refine under its conclusion, short of the bar's end; a staging paper's ENV-R-EMPTY stands level with ENV-R-KVAR's premises.",
 });
 export const RULE_SHAPE_HYPHEN = rule({
   id: "rule.shape.hyphen", stage: "rule",
@@ -306,8 +311,8 @@ export const RULE_CONVENTION = rule({
 });
 export const RULE_HEADING = rule({
   id: "rule.heading", stage: "rule",
-  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar. None names a rule.",
-  why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin; \"(Reduction)\" stands in italics over R-Proj2Beta's rule; omit_all_labels(t) is a listing's line over an example.",
+  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar, or with one set as three times as many of the paper's labels are. None names a rule.",
+  why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin; \"(Reduction)\" stands in italics over R-Proj2Beta's rule, \"All\" underlined over allEmpty; omit_all_labels(t) is a listing's line over an example.",
 });
 export const RULE_DERIVATION = rule({
   id: "rule.derivation", stage: "rule",
@@ -321,8 +326,8 @@ export const RULE_CELL = rule({
 });
 export const RULE_BOX = rule({
   id: "rule.box", stage: "rule",
-  summary: "A rule is as wide as its bar joined with its label, with the lines within 0.8 of a leading of the bar and every line touching those within two and a half leadings of the label; without a bar, it is the row its label stands in.",
-  why: "A rule's premises stand over a bar and its conclusion under; the name sits beside the bar or over it, and other rules may be set level with it.",
+  summary: "A rule is as wide as its bar joined with its label, with the lines within 0.8 of a leading of the bar and every line touching those within four leadings of the label (or down to the bar's conclusion), a premise in words over the bar, or a line set smaller than the running text, included, a caption never; without a bar, it is the row its label stands in and the lines under it. Boxes never meet: a line two rules took belongs to the rule whose label it is or stands level with, else to the one whose bar (or label) it sits nearest, a label's rule never taking lines over its label's row; two boxes still meeting are cut halfway across the blank between what each holds.",
+  why: "A rule's premises stand over a bar and its conclusion under; the name sits beside the bar or over it, and other rules may be set level with it. Polymorphic Contracts continues E_Fun's and E_Forget's rows with \"when\" lines under them, set in the text's face at the figure's smaller size; boxes that overlap make the showcase unreadable and a hover ambiguous.",
 });
 export const RULE_MENTION = rule({
   id: "rule.mention", stage: "rule",
