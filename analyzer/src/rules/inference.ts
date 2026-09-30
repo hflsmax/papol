@@ -1804,7 +1804,9 @@ function parted(page: Page, type: Type): Page {
   let split = false;
   // A bar as wide as a short conclusion at least: a plot's legend swatch
   // splits nothing ("108   memory" by its line sample).
-  const bars = page.drawn.filter((d) => across(d) && d.w >= 3 * type.bodySize);
+  // An overline over a premise's term parts nothing ("‾p ∝ a.(B, H)‾" in
+  // ISL-UPD's premises), nor a frame's or a table's rule.
+  const bars = page.drawn.filter((d) => across(d) && d.w >= 3 * type.bodySize && !hugs(page, d, type) && !overline(page, d, type) && !framed(page, d));
   const labels = page.lines.filter((l) => !l.furniture && tokenOf(l)?.side === "whole");
   for (const line of page.lines) {
     // A row of figures (a plot's ticks, "1 2 3 4 5") or of words (a
@@ -1833,7 +1835,10 @@ function parted(page: Page, type: Type): Page {
       const whole = (text: string) => text.replace(/\s/g, "").length >= 3;
       const joined = new RegExp(`(?:${RELATION.source})\\S{0,2}\\s*$`, "u").test(line.text.slice(from, at)) || new RegExp(`^\\s*[−-]?(?:${RELATION.source})`, "u").test(line.text.slice(at));
       if (at > 0 && line.chars.slice(0, at).every((c) => c.run < k) && line.chars.slice(at).every((c) => c.run < 0 || c.run >= k)
-        && whole(line.text.slice(from, at)) && whole(line.text.slice(at)) && !joined) cuts.push(k);
+        && whole(line.text.slice(from, at)) && whole(line.text.slice(at)) && !joined
+        // A relation on one side at least: two rules' terms, no table's
+        // cells ("L/L   L/W" under its header's rule).
+        && (RELATION.test(line.text.slice(from, at)) || RELATION.test(line.text.slice(at)))) cuts.push(k);
     }
     if (!cuts.length) { out.push(line); continue; }
     const root = parents.get(line) ?? line;
