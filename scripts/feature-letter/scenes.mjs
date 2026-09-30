@@ -69,11 +69,11 @@ const ruleLink = (page, rule, nth = 0) => `return [...document.querySelectorAll(
   .filter((link) => link.getAttribute('aria-label') === ${JSON.stringify(`Go to Rule ${rule}`)})[${nth}];`;
 
 // What the telescoping scenes share: the paper at page 8, the name of
-// T-Var near the top, the viewer's bar cropped away so rules read at the
-// letter's width.
+// T-Var near the top, and only the lines where the rules are named and
+// shown kept, so rules read at the letter's width in a small file.
 const telescoping = {
   viewport: { width: 1180, height: 760 },
-  crop: { x: 130, y: 56, width: 940, height: 704 },
+  crop: { x: 130, y: 230, width: 940, height: 400 },
   seconds: 8,
   setup: viewerPage,
   url: ({ origin, paper }) => `${origin}/viewer/?pdf=${paper}&page=8`,
