@@ -1,0 +1,47 @@
+- derek-dreyer/2017-OOPSLA-robust-and-compositional-verification-of-object-capability-p p19: MEMBRANESPEC in Fig. 9 (triple below IsMon) has no box
+- lars-birkedal/2019-POPL-iron-managing-obligations-in-higher-order-concurrent-separat p04: displayed "P ∗ Q ⊢ P" labelled (AFFINE) has no box
+- lars-birkedal/2023-OOPSLA-spirea-a-mechanized-concurrent-separation-logic-for-weak-per p09: Fig. 5 named axioms LB-PERSISTENT-FLUSH-STORE and OBJ-NOFLUSH-NOBUFFER have no boxes
+- lars-birkedal/2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ p07: Ht-newsocket (Fig. 2, top right) has no box
+- ranjit-jhala/2012-POPL-nested-refinements-a-logic-for-duck-typing p07: bar-less axioms with [NAME] labels in Fig. 2: E-APP, E-LET, E-TAPP, E-IFTRUE, E-IFFALSE
+- isil-dillig/2021-POPL-verifying-correct-usage-of-context-free-api-protocols p11: Fig. 10: only (If) boxed; (API), (Seq), (Method), (Class) missed
+- lars-birkedal/2026-OOPSLA-lawyer-modular-obligations-based-liveness-reasoning-in-highe p15: axiom OU-EB-0 ("OU {elb 0}", Fig. 10 top left)
+- derek-dreyer/2014-OOPSLA-gps-navigating-weak-memory-with-ghosts-protocols-and-separat p52: axioms GetPerms, LkPermExclusive, UnusedUnPerms, UseUnPerm, UsedPermsPure, MyAllCoherence, NewGhost (only GetTicket boxed)
+- derek-dreyer/2022-ICFP-later-credits-resourceful-reasoning-for-the-later-modality p10: CreditTimeless ("timeless(£n)", Fig. 3)
+- derek-dreyer/2022-ICFP-later-credits-resourceful-reasoning-for-the-later-modality p26: ReceiptTimeless ("timeless(⧗n)", Fig. 7)
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p15: Fig. 8 RA-ASSOC, RA-COMM, RA-CORE-ID, RA-VALID-OP, RA-UNIT-OP (only RA-CORE-IDEM, RA-CORE-MONO, RA-UNIT-VALID boxed)
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p17: ORA-CORE-IDEM, ORA-CORE-MONO, ORA-VALID-OP, ORA-⊑-OP-CORE, ORA-⊑-UNIT-CORE, ORA-UNIT-OP
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p22: CONSEQUENCE-FRAME (top of page)
+- derek-dreyer/2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for p05: Fig. 4 "□I" and "LÖB" have no box.
+- derek-dreyer/2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for p06: RET (named axiom, no premises) has no box.
+- derek-dreyer/2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for p07: Fig. 6 SPLITISL (named two-line ⇔ axiom) has no box (borderline: no bar).
+- derek-dreyer/2013-ICFP-unifying-refinement-and-hoare-style-reasoning-in-a-logic-for p09: Fig. 7 SFORK (named axiom, no premises) has no box.
+- lars-birkedal/2011-POPL-step-indexed-kripke-models-over-recursive-worlds p06: Fig. 8 PROJ-1 and PROJ-2 (right of APP) have no box.
+- lars-birkedal/2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic p06: RU-INIT-CLIENT-SPEC and RU-INIT-KVS-SPEC (top of Fig. 3) have no box.
+- lars-birkedal/2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic p11: RC-INIT-CLIENT-SPEC and RC-INIT-KVS-SPEC (top of Fig. 5) have no box.
+- lars-birkedal/2025-ICFP-reasoning-about-weak-isolation-levels-in-separation-logic p16: SI-INIT-CLIENT-SPEC and SI-INIT-KVS-SPEC (top of Fig. 10) have no box.
+- lars-birkedal/2021-POPL-efficient-and-provable-local-capability-revocation-using-uni p06: Fig. 3: RepeatStandby, RepeatHalt, RepeatFail, ExecSingle (bar-less reduction rules with small-caps names) have no box; only RepeatSingle is boxed.
+- derek-dreyer/2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la p23: LftL-begin (top-left of Fig. 4) has no box
+- derek-dreyer/2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la p25: LftL-bor-fracture (left of LftL-fract-acc in Fig. 5) has no box
+- derek-dreyer/2018-POPL-rustbelt-securing-the-foundations-of-the-rust-programming-la p27: LftL-bor-na (left of Fig. 6) has no box
+- derek-dreyer/2020-POPL-rustbelt-meets-relaxed-memory p10: Fig. 3: Ghost-Mod, iRC11-CInv-New, iRC11-CInv-FAA-Rlx (the only one with a bar), iRC11-CInv-Tok, iRC11-CInv-Cancel have no box; neighbours NA-Write/NA-Read/Dealloc/Rel-fence/Acq-fence in the same style are boxed
+- ranjit-jhala/2021-POPL-automatically-eliminating-speculative-leaks-from-cryptograph p20: Sol-Empty (axiom "SOL-EMPTY / σ ⊢ ∅" in Fig. 11, set alongside the boxed Sol-Set/Sol-Trans/Sol-Stable/Sol-Flow) has no box
+- robbert-krebbers/2025-POPL-affect-an-affine-type-and-effect-system p19: ModeSub-O, ModeSub-Nil and RowSub-Nil (axioms in Fig. 5, set among the boxed ModeSub-M, ModeSub-Cons, RowSub-Once, RowSub-Multi and RowSub-Cons) have no box
+- robbert-krebbers/2025-POPL-affect-an-affine-type-and-effect-system p20: ModeSub-MBang and RowSub-FMBang (displayed named axioms at the top of the page, same style as the boxed axioms on p14, p17 and p19) have no box
+- lars-birkedal/2026-OOPSLA-mixtris-mechanised-higher-order-separation-logic-for-mixed-c p12: PROTO-IN-REFL (p ∈ p), printed right next to the boxed PROTO-IN-CHOICE, has no box
+- derek-dreyer/2022-POPL-concurrent-incorrectness-separation-logic p08: DC-Error axiom (top-left of Fig. 4, name "DC-Error" above "[emp] L:error [er(L): emp]") has no box; the other 9 DC-* axioms are boxed correctly
+- alex-aiken/2024-PLDI-recursive-program-synthesis-using-paramorphisms p05: TVar (named axiom Γ,v:τ ⊢ v:τ) has no box, while Tabs, Tapp, Tctr and Tpara are boxed
+- derek-dreyer/2022-POPL-simuliris-a-separation-logic-framework-for-verifying-concurr p07: SIM-CALL (named axiom, centred between SIM-FRAME and SIM-BIND in Fig. 3) has no box
+- viktor-vafeiadis/2020-POPL-persistency-semantics-of-the-intel-x86-architecture p12: (T-FO), (T-FL) and (Prog) in the bottom row of Fig. 6 are named rules with no box.
+- viktor-vafeiadis/2020-POPL-persistency-semantics-of-the-intel-x86-architecture p15: (SilentS) and (Crash) in Fig. 8 are named rules with no box. Only SilentP and Step are boxed.
+- viktor-vafeiadis/2020-POPL-persistency-semantics-of-the-intel-x86-architecture p17: (M-PropP), the last rule of Fig. 9, has no box. Its label only has a cyan mention link on it.
+- alex-aiken/2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning p22: The axioms (T-Bool), (T-Int) and (T-Null) in Figure 12 are not boxed.
+- alex-aiken/2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning p23: The axiom (E-Null) in Figure 13 is not boxed.
+- derek-dreyer/2013-POPL-the-power-of-parameterization-in-coinductive-proof p12: (COEN), a labelled displayed principle "x ⊑ f(μy. f(y) ⊔ x ⊔ νf) ⟹ x ⊑ νf", has no box (written as an implication, no bar; borderline).
+- lars-birkedal/2018-POPL-a-logical-relation-for-monadic-encapsulation-of-state-provin p22: Fig. 8: EXCLUSIVE (top right), FULL-EXCLUSIVE (second row) and FPFN-OPERATION-SUCCESS (case-split definition) have no box.
+- robbert-krebbers/2020-OOPSLA-knowing-when-to-ask-sound-scheduling-of-name-resolution-in-t p14: Op-Edge in Figure 8 (named axiom with no bar, below Op-Node-Stale and Op-Data) is not boxed.
+- derek-dreyer/2021-ICFP-ghostcell-separating-permissions-from-data-in-rust p18: MonoInit (top-left of the monotone counter rules, "True ⇛ ∃γ. MonoVal(γ,n)") has no box; its three siblings are boxed.
+- derek-dreyer/2021-ICFP-ghostcell-separating-permissions-from-data-in-rust p19: GhostLftLookup (label "(GhostLftLookup)", a "key rule" in the text) has no box; the same style on p20 (BrandedIndexSub) is boxed.
+- derek-dreyer/2021-ICFP-ghostcell-separating-permissions-from-data-in-rust p23: TokInit, TokUpdate, TokSplit and TokCombine (GhostToken proof rules) have no boxes.
+- lars-birkedal/2024-ICFP-almost-sure-termination-by-guarded-refinement p07: Fig. 1 rows RWP-ALLOC and RWP-RAND have no box.
+- lars-birkedal/2024-ICFP-almost-sure-termination-by-guarded-refinement p10: RWP-TAPE-ALLOC ("∀ι. ι↪(N,ε) −∗ Φ(ι) ⊢ rwp tape N {Φ}") has no box; its label carries a mention link on "RWP-TAPE" only, pointing to rwp-tape.
+- lars-birkedal/2024-ICFP-almost-sure-termination-by-guarded-refinement p27: RWP-ALLOC, RWP-RAND and RWP-TAPE-ALLOC have no box of their own; the partial "RWP-TAPE" mention recurs.

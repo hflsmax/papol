@@ -1,0 +1,59 @@
+diff --git a/analyzer/src/rules/inference.ts b/analyzer/src/rules/inference.ts
+index 0360aef0..b7389eaa 100644
+--- a/analyzer/src/rules/inference.ts
++++ b/analyzer/src/rules/inference.ts
+@@ -319,8 +319,9 @@ function twoColumn(page: Page): boolean {
+   let two = columns.get(page);
+   if (two === undefined) {
+     const middle = page.width / 2;
+-    two = page.twoColumn && !page.lines.some((l) => !l.furniture && l.text.length >= 40 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width);
++    two = page.twoColumn && !page.lines.some((l) => !l.furniture && !CAPTION.test(l.text) && l.text.length >= 40 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width);
+     columns.set(page, two);
++    if (process.env.DBGC && page.number === Number(process.env.DBGP)) { console.error("COL", page.width, page.twoColumn, page.lines.filter((l) => !l.furniture && l.text.length >= 40 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width).map((l) => [Math.round(l.x0), Math.round(l.x1), l.text.slice(0, 80)])); console.error("UP", page.drawn.filter((d) => d.w < 1.5 && d.h > 50).map((d) => [d.x, d.y, d.h].map(Math.round))); }
+   }
+   return two;
+ }
+@@ -680,7 +681,13 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
+ // How a token stands to notation: beside a bar, over it, at the end of a
+ // row, at the margin (rule.setting); or as a cell, a group heading or a
+ // comment (rule.cell, rule.heading).
++// DEBUG-C3
+ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
++  const s = settingOf0(page, label, token, type);
++  if (process.env.DBG && page.number === Number(process.env.DBGP) && label.text.includes(process.env.DBG)) console.error("DBG", page.number, JSON.stringify(label.text), s.category, s.side, "two", page.twoColumn, twoColumn(page), "bar", s.bar && [s.bar.x, s.bar.y, s.bar.w].map(Math.round), "row", s.row.map((l) => l.text.slice(0, 40)));
++  return s;
++}
++function settingOf0(page: Page, label: Line, token: Token, type: Type): Setting {
+   const lines = ruleLines(page, label);
+   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
+   const slack = BESIDE * label.size;
+@@ -1091,6 +1098,29 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
+       })(lines.filter((l) => l.top >= d.y - 1 && l.top < label.bottom && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top)))
+       .sort((a, b) => b.y - a.y)[0];
+     if (hung) return { category: "beside", bar: hung, row, side: "right", derived: derivation(page, hung, lines, type, slack), step: stepInto(page, hung, lines, type, slack) };
++    // Level with a premise, the label may end a stack of premises that
++    // runs unbroken down to the bar under it, the conclusion under the
++    // bar: a column of rules labelled flush at its right edge, each label
++    // level with a premise and well clear of its bar (Figure 4 of Aiken's
++    // dynamic hierarchical data partitioning, T-Read beside its second
++    // premise, E-Read beside a case split). The bar starts left of the
++    // label and may run on under it (T-Pack's); no other stroke stands
++    // between, and no other label set as this one is heads a line of the
++    // stack (a bare "otherwise" ends a case split's line).
++    const propped = page.drawn.filter((d) => across(d) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y <= label.bottom + REACH * type.leading && d.x < label.x0 - 2 * label.size
++      && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && !claimed(d) && concluded1(d)
++      && row.every((l) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
++      && !page.drawn.some((e) => e !== d && across(e) && e.w >= label.size && e.y > label.top && e.y < d.y - 1 && e.x < d.x + d.w && e.x + e.w > d.x)
++      && ((stack) => {
++        let end = Math.max(label.bottom, ...row.map((l) => l.bottom));
++        for (const l of stack) {
++          if (l.x0 < d.x - label.size || l.x1 > d.x + d.w + label.size || l.top - end > 0.5 * type.leading || ((t) => t?.side === "whole" && t.bracketed === token.bracketed && Math.abs(l.size - label.size) <= 0.5 && faceOf(l, t) === faceOf(label, token))(tokenOf(l))) return false;
++          end = Math.max(end, l.bottom);
++        }
++        return d.y - end <= 0.5 * type.leading;
++      })(lines.filter((l) => !row.includes(l) && l.top >= label.top && l.bottom <= d.y + 1 && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top)))
++      .sort((a, b) => a.y - b.y)[0];
++    if (propped) return { category: "beside", bar: propped, row, side: "right", derived: derivation(page, propped, lines, type, slack), step: stepInto(page, propped, lines, type, slack) };
+   }
+   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
+   // A row holding words in the text's face with no relation is a

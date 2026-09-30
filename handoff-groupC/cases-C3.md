@@ -1,0 +1,27 @@
+- ranjit-jhala/2016-PLDI-refinement-types-for-typescript p07: S-THIS has no box of its own
+- ranjit-jhala/2016-PLDI-refinement-types-for-typescript p08: Fig. 5 T-CST has no box
+- isil-dillig/2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu p10: Fig. 11: BASE-TRANS, BASE-REF (axiom), TABLE-WIDTH (axiom), FUNC; Fig. 12: SYMMETRY, DATA have no boxes
+- isil-dillig/2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu p31: Fig. 21: SUB, SCATTER, BIN have no boxes (Bar, Line, Area are boxed)
+- isil-dillig/2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu p32: Fig. 22: FILTER, SELECT, SUMM-MEAN, SUMM-COUNT have no boxes (SUMM-MEAN's label got a mention link instead)
+- isil-dillig/2022-OOPSLA-type-directed-synthesis-of-visualizations-from-natural-langu p35: Fig. 24: LOGICAL OPERATORS, SEMANTIC TERM, CARD, VAR-1, VAR-2, FILTER OP-1, FILTER OP-2, PROJ-1, PROJ-2, FILTER-2 have no boxes (only Syn-1, Syn-2, Max, Min, Filter-1 boxed)
+- lars-birkedal/2024-POPL-asynchronous-probabilistic-couplings-in-higher-order-separat p05: REL-COUPLE-TAPE-L, a rule about as wide as the column (between the REL-ALLOC-TAPE-L and REL-RAND-TAPE-L boxes), has no box
+- lars-birkedal/2024-POPL-asynchronous-probabilistic-couplings-in-higher-order-separat p11: Fig. 4: REL-COUPLE-TAPE-L (full-width, between REL-COUPLE-RANDS and REL-COUPLE-TAPE-R) has no box, likely the same cause as p05
+- lars-birkedal/2025-ICFP-modular-reasoning-about-error-bounds-for-concurrent-probabil p03: ERR-1 (bottom row, right of HT-RAND-EXP; premise ↯(1), conclusion False) has no box
+- isil-dillig/2022-OOPSLA-synthesis-powered-optimization-of-smart-contracts-via-data-t p09: Fig. 6 Wrap1-Fld, Wrap2-Fld, Unwrap1-Fld, Unwrap2-Fld
+- robbert-krebbers/2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic p20: ABDUCT-WP-VAL (left of ABDUCT-SYM-EX-LOGATOM)
+- martin-t-vechev/2016-OOPSLA-modeling-and-analysis-of-remote-memory-access-programming p09: rule (C) under no-C in Fig. 4
+- derek-dreyer/2022-PLDI-rusthornbelt-a-semantic-foundation-for-functional-verificati p05: ENDLFT (right column)
+- derek-dreyer/2022-OOPSLA-proving-hypersafety-compositionally p16: WP-IFI in Fig. 7 (between wp-assign and wp-while) has no box.
+- lars-birkedal/2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h p28: STATESTEP-SIMPLE has no box.
+- lars-birkedal/2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h p29: STATESTEP-EXP (top of page, three premise rows) has no box.
+- derek-dreyer/2020-POPL-the-future-is-ours-prophecy-variables-in-separation-logic p09: SEQUENCE-PROPHECY-SIMPLE-RESOLUTION-TYPED (under the creation-typed box) has no box.
+- robbert-krebbers/2026-POPL-a-relational-separation-logic-for-effect-handlers p10: BIND (displayed rule "BIND  traversable(Kl,Kr,T)  T⊑F / el≲er⟨T⟩{...} ⊢ Kl[el]≲Kr[er]⟨F⟩{R}", mid-page below "a sound bind rule ... is formulated as follows") has no box, while its neighbours STANDARD-BIND and UNSOUND-BIND are boxed
+- robbert-krebbers/2026-POPL-a-relational-separation-logic-for-effect-handlers p11: BETA in Fig. 1c (pure-reduction rules, left of MULTI-SHOT) has no box; the other Fig. 1 rules are boxed
+- derek-dreyer/2022-POPL-concurrent-incorrectness-separation-logic p24: SV-CS and SV-CS-G (named derived rules with premises, bar and conclusion in Fig. 13) have no boxes
+- lars-birkedal/2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi p14: FST-CLWP (top-left of Fig. 5) has no box; the other Fig. 5 rules are boxed
+- alex-aiken/2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning p08: Figure 4 left column has no boxes on T-Read, T-Write, T-Reduce, T-New, T-UpRgn, T-DnRgn, T-NewColor, T-Color, T-Partition, T-Unpack, T-Call, T-Program; right column none on E-Read, E-Write, E-DnRgn, E-NewColor, E-Color, E-Partition, E-Pack, E-Call. Only T-Pack, E-Reduce, E-New, E-UpRgn and E-Unpack are boxed.
+- alex-aiken/2013-OOPSLA-language-support-for-dynamic-hierarchical-data-partitioning p09: The displayed rule [E-Add] in the left column (5 premises, bar, conclusion) has only a mention box and no rule box.
+- martin-t-vechev/2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a p19: func-eval and eval-λ-abs (Fig. 28, large grey-shaded rules) have no box.
+- lars-birkedal/2023-PLDI-vmsl-a-separation-logic-for-mechanised-robust-safety-of-virt p10: WP-SSWP and RC-hold (named boxed-label rules in Fig. 6) have no boxes.
+- robbert-krebbers/2024-OOPSLA-verified-lock-free-session-channels-with-linking p22: PROTO-RECV has no box of its own; it sits inside the proto-symmetric box.
+- lars-birkedal/2026-PLDI-contextual-refinement-of-higher-order-concurrent-probabilist p14: ERR-1 has no box of its own.

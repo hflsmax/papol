@@ -1,0 +1,18 @@
+- viktor-vafeiadis/2013-OOPSLA-relaxed-separation-logic-a-program-logic-for-c11-concurrency p07: CAS* (left column, five premises, label on the right) has no box
+- lars-birkedal/2024-ICFP-error-credits-resourceful-reasoning-about-error-bounds-for-h p21: PRESAMPLE-EXP and PRESAMPLE-PLANNER (names on the right) have no box; alloc-tape, load-tape, presample are fine.
+- isil-dillig/2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl p17: RACE-1, RACE-2, WAIT, MIN-LOCK, MAX-PAR have no box (Fig. 8; labels sit left of each rule)
+- lars-birkedal/2025-POPL-approximate-relational-reasoning-for-higher-order-probabilis p07: wp-couple-rand-rand-err-le (named rule with a bar, name above it) has no box
+- lars-birkedal/2025-POPL-approximate-relational-reasoning-for-higher-order-probabilis p15: wp-couple-rand-rand-err-le and wp-couple-rand-rand-err-ge (displayed rules with a bar, name above) have no box; wp-couple-tape-tape-err-ge in the same style on the same page is boxed
+- lars-birkedal/2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi p03: Named rule HOARE-BIND (inadmissible in presence of continuations), drawn with name over bar, has no box
+- lars-birkedal/2019-ICFP-mechanized-relational-verification-of-concurrent-programs-wi p08: Named rule INADMISSIBLE-BIND at page bottom (name over the bar) has no box
+- ranjit-jhala/2017-OOPSLA-verifying-distributed-programs-via-canonical-sequentializati p15: R-Loop-Repeat (Fig. 4.8) has its name printed above the rule but has no box
+- isil-dillig/2014-PLDI-consolidation-of-queries-with-user-defined-functions p05: Figure 5 rules with the label at the left margin have no box: Skip 1, Skip 2, Skip 3, Assign, Step, Seq, If 1, If 2.
+- sumit-gulwani/2015-OOPSLA-automating-grammar-comparison p11: BRANCHEXT (labelled "BRANCHEXT.", premises x = aw and ∀b∈Σ…, bar, conclusion C ⊢ α op_x β) in the left column has no box.
+- martin-t-vechev/2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a p09: func-eval (Fig. 9) and λ-abs (Fig. 10), labels right of the bar, have no box.
+- alex-aiken/2013-PLDI-terra-a-multi-stage-language-for-high-performance-computing p04: SBAS, SVAR (Fig. 2), TVAR, TAPP (Fig. 3), LTQUOTE (Fig. 1) have no box.
+- alex-aiken/2014-PLDI-first-class-runtime-generation-of-high-performance-types-usi p06: Fig. 2 TyVar, TyApp, TyFun, TyInt; Fig. 3 TCtx, TApp, TUnwrap; Fig. 4 LApp, LRunProp, LProp: 10 named rules, no box (names beside, some under, the rule).
+- alex-aiken/2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement p15: R10, R11, R12 in Fig. 6 (Dekker rules) have no box.
+- martin-t-vechev/2016-PLDI-sdnracer-concurrency-analysis-for-software-defined-networks p05: SWITCHDATAPLANE, SWITCHCONTROLPLANE, SWITCHBUFFER, HOST, CONTROLLER, DATAPLANE, CONTROLPLANETO, CONTROLPLANEFROM, TIME1, TIME2 have no box (Fig. 2; only BARRIERPRE/BARRIERPOST are boxed)
+- viktor-vafeiadis/2020-OOPSLA-persistent-owicki-gries-reasoning-a-program-logic-for-reason p11: (REC) at the bottom of Fig. 3, just above the caption, has no box
+- isil-dillig/2022-OOPSLA-synthesizing-fine-grained-synchronization-protocols-for-impl p38: ENTRY-FRAG, METHOD, FLD-2 (as its own box), MTR have no box (Fig. 16)
+- viktor-vafeiadis/2018-OOPSLA-persistence-semantics-for-weak-memory-integrating-epoch-pers p12: T-Seq1 has no box; T-While has no box of its own (see next line)

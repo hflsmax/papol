@@ -1,0 +1,45 @@
+- ranjit-jhala/2014-ICFP-refinement-types-for-haskell p03: ≼-BASE (right column, name right of the bar) has no box
+- ranjit-jhala/2014-ICFP-refinement-types-for-haskell p07: Fig. 4 ≼-BASE and ≼-FUN have no boxes
+- ranjit-jhala/2014-ICFP-refinement-types-for-haskell p08: Fig. 6 ≼-BASE-D has no box
+- ranjit-jhala/2018-POPL-refinement-reflection-complete-verification-with-smt p14: Fig. 5: ⇒-I and ⇒-E have no boxes of their own
+- isil-dillig/2022-OOPSLA-automated-transpilation-of-imperative-to-functional-code-usi p11: Fig. 9: ≠-↑, ≃-↑, NTerm-↑, VarTerm-↑, FirstOrderTerm-↑, HigherOrderTerm-↑ have no boxes (only S-NTerm-↑ boxed)
+- derek-dreyer/2023-OOPSLA-stuttering-for-free p10: REFL+ and SEQ+ (bottom of page, full premise/bar/conclusion rules) have no boxes
+- robbert-krebbers/2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s p15: Fig. 6: R−∗∗, R∗⊤, R∗∗, R∗∨, the large R∗A above "Inversion phase", L∗ and L−∗ have no boxes (11 others correct; tabs for R𝐴, R−∗𝐻 lose the italic letter in drawing only)
+- robbert-krebbers/2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s p16: displayed rule (R∗A) under the side-condition annotations has no box
+- robbert-krebbers/2023-PLDI-beyond-backtracking-connections-in-fine-grained-concurrent-s p19: Fig. 8: R∃∗A has no box; the labelled definition CONNECTION-DEF is unboxed while BIABD-DEF just above is boxed (inconsistent)
+- lars-birkedal/2024-POPL-the-logical-essence-of-well-bracketed-control-flow p25: (stacks•IN-unique) and (stacks∘IN-unique) have no box of their own
+- isil-dillig/2022-POPL-bottom-up-synthesis-of-recursive-functional-programs-using-a p14: ANGELIC RECURSION, UNEVAL PROD, SWITCH LEFT, SWITCH RIGHT (two-word names) have no box
+- lars-birkedal/2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ p13: Ht-make-server-socket [S], Ht-listen [S], Ht-accept [S], Ht-make-client-socket [S], Ht-connect [S] (names ending in "[S]")
+- lars-birkedal/2023-ICFP-verifying-reliable-network-components-in-a-distributed-separ p20: Ht-rpc-start [S], Ht-rpc-connect [S], Ht-rpc-request [S]
+- robbert-krebbers/2023-OOPSLA-proof-automation-for-linearizability-in-separation-logic p11: IRIS-□-INTRO, □-ELIM, □-DUP (names starting with a modality glyph)
+- derek-dreyer/2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency p06: (THREAD: FULFILL UPDATE) in Fig. 2
+- derek-dreyer/2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency p09: (MEMORY: NEW), (MEMORY: FULFILL), (SYSTEM CALL), (MACHINE STEP) in Fig. 3 (colon and spaced names)
+- derek-dreyer/2017-POPL-a-promising-semantics-for-relaxed-memory-concurrency p13: (MACHINE STEP) in Fig. 6
+- robbert-krebbers/2014-POPL-an-operational-and-axiomatic-semantics-for-non-determinism-a p10: (add funs) at the bottom of Fig. 1
+- viktor-vafeiadis/2020-PLDI-promising-2-0-global-optimizations-in-relaxed-memory-concurr p11: Fig. 2 (MEMORY: NEW), (MEMORY: FULFILL), (SYSTEM CALL), (MACHINE NORMAL), (MACHINE SYSTEM CALL), (MACHINE FAIL); the 10 boxed ones are right
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p12: Fig. 5 □-MONO, □-IDEM, □-AFFINE, □-ELIM, □-DUP, □-SEP-AND (names starting with a modality glyph)
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p13: □-INTRO
+- derek-dreyer/2018-ICFP-mosel-a-general-extensible-modal-framework-for-interactive-p p14: ⟨affine⟩-INTRO, ⊡-INTRO
+- alex-aiken/2018-PLDI-active-learning-of-points-to-specifications p04: (call parameter) and (call return) in Fig. 2 have no box.
+- robbert-krebbers/2025-ICFP-verified-interpreters-for-dynamic-languages-with-application p07: β ((λx.e1) e2 → e1[x := e2]) beside APP in Fig. 1 has no box.
+- robbert-krebbers/2025-ICFP-verified-interpreters-for-dynamic-languages-with-application p10: β ((λs.e1) e2 → e1[s := e2]) below ABS/APP in Fig. 3 has no box.
+- robbert-krebbers/2025-ICFP-verified-interpreters-for-dynamic-languages-with-application p15: β and LET-ATTR-ATTR in Fig. 4 have no box.
+- alex-aiken/2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement p19: R4′ (extended bit-mask rule in the text) has no box.
+- alex-aiken/2018-POPL-on-automatically-proving-the-correctness-of-math-h-implement p21: R1′ and R2′ (two axioms side by side, each with a bar) have no box.
+- derek-dreyer/2010-POPL-a-relational-modal-logic-for-higher-order-stateful-adts p09: many named rules in Fig. 8 have no box: L-WEAKEN, ▷-MONO, ▷-WEAKEN, LÖB, □-INTRO, □-INTRO-ABS, □-INTRO-TERM, □-ELIM, ▷□-SWAP, ∝-INTRO, ∝-ELIM, ↑-EXPAND, ↑-REDUCE, ↑-UNROLL, ↑-RETURN, ↑-BIND, ↑-IMPURE
+- derek-dreyer/2010-POPL-a-relational-modal-logic-for-higher-order-stateful-adts p10: □-SHIFT (left of SEP-∨ in Fig. 9) has no box
+- isil-dillig/2011-POPL-precise-reasoning-for-programs-using-containers p06: Fig. 6 rules titled "Read from Position Dependent Container", "Read from Value Dependent Container", "Write to Value Dependent Container", "Write to Position Dependent Container" and "Container Allocation" have no box; Newval/Update in the same style are boxed
+- isil-dillig/2011-POPL-precise-reasoning-for-programs-using-containers p07: Fig. 7 rules "Key, value pair at kth Iteration for pos_adt" and "Key, value pair at kth Iteration for val_adt" have no box; Foreach/Fix in the same style are boxed
+- ranjit-jhala/2024-POPL-mechanizing-refinement-types p96: Rule "WFLIST" (WF-List, Figure 9.4 left, name typeset "WFL̄IST" with a stray macron) has no box; its neighbour WF-LISTR is boxed
+- robbert-krebbers/2026-POPL-a-relational-separation-logic-for-effect-handlers p19: whole of Fig. 5 "Reasoning rules of blaze" unboxed: EFFECT-L-★, EFFECT-R-★, ADD-LABEL-L-★, ADD-LABEL-R-★, NEW-THEORY-★, INTRODUCTION-★, BIND-★, EXHAUSTION-★ (8 rules; names end in ★)
+- robbert-krebbers/2026-POPL-a-relational-separation-logic-for-effect-handlers p23: whole of Fig. 7 "Reasoning rules for concurrency" unboxed: FORK-L-★, FORK-R-★, LOGICAL-FORK-★, THREAD-SWAP-★ (4 rules; names end in ★)
+- lars-birkedal/2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic p09: Fig. 4: T-{}-I, T-{}-E and T-∀-E_p (name tabs beside the bar) have no box
+- lars-birkedal/2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic p10: Fig. 5: <:-⊤, ∧1-<:, ∧2-<:, ⊥-<:, <:-Refl (named axioms), <:-∧ and ∀-<:-∀ (rules with a bar) have no box
+- lars-birkedal/2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic p13: Fig. 6: T-{}-I, T-∀-E_p and D-∀ have no box
+- lars-birkedal/2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic p14: Fig. 7: <:-⊤, ∧1-<:, ∧2-<:, ⊥-<:, <:-Refl, <:-∨1, <:-∨2, Distr-∧-∨-<: (axioms; the axiom <:-Add-Later on the same page is boxed) plus <:-∧, ∨-<:, μ-<:-μ, μ-<:, <:-μ and ∀-<:-∀ have no box
+- lars-birkedal/2020-ICFP-scala-step-by-step-soundness-for-dot-with-step-indexed-logic p17: Fig. 8: Impl-▷, Löb, ⇛-Mono, ⇛-Intro, ⇛-Trans and ⇛-Frame have no box (only ▷-Intro/Mono/Impl and Saved-Pred-* are boxed)
+- martin-t-vechev/2015-OOPSLA-scalable-race-detection-for-android-applications p08: Fig. 4: CALLBACKREG#1, CALLBACKREG#2, MSGBEGIN#1, MSGBEGIN#2 have no box; Fig. 5: IPCASYNC has no box (all the names with "#" or in the last Fig. 5 rule were skipped)
+- isil-dillig/2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties p05: Figure 5: (Expand), (Lift), (♭-intro 1), (♭-intro 2), (♭-elim), (Assoc) have no box.
+- isil-dillig/2016-PLDI-cartesian-hoare-logic-for-verifying-k-safety-properties p07: Figure 6: (Transform − single), (Transform − multi), (Fusion 1), (Fusion 2) have no box.
+- martin-t-vechev/2020-PLDI-silq-a-high-level-quantum-language-with-safe-uncomputation-a p23: Restated rules !W (G.2.4), W (G.2.5), !C (G.2.6), C (G.2.7) have no boxes (the same kind on p22, var and var-const, is boxed).
+- viktor-vafeiadis/2022-POPL-extending-intel-x86-consistency-and-persistency-formalising p20: Figure 9: M-PropW+NTW and M-PropFL+FO+SF have no box.

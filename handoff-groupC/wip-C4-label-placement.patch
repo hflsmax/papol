@@ -1,0 +1,13 @@
+diff --git a/analyzer/src/rules/inference.ts b/analyzer/src/rules/inference.ts
+index 0360aef0..7a41799e 100644
+--- a/analyzer/src/rules/inference.ts
++++ b/analyzer/src/rules/inference.ts
+@@ -737,7 +737,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
+   const gapTo = (d: Drawn) => Math.max(0, d.x - label.x1, label.x0 - (d.x + d.w));
+   const blankTo = (d: Drawn) => {
+     const from = Math.min(label.x1, d.x + d.w), to = Math.max(label.x0, d.x);
+-    return d.x + d.w <= label.x0 + slack && gapTo(d) <= FAR * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
++    return (d.x + d.w <= label.x0 + slack || d.x >= label.x1 - slack) && (gapTo(d) <= FAR * label.size || (margined && d.x >= label.x1)) && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
+       && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from);
+   };
+   // What counts as a rule's bar (rule.bar).
