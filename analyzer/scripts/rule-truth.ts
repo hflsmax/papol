@@ -22,9 +22,9 @@ const dirs = args.filter((a) => !a.startsWith("-"));
 if (!dirs.length) { console.error("usage: node scripts/run-script.mjs rule-truth <dir>... [-v]"); process.exit(2); }
 const truthDir = path.resolve("test", "rule-truth");
 
-// Names compare as a reader reads them: case, brackets, a trailing mark and
+// Names compare as a reader reads them: case, math letters (𝑆 is S), brackets, a trailing mark and
 // the joiner (space, underscore, hyphen) aside.
-const norm = (s: string) => s.replace(/^[[(\s]+|[\])\s•]+$/g, "").toLowerCase().replace(/[\s_‐‑–-]+/g, "-");
+const norm = (s: string) => s.normalize("NFKC").replace(/^[[(\s]+|[\])\s•]+$/g, "").toLowerCase().replace(/[\s_‐‑–-]+/g, "-");
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
 const area = (a: Box) => Math.max(0, a[2] - a[0]) * Math.max(0, a[3] - a[1]);
 

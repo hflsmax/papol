@@ -70,6 +70,11 @@ export const LAYOUT_GUTTER = rule({
   summary: "Blank space between two runs on one baseline, which the lines just above and below also leave blank, is a gutter: the runs are in different columns and never one line.",
   why: "Nature Communications' gutter is narrower than a word space in its headings, so a gutter is recognized by lining up with its neighbours, not by its width.",
 });
+export const LAYOUT_COLUMN = rule({
+  id: "layout.column", stage: "layout",
+  summary: "Blank space wider than the size (a quad) between two runs on one baseline opens a column where a line just above or below (within two and a half sizes) leaves a blank of the size there too, its text before the blank starting where this line's does and its text after starting where the right run does: a grid. A lone character after the blank stays on the line (\"Interchange 1\" over \"Interchange 2\").",
+  why: "OOPSLA's bottom-up linearization sets three labelled equations side by side a word space apart; read as one line, [MergeIdempotence] and [MergeCommutativity] are one label and the equations under them one line. The caption under the figure crosses the gap, so it is no gutter. An aligned display (\"Θ₁ = …\" over \"Θ₂ = …\") is a grid too, but its blank is under a quad and stays one line.",
+});
 export const LAYOUT_SIZE_CHANGE = rule({
   id: "layout.size-change", stage: "layout",
   summary: "Two runs on the same baseline (not a raised or lowered script) that differ in size (beyond the 3% a size read off a transform is rounded to), with more than half an em between them, are two lines side by side, not one.",
@@ -234,7 +239,7 @@ export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,4}[A-Z]{1,2}
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
-  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon), may label a rule: up to 36 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, before a trailing capital, digit or arrow, or before a parenthesised tag), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\", \"<:eq\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation; after a connective, letters all mathematical with no capital among them, or all lowercase in an italic face: ⊕𝜎𝑓, × 1/fps). A piece of a large brace set at a token's end is no letter of it. The size a label is measured against is the text's, or the size most lines of a prose line's length are set in where that is larger.",
+  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon), may label a rule: up to 36 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, before a trailing capital, digit or arrow, or before a parenthesised tag), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\", \"<:eq\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation; after a connective, letters all mathematical with no capital among them, or all lowercase in an italic face: ⊕𝜎𝑓, × 1/fps). A piece of a large brace set at a token's end is no letter of it. The size a label is measured against is the text's, or the size most lines of a prose line's length are set in where that is larger; a line under 0.55 of it is a diagram's lettering (Sparse Workspaces labels a matrix's levels \"(Level J)\" at half the text's size).",
   why: "Every label in the corpus is set apart from its rule by a line break or a gap; none runs into prose. \"Cut\", \"(value)\", \"k-var\", \"E Beta\" and \"Definition\" all pass here and are told apart by their setting; Sequent Core's →R and ∀R open with their connective.",
 });
 export const RULE_BAR = rule({
@@ -273,10 +278,10 @@ export const RULE_SHAPE_WORD = rule({
 });
 export const RULE_SHAPE_SYMBOL = rule({
   id: "rule.shape.symbol", stage: "rule",
-  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), or one or two capitals and a connective (\"L→\"), as sequent calculi and logical relations name their rules.",
-  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation.",
-  pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2})$", "u"),
-  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V"],
+  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), one or two capitals and a connective (\"L→\"), or a capitalised word, a connective and one to three lowercase letters (\"St+i\", \"St+uu\"), as sequent calculi and logical relations name their rules.",
+  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation; a bidirectional typing paper names its addition's steps St+i and St+uu after the step judgment.",
+  pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2}|[A-Z][a-z]{1,11}[" + RULE_CONNECTIVES + "]\\p{Ll}{1,3})$", "u"),
+  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu"],
   rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
 export const RULE_NAME_BESIDE = rule({

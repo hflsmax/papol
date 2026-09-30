@@ -1,0 +1,12 @@
+{"rules": [
+  {"page": 10, "name": "CreateBranch", "box": [45.8, 82.6, 420.8, 126.6]},
+  {"page": 10, "name": "Apply", "box": [45.8, 138.8, 428.9, 193.5]},
+  {"page": 10, "name": "Merge", "box": [45.8, 205.7, 425.3, 249.3]},
+  {"page": 10, "name": "Query", "box": [45.8, 261.6, 323.4, 293.2]},
+  {"page": 15, "name": "BottomUpTemplate", "box": [57.2, 339.4, 429.8, 368.4]},
+  {"page": 18, "name": "BottomUp-2-OP", "box": [46.6, 227.0, 213.5, 270.1]},
+  {"page": 18, "name": "BottomUp-1-OP", "box": [224.7, 227.0, 428.3, 270.5]},
+  {"page": 18, "name": "BottomUp-0-OP", "box": [47.1, 277.2, 219.6, 304.0]},
+  {"page": 18, "name": "MergeIdempotence", "box": [230.0, 277.2, 312.1, 303.7]},
+  {"page": 18, "name": "MergeCommutativity", "box": [322.0, 277.2, 428.5, 303.7]}
+]}
