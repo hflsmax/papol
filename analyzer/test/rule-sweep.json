@@ -34,10 +34,9 @@
     ]
   },
   "consistent-subtyping": {
-    "rules": 35,
+    "rules": 32,
     "mentions": 28,
     "names": [
-      "A2",
       "AAnno",
       "AApp",
       "ACS-ForallL",
@@ -69,72 +68,68 @@
       "S-ForallL",
       "S-Fun",
       "Sub",
-      "T1",
-      "T2",
       "Var"
     ]
   },
   "contracts-jfp": {
-    "rules": 52,
-    "mentions": 78,
+    "rules": 50,
+    "mentions": 41,
     "names": [
-      "E BETA",
-      "E BLAME",
-      "E CCHECK",
-      "E CDECOMP",
-      "E COMPAT",
-      "E CONST",
-      "E FAIL",
+      "E Beta",
+      "E Blame",
+      "E CCheck",
+      "E CDecomp",
+      "E Compat",
+      "E Const",
+      "E Fail",
       "E OK",
-      "F BETA",
-      "F BLAME",
-      "F CCHECK",
-      "F CDECOMP",
-      "F COMPAT",
-      "F CONST",
-      "F FAIL",
+      "F Beta",
+      "F Blame",
+      "F CCheck",
+      "F CDecomp",
+      "F Compat",
+      "F Const",
+      "F Fail",
       "F OK",
-      "F REDUCE",
-      "FP BLAME",
-      "FP CAST",
-      "FP CHECK",
-      "FP LAM",
-      "FP RCCHECK",
-      "FP RCDECOMP",
-      "FP RCONST",
-      "FP REFL",
-      "FP RFAIL",
+      "F Reduce",
+      "FP App",
+      "FP Blame",
+      "FP Cast",
+      "FP Check",
+      "FP Lam",
+      "FP RBeta",
+      "FP RCCheck",
+      "FP RCDecomp",
+      "FP Refl",
+      "FP RFail",
       "FP ROK",
-      "FP SFUN",
-      "FP SREFINE",
-      "FP SREFL",
-      "S APP",
-      "S BLAME",
-      "S CAST",
-      "S CHECKING",
-      "S CONST",
-      "S EMPTY",
+      "FP SFun",
+      "FP SRefine",
+      "FP SRefl",
+      "S App",
+      "S Blame",
+      "S Cast",
+      "S Checking",
+      "S Const",
       "S EXTVAR",
-      "S LAM",
-      "S SUB",
-      "S VAR",
-      "SSUB",
-      "T APP",
-      "T BASEC",
-      "T BLAME",
-      "T CHECKING",
-      "T CONST",
-      "T CONTRACT",
-      "T EMPTY",
-      "T FUNC",
-      "T LAM",
-      "T VAR",
-      "T VART"
+      "S Lam",
+      "S Sub",
+      "S1",
+      "T App",
+      "T BaseC",
+      "T Blame",
+      "T Checking",
+      "T Const",
+      "T Contract",
+      "T Empty",
+      "T FunC",
+      "T Lam",
+      "T VarT"
     ]
   },
   "dep-js": {
     "rules": 31,
-    "mentions": 26,
+    "mentions": 28,
     "names": [
       "DS-APPLY",
       "DS-ARRLIT",
@@ -171,7 +166,7 @@
   },
   "evidently": {
     "rules": 34,
-    "mentions": 42,
+    "mentions": 29,
     "names": [
       "abs",
       "app",
@@ -211,7 +206,7 @@
   },
   "fh-esop": {
     "rules": 45,
-    "mentions": 45,
+    "mentions": 41,
     "names": [
       "C Forall",
       "C Fun",
@@ -261,8 +256,8 @@
     ]
   },
   "flap": {
-    "rules": 10,
-    "mentions": 25,
+    "rules": 12,
+    "mentions": 28,
     "names": [
       "alt",
       "bot",
@@ -270,6 +265,8 @@
       "fix",
       "fix1",
       "fix2",
+      "ParTS",
+      "pgn",
       "seq",
       "seq1",
       "token",
@@ -320,14 +317,21 @@
     "names": []
   },
   "gallais-icfp18": {
-    "rules": 0,
-    "mentions": 0,
-    "names": []
+    "rules": 4,
+    "mentions": 1,
+    "names": [
+      "appe",
+      "appi",
+      "lame",
+      "lami"
+    ]
   },
   "implicits": {
-    "rules": 9,
-    "mentions": 13,
+    "rules": 11,
+    "mentions": 17,
     "names": [
+      "Appe",
+      "AppI",
       "C-App-→",
       "C-App-IFun",
       "C-Let-τ",
@@ -340,8 +344,8 @@
     ]
   },
   "kind-inference": {
-    "rules": 70,
-    "mentions": 65,
+    "rules": 73,
+    "mentions": 70,
     "names": [
       "a-dc-decl",
       "a-dc-tt",
@@ -396,6 +400,9 @@
       "dt-tt",
       "ela-app",
       "ela-kapp",
+      "gen",
+      "inst-forall",
+      "inst-refl",
       "k-app",
       "k-arrow",
       "k-nat",
@@ -416,9 +423,11 @@
     ]
   },
   "kokke-oopsla20": {
-    "rules": 47,
-    "mentions": 11,
+    "rules": 48,
+    "mentions": 19,
     "names": [
+      "<:𝐼",
+      "<:𝑆",
       "I-assert",
       "I-call",
       "I-field",
@@ -435,11 +444,10 @@
       "m-program",
       "m-select",
       "m-sig",
-      "m-specn",
+      "m-spec",
       "m-struct",
       "m-tformal",
       "m-type",
-      "m-typen",
       "m-value",
       "m-var",
       "mn-func",
@@ -469,19 +477,32 @@
     ]
   },
   "kokke-popl19": {
-    "rules": 5,
-    "mentions": 34,
+    "rules": 18,
+    "mentions": 69,
     "names": [
+      ":⊕1",
+      ":N0",
+      ":N1",
       ":O",
+      "⊕1",
+      "⊕2",
       "⊗O",
+      "ax",
+      "axcut",
+      "dup",
       "h-cut",
       "h-mix",
-      "h-mix0"
+      "h-mix0",
+      "mix",
+      "par1",
+      "par2",
+      "res",
+      "syn"
     ]
   },
   "let-arguments": {
     "rules": 27,
-    "mentions": 28,
+    "mentions": 31,
     "names": [
       "APP",
       "App-Chk",
@@ -513,13 +534,11 @@
     ]
   },
   "liquid_types": {
-    "rules": 17,
-    "mentions": 16,
+    "rules": 15,
+    "mentions": 13,
     "names": [
       "DEC-<:-BASE",
       "DEC-<:-FUN",
-      "if-then-else",
-      "let-binding",
       "LT-APP",
       "LT-CONST",
       "LT-FUN",
@@ -537,7 +556,7 @@
   },
   "named-handlers": {
     "rules": 23,
-    "mentions": 74,
+    "mentions": 59,
     "names": [
       "abs",
       "app",
@@ -565,8 +584,8 @@
     ]
   },
   "perceus": {
-    "rules": 23,
-    "mentions": 50,
+    "rules": 26,
+    "mentions": 44,
     "names": [
       "app",
       "appr",
@@ -586,10 +605,13 @@
       "match",
       "sapp",
       "sbind",
+      "sbind-d",
       "scon",
       "slam",
+      "slam-d",
       "smatch",
       "svar",
+      "svar-dup",
       "var"
     ]
   },
@@ -608,7 +630,7 @@
     ]
   },
   "row-ecoop": {
-    "rules": 91,
+    "rules": 95,
     "mentions": 71,
     "names": [
       "ceq-Base",
@@ -701,14 +723,21 @@
       "wtt-Eq",
       "wtt-Merge",
       "wtt-Restr",
-      "wtt-Select"
+      "wtt-Select",
+      "wtti-AllE",
+      "wtti-AllI",
+      "wtti-Base",
+      "wtti-Eq"
     ]
   },
   "samth-esop14": {
-    "rules": 1,
-    "mentions": 5,
+    "rules": 4,
+    "mentions": 6,
     "names": [
-      "dispatch"
+      "dispatch",
+      "relay-in",
+      "relay-out",
+      "routes-in"
     ]
   },
   "samth-pldi11": {
@@ -718,7 +747,7 @@
   },
   "sequent": {
     "rules": 31,
-    "mentions": 34,
+    "mentions": 32,
     "names": [
       "→L",
       "→R",
@@ -742,7 +771,7 @@
       "MultiCut",
       "Name",
       "Rec",
-      "ret",
+      "Ret",
       "TLK",
       "TRK",
       "TyApp",
@@ -755,7 +784,7 @@
   },
   "staging": {
     "rules": 64,
-    "mentions": 91,
+    "mentions": 103,
     "names": [
       "c-abs",
       "c-app",
@@ -825,7 +854,7 @@
   },
   "tackling-the-awkward-squad-monadic-input-output-concurrency-exceptions-and-foreign-language-calls-in-haskell": {
     "rules": 23,
-    "mentions": 43,
+    "mentions": 44,
     "names": [
       "ASSOC",
       "BIND",
@@ -858,18 +887,16 @@
     "names": []
   },
   "typewhich": {
-    "rules": 12,
-    "mentions": 16,
+    "rules": 10,
+    "mentions": 8,
     "names": [
       "Add",
       "App",
       "Const",
       "Deref",
-      "F-In-F-Out",
       "Fun",
       "Id",
       "If",
-      "If-Tag",
       "Mul",
       "Ref",
       "SetRef"
