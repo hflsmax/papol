@@ -477,13 +477,14 @@
     ]
   },
   "kokke-popl19": {
-    "rules": 18,
-    "mentions": 69,
+    "rules": 19,
+    "mentions": 73,
     "names": [
       ":⊕1",
       ":N0",
       ":N1",
       ":O",
+      "=α",
       "⊕1",
       "⊕2",
       "⊗O",

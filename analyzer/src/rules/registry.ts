@@ -220,31 +220,34 @@ export const FLOAT_RULED = rule({
 // A part is letters and digits, or connectives, and may end in a sign
 // (WF-var+, Rel-Fun±, S-Trans′); parts are joined by a hyphen, a colon
 // or a slash (T:Proc, Step/Seq, Program_E).
-const RULE_SIGN = "[+−±†‡♠♣♦*?!↓↑'′]";
-const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′]*" + RULE_SIGN + "?|[<:=→⇒⇓∀∃⊢~*∧∨¬|/]+[\\p{L}\\d<:=→⇒⇓∀∃⊢~*∧∨¬|/'′]*)";
-export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,8}|[a-z]{1,6}|\\p{Script=Greek}{1,2})(?:[-‐‑–:/_]" + RULE_PART + ")+";
+// The connectives a symbol name is made of, or a part of a hyphenated
+// name may be (→L, ×T, Sem-⊤, ≤-Base, Prf-⊃-Intro).
+export const RULE_CONNECTIVES = "→⇒⇓⇛⇝↪⤳∀∃⊢⊣⊨⊩⊗⊕⊸⊠∧∨¬<:=≤≥≼≽⊑⊒⊂⊃⊆⊇×+&∼~⋍≃≈≡⊲⊳▷◁⊤⊥∂⋆∘";
+const RULE_SIGN = "[+−±†‡♠♣♦*?!↓↑'′-]";
+const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′]*" + RULE_SIGN + "?|[" + RULE_CONNECTIVES + "*|/]+[\\p{L}\\d" + RULE_CONNECTIVES + "*|/'′]*)";
+export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,4}[A-Z]{1,2}|\\p{Script=Greek}{1,2}|[" + RULE_CONNECTIVES + "]{1,2})(?:[-‐‑–:/_]" + RULE_PART + ")+(?: ?\\([\\p{L}\\d]{1,4}\\))?";
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
-  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon), may label a rule: up to 24 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, or before a trailing capital, digit or arrow), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation). A piece of a large brace set at a token's end is no letter of it.",
+  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon), may label a rule: up to 36 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, before a trailing capital, digit or arrow, or before a parenthesised tag), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\", \"<:eq\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation; after a connective, letters all mathematical with no capital among them, or all lowercase in an italic face: ⊕𝜎𝑓, × 1/fps). A piece of a large brace set at a token's end is no letter of it. The size a label is measured against is the text's, or the size most lines of a prose line's length are set in where that is larger.",
   why: "Every label in the corpus is set apart from its rule by a line break or a gap; none runs into prose. \"Cut\", \"(value)\", \"k-var\", \"E Beta\" and \"Definition\" all pass here and are told apart by their setting; Sequent Core's →R and ∀R open with their connective.",
 });
 export const RULE_BAR = rule({
   id: "rule.bar", stage: "rule",
-  summary: "A rule's bar is a horizontal stroke (a path or a thin image) at least two label sizes wide (one and a third, level with the label or under it) with a line under it within its span, not an edge of a box drawn round a form, not an arrow's shaft, not a word's underline, not a stroke inside a paragraph's line, not a figure's or table's caption's rule; one wider than 92% of the text column needs its conclusion centred under it and shorter, or the label level with it and beside it.",
-  why: "Dependent JavaScript paints its bars as thin images; Kind Inference boxes each judgement form and its bottom edge lies right over the labels under it; a rule spanning the page in Kind Inference and Featherweight Go keeps its conclusion centred, while a figure's own rule has its content set from the left.",
+  summary: "A rule's bar is a horizontal stroke (a path, a thin image, or a line of four or more dashes set as text, with digits on it or a star at its end) at least two label sizes wide (one and a third, level with the label or under it) with a line under it within its span, not an edge of a box drawn round a form, not an arrow's shaft, not a word's underline, not a stroke inside a paragraph's line, not a figure's or table's caption's rule; one wider than 92% of the text column needs its conclusion centred under it and shorter, or the label level with it and beside it.",
+  why: "Dependent JavaScript paints its bars as thin images; Iris papers set a bar as a line of dashes in the text; Kind Inference boxes each judgement form and its bottom edge lies right over the labels under it; a rule spanning the page in Kind Inference and Featherweight Go keeps its conclusion centred, while a figure's own rule has its content set from the left.",
 });
 export const RULE_SETTING = rule({
   id: "rule.setting", stage: "rule",
-  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span; or under the conclusion, its edge at the bar's), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, no other bar between, the bar as far down as four leadings; a hyphenated, spaced or bracketed name over one line holding a relation between terms stands over an axiom set without a bar), at the end of a row with no bar (the rest of the row three characters or more and a relation level with the token: an arrow, a turnstile, an equation; a table's row of numbers and a paragraph's words are no rule), or at the text column's right margin. Level with a bar on either side, the token stands on the side most of the paper's other labels do. Under a rule's label found over a bar, a token over the same bar is a premise.",
+  summary: "A token's setting to its bar and to the lines sharing its row is its category: beside the bar (the bar through its middle, the token outside its span; or under the conclusion, its edge at the bar's), over it (on its own line over the premises, aligned with the bar's left edge or middle, the premises within the bar's span, no other bar between, the bar as far down as four leadings; a hyphenated, spaced or bracketed name over one line holding a relation between terms stands over an axiom set without a bar), at the end of a row with no bar (the rest of the row three characters or more and a relation level with the token: an arrow, a turnstile, an equation; a table's row of numbers and a paragraph's words are no rule), or at the text column's right margin. Level with a bar on either side, the token stands on the side most of the paper's other labels do. Under a rule's label found over a bar, a token over the same bar within three leadings of the label, the bar within three and a half, is a premise.",
   why: "Sequent Core sets Cut beside its bar, TypeWhich sets Id's rule, then Const, then its rule on one row (Const is left of its bar, as Id is), Kind Inference k-var over (mathpar) and a-dt-decl over a stack of premises, the Awkward Squad (BIND) at a law's end, Polymorphic Contracts E Op in a column at the margin; \"1 INTRODUCTION\" has nothing on its row but a number.",
 });
 export const RULE_SHAPE_HYPHEN = rule({
   id: "rule.shape.hyphen", stage: "rule",
-  summary: "A hyphenated name: a prefix of up to nine letters (six when all lowercase, or a Greek letter), then one or more parts in any case joined by a hyphen, a colon, a slash or an underscore, a part may end in a sign, and the name in a short parenthesised tag (\"T-App\", \"LT-APP\", \"k-var\", \"S-refl\", \"DEC-<:-BASE\", \"WF-var+\", \"β-reduction\", \"T:Proc\"); Curry-Howard is one by shape and told apart by its setting.",
-  why: "acmart's small capitals reach the text layer in lowercase, so the parts may be in any case; \"call-by-name\" and \"well-typed\" are names by shape and told apart by their setting. Generic Refinement Types ends names in a sign, Hyper Hoare Logic in a quantifier, Ownership Types in a colon.",
+  summary: "A hyphenated name: a prefix of a capital and up to nineteen letters (up to eight when all lowercase, up to four with one or two capitals after them, one or two Greek letters, or one or two connectives), then one or more parts in any case, or of connectives, joined by a hyphen, a colon, a slash or an underscore, a part may end in a sign (a trailing hyphen too), and the name in a short parenthesised tag (\"T-App\", \"LT-APP\", \"k-var\", \"S-refl\", \"DEC-<:-BASE\", \"WF-var+\", \"WF-var-\", \"β-reduction\", \"T:Proc\", \"≤-Base\", \"Sem-⊤\", \"cbncoeff-app\", \"extS-addSk\"); Curry-Howard is one by shape and told apart by its setting.",
+  why: "acmart's small capitals reach the text layer in lowercase, so the parts may be in any case; \"call-by-name\" and \"well-typed\" are names by shape and told apart by their setting. Generic Refinement Types ends names in a sign, Hyper Hoare Logic in a quantifier, Ownership Types in a colon; PACMPL papers since 2024 prefix names with a judgment's whole word (MAInconsistentTypes-C, bigbmix-frame) or a connective (≤-Base) and end parts in one (Sem-⊤, bdg-∂).",
   pattern: new RegExp("^" + RULE_NAME + "$", "u"),
-  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red"],
+  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red", "WF-var-", "MAInconsistentTypes-C", "bigbmix-frame", "cbncoeff-app", "extS-addSk", "Sem-⊤", "≤-Base", "Prf-⊃-Intro", "bdg-∂"],
   rejects: ["T-", "-App", "jump", "T-App:", "(T-App)", "Choice(L)"],
 });
 export const RULE_SHAPE_SPACED = rule({
@@ -257,19 +260,19 @@ export const RULE_SHAPE_SPACED = rule({
 });
 export const RULE_SHAPE_WORD = rule({
   id: "rule.shape.word", stage: "rule",
-  summary: "A single word of two to sixteen letters and digits, with or without a short parenthesised tag (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"A1\", \"Choice(L)\").",
+  summary: "A single word of two to twenty-four letters and digits, with or without a short parenthesised tag, spaced or not (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"MKSRelocationConflict\", \"A1\", \"Choice(L)\", \"LChoice (L)\", \"SeqCompDiv (1)\").",
   why: "Sequent Core, the Awkward Squad and Consistent Subtyping name rules with one word; where it stands decides whether it labels a rule.",
-  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,15}(?:\([\p{L}\d]{1,4}\))?$/u,
-  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)"],
+  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,23}(?: ?\([\p{L}\d]{1,4}\))?$/u,
+  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)", "LChoice (L)", "SeqCompDiv (1)", "MKSRelocationConflict"],
   rejects: ["a", "1", "T-App", "E Beta", "Cut:", "verylongwordthatisnotaname"],
 });
 export const RULE_SHAPE_SYMBOL = rule({
   id: "rule.shape.symbol", stage: "rule",
-  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\"), a connective with a digit or ∞ (\"⋍0\", \"⋍∞\") or a capitalised word (\"∼Empty\"), as sequent calculi and logical relations name their rules.",
-  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞.",
-  pattern: /^(?:[→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<:=×+&∼⋍≃≈≡⊲⊳▷◁]{1,2}(?:[A-Z]{1,3}\d?|\d|∞|\p{Lu}\p{L}{1,11})|[\d⊤⊥][A-Z]{1,3}\d?|[A-Z]{1,2}[→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<:=×+&∼⋍≃≈≡⊲⊳▷◁]{1,2})$/u,
-  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty"],
-  rejects: ["→", "L", "→→→L", "→l", "12", "∞"],
+  summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), or one or two capitals and a connective (\"L→\"), as sequent calculi and logical relations name their rules.",
+  why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation.",
+  pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2})$", "u"),
+  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V"],
+  rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
 export const RULE_NAME_BESIDE = rule({
   id: "rule.name.beside", stage: "rule",
@@ -288,8 +291,8 @@ export const RULE_NAME_ROW = rule({
 });
 export const RULE_NAME_MARGIN = rule({
   id: "rule.name.margin", stage: "rule",
-  summary: "At the margin, a name is hyphenated or spaced; a bracketed word there heads a group of rules or labels an example.",
-  why: "E Op, E Beta in a column at the margin; (Kinding) at the margin over the kinding rules and (C1) beside an example are not cited as rules.",
+  summary: "At the margin, a name is hyphenated, spaced, or a word in square brackets; a parenthesised word there heads a group of rules or labels an example.",
+  why: "E Op, E Beta in a column at the margin; [Int] and [Var] at the margin of a typing rule set as one line; (Kinding) at the margin over the kinding rules and (C1) beside an example are not cited as rules.",
 });
 export const RULE_NAME_LETTERS = rule({
   id: "rule.name.letters", stage: "rule",
@@ -298,13 +301,13 @@ export const RULE_NAME_LETTERS = rule({
 });
 export const RULE_CONVENTION = rule({
   id: "rule.convention", stage: "rule",
-  summary: "Labels sharing a category, side, bracket style, faces (of the name itself) and size are a paper's convention. A single-word label (or a spaced name ending in a digit or an arrow) stands only where the text cites it in the form its setting allows, or in a convention of two or more of which the text cites one, or in a convention two hyphenated, spaced or symbol names share; those stand alone.",
-  why: "Sequent Core sets Cut, Case and Jump the same way beside their bars and cites Cut; Definition in a table's header stands alone and is never cited; a benchmark table's headers, a plot's legend and a diagram's labels are set alike by the dozen, and none is ever cited as a rule.",
+  summary: "Labels sharing a category, side, bracket style, faces (of the name itself) and size are a paper's convention. A single-word label (or a spaced name ending in a digit or an arrow) stands only where the text cites it in the form its setting allows, or in a convention of two or more of which the text cites one, or in a convention two hyphenated, spaced or symbol names share; those stand alone. In a paper of rules — eight or more hyphenated, spaced or symbol names at bars — a bare word at a bar in the face and size two of those names share stands; so does a camelCase word at a bar in a convention of five.",
+  why: "Sequent Core sets Cut, Case and Jump the same way beside their bars and cites Cut; Definition in a table's header stands alone and is never cited; a benchmark table's headers, a plot's legend and a diagram's labels are set alike by the dozen, and none is ever cited as a rule. Iris and separation logic papers set Löb, Work and LET among dozens of hyphenated names and never cite them by name; Hazelnut sets its camelCase names by the dozen and cites none.",
 });
 export const RULE_HEADING = rule({
   id: "rule.heading", stage: "rule",
-  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example. Neither names a rule.",
-  why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin.",
+  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma); a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar. None names a rule.",
+  why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin; \"(Reduction)\" stands in italics over R-Proj2Beta's rule; omit_all_labels(t) is a listing's line over an example.",
 });
 export const RULE_DERIVATION = rule({
   id: "rule.derivation", stage: "rule",
