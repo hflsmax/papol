@@ -46,8 +46,10 @@ export function floatMarks(floats = [], shown = NAV_SHOWN, pages = 0) {
       // its number.
       name: PRINTED[float.kind] ? `${PRINTED[float.kind]} ${float.label}` : float.label,
       page: float.page,
-      // A float's box is measured from the top of its page.
-      at: positionOf(float.page, 1 - float.y),
+      // At the middle of its box (measured from the top of its page): a
+      // press on the mark brings that middle to the middle of the window,
+      // so the figure stands centred and the marker stands on the mark.
+      at: positionOf(float.page, 1 - float.y - (float.h ?? 0) / 2),
     }))
     .filter((mark) => mark.at >= 0 && (!pages || mark.at < pages))
     .sort((a, b) => a.at - b.at);

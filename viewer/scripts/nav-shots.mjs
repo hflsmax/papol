@@ -7,7 +7,7 @@ import { PAPER, viewerServer } from './fixtures/projectViewer.mjs';
 // PAPOL_FIXTURE_PDF to it and PAPOL_FIXTURE_TITLE to its title): the bar as
 // it opens, with the default kinds; the gear's choices open; and the bar
 // with every kind turned on. Each is the bar alone, cut from the window,
-// and the window whole.
+// and the window whole. Last, the window after a press on a figure's mark.
 //
 //   PAPOL_FIXTURE_PDF=paper.pdf node scripts/nav-shots.mjs <out dir> [width]
 const settled = "document.fonts.ready.then(() => new Promise((done) => setTimeout(done, 500)))";
@@ -50,6 +50,10 @@ try {
   await shoot('choices-all', { tall: 290 });
   await browser.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return true;");
   await shoot('bar-all');
+  // A press on a figure's mark: the figure comes to the middle of the window.
+  await browser.evaluate("const f = [...document.querySelectorAll('.navigator-sub[data-kind=figure]')]; f[Math.min(2, f.length - 1)].click(); return true;");
+  await browser.evaluate('return new Promise((done) => setTimeout(done, 1500));');
+  await shoot('figure-pressed', { bar: false });
 } finally {
   await browser.stop();
   await server.close();
