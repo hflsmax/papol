@@ -227,6 +227,31 @@ describe("the paper", () => {
     assert.deepEqual(mentions, [["DUAL", 52], ["(dual)", 67], ["dual", 82]]);
   });
 
+  it("links a bracketed word in capitals listed with a hyphenated name's citation", async () => {
+    // "(STORE, LOAD-G)": LOAD-G is cited by its shape, and STORE, set off
+    // from it by a comma, with it, though no "rule" stands near.
+    const pdf = writtenPdf([
+      [60, 740, "Values move to and from main memory (STORE, LOAD-G) as the thread runs."],
+      [100, 600, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 596 m 200 596 l S",
+      [110, 585, "G |- x := v"],
+      [210, 592, "(STORE)", 8],
+      [100, 540, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 536 m 200 536 l S",
+      [110, 525, "G |- v := x"],
+      [210, 532, "(LOAD-G)", 8],
+      [300, 600, "b is empty"],
+      "0 0 0 RG 0.4 w 300 596 m 380 596 l S",
+      [310, 585, "G |- fence"],
+      [390, 592, "(FENCE)", 8],
+    ]);
+    const body = (await analyzeWithRules(pdf)).analysis;
+    const rules = body.floats.filter((f) => f.kind === "rule");
+    assert.deepEqual(rules.map((r) => r.label).sort(), ["FENCE", "LOAD-G", "STORE"]);
+    const named = (key) => rules.find((r) => r.key === key).label;
+    assert.deepEqual(body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [named(l.float), l.label]), [["STORE", "STORE"], ["LOAD-G", "LOAD-G"]]);
+  });
+
   it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {
     // Small capitals from a text font reach the text layer in lowercase
     // ("s-refl"); Sequent Core names its rules with a bare word beside
