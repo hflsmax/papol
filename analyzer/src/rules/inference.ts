@@ -24,10 +24,10 @@ import { typeOf, type Found, type Type } from "./floats";
 import { BIG_OPERATOR, boxesOf, type Flow, type Layout, type Line } from "./layout";
 import type { Drawn } from "./page";
 import {
-  RULE_CONNECTIVES,
+  RULE_CONNECTIVES, RULE_MODALITIES,
   RULE_BAR,
   RULE_BOX, RULE_CANDIDATE, RULE_CELL, RULE_CONVENTION, RULE_DERIVATION, RULE_HEADING, RULE_MENTION, RULE_NAME_BESIDE, RULE_NAME_LETTERS,
-  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_SHAPE_SHORT, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_TITLE, RULE_SHAPE_WORD,
+  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_PHRASE_AT_BAR, RULE_SHAPE_SHORT, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_TITLE, RULE_SHAPE_WORD,
 } from "./registry";
 import type { Trace } from "./trace";
 
@@ -92,11 +92,12 @@ interface Token {
 const CAP = "A-Z\\u{1D400}-\\u{1D419}\\u{1D434}-\\u{1D44D}\\u{1D468}-\\u{1D481}";
 const GREEK = "\\p{Script=Greek}\\u{1D6A8}-\\u{1D7CB}";
 const CONNECTIVE = RULE_CONNECTIVES;
+const MODAL = RULE_MODALITIES;
 // Mathematical partials (𝜕, bold and sans too) fold to the connective ∂
 // (bdg-𝜕 in a POPL paper's text layer).
 const PARTIAL = "\\u{1D6DB}\\u{1D715}\\u{1D74F}\\u{1D789}\\u{1D7C3}";
 const MATH_LOWER = "\\u{1D44E}-\\u{1D467}";
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${PARTIAL}~*∗|/_\\-‐‑–−∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}])|[${CONNECTIVE}${MODAL}]{1,2} ?(?=-[\\p{L}${CONNECTIVE}${MODAL}↑↓])|⟨\\p{Ll}{1,8}⟩(?=-\\p{L}))(?:[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${MODAL}${PARTIAL}~*∗|/_\\-‐‑–−∞]|\\{\\}){0,35}(?:#\\d{1,2})?[+−±†‡♠♣♦★?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?)| \\[[A-Z]{1,2}\\])?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 // A line of capitalised words, a name set in small capitals whose
@@ -111,7 +112,9 @@ const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\
 // plain ones (×𝑇 is ×T, 𝜂-Red is η-Red).
 // A minus sign joins a name's parts as a hyphen does, an asterisk operator
 // marks it as an asterisk (Hyper Hoare Logic's While−∀∗∃∗, cited While-∀*∃*).
-const fold = (text: string) => text.normalize("NFKC").replace(/−/g, "-").replace(/∗/g, "*");
+// A connective opening a name may stand a space from its hyphen, as its
+// glyph's width leaves it (a refinement-reflection paper's ⇒ -I).
+const fold = (text: string) => text.normalize("NFKC").replace(/−/g, "-").replace(/∗/g, "*").replace(/(?<=\p{L}) - (?=\p{L})/gu, "-").replace(new RegExp(`^([${CONNECTIVE}${MODAL}]{1,2}) (?=-)`, "u"), "$1");
 
 // Where a character of a line begins and ends across the page.
 function edgesOf(line: Line, char: number): [number, number] | null {
@@ -163,8 +166,39 @@ const SYMBOLIC = /stmary|symbol|txsy|cmsy|msam|msbm|esint|wasy|rsfs|MnSymbol/i;
 // is a variable, not a rule's side.
 const ITALIC = /italic|ital|cmmi|lmmi|(?:T|M|-)I\d*$|-It$|Italic/i;
 
+// A PDF that gives no Unicode for a TeX symbol font's glyphs leaves
+// their codes in the text: stmary's □ and ⊡ reach it as control
+// characters (MoSeL's □-mono, ⊡-intro), cmsy's ≼ likewise (≼-BASE in
+// Refinement Types for Haskell). lasy's □ and cmmi's ▷ come out as the
+// digit and the stop in their place (a relational modal logic's 2-INTRO
+// and .-MONO), so those are glyphs only where they open a word before a
+// hyphen. A label reads them all as the glyphs they are.
+const GLYPHS: { face: RegExp; map: Record<string, string>; opening: boolean }[] = [
+  { face: /stmary/i, map: { "\u0018": "⊛", "\u001a": "⊡", "\u001f": "□" }, opening: false },
+  { face: /cmsy/i, map: { "\u0014": "≤", "\u0015": "≥", "\u0016": "≼", "\u0017": "≽" }, opening: false },
+  { face: /lasy/i, map: { "2": "□", "3": "◇" }, opening: true },
+  { face: /cmmi/i, map: { ".": "▷", "/": "◁" }, opening: true },
+];
+function glyphsOf(line: Line): string {
+  const glyph = (i: number) => {
+    const ref = line.chars[i];
+    const font = ref && ref.run >= 0 ? line.runs[ref.run].font : "";
+    return GLYPHS.find((g) => g.face.test(font) && g.map[line.text[i]]);
+  };
+  const out = line.text.split("");
+  for (let i = 0; i < out.length;) {
+    let j = i;
+    while (j < out.length && glyph(j)) j += 1;
+    const run = Array.from({ length: j - i }, (_, k) => glyph(i + k)!);
+    const opening = (i === 0 || /[\s([]/u.test(line.text[i - 1])) && line.text[j] === "-";
+    if (run.length && (opening || run.every((g) => !g.opening))) run.forEach((g, k) => { out[i + k] = g.map[line.text[i + k]]; });
+    i = Math.max(j, i + 1);
+  }
+  return out.join("");
+}
+
 function tokenOf(line: Line, column = false, titles = false): Token | null {
-  const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
+  const text = glyphsOf(line).split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
   const found = (match: RegExpExecArray | null, side: Token["side"]): Token | null => {
     if (!match?.groups) return null;
     const { open, close } = match.groups;
@@ -195,7 +229,11 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // In brackets making up its line, one such capital with its number
     // tags a row as its name ("(𝑅1)", "(𝐹 )" heading reductions).
     const tag = side === "whole" && Boolean(open) && new RegExp(`^[${CAP}]\\d{0,2}$`, "u").test(token);
-    if (/^\p{L}/u.test(token) && !tag && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
+    // In brackets, one hyphened to a connective names a rule after the
+    // types it relates, however its letters are set ("(𝜇-<:-𝜇)", a DOT
+    // paper's subtyping of recursive types).
+    const related = Boolean(open) && new RegExp(`^(?:\\p{L}{1,2}-[${CONNECTIVE}]|[${CONNECTIVE}]{1,2}-\\p{L}{1,2}$)`, "u").test(token);
+    if (/^\p{L}/u.test(token) && !tag && !related && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
     if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
     // not a name; in brackets too where the index is set as a subscript
@@ -215,7 +253,7 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // One opening with a connective whose letters are all mathematical
     // alphanumerics with no capital among them (⊕𝜎𝑓, ¬𝜑), or all set in
     // an italic face (× 1/fps), is a formula: ×𝑇 and <:eq open otherwise.
-    if (new RegExp(`^[${CONNECTIVE}]`, "u").test(token)) {
+    if (!related && new RegExp(`^[${CONNECTIVE}]`, "u").test(token)) {
       const letters = [...token.matchAll(/\p{L}/gu)];
       if (letters.length && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, "")) && !new RegExp(`[${CAP}]`, "u").test(token)) return null;
       if (letters.length && letters.every((m) => /[a-z]/.test(m[0]) && ITALIC.test(font(start + m.index!)))) return null;
@@ -239,10 +277,13 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
 }
 
 // A bracketed phrase making up its line ("(Sequential composition)"):
-// a label only in a column of labels set alike (rule.shape.phrase).
-function phraseOf(line: Line): Token | null {
+// a label only in a column of labels set alike (rule.shape.phrase). At
+// a bar, words in any case, a colon after the first, or a name spaced
+// round its hyphen ("(MEMORY: NEW)", "(call parameter)",
+// "(Transform − single)").
+function phraseOf(line: Line, bar = false): Token | null {
   const match = /^\s*\((?<token>[^()]+)\)\s*$/u.exec(line.text);
-  if (!match?.groups || !PHRASE.test(match.groups.token)) return null;
+  if (!match?.groups || !(PHRASE.test(match.groups.token) || (bar && (BAR_PHRASE.test(match.groups.token) || /\s/u.test(match.groups.token) && HYPHEN.test(fold(match.groups.token)))))) return null;
   const start = line.text.indexOf(match.groups.token);
   return { text: match.groups.token, bracketed: true, square: false, colon: false, side: "whole", start, end: start + match.groups.token.length };
 }
@@ -1136,6 +1177,7 @@ const SPACED = RULE_SHAPE_SPACED.pattern!;
 const WORD = RULE_SHAPE_WORD.pattern!;
 const SYMBOL = RULE_SHAPE_SYMBOL.pattern!;
 const PHRASE = RULE_SHAPE_PHRASE.pattern!;
+const BAR_PHRASE = RULE_PHRASE_AT_BAR;
 const SHORT = RULE_SHAPE_SHORT.pattern!;
 const TITLE = RULE_SHAPE_TITLE.pattern!;
 
@@ -1147,7 +1189,7 @@ function shapeOf(text: string, bracketed = false): Shape | null {
   if (WORD.test(text)) return "word";
   if (SYMBOL.test(text)) return "symbol";
   if (!bracketed && TITLE.test(text)) return "title";
-  if (PHRASE.test(text)) return "phrase";
+  if (PHRASE.test(text) || (bracketed && BAR_PHRASE.test(text))) return "phrase";
   return null;
 }
 
@@ -1205,7 +1247,7 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
   // Capitalised words name a rule only beside its bar: over one they head
   // a group of rules or a table's rows ("Well-formed Type", "Prior Work"),
   // at a row or the margin a figure's group (rule.shape.title).
-  if (shape === "title" && category !== "beside") return null;
+  if (shape === "title" && category !== "beside" && category !== "over") return null;
   switch (category) {
     case "beside":
       return RULE_NAME_BESIDE.id;
@@ -1275,7 +1317,7 @@ interface Candidate { line: Line; page: Page; token: Token; shape: Shape; settin
 
 // A weak label — a single word — stands only where the paper sets two or
 // more labels the same way, or where the text cites it (rule.convention).
-const weak = (c: Candidate) => c.shape === "word" || c.shape === "short" || c.shape === "title" || (c.shape === "spaced" && new RegExp(`^(?:[${MATH_LOWER}]|[${GREEK}] \\p{Ll})`, "u").test(c.token.text)) || (c.shape === "spaced" && /[\d↓↑]$/u.test(c.token.text));
+const weak = (c: Candidate) => c.shape === "word" || (c.shape === "phrase" && Boolean(c.setting.bar)) || c.shape === "short" || c.shape === "title" || (c.shape === "spaced" && new RegExp(`^(?:[${MATH_LOWER}]|[${GREEK}] \\p{Ll})`, "u").test(c.token.text)) || (c.shape === "spaced" && /[\d↓↑]$/u.test(c.token.text));
 
 // ------------------------------------------------------------ pass 6: boxes
 
@@ -1671,10 +1713,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line, false, true) ?? shortOf(line, false, true);
+      const named = tokenOf(line, false, true) ?? shortOf(line, false, true);
+      // A bracketed phrase stands only at a bar (rule.shape.phrase).
+      const phrase = named ? null : phraseOf(line, true);
+      const token = named ?? phrase;
       // A lone letter or digit in brackets counts only beside a bar
       // (shortShape): elsewhere it tags an item or an equation.
       const setting = token && settingOf(page, line, token, type);
+      if (phrase && !setting?.bar) continue;
       if (token && setting && (!token.bracketed || mathCapital(token) || !/^[A-Za-z\d]$/.test(notation(line, token)) || (setting.category === "beside" && setting.bar))) seen.push({ page, line, token, setting });
     }
   }
@@ -1767,7 +1813,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥↑↓★□◇⊡*]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
@@ -1833,6 +1879,15 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       && o.setting.category === "over" && o.setting.bar === c.setting.bar && o.line.top > c.line.top);
   for (const c of candidates) if (heading(c)) trace.add(RULE_HEADING.id, c.page.number, `${c.token.text} heading`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !heading(c));
+  // Capitalised words over a bar name its rule only where two more labels
+  // on the page, no titles, are set over their bars as they are (Angelic
+  // Recursion and Switch Left among Init, Unit and Pair); over rules
+  // labelled otherwise they head a group ("Well-formed Type") or a table
+  // ("Prior Work") (rule.shape.title).
+  const grouping = (c: Candidate) => c.shape === "title" && c.setting.category === "over"
+    && candidates.filter((o) => o !== c && o.page === c.page && o.shape !== "title" && o.setting.category === "over" && Boolean(o.setting.bar) && o.convention === c.convention).length < 2;
+  for (const c of candidates) if (grouping(c)) trace.add(RULE_HEADING.id, c.page.number, `${c.token.text} heading`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => !grouping(c));
   // A word in parentheses at the margin names a rule only among hyphenated
   // names set so ("(send)" by "(relay-in)"); alone it heads a judgment's
   // form ("(Matching)" by "σ ⊲ σ1 → σ2").
@@ -1965,8 +2020,15 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const set: { lines: Line[] } = { lines: [] };
     const box = boxAt(c.page, c.line, c.setting, set);
     const boxes = at(c.page, c.line, box);
-    if (weak(c) && !established(c) && !columned.has(c) && (((conventions.get(c.convention) ?? 0) < 2 && (strong.get(c.convention) ?? 0) < 2) || !confirmed.has(c.convention))
-      && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, labels, faceOf(c.line, c.token), type)) {
+    // A phrase at a bar stands only where two more labels stand at bars
+    // on its page, bracketed, on its side and at its size ("(MEMORY: NEW)"
+    // among "(READ-HELPER)" and "(PROMISE)", "(THREAD: READ)" among
+    // "(THREAD: WRITE)" and "(MACHINE STEP)", whatever their face): cited
+    // or not, one alone titles a judgment ("(Kind Elaboration)" by "⊢ 𝜅 ⇝ 𝐾").
+    const phrased = c.shape === "phrase" && Boolean(c.setting.bar) && candidates.filter((o) => o !== c && o.page === c.page && o.token.bracketed && Boolean(o.setting.bar)
+      && o.setting.category === c.setting.category && o.setting.side === c.setting.side && Math.abs(o.line.size - c.line.size) <= 0.5).length < 2;
+    if (phrased || (weak(c) && !established(c) && !columned.has(c) && (((conventions.get(c.convention) ?? 0) < 2 && (strong.get(c.convention) ?? 0) < 2) || !confirmed.has(c.convention))
+      && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, labels, faceOf(c.line, c.token), type))) {
       trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, boxes);
       continue;
     }
