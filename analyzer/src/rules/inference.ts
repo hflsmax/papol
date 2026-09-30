@@ -144,14 +144,15 @@ function tokenOf(line: Line, column = false): Token | null {
     // A letter in it, unless it opens with a connective (⋍0); not a
     // number or a citation.
     if ((!/\p{L}/u.test(token) && !new RegExp(`^[${CONNECTIVE}]`, "u").test(token)) || /^\d+$/.test(token) || /^[A-Z][A-Za-z]*\d{2,4}[a-z]?$/.test(token)) return null;
-    // One opening with a letter whose letters are all mathematical
-    // alphanumerics is a formula (𝑒0, 𝜇𝐹); ×𝑇 and 1𝐼 open otherwise.
-    if (/^\p{L}/u.test(token) && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
     const start = match.index + match[0].indexOf(token);
     const font = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run].font : "");
-    // A letter from a symbol font is a glyph the PDF maps wrong (txsyc's
-    // "F" is ⩴), so a token holding one is a formula.
-    if ([...token.matchAll(/\p{L}/gu)].some((m) => SYMBOLIC.test(font(start + m.index!)))) return null;
+    // One opening with a letter whose letters are all mathematical
+    // alphanumerics is a formula (𝑒0, 𝜇𝐹); ×𝑇 and 1𝐼 open otherwise. A
+    // letter from a symbol font is a glyph the PDF maps wrong, no letter
+    // ("𝐴𝑏 F", txsyc's F being ⩴).
+    const plain = [...token].map((c, i, all) => (SYMBOLIC.test(font(start + all.slice(0, i).join("").length)) ? " " : c)).join("");
+    if (/^\p{L}/u.test(token) && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
+    if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
     // not a name.
     if (!open && /^\p{L}{1,2}\d*['′]*$/u.test(token) && [...token].every((c, i) => !/\p{L}/u.test(c) || ITALIC.test(font(start + i)))) return null;
@@ -487,6 +488,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // its premise's overline (LIST's "‾Δ ⊢ Aᵢ : K‾").
       const bare = !lines.some((l) => l !== label && l.bottom <= bar.y + 1 && l.bottom >= bar.y - type.leading && l.x0 < bar.x + bar.w && l.x1 > bar.x);
       if (!right && bare && stepInto(page, bar, lines, type, slack)) continue;
+      // Two sizes or more from the label, a stroke past a bar just under
+      // the label spanning it is another rule's: the label stands over
+      // that bar (M-Interface beside M-Struct's "‾η ⊢ τ ↦ t†‾").
+      const far = (right ? label.x0 - bar.x - bar.w : bar.x - label.x1) >= 2 * label.size;
+      if (far && page.drawn.some((d) => d !== bar && across(d) && !framed(page, d) && d.y > label.bottom - 1 && d.y - label.bottom <= 2 * type.leading && d.x <= label.x0 + slack && d.x + d.w >= label.x1)) continue;
       beside.push({ category: "beside", bar, row, side: right ? "right" : "left", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     }
   }
@@ -544,9 +550,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // listing's lines run past a rule drawn under it.
     const between = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.bottom <= bar.y + 1 && spans(l));
     const overhangs = between.some((l) => !fits(l)) || concluding.some((l) => !fits(l));
-    // A hyphenated, spaced or symbol name between them labels the bar
-    // itself: the label over it heads the group ("Implements" over <:-Param).
-    const relabelled = between.some((l) => { const t = tokenOf(l); return t?.side === "whole" && ["hyphen", "spaced", "symbol"].includes(shapeOf(fold(t.text)) ?? ""); });
+    // A hyphenated, spaced or symbol name between them, set smaller than
+    // the label, labels the bar itself: the label over it heads the group
+    // ("Implements" over <:-Param; a premise "strongly-stuck(e)" is set
+    // as the text is).
+    const relabelled = between.some((l) => { const t = tokenOf(l); return t?.side === "whole" && l.size < label.size - 0.5 && ["hyphen", "spaced", "symbol"].includes(shapeOf(fold(t.text)) ?? ""); });
     // No other bar between the label and this one spans the label, but a
     // premise's own: the label is that rule's, or its premise.
     const barred = page.drawn.some((d) => d !== bar && across(d) && main(d) !== bar && !overline(page, d, type) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y && d.x < label.x1 && d.x + d.w > label.x0
@@ -753,12 +761,17 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     for (const l of setting.row) taken.add(l);
     x0 = Math.min(...[...taken].map((l) => l.x0)); x1 = Math.max(...[...taken].map((l) => l.x1));
   }
+  // Past the conclusion, a line over another label's bar is that rule's
+  // premise (Assign's over Access's conclusion), unless it opens with a
+  // relation: the conclusion broken over two lines (Define's "→ ⟨body…⟩").
+  const beyond = (l: Line) => Boolean(bar) && l.top > bar!.y + 0.8 * type.leading && !/^\s*[→⟶⇒↦=≡⊢]/u.test(l.text)
+    && bars.some((d) => d.y > l.bottom && d.y - l.bottom <= 2 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size);
   // A label over a tall stack of premises reaches its bar's conclusion.
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
-      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label)) continue;
+      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line)) continue;
       if ([...taken].some((t) => level(t, line))) { taken.add(line); grew = true; }
     }
   }

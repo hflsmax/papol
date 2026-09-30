@@ -529,9 +529,11 @@
     ]
   },
   "kokke-oopsla20": {
-    "rules": 68,
-    "mentions": 11,
+    "rules": 71,
+    "mentions": 9,
     "names": [
+      "<:-formals",
+      "<:-param",
       "<:𝐼",
       "<:𝐼",
       "<:𝑆",
@@ -542,7 +544,6 @@
       "I-literal",
       "I-prog",
       "I-var",
-      "Implements",
       "m-assert",
       "m-call",
       "m-func",
@@ -572,6 +573,8 @@
       "r-field",
       "t-actual",
       "t-assert𝐼",
+      "t-assert𝐼",
+      "t-assert𝑆",
       "t-assert𝑆",
       "t-call",
       "t-call",
@@ -707,9 +710,10 @@
     ]
   },
   "liquid_types": {
-    "rules": 16,
+    "rules": 17,
     "mentions": 13,
     "names": [
+      "<:-POLY",
       "DEC-<:-BASE",
       "DEC-<:-FUN",
       "LT-APP",

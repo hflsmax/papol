@@ -321,7 +321,7 @@ export const RULE_CONVENTION = rule({
 });
 export const RULE_HEADING = rule({
   id: "rule.heading", stage: "rule",
-  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar, or with one set as three times as many of the paper's labels are. None names a rule.",
+  summary: "A token level with a grammar production (::=, or a | alternative under one) comments the production; a bare token set in a listing's monospace face is code (a bracketed one names a lemma), unless the paper sets five or more labels at bars in that face; a bracketed word at the margin with only a form level with it heads a group of rules or labels an example, as does a bare word over a bar with a hyphenated, spaced or symbol name between it and the bar, or with one set as three times as many of the paper's labels are. None names a rule. A hyphenated, spaced or symbol name set smaller than a label, between it and the bar under it, labels that bar; the label over it heads the group (\"Implements\" over <:-Param).",
   why: "\"(value)\" beside \"e ::= v\", \"(Kinding)\" at the margin right of \"Σ ⊢ τ : κ\" and \"(C1)\" beside an example are not cited as rules; \"(BIND)\" stands at the right of a law set in from the margin; \"(Reduction)\" stands in italics over R-Proj2Beta's rule, \"All\" underlined over allEmpty; omit_all_labels(t) is a listing's line over an example.",
 });
 export const RULE_DERIVATION = rule({
@@ -331,7 +331,7 @@ export const RULE_DERIVATION = rule({
 });
 export const RULE_CELL = rule({
   id: "rule.cell", stage: "rule",
-  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's.",
+  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's. An upright closed at both ends by strokes across is a judgment's box, not a wall, unless those strokes close three uprights or more: a grid's row (ticks and \"n/a\" in a table of formats).",
   why: "Program, Line, Char over a table's rule; \"——— Structural ———\" between groups of rules, while [fvar] has a gap before the next rule's bar; (base) and (offset) in a ruled table's cell.",
 });
 export const RULE_BOX = rule({
