@@ -22,6 +22,9 @@ const desk = (tab, settled, then = null, search = '') => ({
   then: `document.getElementById('project-tab-${tab}').click(); ${then ?? 'return true;'}`,
   settled: `document.querySelector('${settled}')`,
 });
+// The desk left for a board's jacket; or, where a click leads nowhere, what
+// the window shows a moment later.
+const boardLeft = "!document.querySelector('.project-page') && (document.querySelector('.board-jacket-heading') || performance.now() - (window.boardLeftAt ||= performance.now()) > 1500)";
 // Words for a dig written in the pictures.
 const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunning with 1.3 frames before we tune anything.';
 // A PDF dropped on the window, as the browser hands one over.
@@ -32,6 +35,9 @@ const SHOTS = {
   'desk-description': { ...desk('papers', '.project-description-input:focus', "document.querySelector('.project-description-input').focus(); return true;"), size: wide },
   'desk-boards': { ...desk('boards', '.project-board'), size: wide },
   'desk-digs': { ...desk('digs', '.project-talk-item'), size: wide },
+  // A board picked in the Boards tab, and where it leads: its jacket.
+  'board-click': { ...desk('boards', '.project-board', "const go = () => { const b = document.querySelector('.project-board-link'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;"), settled: boardLeft, size: wide },
+  'mac-board-click': { ...desk('boards', '.project-board', "const go = () => { const b = document.querySelector('.project-board-link'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=desktop'), settled: boardLeft, size: wide },
   // The Digs tab with its stashed band unfolded.
   'desk-digs-stashed': { ...desk('digs', '.project-talk-band.is-stashed .project-talk-item', "const go = () => { const b = document.querySelector('.project-talk-band.is-stashed .project-talk-band-head'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;"), size: wide },
   // The open dig's phase, pressed.

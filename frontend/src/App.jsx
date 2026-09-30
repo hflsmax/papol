@@ -120,6 +120,9 @@ function openBoard(uuid) {
   navigate(`/board/${uuid}`);
 }
 
+// Paths served by the board canvas and the PDF viewer, not by this app.
+const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
+
 // On the web every thing has one path (frontend/DESIGN.md, Navigation), and
 // a signed-in member sees these ones inside their nook, beside its rail.
 const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
@@ -655,6 +658,9 @@ export default function App({ startupUser = null, startupError = null }) {
     const destination = new URL(href, window.location.origin);
     if (destination.origin !== window.location.origin) return;
     const routePath = stripAppBase(destination.pathname);
+    // The canvas and the viewer are applications of their own: the browser
+    // goes there, as it would from any page.
+    if (OTHER_APPLICATIONS.some((prefix) => routePath.startsWith(prefix))) return;
     event.preventDefault();
     navigate(`${routePath}${destination.search}`);
   };
@@ -753,6 +759,7 @@ export default function App({ startupUser = null, startupError = null }) {
                 currentUser={user}
                 onChanged={() => setProjectsRevision((r) => r + 1)}
                 onLeft={() => navigate('/', { replace: true })}
+                onOpenBoard={openBoard}
               />
             )}
             onOpenProject={(uuid) => {
@@ -846,6 +853,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
+          onOpenBoard={openBoard}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
         />
       )}
