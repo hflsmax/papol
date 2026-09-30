@@ -243,9 +243,10 @@ export const SCENES = {
       for (const [i, rule] of ['T-Var', 'T-Abs', 'T-App'].entries()) {
         await stage.click(ruleLink(8, rule, 1), { ms: 450, modifiers: 4 });
         await stage.waitFor(`document.querySelectorAll('.paper-clip:not(.peek)').length === ${i + 1}`, { timeout: 10_000 });
-        // The rule shown on hover sits over the kept clip until the pointer
-        // leaves the name.
-        await stage.move({ x: 1000, y: 300 }, { ms: 250 });
+        // The rule shown on hover sits over the kept clip while the pointer
+        // is on the name: a nudge past the end of the name lets it go, and
+        // the pointer goes from there down to the clip.
+        await stage.move({ x: stage.at.x + 34, y: stage.at.y + 4 }, { ms: 150 });
         await stage.waitFor('!document.querySelector(".paper-clip.peek")', { timeout: 10_000 });
         await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.peek)')].at(-1);`, places[i], { ms: 450 });
       }

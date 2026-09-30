@@ -29,7 +29,7 @@ and `]` to go there again.
 its name, so it stays with you as you read the proof. Drag clips to arrange
 them.
 
-![⌘ clicking T-Var, T-Abs and T-App keeps each rule as a clip, set side by side under the line](https://files.papol.io/admin/9be683b7f0c1542ebc7973bb88e227788f5342c076792e4febc0b566b93b2687.gif)
+![⌘ clicking T-Var, T-Abs and T-App keeps each rule as a clip, set side by side under the line](https://files.papol.io/admin/6acb7d305fca5c813f654274378b14539b564428987581a1b205ab5eb3c4e765.gif)
 
 Telescoping is live on papol.io today, and in the latest Papol for Mac.
 
