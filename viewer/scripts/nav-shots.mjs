@@ -7,7 +7,8 @@ import { PAPER, viewerServer } from './fixtures/projectViewer.mjs';
 // PAPOL_FIXTURE_PDF to it and PAPOL_FIXTURE_TITLE to its title): the bar as
 // it opens, with the default kinds; the gear's choices open; and the bar
 // with every kind turned on. Each is the bar alone, cut from the window,
-// and the window whole. Last, the window after a press on a figure's mark.
+// and the window whole. Last, the window after a press on a figure's mark, and
+// that mark's name under the pointer.
 //
 //   PAPOL_FIXTURE_PDF=paper.pdf node scripts/nav-shots.mjs <out dir> [width]
 const settled = "document.fonts.ready.then(() => new Promise((done) => setTimeout(done, 500)))";
@@ -54,6 +55,10 @@ try {
   await browser.evaluate("const f = [...document.querySelectorAll('.navigator-sub[data-kind=figure]')]; f[Math.min(2, f.length - 1)].click(); return true;");
   await browser.evaluate('return new Promise((done) => setTimeout(done, 1500));');
   await shoot('figure-pressed', { bar: false });
+  // The pointer resting on that mark: its name, number and caption.
+  const at = await browser.evaluate("const f = [...document.querySelectorAll('.navigator-sub[data-kind=figure]')]; const r = f[Math.min(2, f.length - 1)].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };");
+  await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+  await shoot('figure-tip', { tall: 40 });
 } finally {
   await browser.stop();
   await server.close();

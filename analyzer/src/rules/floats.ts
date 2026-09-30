@@ -3,6 +3,7 @@
 
 import { least, most } from "./numbers";
 import type { DocumentLink, Float } from "../../../cloudflare/src/papers/reading";
+import { captionTitle } from "./title";
 import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
@@ -656,13 +657,14 @@ export function findFloats(layout: Layout, trace: Trace): Map<string, Found> {
       extents[i] = { rect: overleaf[i], rule: FLOAT_CAPTION_OVERLEAF.id, fixed: true };
     }
     found.forEach(({ kind, number, line }, i) => {
+      const title = captionTitle(paragraphs[i].map((l) => l.text), number);
       // A little room around it, so an outline drawn at its edge does not
       // run through the outermost letters.
       const { rect: exact, rule: sized } = extents[i];
       const on = overleaf[i]?.on ?? page;
       const rect = { x0: Math.max(0, exact.x0 - PAD), y0: Math.max(0, exact.y0 - PAD), x1: Math.min(on.width, exact.x1 + PAD), y1: Math.min(on.height, exact.y1 + PAD) };
       const box = { page: on.number, x: rect.x0 / on.width, y: rect.y0 / on.height, w: (rect.x1 - rect.x0) / on.width, h: (rect.y1 - rect.y0) / on.height };
-      floats.set(keyOf(kind, number), { key: `f${floats.size}`, kind, label: number, caption: line, ...box });
+      floats.set(keyOf(kind, number), { key: `f${floats.size}`, kind, label: number, ...(title ? { title } : {}), caption: line, ...box });
       trace.add(sized, on.number, `${kind} ${number}`, [box]);
     });
     before = { page, ground, claimed: extents.filter((e, i) => e && !overleaf[i]).map((e) => e.rect), taken };

@@ -8,6 +8,7 @@
 import type { Found } from "./floats";
 import type { Layout, Line } from "./layout";
 import { STATEMENT_LEAD } from "./registry";
+import { briefly, joined } from "./title";
 import type { Trace } from "./trace";
 
 type Page = Layout["pages"][number];
@@ -86,7 +87,7 @@ export function findStatements(layout: Layout, skip: Set<Line>, floats: Iterable
       // words open with as often as with a word ("Lemma 5.16. 𝑃 ∈ Ω").
       const slanted = (r: Line["runs"][number]) => r.italic || /math.?(?:it|mi)|cmmi/i.test(r.font);
       const italicAfter = !italic && rest.length > 0 && slanted(rest[0]);
-      const proof = /^p/i.test(word);
+      const proof = /^p\s?roof/i.test(word);
       const set = bold || italic || capitals || (stop && (proof || italicAfter));
       // With no stop after it, a number (or what a proof proves, as an
       // appendix heads one: "Proof of Lemma 2.8") is a statement's only
@@ -105,8 +106,23 @@ export function findStatements(layout: Layout, skip: Set<Line>, floats: Iterable
       if (!(number && stop) && inFloat(line, page)) continue;
       const { kind, name } = named(word);
       const box = { page: page.number, x: line.x0 / page.width, y: line.top / page.height, w: (line.x1 - line.x0) / page.width, h: (line.bottom - line.top) / page.height };
+      // Named as the paper heads it: a proof by what it proves ("Proof of
+      // Lemma 2.8", "Proof sketch"), anything else by its number.
+      const head = match[0].slice(match[0].indexOf(word) + word.length).replace(/\s*\([^]*$/, "").replace(/[.:]\s*$/, "").trim();
+      const label = number ? `${name} ${number}` : proof && head ? `${name} ${head}` : name;
+      // What it is about: its name in brackets, less the works it cites
+      // ("Lemma 4 ([AH12])" has none), or else the words it opens with.
+      const bracketed = match.groups.name !== undefined
+        ? joined([match.groups.name, open !== undefined && next ? next.text.slice(0, from - 1) : ""]).replace(/[,;]?\s*\[[^\]]*\]?\s*$/, "").replace(/^\[[^\]]*\]$/, "")
+        : "";
+      // (A name can stand after the stop, "Theorem 12.2. (Progress)", and
+      // a citation before the words, "Theorem 1. [2] The relation".)
+      const opening = joined([line.text.slice(end), onNext ? next.text : ""]).replace(/^\[[^\]]*\]\s*/, "");
+      const after = /^\(([^()]{1,80})\)/.exec(opening)?.[1];
+      const title = bracketed ? briefly(bracketed)
+        : proof ? undefined : briefly(after ?? opening);
       statements.set(`${kind}\n${page.number}\n${line.index}`, {
-        key: `t${statements.size}`, kind, label: number ? `${name} ${number}` : name, caption: line, ...box,
+        key: `t${statements.size}`, kind, label, ...(title ? { title } : {}), caption: line, ...box,
       });
       trace.add(STATEMENT_LEAD.id, page.number, line.text.slice(0, 80), [box]);
     }

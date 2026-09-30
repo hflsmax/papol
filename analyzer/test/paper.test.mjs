@@ -108,6 +108,8 @@ describe("the paper", () => {
         [["b0"], "[1]", 1], [["b1"], "[2]", 1], [["b0", "b1"], "[1, 2]", 1],
       ]);
       assert.deepEqual(body.floats.map((f) => [f.key, f.kind, f.label, f.page]), [["f0", "figure", "1", 1]]);
+      // Its caption's words after the number, for the nav bar to name it by.
+      assert.equal(body.floats[0].title, "A door latch made of cells");
       assert.deepEqual(body.links.map((l) => [l.float, l.label, l.page]), [["f0", "1", 1]]);
     }
   });
@@ -361,5 +363,9 @@ describe("statements", () => {
     const { analysis } = await analyzeWithRules(pdf);
     const found = analysis.floats.filter((f) => ["theorem", "lemma", "definition", "proof"].includes(f.kind)).map((f) => [f.kind, f.label]);
     assert.deepEqual(found, [["definition", "Definition 1"], ["theorem", "Theorem 2"], ["proof", "Proof"], ["theorem", "Proposition 3"], ["lemma", "Lemma 4"]]);
+    // What each is about, for the nav bar to name it by: the name in
+    // brackets, else the words it opens with; a proof by its head alone.
+    const titles = analysis.floats.filter((f) => ["theorem", "lemma", "definition", "proof"].includes(f.kind)).map((f) => f.title);
+    assert.deepEqual(titles, ["Typing", "Every typed term halts", undefined, "It is decidable", "Weakening"]);
   });
 });

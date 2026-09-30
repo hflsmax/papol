@@ -40,6 +40,7 @@ export interface Float extends Box {
   key: string; // what links name it by
   kind: string; // figure, table, box, algorithm, listing, section, footnote, rule, theorem, lemma, definition, proof
   label: string; // its number, as printed
+  title?: string; // what it is about: its caption's first sentence, a theorem's name or opening words
 }
 
 // A place in the text that points at a float.
