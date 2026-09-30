@@ -1456,7 +1456,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       for (const line of lines) {
         if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line, end)) continue;
         // A lone glyph (a piece of the next line's tall brace) runs nothing on.
-        if (line.top < end - 1 || line.top - end > reach || line.text.replace(/\s/g, "").length < 2) continue;
+        // A big operator's limit hanging past the last line lets the next
+        // row start above its foot (R-Recv-Unfold's "Q" under ∏ over
+        // "Γ, ∆, [x ← recv(q∗, t)]p ∥").
+        const lastTop = Math.max(...under.filter((t) => t.text.replace(/\s/g, "").length >= 2).map((t) => t.top));
+        if ((line.top < end - 1 && !(line.top > lastTop + 0.5 * label.size)) || line.top - end > reach || line.text.replace(/\s/g, "").length < 2) continue;
         taken.add(line); grew = true;
       }
     }
