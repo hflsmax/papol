@@ -265,10 +265,28 @@ const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furni
 const GRAMMAR = /⩴|::=|∷=|∶∶=|:=[^|]*\|/u;
 function production(line: Line, page: Page, type: Type, depth = 0): boolean {
   if (GRAMMAR.test(line.text)) return true;
+  // A grammar may set a spaced colon for its sign, the "|" of its
+  // alternatives hung under the colon, its categories stacked line by line
+  // ("Definitions 𝐷 : […]" over "Expressions 𝑒 : 𝑖" over "| 𝑒 [𝑒]").
+  const colon = colonAt(line);
+  if (colon !== null && depth <= 12) {
+    const next = (l: Line) => l !== line && l.top > line.top + 1 && l.top <= line.bottom + type.leading;
+    if (page.lines.some((l) => next(l) && /^\s*\|/.test(l.text) && Math.abs(l.x0 - colon) <= line.size)) return true;
+    if (page.lines.some((l) => next(l) && colonAt(l) !== null && production(l, page, type, depth + 1))) return true;
+  }
   if (!/^\s*\|/.test(line.text) || depth > 12) return false;
   const over = (l: Line) => Math.abs(l.x0 - line.x0) <= 4 * line.size && l.top < line.top && l.top >= line.top - 1.5 * type.leading;
   return page.lines.some((l) => over(l) && (GRAMMAR.test(l.text) || production(l, page, type, depth + 1)))
     || page.lines.some((l) => GRAMMAR.test(l.text) && Math.abs(l.x0 - line.x0) <= 4 * line.size && l.top < line.top && l.top >= line.top - 4 * type.leading);
+}
+
+// Where a line's first colon standing apart (" : ") sits.
+function colonAt(line: Line): number | null {
+  const i = line.text.search(/\s:\s/);
+  const c = i < 0 ? undefined : line.chars[i + 1];
+  if (!c || c.run < 0) return null;
+  const run = line.runs[c.run];
+  return run.x + (run.width * c.at) / Math.max(1, run.text.length);
 }
 
 // The edges of the text column a line is in: the furthest lines of
@@ -657,8 +675,16 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // label heads ("Assume  Γ ⊨ e ⇓ z"); accents and braces the layout
     // sets as lines of their own block nothing, nor a big operator rising
     // to the label (a ⋀ its font maps to "Û").
-    const blocks = (l: Line) => spans(l) && /[\p{L}\d]/u.test(l.text) && !(l.text.trim().length === 1 && l.runs.every((r) => EXTENSION.test(r.font))) && !/^\s*[[(].*[\])]\s*$/.test(l.text) && (l.x0 < label.x1 - tolerance(l, label) || !fits(l) || !RELATION.test(l.text) || GRAMMAR.test(l.text));
-    const heads = row.some((l) => spans(l) && RELATION.test(l.text) && l.x0 >= label.x1 - tolerance(l, label) && fits(l));
+    // A side condition set further along a premise the label heads, on
+    // its baseline, is one more premise ("𝑖 ∈ 1..𝑛" beside Join's), but
+    // where the row fills the bar end to end the token is its first
+    // premise ("Γ RRG" over param's bar).
+    const led = (l: Line) => spans(l) && RELATION.test(l.text) && l.x0 >= label.x1 - tolerance(l, label) && fits(l);
+    const reach = [label, ...row.filter(spans)];
+    const filled = Math.abs(Math.min(...reach.map((l) => l.x0)) - bar.x) <= 2 * label.size && Math.abs(Math.max(...reach.map((l) => l.x1)) - bar.x - bar.w) <= 2 * label.size;
+    const along = (l: Line) => !filled && row.some((h) => h !== l && led(h) && h.x1 <= l.x0 && Math.abs(h.baseline - l.baseline) <= 0.5);
+    const blocks = (l: Line) => spans(l) && /[\p{L}\d]/u.test(l.text) && !(l.text.trim().length === 1 && l.runs.every((r) => EXTENSION.test(r.font))) && !/^\s*[[(].*[\])]\s*$/.test(l.text) && (l.x0 < label.x1 - tolerance(l, label) || !fits(l) || !(RELATION.test(l.text) || along(l)) || GRAMMAR.test(l.text));
+    const heads = row.some(led);
     // A label at the margin heads the first bar under it only: bars
     // stacked over this one are a derivation's ("Θ₂ = …" over Fig. 9).
     const stacked = page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y - 1 && d.x < bar.x + bar.w && d.x + d.w > bar.x);
@@ -1236,7 +1262,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
