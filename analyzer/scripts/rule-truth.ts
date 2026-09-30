@@ -24,7 +24,7 @@ const truthDir = path.resolve("test", "rule-truth");
 
 // Names compare as a reader reads them: case, math letters (𝑆 is S), brackets, a trailing mark and
 // the joiner (space, underscore, hyphen) aside.
-const norm = (s: string) => s.normalize("NFKC").replace(/^[[(\s]+|[\])\s•]+$/g, "").toLowerCase().replace(/[\s_‐‑–-]+/g, "-");
+const norm = (s: string) => s.normalize("NFKC").replace(/^[[(\s]+|[\])\s•]+$/g, "").toLowerCase().replace(/\s+/g, "").replace(/[_‐‑–-]+/g, "-");
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
 const area = (a: Box) => Math.max(0, a[2] - a[0]) * Math.max(0, a[3] - a[1]);
 
