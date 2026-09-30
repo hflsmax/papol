@@ -1492,6 +1492,24 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       }
     }
   }
+  // A specification set as a stack, its label level with the program at
+  // the margin, opens with its precondition alone on the line hard over
+  // the program, set from where the program starts (awkward-spec's
+  // "{True}" over "let 𝑟 = ref(0) in …", rdcss-spec-seq's "{ℓm ↦ m ∗ ℓn ↦ n}").
+  if (!bar && setting.side !== "over") {
+    const row = [...taken].filter((t) => t !== label);
+    const start = Math.min(...row.map((t) => t.x0)), width = Math.max(...row.map((t) => t.x1)) - start;
+    for (let grew = row.length > 0; grew;) {
+      grew = false;
+      const top = Math.min(...[...taken].map((t) => t.top));
+      for (const line of lines) {
+        if (taken.has(line) || Math.abs(line.x0 - start) > 2 * label.size || line.x1 - line.x0 > width || line.x1 > label.x0 - label.size || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        if (line.bottom > top + 1 || top - line.bottom > 0.6 * type.leading || line.text.replace(/\s/g, "").length < 3 || NUMERALS.test(line.text)) continue;
+        if (page.lines.some((o) => o !== line && !o.furniture && onRow(o, line) && sameColumn(page, o, label))) continue;
+        taken.add(line); grew = true;
+      }
+    }
+  }
   const all = [...taken];
   if (out) out.lines = all;
   const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => l.top)), Math.max(...all.map((l) => l.bottom)));
