@@ -720,10 +720,11 @@ function citedAnywhere(flows: Flow[], rule: { name: string; shape: Shape; bracke
 // its end as Iris draws its rules (rule.bar).
 // Two such bars on one baseline reach the layout as one line ("−−−∗ −−−∗")
 // and are two bars, split at the blank between them.
-const TEXT_BAR = /^[−–—\-]{4,}(?:\d[−–—\-]+)*∗?$/;
+const TEXT_BAR = /^[−–—\-][−–—\-\d]*∗?$/;
+const textBar = (part: string) => TEXT_BAR.test(part) && part.replace(/[^−–—\-]/g, "").length >= 4;
 const textBars = (page: Page): Drawn[] => page.lines.flatMap((l) => {
   const parts = l.text.split(/\s+/).filter(Boolean);
-  if (!parts.length || !parts.every((p) => TEXT_BAR.test(p))) return [];
+  if (!parts.length || !parts.every(textBar)) return [];
   const bars: Drawn[] = [];
   for (const m of l.text.matchAll(/\S+/g)) {
     const x0 = edgesOf(l, m.index!)?.[0] ?? l.x0, x1 = edgesOf(l, m.index! + m[0].length - 1)?.[1] ?? l.x1;
