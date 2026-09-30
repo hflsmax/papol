@@ -418,19 +418,15 @@ function concludes(page: Page, d: Drawn, type: Type): boolean {
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
 // over its boxed judgments, a table's rule), no rule's bar.
-// A conclusion the layout broke into pieces is measured whole: pieces on
-// one row inside the bar, a big brace apart (ConstructTerm's), or pieces
-// a word space or so apart (tall braces and a big operator split
-// "{ I(0, ∅) ∗ ⊛ Rᵢ } [ι : while …]" under WHILE's bar).
+// A conclusion the layout broke into pieces is measured whole: pieces
+// a word space or so apart (a big brace splitting ConstructTerm's; tall
+// braces and a big operator split "{ I(0, ∅) ∗ ⊛ Rᵢ } [ι : while …]" under
+// WHILE's bar). A table's row is no conclusion: its cells stand columns
+// apart ("Core Choice   [53, 136]   𝑒 ::= …" under Table 1's header rule).
 function dividing(page: Page, d: Drawn, type: Type): boolean {
   if (d.w < BAR_SHARE * (type.text.x1 - type.text.x0)) return false;
   const centre = d.x + d.w / 2;
   const centred = (x0: number, x1: number) => Math.abs((x0 + x1) / 2 - centre) <= 2 * type.bodySize && x1 - x0 >= 0.3 * d.w;
-  const inside = (l: Line) => !l.furniture && l.x0 >= d.x - type.bodySize && l.x1 <= d.x + d.w + type.bodySize;
-  const joined = (l: Line) => {
-    const row = page.lines.filter((o) => o === l || (inside(o) && onRow(o, l)));
-    return centred(Math.min(...row.map((o) => o.x0)), Math.max(...row.map((o) => o.x1)));
-  };
   const under = page.lines.filter((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading);
   // A brace reaching up past the bar is a piece all the same.
   const pieces = page.lines.filter((l) => !l.furniture && l.bottom > d.y + 1 && l.top <= d.y + type.leading);
@@ -446,7 +442,7 @@ function dividing(page: Page, d: Drawn, type: Type): boolean {
     }
     return [x0, x1];
   };
-  return !under.some((l) => centred(l.x0, l.x1) || (inside(l) && joined(l)) || centred(...whole(l)));
+  return !under.some((l) => centred(l.x0, l.x1) || centred(...whole(l)));
 }
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
@@ -871,6 +867,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   }
   {
     const own = overRow();
+    // A sentence in the text's face level with it, words a blank apart
+    // (no label beside it, "Prf-Nat-Distinct1"), makes it an entry of a
+    // table, described there ("?𝑄   If 𝑄 is true, continue running; else
+    // abort." over the next entry "𝑥′ = 𝑓 (𝑥) & 𝑄").
+    const described = row.some((l) => faceOf(l) === family(type.font) && !RELATION.test(l.text) && l.text.trim().split(/\s+/).filter((w) => /\p{L}{3}/u.test(w)).length >= 3);
+    if (own && described) return { category: "cell", bar: null, row, side: "right" };
     if (own) return { category: "over", bar: null, row: own, side: "over" };
   }
   // A label set level with a stack of lines touches each without sharing
