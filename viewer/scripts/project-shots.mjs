@@ -65,6 +65,9 @@ const SHOTS = {
   'project-anchor': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: pick('.pin.theirs'), settled: '.thing-bar .thing-face', size: wide },
   // Their face in the margin opens their dig, and only that.
   'project-dig': { path: on, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: "document.querySelectorAll('.dig-margin-face')[2].click(); return true;", settled: '.dig-margin-card .talk-post', size: wide },
+  // With no room past the margin, their dig opens over the page under its
+  // face, on a white card of its own.
+  'project-dig-narrow': { path: on, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: "document.querySelectorAll('.dig-margin-face')[2].click(); return true;", settled: '.dig-margin-card .talk-post', size: { width: 1100, height: 800 } },
   'project-ink': { path: on, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: pick(`[data-ink="d1b2c3d4-0000-4000-8000-000000000004"] .ink-grab`), settled: '.ink-actions .thing-face', size: wide },
   // A project's link to Ben's dig on his paint: the paint picked out in the
   // middle of the view with that dig open beside it.
