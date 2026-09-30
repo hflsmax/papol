@@ -344,8 +344,6 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const lines = ruleLines(page, label);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
-  // A bare token set in a listing's face is code (a bracketed one names a lemma).
-  if (!token.bracketed && MONO.test(faceOf(label, token))) return { category: "comment", bar: null, row: [], side: "right" };
   const slack = BESIDE * label.size;
   const mid = (label.top + label.bottom) / 2;
   const centre = (label.x0 + label.x1) / 2;
@@ -753,6 +751,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       const token = tokenOf(line);
       if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
     }
+  }
+  // A bare token set in a listing's face is code (a bracketed one names a
+  // lemma), unless the paper sets its labels so: five or more at bars.
+  const mono = seen.filter((s) => !s.token.bracketed && MONO.test(faceOf(s.line, s.token)));
+  if (mono.filter((s) => (s.setting.category === "beside" || s.setting.category === "over") && s.setting.bar).length < 5) {
+    for (const s of mono) s.setting = { category: "comment", bar: null, row: [], side: "right" };
   }
   // A label level with a bar on either side stands on the side most of
   // the paper's other labels do; short of a majority, on the first found.
