@@ -289,6 +289,14 @@ export const RULE_SHAPE_SYMBOL = rule({
   matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu"],
   rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
+export const RULE_SHAPE_PHRASE = rule({
+  id: "rule.shape.phrase", stage: "rule",
+  summary: "A phrase of two to four words, the first capitalised, in parentheses at the end of a row, in a column of two or more labels set alike (\"(Sequential composition)\", \"(Left choice)\", \"(Fixed point)\" among \"(One)\" and \"(Some)\"): alone, such a phrase is prose.",
+  why: "Shoggoth labels the rows of its denotational semantics (Sequential composition), (Left choice) and (Fixed point) in the column where it sets (One), (Some) and (All).",
+  pattern: /^\p{Lu}\p{Ll}+(?: \p{L}+\.?){1,3}$/u,
+  matches: ["Sequential composition", "Left choice", "Nondeterministic choice", "Fixed point", "Case of known constr."],
+  rejects: ["Cut", "left choice", "E Beta", "A b c d e"],
+});
 export const RULE_NAME_BESIDE = rule({
   id: "rule.name.beside", stage: "rule",
   summary: "Beside a bar, a name is hyphenated, spaced, a symbol, or a word; a lowercase word stands only in a convention of two or where it is cited.",
