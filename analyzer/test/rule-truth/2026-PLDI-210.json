@@ -1,0 +1,14 @@
+{"rules": [
+  {"page": 8, "name": "Syn-Var", "box": [59.6, 88.5, 272.7, 112.6]},
+  {"page": 8, "name": "Syn-Final", "box": [290.8, 88.4, 426.2, 114.8]},
+  {"page": 8, "name": "Syn-Prod", "box": [108.3, 123.2, 377.5, 150.5]},
+  {"page": 10, "name": "Presyn-Var", "box": [85.1, 88.2, 272.9, 111.0]},
+  {"page": 10, "name": "Presyn-Final", "box": [300.0, 86.9, 400.7, 113.3]},
+  {"page": 10, "name": "Presyn-Prod", "box": [101.7, 121.7, 384.1, 148.9]},
+  {"page": 11, "name": "Output", "box": [112.0, 87.1, 373.8, 113.5]},
+  {"page": 11, "name": "Transition", "box": [65.7, 123.0, 420.1, 147.0]},
+  {"page": 11, "name": "Input", "box": [139.9, 155.1, 345.9, 179.6]},
+  {"page": 12, "name": "Search-Var", "box": [83.1, 88.4, 244.5, 112.6]},
+  {"page": 12, "name": "Search-Final", "box": [262.6, 88.4, 402.7, 114.8]},
+  {"page": 12, "name": "Search-Transition", "box": [56.2, 124.1, 429.6, 151.3]}
+]}

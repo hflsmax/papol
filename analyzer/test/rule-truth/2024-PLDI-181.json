@@ -1,0 +1,11 @@
+{"rules": [
+  {"page": 17, "name": "T-Write-Local", "box": [50.3, 89.4, 238.8, 170.8]},
+  {"page": 17, "name": "T-Write-SharedMem", "box": [262.1, 86.1, 434.5, 170.8]},
+  {"page": 17, "name": "T-Read-By-Copy", "box": [55.1, 178.3, 215.1, 237.5]},
+  {"page": 17, "name": "T-Read-By-Move", "box": [240.8, 177.3, 405.1, 237.5]},
+  {"page": 17, "name": "T-Read-SharedMem", "box": [63.4, 244.0, 223.3, 303.2]},
+  {"page": 17, "name": "T-Borrow", "box": [253.3, 244.3, 421.4, 303.2]},
+  {"page": 18, "name": "T-Sync", "box": [47.0, 86.1, 205.3, 144.1]},
+  {"page": 18, "name": "T-Sched", "box": [227.0, 91.3, 437.8, 144.4]},
+  {"page": 18, "name": "T-While", "box": [71.3, 150.9, 413.5, 205.1]}
+]}
