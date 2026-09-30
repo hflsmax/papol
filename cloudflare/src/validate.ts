@@ -232,7 +232,7 @@ export function annotation(row: { kind?: unknown; page?: unknown; group_uuid?: u
     if (sx !== null && sw !== null && sy !== null && sh !== null && (sx + sw > 1.000001 || sy + sh > 1.000001)) {
       check.fail("rectangle must stay on its page");
     }
-    // A clip of another page — a named rule brought to where it is cited —
+    // A clip of another page — a telescope, a named rule brought to where it is cited —
     // names the page it was cut from; without it, the source is the page the
     // clip sits on.
     check.integer("source.page", source.page, { min: 1, optional: true });

@@ -2065,10 +2065,10 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 }
 
 .paper-clip:active { cursor: grabbing; }
-/* A rule brought to its mention: looked at, not moved, and no bigger than
-   the rule is printed. */
-.paper-clip.peek { z-index: 20; min-width: 0; min-height: 0; cursor: pointer; }
-.paper-clip.peek:active { cursor: pointer; }
+/* The telescope: a rule brought to its mention, looked at, not moved, and no
+   bigger than the rule is printed. */
+.paper-clip.telescope { z-index: 20; min-width: 0; min-height: 0; cursor: pointer; }
+.paper-clip.telescope:active { cursor: pointer; }
 .paper-clip.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);

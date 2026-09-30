@@ -205,7 +205,7 @@ export const SCENES = {
       await stage.wait(300);
       for (const rule of ['T-Var', 'T-Abs', 'T-App']) {
         await stage.move(ruleLink(8, rule, 1), { ms: 600 });
-        await stage.waitFor('document.querySelector(".paper-clip.peek canvas")', { timeout: 10_000 });
+        await stage.waitFor('document.querySelector(".paper-clip.telescope canvas")', { timeout: 10_000 });
         await stage.wait(1500);
       }
       await stage.move({ x: 960, y: 640 }, { ms: 500 });
@@ -242,13 +242,13 @@ export const SCENES = {
       const places = [{ x: 330, y: 530 }, { x: 590, y: 530 }, { x: 850, y: 530 }];
       for (const [i, rule] of ['T-Var', 'T-Abs', 'T-App'].entries()) {
         await stage.click(ruleLink(8, rule, 1), { ms: 450, modifiers: 4 });
-        await stage.waitFor(`document.querySelectorAll('.paper-clip:not(.peek)').length === ${i + 1}`, { timeout: 10_000 });
+        await stage.waitFor(`document.querySelectorAll('.paper-clip:not(.telescope)').length === ${i + 1}`, { timeout: 10_000 });
         // The rule shown on hover sits over the kept clip while the pointer
         // is on the name: a nudge past the end of the name lets it go, and
         // the pointer goes from there down to the clip.
         await stage.move({ x: stage.at.x + 34, y: stage.at.y + 4 }, { ms: 150 });
-        await stage.waitFor('!document.querySelector(".paper-clip.peek")', { timeout: 10_000 });
-        await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.peek)')].at(-1);`, places[i], { ms: 450 });
+        await stage.waitFor('!document.querySelector(".paper-clip.telescope")', { timeout: 10_000 });
+        await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.telescope)')].at(-1);`, places[i], { ms: 450 });
       }
       await stage.move({ x: 960, y: 660 }, { ms: 400 });
       await stage.wait(1400);

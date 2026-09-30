@@ -22,7 +22,7 @@ const ana = user(ANA, 'Ana Reyes', 'ESO');
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 
 // Another paper stands in for the fixture's when a picture needs one (a
-// paper with named rules, for rule-shots.mjs): PAPOL_FIXTURE_PDF names it.
+// paper with named rules, for telescope-shots.mjs): PAPOL_FIXTURE_PDF names it.
 const pdfFile = process.env.PAPOL_FIXTURE_PDF || fileURLToPath(new URL('../../../frontend/scripts/fixtures/attention.pdf', import.meta.url));
 const pdfBytes = readFileSync(pdfFile);
 export const PAPER = 'f1'.repeat(32);
