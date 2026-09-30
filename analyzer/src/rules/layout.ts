@@ -277,6 +277,9 @@ function joinLabels(lines: Placed[][], runs: Placed[]): Placed[][] {
       if (j === i || gone.has(j)) return;
       const otherBase = median(other.map((r) => r.baseline));
       if (Math.abs(otherBase - base) > SAME_LINE * size) return;
+      // Another name in brackets is no entry: rules' labels set side by
+      // side ("(1)" and "(𝜔)" over their bars).
+      if (/^\s*\([^()]{1,6}\)\s*$/u.test(other.map((r) => r.text).join(""))) return;
       // A label is set at its entry's size, or is a heading's number set
       // large beside its bold title ("1  Problem Classification"). A number
       // at another size beside plain text is something else — an

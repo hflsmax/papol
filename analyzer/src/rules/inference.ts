@@ -130,6 +130,20 @@ function blankBefore(line: Line, start: number): number {
   return first && prev ? first[0] - prev[1] : Infinity;
 }
 
+// The layout may run a line into the next column's ("… 0" then DISP's
+// conclusion "!x(x′).P −!−x−→ …"): where a piece starts near x, an em
+// clear of the rest, its left edge.
+function pieceAt(line: Line, x: number, size: number): number | null {
+  for (let i = 0; i < line.text.length; i += 1) {
+    const at = /\S/.test(line.text[i]) ? edgesOf(line, i) : null;
+    if (at && at[0] >= x - 2 * size && at[0] <= x + size && blankBefore(line, i) >= size) return at[0];
+  }
+  return null;
+}
+// A line's left edge as a rule's box takes it: from its piece at the bar
+// where it runs on from the next column's, the label on the bar's right.
+const leftOf = (line: Line, bar: Drawn | null, label: Line) => (bar && line.x0 < bar.x - 2 * label.size && label.x0 >= bar.x + bar.w - BESIDE * label.size ? pieceAt(line, bar.x, label.size) ?? line.x0 : line.x0);
+
 // A token could be a label: a letter in it, brackets that pair, not a
 // number, a citation or a word ending a sentence (rule.candidate).
 // The fonts that hold the pieces of large braces and brackets: a piece
@@ -240,7 +254,7 @@ function notation(line: Line, token: Token): string {
 // apart ("(𝜂×) match 𝑉 as …").
 const SHORT_LINE = /^\s*(?:(?<open>[[(])\s*)?(?<token>[^\s[\]()]{1,4})(?:\s*(?<close>[\])]))?\s*$/u;
 const SHORT_HEAD = /^\s*(?<open>[[(])\s*(?<token>[^\s[\]()]{1,4})\s*(?<close>[\])])(?=\s)/u;
-function shortOf(line: Line, column = false): Token | null {
+function shortOf(line: Line, column = false, tags = false): Token | null {
   const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
   const head = column ? SHORT_HEAD.exec(text) : null;
   const match = SHORT_LINE.exec(text) ?? (head && blankAfter(line, head[0].length) >= 0.25 * line.size ? head : null);
@@ -250,7 +264,7 @@ function shortOf(line: Line, column = false): Token | null {
   const start = match.index + match[0].indexOf(name);
   const token: Token = { text: name, bracketed: Boolean(open), square: open === "[", colon: false, side: match === head ? "head" : "whole", start, end: start + name.length };
   const glyphs = notation(line, token);
-  if (!SHORT.test(glyphs) || (open && /^[\p{L}\d]$/u.test(glyphs))) return null;
+  if (!SHORT.test(glyphs) || (open && !tags && /^[A-Za-z\d]$/.test(glyphs))) return null;
   const font = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run].font : "");
   const italic = [...name].some((c, i, all) => /[A-Za-z]/.test(fold(c)) && ((f) => !SYMBOLIC.test(f) && (/[\u{1D400}-\u{1D7FF}]/u.test(c) || ITALIC.test(f)))(font(start + all.slice(0, i).join("").length)));
   if (italic && !(open && /[^A-Za-z\d]/.test(glyphs))) return null;
@@ -316,7 +330,9 @@ const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furni
 // grammar production: the production itself, or a "|" alternative under
 // one within a few lines at the production's own indent ("| f" in "H | f"
 // is a heap).
-const GRAMMAR = /⩴|::=|∷=|∶∶=|:=[^|]*\|/u;
+// A "|" inside brackets after ":=" is no alternative ("[𝑥 := do𝐺 [𝜌|Γ]]"
+// in a machine's transition).
+const GRAMMAR = /⩴|::=|∷=|∶∶=|:=(?:[^|[(]|\[[^\]]*\]|\([^)]*\))*\|/u;
 const SIGN = /^\s*(?:⩴|::=|∷=|∶∶=|:=)\s*$/u;
 function production(line: Line, page: Page, type: Type, depth = 0): boolean {
   if (GRAMMAR.test(line.text)) return true;
@@ -683,7 +699,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // caption run past a legend's line sample.
   const concluded1 = (bar: Drawn) => {
     const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
-    return lines.some((l) => spans(l) && !CAPTION.test(l.text) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading && l.x0 >= bar.x - 2 * label.size && l.x1 <= bar.x + bar.w + 2 * label.size);
+    // A conclusion run into the next column's line on the left starts at
+    // the bar an em clear of it (DISP's), the label on the bar's right:
+    // one on its left would stand in the column's line.
+    const starts = (l: Line) => l.x0 >= bar.x - 2 * label.size || (label.x0 >= bar.x + bar.w - slack && pieceAt(l, bar.x, label.size) !== null);
+    return lines.some((l) => spans(l) && !CAPTION.test(l.text) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading && starts(l) && l.x1 <= bar.x + bar.w + 2 * label.size);
   };
   // A token between two rules of one span, the upper right over it, sits
   // in a table's header band (rule.cell).
@@ -923,8 +943,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // A label set level with a stack of lines touches each without sharing
   // half its height with any: the stack is its row. Other labels on the
   // label's row (the next rule's, set beside) are not its row, nor the
-  // lines hard under them.
-  if (row.every((l) => WHOLE.test(l.text))) row = lines.filter((l) => level(l, label) && !onRow(l, label) && sameColumn(page, l, label) && tokenOf(l)?.side !== "whole");
+  // lines hard under them; nor, for one heading or ending its line, a
+  // line on another label's row ("(enter)"'s side condition under the
+  // row "(do)" heads).
+  const others = (l: Line) => lines.some((o) => o !== label && onRow(o, l) && tokenOf(o)?.side === "whole");
+  if (row.every((l) => WHOLE.test(l.text))) row = lines.filter((l) => level(l, label) && !onRow(l, label) && sameColumn(page, l, label) && tokenOf(l)?.side !== "whole" && (token.side === "whole" || !others(l)));
   // Bracketed labels set alike along a row part it: what lies past another is
   // that one's, and with lines on both sides, those between this label and
   // another are the other's, which heads or ends them ("(𝛽 Clos)" right
@@ -1031,9 +1054,9 @@ function shapeOf(text: string): Shape | null {
 // a judgment ("Γ F").
 // A lone Latin letter or digit in brackets tags an item or a panel
 // ("(a)"); a Greek one names a rule ("(μ)").
-function shortShape(line: Line, token: Token): Shape | null {
+function shortShape(line: Line, token: Token, setting: Setting): Shape | null {
   const glyphs = notation(line, token);
-  if (SHORT.test(glyphs)) return token.bracketed && /^[A-Za-z\d]$/.test(glyphs) ? null : "short";
+  if (SHORT.test(glyphs)) return token.bracketed && /^[A-Za-z\d]$/.test(glyphs) && !(setting.category === "beside" && setting.bar) ? null : "short";
   // A type's upright letter and a mathematical capital for its
   // introduction or elimination ("U 𝐼", "F 𝐸"), as ×𝐸 and 1𝐼 are named.
   if (new RegExp(`^[A-Z] [${CAP}]$`, "u").test(token.text) && !/[A-Z]/.test(token.text.slice(-2))) return "short";
@@ -1293,7 +1316,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   }
   const all = [...taken];
   if (out) out.lines = all;
-  const left = Math.max(0, Math.min(x0, ...all.map((l) => l.x0)) - PAD), right = Math.min(page.width, Math.max(x1, ...all.map((l) => l.x1)) + PAD);
+  const left = Math.max(0, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))) - PAD), right = Math.min(page.width, Math.max(x1, ...all.map((l) => l.x1)) + PAD);
   const top = Math.max(0, Math.min(...all.map((l) => l.top)) - PAD), bottom = Math.min(page.height, Math.max(...all.map((l) => l.bottom)) + PAD);
   return { x: left / page.width, y: top / page.height, w: (right - left) / page.width, h: (bottom - top) / page.height };
 }
@@ -1315,6 +1338,11 @@ const RULE_JUST_AFTER = /^(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)[^\s,(
 // into a capitalised word (MKSVar, MALam1), is no English word: a
 // camelCase name cites its rule wherever it is printed.
 const camel = (text: string) => /\p{Ll}\p{Lu}|\p{Lu}{2}\p{Ll}{2}/u.test(text);
+// A Latin capital alone in brackets, set in the math face ("(𝐹 )" among
+// "(𝑅1)" … "(𝑅9)"), tags its row as a word does; an upright one letters a
+// displayed term as a numeral numbers an equation ("(A)" and "(B)"
+// tagging a program before and after its rewriting).
+const mathCapital = (token: Token) => token.bracketed && /^[A-Z]$/.test(fold(token.text)) && !/^[A-Z]$/.test(token.text);
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // A name in the text is the label's, whatever its case, only where one of
@@ -1351,6 +1379,11 @@ function cites(rule: { name: string; shape: Shape; bracketed: boolean }, spaced:
   // (or a kin) within three words: "the sapp rule", "(rule slam and
   // sbind)"; a camelCase word as printed anywhere.
   if (bracketed) return sameName(printed, rule.name);
+  // A label of a lowercase letter or two, set in brackets, is a keyword
+  // or a little word in prose ("(do)", "(as)"; "the do identity", "rules
+  // do a switch"): bare, it cites its rule only as a short name does, a
+  // list of names ending where "rule" stands by it.
+  if (rule.bracketed && /^\p{Ll}{1,2}$/u.test(rule.name)) return sameName(printed, rule.name) && (RULE_JUST_AFTER.test(after) || (RULE_JUST_BEFORE.test(before) && /^\s*(?:[,.;:)]|(?:and|or)\s|$)/u.test(after)));
   return sameName(printed, rule.name) && (camel(rule.name) || RULE_BEFORE.test(before) || RULE_AFTER.test(after));
 }
 
@@ -1484,8 +1517,11 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line) ?? shortOf(line);
-      if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
+      const token = tokenOf(line) ?? shortOf(line, false, true);
+      // A lone letter or digit in brackets counts only beside a bar
+      // (shortShape): elsewhere it tags an item or an equation.
+      const setting = token && settingOf(page, line, token, type);
+      if (token && setting && (!token.bracketed || mathCapital(token) || !/^[A-Za-z\d]$/.test(notation(line, token)) || (setting.category === "beside" && setting.bar))) seen.push({ page, line, token, setting });
     }
   }
   // A label in a column of labels heading or ending rows (two or more
@@ -1501,7 +1537,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       const column = rows.filter((s) => (s.token.side === token.side || s.token.side === "whole") && Math.abs(edge(s.line, token.side) - edge(line, token.side)) <= 1 && Math.abs(s.line.size - line.size) <= 0.5
         && faceOf(s.line, s.token) === faceOf(line, token));
-      if (column.length >= 2) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
+      // Rows set at their own indents head a column of labels only in
+      // kind: bracketed labels set alike heading rows, this one a wide
+      // blank from its row ("(Proc)" run into its transition among
+      // "(Ret)" and "(Fun)").
+      const close = line.text.indexOf(")", token.end);
+      const alike = token.side === "head" && close >= 0 && blankAfter(line, close + 1) >= 0.5 * line.size
+        && rows.filter((s) => s.token.bracketed && s.setting.side === "left" && Math.abs(s.line.size - line.size) <= 0.5 && faceOf(s.line, s.token) === faceOf(line, token)).length >= 3;
+      if (column.length >= 2 || alike) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
     }
   }
   // A bare token set in a listing's face is code (a bracketed one names a
@@ -1559,12 +1602,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      // A Latin capital alone in brackets tags its row as a word does ("(𝐹 )"
-      // among "(𝑅1)" … "(𝑅9)"), standing only where others are set alike.
-      // Set in the math face the rules are; an upright one letters a
-      // displayed term as a numeral numbers an equation ("(A)" and "(B)"
-      // tagging a program before and after its rewriting).
-      const shape = shapeOf(fold(token.text)) ?? (token.bracketed && /^[A-Z]$/.test(fold(token.text)) && !/^[A-Z]$/.test(token.text) ? "word" : null) ?? shortShape(line, token);
+      const shape = shapeOf(fold(token.text)) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
@@ -1632,6 +1670,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2;
   for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !tagged(c));
+  // A lone letter or digit in brackets beside a bar names a rule only
+  // among glyphs named so on its page ("(1)" by "(𝜔)" and "(𝜌)"); a run of
+  // numbers alone numbers equations ("(7)" to "(9)" at a fraction's end).
+  const tag = (c: Candidate) => c.token.bracketed && !mathCapital(c.token) && /^[A-Za-z\d]$/.test(notation(c.line, c.token));
+  const glyphed = (c: Candidate) => candidates.some((o) => o.page === c.page && o.token.bracketed && o.setting.category === "beside" && Boolean(o.setting.bar) && !tag(o) && signed(o.shape, o.line, o.token));
+  for (const c of candidates) if (tag(c) && !glyphed(c)) trace.add(RULE_NAME_LETTERS.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => !tag(c) || glyphed(c));
   const conventions = new Map<string, number>();
   const strong = new Map<string, number>();
   for (const c of candidates) {
@@ -1699,9 +1744,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     grew = false;
     for (const c of candidates) {
       if (!weak(c) || !c.token.bracketed || sure(c)) continue;
-      const alike = candidates.filter((o) => o !== c && o.page === c.page && o.token.bracketed && sure(o) && o.setting.category === c.setting.category && o.setting.side === c.setting.side
+      const alike = candidates.filter((o) => o !== c && o.page === c.page && o.token.bracketed && o.setting.category === c.setting.category && o.setting.side === c.setting.side
         && Math.abs(o.line.size - c.line.size) <= 0.5 && bracketFace(o.line, o.token) === bracketFace(c.line, c.token));
-      if (alike.length >= 2) { columned.add(c); grew = true; }
+      // Beside bars of their own, one sure among them will do ("(1)", "(𝜔)"
+      // and "(𝜌)", three axioms in a row).
+      const bars = c.setting.category === "beside" && Boolean(c.setting.bar) && alike.every((o) => o.setting.bar);
+      if (alike.filter(sure).length >= 2 || (bars && alike.length >= 2 && alike.some(sure))) { columned.add(c); grew = true; }
     }
   }
   const rules = new Map<string, Rule>();
@@ -1802,7 +1850,7 @@ function separate(placed: Placed[]): void {
     }
     // Each box round its own lines and bar, and what it holds (unpadded).
     const held = here.map((p) => {
-      const xs = [...p.lines.flatMap((l) => [l.x0, l.x1]), ...(p.bar ? [p.bar.x, p.bar.x + p.bar.w] : [])];
+      const xs = [...p.lines.flatMap((l) => [leftOf(l, p.bar, p.label), l.x1]), ...(p.bar ? [p.bar.x, p.bar.x + p.bar.w] : [])];
       const ys = [...p.lines.flatMap((l) => [l.top, l.bottom]), ...(p.bar ? [p.bar.y] : [])];
       return { p, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     });
