@@ -1291,6 +1291,27 @@ interface Box { x: number; y: number; w: number; h: number }
 // text round a rule set inline, a line over a label that stands over
 // its premises, or, in a row, a line on another label's row.
 interface Others { lines: Set<Line>; bars: Drawn[] } // the other labels on the page and their bars
+// A line of plain words, upright, no letter of a formula or a listing in
+// it and no relation between them, is a heading over a group of rules
+// ("Server Setup Specifications:", "Path typing", "Rules for the
+// post-crash modality") or a line of the prose round a figure (the
+// sentence's end "consequence." over ACSQ), however short and in whatever
+// weight: no premise, conclusion or side condition, which have a term in
+// them ("x fresh", "tight T") or a lone constant ("False"). A heading set
+// in bold may be italic, or name a thing in code ("Fuel burning, fork and
+// the full transition of OM").
+const WORDS = /^[\s\p{L}\d().,;:§'’\-–[\]]+$/u;
+function worded(l: Line): boolean {
+  const text = l.text.trim();
+  if (!WORDS.test(text) || RELATION.test(text)) return false;
+  const lettered = l.runs.filter((r) => /\p{L}/u.test(r.text));
+  const letters = (runs: typeof lettered) => runs.reduce((n, r) => n + r.text.replace(/[^\p{L}]/gu, "").length, 0);
+  const bold = letters(lettered.filter((r) => r.bold)) >= (2 / 3) * letters(lettered);
+  const plain = !/[\u{1D400}-\u{1D7FF}]/u.test(text) && !lettered.some((r) => r.italic || ITALIC.test(r.font) || SYMBOLIC.test(r.font) || MONO.test(r.font) || r.sub || r.sup);
+  if (!bold && !plain) return false;
+  const words = text.split(/\s+/).filter((w) => /\p{L}{3}/u.test(w));
+  return words.length >= 2 || (words.length === 1 && /[.:]$/.test(text));
+}
 function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: { lines: Line[] }): Box {
   const bars = others.bars.filter((d) => d !== setting.bar);
   const another = (l: Line) => bars.some((d) => d.x < l.x1 && d.x + d.w > l.x0 && (Math.abs(l.top - d.y) <= 0.8 * type.leading || Math.abs(l.bottom - d.y) <= 0.8 * type.leading));
@@ -1321,7 +1342,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const body = setting.row.filter((l) => l !== label && l.x0 > label.x1);
   const gloss = (l: Line) => !bar && setting.side !== "over" && body.length > 0 && l.top >= label.bottom - 1
     && l.x0 > Math.min(...body.map((r) => r.x0)) + 2 * label.size && l.x0 < Math.max(...body.map((r) => r.x1));
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || gloss(l)) && (!worded(l) || setting.row.includes(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
