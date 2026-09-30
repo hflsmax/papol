@@ -828,7 +828,7 @@
     ]
   },
   "row-ecoop": {
-    "rules": 97,
+    "rules": 99,
     "mentions": 71,
     "names": [
       "ceq-Base",
@@ -846,6 +846,8 @@
       "cmp-MergeI",
       "cmp-Symm",
       "cmp-Tvar",
+      "cmpList-Cons",
+      "cmpList-Nil",
       "D-andL",
       "D-andR",
       "D-arr",

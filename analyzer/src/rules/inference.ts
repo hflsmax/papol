@@ -90,7 +90,7 @@ interface Token {
 const CAP = "A-Z\\u{1D400}-\\u{1D419}\\u{1D434}-\\u{1D44D}\\u{1D468}-\\u{1D481}";
 const GREEK = "\\p{Script=Greek}\\u{1D6A8}-\\u{1D7CB}";
 const CONNECTIVE = RULE_CONNECTIVES;
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′${CONNECTIVE}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]?(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
@@ -426,6 +426,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // conclusion that fit it, well short of the page's text (a figure's
   // own rule runs across it).
   const capping = (d: Drawn) => lines.some((l) => l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && fitting(l, d));
+  // ... or drawn exactly as wide as the conclusion under it or a premise
+  // over it, however wide (E-APP-FUNCTOR's across the column): a figure's
+  // own rule is drawn to the figure, not to a line of it.
+  const edge = (l: Line, d: Drawn) => Math.abs(l.x0 - d.x) <= 0.5 * label.size && Math.abs(l.x1 - d.x - d.w) <= 0.5 * label.size;
+  const sized = (d: Drawn) => topping(d) && capping(d) && lines.some((l) => ((l.top >= d.y - 1 && l.top <= d.y + type.leading) || (l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading)) && edge(l, d));
   // ... or with the label standing beside it, level with it.
   const besides = (d: Drawn) => Math.abs(d.y - mid) <= LEVEL * label.size && (d.x >= label.x1 - slack || d.x + d.w <= label.x0 + slack);
   // A label level with its bar may stand further off to its right (JFP's
@@ -444,7 +449,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // bar only level with the label or under it; a stroke that touches the
   // line over it is a bar only with a conclusion centred under it.
   const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)))
-    && (d.w <= wide || concluded(d) || besides(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
+    && (d.w <= wide || concluded(d) || besides(d) || sized(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
     && d.y >= label.top - OVER_REACH * type.leading && d.y <= label.bottom + OVER_REACH * type.leading
     && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
@@ -569,7 +574,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // Another label set as this one is, between them, heads the bar: this
     // label's rule is set without one (HOARE-UNITARY over HOARE-MEASURE,
     // both barless, over HOARE-SEQ's bar).
-    const headed = between.some((l) => { const t = tokenOf(l); return t?.side === "whole" && Math.abs(l.size - label.size) <= 0.5 && faceOf(l) === faceOf(label) && shapeOf(fold(t.text)) === shapeOf(fold(token.text)); });
+      const headed = between.some((l) => { const t = tokenOf(l); return t?.side === "whole" && Math.abs(l.size - label.size) <= 0.5 && faceOf(l) === faceOf(label) && shapeOf(fold(t.text)) === shapeOf(fold(token.text)); });
     // No other bar between the label and this one spans the label, but a
     // premise's own: the label is that rule's, or its premise.
     const barred = page.drawn.some((d) => d !== bar && across(d) && main(d) !== bar && !overline(page, d, type) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y && d.x < label.x1 && d.x + d.w > label.x0
@@ -780,7 +785,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const premise = (l: Line) => Boolean(bar) && l.x0 >= bar!.x - label.size && l.x1 <= bar!.x + bar!.w + label.size && l.bottom <= bar!.y + 1 && l.bottom >= bar!.y - 1.5 * type.leading;
   // Nor is a line set smaller than the text, as a figure is ("when T₂ ≠
   // … and …" under E_Forget).
-  const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize;
+  // A side condition ("where 0−free(ℓ, E) and …") set in from the rule's
+  // edge under its row is no running text either.
+  const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize
+    && !(/^\s*(?:where|if|when|provided|unless)\b/i.test(l.text) && l.x0 > label.x0 + 2 * label.size);
   const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l)) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
