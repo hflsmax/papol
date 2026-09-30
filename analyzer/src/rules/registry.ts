@@ -237,10 +237,10 @@ export const FLOAT_RULED = rule({
 // or a slash (T:Proc, Step/Seq, Program_E).
 // The connectives a symbol name is made of, or a part of a hyphenated
 // name may be (→L, ×T, Sem-⊤, ≤-Base, Prf-⊃-Intro).
-export const RULE_CONNECTIVES = "→⇒⇓⇛⇝↪⤳∀∃⊢⊣⊨⊩⊗⊕⊸⊠∧∨¬<:=≤≥≼≽⊑⊒⊂⊃⊆⊇×+&∼~⋍≃≈≡⊲⊳▷◁⊤⊥∂⋆∘";
-const RULE_SIGN = "(?:[+−±†‡♠♣♦*?!↓↑'′’-]{1,2})";
-const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′’]*" + RULE_SIGN + "?|[" + RULE_CONNECTIVES + "*|/]+[\\p{L}\\d" + RULE_CONNECTIVES + "*|/'′]*)";
-export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,3}(?:\\|[a-z]{1,3})+|[a-z]{1,8}(?:[A-Z][a-z]{0,8}){1,2}|\\p{Script=Greek}{1,2}|[" + RULE_CONNECTIVES + "]{1,2})(?:[-‐‑–:/_]" + RULE_PART + ")+(?: ?\\([\\p{L}\\d]{1,4}\\))?";
+export const RULE_CONNECTIVES = "→⇒⇓⇛⇝↪⤳∀∃⊢⊣⊨⊩⊗⊕⊸⊠∧∨¬<:=≤≥≼≽⪯⪰⊑⊒⊂⊃⊆⊇×+&∼~⋍≃≈≡⊲⊳▷◁⊤⊥∂⋆∘";
+const RULE_SIGN = "(?:[+−±†‡♠♣♦*∗?!↓↑'′’-]{1,2})";
+const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′’]*" + RULE_SIGN + "?|[" + RULE_CONNECTIVES + "*∗|/]+[\\p{L}\\d" + RULE_CONNECTIVES + "*∗|/'′]*)";
+export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,3}(?:\\|[a-z]{1,3})+|[a-z]{1,8}(?:[A-Z][a-z]{0,8}){1,2}|\\p{Script=Greek}{1,2}|[" + RULE_CONNECTIVES + "]{1,2})(?:[-‐‑–−:/_]" + RULE_PART + ")+(?: ?\\([\\p{L}\\d]{1,4}\\))?";
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
@@ -259,10 +259,10 @@ export const RULE_SETTING = rule({
 });
 export const RULE_SHAPE_HYPHEN = rule({
   id: "rule.shape.hyphen", stage: "rule",
-  summary: "A hyphenated name: a prefix of a capital and up to nineteen letters (up to eight when all lowercase, short lowercase modes joined by bars (c|q), camelCase, a lowercase word and one or two capitalised ones after it, one or two Greek letters, or one or two connectives), then one or more parts in any case, or of connectives, joined by a hyphen, a colon, a slash or an underscore, a part may end in a sign (a trailing hyphen too), and the name in a short parenthesised tag (\"T-App\", \"LT-APP\", \"k-var\", \"cmpList-Nil\", \"S-refl\", \"DEC-<:-BASE\", \"WF-var+\", \"WF-var-\", \"β-reduction\", \"T:Proc\", \"≤-Base\", \"Sem-⊤\", \"cbncoeff-app\", \"extS-addSk\"); Curry-Howard is one by shape and told apart by its setting.",
+  summary: "A hyphenated name: a prefix of a capital and up to nineteen letters (up to eight when all lowercase, short lowercase modes joined by bars (c|q), camelCase, a lowercase word and one or two capitalised ones after it, one or two Greek letters, or one or two connectives), then one or more parts in any case, or of connectives, joined by a hyphen (a minus sign too, as Hyper Hoare Logic's text layer reads While−∀∗∃∗), a colon, a slash or an underscore, a part may end in a sign (a trailing hyphen too), and the name in a short parenthesised tag (\"T-App\", \"LT-APP\", \"k-var\", \"cmpList-Nil\", \"S-refl\", \"DEC-<:-BASE\", \"WF-var+\", \"WF-var-\", \"β-reduction\", \"T:Proc\", \"≤-Base\", \"Sem-⊤\", \"cbncoeff-app\", \"extS-addSk\"); Curry-Howard is one by shape and told apart by its setting.",
   why: "acmart's small capitals reach the text layer in lowercase, so the parts may be in any case; \"call-by-name\" and \"well-typed\" are names by shape and told apart by their setting. Generic Refinement Types ends names in a sign, Hyper Hoare Logic in a quantifier, Ownership Types in a colon; PACMPL papers since 2024 prefix names with a judgment's whole word (MAInconsistentTypes-C, bigbmix-frame) or a connective (≤-Base) and end parts in one (Sem-⊤, bdg-∂).",
   pattern: new RegExp("^" + RULE_NAME + "$", "u"),
-  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red", "WF-var-", "MAInconsistentTypes-C", "bigbmix-frame", "cbncoeff-app", "extS-addSk", "cmpList-Cons", "T-Letmod’", "E-Op♠†", "Sem-⊤", "≤-Base", "Prf-⊃-Intro", "bdg-∂", "c|q-Splice", "c|q-Sub-Expr"],
+  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red", "WF-var-", "MAInconsistentTypes-C", "bigbmix-frame", "cbncoeff-app", "extS-addSk", "cmpList-Cons", "T-Letmod’", "E-Op♠†", "Sem-⊤", "≤-Base", "Prf-⊃-Intro", "bdg-∂", "c|q-Splice", "c|q-Sub-Expr", "⪯-Base", "While−∀∗∃∗"],
   rejects: ["T-", "-App", "jump", "T-App:", "(T-App)", "Choice(L)", "|q-Nat"],
 });
 export const RULE_SHAPE_SPACED = rule({
