@@ -1301,7 +1301,12 @@ interface Box { x: number; y: number; w: number; h: number }
 interface Others { lines: Set<Line>; bars: Drawn[] } // the other labels on the page and their bars
 function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: { lines: Line[] }): Box {
   const bars = others.bars.filter((d) => d !== setting.bar);
-  const another = (l: Line) => bars.some((d) => d.x < l.x1 && d.x + d.w > l.x0 && (Math.abs(l.top - d.y) <= 0.8 * type.leading || Math.abs(l.bottom - d.y) <= 0.8 * type.leading));
+  // A line nearer this rule's own bar, over or under it within its span,
+  // is this rule's (T-If2's conclusion, its arrow's label raising its top
+  // to the bar, over T-Write's axiom bar).
+  const gap = (l: Line, d: Drawn) => Math.min(Math.abs(l.top - d.y), Math.abs(l.bottom - d.y));
+  const own = (l: Line, d: Drawn) => Boolean(setting.bar) && setting.bar!.x < l.x1 && setting.bar!.x + setting.bar!.w > l.x0 && gap(l, setting.bar!) < gap(l, d);
+  const another = (l: Line) => bars.some((d) => d.x < l.x1 && d.x + d.w > l.x0 && (Math.abs(l.top - d.y) <= 0.8 * type.leading || Math.abs(l.bottom - d.y) <= 0.8 * type.leading) && !own(l, d));
   // A premise in words ("t₂ →* true implies …") over the bar, within its
   // span, is no running text.
   const bar = setting.bar;
