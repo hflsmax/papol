@@ -95,7 +95,7 @@ function isGutter(runs: Placed[], left: number, right: number, baseline: number,
 }
 
 // Whether blank space between two runs on one baseline opens a column:
-// a line just above or below leaves it blank too, and its text before
+// a line just above or below leaves a blank as wide there too, and its text before
 // the blank starts where this line's does and its text after starts
 // where the right run does (two labelled equations set side by side
 // under their labels, "[MergeIdempotence]" over "merge(a, a, a)").
@@ -108,7 +108,7 @@ function opensColumn(runs: Placed[], from: number, left: number, right: number, 
     if (line.some((r) => r.x < right - 1 && r.x + r.width > left + 1)) return false;
     // The text before the blank, back to the last blank as wide.
     const before = line.filter((r) => r.x + r.width <= left + 1);
-    if (!before.length) return false;
+    if (!before.length || start.x - most(before.map((r) => r.x + r.width)) < size) return false;
     let first = before.length - 1;
     while (first > 0 && before[first].x - (before[first - 1].x + before[first - 1].width) <= 0.5 * size) first -= 1;
     return Math.abs(before[first].x - from) <= 1;
@@ -171,7 +171,7 @@ export function buildLines(page: Page): Placed[][] {
           && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
         const split = (gap > GUTTER * size && !bridged)
           || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
-          || (gap > size && !bridged && opensColumn(runs, line[0].x, last.x + last.width, run.x, run.baseline, size))
+          || (gap > size && !bridged && run.text.trim().length > 1 && opensColumn(runs, line[0].x, last.x + last.width, run.x, run.baseline, size))
           || (resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size));
         if (split) { groups.push({ runs: line }); line = []; }
       }

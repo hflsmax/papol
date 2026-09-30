@@ -308,19 +308,22 @@ function struck(page: Page, d: Drawn): boolean {
 // For a label over its bar the upper bar stands under the label (`from`):
 // a heading's underline over the label is no step.
 function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number, from = -Infinity): boolean {
-  // A step's bar has premises over it or its label beside it; a stroke
-  // with neither over a premise is its overline (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾").
-  const held = (d: Drawn) => lines.some((l) => (l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
+  // A step's bar has premises over it (under the rule's label) or its
+  // label beside it; a stroke with neither over a premise is its overline
+  // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's).
+  const held = (d: Drawn) => lines.some((l) => (l.top > from && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
+  if (process.env.DBGD) for (const d of page.drawn) if (d !== bar && across(d) && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w && Math.abs(bar.y - Number(process.env.DBGD)) < 1) console.error("DERIV", bar.x.toFixed(1), bar.y.toFixed(1), d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ over: overline(page, d, type), held: held(d), from, lines: lines.filter((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1).map((l) => l.text) }));
   return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
     && lines.some((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
-// another's conclusion is not a step.
+// another's conclusion is not a step, nor is a frame's edge under it (the
+// judgment's box under NEVER) a bar.
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
-  return page.drawn.find((d) => d !== bar && across(d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
+  return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
     && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
     && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
 }
@@ -386,10 +389,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const widest = measure + 3 * label.size;
   // A label alone on its row at the column's left edge heads the rule
   // under it wherever the rule stands in the column (OOPSLA's "[Query]"
-  // over a centred rule).
+  // over a centred rule); a word in the text's face there, unbracketed,
+  // opens a paragraph's line ("argument p and …").
   const [colLeft, colRight] = Array.isArray(column) ? column : [column.x0, column.x1];
   const alone = ruleLines(page, label).every((l) => l === label || !onRow(l, label) || !sameColumn(page, l, label));
-  const margined = alone && Math.abs(label.x0 - colLeft) <= slack;
+  const margined = alone && Math.abs(label.x0 - colLeft) <= slack && (token.bracketed || faceOf(label, token) !== family(type.font));
   // A bar as wide as the text could be a figure's own rule: it is a rule's
   // only with a conclusion centred under it and clearly shorter.
   const concluded = (d: Drawn) => lines.some((l) => !CAPTION.test(l.text) && l.top >= d.y - 1 && l.top <= d.y + 2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x
@@ -507,8 +511,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // A label at the margin heads the first bar under it only: bars
     // stacked over this one are a derivation's ("Θ₂ = …" over Fig. 9).
     const stacked = page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y - 1 && d.x < bar.x + bar.w && d.x + d.w > bar.x);
+    // ... and the first bar on its row to its right: MT-Abs's is not
+    // MT-Expand's, two rules along.
+    const skipped = page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && Math.abs(d.y - bar.y) <= 1 && d.x >= label.x0 - slack && d.x < bar.x);
     const aligned = Math.abs(label.x0 - bar.x) <= 2 * label.size || Math.abs((label.x0 + label.x1) / 2 - (bar.x + bar.w / 2)) <= 2 * label.size
-      || (heads && label.x0 >= bar.x - 2 * label.size && label.x1 <= bar.x + bar.w) || (margined && bar.x >= label.x0 - slack && !stacked);
+      || (heads && label.x0 >= bar.x - 2 * label.size && label.x1 <= bar.x + bar.w) || (margined && bar.x >= label.x0 - slack && !stacked && !skipped);
     // The premises between the label and the bar stand over the bar; a
     // listing's lines run past a rule drawn under it.
     const between = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.bottom <= bar.y + 1 && spans(l));
@@ -591,8 +598,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // table's ("MaxMigrate" beside a benchmark's name); another label set
   // as this one is (a rule beside, Wp-store beside Wp-load) is not.
   const sibling = (l: Line) => { const t = tokenOf(l); return Boolean(t) && faceOf(l, t!) === faceOf(label, token) && Math.abs(l.size - label.size) <= 0.5; };
-  // A side condition in parentheses ends a rule's row ("(d fresh)").
-  const sideNote = (l: Line) => /^\s*\(.*\)\s*$/.test(l.text);
+  // A side condition in parentheses, or opening with "where", "if" and
+  // the like, ends a rule's row ("(d fresh)", "where η fresh").
+  const sideNote = (l: Line) => /^\s*(?:\(.*\)|(?:where|when|if|iff|provided|unless)\s.*)$/.test(l.text);
   if (row.some((l) => !sibling(l) && !sideNote(l) && faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
   // The label stands at a side of its row, or over it. With lines on
   // both sides, its row is the nearer side where the other is twice as

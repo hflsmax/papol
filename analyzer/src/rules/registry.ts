@@ -72,7 +72,7 @@ export const LAYOUT_GUTTER = rule({
 });
 export const LAYOUT_COLUMN = rule({
   id: "layout.column", stage: "layout",
-  summary: "Blank space wider than the size (a quad) between two runs on one baseline opens a column where a line just above or below (within two and a half sizes) leaves it blank too, its text before the blank starting where this line's does and its text after starting where the right run does: a grid.",
+  summary: "Blank space wider than the size (a quad) between two runs on one baseline opens a column where a line just above or below (within two and a half sizes) leaves a blank of the size there too, its text before the blank starting where this line's does and its text after starting where the right run does: a grid. A lone character after the blank stays on the line (\"Interchange 1\" over \"Interchange 2\").",
   why: "OOPSLA's bottom-up linearization sets three labelled equations side by side a word space apart; read as one line, [MergeIdempotence] and [MergeCommutativity] are one label and the equations under them one line. The caption under the figure crosses the gap, so it is no gutter. An aligned display (\"Θ₁ = …\" over \"Θ₂ = …\") is a grid too, but its blank is under a quad and stays one line.",
 });
 export const LAYOUT_SIZE_CHANGE = rule({
