@@ -792,7 +792,14 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // A label nearer its own row under it than the conclusion over it
       // heads that row (SUM-BIGBMIX under HOARE-SUM's conclusion).
       const own = overRow();
-      if (own && Math.min(...own.map((l) => l.top)) - label.bottom < label.top - Math.max(...conclusion.filter((l) => l.bottom <= label.top + 1).map((l) => l.bottom), -Infinity)) continue;
+      const above = label.top - Math.max(...conclusion.filter((l) => l.bottom <= label.top + 1).map((l) => l.bottom), -Infinity);
+      if (own && Math.min(...own.map((l) => l.top)) - label.bottom < above) continue;
+      // So does one no nearer the conclusion than the premises hard under
+      // it, over bars of their own: a heading centred over the next row of
+      // rules ("Concatenation" under Product's rules in Fig. 27).
+      const premises = lines.filter((l) => !onRow(l, label) && l.top >= label.bottom - 1 && l.top <= label.bottom + type.leading && l.x0 < label.x1 && l.x1 > label.x0
+        && page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x < l.x1 && d.x + d.w > l.x0));
+      if (premises.length && Math.min(...premises.map((l) => l.top)) - label.bottom <= above) continue;
       // Its right edge at the bar's, or hanging past it from within (JFP
       // sets F_Compat under the conclusion's end, past the bar's; SWF_Refine
       // stops short of the bar's).
