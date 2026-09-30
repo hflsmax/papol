@@ -210,8 +210,9 @@ ${fileDropStyles}
    Results is in Results and nothing has to say so. Flat by construction — there is
    nothing to open. It is pressed and drawn along like a scrubber, so the
    browser's own gestures are kept off it. */
-.navigator {
-  position: relative;
+.navigator-frame {
+  display: flex;
+  align-items: flex-start;
   flex: 1;
   align-self: center;
   min-width: 72px;
@@ -223,11 +224,17 @@ ${fileDropStyles}
      centre: the strip is a solid band and the marks under it are specks on
      the bar's white, so a pair centred by the ruler reads as sitting
      high. */
-  --nav-top: 7px;
-  --nav-strip: 18px;
-  --nav-lane: 15px;
-  height: calc(var(--nav-top) + var(--nav-strip) + var(--nav-lane));
+  --nav-top: 10px;
+  --nav-strip: 16px;
+  --nav-lane: 14px;
   font-family: var(--font-ui);
+}
+
+.navigator {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--nav-top) + var(--nav-strip) + var(--nav-lane));
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -236,9 +243,9 @@ ${fileDropStyles}
 /* What is centred in the bar is what can be seen. A lane with nothing in it
    is not seen, so it takes no room: no marks, no lower lane; and with
    neither marks nor ticks the box is only the strip, centred exactly. */
-.navigator.unmarked { --nav-lane: 0px; }
-.navigator.unmarked.unticked { --nav-top: 0px; }
-.navigator.unmarked .navigator-lane { display: none; }
+.navigator-frame.unmarked { --nav-lane: 0px; }
+.navigator-frame.unmarked.unticked { --nav-top: 0px; }
+.navigator-frame.unmarked .navigator-lane { display: none; }
 
 /* A groove, so the strip reads as one object on the bar's white ground and
    a section that is only a few pixels wide is still visibly a section. */
@@ -384,13 +391,14 @@ ${fileDropStyles}
   cursor: pointer;
 }
 
+/* Every kind's glyph is drawn in the same nine points (see Navigator's
+   GLYPHS), standing on the strip's top edge. */
 .navigator-sub svg {
   position: absolute;
-  left: 1.5px;
-  /* Its point on the strip's top edge. */
-  top: calc(var(--nav-top) - 7px);
-  width: 10px;
-  height: 7px;
+  left: 2px;
+  top: calc(var(--nav-top) - 9px);
+  width: 9px;
+  height: 9px;
   color: var(--ink-faint);
   transition: color var(--motion-fast) var(--ease-out);
 }
@@ -447,8 +455,8 @@ ${fileDropStyles}
 
 .navigator-anchor svg {
   display: block;
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
 .viewer-bar .navigator-lane .navigator-anchor:hover:not(:disabled),
@@ -508,10 +516,100 @@ ${fileDropStyles}
 /* In Papol macOS the bar is the title bar, and the map is the one control
    in it that should give way — it has a whole document to show and will
    use whatever it is given. */
-[data-shell='desktop'] .viewer-bar > .navigator {
+[data-shell='desktop'] .viewer-bar > .navigator-frame {
   flex-shrink: 1;
   min-width: 72px;
 }
+
+/* The gear, at the strip's right end and level with it, in the marks'
+   grey: what the bar marks over the strip is chosen here. */
+.navigator-choice {
+  position: relative;
+  flex: none;
+  margin-top: var(--nav-top);
+  margin-left: 4px;
+  height: var(--nav-strip);
+}
+
+.viewer-bar .navigator-gear,
+.viewer-bar .navigator-gear:hover:not(:disabled) {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.viewer-bar .navigator-gear:hover:not(:disabled),
+.viewer-bar .navigator-gear.open { color: var(--ink); }
+.navigator-gear:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+
+/* An even size in the strip's even height, so the gear's middle is the
+   strip's to the pixel. */
+.navigator-gear svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The choices, under the gear, dressed as the page's options bar is: every
+   kind the bar can mark, each with its glyph, a check on the ones it does. */
+.navigator-choices {
+  position: absolute;
+  z-index: 2000;
+  top: calc(100% + 10px);
+  right: -4px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+
+.viewer-bar .navigator-choices .navigator-kind,
+.viewer-bar .navigator-choices .navigator-kind:hover:not(:disabled) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.viewer-bar .navigator-choices .navigator-kind:hover:not(:disabled) { background: var(--paper-sunken); }
+.viewer-bar .navigator-choices .navigator-kind[aria-pressed='true'] { color: var(--ink); }
+.navigator-kind:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.navigator-kind > svg:first-child {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+
+.navigator-kind-name { flex: 1; text-align: left; }
+
+.navigator-kind-on {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 12px;
+  visibility: hidden;
+}
+
+.navigator-kind[aria-pressed='true'] .navigator-kind-on { visibility: visible; }
 
 /* ---------- The phone's strip ---------- */
 

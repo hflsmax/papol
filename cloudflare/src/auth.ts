@@ -7,6 +7,7 @@
 import { pbkdf2 as pbkdf2InJs } from "@noble/hashes/pbkdf2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 
+import navMarks from "../../config/nav_marks.json";
 import { now, one, statement, type Row } from "./db";
 import { refuse } from "./http";
 
@@ -33,6 +34,7 @@ export interface User extends Row {
   avatar_path: string | null;
   email_public: number;
   is_admin: number;
+  nav_marks: string | null;
   password_hash: string;
   created_at: string | null;
   deleted_at: string | null;
@@ -146,5 +148,14 @@ export function userPrivate(user: User) {
     avatar_path: user.avatar_path,
     email_public: Boolean(user.email_public),
     is_admin: Boolean(user.is_admin),
+    nav_marks: navMarksOf(user),
   };
+}
+
+// What the viewer's nav bar marks: the reader's own choice, else the
+// default set (config/nav_marks.json).
+function navMarksOf(user: User): string[] {
+  if (user.nav_marks == null) return [...navMarks.shown];
+  const kept = JSON.parse(user.nav_marks) as string[];
+  return navMarks.kinds.filter((kind) => kept.includes(kind));
 }

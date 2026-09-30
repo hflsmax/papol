@@ -6,7 +6,7 @@ import { jsonRequest, request } from '../../shared/httpClient.js';
 import {
   annotationView, boardView, nativeBlobBytes, nativeBlobImport,
   ensureNativeBlob, nativeDataActive, nativeRepository, openedFileBlob, openedFileBytes,
-  paperView, newUuid,
+  paperView, newUuid, prepareNativeAccount,
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 import { paperName } from '../../shared/paperName.js';
@@ -91,6 +91,15 @@ export async function getReader() {
     if (account) return account;
   }
   return request('/auth/me');
+}
+
+// What the nav bar marks, as the reader chose it: kept on the account, so
+// the web and the Mac read the same choice. The Mac keeps the account's
+// profile in its replica too, so its next start has it offline.
+export async function keepNavMarks(marks) {
+  const user = await jsonRequest('/auth/profile', 'PUT', { nav_marks: marks });
+  await prepareNativeAccount(user);
+  return user.nav_marks;
 }
 
 // A share uuid stands in for a session: the same public metadata, asked for

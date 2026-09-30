@@ -1,6 +1,7 @@
 // A paper read by rules, from pages already read (page.ts): its references,
 // the citations that point at them, and the links to its figures, tables,
-// sections, footnotes and named rules, in the shapes the Worker stores
+// sections, footnotes and named rules, and where its theorems, lemmas,
+// definitions and proofs open, in the shapes the Worker stores
 // (cloudflare/src/papers/reading.ts). Nothing here reads a file, so the
 // viewer runs it in the browser (viewer/src/readingWorker.js) as the host
 // does on a PDF (analyze.ts). See registry.ts for how the rules are kept.
@@ -13,6 +14,7 @@ import { findFloats, findMentions } from "./floats";
 import { findFootnoteMarkers, findFootnotes } from "./footnotes";
 import { findRuleMentions, findRules } from "./inference";
 import { findSectionMentions, findSections } from "./sections";
+import { findStatements } from "./statements";
 import { flowOf, layout as layOut, type Layout, type Line } from "./layout";
 import type { Page } from "./page";
 import { Trace } from "./trace";
@@ -20,7 +22,7 @@ import { Trace } from "./trace";
 export interface RulesResult {
   analysis: Analysis;
   trace: Trace;
-  stats: { pages: number; bodySize: number; numbering: string; twoColumnPages: number; floats: number; sections: number; footnotes: number; rules: number };
+  stats: { pages: number; bodySize: number; numbering: string; twoColumnPages: number; floats: number; sections: number; footnotes: number; rules: number; statements: number };
 }
 
 /**
@@ -49,6 +51,7 @@ function analyzed(layout: Layout) {
   const floats = findFloats(layout, trace);
   const sections = findSections(layout, bibliography.lines, floats.values(), trace);
   const rules = findRules(layout, bibliography.lines, flows, trace);
+  const statements = findStatements(layout, bibliography.lines, floats.values(), trace);
   const links = flows.flatMap((flow) => [
     ...findMentions(flow, floats, layout, trace), ...findSectionMentions(flow, sections, layout, trace), ...findRuleMentions(flow, rules, layout, trace),
   ]);
@@ -62,7 +65,7 @@ function analyzed(layout: Layout) {
     })),
     citations,
     floats: [
-      ...floats.values(), ...sections.values(), ...notes.values(),
+      ...floats.values(), ...sections.values(), ...notes.values(), ...statements.values(),
       ...[...rules.values()].map(({ name: _n, shape: _s, bracketed: _b, category: _c, labels: _l, ...rule }) => rule),
     ].map(({ caption: _, ...float }) => float),
     links,
@@ -71,7 +74,7 @@ function analyzed(layout: Layout) {
     analysis, trace, bibliographyLines: bibliography.lines, floatValues: floats.values(),
     stats: {
       pages: layout.pages.length, bodySize: layout.bodySize, numbering: bibliography.numbering,
-      twoColumnPages: layout.pages.filter((p) => p.twoColumn).length, floats: floats.size, sections: sections.size, footnotes: notes.size, rules: rules.size,
+      twoColumnPages: layout.pages.filter((p) => p.twoColumn).length, floats: floats.size, sections: sections.size, footnotes: notes.size, rules: rules.size, statements: statements.size,
     },
   };
 }

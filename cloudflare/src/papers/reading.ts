@@ -38,7 +38,7 @@ export interface Citation {
 // A figure, table or box, where a link to it lands: its caption.
 export interface Float extends Box {
   key: string; // what links name it by
-  kind: string; // figure, table, box, algorithm, listing
+  kind: string; // figure, table, box, algorithm, listing, section, footnote, rule, theorem, lemma, definition, proof
   label: string; // its number, as printed
 }
 

@@ -500,7 +500,7 @@ button:disabled {
 .board-actions-popover button, .board-new-hint button,
 .board-staging-card button, .board-inline-format button,
 .manage-tag-row .tag-chip,
-.navigator-sub, .navigator-anchor, .swatch, .shade, .shape, .weight,
+.navigator-sub, .navigator-anchor, .navigator-gear, .navigator-kind, .swatch, .shade, .shape, .weight,
 .beast, .link-return-button, .link-return-hide, .pdf-link, .cite, .pin,
 .note-pop-delete,
 .desktop-sidebar-label-action, .desktop-sidebar-item,

@@ -2,6 +2,7 @@
 // everything Papol holds about you in one file, and closing the door.
 
 import limits from "../../../config/app_limits.json";
+import navMarks from "../../../config/nav_marks.json";
 import { closeAccount } from "../account/close";
 import { exportArchive } from "../account/export";
 import { currentUser, hashPassword, userPrivate, verifyPassword, type User } from "../auth";
@@ -23,8 +24,9 @@ async function saveAvatar(env: Env, user: User, avatarPath: string | null) {
 }
 
 export function accountRoutes(router: Router) {
-  // Display name, affiliation, and whether the email shows on the user's
-  // nook. The email address itself is the login identifier and is fixed.
+  // Display name, affiliation, whether the email shows on the user's
+  // nook, and what the viewer's nav bar marks. The email address itself is
+  // the login identifier and is fixed.
   router.on("PUT", "/api/auth/profile", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Record<string, unknown>>(request);
@@ -32,6 +34,11 @@ export function accountRoutes(router: Router) {
     const displayName = "display_name" in data ? check.string("display_name", data.display_name, { max: limits.text.display_name, optional: true }) : undefined;
     const affiliation = "affiliation" in data ? check.string("affiliation", data.affiliation, { max: limits.text.affiliation, optional: true }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
+    // What the viewer's nav bar marks: a list of its kinds, in any order.
+    const marks = data.nav_marks;
+    if (marks !== undefined && !(Array.isArray(marks) && marks.every((kind) => navMarks.kinds.includes(kind)))) {
+      check.fail(`nav_marks must be a list of ${navMarks.kinds.join(", ")}`);
+    }
     check.done();
     if (displayName !== undefined) {
       if (!(displayName ?? "").trim()) refuse(400, "Display name cannot be empty");
@@ -39,7 +46,8 @@ export function accountRoutes(router: Router) {
     }
     if (affiliation !== undefined) user.affiliation = (affiliation ?? "").trim() || null;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
-    await statement(env.DB, "UPDATE users SET display_name = ?, affiliation = ?, email_public = ? WHERE uuid = ?", user.display_name, user.affiliation, user.email_public, user.uuid).run();
+    if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
+    await statement(env.DB, "UPDATE users SET display_name = ?, affiliation = ?, email_public = ?, nav_marks = ? WHERE uuid = ?", user.display_name, user.affiliation, user.email_public, user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 
