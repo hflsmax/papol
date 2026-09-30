@@ -1250,7 +1250,14 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const rowStart = Math.min(label.x0, ...inset.map((l) => l.x0));
   const flushLeft = (l: Line) => l.x0 <= type.text.x0 + label.size && (bar ? l.x0 < Math.min(bar.x, label.x0) - 2 * label.size
     : inset.length > 0 && l.x0 < rowStart - 2 * label.size && l.bottom <= label.top + 1);
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  // A gloss set under a bar-less row, in past where its formula starts
+  // and not past where it ends, explains the rule's notation ("𝐺\𝑛′→𝛼 𝑛′
+  // is 𝐺 with all … removed" under fix's "where"): a paragraph round a
+  // rule set inline starts at the column's edge, or beside the rule.
+  const body = setting.row.filter((l) => l !== label && l.x0 > label.x1);
+  const gloss = (l: Line) => !bar && setting.side !== "over" && body.length > 0 && l.top >= label.bottom - 1
+    && l.x0 > Math.min(...body.map((r) => r.x0)) + 2 * label.size && l.x0 < Math.max(...body.map((r) => r.x1));
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
