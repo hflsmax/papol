@@ -24,3 +24,4 @@ Sending is the owner's. How a letter is drafted is in
 | Letter | Covers |
 |---|---|
 | [2026-09-25-whats-new](2026-09-25-whats-new/letter.md) | 2026-09-21 to 2026-09-25: Intelligent link navigation, Reverse citation, Folder Drop, Tiny links, Papol on your Mac, Reading log |
+| [2026-09-30-telescoping](2026-09-30-telescoping/letter.md) | Telescoping: named inference rules on hover, click and ⌘ click (PRs #358, #359, #362); Papol for Mac 0.6.1 |

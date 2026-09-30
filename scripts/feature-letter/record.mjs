@@ -77,12 +77,13 @@ export class Stage {
     this.at = to;
   }
 
-  async click(target, options) {
+  // `modifiers` as Chrome counts them: 4 is Cmd (Meta), 2 Ctrl.
+  async click(target, { modifiers = 0, ...options } = {}) {
     await this.move(target, options);
     await sleep(250);
     const { x, y } = this.at;
-    await this.browser.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-    await this.browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+    await this.browser.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1, modifiers });
+    await this.browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1, modifiers });
   }
 
   // Something the pointer drags, like a folder from the Finder: a label
@@ -168,8 +169,13 @@ async function recordScene(browser, name, scene, outDir) {
     const list = join(work, 'frames.txt');
     await writeFile(list, `${lines.join('\n')}\n`);
     const out = join(resolve(outDir), `${name}.gif`);
+    // A scene may keep only part of the window (`crop`, in its pixels),
+    // shown at its own size when that is narrower than the letter's.
+    const { crop } = scene;
+    const frame = crop ? `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y},` : '';
+    const width = Math.min(GIF_WIDTH, crop?.width ?? GIF_WIDTH);
     execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list, '-vf',
-      `fps=12,scale=${GIF_WIDTH}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
+      `${frame}fps=12,scale=${width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
       '-loop', '0', out]);
     console.log(`${out} (${frames.length} frames, ${(ended - started).toFixed(1)} s)`);
   } finally {

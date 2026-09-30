@@ -52,6 +52,22 @@ async function activityPage() {
 
 const button = (text) => `return [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)});`;
 
+// The viewer over a pretend server (viewer/scripts/fixtures/projectViewer.mjs)
+// showing a paper from disk: PAPOL_FIXTURE_PDF names it. Papers with named
+// rules are PL papers kept outside the repository, so a rule scene reads its
+// paper from there rather than from papol.io.
+async function viewerPage() {
+  if (!process.env.PAPOL_FIXTURE_PDF) throw new Error('Set PAPOL_FIXTURE_PDF to the paper to show');
+  const { PAPER, viewerServer } = await import('../../viewer/scripts/fixtures/projectViewer.mjs');
+  const server = await viewerServer();
+  await server.listen();
+  return { origin: `http://127.0.0.1:${server.httpServer.address().port}`, paper: PAPER, close: () => server.close() };
+}
+
+// The nth link to a named rule on a page, counted from the top.
+const ruleLink = (page, rule, nth = 0) => `return [...document.querySelectorAll('.pdf-page[data-page="${page}"] .pdf-link')]
+  .filter((link) => link.getAttribute('aria-label') === ${JSON.stringify(`Go to Rule ${rule}`)})[${nth}];`;
+
 export const SCENES = {
   // My activity: the week, then the month, by paper, then one day.
   'reading-log': {
@@ -158,6 +174,43 @@ export const SCENES = {
       await stage.wait(900);
       await stage.key('[');
       await stage.wait(2000);
+    },
+  },
+
+  // Telescoping: a named rule shown under the line while the pointer rests
+  // on its name, a click to its definition and [ back, then a Cmd-click
+  // that keeps the rule as a clip beside the name. Internalizing
+  // Indistinguishability with Dependent Types (POPL '24): page 8 cites the
+  // typing rules set on page 7.
+  telescoping: {
+    viewport: { width: 1180, height: 760 },
+    // The page's text, without the viewer's bar, so the rules read at the
+    // letter's width.
+    crop: { x: 130, y: 56, width: 940, height: 704 },
+    setup: viewerPage,
+    url: ({ origin, paper }) => `${origin}/viewer/?pdf=${paper}&page=8`,
+    async prepare(stage) {
+      await stage.waitFor(`(() => { ${ruleLink(8, 'T-Var')} })()`, { timeout: 90_000 });
+      await stage.evaluate(bringTo(ruleLink(8, 'T-Var'), 0.3));
+      await stage.waitFor('document.fonts.ready.then(() => true)');
+      await stage.wait(2500);
+    },
+    async play(stage) {
+      await stage.move({ x: 880, y: 640 }, { ms: 10 });
+      await stage.wait(900);
+      await stage.move(ruleLink(8, 'T-Var'), { ms: 1000 });
+      await stage.waitFor('document.querySelector(".paper-clip.peek canvas")', { timeout: 10_000 });
+      await stage.wait(2400);
+      await stage.move({ x: 960, y: 560 }, { ms: 700 });
+      await stage.wait(900);
+      await stage.click(ruleLink(8, 'T-App'), { ms: 1000 });
+      await stage.wait(2600);
+      await stage.key('[', { code: 'BracketLeft' });
+      await stage.wait(1800);
+      await stage.click(ruleLink(8, 'T-Abs'), { ms: 900, modifiers: 4 });
+      await stage.waitFor('document.querySelector(".paper-clip:not(.peek) canvas")', { timeout: 10_000 });
+      await stage.move({ x: 960, y: 640 }, { ms: 700 });
+      await stage.wait(3200);
     },
   },
 };
