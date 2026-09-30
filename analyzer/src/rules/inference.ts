@@ -301,6 +301,9 @@ interface Setting {
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
 const level = (a: Line, b: Line) => a.top <= b.bottom + tolerance(a, b) && b.top <= a.bottom + tolerance(a, b);
+// Level as lines of a size are: a tall delimiter touches only what its
+// ends reach, not a text's size further (Hb-Pop's ⟨ under Hb-Push's).
+const levelBy = (a: Line, b: Line, size: number) => a.top <= b.bottom + TOUCH * size && b.top <= a.bottom + TOUCH * size;
 // Sharing most of its height with the label: on its row, not the line
 // under it that merely touches.
 // A delimiter stretched over a stack of lines (a spec's tall braces)
@@ -1330,7 +1333,12 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const body = setting.row.filter((l) => l !== label && l.x0 > label.x1);
   const gloss = (l: Line) => !bar && setting.side !== "over" && body.length > 0 && l.top >= label.bottom - 1
     && l.x0 > Math.min(...body.map((r) => r.x0)) + 2 * label.size && l.x0 < Math.max(...body.map((r) => r.x1));
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  // A delimiter stretched over a stack of lines (a specification's tall
+  // braces) is set larger than any line of the rule, however far from a
+  // broken font: it takes part, and carries what it brackets (Acq-Read's
+  // postcondition in braces after "{⊒𝑉 ∗ ℓ ↦ ℎ} ∗acq ℓ").
+  const tall = page.lines.filter((l) => !l.furniture && /\S/.test(l.text) && STRETCHED.test(l.text) && l.size > 2 * label.size && l.size <= 12 * label.size);
+  const lines = [...ruleLines(page, label), ...tall].filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
@@ -1371,7 +1379,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     grew = false;
     for (const line of lines) {
       if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
-      if (![...taken].some((t) => level(t, line))) continue;
+      if (![...taken].some((t) => (tall.includes(t) || tall.includes(line) ? levelBy(t, line, label.size) : level(t, line)))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
       // (a big operator splits "⨁ₓ Pₓ ⊢ (⨁ₓ Pₓ) + (⨁ₓ Qₓ)" into lines).
@@ -1429,12 +1437,24 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   if (!bar && setting.side === "over") {
     for (let grew = true; grew;) {
       grew = false;
-      const end = Math.max(...[...taken].map((t) => t.bottom));
+      // Its braces, however tall, carry the stack on: one opening on its
+      // last line, reaching down past it, takes in what it brackets
+      // (rc-commit-spec's postcondition, two cases in one tall ⟨ ⟩).
+      const braces = [...taken].filter((t) => STRETCHED.test(t.text) && t.size > 2 * label.size);
+      const stack = [...taken].filter((t) => !braces.includes(t));
+      // A brace closing on the stack's last line ends there with it.
+      const end = ((e) => Math.max(e, ...braces.filter((b) => b.bottom <= e + type.leading).map((b) => b.bottom)))(Math.max(...stack.map((t) => t.bottom)));
+      const last = Math.max(...stack.map((t) => t.top));
       const from = Math.min(...[...taken].map((t) => t.x0)), to = Math.max(...[...taken].map((t) => t.x1));
-      // Its braces, however tall, carry the stack on.
+      // The next label under this one, level with the stack or left of
+      // it, heads the lines from its top down (Hb-Pop under Hb-Push's
+      // postcondition, its own in tall brackets further right).
+      const next = Math.min(...[...others.lines].filter((o) => o.top > label.bottom + 1 && o.x0 < to && o.x1 > from - label.size && sameColumn(page, o, label)).map((o) => o.top));
+      const bracketed = (l: Line) => braces.some((b) => l.x0 >= b.x0 - 1 && l.x1 <= b.x1 + 1 && l.top >= b.top - 1 && l.bottom <= b.bottom + 1);
       for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size)]) {
-        if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
-        if (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2)) continue;
+        if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole" || line.top >= next - 1) continue;
+        const opening = STRETCHED.test(line.text) && line.size > 2 * label.size && line.top >= last - label.size && line.top < end && line.bottom > end + type.leading;
+        if (!opening && !bracketed(line) && (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2))) continue;
         // Upright words with no relation among them head what follows
         // ("Rules for the post-crash modality" under pfs-pf).
         const words = line.text.split(/\s+/).filter((w) => /^\p{L}{3,}$/u.test(w) && line.runs.some((r) => r.text.includes(w) && !ITALIC.test(r.font) && !MONO.test(r.font) && !SYMBOLIC.test(r.font)));
