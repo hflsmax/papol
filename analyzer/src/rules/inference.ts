@@ -273,6 +273,14 @@ function overline(page: Page, d: Drawn, type: Type): boolean {
     && r.x >= d.x + d.w - 2 && r.x <= d.x + d.w + 3 && r.baseline <= d.y + 0.6 * r.size && r.baseline >= d.y - 1.5 * r.size));
 }
 
+// Text reaching up to a stroke from under it, within its span, or another
+// stroke just under it, is what it overlines (TCInst's "‾Γ ⊢ τ′ₖ : κₖ‾",
+// PRODORSUM's): a conclusion stands clear of its bar.
+function hugs(page: Page, d: Drawn, type: Type): boolean {
+  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.25 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1)
+    || page.drawn.some((e) => e !== d && across(e) && e.y > d.y + 0.2 && e.y - d.y <= 0.4 * type.bodySize && e.x >= d.x - 1 && e.x + e.w <= d.x + d.w + 1);
+}
+
 function underline(page: Page, d: Drawn): boolean {
   return page.lines.some((l) => !l.furniture && l.x0 <= d.x + 1 && l.x1 >= d.x + d.w - 1 && (Math.abs(l.x0 - d.x) <= 0.8 || Math.abs(l.x1 - d.x - d.w) <= 0.8)
     && d.y > l.bottom - 0.22 * l.size && d.y <= l.bottom + 0.05 * l.size);
@@ -313,8 +321,8 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
   // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's).
   const held = (d: Drawn) => lines.some((l) => (l.top > from && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
-  if (process.env.DBGD) for (const d of page.drawn) if (d !== bar && across(d) && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w && Math.abs(bar.y - Number(process.env.DBGD)) < 1) console.error("DERIV", bar.x.toFixed(1), bar.y.toFixed(1), d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ over: overline(page, d, type), held: held(d), from, lines: lines.filter((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1).map((l) => l.text) }));
-  return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
+  if (process.env.DBGD) for (const d of page.drawn) if (d !== bar && across(d) && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w && Math.abs(bar.y - Number(process.env.DBGD)) < 1) console.error("DERIV", bar.x.toFixed(1), bar.y.toFixed(1), d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ over: overline(page, d, type), held: held(d), from, lines: lines.filter((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1).map((l) => [l.text.slice(0, 12), (l.top - d.y).toFixed(2), l.size.toFixed(1), (Math.min(...l.runs.map((r) => r.baseline)) - d.y).toFixed(2)]) }));
+  return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
     && lines.some((l) => l.top >= d.y - 1 && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
@@ -323,6 +331,7 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 // another's conclusion is not a step, nor is a frame's edge under it (the
 // judgment's box under NEVER) a bar.
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
+  if (process.env.DBGD && Math.abs(bar.y - Number(process.env.DBGD)) < 1) for (const d of page.drawn) if (d !== bar && across(d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w) console.error("STEP", d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), framed(page, d), lines.filter((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1).map((l) => l.text));
   return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
     && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
     && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
@@ -459,7 +468,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     if (perched) beside.push({ category: "beside", bar, row, side: "right", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     else if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
       // Level with the bar: beside it, or a cell over a table's rule.
-      if (label.x0 < bar.x + bar.w - slack && label.x1 > bar.x + slack) return { category: "cell", bar, row, side: "over" };
+      // A premise's overline running under the label is neither.
+      if (label.x0 < bar.x + bar.w - slack && label.x1 > bar.x + slack) {
+        if (hugs(page, bar, type)) continue;
+        return { category: "cell", bar, row, side: "over" };
+      }
       const right = bar.x + bar.w <= label.x0 + slack;
       // A word set into a rule, the bar touching it on both sides, heads a
       // group ("——— Structural ———"); a rule's label has a gap on its side.
@@ -467,6 +480,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
         && (Math.abs(d.x - label.x1) <= TOUCH * label.size || Math.abs(d.x + d.w - label.x0) <= TOUCH * label.size);
       const goesOn = touching(bar) && page.drawn.some((d) => d !== bar && touching(d));
       if (goesOn) return { category: "group", bar, row, side: right ? "right" : "left" };
+      // To the left of a stroke with nothing over it that runs straight
+      // into a wider bar under it, the label heads the rule: the stroke is
+      // its premise's overline (LIST's "‾Δ ⊢ Aᵢ : K‾").
+      const bare = !lines.some((l) => l !== label && l.bottom <= bar.y + 1 && l.bottom >= bar.y - type.leading && l.x0 < bar.x + bar.w && l.x1 > bar.x);
+      if (!right && bare && stepInto(page, bar, lines, type, slack)) continue;
       beside.push({ category: "beside", bar, row, side: right ? "right" : "left", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     }
   }
