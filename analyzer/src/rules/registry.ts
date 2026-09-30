@@ -289,6 +289,14 @@ export const RULE_SHAPE_SYMBOL = rule({
   matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu"],
   rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
+export const RULE_SHAPE_SHORT = rule({
+  id: "rule.shape.short", stage: "rule",
+  summary: "A short name: one to three signs, digits and Greek letters with a connective, an exponential (! ?) or a Greek letter among them and at most two Latin letters, or a bar and one to three such (\"⊗\", \"!\", \"1⊥\", \"!w\", \":π1\", \"|⊗\", \"|w\", \"=α\", \"β→\", \"μ\", \"β+0\", \"cc→\"), one upright letter or digit alone (\"c\", \"1\"), or a type's letter and a mathematical capital (\"U 𝐼\"); a letter read from a symbol font is a glyph (⋆ here: ⅋ reaches the text layer as stmary's \"O\"). Beside a bar it stands where two more labels stand beside bars on its page, on its side, and, made of signs alone, where the paper names two rules so; elsewhere only in brackets, in a column of labels set alike. A letter in a drawn ring is a marker, a Latin letter in brackets an item's tag, a connective before a math letter a formula (\"¬𝜑\"). It is cited only with \"rule\" by it, or in brackets with a sign and a letter, set as its label is.",
+  why: "Better Late Than Never names the rules of linear logic by their connective (⊗, ⅋, 1, ⊥, !, ?, W, C) and their transitions :π1, |⊗, !?; Sequent Core names its machine steps (β→), (β∀), (μ) and its rules ∀, ∃×; Call-by-Unboxed-Value (β×), (η&), (𝑐𝑐→), U 𝐼. Each is cited as \"rule !\", \"rules c and w\"; a bare \"1\" or \"!\" in prose is a number or a sign, a lone \"?\" beside a bar an open goal, a \"⊥\" at a diagram's edge a type.",
+  pattern: new RegExp("^(?=[^A-Za-z]*(?:[A-Za-z][^A-Za-z]*){0,2}$)(?:\\|[" + RULE_CONNECTIVES + "!?\\p{Script=Greek}\\dA-Za-z]{1,3}|(?=.*[" + RULE_CONNECTIVES + "!?\\p{Script=Greek}])(?![:=<~+&*]$)[" + RULE_CONNECTIVES + "!?\\p{Script=Greek}\\dA-Za-z]{1,3}|[A-Za-z\\d])$", "u"),
+  matches: ["⊗", "⊥", "1", "!", "?", "⋆", "c", "W", "⊕1", "!?", "!w", ":π1", "|⊗", "|w", "=α", "1⊥", "⊗⋆", "⊕1⋆", ":⋆0", "π", "μ", "β→", "β∀", "∃×", "β+0", "η&", "βλ", "cc→", "|c", ":C"],
+  rejects: ["12", "→→→L", "abc", "T-App", "x+y+z", "ab", "|", ":", "abc→", "(1)"],
+});
 export const RULE_SHAPE_PHRASE = rule({
   id: "rule.shape.phrase", stage: "rule",
   summary: "A phrase of two to four words, the first capitalised, in parentheses at the end of a row, in a column of two or more labels set alike (\"(Sequential composition)\", \"(Left choice)\", \"(Fixed point)\" among \"(One)\" and \"(Some)\"): alone, such a phrase is prose.",
