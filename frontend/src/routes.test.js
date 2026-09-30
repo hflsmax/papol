@@ -27,7 +27,7 @@ test('a paper link opens that paper', () => {
 // The whole digest is not a name. Papol has no readers holding old links to
 // keep working, and one shape costs less to hold in the head than two.
 test('a link carrying the whole digest is not a paper link', () => {
-  assert.equal(parseRoute(`/paper/${DIGEST}`).page, 'home');
+  assert.equal(parseRoute(`/paper/${DIGEST}`).page, 'unknown');
 });
 
 test('a user link opens their space', () => {
@@ -41,6 +41,7 @@ test('a user link opens their space', () => {
 test('every standing page is reachable by its path', () => {
   const pages = {
     '/': 'home',
+    '/index.html': 'home',
     '/profile': 'profile',
     '/join': 'join',
     '/about': 'about',
@@ -69,14 +70,14 @@ test('a name of the wrong shape is not a paper', () => {
     'new-paper', '',
   ];
   for (const name of wrong) {
-    assert.equal(parseRoute(`/paper/${name}`).page, 'home', `/paper/${name}`);
+    assert.equal(parseRoute(`/paper/${name}`).page, 'unknown', `/paper/${name}`);
   }
 });
 
 test('a paper name is not a user and not a board', () => {
   for (const name of [NAME, DIGEST]) {
-    assert.equal(parseRoute(`/u/${name}`).page, 'home');
-    assert.equal(parseRoute(`/board/${name}`).page, 'home');
+    assert.equal(parseRoute(`/u/${name}`).page, 'unknown');
+    assert.equal(parseRoute(`/board/${name}`).page, 'unknown');
   }
 });
 
@@ -87,19 +88,25 @@ test("a board link opens that board's jacket, not its canvas", () => {
   assert.deepEqual(parseRoute(`/board/${UUID}/`), { page: 'board', uuid: UUID });
 });
 
+test('a path no page answers is unknown, not home', () => {
+  // The canvas's own path is one: a link that brings it here is a bug.
+  assert.deepEqual(parseRoute(`/boards/${UUID}`), { page: 'unknown', path: `/boards/${UUID}` });
+  assert.deepEqual(parseRoute('/nowhere'), { page: 'unknown', path: '/nowhere' });
+});
+
 test('projects have a list, a page each, and an invitation link read as written', () => {
   assert.deepEqual(parseRoute('/projects'), { page: 'projects' });
   assert.deepEqual(parseRoute(`/project/${UUID}`), { page: 'project', uuid: UUID });
   assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
-  assert.equal(parseRoute('/projects/join/short').page, 'home');
+  assert.equal(parseRoute('/projects/join/short').page, 'unknown');
   const NAME = 'ab'.repeat(16);
   // A paper's brief is in the project's Papers tab, not a place of its own.
-  assert.equal(parseRoute(`/project/${UUID}/paper/${NAME}`).page, 'home');
+  assert.equal(parseRoute(`/project/${UUID}/paper/${NAME}`).page, 'unknown');
 });
 
 test('a dig is not a place of its own', () => {
   // It opens in its project's Digs tab.
-  assert.equal(parseRoute(`/dig/${UUID}`).page, 'home');
+  assert.equal(parseRoute(`/dig/${UUID}`).page, 'unknown');
 });
 
 test('a shelf has a page of its own', () => {
@@ -109,5 +116,5 @@ test('a shelf has a page of its own', () => {
 test('a paper picked from a shelf or a board is that paper, the place kept', () => {
   assert.deepEqual(parseRoute(`/shelf/${UUID}/paper/${NAME}`), { page: 'paper', uuid: NAME, shelf: UUID });
   assert.deepEqual(parseRoute(`/board/${UUID}/paper/${NAME}/`), { page: 'paper', uuid: NAME, board: UUID });
-  assert.equal(parseRoute(`/shelf/${UUID}/paper/${DIGEST}`).page, 'home');
+  assert.equal(parseRoute(`/shelf/${UUID}/paper/${DIGEST}`).page, 'unknown');
 });
