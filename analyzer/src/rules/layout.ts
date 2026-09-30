@@ -51,6 +51,10 @@ const GUTTER = 1.4;
 const SCRIPT_SIZE = 0.86;
 const RAISED = [0.12, 0.8] as const;
 const LOWERED = [0.08, 0.5] as const;
+// Delimiters stretched over a stack of lines (a brace set at 106pt
+// beside 10pt text, a pair of angles at 26pt round two lines) base no
+// scripts.
+const DELIMITER = /^[(){}[\]⟨⟩⟪⟫|‖⌈⌉⌊⌋\s]+$/u;
 // Space between two runs this wide, in font sizes, is a word space.
 const WORD_SPACE = 0.12;
 // A small word this far from the line beside it, in that line's size, is
@@ -200,8 +204,14 @@ export function buildLines(page: Page): Placed[][] {
     if (line.length) groups.push({ runs: line });
   }
   // Scripts: a small line raised or lowered against a bigger one it
-  // touches is part of that line.
-  const lines = groups.map((g) => g.runs);
+  // touches is part of that line. Delimiters stretched over a stack of
+  // lines stand apart from the text beside them first.
+  const lines = groups.flatMap((g) => {
+    const text = g.runs.filter((r) => !DELIMITER.test(r.text));
+    const size = median(text.map((r) => r.size));
+    const tall = g.runs.filter((r) => DELIMITER.test(r.text) && r.text.trim() && text.length && r.size > 1.5 * size);
+    return tall.length ? [tall, g.runs.filter((r) => !tall.includes(r))] : [g.runs];
+  });
   const merged = new Set<number>();
   lines.forEach((small, i) => {
     const size = most(small.map((r) => r.size));
@@ -214,7 +224,7 @@ export function buildLines(page: Page): Placed[][] {
     lines.forEach((big, j) => {
       if (j === i || merged.has(j)) return;
       const bigSize = median(big.map((r) => r.size));
-      if (size > SCRIPT_SIZE * bigSize) return;
+      if (size > SCRIPT_SIZE * bigSize || DELIMITER.test(big.map((r) => r.text).join("").trim())) return;
       const bigBase = median(big.map((r) => r.baseline));
       const lift = (bigBase - base) / bigSize;
       const up = lift >= RAISED[0] && lift <= RAISED[1];
