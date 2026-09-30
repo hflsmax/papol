@@ -1539,6 +1539,41 @@ function setAsLabel(at: Flow["at"], start: number, rule: Named): boolean {
   });
 }
 
+// A name is cited in the case its label is set in: a label in capitals
+// or small capitals throughout ("dual", "While" and "FENCE" drawn as small
+// capitals) is not cited by the same word in ordinary lowercase letters
+// ("exactly the dual of", "basic while loops", "memory fence semantics").
+// Small capitals reach the text layer as lowercase letters, and their
+// glyphs say what they are (page.ts). A hyphenated name's parts after its
+// prefix may differ in case (T-App for T-APP set in faked small capitals):
+// only the prefix is held to the label's. Only lowercase set as the text
+// around it is prose: a name set off in another face is marked as a name
+// however its label is set ("Rule (step) says" in italic, "the Σfm and
+// Πfm rules" in the sans face, "While. This rule decomposes …" in bold).
+const smallCapital = (line: Line, char: number) => {
+  const from = line.chars[char];
+  return Boolean(from && from.run >= 0 && line.runs[from.run]?.smallCaps?.[from.at]);
+};
+const capitalForm = (line: Line, char: number) => /\p{Lu}/u.test(line.text[char] ?? "") || smallCapital(line, char);
+function caseAsLabel(at: Flow["at"], start: number, end: number, rule: Named): boolean {
+  if (!rule.set) return true;
+  const from = rule.set.text.toLowerCase().indexOf(rule.name.toLowerCase());
+  if (from < 0) return true;
+  for (let k = from; k < from + rule.name.length; k += 1) {
+    if (/\p{L}/u.test(rule.set.text[k]) && !capitalForm(rule.set, k)) return true;
+  }
+  const stop = rule.shape === "hyphen" ? start + prefix(rule.name).length : end;
+  for (let i = start; i < Math.min(end, stop); i += 1) {
+    const there = at[i];
+    if (!there) continue;
+    const from = there.line.chars[there.char];
+    const face = from?.run >= 0 ? family(there.line.runs[from.run].font) : "";
+    if (face !== faceOf(there.line)) return true;
+    if (/\p{Ll}/u.test(there.line.text[there.char] ?? "") && !smallCapital(there.line, there.char)) return false;
+  }
+  return true;
+}
+
 function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{ index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number }> {
   if (!rules.length) return;
   const order = rules.map((r, i) => i).sort((a, b) => rules[b].name.length - rules[a].name.length);
@@ -1563,8 +1598,9 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const before = text.slice(Math.max(0, match.index - NEAR), match.index);
     const after = text.slice(match.index + match[0].length, match.index + match[0].length + NEAR);
     const nameStart = match.index + (groups.open ? 1 : 0);
-    const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && (!at || setAsLabel(at, nameStart, rules[i])));
-    const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && (!at || setAsLabel(at, nameStart, rules[i])));
+    const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i]));
+    const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && asLabel(i));
+    const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
     const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
     if (rule !== undefined) found.push(m);
     else if (!bracketed && fits.some((i) => rules[i].shape === "word" && !rules[i].bracketed)) listed.push({ ...m, fits: fits.filter((i) => rules[i].shape === "word" && !rules[i].bracketed) });

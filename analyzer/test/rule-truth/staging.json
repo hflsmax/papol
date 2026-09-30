@@ -8,7 +8,7 @@
   {"page": 11, "name": "S-TAPP", "box": [261.1, 368.8, 429.2, 411.4]},
   {"page": 11, "name": "S-CABS", "box": [54.3, 411.6, 429.0, 454.3]},
   {"page": 11, "name": "S-CAPP", "box": [131.5, 454.5, 351.9, 497.1]},
-  {"page": 11, "name": "S-QOTE", "box": [47.8, 497.2, 198.8, 541.7]},
+  {"page": 11, "name": "S-QUOTE", "box": [47.8, 497.2, 198.8, 541.7]},
   {"page": 11, "name": "S-SPLICE", "box": [221.6, 497.8, 435.5, 541.7]},
   {"page": 12, "name": "S-K-TVAR", "box": [64.1, 109.5, 112.3, 144.1]},
   {"page": 12, "name": "S-K-ARROW", "box": [143.3, 107.6, 267.5, 144.6]},
@@ -42,7 +42,7 @@
   {"page": 15, "name": "C-APP", "box": [53.4, 416.0, 204.4, 450.4]},
   {"page": 15, "name": "C-TABS", "box": [230.5, 415.9, 305.4, 449.5]},
   {"page": 15, "name": "C-TAPP", "box": [331.9, 416.0, 429.3, 450.4]},
-  {"page": 15, "name": "C-QOTE", "box": [74.0, 450.9, 198.3, 487.5]},
+  {"page": 15, "name": "C-QUOTE", "box": [74.0, 450.9, 198.3, 487.5]},
   {"page": 15, "name": "C-S-EMPTY", "box": [101.0, 540.4, 140.7, 567.3]},
   {"page": 15, "name": "C-S-CONS", "box": [198.6, 533.8, 377.0, 567.3]},
   {"page": 17, "name": "CE-PGM-DEF", "box": [52.1, 182.1, 173.7, 215.7]},
@@ -56,7 +56,7 @@
   {"page": 17, "name": "CE-TBETA", "box": [298.1, 324.9, 391.6, 351.8]},
   {"page": 17, "name": "CE-APP", "box": [80.8, 354.7, 139.0, 390.3]},
   {"page": 17, "name": "CE-TAPP", "box": [216.5, 354.7, 263.6, 388.2]},
-  {"page": 17, "name": "CE-QOTE", "box": [341.5, 353.3, 401.7, 389.6]},
+  {"page": 17, "name": "CE-QUOTE", "box": [341.5, 353.3, 401.7, 389.6]},
   {"page": 17, "name": "CE-S-HEAD", "box": [72.5, 412.8, 219.7, 446.3]},
   {"page": 17, "name": "CE-S-TAIL", "box": [255.6, 412.8, 410.5, 447.3]},
   {"page": 19, "name": "S-INJ-EMPTY", "box": [92.9, 109.4, 142.7, 136.3]},
@@ -64,5 +64,5 @@
   {"page": 19, "name": "S-CLAP-EMPTY", "box": [106.2, 167.0, 179.3, 193.9]},
   {"page": 19, "name": "S-CLAP-REC", "box": [231.3, 160.1, 376.6, 196.1]}
 ],
-"cited": [{"page": 13, "name": "S-KVAR"}, {"page": 13, "name": "S-TAPP"}, {"page": 13, "name": "S-SOLVE-LOCAL"}, {"page": 13, "name": "S-SOLVE-INCR"}, {"page": 13, "name": "S-CAPP"}, {"page": 13, "name": "S-QOTE"}, {"page": 13, "name": "S-CABS"}, {"page": 13, "name": "S-TABS"}, {"page": 21, "name": "S-KVAR"}, {"page": 21, "name": "S-TAPP"}, {"page": 21, "name": "S-SOLVE-LOCAL"}, {"page": 21, "name": "S-SOLVE-DECR"}, {"page": 21, "name": "S-CAPP"}, {"page": 21, "name": "S-SPLICE"}, {"page": 21, "name": "S-INJ-CONS"}, {"page": 21, "name": "S-CABS"}, {"page": 21, "name": "S-INJ-CONS"}, {"page": 21, "name": "S-TABS"}, {"page": 23, "name": "S-SPLICE"}, {"page": 23, "name": "S-QOTE"}, {"page": 23, "name": "S-QOTE"}, {"page": 23, "name": "S-SPLICE"}],
+"cited": [{"page": 13, "name": "S-KVAR"}, {"page": 13, "name": "S-TAPP"}, {"page": 13, "name": "S-SOLVE-LOCAL"}, {"page": 13, "name": "S-SOLVE-INCR"}, {"page": 13, "name": "S-CAPP"}, {"page": 13, "name": "S-QUOTE"}, {"page": 13, "name": "S-CABS"}, {"page": 13, "name": "S-TABS"}, {"page": 21, "name": "S-KVAR"}, {"page": 21, "name": "S-TAPP"}, {"page": 21, "name": "S-SOLVE-LOCAL"}, {"page": 21, "name": "S-SOLVE-DECR"}, {"page": 21, "name": "S-CAPP"}, {"page": 21, "name": "S-SPLICE"}, {"page": 21, "name": "S-INJ-CONS"}, {"page": 21, "name": "S-CABS"}, {"page": 21, "name": "S-INJ-CONS"}, {"page": 21, "name": "S-TABS"}, {"page": 23, "name": "S-SPLICE"}, {"page": 23, "name": "S-QOTE"}, {"page": 23, "name": "S-QOTE"}, {"page": 23, "name": "S-SPLICE"}],
 "note": "The PDF maps the small-caps qu ligature to q, so the text layer (and any copy) reads QOTE."}

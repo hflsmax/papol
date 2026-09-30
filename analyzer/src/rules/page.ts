@@ -18,6 +18,10 @@ export interface Run {
   // glyphs could not be read, and then each character is taken to be as
   // wide as any other.
   offsets?: number[];
+  // Which characters are drawn as small capitals: a lowercase letter the
+  // font draws as a capital (Libertine's u.sc, Computer Modern's cmcsc).
+  // Absent where none is.
+  smallCaps?: boolean[];
   size: number; // the font's height on the page
   font: string;
   bold: boolean;
@@ -148,7 +152,13 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
 // A glyph whose font names it a ligature carries what the name spells
 // (layout.ligature): Libertine's small-capital "qu" is one glyph,
 // q.sc_u.sc, that the font's ToUnicode maps to "q" alone.
-export type Glyph = { unicode?: string; width?: number; originalCharCode?: number; spelled?: string };
+// A glyph whose name marks it a small capital ("u.sc", "a.smcp", "Asmall")
+// carries that too.
+export type Glyph = { unicode?: string; width?: number; originalCharCode?: number; spelled?: string; small?: boolean };
+const SMALL_CAPITAL_GLYPH = /^[A-Za-z]\.(?:sc|smcp|c2sc)(?:$|[._])|^[A-Z]small$|(?:^|_)[a-z]\.sc(?:$|_)/;
+// A font set wholly in small capitals: Computer Modern's cmcsc, and the
+// fonts that say so in their name.
+const SMALL_CAPITAL_FONT = { test: (name: string) => /cmcsc|csc\d|smallcaps|smcp/i.test(name) || /(?:^|[-+_])SC(?:$|[-_\d])|Caps(?:$|[-_])/.test(name) };
 // `all` is every glyph of every font in the order drawn.
 type Glyphs = { widths: Map<string, Map<string, number>>; glyphs: Map<string, Glyph[]>; all: Glyph[] };
 function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>, names: (id: string) => ((code: number) => string | undefined) | undefined = () => undefined): Glyphs {
@@ -170,8 +180,12 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
     } else if (fn === OPS.showText && font && drawn && Array.isArray(args?.[0])) {
       for (const glyph of args[0] as (Glyph | number)[]) {
         if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width)) continue;
-        const spelled = named && glyph.originalCharCode !== undefined ? ligatureSpelling(named(glyph.originalCharCode)) : undefined;
-        const kept = spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { ...glyph, spelled } : glyph;
+        const name = named && glyph.originalCharCode !== undefined ? named(glyph.originalCharCode) : undefined;
+        const spelled = ligatureSpelling(name);
+        const small = Boolean(name && SMALL_CAPITAL_GLYPH.test(name));
+        const kept = (spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode)) || small
+          ? { ...glyph, ...(spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { spelled } : {}), ...(small ? { small } : {}) }
+          : glyph;
         drawn.push(kept);
         all.push(kept);
         if (!font.has(glyph.unicode)) font.set(glyph.unicode, glyph.width!);
@@ -189,20 +203,21 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
 // `text` is the run as its glyphs spell it: where a ligature's name spells
 // more than the text layer says (q.sc_u.sc read as "q"), the letters
 // left out are put back (layout.ligature).
-export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number; text: string } | undefined {
+export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number; text: string; small: boolean[] } | undefined {
   if ([...text].length !== text.length) return undefined;
   const widths: number[] = [];
+  const small: boolean[] = [];
   let i = 0, j = from, spelled = "";
   while (i < text.length) {
     const glyph = glyphs[j], unicode = glyph?.unicode ?? "";
     if (unicode && text.startsWith(unicode, i)) {
       const letters = glyph!.spelled && !text.startsWith(glyph!.spelled, i) ? glyph!.spelled : unicode;
       if ([...letters].length !== letters.length) return undefined;
-      for (let k = 0; k < letters.length; k += 1) widths.push(glyph!.width! / letters.length);
+      for (let k = 0; k < letters.length; k += 1) { widths.push(glyph!.width! / letters.length); small.push(Boolean(glyph!.small)); }
       spelled += letters;
       i += unicode.length; j += 1;
-    } else if (text[i] === " " && /^\s$/.test(unicode)) { widths.push(glyph!.width!); spelled += " "; i += 1; j += 1; }
-    else if (text[i] === " ") { widths.push(250); spelled += " "; i += 1; }
+    } else if (text[i] === " " && /^\s$/.test(unicode)) { widths.push(glyph!.width!); small.push(false); spelled += " "; i += 1; j += 1; }
+    else if (text[i] === " ") { widths.push(250); small.push(false); spelled += " "; i += 1; }
     else return undefined;
   }
   const sum = widths.reduce((s, w) => s + w, 0);
@@ -210,7 +225,7 @@ export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from:
   const offsets = [0];
   let at = 0;
   for (const w of widths) { at += w; offsets.push((at / sum) * width); }
-  return { offsets, next: j, text: spelled };
+  return { offsets, next: j, text: spelled, small };
 }
 
 // How far ahead in a font's glyphs a run is looked for when the glyphs
@@ -285,7 +300,7 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   // where no glyphs spell the run are its font's widths taken: another
   // font's widths put a small-capital name a letter off where it is printed.
   // The run as its glyphs spell it comes back with them.
-  const offsetsFor = (id: string, text: string, width: number): { offsets?: number[]; text: string } => {
+  const offsetsFor = (id: string, text: string, width: number): { offsets?: number[]; text: string; small?: boolean[] } => {
     const drawn = glyphs.get(id);
     if (drawn?.length) {
       const at = cursors.get(id) ?? 0;
@@ -315,12 +330,14 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
     const size = Math.hypot(c, d) || raw.height;
     const font = fontName(raw.fontName);
     const spelled = offsetsFor(raw.fontName, raw.str, raw.width);
+    const smallCaps = SMALL_CAPITAL_FONT.test(font) ? Array.from(spelled.text, () => true) : spelled.small;
     runs.push({
       text: spelled.text,
       x: e - left,
       baseline: top - f,
       width: raw.width,
       offsets: spelled.offsets,
+      ...(smallCaps?.some(Boolean) ? { smallCaps } : {}),
       size,
       font,
       bold: BOLD.test(font),
