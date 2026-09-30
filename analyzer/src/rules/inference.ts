@@ -1293,11 +1293,12 @@ const delimiting = (l: Line) => STRETCHED.test(l.text) || extended(l)
 // size): the layout sets it as a letter, raised off the row it encloses
 // (Ht-na-alloc's "}" closing its postcondition). The pieces of one
 // stretched further stand one on the next, a step apart, and the
-// layout's letter box holds each. A line may hold both (case_def's "⟨"
-// beside a piece of its "‖"), so each run is weighed on its own.
+// layout's letter box holds each. A line of them may hold both (case_def's
+// "⟨" beside a piece of its "‖"), so each run is weighed on its own; a
+// line of text with a big bracket in it is as tall as its text.
 const pieces = new WeakMap<Page, Line["runs"]>();
 function extentOf(page: Page, l: Line): [number, number] {
-  if (!l.runs.some((r) => EXTENSION.test(r.font))) return [l.top, l.bottom];
+  if (!extended(l)) return [l.top, l.bottom];
   let all = pieces.get(page);
   if (!all) { all = page.lines.flatMap((o) => o.runs.filter((r) => EXTENSION.test(r.font) && r.text.trim())); pieces.set(page, all); }
   const reach = l.runs.filter((r) => r.text.trim()).map((r): [number, number] => {
