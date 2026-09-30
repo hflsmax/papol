@@ -94,6 +94,27 @@ function isGutter(runs: Placed[], left: number, right: number, baseline: number,
   return crossing === 0 && before >= 2 && after >= 2;
 }
 
+// Whether blank space between two runs on one baseline opens a column:
+// a line just above or below leaves it blank too, and its text before
+// the blank starts where this line's does and its text after starts
+// where the right run does (two labelled equations set side by side
+// under their labels, "[MergeIdempotence]" over "merge(a, a, a)").
+function opensColumn(runs: Placed[], from: number, left: number, right: number, baseline: number, size: number): boolean {
+  const main = runs.filter((r) => r.size >= 0.8 * size && r.size <= 1.25 * size);
+  return main.some((start) => {
+    const lift = Math.abs(start.baseline - baseline);
+    if (lift < SAME_LINE * size || lift > 2.5 * size || Math.abs(start.x - right) > 1) return false;
+    const line = main.filter((r) => Math.abs(r.baseline - start.baseline) < SAME_LINE * size).sort((a, b) => a.x - b.x);
+    if (line.some((r) => r.x < right - 1 && r.x + r.width > left + 1)) return false;
+    // The text before the blank, back to the last blank as wide.
+    const before = line.filter((r) => r.x + r.width <= left + 1);
+    if (!before.length) return false;
+    let first = before.length - 1;
+    while (first > 0 && before[first].x - (before[first - 1].x + before[first - 1].width) <= 0.5 * size) first -= 1;
+    return Math.abs(before[first].x - from) <= 1;
+  });
+}
+
 // Whether the blank on a baseline between two runs is taken by a script
 // raised or lowered off it: "enables⁵⁻⁸, or" is one line with a
 // superscript in it, not two lines either side of a gap.
@@ -150,6 +171,7 @@ export function buildLines(page: Page): Placed[][] {
           && Math.abs(run.baseline - last.baseline) < 0.1 * Math.min(run.size, last.size);
         const split = (gap > GUTTER * size && !bridged)
           || (gap > 0.5 * size && !bridged && isGutter(runs, last.x + last.width, run.x, run.baseline, size))
+          || (gap > size && !bridged && opensColumn(runs, line[0].x, last.x + last.width, run.x, run.baseline, size))
           || (resized && !scriptFills(runs, last.x + last.width, run.x, run.baseline, size));
         if (split) { groups.push({ runs: line }); line = []; }
       }

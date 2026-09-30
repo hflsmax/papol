@@ -63,6 +63,7 @@ const PAD = 2;
 const BAR_SHARE = 0.92; // of the text column: a wider bar needs its conclusion centred under it
 const OVER_REACH = 7; // leadings a label over its premises may stand from the bar
 const LABEL_SIZE = 1.2;
+const LABEL_LEAST = 0.55; // of the text's size: smaller is a diagram's lettering ("(Level J)")
 const HUGGED = 0.6; // of the text's width: a bar a column wide between premises and conclusion
 const FAR = 8; // label sizes a label level with its bar may stand from it, blank between
 
@@ -378,6 +379,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const measure = Array.isArray(column) ? column[1] - column[0] : column.x1 - column.x0;
   const wide = BAR_SHARE * measure;
   const widest = measure + 3 * label.size;
+  // A label alone on its row at the column's left edge heads the rule
+  // under it wherever the rule stands in the column (OOPSLA's "[Query]"
+  // over a centred rule).
+  const [colLeft, colRight] = Array.isArray(column) ? column : [column.x0, column.x1];
+  const alone = ruleLines(page, label).every((l) => l === label || !onRow(l, label) || !sameColumn(page, l, label));
+  const margined = alone && Math.abs(label.x0 - colLeft) <= slack;
   // A bar as wide as the text could be a figure's own rule: it is a rule's
   // only with a conclusion centred under it and clearly shorter.
   const concluded = (d: Drawn) => lines.some((l) => !CAPTION.test(l.text) && l.top >= d.y - 1 && l.top <= d.y + 2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x
@@ -412,7 +419,8 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)))
     && (d.w <= wide || concluded(d) || besides(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
     && d.y >= label.top - OVER_REACH * type.leading && d.y <= label.bottom + OVER_REACH * type.leading
-    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d))) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
+    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
+  if (process.env.DBG && label.text.includes(process.env.DBG)) for (const d of page.drawn.filter((d) => across(d) && d.y > label.top - 2 * label.size && d.y < label.bottom + OVER_REACH * type.leading)) console.error("NEAR", label.text, d.x.toFixed(1), d.y.toFixed(1), d.w.toFixed(1), JSON.stringify({ near: near.includes(d), besides: besides(d), framed: framed(page, d), over: overline(page, d, type), struck: struck(page, d), ul: underline(page, d), conc: concluded(d), top: topping(d), cap: capping(d), prose: inProse(page, d, type), wide: d.w <= wide, widest: d.w <= widest, measure, textw: type.text.x1 - type.text.x0 }));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
     .sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid) || gapTo(a) - gapTo(b));
   // The nearest bar under the label, for a label standing over its premises.
@@ -435,7 +443,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const beside: Setting[] = [];
   for (const bar of bars) {
     if (!concluded1(bar)) continue;
-    if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
+    // Raised onto the last premise's line, an em clear of it, its right
+    // edge at the bar's end (Oxidizing OCaml's CASE): beside it all the
+    // same. A table's header over its rule has no premise beside it.
+    const perched = token.side === "whole" && !RELATION.test(label.text) && row.some((l) => l.x1 <= label.x0 && RELATION.test(l.text)) && row.every((l) => l.x1 <= label.x0 - label.size || l.x0 >= label.x1) && label.x0 > bar.x && Math.abs(label.x1 - bar.x - bar.w) <= 2 * slack && bar.y >= label.bottom - 1 && bar.y - label.bottom <= 0.5 * type.leading;
+    if (perched) beside.push({ category: "beside", bar, row, side: "right", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
+    else if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
       // Level with the bar: beside it, or a cell over a table's rule.
       if (label.x0 < bar.x + bar.w - slack && label.x1 > bar.x + slack) return { category: "cell", bar, row, side: "over" };
       const right = bar.x + bar.w <= label.x0 + slack;
@@ -482,11 +495,15 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // Nothing else on the label's row reaches over the bar, a bracketed
     // heading at the margin aside ("(Moving)") and the premises the
     // label heads ("Assume  Γ ⊨ e ⇓ z"); accents and braces the layout
-    // sets as lines of their own block nothing.
-    const blocks = (l: Line) => spans(l) && /[\p{L}\d]/u.test(l.text) && !/^\s*[[(].*[\])]\s*$/.test(l.text) && (l.x0 < label.x1 - tolerance(l, label) || !fits(l) || !RELATION.test(l.text) || GRAMMAR.test(l.text));
+    // sets as lines of their own block nothing, nor a big operator rising
+    // to the label (a ⋀ its font maps to "Û").
+    const blocks = (l: Line) => spans(l) && /[\p{L}\d]/u.test(l.text) && !(l.text.trim().length === 1 && l.runs.every((r) => EXTENSION.test(r.font))) && !/^\s*[[(].*[\])]\s*$/.test(l.text) && (l.x0 < label.x1 - tolerance(l, label) || !fits(l) || !RELATION.test(l.text) || GRAMMAR.test(l.text));
     const heads = row.some((l) => spans(l) && RELATION.test(l.text) && l.x0 >= label.x1 - tolerance(l, label) && fits(l));
+    // A label at the margin heads the first bar under it only: bars
+    // stacked over this one are a derivation's ("Θ₂ = …" over Fig. 9).
+    const stacked = page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y < bar.y - 1 && d.x < bar.x + bar.w && d.x + d.w > bar.x);
     const aligned = Math.abs(label.x0 - bar.x) <= 2 * label.size || Math.abs((label.x0 + label.x1) / 2 - (bar.x + bar.w / 2)) <= 2 * label.size
-      || (heads && label.x0 >= bar.x - 2 * label.size && label.x1 <= bar.x + bar.w);
+      || (heads && label.x0 >= bar.x - 2 * label.size && label.x1 <= bar.x + bar.w) || (margined && bar.x >= label.x0 - slack && !stacked);
     // The premises between the label and the bar stand over the bar; a
     // listing's lines run past a rule drawn under it.
     const between = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.bottom <= bar.y + 1 && spans(l));
@@ -500,6 +517,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // bar of its own is the next rule's (ENV-R-KVAR's beside ENV-R-EMPTY).
     const premised = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2);
     const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l));
+    if (process.env.DBG && label.text.includes(process.env.DBG)) console.error("OVER", label.text, bar.x.toFixed(1), bar.y.toFixed(1), label.size, JSON.stringify({ under, whole: token.side, aligned, overhangs, barred, rowed, blocks: row.filter(blocks).map((l) => l.text), over: between.filter((l) => !fits(l)).map((l) => l.text), conc: concluding.filter((l) => !fits(l)).map((l) => l.text) }));
     if (under && token.side === "whole" && aligned && !overhangs && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Under the conclusion, its edge at the bar's: the bar just over the
@@ -525,13 +543,19 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // alone it heads a listing ("in", "Core") or a grammar's column ("id ⇒
   // Return").
   if (token.side === "whole") {
+    // Labels set side by side over theirs, each line is the nearest's
+    // ("[MergeIdempotence]" between two other labelled equations).
+    const others = row.filter((l) => tokenOf(l)?.side === "whole");
+    const middle = (l: Line) => (l.x0 + l.x1) / 2;
     const under = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.top <= label.bottom + 1.2 * type.leading
-      && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label));
+      && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label)
+      && !others.some((o) => Math.abs(middle(l) - middle(o)) < Math.abs(middle(l) - centre)));
     if (under.length) {
       const x0 = Math.min(...under.map((l) => l.x0)), x1 = Math.max(...under.map((l) => l.x1)), bottom = Math.max(...under.map((l) => l.bottom));
       const aligned = Math.abs(x0 - label.x0) <= 2 * label.size || Math.abs((x0 + x1) / 2 - centre) <= 2 * label.size;
       const stroke = page.drawn.some((d) => across(d) && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
       const blocked = row.some((l) => l.x0 < x1 && l.x1 > x0 && /[\p{L}\d]/u.test(l.text));
+      if (process.env.DBG && label.text.includes(process.env.DBG)) console.error("AXIOM", label.text, JSON.stringify({ under: under.map((l) => l.text), aligned, stroke, blocked, prod: under.some((l) => production(l, page, type)), between: BETWEEN.test(under.map((l) => l.text).join(" ")) }));
       if (aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && BETWEEN.test(under.map((l) => l.text).join(" "))) return { category: "over", bar: null, row: under, side: "over" };
     }
   }
@@ -559,12 +583,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
   // A row holding words in the text's face with no relation is a
-  // table's ("MaxMigrate" beside a benchmark's name).
-  // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name); another label set
   // as this one is (a rule beside, Wp-store beside Wp-load) is not.
   const sibling = (l: Line) => { const t = tokenOf(l); return Boolean(t) && faceOf(l, t!) === faceOf(label, token) && Math.abs(l.size - label.size) <= 0.5; };
-  if (row.some((l) => !sibling(l) && faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
+  // A side condition in parentheses ends a rule's row ("(d fresh)").
+  const sideNote = (l: Line) => /^\s*\(.*\)\s*$/.test(l.text);
+  if (row.some((l) => !sibling(l) && !sideNote(l) && faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
   // The label stands at a side of its row, or over it. With lines on
   // both sides, its row is the nearer side where the other is twice as
   // far (a page of axioms set two to a row).
@@ -826,7 +850,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const pages = layout.pages.map((page) => { const bars = textBars(page); return bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page; });
   for (const page of pages) {
     for (const line of page.lines) {
-      if (line.furniture || skip.has(line) || line.size > LABEL_SIZE * bodySize) continue;
+      if (line.furniture || skip.has(line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
       const token = tokenOf(line);
       if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
     }
@@ -839,7 +863,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const rows = seen.filter((s) => s.page === page && (s.setting.category === "row" || s.setting.category === "margin"));
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
-      if (line.furniture || skip.has(line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize) continue;
+      if (line.furniture || skip.has(line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
       const token = tokenOf(line, true);
       if (!token || token.side === "whole" || (token.side === "head" && !token.bracketed)) continue;
       const column = rows.filter((s) => (s.token.side === token.side || s.token.side === "whole") && Math.abs(edge(s.line, token.side) - edge(line, token.side)) <= 1 && Math.abs(s.line.size - line.size) <= 0.5
