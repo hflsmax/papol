@@ -86,12 +86,12 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const [notice, setNotice] = useState(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [chosenView, chooseView] = useView(projectUuid);
-  // A board's jacket opens under the tabs, in the Boards tab; another tab
-  // leaves it for the project's own address.
+  // A board's jacket opens in the Boards tab; another tab leaves it for
+  // the project's own address.
   const view = board ? 'boards' : chosenView;
   const setView = (next) => {
     chooseView(next);
-    if (board) onOpenBoard(null, { replace: true });
+    if (board && next !== 'boards') onOpenBoard(null, { replace: true });
   };
   const [picked, pick] = usePicked(projectUuid);
   const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
@@ -268,19 +268,12 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
                 onRead={onRead}
               />
             )}
-            {view === 'boards' && (board ? (
-              <div className="project-board-open">
-                <BoardJacket
-                  key={board}
-                  boardUuid={board}
-                  onOpen={onOpenCanvas}
-                  hideBack
-                  held
-                  onChanged={talked}
-                  onDeleted={() => { talked(); onOpenBoard(null, { replace: true }); }}
-                />
-              </div>
-            ) : <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} onOpenBoard={onOpenBoard} />)}
+            {view === 'boards' && (
+              <ProjectBoards
+                project={project} board={board} act={act} hasNews={hasNews} currentUser={currentUser}
+                onOpenBoard={onOpenBoard} onOpenCanvas={onOpenCanvas} onChanged={talked}
+              />
+            )}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
           </div>
         </>
@@ -715,94 +708,127 @@ function useWide(query = '(min-width: 1000px)') {
   return wide;
 }
 
-// The project's boards, which every member arranges; a board is known by
-// its shape, so its map is the card. A board picked here opens its jacket
-// in its place, under the project's tabs, and so does one just made; the
-// canvas is the jacket's way in. The last tile is the one way to make one
-// more.
-function ProjectBoards({ project, act, hasNews, currentUser, onOpenBoard }) {
+// The project's boards, which every member arranges, as a list read like
+// the papers: each board by its name, what its newest card says and who
+// put it there. A board picked here opens its jacket beside the list on a
+// wide window, under its row on a narrow one, and has the address of its
+// own; the canvas is the jacket's way in. On a wide window there is always
+// a jacket beside the list: the one picked, else the first new board,
+// else the latest. The last row makes one more.
+function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard, onOpenCanvas, onChanged }) {
+  const wide = useWide();
+  const boards = project.boards ?? [];
+  const chosen = boards.find((b) => b.uuid === board)
+    ?? (wide ? boards.find((b) => b.is_new) ?? boards[0] : null);
+  // Moving from one board to the next replaces the address, so Back
+  // leaves the tab rather than walking through every board looked at.
+  const pick = (uuid) => onOpenBoard(uuid, board ? { replace: true } : undefined);
+  const isMe = (user) => user.uuid === currentUser?.uuid;
+  const jacket = (b) => (
+    <BoardJacket
+      key={b.uuid}
+      boardUuid={b.uuid}
+      onOpen={onOpenCanvas}
+      hideBack
+      held
+      onChanged={onChanged}
+      onDeleted={() => { onChanged(); onOpenBoard(null, { replace: true }); }}
+    />
+  );
+  const move = (e) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step || !chosen || e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+    e.preventDefault();
+    const at = boards.findIndex((b) => b.uuid === chosen.uuid);
+    const next = boards[Math.max(0, Math.min(boards.length - 1, at + step))];
+    pick(next.uuid);
+    e.currentTarget.querySelector(`[data-board="${next.uuid}"]`)?.focus();
+  };
+  return (
+    <section className={`project-section project-papers-view project-boards-view${wide ? ' is-wide' : ''}`} aria-label="Boards">
+      <ul className="project-papers project-boards project-rows" onKeyDown={wide ? move : undefined}>
+        {boards.map((b) => {
+          const selected = chosen?.uuid === b.uuid;
+          // A narrow window folds the jacket away again on a second press.
+          const choose = () => (selected && !wide ? onOpenBoard(null, { replace: true }) : pick(b.uuid));
+          const latest = b.latest_card;
+          const who = latest ? latest.added_by : b.owner;
+          return (
+            <React.Fragment key={b.uuid}>
+              <li
+                data-subject={`board:${b.uuid}`}
+                className={`project-row project-board${selected ? ' is-selected' : ''}`}
+                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) choose(); }}
+              >
+                <div className="project-row-text">
+                  <h4 className="project-card-title">
+                    <button
+                      type="button" className="project-row-open" data-board={b.uuid}
+                      aria-expanded={wide ? undefined : selected} aria-pressed={wide ? selected : undefined}
+                      onClick={choose}
+                    >
+                      {b.name}
+                    </button>
+                  </h4>
+                  {latest?.text && <p className="project-card-authors project-board-latest">{latest.text}</p>}
+                </div>
+                <span className="project-row-facts">
+                  <span className="project-card-added">
+                    {who && <>{isMe(who) ? 'You' : firstName(who)} {latest ? 'added' : 'made it'} · </>}
+                    {when(latest ? latest.added_at : b.created_at ?? b.updated_at)}
+                  </span>
+                </span>
+                <span className="project-row-end">
+                  {(b.is_new || hasNews((subject) => subject.board_uuid === b.uuid)) && <NewsDot />}
+                </span>
+              </li>
+              {!wide && selected && <li className="project-board-open">{jacket(b)}</li>}
+            </React.Fragment>
+          );
+        })}
+        <NewBoard project={project} act={act} onMade={(uuid) => pick(uuid)} />
+      </ul>
+      {wide && chosen && <div className="project-papers-panel project-boards-panel">{jacket(chosen)}</div>}
+    </section>
+  );
+}
+
+// The last row of the Boards tab: pressed, it takes the new board's name
+// in place, and Enter makes it and opens it. Escape, or leaving it empty,
+// puts the row back.
+function NewBoard({ project, act, onMade }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const boards = project.boards ?? [];
   const stop = () => { setNaming(false); setName(''); };
   const create = async (e) => {
     e.preventDefault();
     const next = name.trim();
     if (!next || busy) return;
     setBusy(true);
-    const board = await act(() => createProjectBoard(project.uuid, next));
+    const made = await act(() => createProjectBoard(project.uuid, next));
     setBusy(false);
-    if (board) onOpenBoard(board.uuid);
+    if (made) { stop(); onMade(made.uuid); }
   };
   return (
-    <section className="project-section" aria-label="Boards">
-      <ul className="project-boards project-grid">
-        {boards.map((board) => {
-          const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
-          const href = appPath(`/project/${project.uuid}/board/${board.uuid}`);
-          const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
-          return (
-            <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
-              <a className="project-card-body project-board-link" href={href}>
-                <BoardMap boxes={board.boxes} />
-                <strong className="project-card-title">{board.name}</strong>
-              </a>
-              {(board.is_new || hasNews((subject) => subject.board_uuid === board.uuid)) && <NewsDot />}
-              <footer className="project-card-foot project-board-meta">
-                {[
-                  board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',
-                  papers ? plural(papers, 'paper', 'papers') : null,
-                  owner,
-                  `edited ${when(board.updated_at)}`,
-                ].filter(Boolean).join(' · ')}
-              </footer>
-            </li>
-          );
-        })}
-        {naming ? (
-          <li className="project-card project-board is-naming">
-            <header className="project-card-head"><span className="project-card-kind">New board</span></header>
-            <form className="project-card-body" onSubmit={create}>
-              <input
-                className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
-              />
-              <span className="project-board-form-actions">
-                <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
-                <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
-              </span>
-            </form>
-          </li>
-        ) : (
-          <li className="project-board-tile">
-            <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
-              <ActionGlyph name="plus" />New board
-            </button>
-          </li>
-        )}
-      </ul>
-    </section>
-  );
-}
-
-// A board from a distance: its cards as plain boxes where they sit, fitted
-// to a fixed strip so the cards in a row line up.
-function BoardMap({ boxes = [] }) {
-  if (!boxes.length) return <svg className="project-board-map" aria-hidden="true" />;
-  const left = Math.min(...boxes.map((b) => b.x));
-  const top = Math.min(...boxes.map((b) => b.y));
-  const right = Math.max(...boxes.map((b) => b.x + b.w));
-  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
-  const margin = Math.max(24, 0.04 * Math.max(right - left, bottom - top));
-  return (
-    <svg
-      className="project-board-map" aria-hidden="true" preserveAspectRatio="xMidYMid meet"
-      viewBox={`${left - margin} ${top - margin} ${right - left + 2 * margin} ${bottom - top + 2 * margin}`}
-    >
-      {boxes.map((b, i) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx="10" className={`is-${b.kind}`} />)}
-    </svg>
+    <li className="project-row project-board-new">
+      {naming ? (
+        <form className="project-board-new-form" onSubmit={create}>
+          <ActionGlyph name="plus" />
+          <input
+            className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
+            disabled={busy}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => { if (!name.trim()) stop(); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
+          />
+        </form>
+      ) : (
+        <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
+          <ActionGlyph name="plus" />New board
+        </button>
+      )}
+    </li>
   );
 }
 

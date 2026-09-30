@@ -132,18 +132,18 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
 }
 
 // The whole project, as a member sees it.
-// A card's height as the board's miniature draws it (as BoardPreview does).
-function previewHeight(kind: string) {
-  if (["image", "youtube", "bilibili", "webpage"].includes(kind)) return 180;
-  if (kind === "excerpt") return 145;
-  if (kind === "file") return 82;
-  return 112;
+// What a board's newest card says, in a line: an excerpt its words, a
+// comment its text, anything else the name it came with.
+function cardLine(card: Row) {
+  const text = card.kind === "excerpt" ? card.excerpt_text : card.kind === "comment" ? card.content
+    : card.source_label || card.original_filename || card.content;
+  return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, 240) || null;
 }
 
 async function projectOut(env: Env, project: Project, me: User, member: Member) {
   // Everything the page shows in one trip, then the two things that
   // depend on what came back.
-  const [members, entries, held, boards, placed, placedCards, digRows] = (await env.DB.batch<Row>([
+  const [members, entries, held, boards, placed, latestCards, digRows] = (await env.DB.batch<Row>([
     membersStatement(env, [project.uuid]),
     statement(env.DB,
       `SELECT pp.paper_sha256, pp.added_by, pp.added_at, p.title, p.authors, p.journal, p.year, p.doi,
@@ -154,7 +154,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
       `SELECT DISTINCT c.paper_sha256 FROM copies c JOIN project_papers pp ON pp.paper_sha256 = c.paper_sha256 AND pp.project_uuid = ?
        WHERE c.user_uuid = ? AND c.deleted_at IS NULL`, project.uuid, me.uuid),
     statement(env.DB,
-      `SELECT b.uuid, b.name, b.description, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
+      `SELECT b.uuid, b.name, b.description, b.created_at, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
               (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count,
               EXISTS (SELECT 1 FROM board_items bi WHERE bi.board_uuid = b.uuid AND ${NEW_CARD.replace("<me>", "?")}) AS is_new
        FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid LEFT JOIN users u ON u.uuid = b.user_uuid
@@ -167,14 +167,19 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
        JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
        JOIN board_items bi ON bi.board_uuid = pb.board_uuid AND bi.deleted_at IS NULL AND NOT bi.staged AND bi.source_url IS NOT NULL
        WHERE pp.project_uuid = ? AND instr(lower(bi.source_url), substr(pp.paper_sha256, 1, 32)) > 0`, project.uuid),
-    // Each board seen from a distance: where its cards sit, at their size,
-    // which the desk draws as a small map.
+    // Each board's newest card, and who put it there: what the board holds
+    // and what last changed on it, in one line.
     statement(env.DB,
-      `SELECT bi.board_uuid, bi.kind, bi.x, bi.y, bi.width FROM board_items bi
-       JOIN project_boards pb ON pb.board_uuid = bi.board_uuid AND pb.project_uuid = ?
-       JOIN boards b ON b.uuid = bi.board_uuid AND b.deleted_at IS NULL
-       WHERE bi.deleted_at IS NULL AND NOT bi.staged
-       ORDER BY bi.position, bi.created_at`, project.uuid),
+      `SELECT * FROM (
+         SELECT bi.board_uuid, bi.kind, bi.content, bi.excerpt_text, bi.source_label, bi.original_filename, bi.created_at,
+                u.uuid AS adder_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
+                row_number() OVER (PARTITION BY bi.board_uuid ORDER BY bi.created_at DESC, bi.uuid) AS nth
+         FROM board_items bi
+         JOIN project_boards pb ON pb.board_uuid = bi.board_uuid AND pb.project_uuid = ?
+         JOIN boards b ON b.uuid = bi.board_uuid AND b.deleted_at IS NULL
+         LEFT JOIN users u ON u.uuid = bi.added_by
+         WHERE bi.deleted_at IS NULL AND NOT bi.staged)
+       WHERE nth = 1`, project.uuid),
     digsStatement(env, project.uuid, me, member),
   ])).map((r) => r.results) as [(Member & Row)[], Row[], Row[], Row[], Row[], Row[], Row[]];
   const digests = entries.map((e) => e.paper_sha256 as string);
@@ -183,12 +188,10 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     digsFrom(env, digRows, me),
   ]);
   const mine = new Set(held.map((c) => c.paper_sha256 as string));
-  const boxes = new Map<string, { x: number; y: number; w: number; h: number; kind: string }[]>();
-  for (const c of placedCards) {
-    const list = boxes.get(c.board_uuid as string) ?? [];
-    if (list.length < 120) list.push({ x: Number(c.x), y: Number(c.y), w: Number(c.width) || 300, h: previewHeight(String(c.kind)), kind: String(c.kind) });
-    boxes.set(c.board_uuid as string, list);
-  }
+  const latest = new Map(latestCards.map((c) => [c.board_uuid as string, {
+    text: cardLine(c), kind: c.kind, added_at: c.created_at,
+    added_by: c.adder_uuid ? userPublic({ ...c, uuid: c.adder_uuid }) : null,
+  }]));
   const onBoards = new Map<string, string[]>();
   for (const r of placed) onBoards.set(r.paper_sha256 as string, [...(onBoards.get(r.paper_sha256 as string) ?? []), r.board_uuid as string]);
   return {
@@ -199,7 +202,8 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
       uuid: b.uuid, name: b.name, description: b.description,
       owner: b.owner_uuid ? userPublic({ ...b, uuid: b.owner_uuid }) : null,
       item_count: b.item_count, updated_at: b.updated_at, is_new: Boolean(b.is_new),
-      boxes: boxes.get(b.uuid as string) ?? [],
+      created_at: b.created_at,
+      latest_card: latest.get(b.uuid as string) ?? null,
     })),
     digs,
     papers: entries.map((e) => ({

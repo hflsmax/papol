@@ -5243,42 +5243,24 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @container (max-width: 559px) {
   .project-row-cite { display: none; }
 }
-.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); align-items: stretch; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.project-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); transition: border-color var(--motion-fast) var(--ease-out); }
-.project-card:hover { border-color: var(--accent); }
 .project-paper { cursor: pointer; }
-.project-paper:focus-within:has(.project-card-title a:focus-visible) { border-color: var(--accent); }
-.project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
 .project-card-title { display: -webkit-box; margin: 0; overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .project-card-title a { color: inherit; }
 .project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
-.project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-board-tile { display: grid; min-height: 160px; }
-.project-board-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); width: 100%; min-height: 96px; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); text-align: center; }
-.project-paper-empty span, .project-board-add span { color: var(--ink-faint); font-size: var(--fs-xs); font-weight: 400; }
-.project-board-add { font-weight: 500; }
-.project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-
-.project-board-name { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
+/* Boards as rows, read like the papers: the name, what the newest card
+   says, who put it there. The last row makes one more, quiet until
+   pressed, when it takes the name in place. */
+.project-row.project-board-new { display: block; padding: 0; cursor: default; }
+.project-row.project-board-new:hover { background: none; }
+.project-board-add { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 0; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); text-align: left; }
+.project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border: 0; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--accent); }
+.project-board-new-form { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); color: var(--ink-soft); }
+.project-board-new-form .action-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.project-board-name { flex: 1 1 auto; min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); font: 600 var(--fs-base) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
-
-.project-board-link { color: inherit; text-decoration: none; }
-/* The whole card opens the board. */
-.project-board .project-board-link::after { content: ''; position: absolute; inset: 0; }
-.project-board > .news-dot { position: absolute; top: var(--space-3); right: var(--space-3); }
-
-.project-board-link:hover .project-card-title { color: var(--accent); }
-.project-board-meta { justify-content: flex-start; margin-top: auto; padding: var(--space-1) var(--space-3) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-boards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
-.project-board.is-naming { border-color: var(--accent); }
-.project-board-name { font-weight: 600; }
-.project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 
 /* Digs as rows, the soft tiles of the Papers tab; a dig opens beside its
    row on a wide window, under it on a narrow one. */
@@ -5325,7 +5307,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-head { align-items: flex-start; }
   .project-seat small { display: none; }
   .project-seat { width: auto; }
-  .project-boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 ${talkStyles}
@@ -5343,10 +5324,12 @@ ${talkStyles}
 .project-row.is-selected, .project-row.is-selected:hover { background: var(--card); }
 .project-row.is-selected .project-card-title { color: var(--ink); }
 .project-papers-panel { position: sticky; top: var(--space-4); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
-/* A board opened in the Boards tab: its jacket on the one raised sheet,
-   under the tabs, as a paper's brief sits beside its list. */
-.project-board-open { border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 1px 2px rgba(29, 33, 41, 0.06), 0 4px 14px rgba(29, 33, 41, 0.06); }
-.project-board-open .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
+/* A board picked in the Boards tab: its jacket on the pane, or under its
+   row, with the pane's own sheet and no panel of its own. */
+.project-boards-panel { padding: 0; }
+.project-board-open { margin: -2px 0 var(--space-3); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
+.project-boards-view .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
+.project-boards-view .board-jacket-papers li, .project-boards-view .board-jacket-papers li:last-child { border: 0; }
 .project-paper-open { margin: -2px 0 var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
 
 /* The open row and what it opens are the only raised white surfaces on
