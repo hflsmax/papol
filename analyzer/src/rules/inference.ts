@@ -606,8 +606,10 @@ const OPEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\s*$`, "u");
 
 // A relation between two terms, a blank on each side of it: a term on
 // its left, not a list's comma or an opening bracket ("{< 0.1, ≤ 0.8}"
-// lists bounds).
-const BETWEEN = new RegExp(`(?:^|(?<![,;({[]\\s*)\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
+// lists bounds). An arrow built of pieces reaches the text as its shaft or
+// hook before its head ("−→" for ⟶, "↪→" for a hooked arrow, "=⇒"): the
+// pieces before the head are the relation's own.
+const BETWEEN = new RegExp(`(?:^|(?<![,;({[]\\s*)\\s)[−–=↪]{0,2}(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
 
 // A Hoare triple, a command between its pre- and postcondition's
 // braces, the line's whole text.
@@ -623,12 +625,22 @@ function related(text: string, token: Token): boolean {
 
 // A line's text without its subscripts, smaller runs set below its
 // baseline: a relation indexed so ("⊢CSL") stands between its terms.
+// A symbol font's arrows and turnstile may reach the text layer as the
+// ASCII signs at their places in the font (cmsy's ⊢ as "`", its ⇒ as
+// ")"): a sign so set, a blank on each side, is the relation it stands
+// for ("Γ ` 〈 〉 . ·" under T-CtxEmp).
+const MISREAD = /(?<=^|\s)[!"#$%&()*+,\-./`](?=\s|$)/gu;
 function unscripted(line: Line): string {
   let text = line.text, at = 0;
   for (const r of line.runs) {
     const i = text.indexOf(r.text, at);
     if (i < 0) continue;
-    if (r.size < line.size - 0.5 && r.baseline > line.baseline + 0.5) { text = text.slice(0, i) + text.slice(i + r.text.length); at = i; } else at = i + r.text.length;
+    if (r.size < line.size - 0.5 && r.baseline > line.baseline + 0.5) { text = text.slice(0, i) + text.slice(i + r.text.length); at = i; continue; }
+    if (SYMBOLIC.test(r.font)) {
+      const read = `${text[i - 1] ?? " "}${r.text}${text[i + r.text.length] ?? " "}`.replace(MISREAD, "⊢").slice(1, -1);
+      text = text.slice(0, i) + read + text.slice(i + r.text.length);
+    }
+    at = i + r.text.length;
   }
   return text;
 }
