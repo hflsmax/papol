@@ -53,6 +53,9 @@ const RAISED = [0.12, 0.8] as const;
 const LOWERED = [0.08, 0.5] as const;
 // Space between two runs this wide, in font sizes, is a word space.
 const WORD_SPACE = 0.12;
+// A small word this far from the line beside it, in that line's size, is
+// not its script.
+const APART_WORD = 0.25;
 // The page margin running heads and footers sit in, as a fraction of its
 // height, and on how many pages the same text has to recur there.
 const MARGIN = 0.09;
@@ -162,6 +165,7 @@ export function buildLines(page: Page): Placed[][] {
     const size = most(small.map((r) => r.size));
     const chars = small.reduce((n, r) => n + r.text.length, 0);
     if (chars > 16) return;
+    const letters = small.reduce((n, r) => n + (r.text.match(/\p{L}/gu) ?? []).length, 0);
     const x0 = least(small.map((r) => r.x)), x1 = most(small.map((r) => r.x + r.width));
     const base = median(small.map((r) => r.baseline));
     let best = -1, bestGap = Infinity, raised = false;
@@ -177,6 +181,12 @@ export function buildLines(page: Page): Placed[][] {
       // Touching: within a word space or so of one of the big line's runs.
       const gap = least(big.map((r) => Math.max(0, x0 - (r.x + r.width), r.x - x1)));
       if (gap > 0.6 * bigSize) return;
+      // A script sits against its base; a word set a space apart past the
+      // line's end is its own line — a rule's label raised to its bar
+      // beside the conclusion (Ψ ⊢ a <: a  CS-TVar), not an exponent. One
+      // between two of its runs stacks under a drawn arrow ("dir").
+      const past = x0 >= most(big.map((r) => r.x + r.width)) || x1 <= least(big.map((r) => r.x));
+      if (gap > APART_WORD * bigSize && letters >= 3 && past) return;
       if (gap < bestGap) { best = j; bestGap = gap; raised = up; }
     });
     if (best < 0) return;
@@ -222,7 +232,15 @@ function joinLabels(lines: Placed[][], runs: Placed[]): Placed[][] {
   return lines.filter((_, i) => !gone.has(i));
 }
 
-function lineOf(runs: Placed[], page: number): Line {
+// A blank a short stroke fills at the baseline is an underscore some
+// fonts draw rather than set (E_Beta in small capitals).
+function underscored(drawn: Drawn[], from: number, to: number, baseline: number, size: number): boolean {
+  const mid = (from + to) / 2;
+  return to - from >= 0.1 * size && drawn.some((d) => d.h <= 1.5 && d.w >= 0.2 * size && d.w <= 0.8 * size && Math.abs(d.x + d.w / 2 - mid) <= 0.3 * size
+    && d.y >= baseline - 0.05 * size && d.y <= baseline + 0.3 * size);
+}
+
+function lineOf(runs: Placed[], page: number, drawn: Drawn[] = []): Line {
   const main = runs.filter((r) => !r.sup && !r.sub);
   const body = main.length ? main : runs;
   const size = median(body.map((r) => r.size));
@@ -237,12 +255,15 @@ function lineOf(runs: Placed[], page: number): Line {
       // A script sits against the word it belongs to, whatever the gap.
       const afterScript = prev.sup || prev.sub;
       if (!joined && gap > WORD_SPACE * size && !(run.sup || run.sub) && !(afterScript && gap < 0.3 * size)) {
-        text += " ";
+        // An underscore some fonts draw as a stroke in the gap (E_Beta
+        // set in small capitals), not a space.
+        text += underscored(drawn, prev.x + prev.width, run.x, run.baseline, size) ? "_" : " ";
         chars.push({ run: -1, at: 0 });
       }
     }
     for (let at = 0; at < run.text.length; at += 1) {
-      text += run.text[at];
+      const x = run.x + offsetIn(run, at), next = run.x + offsetIn(run, at + 1);
+      text += run.text[at] === " " && underscored(drawn, x, next, run.baseline, size) ? "_" : run.text[at];
       chars.push({ run: index, at });
     }
   });
@@ -368,7 +389,7 @@ export function layout(doc: Doc): Layout {
   const bodySize = bodySizeOf(doc);
   const pages = doc.pages.map((page) => ({
     number: page.number, width: page.width, height: page.height, twoColumn: false, drawn: page.drawn,
-    lines: buildLines(page).map((runs) => lineOf(runs, page.number)),
+    lines: buildLines(page).map((runs) => lineOf(runs, page.number, page.drawn)),
   }));
   markFurniture(pages, bodySize);
   for (const page of pages) {
