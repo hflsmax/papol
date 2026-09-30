@@ -8,7 +8,7 @@
 // 0.6 of their union). Boxes in an inventory were drawn by eye, so a box a
 // little off is reported, not judged; a missed name, a false one or an
 // overlap fails.
-//   node scripts/run-script.mjs rule-truth <dir>... [-v]
+//   node scripts/run-script.mjs rule-truth <dir>... [-v] [--only=paper,paper]
 import fs from "node:fs";
 import path from "node:path";
 import { analyzeWithRules } from "../src/rules/analyze";
@@ -19,6 +19,7 @@ type Inventory = { rules: { page: number; name: string; box: Box }[]; cited?: { 
 
 const args = process.argv.slice(2);
 const verbose = args.includes("-v");
+const only = args.find((a) => a.startsWith("--only="))?.slice(7).split(",");
 const dirs = args.filter((a) => !a.startsWith("-"));
 if (!dirs.length) { console.error("usage: node scripts/run-script.mjs rule-truth <dir>... [-v]"); process.exit(2); }
 const truthDir = path.resolve("test", "rule-truth");
@@ -30,7 +31,7 @@ const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[
 const area = (a: Box) => Math.max(0, a[2] - a[0]) * Math.max(0, a[3] - a[1]);
 
 let failed = 0;
-for (const file of fs.readdirSync(truthDir).filter((f) => f.endsWith(".json")).sort()) {
+for (const file of fs.readdirSync(truthDir).filter((f) => f.endsWith(".json") && (!only || only.includes(f.slice(0, -5)))).sort()) {
   const paper = file.slice(0, -5);
   const pdf = dirs.map((d) => path.join(d, `${paper}.pdf`)).find((f) => fs.existsSync(f));
   if (!pdf) { console.log(`${paper}: no PDF in ${dirs.join(", ")}`); continue; }
