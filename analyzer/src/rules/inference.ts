@@ -24,7 +24,7 @@ import { typeOf, type Found, type Type } from "./floats";
 import { BIG_OPERATOR, boxesOf, type Flow, type Layout, type Line } from "./layout";
 import type { Drawn } from "./page";
 import {
-  RULE_CONNECTIVES, RULE_MODALITIES,
+  RULE_CONNECTIVES, RULE_MODALITIES, RULE_OPENERS,
   RULE_BAR,
   RULE_BOX, RULE_CANDIDATE, RULE_CELL, RULE_CONVENTION, RULE_DERIVATION, RULE_HEADING, RULE_MENTION, RULE_NAME_BESIDE, RULE_NAME_LETTERS,
   RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_PHRASE_AT_BAR, RULE_SHAPE_SHORT, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_TITLE, RULE_SHAPE_WORD,
@@ -94,11 +94,19 @@ const CAP = "A-Z\\u{1D400}-\\u{1D419}\\u{1D434}-\\u{1D44D}\\u{1D468}-\\u{1D481}"
 const GREEK = "\\p{Script=Greek}\\u{1D6A8}-\\u{1D7CB}";
 const CONNECTIVE = RULE_CONNECTIVES;
 const MODAL = RULE_MODALITIES;
+const OPENER = RULE_OPENERS;
+// Accents a PDF sets as spacing characters of their own, after the
+// letter or glyph they stand over or at the end of its word: Löb's
+// umlaut ("LOB¨"), the dot over an Iris update's ⇛ (txsys's "¤" in
+// "|⇛¤ -mono"). A token takes them in and puts each back on the
+// character under it.
+const ACCENTS: Record<string, string> = { "¨": "\u0308", "¤": "\u0307", "˙": "\u0307", "´": "\u0301", "˝": "\u030B", "ˇ": "\u030C", "˘": "\u0306", "˚": "\u030A", "¯": "\u0304" };
+const ACCENT = Object.keys(ACCENTS).join("");
 // Mathematical partials (𝜕, bold and sans too) fold to the connective ∂
 // (bdg-𝜕 in a POPL paper's text layer).
 const PARTIAL = "\\u{1D6DB}\\u{1D715}\\u{1D74F}\\u{1D789}\\u{1D7C3}";
 const MATH_LOWER = "\\u{1D44E}-\\u{1D467}";
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}])|[${CONNECTIVE}${MODAL}]{1,2} ?(?=-[\\p{L}${CONNECTIVE}${MODAL}↑↓])|⟨\\p{Ll}{1,8}⟩(?=-\\p{L}))(?:[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${MODAL}${PARTIAL}~*∗|/_\\-‐‑–−∞]|\\{\\}){0,35}(?:#\\d{1,2})?[+−±†‡♠♣♦★?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?)| \\[[A-Z]{1,2}\\])?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}])|[${MODAL}](?=[A-Z]{1,2}(?![\\p{L}\\d]))|\\|?[${CONNECTIVE}${MODAL}]{1,2}[${ACCENT}]? ?(?=-[\\p{L}${CONNECTIVE}${MODAL}↑↓])|[${OPENER}](?=[-−]\\p{L})|⟨\\p{Ll}{1,8}⟩(?=-\\p{L}))(?:[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${MODAL}${PARTIAL}${ACCENT}\u200D~*∗|/_\\-‐‑–−∞]|[•◦](?=\\p{L})|\\{\\}){0,47}(?:#\\d{1,2})?[+−±†‡♠♣♦★?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?)| \\[[A-Z]{1,2}\\])?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>[:.])?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 // A line of capitalised words, a name set in small capitals whose
@@ -108,14 +116,18 @@ const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?�
 // grammar's glosses, "Powerset Lattices", keep "Set 𝑈" a table's cell)
 // (rule.shape.title).
 const TITLED = new RegExp(`^\\s*(?<token>${RULE_SHAPE_TITLE.pattern!.source.slice(1, -1)})\\s*$`, "u");
-const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
+const TAIL = new RegExp(`(?:(?<=\\s)|(?<=\\S)(?=[\\[(]))(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 // A name as its shape is judged: mathematical letters folded to the
 // plain ones (×𝑇 is ×T, 𝜂-Red is η-Red).
 // A minus sign joins a name's parts as a hyphen does, an asterisk operator
 // marks it as an asterisk (Hyper Hoare Logic's While−∀∗∃∗, cited While-∀*∃*).
 // A connective opening a name may stand a space from its hyphen, as its
 // glyph's width leaves it (a refinement-reflection paper's ⇒ -I).
-const fold = (text: string) => text.normalize("NFKC").replace(/−/g, "-").replace(/∗/g, "*").replace(/(?<=\p{L}) - (?=\p{L})/gu, "-").replace(new RegExp(`^([${CONNECTIVE}${MODAL}]{1,2}) (?=-)`, "u"), "$1");
+// An accent on a connective or one no letter takes (WFL̄IST's stray
+// macron in a refinement-types thesis), and the bar an Iris update sets before its
+// ⇛ (|⇛-mono), are no part of the shape, nor is a mark raised inside a
+// word (stacks•IN-unique is shaped as stacksIN-unique).
+const fold = (text: string) => text.normalize("NFKC").replace(/(?<=\p{L})[•◦∘](?=\p{L})/gu, "").replace(/\p{M}+/gu, "").replace(/^\|(?=⇛)/u, "").replace(/−/g, "-").replace(/∗/g, "*").replace(/(?<=\p{L}) - (?=\p{L})/gu, "-").replace(new RegExp(`^([${CONNECTIVE}${MODAL}]{1,2}) (?=-)`, "u"), "$1");
 
 // Where a character of a line begins and ends across the page.
 function edgesOf(line: Line, char: number): [number, number] | null {
@@ -169,16 +181,23 @@ const ITALIC = /italic|ital|cmmi|lmmi|(?:T|M|-)I\d*$|-It$|Italic/i;
 
 // A PDF that gives no Unicode for a TeX symbol font's glyphs leaves
 // their codes in the text: stmary's □ and ⊡ reach it as control
-// characters (MoSeL's □-mono, ⊡-intro), cmsy's ≼ likewise (≼-BASE in
+// characters (MoSeL's □-mono, ⊡-intro), msam's □ likewise (□I in a
+// logic for Hoare-style reasoning), cmsy's ≼ likewise (≼-BASE in
 // Refinement Types for Haskell). lasy's □ and cmmi's ▷ come out as the
 // digit and the stop in their place (a relational modal logic's 2-INTRO
-// and .-MONO), so those are glyphs only where they open a word before a
-// hyphen. A label reads them all as the glyphs they are.
+// and .-MONO), cmmi's ♭ as a bracket (Cartesian Hoare Logic's
+// "([−intro 1)" for ♭-intro 1), so those are glyphs only where they open
+// a word before a hyphen or a minus. A label reads them all as the
+// glyphs they are.
 const GLYPHS: { face: RegExp; map: Record<string, string>; opening: boolean }[] = [
   { face: /stmary/i, map: { "\u0018": "⊛", "\u001a": "⊡", "\u001f": "□" }, opening: false },
+  { face: /msam/i, map: { "\u0003": "□" }, opening: false },
   { face: /cmsy/i, map: { "\u0014": "≤", "\u0015": "≥", "\u0016": "≼", "\u0017": "≽" }, opening: false },
   { face: /lasy/i, map: { "2": "□", "3": "◇" }, opening: true },
-  { face: /cmmi/i, map: { ".": "▷", "/": "◁" }, opening: true },
+  { face: /cmmi/i, map: { ".": "▷", "/": "◁", "[": "♭" }, opening: true },
+  // mathabx's matha sets its prime where a "1" is: math.h's R1′ and R4′
+  // reach the text as "R11" and "R41", no R11 of their own.
+  { face: /TeX-matha|^[A-Z]{6}\+matha/i, map: { "1": "′" }, opening: false },
 ];
 function glyphsOf(line: Line): string {
   const glyph = (i: number) => {
@@ -191,15 +210,36 @@ function glyphsOf(line: Line): string {
     let j = i;
     while (j < out.length && glyph(j)) j += 1;
     const run = Array.from({ length: j - i }, (_, k) => glyph(i + k)!);
-    const opening = (i === 0 || /[\s([]/u.test(line.text[i - 1])) && line.text[j] === "-";
+    const opening = (i === 0 || /[\s([]/u.test(line.text[i - 1])) && /^[-−]$/u.test(line.text[j] ?? "");
     if (run.length && (opening || run.every((g) => !g.opening))) run.forEach((g, k) => { out[i + k] = g.map[line.text[i + k]]; });
     i = Math.max(j, i + 1);
   }
   return out.join("");
 }
 
+// A word space the PDF puts before an accent set over the next letter
+// ("L ¨OB" for LÖB) is none: a token reads it as a joiner.
+const JOIN = "\u200D";
+// A token's text with each spacing accent in it put back, as a combining
+// one, on the character it stands over ("LOB¨" is LÖB).
+function accented(line: Line, start: number, token: string): string {
+  if (!new RegExp(`[${ACCENT}]`, "u").test(token)) return token;
+  const chars = [...token].map((c, i, all) => ({ c, at: start + all.slice(0, i).join("").length }));
+  const marks = new Map<number, string>();
+  for (const { c, at } of chars) {
+    const edges = ACCENTS[c] ? edgesOf(line, at) : null;
+    if (!edges) continue;
+    const middle = (edges[0] + edges[1]) / 2;
+    const under = chars.find((o) => !ACCENTS[o.c] && ((e) => e !== null && e[0] <= middle && e[1] >= middle)(edgesOf(line, o.at)))
+      ?? [...chars].reverse().find((o) => o.at < at && !ACCENTS[o.c] && o.c !== JOIN);
+    if (under) marks.set(under.at, (marks.get(under.at) ?? "") + ACCENTS[c]);
+  }
+  return chars.filter((o) => !ACCENTS[o.c] && o.c !== JOIN).map((o) => o.c + (marks.get(o.at) ?? "")).join("").normalize("NFC");
+}
+
 function tokenOf(line: Line, column = false, titles = false): Token | null {
-  const text = glyphsOf(line).split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
+  const text = glyphsOf(line).split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("")
+    .replace(new RegExp(`(?<=\\p{L}) (?=[${ACCENT}]\\p{L})`, "gu"), JOIN);
   const found = (match: RegExpExecArray | null, side: Token["side"]): Token | null => {
     if (!match?.groups) return null;
     const { open, close } = match.groups;
@@ -226,8 +266,9 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // over a listing), after a bullet it only sets the label off. A period
     // ending a line of one word, letters and hyphens, closes it as a colon
     // does ("BRANCHEXT." over its premises); after a formula's signs it
-    // ends a sentence ("∏ q:Q∗.").
-    if (match.groups.colon === "." && !/^\p{L}[\p{L}\d-]*$/u.test(match.groups.token)) return null;
+    // ends a sentence ("∏ q:Q∗."). So does an exponential before a
+    // capital, a symbol name ("!W." beside Silq's restated rule).
+    if (match.groups.colon === "." && !/^\p{L}[\p{L}\d-]*$/u.test(match.groups.token) && !/^[!?][A-Z]{1,2}$/u.test(match.groups.token)) return null;
     const closed = trailing || (Boolean(match.groups.colon) && /[\p{L}\d]$/u.test(match.groups.token) && match[0].includes(`${match.groups.token}${match.groups.colon}`));
     if (Boolean(open) !== Boolean(close)) return null;
     if (open && close && "[(".indexOf(open) !== "])".indexOf(close)) return null;
@@ -236,8 +277,10 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // a side condition.
     if (!open && new RegExp(`^(?:[${MATH_LOWER}]{1,2} |[${GREEK}] \\p{Ll})`, "u").test(match.groups.token)) return null;
     // A letter in it, unless it opens with a connective (⋍0); not a
-    // number or a citation.
-    if ((!/\p{L}/u.test(token) && !new RegExp(`^[${CONNECTIVE}]`, "u").test(token)) || /^\d+$/.test(token) || /^[A-Z][A-Za-z]*\d{2,4}[a-z]?$/.test(token)) return null;
+    // number or a citation. A capital with two digits, bare, numbers a
+    // rule among its siblings (math.h's R10 to R12 after R1 to R9); in
+    // square brackets it is a citation's key ("[L19]").
+    if ((!/\p{L}/u.test(token) && !new RegExp(`^\\|?[${CONNECTIVE}]`, "u").test(token)) || /^\d+$/.test(token) || (/^[A-Z][A-Za-z]*\d{2,4}[a-z]?$/.test(token) && !(/^[A-Z]\d{2}$/.test(token) && open !== "["))) return null;
     const start = match.index + match[0].indexOf(token);
     const font = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run].font : "");
     // One opening with a letter whose letters are all mathematical
@@ -252,8 +295,23 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // types it relates, however its letters are set ("(𝜇-<:-𝜇)", a DOT
     // paper's subtyping of recursive types).
     const related = Boolean(open) && new RegExp(`^(?:\\p{L}{1,2}-[${CONNECTIVE}]|[${CONNECTIVE}]{1,2}-\\p{L}{1,2}$)`, "u").test(token);
-    if (/^\p{L}/u.test(token) && !tag && !related && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
-    if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
+    // In brackets making up its line, a capitalised word of three letters
+    // or more set in math italic is a name as its text face would be
+    // ("(𝑀𝑒𝑡ℎ𝑜𝑑)", "(𝐶𝑙𝑎𝑠𝑠)" and "(𝑆𝑒𝑞)" beside an API-protocol paper's
+    // rules): a formula's variables are one letter each. In capitals it
+    // is a constant's or a goal's ("(𝐺𝑂𝐴𝐿)" tagging a verification goal).
+    // A modality before an italic capital is a formula (□P); before an
+    // upright one, a rule's name (□I).
+    if (new RegExp(`^[${MODAL}][A-Z]`, "u").test(token) && [...token].some((c, i) => /[A-Z]/.test(c) && ITALIC.test(font(start + i)))) return null;
+    const spelled = side === "whole" && Boolean(open) && /^[A-Z][a-z]{2,}$/.test(fold(token));
+    // An accent among mathematical letters is a formula's bar or dot over
+    // a variable ("𝑃a¯𝐶 𝑄"), no name's.
+    if (new RegExp(`[${ACCENT}]`, "u").test(token) && /[\u{1D400}-\u{1D7FF}]/u.test(token)) return null;
+    if (/^\p{L}/u.test(token) && !tag && !related && !spelled && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
+    // A TeX symbol font's capital is a calligraphic letter: opening a
+    // name before a hyphen, it is the name's (a relational modal logic's
+    // 𝓛-WEAKEN, weakening its island context 𝓛).
+    if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start)) && !(TEX_SYMBOLS.test(font(start)) && /^[A-Z]-\p{L}/u.test(token))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
     // not a name; in brackets too where the index is set as a subscript
     // (a constraint's tag "(ℓ1)").
@@ -277,7 +335,7 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
       if (letters.length && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, "")) && !new RegExp(`[${CAP}]`, "u").test(token)) return null;
       if (letters.length && letters.every((m) => /[a-z]/.test(m[0]) && ITALIC.test(font(start + m.index!)))) return null;
     }
-    return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed, side, start, end: start + token.length };
+    return { text: accented(line, start, token), bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed, side, start, end: start + token.length };
   };
   // A whole line of capitalised words is a title's only (Set 𝑈 is a
   // grammar's type former, not a name spaced from its capital).
@@ -303,10 +361,13 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
   // its baseline, is set apart by its size ("[E-App]" in 7pt small
   // capitals after Nested Refinements' 9pt reduction, "(E-Null)" at 10pt
   // after its 9pt judgment): a thin blank will do. After a line's length
-  // of running text it is a citation in small capitals ("From [T-UpRgn]").
+  // of running text it is a citation in small capitals ("From [T-UpRgn]");
+  // after a longer formula, a relation in it and no two words of prose,
+  // it ends that formula all the same (a DOT paper's "(Distr-∧-∨-<:)").
   const from = tailMatch ? tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length : 0;
   const sized = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run] : null);
-  const resized = Boolean(tail?.bracketed && line.text.slice(0, from).trim().length < 40 && sized(from) && Math.abs(sized(from)!.size - line.size) >= 0.5 && Math.abs(sized(from)!.baseline - line.baseline) <= 0.5);
+  const before = line.text.slice(0, from);
+  const resized = Boolean(tail?.bracketed && (before.trim().length < 40 || (RELATION.test(before) && (before.match(/(?<!\p{L})[a-z]{2,}(?!\p{L})/gu) ?? []).length < 2)) && sized(from) && Math.abs(sized(from)!.size - line.size) >= 0.5 && Math.abs(sized(from)!.baseline - line.baseline) <= 0.5);
   if (tail && tailMatch && blankBefore(line, from) >= (column ? 0.25 : resized ? 0.2 : APART) * line.size) return tail;
   return null;
 }
@@ -1412,10 +1473,20 @@ const BAR_PHRASE = RULE_PHRASE_AT_BAR;
 const SHORT = RULE_SHAPE_SHORT.pattern!;
 const TITLE = RULE_SHAPE_TITLE.pattern!;
 
+// A name whose lowercase letters are all drawn as small capitals is
+// shaped as the capitals it shows: a long lowercase prefix is then no
+// word of prose (error credits' presample-exp and statestep-simple,
+// ReLoC's inadmissible-bind).
+function smallCapped(line: Line, token: Token): boolean {
+  const lower = Array.from({ length: token.end - token.start }, (_, k) => token.start + k).filter((i) => /\p{Ll}/u.test(line.text[i]));
+  return lower.length > 0 && lower.every((i) => { const ref = line.chars[i]; return ref?.run >= 0 && Boolean(line.runs[ref.run].smallCaps?.[ref.at]); });
+}
+
 // Capitalised words in brackets are a phrase ("(Fixed Point)"); bare,
-// a title.
+// a title. A hyphenated name may be numbered after a space (Cartesian
+// Hoare Logic's ♭-intro 1 and ♭-intro 2).
 function shapeOf(text: string, bracketed = false): Shape | null {
-  if (HYPHEN.test(text)) return "hyphen";
+  if (HYPHEN.test(text) || (/^\S*[-‐‑–]\S* \d{1,2}$/u.test(text) && HYPHEN.test(text.replace(/ \d{1,2}$/u, "")))) return "hyphen";
   if (SPACED.test(text)) return "spaced";
   if (WORD.test(text)) return "word";
   if (SYMBOL.test(text)) return "symbol";
@@ -1548,11 +1619,13 @@ function bracketFace(line: Line, token: Token): string {
 }
 // Every face a token's letters are set in, as one string ("CMBX+CMTI"
 // for a bold name with an italic subscript).
+// A glyph read as a letter or digit (matha's prime as "1") is no letter.
 function facesOf(line: Line, token: Token): string {
   const faces = new Set<string>();
+  const text = glyphsOf(line);
   for (let i = token.start; i < token.end; i += 1) {
     const ref = line.chars[i];
-    if (!ref || ref.run < 0 || !/[\p{L}\d]/u.test(String.fromCodePoint(line.text.codePointAt(i)!))) continue;
+    if (!ref || ref.run < 0 || !/[\p{L}\d]/u.test(String.fromCodePoint(text.codePointAt(i)!))) continue;
     faces.add(family(line.runs[ref.run].font));
   }
   return [...faces].sort().join("+");
@@ -2006,6 +2079,51 @@ function unwrapped(page: Page, type: Type): Page {
   return split ? { ...page, lines: out } : page;
 }
 
+// A label the layout ran into another line is set back on its own
+// (rule.candidate). One level with its bar, smaller than the conclusion
+// under it and a blank past its end, reaches the layout as that line's
+// superscript ("… : ∀𝑧 : 𝑆. 𝑇 }(D-∀)" in a DOT paper): it is split off.
+// One whose closing bracket the layout set apart, past an index at the
+// name's end, is joined to it ("(T-∀-E𝑝" and ")"), as is the rest of a
+// name set under a mark raised over it ("(stacks•" and "IN-unique)", a
+// stack's name with • over and IN under its end).
+function relined(page: Page): Page {
+  const lines = page.lines.slice();
+  const geometry = (runs: Line["runs"]) => {
+    const size = Math.max(...runs.map((r) => r.size)), baseline = Math.max(...runs.map((r) => r.baseline));
+    return { size, baseline, top: Math.min(...runs.map((r) => r.baseline - 0.8 * r.size)), bottom: Math.max(...runs.map((r) => r.baseline + 0.22 * r.size)) };
+  };
+  let changed = false;
+  for (let n = 0; n < lines.length; n += 1) {
+    const line = lines[n];
+    if (line.furniture) continue;
+    const tail = /\s?[[(][^\s[\]()]{2,}[\])]\s*$/u.exec(line.text);
+    const k = tail ? line.chars[tail.index + tail[0].search(/[[(]/)]?.run ?? -1 : -1;
+    if (tail && k > 0 && line.chars.slice(tail.index).every((c) => c.run < 0 || c.run >= k) && line.chars.slice(0, tail.index).every((c) => c.run < k)
+      && line.runs.slice(k).every((r) => r.sup && r.size <= line.size - 0.5) && line.runs.slice(0, k).some((r) => !r.sup && !r.sub)
+      && blankBefore(line, tail.index + tail[0].search(/[[(]/)) >= 0.25 * line.size) {
+      const at = tail.index + tail[0].search(/[[(]/);
+      const piece = (runs: Line["runs"], from: number, to: number, shift: number, own: boolean): Line => ({
+        ...line, ...(own ? geometry(runs) : {}), runs: own ? runs.map((r) => ({ ...r, sup: false })) : runs, text: line.text.slice(from, to).trimEnd(),
+        chars: line.chars.slice(from, to).map((c) => (c.run < 0 ? c : { run: c.run - shift, at: c.at })).slice(0, line.text.slice(from, to).trimEnd().length),
+        x0: runs[0].x, x1: Math.max(...runs.map((r) => r.x + r.width)),
+      });
+      lines.splice(n, 1, piece(line.runs.slice(0, k), 0, at, 0, false), piece(line.runs.slice(k), at, line.text.length, k, true));
+      changed = true;
+      continue;
+    }
+    if (!/[[(][^\s[\]()]{2,}$/u.test(line.text)) continue;
+    const close = lines.filter((o) => o !== line && !o.furniture && /^\s*[^\s[\]()]*[\])]\s*$/u.test(o.text) && onRow(o, line)
+      && o.x0 >= line.x1 - (/^\s*[\])]/u.test(o.text) ? 0.5 : 0.6 * line.size) && o.x0 - line.x1 <= 0.5 * line.size).sort((a, b) => Math.abs(a.baseline - line.baseline) - Math.abs(b.baseline - line.baseline))[0];
+    if (!close) continue;
+    const joined: Line = { ...line, runs: [...line.runs, ...close.runs], text: line.text + close.text.trim(), chars: [...line.chars, ...close.chars.filter((c, i) => /\S/u.test(close.text[i])).map((c) => ({ run: c.run + line.runs.length, at: c.at }))], x1: close.x1, top: Math.min(line.top, close.top), bottom: Math.max(line.bottom, close.bottom) };
+    lines.splice(n, 1, joined);
+    lines.splice(lines.indexOf(close), 1);
+    changed = true;
+  }
+  return changed ? { ...page, lines } : page;
+}
+
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
   let candidates: Candidate[] = [];
@@ -2018,7 +2136,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of layout.pages) for (const l of page.lines) if (!l.furniture && l.text.length >= 60) sizes.set(Math.round(l.size * 2) / 2, (sizes.get(Math.round(l.size * 2) / 2) ?? 0) + 1);
   const proseSize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? layout.bodySize;
   const bodySize = Math.max(layout.bodySize, proseSize);
-  const pages = layout.pages.map((page) => { const bars = textBars(page); return unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type); });
+  const pages = layout.pages.map((page) => { const bars = textBars(page); return relined(unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type)); });
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
@@ -2130,11 +2248,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      const shape = shapeOf(fold(token.text), token.bracketed) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
+      const shape = shapeOf(fold(token.text), token.bracketed) ?? (smallCapped(line, token) ? shapeOf(fold(token.text).toUpperCase(), token.bracketed) : null) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
-      // (Continuous-1, Continuous-2); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥↑↓★□◇⊡*]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      // (Continuous-1, Continuous-2), as it does a word in capitals or small
+      // capitals (Foxtrot's err-1); after a lone letter it is a formula.
+      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓⇛∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥⊲⊳▷◁↑↓★□◇⊡*]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)
+        && !((/^\p{Lu}{3,}[-‐‑–]\d{1,2}$/u.test(token.text) || smallCapped(line, token)) && /^\p{L}{3,}[-‐‑–]\d{1,2}$/u.test(token.text))) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
@@ -2255,8 +2375,15 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // numbers alone numbers equations ("(7)" to "(9)" at a fraction's end).
   const tag = (c: Candidate) => c.token.bracketed && !mathCapital(c.token) && /^[A-Za-z\d]$/.test(notation(c.line, c.token));
   const glyphed = (c: Candidate) => candidates.some((o) => o.page === c.page && o.token.bracketed && o.setting.category === "beside" && Boolean(o.setting.bar) && !tag(o) && signed(o.shape, o.line, o.token));
-  for (const c of candidates) if (tag(c) && !glyphed(c)) trace.add(RULE_NAME_LETTERS.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
-  candidates = candidates.filter((c) => !tag(c) || glyphed(c));
+  // A capital so set beside its bar names a rule where a strong label
+  // set as it is stands beside a bar on its page ("(C)" under "(no-C)" in
+  // a remote-memory model's Fig. 4): an item's tag is lowercase, an
+  // equation's a digit.
+  const lettered = (c: Candidate) => /^[A-Z]$/.test(notation(c.line, c.token)) && c.setting.category === "beside" && Boolean(c.setting.bar)
+    && candidates.some((o) => o.page === c.page && !tag(o) && !weak(o) && o.setting.category === "beside" && Boolean(o.setting.bar) && o.convention === c.convention);
+  const kept = (c: Candidate) => !tag(c) || glyphed(c) || lettered(c);
+  for (const c of candidates) if (!kept(c)) trace.add(RULE_NAME_LETTERS.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter(kept);
   const conventions = new Map<string, number>();
   const strong = new Map<string, number>();
   for (const c of candidates) {
@@ -2370,8 +2497,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     // among "(READ-HELPER)" and "(PROMISE)", "(THREAD: READ)" among
     // "(THREAD: WRITE)" and "(MACHINE STEP)", whatever their face): cited
     // or not, one alone titles a judgment ("(Kind Elaboration)" by "⊢ 𝜅 ⇝ 𝐾").
-    const phrased = c.shape === "phrase" && Boolean(c.setting.bar) && candidates.filter((o) => o !== c && o.page === c.page && o.token.bracketed && Boolean(o.setting.bar)
-      && o.setting.category === c.setting.category && o.setting.side === c.setting.side && Math.abs(o.line.size - c.line.size) <= 0.5).length < 2;
+    // Alone on its page, it stands where the paper sets two more phrases
+    // so on others ("(THREAD: FULFILL UPDATE)" under Fig. 2's thread steps,
+    // "(MACHINE STEP)" restated on its own page).
+    const setAlike = (o: Candidate) => o !== c && o.token.bracketed && Boolean(o.setting.bar) && o.setting.category === c.setting.category && o.setting.side === c.setting.side && Math.abs(o.line.size - c.line.size) <= 0.5;
+    const phrased = c.shape === "phrase" && Boolean(c.setting.bar) && candidates.filter((o) => o.page === c.page && setAlike(o)).length < 2
+      && candidates.filter((o) => o.page !== c.page && o.shape === "phrase" && setAlike(o)).length < 2;
     if (phrased || (weak(c) && !established(c) && !columned.has(c) && (((conventions.get(c.convention) ?? 0) < 2 && (strong.get(c.convention) ?? 0) < 2) || !confirmed.has(c.convention))
       && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, labels, faceOf(c.line, c.token), type))) {
       trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, boxes);
