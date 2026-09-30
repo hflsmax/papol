@@ -1450,11 +1450,21 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // it, heads the lines from its top down (Hb-Pop under Hb-Push's
       // postcondition, its own in tall brackets further right).
       const next = Math.min(...[...others.lines].filter((o) => o.top > label.bottom + 1 && o.x0 < to && o.x1 > from - label.size && sameColumn(page, o, label)).map((o) => o.top));
-      const bracketed = (l: Line) => braces.some((b) => l.x0 >= b.x0 - 1 && l.x1 <= b.x1 + 1 && l.top >= b.top - 1 && l.bottom <= b.bottom + 1);
-      for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size)]) {
-        if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole" || line.top >= next - 1) continue;
-        const opening = STRETCHED.test(line.text) && line.size > 2 * label.size && line.top >= last - label.size && line.top < end && line.bottom > end + type.leading;
-        if (!opening && !bracketed(line) && (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2))) continue;
+      // An opening brace set as a line of its own reaches to its closing
+      // one, as tall on its row.
+      const closing = (b: Line) => Math.max(b.x1, ...page.lines.filter((t) => !t.furniture && STRETCHED.test(t.text) && t.x0 > b.x0 && Math.abs(t.top - b.top) <= 1 && Math.abs(t.bottom - b.bottom) <= 1).map((t) => t.x1));
+      const bracketed = (l: Line) => braces.some((b) => l.x0 >= b.x0 - 1 && l.x1 <= closing(b) + 1 && l.top >= b.top - 1 && l.bottom <= b.bottom + 1);
+      // A row set level with such braces stands centred on them, further
+      // down than a line's leading (Abs-Hb-Enq's "⟨𝐺, vs. Queue(…)⟩ enq(q, v)"
+      // beside its postcondition's two lines).
+      const talls = page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size);
+      const opens = (d: Line) => d.x0 >= from - label.size && d.x0 <= to + 2 * label.size && d.top >= last - label.size && d.top <= end + 0.6 * type.leading && d.bottom > end + type.leading;
+      for (const line of [...lines, ...talls]) {
+        const tallOne = talls.includes(line);
+        if (taken.has(line) || line.x0 < from - label.size || (line.x0 > (tallOne ? to + 2 * label.size : to) && !bracketed(line)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole" || line.top >= next - 1) continue;
+        const opening = tallOne && opens(line) && line.top < end + 0.6 * type.leading;
+        const centred = !tallOne && line.top > end - 1 && talls.some((d) => opens(d) && levelBy(d, line, label.size));
+        if (!opening && !centred && !bracketed(line) && (tallOne && line.x0 > to || line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2))) continue;
         // Upright words with no relation among them head what follows
         // ("Rules for the post-crash modality" under pfs-pf).
         const words = line.text.split(/\s+/).filter((w) => /^\p{L}{3,}$/u.test(w) && line.runs.some((r) => r.text.includes(w) && !ITALIC.test(r.font) && !MONO.test(r.font) && !SYMBOLIC.test(r.font)));
