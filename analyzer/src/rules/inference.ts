@@ -91,7 +91,10 @@ interface Token {
 const CAP = "A-Z\\u{1D400}-\\u{1D419}\\u{1D434}-\\u{1D44D}\\u{1D468}-\\u{1D481}";
 const GREEK = "\\p{Script=Greek}\\u{1D6A8}-\\u{1D7CB}";
 const CONNECTIVE = RULE_CONNECTIVES;
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
+// Mathematical partials (𝜕, bold and sans too) fold to the connective ∂
+// (bdg-𝜕 in a POPL paper's text layer).
+const PARTIAL = "\\u{1D6DB}\\u{1D715}\\u{1D74F}\\u{1D789}\\u{1D7C3}";
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${PARTIAL}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
@@ -145,6 +148,9 @@ function tokenOf(line: Line, column = false): Token | null {
     const trailing = /[\p{L}\d]:$/u.test(match.groups.token);
     const token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
     const colon = match.groups.colon || (trailing ? ":" : undefined);
+    // Straight after its last letter the colon closes the word ("Party A:"
+    // over a listing), after a bullet it only sets the label off.
+    const closed = trailing || (Boolean(match.groups.colon) && /[\p{L}\d]$/u.test(match.groups.token) && match[0].includes(`${match.groups.token}:`));
     if (Boolean(open) !== Boolean(close)) return null;
     if (open && close && "[(".indexOf(open) !== "])".indexOf(close)) return null;
     // A letter in it, unless it opens with a connective (⋍0); not a
@@ -173,7 +179,7 @@ function tokenOf(line: Line, column = false): Token | null {
       if (letters.length && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, "")) && !new RegExp(`[${CAP}]`, "u").test(token)) return null;
       if (letters.length && letters.every((m) => /[a-z]/.test(m[0]) && ITALIC.test(font(start + m.index!)))) return null;
     }
-    return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed: trailing, side, start, end: start + token.length };
+    return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed, side, start, end: start + token.length };
   };
   const whole = found(WHOLE.exec(text), "whole");
   if (whole) return whole;
@@ -703,19 +709,25 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     if (token.side !== "whole") return null;
     // Labels set side by side over theirs, each line is the nearest's
     // ("[MergeIdempotence]" between two other labelled equations).
+    // Labels set flush over the left of their rows (a table of reductions,
+    // "(Ast-Gen)" and "(Sec-Tls)" heading two columns) take the lines from
+    // their left edge on, the next column's label ending them.
     const others = row.filter((l) => tokenOf(l)?.side === "whole");
     const middle = (l: Line) => (l.x0 + l.x1) / 2;
+    const flush = (o: Line) => lines.some((u) => u !== o && Math.abs(u.x0 - o.x0) <= o.size && u.top >= o.bottom - tolerance(u, o) && u.top <= o.bottom + type.leading);
+    const heads = others.length > 0 && flush(label) && others.every(flush);
+    const reach = (l: Line, o: Line) => (heads ? (l.x0 >= o.x0 - o.size ? l.x0 - o.x0 : Infinity) : Math.abs(middle(l) - middle(o)));
     // A big operator hangs from its baseline, whatever its line's top says.
     const hangs = (l: Line) => l.runs.every((r) => EXTENSION.test(r.font) || r.size < l.size - 0.5) && l.runs.some((r) => EXTENSION.test(r.font)) && l.baseline > label.bottom;
     const under = lines.filter((l) => (l.top >= label.bottom - tolerance(l, label) || hangs(l)) && l.top <= label.bottom + 1.2 * type.leading
       && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label)
-      && !others.some((o) => Math.abs(middle(l) - middle(o)) < Math.abs(middle(l) - centre)));
+      && !others.some((o) => reach(l, o) < reach(l, label)));
     if (!under.length) return null;
     // The row runs on past the label in pieces a big operator apart.
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
-        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => Math.abs(middle(l) - middle(o)) < Math.abs(middle(l) - centre))) continue;
+        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label))) continue;
         if (under.some((u) => (Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size)) { under.push(l); grew = true; }
       }
     }
@@ -797,6 +809,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     }
   }
   const text = (token.side === "whole" ? "" : label.text.slice(0, token.start) + " " + label.text.slice(token.end) + " ") + row.map((l) => l.text).join(" ");
+  // A row hard over a bar it fills from end to end is that rule's
+  // premises, the token its first ("Γ RRG" over param's bar); a stroke
+  // reaching well past the row parts a figure ((obs) over one).
+  const from = Math.min(label.x0, ...row.map((l) => l.x0)), to = Math.max(label.x1, ...row.map((l) => l.x1));
+  if (bars.some((b) => b.y > label.bottom - 1 && b.y - label.bottom <= type.leading && Math.abs(b.x - from) <= 2 * label.size && Math.abs(b.x + b.w - to) <= 2 * label.size)) return { category: "none", bar: null, row, side: "right" };
   return side && RELATION.test(text + " " + levelled) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
 }
 
@@ -919,12 +936,18 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // over two lines (Define's "→ ⟨body…⟩").
   const beyond = (l: Line) => Boolean(bar) && l.top > bar!.y + 0.8 * type.leading && !/^\s*[→⟶⇒↦=≡⊢]/u.test(l.text)
     && page.drawn.some((d) => d !== bar && across(d) && d.y > l.bottom && d.y - l.bottom <= 2 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size);
+  // Labels set level over bar-less rows head columns: a row keeps to its
+  // own, from its label's left edge to the next label's ("(Ast-Gen)" and
+  // "(Sec-Tls)" over two reductions).
+  const columns = !bar && setting.side === "over" ? [...others.lines].filter((o) => o !== label && level(o, label)) : [];
+  const fence = Math.min(...columns.filter((o) => o.x0 > label.x1).map((o) => o.x0));
+  const fenced = (l: Line) => columns.length > 0 && ((l.x0 + l.x1) / 2 < label.x0 || (l.x0 + l.x1) / 2 > fence);
   // A label over a tall stack of premises reaches its bar's conclusion.
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
-      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line)) continue;
+      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
@@ -1202,7 +1225,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–:/_][^-‐‑–:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<]/u.test(token.text) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      if (shape === "hyphen" && !/[-‐‑–:/_][^-‐‑–:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
