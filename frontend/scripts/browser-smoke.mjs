@@ -168,7 +168,15 @@ const desktopReadiness = {
       }`,
   desk: `
       if (document.querySelector('.desktop-browser .desktop-row')) {
-        fetch('/__papol_smoke_ready?page=desk', { method: 'POST' });
+        // The sidebar's list scrolls below the strip that holds the traffic
+        // lights; scrolled with the list, rows ran under the window buttons.
+        const strip = document.querySelector('.desktop-sidebar-drag');
+        const list = document.querySelector('.desktop-sidebar-list');
+        const sidebar = document.querySelector('.desktop-sidebar');
+        const settled = strip && list && getComputedStyle(sidebar).overflowY === 'visible'
+          && strip.getBoundingClientRect().top === 0
+          && list.getBoundingClientRect().top === strip.getBoundingClientRect().bottom;
+        fetch('/__papol_smoke_ready?page=' + (settled ? 'desk' : 'desk-sidebar-under-traffic-lights'), { method: 'POST' });
         return;
       }`,
 };

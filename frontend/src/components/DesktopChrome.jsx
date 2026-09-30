@@ -291,50 +291,52 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
     <aside className="desktop-sidebar">
       {/* The strip under the traffic lights moves the window. */}
       <div className="desktop-sidebar-drag" data-tauri-drag-region />
-      {groups.map((group, index) => (
-        <nav className="desktop-sidebar-group" key={group.label || index} aria-label={group.label || 'Main'}>
-          {group.label && (
-            <div className="desktop-sidebar-label">
-              <span>{group.label}</span>
-              {group.manage && onManageNook && (
-                <button
-                  type="button"
-                  className="desktop-sidebar-label-action"
-                  onClick={onManageNook}
-                  title="Manage nook"
-                  aria-label="Manage nook"
-                >
-                  <Glyph name="manage" />
-                </button>
-              )}
-            </div>
-          )}
-          {group.items.map((item) => (
-            <a
-              key={item.key}
-              href={appPath(item.path)}
-              className={`desktop-sidebar-item${item.active ? ' active' : ''}${dropKey === item.key ? ' drop-target' : ''}`}
-              aria-current={item.active ? 'page' : undefined}
-              title={item.shortcut ? `${item.title || item.label} (${MOD}${item.shortcut})` : item.title}
-              draggable="false"
-              {...shelfDropProps(item)}
-            >
-              <ItemMark item={item} />
-              <span className="desktop-sidebar-text">{item.label}</span>
-              {item.news && <NewsDot />}
-              {item.count > 0 && (
-                <span
-                  className={`desktop-sidebar-count${item.unread ? ' unread' : ''}`}
-                  aria-label={item.unread ? `${item.count} unread` : undefined}
-                >
-                  {item.count}
-                </span>
-              )}
-            </a>
-          ))}
-        </nav>
-      ))}
-      {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
+      <div className="desktop-sidebar-list">
+        {groups.map((group, index) => (
+          <nav className="desktop-sidebar-group" key={group.label || index} aria-label={group.label || 'Main'}>
+            {group.label && (
+              <div className="desktop-sidebar-label">
+                <span>{group.label}</span>
+                {group.manage && onManageNook && (
+                  <button
+                    type="button"
+                    className="desktop-sidebar-label-action"
+                    onClick={onManageNook}
+                    title="Manage nook"
+                    aria-label="Manage nook"
+                  >
+                    <Glyph name="manage" />
+                  </button>
+                )}
+              </div>
+            )}
+            {group.items.map((item) => (
+              <a
+                key={item.key}
+                href={appPath(item.path)}
+                className={`desktop-sidebar-item${item.active ? ' active' : ''}${dropKey === item.key ? ' drop-target' : ''}`}
+                aria-current={item.active ? 'page' : undefined}
+                title={item.shortcut ? `${item.title || item.label} (${MOD}${item.shortcut})` : item.title}
+                draggable="false"
+                {...shelfDropProps(item)}
+              >
+                <ItemMark item={item} />
+                <span className="desktop-sidebar-text">{item.label}</span>
+                {item.news && <NewsDot />}
+                {item.count > 0 && (
+                  <span
+                    className={`desktop-sidebar-count${item.unread ? ' unread' : ''}`}
+                    aria-label={item.unread ? `${item.count} unread` : undefined}
+                  >
+                    {item.count}
+                  </span>
+                )}
+              </a>
+            ))}
+          </nav>
+        ))}
+        {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
+      </div>
       <div className="desktop-sidebar-footer">
         <button type="button" className="desktop-sidebar-item" onClick={onFeedback}>
           <Glyph name="feedback" />
