@@ -1610,6 +1610,10 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   // or spaced name's citation names its rule too. Such a match waits
   // for its neighbours.
   const listed: (Found & { fits: number[] })[] = [];
+  // Its label bare, or bracketed in capitals ("(STORE, LOAD-G, LOAD-B,
+  // FLUSH)" with STORE labelled "(STORE)"); a bracketed lowercase label
+  // is a word prose lists too ("reflexivity, anti-symmetry, totality").
+  const listable = (i: number) => rules[i].shape === "word" && (!rules[i].bracketed || capitals(rules[i].name));
   let match: RegExpExecArray | null;
   while ((match = re.exec(text))) {
     const groups = match.groups!;
@@ -1625,7 +1629,7 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
     const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
     if (rule !== undefined) found.push(m);
-    else if (!bracketed && fits.some((i) => rules[i].shape === "word" && !rules[i].bracketed)) listed.push({ ...m, fits: fits.filter((i) => rules[i].shape === "word" && !rules[i].bracketed) });
+    else if (!bracketed && fits.some(listable)) listed.push({ ...m, fits: fits.filter(listable) });
   }
   const strong = (m: Found) => rules[m.rule].shape === "hyphen" || rules[m.rule].shape === "spaced";
   const LIST = /^(?:\s*,\s*(?:(?:and|or)\s+(?:then\s+)?)?|\s+(?:and|or)\s+(?:then\s+)?)$/u;
