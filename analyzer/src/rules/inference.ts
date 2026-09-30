@@ -27,11 +27,11 @@ import {
   RULE_CONNECTIVES,
   RULE_BAR,
   RULE_BOX, RULE_CANDIDATE, RULE_CELL, RULE_CONVENTION, RULE_DERIVATION, RULE_HEADING, RULE_MENTION, RULE_NAME_BESIDE, RULE_NAME_LETTERS,
-  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_SHAPE_SHORT, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_WORD,
+  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_SHAPE_SHORT, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_TITLE, RULE_SHAPE_WORD,
 } from "./registry";
 import type { Trace } from "./trace";
 
-export type Shape = "hyphen" | "spaced" | "word" | "symbol" | "phrase" | "short";
+export type Shape = "hyphen" | "spaced" | "word" | "symbol" | "phrase" | "short" | "title";
 export type Category = "beside" | "over" | "row" | "margin";
 
 export interface Rule extends Found {
@@ -99,6 +99,10 @@ const MATH_LOWER = "\\u{1D44E}-\\u{1D467}";
 const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${PARTIAL}~*∗|/_\\-‐‑–−∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
+// A line of capitalised words, a name set in small capitals whose
+// letters after the first reach the text layer in lowercase ("Free Ok",
+// "If (Multi-Outcome)"): a token only as the whole line (rule.shape.title).
+const TITLED = new RegExp(`^\\s*(?<token>${RULE_SHAPE_TITLE.pattern!.source.slice(1, -1)})\\s*$`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 // A name as its shape is judged: mathematical letters folded to the
 // plain ones (×𝑇 is ×T, 𝜂-Red is η-Red).
@@ -201,6 +205,10 @@ function tokenOf(line: Line, column = false): Token | null {
     const offsets = [...token].map((c, i, all) => start + all.slice(0, i).join("").length);
     const scripts = offsets.map((at) => ((r) => Boolean(r && (r.sub || r.sup)))(run(at)));
     if (/^\p{L}+$/u.test(token) && offsets.every((at) => ITALIC.test(font(at))) && scripts.some((s, i) => !s && scripts.slice(0, i).some(Boolean))) return null;
+    // A mathematical letter in parentheses after an index is an argument:
+    // an indexed function applied ("𝟙𝐿(𝜎)", its 𝟙 read as "i"), no case.
+    const applied = new RegExp(`\\([\\u{1D400}-\\u{1D7FF}]\\)$`, "u").exec(token);
+    if (applied && ((r) => r !== null && r.size < line.size - 0.5)(run(start + applied.index - 1))) return null;
     // One opening with a connective whose letters are all mathematical
     // alphanumerics with no capital among them (⊕𝜎𝑓, ¬𝜑), or all set in
     // an italic face (× 1/fps), is a formula: ×𝑇 and <:eq open otherwise.
@@ -211,7 +219,7 @@ function tokenOf(line: Line, column = false): Token | null {
     }
     return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed, side, start, end: start + token.length };
   };
-  const whole = found(WHOLE.exec(text), "whole");
+  const whole = found(WHOLE.exec(text), "whole") ?? found(TITLED.exec(text), "whole");
   if (whole) return whole;
   const headMatch = HEAD.exec(text);
   const head = found(headMatch, "head");
@@ -1092,12 +1100,16 @@ const WORD = RULE_SHAPE_WORD.pattern!;
 const SYMBOL = RULE_SHAPE_SYMBOL.pattern!;
 const PHRASE = RULE_SHAPE_PHRASE.pattern!;
 const SHORT = RULE_SHAPE_SHORT.pattern!;
+const TITLE = RULE_SHAPE_TITLE.pattern!;
 
-function shapeOf(text: string): Shape | null {
+// Capitalised words in brackets are a phrase ("(Fixed Point)"); bare,
+// a title.
+function shapeOf(text: string, bracketed = false): Shape | null {
   if (HYPHEN.test(text)) return "hyphen";
   if (SPACED.test(text)) return "spaced";
   if (WORD.test(text)) return "word";
   if (SYMBOL.test(text)) return "symbol";
+  if (!bracketed && TITLE.test(text)) return "title";
   if (PHRASE.test(text)) return "phrase";
   return null;
 }
@@ -1153,6 +1165,10 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
   // ("(Actors)" after "A = x : Σ"), unless in lower case it names a law
   // as below ("(filter)" after "push(𝑣) · pop(𝑤) ≡ 0").
   if (category === "margin" && shape === "word" && token.bracketed && !token.square && row.some(steps)) return RULE_NAME_MARGIN.id;
+  // Capitalised words name a rule only beside its bar: over one they head
+  // a group of rules or a table's rows ("Well-formed Type", "Prior Work"),
+  // at a row or the margin a figure's group (rule.shape.title).
+  if (shape === "title" && category !== "beside") return null;
   switch (category) {
     case "beside":
       return RULE_NAME_BESIDE.id;
@@ -1222,7 +1238,7 @@ interface Candidate { line: Line; page: Page; token: Token; shape: Shape; settin
 
 // A weak label — a single word — stands only where the paper sets two or
 // more labels the same way, or where the text cites it (rule.convention).
-const weak = (c: Candidate) => c.shape === "word" || c.shape === "short" || (c.shape === "spaced" && new RegExp(`^(?:[${MATH_LOWER}]|[${GREEK}] \\p{Ll})`, "u").test(c.token.text)) || (c.shape === "spaced" && /[\d↓↑]$/u.test(c.token.text));
+const weak = (c: Candidate) => c.shape === "word" || c.shape === "short" || c.shape === "title" || (c.shape === "spaced" && new RegExp(`^(?:[${MATH_LOWER}]|[${GREEK}] \\p{Ll})`, "u").test(c.token.text)) || (c.shape === "spaced" && /[\d↓↑]$/u.test(c.token.text));
 
 // ------------------------------------------------------------ pass 6: boxes
 
@@ -1388,9 +1404,20 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   }
   const all = [...taken];
   if (out) out.lines = all;
-  const left = Math.max(0, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))) - PAD), right = Math.min(page.width, Math.max(x1, ...all.map((l) => l.x1)) + PAD);
-  const top = Math.max(0, Math.min(...all.map((l) => l.top)) - PAD), bottom = Math.min(page.height, Math.max(...all.map((l) => l.bottom)) + PAD);
-  return { x: left / page.width, y: top / page.height, w: (right - left) / page.width, h: (bottom - top) / page.height };
+  const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => l.top)), Math.max(...all.map((l) => l.bottom)));
+  return { x: b.x0 / page.width, y: b.y0 / page.height, w: (b.x1 - b.x0) / page.width, h: (b.y1 - b.y0) / page.height };
+}
+// A box padded round what it holds, the padding stopping at a caption
+// set hard over or under it ("Fig. 7." under Sample's indexed sum): the
+// box holds the rule, not the caption's letters.
+function padded(page: Page, x0: number, x1: number, y0: number, y1: number): { x0: number; x1: number; y0: number; y1: number } {
+  let top = y0 - PAD, bottom = y1 + PAD;
+  for (const l of page.lines) {
+    if (l.furniture || !CAPTION.test(l.text) || l.x0 >= x1 || l.x1 <= x0) continue;
+    if (l.top >= y1 - 1 && l.top < bottom) bottom = Math.max(y1, l.top);
+    if (l.bottom <= y0 + 1 && l.bottom > top) top = Math.min(y0, l.bottom);
+  }
+  return { x0: Math.max(0, x0 - PAD), x1: Math.min(page.width, x1 + PAD), y0: Math.max(0, top), y1: Math.min(page.height, bottom) };
 }
 
 // ------------------------------------------------------------ pass 7: mentions
@@ -1699,7 +1726,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      const shape = shapeOf(fold(token.text)) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
+      const shape = shapeOf(fold(token.text), token.bracketed) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
@@ -1962,7 +1989,7 @@ function separate(placed: Placed[]): void {
       const ys = [...p.lines.flatMap((l) => [l.top, l.bottom]), ...(p.bar ? [p.bar.y] : [])];
       return { p, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     });
-    const box = held.map((h) => ({ x0: Math.max(0, h.x0 - PAD), x1: Math.min(page.width, h.x1 + PAD), y0: Math.max(0, h.y0 - PAD), y1: Math.min(page.height, h.y1 + PAD) }));
+    const box = held.map((h) => padded(page, h.x0, h.x1, h.y0, h.y1));
     for (let i = 0; i < held.length; i += 1) {
       for (let j = i + 1; j < held.length; j += 1) {
         const a = box[i], b = box[j];
@@ -2011,7 +2038,7 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
     const rule = named.filter((r) => place(r.caption.page, r.caption.top) <= here).pop() ?? named[0];
     // A word only from running text, a line mostly in the text's face:
     // "[Response]" in a listing is a list type, not the law.
-    if ((rule.shape === "word" || rule.shape === "spaced" || rule.shape === "symbol" || rule.shape === "short") && !inText(at, m.nameEnd - m.nameStart, faceOf(rule.labels[0]), type)) continue;
+    if ((rule.shape === "word" || rule.shape === "title" || rule.shape === "spaced" || rule.shape === "symbol" || rule.shape === "short") && !inText(at, m.nameEnd - m.nameStart, faceOf(rule.labels[0]), type)) continue;
     if (citedAway(flow.text, m.index, m.index + m.length)) continue;
     const from = m.bracketed ? m.index : m.nameStart;
     const to = m.bracketed ? m.index + m.length : m.nameEnd;

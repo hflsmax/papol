@@ -307,9 +307,17 @@ export const RULE_SHAPE_PHRASE = rule({
   matches: ["Sequential composition", "Left choice", "Nondeterministic choice", "Fixed point", "Case of known constr."],
   rejects: ["Cut", "left choice", "E Beta", "A b c d e"],
 });
+export const RULE_SHAPE_TITLE = rule({
+  id: "rule.shape.title", stage: "rule",
+  summary: "A titled name: one to three capitalised words, each maybe hyphened, then a parenthesised case of one to three capitalised words, or two to three such words alone, making up the label's whole line (\"Free Ok\", \"Nondeterministic Lifting\", \"One-Sided If\", \"Under-Approx Left\", \"If (Multi-Outcome)\", \"If (Single Outcome)\"). It is weak, as a word is: it stands beside a bar only as the convention allows (rule.convention), and never over a bar, at a row or at the margin, where such words head a group of rules, a table's rows or a figure's part (\"Well-formed Type\", \"Prior Work\", \"Monadic Rules\").",
+  why: "Outcome Logic sets its rules' names in small capitals beside their bars, Free Ok, Store Er, Error Propagation and If (Multi-Outcome) among Error, Alloc and Frame, and cites them \"the Error Propagation rule\"; small capitals reach the text layer as a capital and lowercase letters, so the words read as a title.",
+  pattern: /^(?=\S+ )\p{Lu}\p{L}{0,19}(?:-\p{L}{1,19}){0,2}(?: \p{Lu}\p{L}{0,19}(?:-\p{L}{1,19}){0,2}){0,2}(?: \(\p{Lu}\p{L}{0,19}(?:-\p{L}{1,19}){0,2}(?: \p{Lu}\p{L}{0,19}(?:-\p{L}{1,19}){0,2}){0,2}\))?$/u,
+  matches: ["Free Ok", "Store Er", "Nondeterministic Lifting", "Error Propagation", "One-Sided If", "Under-Approx Left", "If (Multi-Outcome)", "If (Single Outcome)", "Bounded Unrolling"],
+  rejects: ["Frame", "free ok", "Separation Logic Small Axioms", "If (multi)", "Free ok", "T-App", "Free  Ok"],
+});
 export const RULE_NAME_BESIDE = rule({
   id: "rule.name.beside", stage: "rule",
-  summary: "Beside a bar, a name is hyphenated, spaced, a symbol, or a word; a lowercase word stands only in a convention of two or where it is cited.",
+  summary: "Beside a bar, a name is hyphenated, spaced, a symbol, a word, or capitalised words (rule.shape.title); a lowercase word stands only in a convention of two or where it is cited.",
   why: "Cut, VAR, InstLSolve, [LT-APP], →L; Frex sets refl, sym, trans, cong and eval beside their bars in small capitals that reach the text layer in lowercase, while a lone lowercase word level with a bar's end is a premise's tail.",
 });
 export const RULE_NAME_OVER = rule({
