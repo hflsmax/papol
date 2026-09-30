@@ -672,6 +672,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // A premise's overline running under the label is neither, nor
       // one the label only clips (a table's header stands over its rule).
       if (label.x0 < bar.x + bar.w - slack && label.x1 > bar.x + slack) {
+        // Hard under a rule that starts where it does and runs well past
+        // it, the label heads a ruled table's first row, beside no other
+        // bar ("Variables" under Namespaces' rule, Constructs' rule to
+        // its left).
+        const under = bar.y <= label.top + 1 && Math.abs(label.x0 - bar.x) <= slack && bar.x + bar.w >= label.x1 + 2 * label.size;
+        if (under) return { category: "cell", bar, row, side: "over" };
         if (hugs(page, bar, type) || Math.min(label.x1, bar.x + bar.w) - Math.max(label.x0, bar.x) < 0.5 * (label.x1 - label.x0)) continue;
         return { category: "cell", bar, row, side: "over" };
       }
@@ -964,7 +970,10 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
     case "row":
       return shape === "symbol" || (shape === "word" && !token.bracketed && !token.colon) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
     case "margin":
-      return shape === "phrase" ? null : shape === "hyphen" || shape === "spaced" || (shape === "word" && token.square) ? RULE_NAME_MARGIN.id : null;
+      // A parenthesised word there in lower case names a law as its
+      // neighbours do ("(filter)" between "(push-pop)" and "(pop-push)");
+      // a capitalised one titles a group ("(Kinding)").
+      return shape === "phrase" ? null : shape === "hyphen" || shape === "spaced" || (shape === "word" && (token.square || (token.bracketed && !capitalised(token.text)))) ? RULE_NAME_MARGIN.id : null;
   }
 }
 
@@ -1036,7 +1045,13 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // Nor is a line set from the column's left edge reaching well left of
   // the bar and its label: a paragraph's line hard by a rule set in the
   // text ("ℓ₁ ≻ ℓ₂, and …:" over N-Strict, a theorem under E-β).
-  const flushLeft = (l: Line) => Boolean(bar) && l.x0 <= type.text.x0 + label.size && l.x0 < Math.min(bar!.x, label.x0) - 2 * label.size;
+  // Without a bar, the same holds of a line over the label, not level
+  // with it, reaching well left of the rest of its row ("when decoding
+  // variant V :" over P-Fld's axiom, the label set level with both).
+  const inset = setting.row.filter((l) => l.x0 > type.text.x0 + label.size);
+  const rowStart = Math.min(label.x0, ...inset.map((l) => l.x0));
+  const flushLeft = (l: Line) => l.x0 <= type.text.x0 + label.size && (bar ? l.x0 < Math.min(bar.x, label.x0) - 2 * label.size
+    : inset.length > 0 && l.x0 < rowStart - 2 * label.size && l.bottom <= label.top + 1);
   const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
@@ -1047,7 +1062,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     x0 = Math.min(bar.x, label.x0); x1 = Math.max(bar.x + bar.w, label.x1);
     for (const l of lines) if (l.x0 <= x1 + slack && l.x1 >= x0 - slack && l.bottom >= bar.y - 0.8 * type.leading && l.top <= bar.y + 0.8 * type.leading) taken.add(l);
   } else {
-    for (const l of setting.row) taken.add(l);
+    for (const l of setting.row) if (!flushLeft(l)) taken.add(l);
     x0 = Math.min(...[...taken].map((l) => l.x0)); x1 = Math.max(...[...taken].map((l) => l.x1));
   }
   // Past the conclusion, a line over another bar is that rule's premise

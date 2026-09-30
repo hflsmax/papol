@@ -316,8 +316,8 @@ export const RULE_NAME_ROW = rule({
 });
 export const RULE_NAME_MARGIN = rule({
   id: "rule.name.margin", stage: "rule",
-  summary: "At the margin, a name is hyphenated, spaced, or a word in square brackets; a parenthesised word there heads a group of rules or labels an example.",
-  why: "E Op, E Beta in a column at the margin; [Int] and [Var] at the margin of a typing rule set as one line; (Kinding) at the margin over the kinding rules and (C1) beside an example are not cited as rules.",
+  summary: "At the margin, a name is hyphenated, spaced, a word in square brackets, or a parenthesised word in lower case, which stands only as the convention allows (set as two strong names are, or cited); a capitalised parenthesised word there heads a group of rules or labels an example.",
+  why: "E Op, E Beta in a column at the margin; [Int] and [Var] at the margin of a typing rule set as one line; StackKAT's (filter) between (push-pop) and (pop-push); (Kinding) at the margin over the kinding rules and (C1) beside an example are not cited as rules.",
 });
 export const RULE_NAME_LETTERS = rule({
   id: "rule.name.letters", stage: "rule",
