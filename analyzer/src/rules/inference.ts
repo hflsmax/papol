@@ -1565,7 +1565,8 @@ function setAsLabel(at: Flow["at"], start: number, rule: Named): boolean {
 // only the prefix is held to the label's. Only lowercase set as the text
 // around it is prose: a name set off in another face is marked as a name
 // however its label is set ("Rule (step) says" in italic, "the Σfm and
-// Πfm rules" in the sans face, "While. This rule decomposes …" in bold).
+// Πfm rules" in the sans face, "While. This rule decomposes …" in bold),
+// and so is one with "rule" hard by ("the bind rule"; see mentionsIn).
 const smallCapital = (line: Line, char: number) => {
   const from = line.chars[char];
   return Boolean(from && from.run >= 0 && line.runs[from.run]?.smallCaps?.[from.at]);
@@ -1616,7 +1617,10 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const before = text.slice(Math.max(0, match.index - NEAR), match.index);
     const after = text.slice(match.index + match[0].length, match.index + match[0].length + NEAR);
     const nameStart = match.index + (groups.open ? 1 : 0);
-    const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i]));
+    // "rule" hard by names the word a rule whatever its case ("the bind
+    // rule", "the exhaustion rule").
+    const hard = RULE_JUST_BEFORE.test(before) || RULE_JUST_AFTER.test(after);
+    const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && (hard || caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i])));
     const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && asLabel(i));
     const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
     const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
