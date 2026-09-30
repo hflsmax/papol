@@ -1674,19 +1674,23 @@ function unwrapped(page: Page, type: Type): Page {
 // conclusion run into the next rule's, level with it ("wp ref 𝑣 {ℓ. ℓ ↦ 𝑣}"
 // and Wp-load's "wp !ℓ {𝑤. …}" under its bar). A bar drawn hard over or
 // under the line that ends in a wide blank between two of its runs parts
-// them there: a rule's conclusion or premises stand within its bar.
+// them there: a rule's conclusion or premises stand within its bar. So
+// does a label set hard over the line that starts in such a blank: three
+// axioms in a row, each under its label (RD-Assign, RD-Lock, RD-Unlock).
 function parted(page: Page, type: Type): Page {
   const bars = page.drawn.filter((d) => across(d) && d.w >= 2 * type.bodySize);
+  const tokens = page.lines.filter((l) => !l.furniture && tokenOf(l, false, true)?.side === "whole");
   const out: Line[] = [];
   let split = false;
   for (const line of page.lines) {
     const hard = bars.filter((d) => (d.y <= line.top + 1 && line.top - d.y <= 0.5 * type.leading) || (d.y >= line.bottom - 1 && d.y - line.bottom <= 0.5 * type.leading));
+    const heads = tokens.filter((o) => o !== line && o.bottom <= line.top + 1 && line.top - o.bottom <= 0.5 * type.leading && o.x0 > line.x0 && o.x0 < line.x1);
     const cuts: number[] = [];
-    if (!line.furniture && hard.length) {
+    if (!line.furniture && (hard.length || heads.length)) {
       for (let k = 1; k < line.runs.length; k += 1) {
         const end = Math.max(...line.runs.slice(0, k).map((r) => r.x + r.width)), start = Math.min(...line.runs.slice(k).map((r) => r.x));
         if (start - end < line.size) continue;
-        if (hard.some((d) => [d.x, d.x + d.w].some((x) => x >= end - 1 && x <= start + 1))) cuts.push(k);
+        if (hard.some((d) => [d.x, d.x + d.w].some((x) => x >= end - 1 && x <= start + 1)) || heads.some((o) => o.x0 >= end - 0.5 * line.size && o.x0 <= start + 0.5 * line.size)) cuts.push(k);
       }
     }
     if (!cuts.length) { out.push(line); continue; }
