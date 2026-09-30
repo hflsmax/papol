@@ -331,8 +331,11 @@ function sameColumn(page: Page, a: Line, b: Line): boolean {
 
 // The lines a rule may be made of: not furniture, not the label, near the
 // label's size (a page whose broken font reads as 120pt does not reach
-// into a rule).
-const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furniture && l !== label && l.size <= 2 * label.size && /[^\s\p{C}]/u.test(l.text));
+// into a rule). A big operator is no broken font: a line whose large runs
+// hold no letter is sized by its lettered ones (multris' ⁎ over its
+// range "𝑖 ↦ p ∈ p⃗"); a big brace's pieces are no letters ("Û" for ⋀).
+const lettered = (l: Line) => ((runs) => (runs.length ? Math.max(...runs.map((r) => r.size)) : l.size))(l.runs.filter((r) => /\p{L}/u.test(r.text) && !EXTENSION.test(r.font)));
+const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furniture && l !== label && (l.size <= 2 * label.size || lettered(l) <= 2 * label.size) && /[^\s\p{C}]/u.test(l.text));
 
 // What a line level with a bracketed word says when the word comments a
 // grammar production: the production itself, or a "|" alternative under
@@ -581,8 +584,9 @@ function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: numb
 
 // What stands at a row's end names a rule only where the row is one: a
 // relation between its sides (an arrow, a turnstile, an equation), not a
-// table's numbers or a paragraph's words.
-const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈≤≥⊕⊗∗⊸⊳⊲▷◁]|[−-]∗|->|=>|~>|<:|:>|::=/u;
+// table's numbers or a paragraph's words. The supplemental arrows (⤇,
+// ⤳, Leaf's ⤔ "guards") are all relations.
+const RELATION = /[→⟶↦⟼⇒⟹⇛⇓⇝↝↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈≤≥⊕⊗∗⊸⊳⊲▷◁⤀-⥿]|[−-]∗|->|=>|~>|<:|:>|::=/u;
 
 // A row ending in its relation, its right side on the lines under it.
 const OPEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\s*$`, "u");

@@ -55,6 +55,8 @@ const LOWERED = [0.08, 0.5] as const;
 // beside 10pt text, a pair of angles at 26pt round two lines) base no
 // scripts.
 const DELIMITER = /^[(){}[\]⟨⟩⟪⟫|‖⌈⌉⌊⌋\s]+$/u;
+// A word in the text's letters, not mathematical alphanumerics.
+const TEXT_WORD = /[^\P{L}\u{1D400}-\u{1D7FF}]{5,}/u;
 // Space between two runs this wide, in font sizes, is a word space.
 const WORD_SPACE = 0.12;
 // A small word this far from the line beside it, in that line's size, is
@@ -233,6 +235,10 @@ export function buildLines(page: Page): Placed[][] {
       if (j === i || merged.has(j)) return;
       const bigSize = median(big.map((r) => r.size));
       if (size > SCRIPT_SIZE * bigSize || DELIMITER.test(big.map((r) => r.text).join("").trim())) return;
+      // A word of five letters or more set upright is no script of a bare
+      // symbol, letterless: a symbol some fonts draw at a huge size (the
+      // ∗ of VerusBelt's ⇛∗, read as 24pt) under a rule's name over it.
+      if (TEXT_WORD.test(small.map((r) => r.text).join("")) && !big.some((r) => /\p{L}/u.test(r.text))) return;
       const bigBase = median(big.map((r) => r.baseline));
       const lift = (bigBase - base) / bigSize;
       const up = lift >= RAISED[0] && lift <= RAISED[1];
@@ -333,12 +339,18 @@ function lineOf(runs: Placed[], page: number, drawn: Drawn[] = []): Line {
     }
   });
   const letters = body.filter((r) => /\p{L}/u.test(r.text));
+  // A big operator with its scripts (MoSeL's ⁎ read as 34pt, its range
+  // under it at 7pt) reaches no further than its letters would: the
+  // size its font reads as overstates the glyph.
+  const lettered = runs.filter((r) => /\p{L}/u.test(r.text));
+  const cap = lettered.length && !letters.length ? 1.5 * most(lettered.map((r) => r.size)) : Infinity;
+  const reach = (r: Placed) => Math.min(r.size, cap);
   return {
     page, index: 0, runs, text, chars,
     x0: least(runs.map((r) => r.x)),
     x1: most(runs.map((r) => r.x + r.width)),
-    top: least(runs.map((r) => r.baseline - r.size * 0.8)),
-    bottom: most(runs.map((r) => r.baseline + r.size * 0.22)),
+    top: least(runs.map((r) => r.baseline - reach(r) * 0.8)),
+    bottom: most(runs.map((r) => r.baseline + reach(r) * 0.22)),
     baseline, size,
     bold: letters.length > 0 && letters.every((r) => r.bold),
     column: "",
