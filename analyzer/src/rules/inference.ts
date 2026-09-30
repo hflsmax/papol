@@ -1438,9 +1438,14 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         // Upright words in the text's face are a note beside the rules
         // ("No ⊤L rules"), no premise; with a relation between them they
         // are one ("idx(Q₁) ⊆ supp(t₁)").
-        if (faceOf(line) === family(type.font) && !RELATION.test(line.text) && line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2) continue;
+        // A heading over the rules ("Storage transitions:" over M-Read*)
+        // is such a note, however its words fall into runs.
+        const upright = line.text.split(/\s+/).filter((w) => /^\p{L}{2,}[:.,]?$/u.test(w) && line.runs.some((r) => r.text.includes(w.replace(/[:.,]$/, "")) && !ITALIC.test(r.font)));
+        if ((faceOf(line) === family(type.font) || line.bold) && !RELATION.test(line.text) && (line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2 || upright.length >= 2)) continue;
         // Another bar over it or under it makes it another rule's.
-        const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
+        // A stroke overlining a term of a premise is none (T-UNFOLD's
+        // "θτ̄⁺" and its hat accents).
+        const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && !hugs(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
           && ((d.y >= line.top - 0.8 * type.leading && d.y <= line.top + 1) || (d.y >= line.bottom - 1 && d.y <= start + 1)));
         if (barred) continue;
         taken.add(line); grew = true;
