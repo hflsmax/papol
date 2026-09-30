@@ -343,7 +343,7 @@ const probe = `<script>
       run();
     }
 
-    // A named rule: its name under the pointer shows the rule under its
+    // The telescope: a named rule's name under the pointer shows the rule under its
     // line, at the size it is printed, and the pointer gone lets it go; the
     // name pressed brings the rule into the window at the zoom the reader
     // had, and [ goes back.
@@ -371,10 +371,10 @@ const probe = `<script>
         return top >= view.top && bottom <= view.top + pages().clientHeight;
       };
       const stages = [
-        ['peek', () => { start = pages().scrollTop; pointer(0, 0); }, () => {
-          const peek = $('.pdf-page[data-page="1"] .paper-clip.peek canvas');
-          if (!peek || !peek.width) { why = peek ? 'unpainted' : 'no-peek'; return false; }
-          const clip = peek.getBoundingClientRect();
+        ['telescope', () => { start = pages().scrollTop; pointer(0, 0); }, () => {
+          const scope = $('.pdf-page[data-page="1"] .paper-clip.telescope canvas');
+          if (!scope || !scope.width) { why = scope ? 'unpainted' : 'no-telescope'; return false; }
+          const clip = scope.getBoundingClientRect();
           const name = link().getBoundingClientRect();
           const page = $('.pdf-page[data-page="1"]').getBoundingClientRect();
           why = ['top' + Math.round(clip.top - name.bottom), 'left' + Math.round(clip.left - name.left),
@@ -385,7 +385,7 @@ const probe = `<script>
             && Math.abs(clip.width - ${RULE.w} * page.width) < 10 && Math.abs(clip.height - ${RULE.h} * page.height) < 8
             && near(pages().scrollTop, start);
         }],
-        ['let-go', () => pointer(0, 120), () => !$('.paper-clip.peek')],
+        ['let-go', () => pointer(0, 120), () => !$('.paper-clip.telescope')],
         ['go', () => {
           width = $('.pdf-page[data-page="1"]').getBoundingClientRect().width;
           link().click();

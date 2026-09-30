@@ -30,7 +30,7 @@ describe("annotations", () => {
     } });
     expect(clip.body.floating).toBe(false);
     expect(clip.body.source.page).toBeUndefined();
-    // A clip cut from another page (a named rule brought to where it is
+    // A clip cut from another page (a telescope: a named rule brought to where it is
     // cited) keeps that page; a page that is none is refused.
     const cut = await ok("POST", `/api/papers/${name}/annotations`, { headers: account.headers, json: {
       kind: "clip", page: 2, body: { source: { page: 6, x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, frame: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } },

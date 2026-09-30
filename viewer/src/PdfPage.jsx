@@ -134,9 +134,9 @@ const boxHolds = (box, x, y) => (
 );
 
 // What a PDF link says it does, for its tooltip and its label.
-// How long a rule's name is under the pointer before its rule shows, and
+// The telescope: how long a rule's name is under the pointer before its rule shows, and
 // how long the pointer is off both before the rule goes.
-const PEEK_AFTER_MS = 150;
+const TELESCOPE_AFTER_MS = 150;
 const LET_GO_AFTER_MS = 200;
 
 const linkTitle = (link) => {
@@ -145,10 +145,10 @@ const linkTitle = (link) => {
   return `Go to page ${link.spot.page}`;
 };
 
-// A named rule, with the command (or control) key held, is kept here as a
+// A telescoped rule, with the command (or control) key held, is kept here as a
 // clip rather than gone to.
-const keepsRule = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
-const isRule = (link) => link?.spot?.kind === 'rule';
+const keepsTelescope = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
+const telescopes = (link) => link?.spot?.kind === 'rule';
 
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
@@ -158,11 +158,11 @@ const boxStyle = (box) => ({
   height: `${box.h * 100}%`,
 });
 
-// `peek` is a clip of a named rule shown while its name is under the
+// `telescope` is a clip of a named rule shown while its name is under the
 // pointer, not kept: the pointer may come onto it (`hold`), and pressed,
 // it leads to the rule. A clip's source may be on another page than the
 // clip sits on (`source.page`): a rule brought to where it is cited.
-function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange, onCommit, onRemove, onSelect, onSend }) {
+function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onChange, onCommit, onRemove, onSelect, onSend }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const renderRef = useRef(null);
@@ -476,20 +476,20 @@ function ClipBox({ clip, doc, selected, readOnly, peek = null, project, onChange
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${peek ? ' peek' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}`}
       style={positionStyle}
-      aria-label={peek ? peek.title : 'Clipped paper content'}
+      aria-label={telescope ? telescope.title : 'Clipped paper content'}
       // Someone else's clip is a view they cut and placed. It is theirs to
       // move, so here it is simply part of the page — picked out, with a
       // project on, only to say whose it is.
-      title={peek ? undefined : readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
+      title={telescope ? undefined : readOnly ? (clip.user ? `${clip.user.display_name}’s clipped view` : 'A clipped view of this paper') : 'Drag clipped view'}
       onPointerDown={readOnly ? undefined : (event) => begin(event, 'move')}
       onPointerMove={readOnly ? undefined : move}
       onPointerUp={readOnly ? undefined : finish}
       onPointerCancel={readOnly ? undefined : finish}
-      onPointerEnter={peek ? () => peek.hold(true) : undefined}
-      onPointerLeave={peek ? () => peek.hold(false) : undefined}
-      onClick={readOnly && !project && !peek ? undefined : (event) => {
+      onPointerEnter={telescope ? () => telescope.hold(true) : undefined}
+      onPointerLeave={telescope ? () => telescope.hold(false) : undefined}
+      onClick={readOnly && !project && !telescope ? undefined : (event) => {
         event.stopPropagation();
         if (!draggedRef.current) onSelect();
         draggedRef.current = false;
@@ -529,10 +529,10 @@ function PdfPage({
   openReferenceUuid,
   onOpenReference,
   onFollowLink,
-  onPeekRule,
-  onLetGoRule,
-  onClipRule,
-  peek = null,
+  onShowTelescope,
+  onLetGoTelescope,
+  onKeepTelescope,
+  telescope = null,
   onSelectAnchor,
   onMoveAnchor,
   readOnly = false,
@@ -632,22 +632,22 @@ function PdfPage({
   // The PDF's own links: "see Section 3", "Figure 4", a URL in a footnote.
   const [links, setLinks] = useState([]);
   const [hoveredLink, setHoveredLink] = useState(-1);
-  // A rule's name under the pointer shows the rule beside it after a
+  // The telescope: a rule's name under the pointer shows the rule beside it after a
   // moment; the pointer gone from the name, and not onto the rule, lets
   // it go after another. One timer serves both: whichever comes last wins.
-  const peekTimerRef = useRef(null);
-  const overPeekRef = useRef(false);
+  const telescopeTimerRef = useRef(null);
+  const overTelescopeRef = useRef(false);
   useEffect(() => {
     const link = hoveredLink >= 0 ? links[hoveredLink] : null;
-    clearTimeout(peekTimerRef.current);
-    if (isRule(link)) peekTimerRef.current = setTimeout(() => onPeekRule(link, pageNumber, linkTitle(link)), PEEK_AFTER_MS);
-    else if (peek && !overPeekRef.current) peekTimerRef.current = setTimeout(() => onLetGoRule(), LET_GO_AFTER_MS);
-    return () => clearTimeout(peekTimerRef.current);
-  }, [hoveredLink, peek]);
-  const holdPeek = (over) => {
-    overPeekRef.current = over;
-    clearTimeout(peekTimerRef.current);
-    if (!over) peekTimerRef.current = setTimeout(() => onLetGoRule(), LET_GO_AFTER_MS);
+    clearTimeout(telescopeTimerRef.current);
+    if (telescopes(link)) telescopeTimerRef.current = setTimeout(() => onShowTelescope(link, pageNumber, linkTitle(link)), TELESCOPE_AFTER_MS);
+    else if (telescope && !overTelescopeRef.current) telescopeTimerRef.current = setTimeout(() => onLetGoTelescope(), LET_GO_AFTER_MS);
+    return () => clearTimeout(telescopeTimerRef.current);
+  }, [hoveredLink, telescope]);
+  const holdTelescope = (over) => {
+    overTelescopeRef.current = over;
+    clearTimeout(telescopeTimerRef.current);
+    if (!over) telescopeTimerRef.current = setTimeout(() => onLetGoTelescope(), LET_GO_AFTER_MS);
   };
   // The drag lives in a ref, because pointermove fires faster than React
   // re-renders and a stale `moved` flag would read a drag as a click. The
@@ -2083,7 +2083,7 @@ function PdfPage({
           const link = links.find((l) => boxHolds(l, x, y));
           if (!link) return;
           if (link.href) window.open(link.href, '_blank', 'noopener,noreferrer');
-          else if (keepsRule(link, e)) onClipRule(link, pageNumber);
+          else if (keepsTelescope(link, e)) onKeepTelescope(link, pageNumber);
           else onFollowLink(link.spot);
           return;
         }
@@ -2103,7 +2103,7 @@ function PdfPage({
       data-render-scale={renderScale}
       // The link boxes let the pointer through, so their tooltip is the
       // page's. A rule's name shows the rule itself and gets none.
-      title={hoveredLink >= 0 && links[hoveredLink] && !isRule(links[hoveredLink]) ? linkTitle(links[hoveredLink]) : undefined}
+      title={hoveredLink >= 0 && links[hoveredLink] && !telescopes(links[hoveredLink]) ? linkTitle(links[hoveredLink]) : undefined}
     >
       {/* Drawn at renderScale and stretched to the scale being looked at:
           during a pinch this is a compositor transform, and the sharp
@@ -2343,7 +2343,7 @@ function PdfPage({
                 style={boxStyle(link)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (keepsRule(link, e)) onClipRule(link, pageNumber);
+                  if (keepsTelescope(link, e)) onKeepTelescope(link, pageNumber);
                   else onFollowLink(link.spot);
                   e.currentTarget.blur();
                 }}
@@ -2493,15 +2493,15 @@ function PdfPage({
           onSend={(blob) => onSendClip(clip, blob)}
         />
       ))}
-      {peek && (
+      {telescope && (
         <ClipBox
-          key="peek"
-          clip={peek.clip}
+          key="telescope"
+          clip={telescope.clip}
           doc={doc}
           readOnly
-          peek={{ ...peek, hold: holdPeek }}
+          telescope={{ ...telescope, hold: holdTelescope }}
           selected={false}
-          onSelect={() => onFollowLink(peek.spot)}
+          onSelect={() => onFollowLink(telescope.spot)}
         />
       )}
       <span className="page-number">{pageNumber}</span>

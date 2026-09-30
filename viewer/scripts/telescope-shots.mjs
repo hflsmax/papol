@@ -3,13 +3,13 @@ import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 import { PAPER, viewerServer } from './fixtures/projectViewer.mjs';
 
-// Pictures of a named rule in the viewer, on a paper that has them (set
+// Pictures of the telescope in the viewer, on a paper with named rules (set
 // PAPOL_FIXTURE_PDF to it and PAPOL_FIXTURE_TITLE to its title): the rule
 // shown under its name while the pointer is on it, the rule brought into
 // view by a press on the name, and a clip of the rule kept beside the name
 // by a Cmd-press.
 //
-//   PAPOL_FIXTURE_PDF=paper.pdf node scripts/rule-shots.mjs <out dir> <page> [name ...]
+//   PAPOL_FIXTURE_PDF=paper.pdf node scripts/telescope-shots.mjs <out dir> <page> [name ...]
 const settled = "document.fonts.ready.then(() => new Promise((done) => setTimeout(done, 700)))";
 const wide = { width: 1440, height: 900 };
 const [outDir, pageArg, ...asked] = process.argv.slice(2);
@@ -23,12 +23,12 @@ const hover = `const el = ${link}; const box = el.getBoundingClientRect();
   document.elementFromPoint(at.clientX, at.clientY).dispatchEvent(new PointerEvent('pointermove', at));
   return true;`;
 const SHOTS = {
-  hover: { then: hover, settled: '.paper-clip.peek canvas' },
+  hover: { then: hover, settled: '.paper-clip.telescope canvas' },
   jump: { then: `${link}.click(); return true;`, wait: 900 },
-  clip: { then: `${link}.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })); return true;`, settled: '.paper-clip:not(.peek) canvas' },
+  clip: { then: `${link}.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })); return true;`, settled: '.paper-clip:not(.telescope) canvas' },
 };
 if (!outDir) {
-  console.error(`usage: PAPOL_FIXTURE_PDF=paper.pdf node scripts/rule-shots.mjs <out dir> <page> [${Object.keys(SHOTS).join(' | ')} ...]`);
+  console.error(`usage: PAPOL_FIXTURE_PDF=paper.pdf node scripts/telescope-shots.mjs <out dir> <page> [${Object.keys(SHOTS).join(' | ')} ...]`);
   process.exit(2);
 }
 const names = asked.length ? asked : Object.keys(SHOTS);
@@ -54,7 +54,7 @@ try {
     if (shot.settled) await browser.waitFor(`document.querySelector('${shot.settled}')`, { what: `${name} to settle` });
     await browser.evaluate(`return ${settled};`);
     const { data } = await browser.send('Page.captureScreenshot', { format: 'png' });
-    const file = join(resolve(outDir), `rule-${name}.png`);
+    const file = join(resolve(outDir), `telescope-${name}.png`);
     await writeFile(file, Buffer.from(data, 'base64'));
     console.log(file);
   }
