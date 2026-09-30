@@ -686,15 +686,20 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const slack = BESIDE * label.size;
   const mid = (label.top + label.bottom) / 2;
   const centre = (label.x0 + label.x1) / 2;
-  const column = columnSpan(page, label) ?? (type.columns.find((c) => c.x0 <= centre && centre <= c.x1) ?? type.text);
-  const measure = Array.isArray(column) ? column[1] - column[0] : column.x1 - column.x0;
+  // The column is the paper's at least: on a page given to a figure the
+  // lines of text's length are its formulas (Iron's Fig. 4, tinv-open's bar
+  // wider than any of them).
+  const paper = type.columns.find((c) => c.x0 <= centre && centre <= c.x1) ?? type.text;
+  const spanned = columnSpan(page, label);
+  const column: [number, number] = spanned ? [Math.min(spanned[0], paper.x0), Math.max(spanned[1], paper.x1)] : [paper.x0, paper.x1];
+  const measure = column[1] - column[0];
   const wide = BAR_SHARE * measure;
   const widest = measure + 3 * label.size;
   // A label alone on its row at the column's left edge heads the rule
   // under it wherever the rule stands in the column (OOPSLA's "[Query]"
   // over a centred rule); a word in the text's face there, unbracketed,
   // opens a paragraph's line ("argument p and …").
-  const [colLeft, colRight] = Array.isArray(column) ? column : [column.x0, column.x1];
+  const [colLeft, colRight] = column;
   const alone = ruleLines(page, label).every((l) => l === label || !onRow(l, label) || !sameColumn(page, l, label));
   const margined = alone && Math.abs(label.x0 - colLeft) <= slack && (token.bracketed || faceOf(label, token) !== family(type.font));
   // A bar as wide as the text could be a figure's own rule: it is a rule's
@@ -1792,7 +1797,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // So is a line of its own set smaller within a larger line's span on
       // its row, off its baseline: the index of a relation the layout split
       // off (NOM under the "d" of noms-exchanges-fuel's conclusion).
-      const indexing = page.lines.some((o) => o !== line && !o.furniture && o.size >= 1.25 * line.size && level(o, line) && o.x0 < line.x0 - 1 && o.x1 > line.x1 + 1
+      const indexing = page.lines.some((o) => o !== line && !o.furniture && o.size >= 1.25 * line.size && o.size <= 2 * line.size && level(o, line) && o.x0 < line.x0 - 1 && o.x1 > line.x1 + 1
         && Math.abs(o.baseline - line.baseline) >= 0.2 * line.size);
       if (scripted || indexing) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A short name set a blank apart from its row, as a label is: one
