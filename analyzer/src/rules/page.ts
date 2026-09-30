@@ -67,7 +67,27 @@ const ITALIC_WORD = /italic|oblique|cmti|cmmi|-it\b|\.i\b|-i$/i;
 const ITALIC = { test: (name: string) => ITALIC_WORD.test(name) || /Lin(?:Libertine|Biolinum)[A-Z]*I\d?$/.test(name) };
 
 type TextItem = { str: string; transform: number[]; width: number; height: number; fontName: string };
-type FontData = { name?: string; loadedName?: string };
+// `differences` and `defaultEncoding` are the glyph names a simple font
+// draws each code with; pdf.js hands them over only when the document is
+// opened with fontExtraProperties.
+type FontData = { name?: string; loadedName?: string; differences?: (string | undefined)[]; defaultEncoding?: (string | undefined)[] };
+
+// What a ligature's glyph name spells: its parts joined by "_", each the
+// name of a letter with any suffix after a period ("q.sc_u.sc", "f_f_i",
+// "uni0071_uni0075"). Undefined for a name that is no ligature, or a part
+// that names no single character.
+export function ligatureSpelling(name: string | undefined): string | undefined {
+  const parts = name?.split("_");
+  if (!parts || parts.length < 2) return undefined;
+  let spelled = "";
+  for (const part of parts) {
+    const base = part.split(".")[0];
+    if (/^[A-Za-z]$/.test(base)) spelled += base;
+    else if (/^(?:uni|u)[0-9A-F]{4,6}$/.test(base)) spelled += String.fromCodePoint(parseInt(base.replace(/^uni|^u/, ""), 16));
+    else return undefined;
+  }
+  return spelled;
+}
 
 type Matrix = [number, number, number, number, number, number];
 const multiply = (m: Matrix, n: Matrix): Matrix => [
@@ -125,13 +145,17 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
 // same character is drawn by different glyphs of different widths (an "a"
 // and the small capital a Libertine sets it in), and only the glyphs a
 // run was drawn with place its characters.
-export type Glyph = { unicode?: string; width?: number };
+// A glyph whose font names it a ligature carries what the name spells
+// (layout.ligature): Libertine's small-capital "qu" is one glyph,
+// q.sc_u.sc, that the font's ToUnicode maps to "q" alone.
+export type Glyph = { unicode?: string; width?: number; originalCharCode?: number; spelled?: string };
 type Glyphs = { widths: Map<string, Map<string, number>>; glyphs: Map<string, Glyph[]> };
-function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>): Glyphs {
+function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>, names: (id: string) => ((code: number) => string | undefined) | undefined = () => undefined): Glyphs {
   const widths = new Map<string, Map<string, number>>();
   const glyphs = new Map<string, Glyph[]>();
   let font: Map<string, number> | null = null;
   let drawn: Glyph[] | null = null;
+  let named: ((code: number) => string | undefined) | undefined;
   ops.fnArray.forEach((fn, i) => {
     const args = ops.argsArray[i] as unknown[];
     if (fn === OPS.setFont) {
@@ -140,10 +164,12 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
       widths.set(id, font);
       drawn = glyphs.get(id) ?? [];
       glyphs.set(id, drawn);
+      named = names(id);
     } else if (fn === OPS.showText && font && drawn && Array.isArray(args?.[0])) {
       for (const glyph of args[0] as (Glyph | number)[]) {
         if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width)) continue;
-        drawn.push(glyph);
+        const spelled = named && glyph.originalCharCode !== undefined ? ligatureSpelling(named(glyph.originalCharCode)) : undefined;
+        drawn.push(spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { ...glyph, spelled } : glyph);
         if (!font.has(glyph.unicode)) font.set(glyph.unicode, glyph.width!);
       }
     }
@@ -156,17 +182,23 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
 // width (a ligature's characters share theirs), a space pdf.js inserted
 // for a gap a quarter of the size, the whole stretched to the width
 // pdf.js measured. Undefined where the glyphs there do not spell the run.
-export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number } | undefined {
+// `text` is the run as its glyphs spell it: where a ligature's name spells
+// more than the text layer says (q.sc_u.sc read as "q"), the letters
+// left out are put back (layout.ligature).
+export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number; text: string } | undefined {
   if ([...text].length !== text.length) return undefined;
   const widths: number[] = [];
-  let i = 0, j = from;
+  let i = 0, j = from, spelled = "";
   while (i < text.length) {
     const glyph = glyphs[j], unicode = glyph?.unicode ?? "";
     if (unicode && text.startsWith(unicode, i)) {
-      for (let k = 0; k < unicode.length; k += 1) widths.push(glyph!.width! / unicode.length);
+      const letters = glyph!.spelled && !text.startsWith(glyph!.spelled, i) ? glyph!.spelled : unicode;
+      if ([...letters].length !== letters.length) return undefined;
+      for (let k = 0; k < letters.length; k += 1) widths.push(glyph!.width! / letters.length);
+      spelled += letters;
       i += unicode.length; j += 1;
-    } else if (text[i] === " " && /^\s$/.test(unicode)) { widths.push(glyph!.width!); i += 1; j += 1; }
-    else if (text[i] === " ") { widths.push(250); i += 1; }
+    } else if (text[i] === " " && /^\s$/.test(unicode)) { widths.push(glyph!.width!); spelled += " "; i += 1; j += 1; }
+    else if (text[i] === " ") { widths.push(250); spelled += " "; i += 1; }
     else return undefined;
   }
   const sum = widths.reduce((s, w) => s + w, 0);
@@ -174,7 +206,7 @@ export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from:
   const offsets = [0];
   let at = 0;
   for (const w of widths) { at += w; offsets.push((at / sum) * width); }
-  return { offsets, next: j };
+  return { offsets, next: j, text: spelled };
 }
 
 // How far ahead in a font's glyphs a run is looked for when the glyphs
@@ -220,26 +252,37 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   // it is also what the page draws.
   const operators = await page.getOperatorList();
   const drawn = drawnOn(operators, OPS, page.view);
-  const { widths, glyphs } = glyphsDrawn(operators, OPS);
+  const fontData = (id: string): FontData | undefined => {
+    try { return page.commonObjs.get(id) as FontData; } catch { return undefined; }
+  };
+  // Each code's glyph name, where the font says: its encoding's
+  // differences, else the encoding it was built with.
+  const glyphNames = (id: string) => {
+    const font = fontData(id);
+    if (!font?.differences && !font?.defaultEncoding) return undefined;
+    return (code: number) => font.differences?.[code] || font.defaultEncoding?.[code] || undefined;
+  };
+  const { widths, glyphs } = glyphsDrawn(operators, OPS, glyphNames);
   const cursors = new Map<string, number>();
   // The run's offsets from the glyphs it was drawn with, taken in order
   // from its font's glyphs; from the font's widths where they do not spell it.
-  const offsetsFor = (id: string, text: string, width: number): number[] | undefined => {
+  // The run as its glyphs spell it comes back with them.
+  const offsetsFor = (id: string, text: string, width: number): { offsets?: number[]; text: string } => {
     const drawn = glyphs.get(id);
     if (drawn?.length) {
       const at = cursors.get(id) ?? 0;
       for (let from = at; from < Math.min(drawn.length, at + LOOK_AHEAD); from += 1) {
         const along = offsetsAlong(text, width, drawn, from);
-        if (along) { cursors.set(id, along.next); return along.offsets; }
+        if (along) { cursors.set(id, along.next); return along; }
       }
     }
-    return offsetsOf(text, width, widths.get(id));
+    return { offsets: offsetsOf(text, width, widths.get(id)), text };
   };
   const fonts = new Map<string, string>();
   const fontName = (id: string) => {
     if (!fonts.has(id)) {
       let name = "";
-      try { name = (page.commonObjs.get(id) as FontData)?.name ?? ""; } catch { name = ""; }
+      name = fontData(id)?.name ?? "";
       fonts.set(id, name.replace(/^[A-Z]{6}\+/, ""));
     }
     return fonts.get(id)!;
@@ -253,12 +296,13 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
     if (Math.abs(b) > 0.01 || Math.abs(c) > 0.01 || a <= 0 || d <= 0) continue;
     const size = Math.hypot(c, d) || raw.height;
     const font = fontName(raw.fontName);
+    const spelled = offsetsFor(raw.fontName, raw.str, raw.width);
     runs.push({
-      text: raw.str,
+      text: spelled.text,
       x: e - left,
       baseline: top - f,
       width: raw.width,
-      offsets: offsetsFor(raw.fontName, raw.str, raw.width),
+      offsets: spelled.offsets,
       size,
       font,
       bold: BOLD.test(font),

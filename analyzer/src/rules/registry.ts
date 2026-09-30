@@ -111,6 +111,12 @@ export const LAYOUT_SMALL_CAPS = rule({
   why: "Small capitals faked from a text font set \"LT-V\" at 8pt and \"AR\" at 6.4pt on a row that opens with 9pt mathematics; the name is one word.",
 });
 
+export const LAYOUT_LIGATURE = rule({
+  id: "layout.ligature", stage: "layout",
+  summary: "A glyph the font names as a ligature of letters (its parts joined by \"_\", each a letter's name with any suffix: q.sc_u.sc, f_f_i) spells all of them, where the text layer maps it to fewer.",
+  why: "Libertine sets the small-capital \"qu\" as one glyph whose ToUnicode entry is \"q\": UNIQUE read as \"uniqe\", F-CONSEQUENCE as \"F-conseqence\", and a name no one would type.",
+});
+
 // --------------------------------------------------------------- captions
 
 const CAPTION_KINDS = "Figure|FIGURE|Fig\\.?|FIG\\.?|Table|TABLE|Tab\\.|TAB\\.|Box|BOX|Algorithm|ALGORITHM|Listing|LISTING";

@@ -12,10 +12,10 @@ import * as esbuild from "esbuild";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(os.tmpdir(), `papol-rules-layout-${process.pid}.mjs`);
 await esbuild.build({
-  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf, offsetsAlong } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
+  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf, offsetsAlong, ligatureSpelling } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
   outfile: out, bundle: true, platform: "node", format: "esm", logLevel: "error",
 });
-const { boxesOf, offsetsOf, offsetsAlong } = await import(pathToFileURL(out).href);
+const { boxesOf, offsetsOf, offsetsAlong, ligatureSpelling } = await import(pathToFileURL(out).href);
 
 // Times Roman's widths, as the page draws them, for what the line below uses.
 const times = new Map(Object.entries({
@@ -54,6 +54,26 @@ test("a run's characters take the widths of the glyphs it was drawn with (Virtua
   assert.deepEqual(ligature.offsets.map((o) => Math.round(o * 1000) / 1000), [0, 0.556, 0.833, 1.167, 1.5]);
   // Glyphs that do not spell the run place nothing.
   assert.equal(offsetsAlong("raise", 10, drawn, 0), undefined);
+});
+
+test("a ligature's glyph spells the letters its name joins (Verified Lock-Free Session Channels, page 23)", () => {
+  // Libertine's small-capital "qu" is one glyph, q.sc_u.sc, that the text
+  // layer reads as "q": UNIQUE came out "uniqe".
+  assert.equal(ligatureSpelling("q.sc_u.sc"), "qu");
+  assert.equal(ligatureSpelling("f_f_i"), "ffi");
+  assert.equal(ligatureSpelling("uni0071_uni0075"), "qu");
+  assert.equal(ligatureSpelling("q.sc"), undefined);
+  assert.equal(ligatureSpelling("fi"), undefined);
+  assert.equal(ligatureSpelling("a_germandbls"), undefined);
+  const glyph = (unicode, width, spelled) => ({ unicode, width, ...(spelled ? { spelled } : {}) });
+  const drawn = [glyph("u", 576), glyph("n", 602), glyph("i", 311), glyph("q", 1101, "qu"), glyph("e", 477)];
+  const along = offsetsAlong("uniqe", 30.67, drawn, 0);
+  assert.equal(along.text, "unique");
+  assert.equal(along.offsets.length, "unique".length + 1);
+  assert.ok(Math.abs(along.offsets[4] - along.offsets[3] - (along.offsets[5] - along.offsets[4])) < 1e-9, "the glyph's width is shared by its letters");
+  assert.equal(along.offsets[6], 30.67);
+  // Where the text layer already spells the ligature, it is kept as it is.
+  assert.equal(offsetsAlong("unique", 30.67, [...drawn.slice(0, 4), glyph("u", 1), glyph("e", 477)], 0).text, "unique");
 });
 
 test("a font whose glyphs were not read leaves the run evenly spaced", () => {

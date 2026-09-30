@@ -14,8 +14,10 @@ export { offsetsOf } from "./page";
 // is on the first.
 export async function readPdf(bytes: Uint8Array, { pages: limit }: { pages?: number } = {}): Promise<Doc> {
   const { OPS } = await getResolvedPDFJS();
-  // pdf.js takes ownership of the buffer it is given.
-  const proxy = await getDocumentProxy(new Uint8Array(bytes));
+  // pdf.js takes ownership of the buffer it is given. The fonts' extra
+  // properties carry their glyph names, which spell ligatures the text
+  // layer shortens (page.ts, layout.ligature).
+  const proxy = await getDocumentProxy(new Uint8Array(bytes), { fontExtraProperties: true });
   const pages: Page[] = [];
   let info = { title: "", author: "" };
   try {
