@@ -174,6 +174,11 @@ function tokenOf(line: Line, column = false): Token | null {
     const run = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run] : null);
     const subscripted = /\d$/.test(token) && [...token].every((c, i) => !/\d/.test(c) || ((r) => r !== null && r.size < line.size - 0.5 && r.baseline > line.baseline + 0.5)(run(start + i)));
     if ((!open || subscripted) && /^\p{L}{1,2}\d*['′]*$/u.test(token) && [...token].every((c, i) => !/\p{L}/u.test(c) || ITALIC.test(font(start + i)))) return null;
+    // Italic letters taking up full size again after an index are a
+    // product of indexed variables ("LⱼₖLᵢₖ" read as "LjkLik").
+    const offsets = [...token].map((c, i, all) => start + all.slice(0, i).join("").length);
+    const scripts = offsets.map((at) => ((r) => Boolean(r && (r.sub || r.sup)))(run(at)));
+    if (/^\p{L}+$/u.test(token) && offsets.every((at) => ITALIC.test(font(at))) && scripts.some((s, i) => !s && scripts.slice(0, i).some(Boolean))) return null;
     // One opening with a connective whose letters are all mathematical
     // alphanumerics with no capital among them (⊕𝜎𝑓, ¬𝜑), or all set in
     // an italic face (× 1/fps), is a formula: ×𝑇 and <:eq open otherwise.
@@ -839,6 +844,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   if (ruledAside(page, label, span, type) || walled(page, label, span, row)) return { category: "cell", bar: null, row, side: "right" };
   const right = columnRight(page, label);
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
+  // A row opening with a quantifier states a lemma, no rule
+  // ("∀𝑥 : Nat. half (add 𝑥 𝑥) ≐ 𝑥   (half_double)").
+  if (atMargin && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "none", bar: null, row, side: "right" };
   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
   // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name); another label set
