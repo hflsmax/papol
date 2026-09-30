@@ -1390,6 +1390,15 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   if (bar) {
     x0 = Math.min(bar.x, label.x0); x1 = Math.max(bar.x + bar.w, label.x1);
     for (const l of lines) if (l.x0 <= x1 + slack && l.x1 >= x0 - slack && l.bottom >= bar.y - 0.8 * type.leading && l.top <= bar.y + 0.8 * type.leading) taken.add(l);
+    // Under a label over the rule, a side condition level with the bar
+    // just past its end is the rule's ("(⊗ ∈ {♦, ♣})" after Update's bar).
+    if (setting.side === "over") {
+      for (const l of lines) {
+        if (l.top > bar.y + 0.5 * l.size || l.bottom < bar.y - 0.5 * l.size || tokenOf(l)?.side === "whole" || !sameColumn(page, l, label)) continue;
+        if (!(l.x0 >= bar.x + bar.w - label.size && l.x0 - bar.x - bar.w <= 2 * label.size) && !(l.x1 <= bar.x + label.size && bar.x - l.x1 <= 2 * label.size)) continue;
+        taken.add(l); x0 = Math.min(x0, l.x0); x1 = Math.max(x1, l.x1);
+      }
+    }
   } else {
     // A glyph at another's bar is that rule's, on this row or not.
     for (const l of setting.row) if (!flushLeft(l) && !another(l)) taken.add(l);
@@ -1982,12 +1991,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // between it and the bar heads a group of rules ("(Reduction)" over
   // R-Proj2Beta) and labels nothing (rule.heading).
   // So does a word set unlike the paper's labels over one set like them
-  // ("All", italic, over allEmpty).
+  // ("All", italic, over allEmpty), or over a bar a name stands beside
+  // ("Typing" over FT-PRIM's).
   const alike = new Map<string, number>();
   for (const c of candidates) alike.set(c.convention, (alike.get(c.convention) ?? 0) + 1);
   const heading = (c: Candidate) => weak(c) && c.setting.category === "over" && Boolean(c.setting.bar)
     && candidates.some((o) => o !== c && (!weak(o) || alike.get(o.convention)! >= Math.max(3, 3 * alike.get(c.convention)!))
-      && o.setting.category === "over" && o.setting.bar === c.setting.bar && o.line.top > c.line.top);
+      && o.setting.bar === c.setting.bar && ((o.setting.category === "over" && o.line.top > c.line.top) || (o.setting.category === "beside" && !weak(o) && (o.line.x0 >= c.setting.bar!.x + c.setting.bar!.w - o.line.size || o.line.x1 <= c.setting.bar!.x + o.line.size))));
   for (const c of candidates) if (heading(c)) trace.add(RULE_HEADING.id, c.page.number, `${c.token.text} heading`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !heading(c));
   // A word in parentheses at the margin names a rule only among hyphenated
