@@ -1,0 +1,15 @@
+{"rules": [
+  {"page": 5, "name": "Alloc", "box": [146.7, 111.8, 335.6, 149.1]},
+  {"page": 5, "name": "Frame", "box": [81.2, 409.2, 402.0, 446.1]},
+  {"page": 17, "name": "Frame", "box": [45.3, 82.4, 267.0, 116.8]},
+  {"page": 17, "name": "JoinTrue", "box": [275.6, 89.9, 336.9, 116.8]},
+  {"page": 17, "name": "Seq", "box": [350.8, 90.0, 438.1, 116.8]},
+  {"page": 17, "name": "Alloc", "box": [45.3, 124.7, 177.2, 150.6]},
+  {"page": 17, "name": "Read", "box": [225.0, 124.7, 438.1, 150.6]},
+  {"page": 17, "name": "Write", "box": [45.3, 158.5, 236.1, 184.5]},
+  {"page": 17, "name": "Free", "box": [246.7, 158.6, 438.1, 184.5]},
+  {"page": 17, "name": "Cons", "box": [45.3, 200.8, 148.5, 226.8]},
+  {"page": 17, "name": "WhileSync", "box": [188.8, 192.4, 435.6, 227.1]},
+  {"page": 19, "name": "ReadScf", "box": [81.8, 249.8, 400.5, 286.6]}
+],
+"cited": [{"page": 9, "name": "Frame"}, {"page": 10, "name": "Frame"}, {"page": 17, "name": "Free"}, {"page": 17, "name": "JoinTrue"}, {"page": 19, "name": "Frame"}, {"page": 20, "name": "ReadScf"}, {"page": 20, "name": "Free"}, {"page": 20, "name": "Alloc"}, {"page": 20, "name": "Write"}, {"page": 20, "name": "ReadScf"}, {"page": 20, "name": "Alloc"}, {"page": 20, "name": "Write"}, {"page": 20, "name": "WhileSync"}]}
