@@ -277,11 +277,11 @@ export const RULE_SHAPE_SPACED = rule({
 });
 export const RULE_SHAPE_WORD = rule({
   id: "rule.shape.word", stage: "rule",
-  summary: "A single word of two to twenty-four letters and digits, primed or not, with or without a short parenthesised tag, spaced or not (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"MKSRelocationConflict\", \"MKSIf’\", \"A1\", \"Choice(L)\", \"LChoice (L)\", \"SeqCompDiv (1)\").",
-  why: "Sequent Core, the Awkward Squad and Consistent Subtyping name rules with one word; where it stands decides whether it labels a rule.",
-  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,23}['′’]?(?: ?\([\p{L}\d]{1,4}\))?$/u,
-  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)", "LChoice (L)", "SeqCompDiv (1)", "MKSRelocationConflict", "MKSIf’"],
-  rejects: ["a", "1", "T-App", "E Beta", "Cut:", "verylongwordthatisnotaname"],
+  summary: "A single word of two to twenty-four letters and digits, primed or not, with or without a short parenthesised tag, spaced or not, or an abbreviation (a period after it) with a case of up to eight letters in parentheses (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"MKSRelocationConflict\", \"MKSIf’\", \"A1\", \"Choice(L)\", \"LChoice (L)\", \"SeqCompDiv (1)\", \"cong. (variadic)\").",
+  why: "Slotted E-Graphs sets cong. (variadic), cong. (bind) and cong. (f) beside their bars and cites cong. (bind); Sequent Core, the Awkward Squad and Consistent Subtyping name rules with one word; where it stands decides whether it labels a rule.",
+  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,23}['′’]?(?: ?\([\p{L}\d]{1,4}\)|\. \(\p{L}{1,8}\))?$/u,
+  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)", "LChoice (L)", "SeqCompDiv (1)", "MKSRelocationConflict", "MKSIf’", "cong. (bind)", "cong. (variadic)"],
+  rejects: ["a", "1", "T-App", "E Beta", "Cut:", "verylongwordthatisnotaname", "cong.", "cong.(bind)"],
 });
 export const RULE_SHAPE_SYMBOL = rule({
   id: "rule.shape.symbol", stage: "rule",

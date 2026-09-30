@@ -1,0 +1,16 @@
+{"rules": [
+  {"page": 8, "name": "start", "box": [82.8, 87.2, 152.3, 111.9]},
+  {"page": 8, "name": "reflexivity", "box": [190.4, 96.6, 277.1, 111.4]},
+  {"page": 8, "name": "symmetry", "box": [315.3, 87.2, 402.0, 111.9]},
+  {"page": 8, "name": "transitivity", "box": [73.1, 122.7, 209.5, 146.9]},
+  {"page": 8, "name": "congruence", "box": [238.0, 121.2, 411.7, 148.9]},
+  {"page": 8, "name": "cong. (variadic)", "box": [60.1, 182.5, 239.7, 213.3]},
+  {"page": 8, "name": "cong. (bind)", "box": [255.1, 185.5, 424.7, 211.0]},
+  {"page": 8, "name": "cong. (f)", "box": [64.8, 225.0, 181.1, 250.5]},
+  {"page": 8, "name": "𝛼-conversion", "box": [206.6, 222.8, 417.0, 250.5]},
+  {"page": 8, "name": "slot-renaming", "box": [125.0, 264.0, 362.2, 290.5]},
+  {"page": 14, "name": "𝛽-reduction", "box": [104.3, 559.2, 440.8, 571.4]},
+  {"page": 14, "name": "𝜂-reduction", "box": [109.9, 574.3, 440.8, 586.5]},
+  {"page": 14, "name": "map-fusion", "box": [69.5, 589.4, 440.8, 601.6]},
+  {"page": 14, "name": "map-fission", "box": [76.4, 604.5, 440.8, 616.7]}
+]}
