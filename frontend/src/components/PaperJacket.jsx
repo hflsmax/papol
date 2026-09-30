@@ -8,7 +8,7 @@ import { useDismiss } from '../../../shared/useDismiss.js';
 import {
   createSharable, leanSharable, revokeSharable, sharableHref,
 } from '../../../shared/api/sharables.js';
-import { nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
+import { copyText, nativeBlobUrl, nativeDataActive } from '../../../shared/nativeData.js';
 import { paperName } from '../../../shared/paperName.js';
 import { InWay, WayShown } from './Way';
 import { readPrintedAt } from '../pdfIdentifier.js';
@@ -235,7 +235,7 @@ export default function PaperJacket({
   const copyLink = async (link, target) => {
     let copied = true;
     try {
-      await navigator.clipboard.writeText(link);
+      await copyText(link);
     } catch {
       copied = false;
     }

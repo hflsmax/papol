@@ -747,6 +747,34 @@ fn focus_desk_window(app: tauri::AppHandle, paper_sha256: Option<String>) {
     }
 }
 
+/// Text onto the Mac's pasteboard (Share's Copy link, a project's invitation).
+/// WebKit lets a page write the clipboard only straight from a click, and a
+/// link the service makes first arrives after the click has lapsed, so the
+/// page's own write was refused; the application is held to no such rule.
+#[tauri::command]
+fn clipboard_write_text(text: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
+        use objc2_foundation::NSString;
+
+        let pasteboard = NSPasteboard::generalPasteboard();
+        pasteboard.clearContents();
+        // An AppKit constant, set once when AppKit loads and never changed.
+        let kind = unsafe { NSPasteboardTypeString };
+        if pasteboard.setString_forType(&NSString::from_str(&text), kind) {
+            Ok(())
+        } else {
+            Err("The link could not be put on the clipboard".into())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = text;
+        Err("Copying to the clipboard is available only on macOS".into())
+    }
+}
+
 #[tauri::command]
 fn open_storage_in_finder(app: tauri::AppHandle) -> Result<(), String> {
     let data_directory = app
@@ -1192,6 +1220,7 @@ pub fn run() {
             diagnostic_log,
             diagnostic_recent,
             open_diagnostic_logs,
+            clipboard_write_text,
             open_document_window,
             data_query,
             data_mutate,

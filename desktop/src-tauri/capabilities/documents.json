@@ -9,6 +9,7 @@
     "allow-focus-desk-window",
     "allow-diagnostic-log",
     "allow-diagnostic-recent",
+    "allow-clipboard-write-text",
     "allow-data-query",
     "allow-data-mutate",
     "allow-blob-import",

@@ -34,7 +34,7 @@ core-foundation = "0.10"
 # The same versions Tauri's webview layer (wry) already builds.
 block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSResponder", "NSWindow", "objc2-core-foundation"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSPasteboard", "NSResponder", "NSWindow", "objc2-core-foundation"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError", "NSString", "NSValue"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "WKWebView", "WKSnapshotConfiguration", "WKWebViewConfiguration", "WKUserContentController", "WKContentRuleList", "WKContentRuleListStore", "block2", "objc2-app-kit"] }
 

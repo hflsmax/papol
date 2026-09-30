@@ -8,6 +8,7 @@ fn main() {
             "diagnostic_log",
             "diagnostic_recent",
             "open_diagnostic_logs",
+            "clipboard_write_text",
             "data_query",
             "data_mutate",
             "import_shared_paper",
