@@ -319,8 +319,8 @@ export const RULE_NAME_OVER = rule({
 });
 export const RULE_NAME_ROW = rule({
   id: "rule.name.row", stage: "rule",
-  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word.",
-  why: "(BIND), (lamr), T FUNC; a bare word ending a row is the grammar's category (\"program\", \"Syntax\") or a heading (\"INTRODUCTION\").",
+  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word; at the head of a row that reduces (an arrow between its sides), a bare word too, standing as the convention allows (rule.convention).",
+  why: "(BIND), (lamr), T FUNC; app, beta and invoke in small capitals heading reductions among unw-inter-zone and unw-intra-zone; a bare word ending a row is the grammar's category (\"program\", \"Syntax\") or a heading (\"INTRODUCTION\"), and one heading a judgment's row names its form (\"Typing\" before Γ ⊢ 𝑒 : 𝜏).",
 });
 export const RULE_NAME_MARGIN = rule({
   id: "rule.name.margin", stage: "rule",
@@ -359,8 +359,8 @@ export const RULE_BOX = rule({
 });
 export const RULE_MENTION = rule({
   id: "rule.mention", stage: "rule",
-  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing.",
-  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose.",
+  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase, or set off by a comma or an \"and\" from a hyphenated or spaced name's citation. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing.",
+  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\", \"raise, unw-intra-zone, and invoke\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose.",
 });
 
 // --------------------------------------------------------------- mentions

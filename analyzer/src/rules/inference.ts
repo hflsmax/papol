@@ -1140,8 +1140,14 @@ const STEP = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩]|->|=>|~>/
 // tagged "(Tile1D)").
 const CLOSURE = /(?:[→⟶↦⟼⇒⟹⇛⤇⇝↝⤳↠−-]|->|=>|~>)+\s*[∗*⋆]/gu;
 const steps = (l: Line) => STEP.test(l.text.replace(CLOSURE, " "));
+// A row that reduces: an arrow between its sides. A turnstile's row
+// states a judgment, and a bare word heading one names its form
+// ("Typing" before "Γ ⊢ 𝑒 : 𝜏"), as one heading a grammar's row names
+// its category.
+const ARROW = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠]|->|=>|~>/u;
+const reduces = (l: Line) => ARROW.test(l.text.replace(CLOSURE, " "));
 
-function allowed(shape: Shape, token: Token, category: Category, row: Line[] = []): string | null {
+function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [], side: Setting["side"] = "right"): string | null {
   // A word in parentheses at the margin names a row that steps ("(send)"
   // after a reduction); beside a grammar's equation it tags a category
   // ("(Actors)" after "A = x : Σ"), unless in lower case it names a law
@@ -1153,7 +1159,12 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
     case "over":
       return shape === "short" && !token.bracketed ? null : RULE_NAME_OVER.id;
     case "row":
-      return shape === "symbol" || (shape === "short" && !token.bracketed) || (shape === "word" && !token.bracketed && !token.colon) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
+      // A bare word heading a row that reduces stands as the paper's
+      // convention allows, a weak label among strong ones set as it is
+      // (app and beta in small capitals at the head of reductions headed
+      // unw-inter-zone); heading a judgment or a grammar's row, or
+      // ending a row, it names the judgment's form or the category.
+      return shape === "symbol" || (shape === "short" && !token.bracketed) || (shape === "word" && !token.bracketed && (token.colon || side !== "left" || !row.some(reduces))) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
     case "margin":
       // A parenthesised word there in lower case names a law as its
       // neighbours do ("(filter)" between "(push-pop)" and "(pop-push)");
@@ -1473,6 +1484,14 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")
     .replace(/(?<=[\u{1D400}-\u{1D7FF}])(?=[\u{1D400}-\u{1D7FF}])/gu, "\\s?")).join("|");
   const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
+  type Found = { index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number };
+  const found: Found[] = [];
+  // A bare word is cited where a name it is listed with is ("are raise,
+  // unw-intra-zone, and then invoke"; "unw-intra-zone, and invoke"): a
+  // word set off by a comma or an "and" from a hyphenated or spaced
+  // name's citation names its rule too. Such a match waits for its
+  // neighbours.
+  const listed: (Found & { fits: number[] })[] = [];
   let match: RegExpExecArray | null;
   while ((match = re.exec(text))) {
     const groups = match.groups!;
@@ -1480,10 +1499,20 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const before = text.slice(Math.max(0, match.index - NEAR), match.index);
     const after = text.slice(match.index + match[0].length, match.index + match[0].length + NEAR);
     const nameStart = match.index + (groups.open ? 1 : 0);
+    const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && (!at || setAsLabel(at, nameStart, rules[i])));
     const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && (!at || setAsLabel(at, nameStart, rules[i])));
-    if (rule === undefined) continue;
-    yield { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule };
+    const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
+    if (rule !== undefined) found.push(m);
+    else if (!bracketed && fits.some((i) => rules[i].shape === "word" && !rules[i].bracketed)) listed.push({ ...m, fits: fits.filter((i) => rules[i].shape === "word" && !rules[i].bracketed) });
   }
+  const strong = (m: Found) => rules[m.rule].shape === "hyphen" || rules[m.rule].shape === "spaced";
+  const LIST = /^(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)$/u;
+  const joined = (a: Found, b: Found) => a.index + a.length <= b.index && LIST.test(text.slice(a.index + a.length, b.index));
+  for (const m of listed) {
+    if (!found.some((o) => strong(o) && (joined(o, m) || joined(m, o)))) continue;
+    found.push({ ...m, rule: m.fits[0] });
+  }
+  yield* found.sort((a, b) => a.index - b.index);
 }
 
 // Whether the running text cites a name anywhere: what lets a weak label
@@ -1692,7 +1721,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // A row opening with "where" goes on from the line over it
       // ("where π′ = …" under spawn's reduction).
       const over = (r: Line) => page.lines.filter((l) => !l.furniture && l.bottom <= r.top + 1 && r.top - l.bottom <= 0.5 * type.leading && l.x0 < r.x1 && l.x1 > r.x0);
-      const rule = allowed(shape, token, setting.category, setting.row.flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])));
+      const rule = allowed(shape, token, setting.category, setting.row.flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])), setting.side);
       if (!rule) {
         if (setting.category === "margin") trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box));
         continue;
@@ -1706,6 +1735,16 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       candidates.push({ line, page, token, shape, setting: setting as Candidate["setting"], rule, convention });
     }
   }
+  // A bare word heading a row stands in a column of labels with a
+  // hyphenated or spaced name heading a row on its page, set in its face
+  // and size and aligned with it at either end (app, beta and invoke
+  // under unw-inter-zone, all flush right); alone it is a grammar's
+  // category or a judgment's form (rule.name.row).
+  const headed = (c: Candidate) => c.setting.category === "row" && c.setting.side === "left" && !c.token.bracketed;
+  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && headed(o) && !weak(o)
+    && o.convention === c.convention && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
+  for (const c of candidates) if (!columnHead(c)) trace.add(RULE_NAME_ROW.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter(columnHead);
   // Conventions: how many labels the paper sets each way, and whether the
   // text cites any weak name set that way (rule.convention): a table's
   // headers and a plot's legend are set alike too, but never cited.
