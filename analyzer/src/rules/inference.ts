@@ -320,7 +320,9 @@ function twoColumn(page: Page): boolean {
   let two = columns.get(page);
   if (two === undefined) {
     const middle = page.width / 2;
-    two = page.twoColumn && !page.lines.some((l) => !l.furniture && l.text.length >= 40 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width);
+    // Running text is words, and no caption: a figure's derivation and
+    // its caption across a two-column page (Fig. 4 over Fig. 5) are none.
+    two = page.twoColumn && !page.lines.some((l) => !l.furniture && !CAPTION.test(l.text) && l.text.length >= 40 && (l.text.match(/\p{L}{3,}/gu) ?? []).length >= 5 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width);
     columns.set(page, two);
   }
   return two;
