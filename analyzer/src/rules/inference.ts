@@ -1311,14 +1311,19 @@ const CONDITION = new RegExp(`${RELATION.source}|[∈∉≠<>∤#]|\\b(?:if|wher
 // another bar (that rule's conclusion or premise), a line of running
 // text round a rule set inline, a line over a label that stands over
 // its premises, or, in a row, a line on another label's row.
-interface Others { lines: Set<Line>; bars: Drawn[] } // the other labels on the page and their bars
-function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: { lines: Line[] }): Box {
+interface Others { lines: Set<Line>; bars: Drawn[] }
+// What a box holds: its lines, and the ends of a bar it found for itself.
+interface Held { lines: Line[]; strokes: number[] } // the other labels on the page and their bars
+function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: Held): Box {
   const bars = others.bars.filter((d) => d !== setting.bar);
   const another = (l: Line) => bars.some((d) => d.x < l.x1 && d.x + d.w > l.x0 && (Math.abs(l.top - d.y) <= 0.8 * type.leading || Math.abs(l.bottom - d.y) <= 0.8 * type.leading));
   // A premise in words ("t₂ →* true implies …") over the bar, within its
   // span, is no running text.
   const bar = setting.bar;
   const premise = (l: Line) => Boolean(bar) && l.x0 >= bar!.x - label.size && l.x1 <= bar!.x + bar!.w + label.size && l.bottom <= bar!.y + 1 && l.bottom >= bar!.y - 1.5 * type.leading;
+  // Nor is a conclusion hard under it within its span, set in the text's
+  // face (Sub-recv's "?(𝑥₁)⟨𝑣₁⟩{𝑃₁}; p₁ ⊑ …" under its bar of dashes).
+  const conclusion = (l: Line) => Boolean(bar) && l.x0 >= bar!.x - label.size && l.x1 <= bar!.x + bar!.w + label.size && l.top >= bar!.y - 1 && l.top <= bar!.y + 0.5 * type.leading;
   // Nor is a line set smaller than the text, as a figure is ("when T₂ ≠
   // … and …" under E_Forget).
   // A side condition ("where 0−free(ℓ, E) and …") set in from the rule's
@@ -1345,7 +1350,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const body = setting.row.filter((l) => l !== label && l.x0 > label.x1);
   const gloss = (l: Line) => !bar && setting.side !== "over" && body.length > 0 && l.top >= label.bottom - 1
     && l.x0 > Math.min(...body.map((r) => r.x0)) + 2 * label.size && l.x0 < Math.max(...body.map((r) => r.x1));
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
@@ -1430,6 +1435,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       }
     }
   }
+  // A line stands under the last where its top does, or where only a
+  // tall parenthesis or a prime raises it into the last, its baseline
+  // clear (HT-MICRO-MEMWRITE's "(Lob(dom(𝑚), 𝑒) ∗ …)", Tr-Br-If's "S₁′; S₂′").
+  const clear = (line: Line, end: number) => line.top >= end - 1 || (line.baseline > end + 0.5 * line.size && line.top >= end - 0.3 * line.size);
   // A conclusion set over several lines runs on, each line hard under
   // the last within the bar's span: a specification's program and its
   // postcondition in braces under a stack of bars (POOL-SIZE-SPEC).
@@ -1442,7 +1451,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       for (const line of lines) {
         if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line)) continue;
         // A lone glyph (a piece of the next line's tall brace) runs nothing on.
-        if (line.top < end - 1 || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
+        if (!clear(line, end) || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
         taken.add(line); grew = true;
       }
     }
@@ -1469,12 +1478,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // "⟨ … ∗(𝑘,𝑉)∈𝑚 … ⟩" beside its postcondition's first line).
       const piece = (line: Line) => line.x0 <= to + label.size && line.x1 >= from - label.size
         && [...taken].some((t) => t !== label && t.top >= label.bottom - 1 && level(t, line));
-      // Its braces, however tall, carry the stack on. A line whose top a
-      // tall parenthesis raises into the last still stands under it, its
-      // baseline clear (HT-MICRO-MEMWRITE's "(Lob(dom(𝑚), 𝑒) ∗ …)").
+      // Its braces, however tall, carry the stack on.
       for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && ((STRETCHED.test(l.text) && l.size > 2 * label.size) || extended(l)))]) {
         if (taken.has(line) || line.x0 < from - label.size || (line.x0 > to && !piece(line)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
-        if (((line.top < Math.min(end - 1, line.baseline > end + 0.5 * line.size ? end - 0.3 * line.size : end) || (line.top - end > 0.6 * type.leading && !braced(line))) && !piece(line)) || (!STRETCHED.test(line.text) && !extended(line) && line.text.replace(/\s/g, "").length < 2)) continue;
+        if (((!clear(line, end) || (line.top - end > 0.6 * type.leading && !braced(line))) && !piece(line)) || (!STRETCHED.test(line.text) && !extended(line) && line.text.replace(/\s/g, "").length < 2)) continue;
         taken.add(line); grew = true;
       }
     }
@@ -1532,9 +1539,23 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     if ((l.x1 > to + 1 && /^[\s({[⟨⟪⌈⌊]+$/u.test(l.text)) || (l.x0 < from - 1 && /^[\s)}\]⟩⟫⌉⌋]+$/u.test(l.text))) continue;
     taken.add(l);
   }
+  // A row read without its bar still has it: a stroke between two of the
+  // lines it holds, one set on it and one hard under it, running at most
+  // a little past them, is the rule's bar, and the box holds its ends
+  // (Flatten's, its right end past the premises').
+  const strokes: number[] = [];
+  if (!bar) {
+    const from = Math.min(...[...taken].map((t) => t.x0)), to = Math.max(...[...taken].map((t) => t.x1));
+    const onIt = (d: Drawn, t: Line) => t !== label && t.x0 < d.x + d.w && t.x1 > d.x;
+    for (const d of page.drawn) {
+      if (!across(d) || d.w < 1.5 * type.bodySize || d.x < from - 2 * label.size || d.x + d.w > to + 2 * label.size) continue;
+      if (![...taken].some((t) => onIt(d, t) && t.bottom <= d.y + 1 && t.bottom >= d.y - 0.6 * type.leading)
+        || ![...taken].some((t) => onIt(d, t) && t.top >= d.y - 1 && t.top <= d.y + 0.6 * type.leading)) continue;
+      x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x + d.w); strokes.push(d.x, d.x + d.w);
+    }
+  }
   const all = [...taken];
-  if (process.env.DBGL && label.text.includes(process.env.DBGL)) console.error("DBGL", label.text, JSON.stringify(bar), setting.category, all.map((l) => `${l.x0.toFixed(1)}-${l.x1.toFixed(1)} ${l.top.toFixed(1)}-${l.bottom.toFixed(1)} ${l.text.slice(0, 40)}`));
-  if (out) out.lines = all;
+  if (out) { out.lines = all; out.strokes = strokes; }
   const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => extentOf(page, l)[0])), Math.max(...all.map((l) => extentOf(page, l)[1])));
   return { x: b.x0 / page.width, y: b.y0 / page.height, w: (b.x1 - b.x0) / page.width, h: (b.y1 - b.y0) / page.height };
 }
@@ -1841,7 +1862,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (s.setting.bar) steps.add(s.setting.bar);
     }
   }
-  const boxAt = (page: Page, line: Line, setting: Setting, out?: { lines: Line[] }) => {
+  const boxAt = (page: Page, line: Line, setting: Setting, out?: Held) => {
     const rest = seen.filter((s) => s.page === page && s.line !== line);
     return boxOf(page, line, setting, type, { lines: new Set(rest.map((s) => s.line)), bars: rest.flatMap((s) => (s.setting.bar ? [s.setting.bar] : [])) }, out);
   };
@@ -2037,7 +2058,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const placed: Placed[] = [];
   for (const c of ordered) {
     const key = keyOf(fold(c.token.text));
-    const premise = c.setting.category === "over" && c.setting.bar && labelled.get(c.setting.bar) !== undefined && c.line.top - labelled.get(c.setting.bar)! <= 3 * type.leading
+    // So is a token beside the bar on its premises' row, over the bar: a
+    // side condition ("atomic(e)" right of SC-CInv-Acc's premise).
+    const overBar = c.setting.category === "over" || (c.setting.category === "beside" && c.setting.bar !== null && c.line.bottom <= c.setting.bar.y + 1);
+    const premise = overBar && c.setting.bar && labelled.get(c.setting.bar) !== undefined && c.line.top - labelled.get(c.setting.bar)! <= 3 * type.leading
       && c.setting.bar.y - labelled.get(c.setting.bar)! <= 3.5 * type.leading;
     if (premise) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
     // A name defined again (a second system's Var, a rule restated in
@@ -2056,7 +2080,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     if (c.setting.derived && !stacked) {
       labels.delete(c.line); trace.add(RULE_DERIVATION.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue;
     }
-    const set: { lines: Line[] } = { lines: [] };
+    const set: Held = { lines: [], strokes: [] };
     const box = boxAt(c.page, c.line, c.setting, set);
     const boxes = at(c.page, c.line, box);
     if (weak(c) && !established(c) && !columned.has(c) && (((conventions.get(c.convention) ?? 0) < 2 && (strong.get(c.convention) ?? 0) < 2) || !confirmed.has(c.convention))
@@ -2071,7 +2095,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     if (c.setting.category === "over" && c.setting.bar && !labelled.has(c.setting.bar)) labelled.set(c.setting.bar, c.line.top);
     trace.add(c.rule, c.page.number, c.token.text, boxes);
     if (weak(c)) trace.add(RULE_CONVENTION.id, c.page.number, c.token.text, boxes);
-    placed.push({ rule: rules.get(again)!, page: c.page, label: c.line, bar: c.setting.bar, lines: set.lines, setting: c.setting });
+    placed.push({ rule: rules.get(again)!, page: c.page, label: c.line, bar: c.setting.bar, lines: set.lines, strokes: set.strokes, setting: c.setting });
   }
   // Each box again, kept only from the labels and bars of the rules found:
   // a token weighed and dropped (the Γ heading a conclusion) is no label.
@@ -2081,10 +2105,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const margins = seen.filter((s) => s.setting.category === "margin" && s.token.bracketed);
   for (const p of placed) {
     const rest = placed.filter((o) => o.page === p.page && o !== p);
-    const set: { lines: Line[] } = { lines: [] };
+    const set: Held = { lines: [], strokes: [] };
     const fences = margins.filter((s) => s.page === p.page && s.line !== p.label).map((s) => s.line);
     Object.assign(p.rule, boxOf(p.page, p.label, p.setting, type, { lines: new Set([...rest.map((o) => o.label), ...fences]), bars: rest.flatMap((o) => (o.bar ? [o.bar] : [])) }, set));
-    p.lines = set.lines;
+    p.lines = set.lines; p.strokes = set.strokes;
   }
   separate(placed);
   for (const p of placed) trace.add(RULE_BOX.id, p.page.number, p.rule.name, [{ page: p.page.number, x: p.rule.x, y: p.rule.y, w: p.rule.w, h: p.rule.h }]);
@@ -2098,7 +2122,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
 // is drawn again round its own lines, and two boxes that still meet — a
 // wide bar reaching past a neighbour's corner, the padding round each —
 // are cut apart halfway across the blank between what each holds.
-interface Placed { rule: Rule; page: Page; label: Line; bar: Drawn | null; lines: Line[]; setting: Setting }
+interface Placed { rule: Rule; page: Page; label: Line; bar: Drawn | null; lines: Line[]; strokes: number[]; setting: Setting }
 function separate(placed: Placed[]): void {
   const pages = new Map<Page, Placed[]>();
   for (const p of placed) pages.set(p.page, [...(pages.get(p.page) ?? []), p]);
@@ -2138,7 +2162,7 @@ function separate(placed: Placed[]): void {
     }
     // Each box round its own lines and bar, and what it holds (unpadded).
     const held = here.map((p) => {
-      const xs = [...p.lines.flatMap((l) => [leftOf(l, p.bar, p.label), l.x1]), ...(p.bar ? [p.bar.x, p.bar.x + p.bar.w] : [])];
+      const xs = [...p.lines.flatMap((l) => [leftOf(l, p.bar, p.label), l.x1]), ...(p.bar ? [p.bar.x, p.bar.x + p.bar.w] : []), ...p.strokes];
       const ys = [...p.lines.flatMap((l) => extentOf(page, l)), ...(p.bar ? [p.bar.y] : [])];
       return { p, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     });
