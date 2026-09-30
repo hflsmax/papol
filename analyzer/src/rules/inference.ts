@@ -354,13 +354,20 @@ const onRow = (a: Line, b: Line) => Math.min(a.bottom, b.bottom) - Math.max(a.to
 // the middle.
 // Whether a page's text runs in two columns: judged so by the layout, with
 // no line of running text across the middle (a one-column page is judged
-// two-column when a figure on it sets things side by side).
+// two-column when a figure on it sets things side by side). A caption
+// across the middle is a figure's as wide as the page, read in one column
+// (Silq's rules drawn across the page) unless a rule drawn down its middle
+// parts it in two (Figure 4 of Aiken's dynamic hierarchical data
+// partitioning, typing on the left and evaluation on the right).
 const columns = new WeakMap<Page, boolean>();
 function twoColumn(page: Page): boolean {
   let two = columns.get(page);
   if (two === undefined) {
     const middle = page.width / 2;
-    two = page.twoColumn && !page.lines.some((l) => !l.furniture && l.text.length >= 40 && l.x0 < middle - 0.1 * page.width && l.x1 > middle + 0.1 * page.width);
+    const crosses = (x0: number, x1: number) => x0 < middle - 0.1 * page.width && x1 > middle + 0.1 * page.width;
+    const captions = page.lines.filter((l) => !l.furniture && CAPTION.test(l.text) && l.text.length >= 40 && crosses(l.x0, l.x1));
+    two = page.twoColumn && !page.lines.some((l) => !l.furniture && !captions.includes(l) && l.text.length >= 40 && crosses(l.x0, l.x1))
+      && (captions.length === 0 || page.drawn.some((d) => upright(d) && Math.abs(d.x - middle) <= 0.1 * page.width && d.h >= 0.1 * page.height));
     columns.set(page, two);
   }
   return two;
@@ -587,8 +594,10 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 // A step's bar has its conclusion right under it, its baseline within a
 // leading (a label raised beside the bar may lift the line's top): a
 // table's rule has running text under it, or the next row's labels.
+// A caption under a figure's closing rule concludes nothing (Fig. 13 under
+// SV-CS in CISL, the rule no step SV-CS leads into).
 function concludes(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && !prose(l, type) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
+  return page.lines.some((l) => !l.furniture && !prose(l, type) && !CAPTION.test(l.text) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
 }
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
@@ -774,12 +783,15 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // \\infer sets T_Var an inch from its bar) where nothing but blank lies
   // between them; one to the left heads a rule of its own (DirVar).
   // A label with a line just under it heads a rule of its own (DirVal).
+  // A box drawn round the label walls it off from a bar to its left (FLD-2
+  // framed right of FLD-1's bar, heading its own).
   const under = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 0.8 * type.leading && l.x0 < label.x1 && l.x1 > label.x0);
   const gapTo = (d: Drawn) => Math.max(0, d.x - label.x1, label.x0 - (d.x + d.w));
   const blankTo = (d: Drawn) => {
     const from = Math.min(label.x1, d.x + d.w), to = Math.max(label.x0, d.x);
     return d.x + d.w <= label.x0 + slack && gapTo(d) <= FAR * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
-      && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from);
+      && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from)
+      && !page.drawn.some((o) => upright(o) && o.y <= mid && o.y + o.h >= mid && o.x > from + 1 && o.x < to - 1);
   };
   // What counts as a rule's bar (rule.bar).
   // A short bar (an axiom's, as wide as its one-symbol conclusion) is a
@@ -797,10 +809,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // Under the label, a bar as wide as the one line under it is an
   // axiom's however short (Ctx-Empty's "⊢ ·").
   const matched = (d: Drawn) => lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + type.leading && Math.abs(l.x0 - d.x) <= 1 && Math.abs(l.x1 - d.x - d.w) <= 1);
+  // A bar as wide as the column divides nothing where it is drawn to its
+  // premises or conclusion, however short the conclusion centred under it
+  // (REL-COUPLE-TAPE-L's premises end to end over "Δ ⊨ e ≲ K′[rand(N)] : τ").
   const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)) || (d.w >= label.size && d.y >= label.bottom - 1 && matched(d)))
     && (d.w <= wide || concluded(d) || besides(d) || sized(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
     && d.y >= label.top - OVER_REACH * type.leading && (d.y <= label.bottom + OVER_REACH * type.leading || (d.y <= label.bottom + 2 * OVER_REACH * type.leading && unbroken(d)))
-    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && (!dividing(page, d, type) || (besides(d) && blankTo(d) && capping(d))) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
+    && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && (!dividing(page, d, type) || (besides(d) && blankTo(d) && capping(d)) || sized(d)) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
     .sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid) || gapTo(a) - gapTo(b));
   // The nearest bar under the label, for a label standing over its premises.
@@ -834,7 +849,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // numerals, a row's heading at most to their left: the row heads a
   // table's columns ("MLKit" over its timings, "Program/Compiler" over
   // counts), however its cells are ruled.
-  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1));
+  // Numerals in the margin, clear of the column's text, number its lines
+  // (a review copy's, "446" left of Base-Trans), no cells.
+  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1) && l.x1 > colLeft - slack && l.x0 < colRight + slack);
   const figures = cells.filter((l) => NUMERALS.test(l.text));
   if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
   // A bar with a label of its own set beside it (SSub_Refine) is that
@@ -1104,6 +1121,36 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   }
   if (!row.length) return { category: "none", bar: null, row, side: "right" };
   if (row.some((l) => production(l, page, type))) return { category: "comment", bar: null, row, side: "right" };
+  // Two sizes or more past the end of its row, level with a premise, the
+  // label may stand beside a stack of premises that runs unbroken down to
+  // the bar under it, the conclusion under the bar: a column of rules
+  // labelled at its right, each label level with a premise and clear of
+  // its bar (Figure 4 of Aiken's dynamic hierarchical data partitioning,
+  // T-Read beside its second premise, E-Read beside a case split, E-Call
+  // over ten lines of premises). The bar starts left of the label, no
+  // more than eight sizes short of it, in its column; it runs on under
+  // the label only as far as a line of the rule does from its left end
+  // (T-Program's conclusion). No other stroke stands between, no line of
+  // the stack hard under the label reaches under it (a table's column of
+  // cells under its header, a premise under the premise "specCtx"), and
+  // no other label set as this one is heads a line of the stack; a row
+  // of figures is a table's.
+  const propped = token.side === "whole" && !row.some((l) => NUMERALS.test(l.text)) && row.every((l) => l.x1 <= label.x0 - 2 * label.size) && page.drawn.filter((d) => across(d) && d.w >= 2 * label.size && d.y > label.bottom - 1 && d.y <= label.bottom + 2 * OVER_REACH * type.leading && d.x < label.x0 - 2 * label.size
+    && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && !claimed(d) && concluded1(d)
+    && row.every((l) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
+    && label.x0 - d.x - d.w <= FAR * label.size && sameColumn(page, { ...label, x0: d.x, x1: d.x + d.w }, label)
+    && (d.x + d.w <= label.x0 + slack || lines.some((l) => !CAPTION.test(l.text) && !prose(l, type) && l.top >= label.top && l.top <= d.y + type.leading && Math.abs(l.x0 - d.x) <= 2 * label.size && l.x1 >= label.x0))
+    && !page.drawn.some((e) => e !== d && across(e) && e.w >= label.size && e.y > label.top && e.y < d.y - 1 && e.x < d.x + d.w && e.x + e.w > d.x)
+    && ((stack) => {
+      let end = Math.max(label.bottom, ...row.map((l) => l.bottom));
+      for (const l of stack) {
+        if (l.x0 < d.x - label.size || (l.x1 > label.x0 + tolerance(l, label) && l.top - label.bottom <= 1.5 * type.leading) || l.x1 > d.x + d.w + label.size || l.top - end > 0.5 * type.leading || ((t) => t?.side === "whole" && t.bracketed === token.bracketed && Math.abs(l.size - label.size) <= 0.5 && faceOf(l, t) === faceOf(label, token))(tokenOf(l))) return false;
+        end = Math.max(end, l.bottom);
+      }
+      return d.y - end <= 0.5 * type.leading;
+    })(lines.filter((l) => !row.includes(l) && l.top >= label.top && l.bottom <= d.y + 1 && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top)))
+    .sort((a, b) => a.y - b.y)[0];
+  if (propped) return { category: "beside", bar: propped, row, side: "right", derived: derivation(page, propped, lines, type, slack), step: stepInto(page, propped, lines, type, slack) };
   if (ruledAside(page, label, span, type) || walled(page, label, span, row)) return { category: "cell", bar: null, row, side: "right" };
   const right = columnRight(page, label);
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
@@ -1676,13 +1723,18 @@ function unwrapped(page: Page, type: Type): Page {
   const out: Line[] = [];
   let split = false;
   for (const line of page.lines) {
-    const token = line.furniture ? null : tokenOf(line, false, true);
+    // A review copy numbers its lines in the margin, left of the text: a
+    // label set at the column's edge reaches the layout on its number's
+    // line ("1486 Scatter" beside Scatter's bar), and is split off too.
+    const after = line.chars.findIndex((c) => c.run >= 1);
+    const numbered = !line.furniture && after > 0 && /^\d{1,5}$/.test(line.runs[0].text.trim()) && line.runs[0].x + line.runs[0].width < type.text.x0;
+    const token = numbered ? { start: after, side: "tail" } : line.furniture ? null : tokenOf(line, false, true);
     const k = token?.side === "tail" ? line.chars[token.start]?.run ?? -1 : -1;
     const whole = k > 0 && line.chars.slice(token!.start).every((c) => c.run < 0 || c.run >= k) && line.chars.slice(0, token!.start).every((c) => c.run < k)
       && line.runs.slice(k).map((r) => r.text).join("").trim() === line.text.slice(token!.start).trim();
-    if (!whole || !prose({ ...line, text: line.text.slice(0, token!.start) } as Line, type)) { out.push(line); continue; }
+    if (!whole || !(numbered || prose({ ...line, text: line.text.slice(0, token!.start) } as Line, type))) { out.push(line); continue; }
     const edge = line.runs[k - 1].x + line.runs[k - 1].width;
-    const wrapped = page.lines.some((l) => l !== line && !l.furniture && l.top > line.bottom - 1 && l.top <= line.bottom + type.leading && prose(l, type)
+    const wrapped = numbered || page.lines.some((l) => l !== line && !l.furniture && l.top > line.bottom - 1 && l.top <= line.bottom + type.leading && prose(l, type)
       && Math.abs(l.x1 - edge) <= 0.5 * line.size && l.x0 <= line.x0 + 2 * line.size);
     if (!wrapped) { out.push(line); continue; }
     const piece = (runs: typeof line.runs, from: number, to: number, shift: number): Line => ({
@@ -1690,6 +1742,7 @@ function unwrapped(page: Page, type: Type): Page {
       x0: runs[0].x, x1: Math.max(...runs.map((r) => r.x + r.width)),
     });
     const rest = piece(line.runs.slice(0, k), 0, token!.start, 0), label = piece(line.runs.slice(k), token!.start, line.text.length, k);
+    if (numbered && tokenOf(label, false, true)?.side !== "whole") { out.push(line); continue; }
     parents.set(rest, line); parents.set(label, line);
     out.push(rest, label);
     split = true;
