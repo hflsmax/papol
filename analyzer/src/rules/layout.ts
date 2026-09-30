@@ -56,6 +56,7 @@ const WORD_SPACE = 0.12;
 // The page margin running heads and footers sit in, as a fraction of its
 // height, and on how many pages the same text has to recur there.
 const MARGIN = 0.09;
+const OUTER = 0.2;
 const RECURS = 3;
 
 function median(values: number[]): number {
@@ -340,8 +341,21 @@ function markFurniture(pages: Layout["pages"]): void {
   // A running head split in two on one page (its folio set apart) is still
   // part of the one that recurs.
   const recurs = [...seen].filter(([, n]) => n >= recurring).map(([s]) => s);
+  // A page with wide margins sets its running head further in (ACM's
+  // journals on a letter page, 12% down): further in, only a line that
+  // recurs at the very height it sits at on a quarter of the pages is one
+  // — not a margin's line number, which recurs as much.
+  const outer = (line: Line, height: number) => line.top < height * OUTER || line.bottom > height * (1 - OUTER);
+  const placed = (line: Line) => `${shape(line.text)}\n${Math.round(line.top / 2)}`;
+  const at = new Map<string, number>();
+  for (const page of pages) {
+    for (const s of new Set(page.lines.filter((l) => outer(l, page.height)).map(placed))) at.set(s, (at.get(s) ?? 0) + 1);
+  }
   for (const page of pages) for (const line of page.lines) {
-    if (!marginal(line, page.height)) continue;
+    if (!marginal(line, page.height)) {
+      if (outer(line, page.height) && shape(line.text) !== "#" && (at.get(placed(line)) ?? 0) >= Math.max(RECURS, pages.length / 4)) line.furniture = true;
+      continue;
+    }
     const s = shape(line.text);
     if ((seen.get(s) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s) || (s.length >= 3 && recurs.some((r) => r.includes(s)))) line.furniture = true;
   }

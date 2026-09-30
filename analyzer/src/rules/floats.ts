@@ -184,7 +184,12 @@ function headingsOn(page: Page, type: Type, prose: Set<Line>): Line[] {
   const proseUnder = (l: Line, leadings: number) => [...prose].some((p) => p.top > l.top && p.baseline - l.baseline <= leadings * type.leading && Math.abs(p.x0 - l.x0) <= 2 * l.size);
   const numberedHeading = (l: Line, depth = 0): boolean => proseUnder(l, 4) || (depth < 3 && candidates.some((h) => h !== l && NUMBERED.test(h.text)
     && h.baseline > l.baseline && h.baseline - l.baseline <= 3 * type.leading && Math.abs(h.x0 - l.x0) <= 2 * l.size && numberedHeading(h, depth + 1)));
-  return candidates.filter((l) => l.size > type.bodySize + 1 || proseUnder(l, 2) || (NUMBERED.test(l.text) && numberedHeading(l)));
+  // A large line with drawing right above it and right below it is a
+  // panel's title inside a figure, not a heading over the page.
+  const drawnBy = (l: Line, side: "above" | "below") => page.drawn.some((d) => d.x < l.x1 && d.x + d.w > l.x0
+    && (side === "above" ? d.y + d.h <= l.top + 1 && l.top - (d.y + d.h) <= 2 * type.leading : d.y >= l.bottom - 1 && d.y - l.bottom <= 2 * type.leading));
+  const panelTitle = (l: Line) => !proseUnder(l, 2) && drawnBy(l, "above") && drawnBy(l, "below");
+  return candidates.filter((l) => (l.size > type.bodySize + 1 && !panelTitle(l)) || proseUnder(l, 2) || (NUMBERED.test(l.text) && numberedHeading(l)));
 }
 
 // What is drawn that could belong to a float (float.graphics): not a page
