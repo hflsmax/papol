@@ -29,7 +29,6 @@ export const desktopStyles = `
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow-y: auto;
   padding: 0 10px 10px;
   background: var(--chrome);
   border-right: 1px solid var(--line);
@@ -39,6 +38,17 @@ export const desktopStyles = `
 .desktop-sidebar-drag {
   flex: none;
   height: 52px;
+}
+
+/* Only the list scrolls: nothing passes under the traffic lights, and the
+   account stays at the window's foot. */
+.desktop-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  margin: 0 -10px;
+  padding: 0 10px;
 }
 
 .desktop-sidebar-group {
