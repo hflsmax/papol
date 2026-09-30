@@ -1323,8 +1323,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // … and …" under E_Forget).
   // A side condition ("where 0−free(ℓ, E) and …") set in from the rule's
   // edge under its row is no running text either.
+  // Nor is a bar set as a line of dashes, its star and all (Inv-Open's
+  // "−−−∗", set in the text's face).
   const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize
-    && !(/^\s*(?:where|if|when|provided|unless)\b/i.test(l.text) && l.x0 > label.x0 + 2 * label.size);
+    && !(/^\s*(?:where|if|when|provided|unless)\b/i.test(l.text) && l.x0 > label.x0 + 2 * label.size)
+    && !l.text.split(/\s+/).filter(Boolean).every(textBar);
   // Nor is a line set from the column's left edge reaching well left of
   // the bar and its label: a paragraph's line hard by a rule set in the
   // text ("ℓ₁ ≻ ℓ₂, and …:" over N-Strict, a theorem under E-β).
@@ -1459,9 +1462,13 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       const end = Math.max(...[...taken].filter((t) => !extended(t)).map((t) => t.bottom));
       const from = Math.min(...[...taken].map((t) => t.x0)), to = Math.max(...[...taken].map((t) => t.x1));
       const braced = (line: Line) => [...taken].some((p) => extended(p) && p.top >= end - 1 - type.leading && p.top <= line.bottom && p.bottom >= line.top);
-      // A line the layout broke at a blank runs on past the block's edge
-      // (the ") ∗" ending its first line).
-      const piece = (line: Line) => [...taken].some((t) => onRow(t, line) && line.x0 >= t.x1 - 1 && line.x0 - t.x1 <= label.size);
+      // A line level with one of the stack's stands in it: a piece the
+      // layout broke off at a blank, running on past the block's edge (the
+      // ") ∗" ending a postcondition's first line), or a big operator with
+      // its limits and the tall brackets round it (ru-start-spec's
+      // "⟨ … ∗(𝑘,𝑉)∈𝑚 … ⟩" beside its postcondition's first line).
+      const piece = (line: Line) => line.x0 <= to + label.size && line.x1 >= from - label.size
+        && [...taken].some((t) => t !== label && t.top >= label.bottom - 1 && level(t, line));
       // Its braces, however tall, carry the stack on. A line whose top a
       // tall parenthesis raises into the last still stands under it, its
       // baseline clear (HT-MICRO-MEMWRITE's "(Lob(dom(𝑚), 𝑒) ∗ …)").
@@ -1526,6 +1533,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     taken.add(l);
   }
   const all = [...taken];
+  if (process.env.DBGL && label.text.includes(process.env.DBGL)) console.error("DBGL", label.text, JSON.stringify(bar), setting.category, all.map((l) => `${l.x0.toFixed(1)}-${l.x1.toFixed(1)} ${l.top.toFixed(1)}-${l.bottom.toFixed(1)} ${l.text.slice(0, 40)}`));
   if (out) out.lines = all;
   const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => extentOf(page, l)[0])), Math.max(...all.map((l) => extentOf(page, l)[1])));
   return { x: b.x0 / page.width, y: b.y0 / page.height, w: (b.x1 - b.x0) / page.width, h: (b.y1 - b.y0) / page.height };
