@@ -5268,8 +5268,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled) { background: var(--card); }
 .project-talk .project-talk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The open thing sits on white, the list on the page: tone, not a rule, parts them. */
-.project-talk-panel { padding: var(--space-2) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
-.project-talk:not(.is-wide) .project-talk-panel { position: relative; margin: 0 0 var(--space-3); padding-inline: var(--space-3); border-top-left-radius: 0; border-top-right-radius: 0; }
+.project-talk-panel { position: sticky; top: var(--space-4); padding: var(--space-2) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
+/* One scroller: the page. The pane stays put beside a long list and
+   scrolls with the page when it is the longer one. */
+.project-talk:not(.is-wide) .project-talk-panel { position: relative; top: auto; margin: 0 0 var(--space-3); padding-inline: var(--space-3); border-top-left-radius: 0; border-top-right-radius: 0; }
 .project-talk-panel .talk-card.is-inline .talk-compose { position: sticky; bottom: 0; z-index: 1; padding-bottom: var(--space-3); background: var(--card); }
 .project-talk-subject-line { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); padding-top: 5px; font: 600 var(--fs-md)/1.35 var(--font-serif); }
 .project-talk-subject-line a { color: inherit; }
@@ -5308,18 +5310,18 @@ ${talkStyles}
 .project-row-open:hover:not(:disabled) { border: 0; background: none; color: inherit; }
 .project-row.is-selected, .project-row.is-selected:hover { background: var(--card); }
 .project-row.is-selected .project-card-title { color: var(--ink); }
-.project-papers-panel { padding: calc(var(--space-2) + 1px) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
+.project-papers-panel { position: sticky; top: var(--space-4); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
 .project-paper-open { margin: -2px 0 var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
 
-/* The open row and what it opens are one white shape on the page, with
-   no shadow or rule between them. Wide, the pane starts level with the
-   row and the row runs across the gap into it, a tab on the pane's side
-   with an inward curve under it; narrow, the pane hangs from the row. */
-.project-papers-view.is-wide > .project-papers-panel, .project-talk.is-wide > .project-talk-panel { margin-top: var(--row-top, 0px); border-top-left-radius: 0; }
-.project-papers-view.is-wide .project-row.is-selected, .project-talk.is-wide .project-talk-item.is-selected { position: relative; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.project-papers-view.is-wide .project-row.is-selected::after, .project-talk.is-wide .project-talk-item.is-selected::after { content: ''; position: absolute; top: 0; bottom: 0; left: 100%; width: calc(var(--space-6) + 1px); background: var(--card); pointer-events: none; }
-.project-papers-view.is-wide .project-row.is-selected::before, .project-talk.is-wide .project-talk-item.is-selected::before { content: ''; position: absolute; top: 100%; left: calc(100% + var(--space-6) - var(--radius-lg)); width: var(--radius-lg); height: var(--radius-lg); background: radial-gradient(circle at 0 100%, transparent calc(var(--radius-lg) - 0.5px), var(--card) var(--radius-lg)); pointer-events: none; }
-.project-papers-view:not(.is-wide) .project-row.is-selected, .project-talk:not(.is-wide) .project-talk-item.is-selected { border-bottom-right-radius: 0; border-bottom-left-radius: 0; }
+/* The open row and what it opens are the only raised white surfaces on
+   the page, alike in tone, corners and shadow, so the eye pairs them; the
+   row alone carries the mark that it is the open one. Under a row on a
+   narrow window the two are one card. */
+.project-row.is-selected, .project-talk .project-talk-item.is-selected, .project-papers-panel, .project-talk-panel { --open-shadow: 0 1px 2px rgba(29, 33, 41, 0.06), 0 4px 14px rgba(29, 33, 41, 0.06); }
+.project-row.is-selected, .project-row.is-selected:hover, .project-talk .project-talk-item.is-selected, .project-talk .project-talk-item.is-selected:hover:not(:disabled), .project-papers-view.is-wide > .project-papers-panel, .project-talk.is-wide > .project-talk-panel { box-shadow: var(--open-shadow); }
+.project-row.is-selected, .project-talk-item.is-selected { position: relative; }
+.project-row.is-selected::before, .project-talk-item.is-selected::before { content: ''; position: absolute; top: var(--space-3); bottom: var(--space-3); left: 4px; width: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+.project-papers-view:not(.is-wide) .project-row.is-selected, .project-talk:not(.is-wide) .project-talk-item.is-selected { border-bottom-right-radius: 0; border-bottom-left-radius: 0; box-shadow: none; }
 
 
 /* A paper's brief: the paper, the ways to act on it, the members' takes,

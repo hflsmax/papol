@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
@@ -476,7 +476,6 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   // new paper, else the top one. Under a row it is only the one picked.
   const chosen = papers.find((p) => p.sha256 === picked)
     ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
-  const level = useLevelWithRow(wide, chosen?.sha256);
   if (!papers.length) return <section className="project-section" aria-label="Papers" />;
   // What is new in each of the paper's digs, by dig.
   const unreadOn = (paper) => Object.fromEntries((project.digs ?? [])
@@ -498,7 +497,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
     e.currentTarget.querySelector(`[data-paper="${next.sha256}"]`)?.focus();
   };
   return (
-    <section ref={level} className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
+    <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
       <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
@@ -579,7 +578,6 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   const shownPhase = shown && phaseOf(shown);
   useEffect(() => { if (shownPhase && folded[shownPhase]) fold(shownPhase, false); }, [shown?.uuid, shownPhase]);
   const pick = (uuid) => setPicked(wide || shown?.uuid !== uuid ? uuid : null);
-  const level = useLevelWithRow(wide, `${shown?.uuid}:${JSON.stringify(folded)}`);
   useEffect(() => () => { if (shown) onRead(shown.uuid); }, [shown?.uuid]);
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
@@ -640,7 +638,7 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   );
   const bands = PHASES.map((p) => [p, all.filter((d) => phaseOf(d) === p.key)]).filter(([, digs]) => digs.length);
   return (
-    <section ref={level} className={`project-talk${wide ? ' is-wide' : ''}`} aria-label="Digs">
+    <section className={`project-talk${wide ? ' is-wide' : ''}`} aria-label="Digs">
       {all.length > 0 && (
         <div className="project-talk-bands" onKeyDown={wide ? move : undefined}>
           {bands.map(([p, digs]) => (
@@ -681,27 +679,6 @@ function useWide(query = '(min-width: 1000px)') {
     return () => media.removeEventListener('change', update);
   }, [query]);
   return wide;
-}
-
-// The pane beside a list is the picked row opened out, so it starts level
-// with that row: the section learns how far down the row sits, and the
-// pane drops by as much.
-function useLevelWithRow(on, key) {
-  const ref = useRef(null);
-  useLayoutEffect(() => {
-    const section = ref.current;
-    if (!on || !section) return undefined;
-    const level = () => {
-      const row = section.querySelector('.project-row.is-selected, .project-talk-item.is-selected');
-      const top = row ? row.getBoundingClientRect().top - section.getBoundingClientRect().top : 0;
-      section.style.setProperty('--row-top', `${top}px`);
-    };
-    level();
-    const watch = new ResizeObserver(level);
-    watch.observe(section);
-    return () => watch.disconnect();
-  }, [on, key]);
-  return ref;
 }
 
 // The project's boards, which every member arranges; a board is known by
