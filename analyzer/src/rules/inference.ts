@@ -234,7 +234,15 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
   if (head && headMatch && (head.colon || blankAfter(line, headMatch.index + headMatch[0].trimEnd().length) >= apart * line.size)) return head;
   const tailMatch = TAIL.exec(text);
   const tail = found(tailMatch, "tail");
-  if (tail && tailMatch && blankBefore(line, tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length) >= (column ? 0.25 : APART) * line.size) return tail;
+  // A label in brackets set at another size than the formula it ends, on
+  // its baseline, is set apart by its size ("[E-App]" in 7pt small
+  // capitals after Nested Refinements' 9pt reduction, "(E-Null)" at 10pt
+  // after its 9pt judgment): a thin blank will do. After a line's length
+  // of running text it is a citation in small capitals ("From [T-UpRgn]").
+  const from = tailMatch ? tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length : 0;
+  const sized = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run] : null);
+  const resized = Boolean(tail?.bracketed && line.text.slice(0, from).trim().length < 40 && sized(from) && Math.abs(sized(from)!.size - line.size) >= 0.5 && Math.abs(sized(from)!.baseline - line.baseline) <= 0.5);
+  if (tail && tailMatch && blankBefore(line, from) >= (column ? 0.25 : resized ? 0.2 : APART) * line.size) return tail;
   return null;
 }
 
@@ -297,6 +305,7 @@ interface Setting {
   other?: Setting; // beside a bar on either side: the setting on the other side
   derived?: boolean; // the bar is a step of a derivation, not a rule's definition
   step?: Drawn | null; // the wider bar under it the conclusion leads into: a step, unless that bar has a label
+  quantified?: boolean; // at the margin of a row opening with a quantifier: a lemma, unless among rules set so
 }
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
@@ -461,6 +470,8 @@ function underline(page: Page, d: Drawn): boolean {
     && d.y > l.bottom - 0.22 * l.size && d.y <= l.bottom + 0.05 * l.size);
 }
 
+// Four lowercase words or more: a sentence's.
+const worded = (l: Line) => l.text.trim().split(/\s+/).filter((w) => /^\p{Ll}{2,}[,.;:]?$/u.test(w)).length >= 4;
 // A line drawn through a line of running text: a leader or a rule set
 // inline, not a bar.
 const prose = (l: Line, type: Type) => !l.furniture && l.text.length >= 40 && faceOf(l) === family(type.font);
@@ -545,9 +556,11 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 }
 // A step's bar has its conclusion right under it, its baseline within a
 // leading (a label raised beside the bar may lift the line's top): a
-// table's rule has running text under it, or the next row's labels.
+// table's rule has running text under it, or the next row's labels; a
+// figure's rule its caption (Fig. 6's under T-FO's bar, set on the
+// figure's last row).
 function concludes(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && !prose(l, type) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
+  return page.lines.some((l) => !l.furniture && !prose(l, type) && !CAPTION.test(l.text) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
 }
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
@@ -598,8 +611,10 @@ function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: numb
 // What stands at a row's end names a rule only where the row is one: a
 // relation between its sides (an arrow, a turnstile, an equation), not a
 // table's numbers or a paragraph's words. The supplemental arrows (⤇,
-// ⤳, Leaf's ⤔ "guards") are all relations.
-const RELATION = /[→⟶↦⟼⇒⟹⇛⇓⇝↝↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈≤≥⊕⊗∗⊸⊳⊲▷◁⤀-⥿]|[−-]∗|->|=>|~>|<:|:>|::=/u;
+// ⤳, Leaf's ⤔ "guards", the hooked ↪ of a small step) are all
+// relations, as are an equivalence and the orders beside ⊑ and ≤
+// (Ghost-Mod's "a ⇔ Δ a", ModeSub-Nil's "m ⪯ ∅").
+const RELATION = /[→⟶↦⟼↪⇒⟹⇛⇓⇝↝↠⇐⇔⟺⊢⊣⊨⊩⊑⊆≡≜≔=∼≈≤≥⪯≼⊕⊗∗⊸⊳⊲▷◁⤀-⥿]|[−-]∗|->|=>|~>|<:|:>|::=/u;
 
 // A row ending in its relation, its right side on the lines under it.
 const OPEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\s*$`, "u");
@@ -611,19 +626,78 @@ const BETWEEN = new RegExp(`(?:^|(?<![,;({[]\\s*)\\s)(?:${RELATION.source})\\S{0
 
 // A Hoare triple, a command between its pre- and postcondition's
 // braces, the line's whole text.
-const TRIPLE = /^\s*\{[^{}]+\}\s*[^{}\s][^{}]*\{[^{}]+\}\s*$/u;
+// An incorrectness triple sets its assertions in square brackets
+// ("[emp] l: error [er(l) : emp]", DC-Error).
+const TRIPLE = /^\s*(?:\{[^{}]+\}\s*[^{}\s][^{}]*\{[^{}]+\}|\[[^[\]]+\]\s*[^[\]\s][^[\]]*\[[^[\]]+\])\s*$/u;
 
 // Whether the line under a label over it states a rule: a relation
 // between terms, a Hoare triple ("{$E} empty () {λq. …}"), or, under a
-// hyphenated or spaced name, one predicate applied to its terms
-// ("persistent(Thunk F t n R φ)").
+// hyphenated or spaced name, or a camelCase one, one predicate applied to
+// its terms ("persistent(Thunk F t n R φ)", "timeless(£𝑛)" under
+// CreditTimeless), or a modality to the proposition in its braces ("OU
+// {elb 0}" under OU-eb-0); under a hyphenated or spaced name, a lone
+// membership too ("p ∈ p" under proto-in-refl).
 function related(text: string, token: Token): boolean {
-  return BETWEEN.test(text) || TRIPLE.test(text) || (["hyphen", "spaced"].includes(shapeOf(fold(token.text)) ?? "") && /^\s*\p{L}[\p{L}\d]*\(.+\)\s*$/u.test(text));
+  const strong = ["hyphen", "spaced"].includes(shapeOf(fold(token.text)) ?? "");
+  return BETWEEN.test(text) || TRIPLE.test(text) || ((strong || camel(token.text)) && /^\s*\p{L}[\p{L}\d]*(?:\(.+\)| ?\{.+\})\s*$/u.test(text))
+    || (strong && /^\s*\S{1,12}\s+[∈∉]\s+\S{1,12}\s*$/u.test(text));
+}
+
+// The relations of the TeX symbol fonts (cmsy and its txfonts, pxfonts
+// and Latin Modern cuts; the AMS msam) that reach the text layer as the
+// letter at their slot: ⊢ as "`", ⊑ as "v", ⇛ as msam's "V" ("Γ, Φ, Ω `
+// bv : bool" under T-Bool, Spirea's "ℓ %p 𝜎 ` ℓ %f 𝜎", GPS's "… V
+// UsedUP(t + 1)").
+const TEX_SYMBOLS = /cmsy|txsy|pxsy|lmsy/i;
+const AMS_SYMBOLS = /msam/i;
+const TEX_RELATIONS: Record<string, string> = { "`": "⊢", a: "⊣", v: "⊑", w: "⊒" };
+const AMS_RELATIONS: Record<string, string> = { V: "⇛", W: "⇚" };
+const texRelation = (c: string, font: string) => (TEX_SYMBOLS.test(font) && TEX_RELATIONS[c]) || (AMS_SYMBOLS.test(font) && AMS_RELATIONS[c]) || c;
+// A line as its relations read: a symbol font's letters read as the
+// relations they draw.
+function relational(line: Line): Line {
+  if (!line.runs.some((r) => (TEX_SYMBOLS.test(r.font) && /[`avw]/.test(r.text)) || (AMS_SYMBOLS.test(r.font) && /[VW]/.test(r.text)))) return line;
+  const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 ? texRelation(c, line.runs[line.chars[i].run].font) : c)).join("");
+  return { ...line, text, runs: line.runs.map((r) => ({ ...r, text: r.text.split("").map((c) => texRelation(c, r.font)).join("") })) };
+}
+
+// A relation the text layer lacks, drawn as a picture between two terms
+// on one row (Iris's ⇛ painted as strokes in "True ⇛ ∃𝛾. MonoVal(𝛾, 𝑛)"
+// under MonoInit): a mark no larger than a letter fills the blank
+// between them, and nothing drawn there runs out of it (a diagram's
+// arrow, its head in the blank and its shaft reaching past).
+function drawnRelation(page: Page, row: Line[]): boolean {
+  return row.some((a) => row.some((b) => {
+    if (b === a || !onRow(a, b) || b.x0 <= a.x1 || b.x0 - a.x1 > 3 * a.size || row.some((c) => c !== a && c !== b && onRow(c, a) && c.x0 < b.x0 && c.x1 > a.x1)) return false;
+    const [x0, x1, y0, y1] = [a.x1 - 1, b.x0 + 1, Math.min(a.top, b.top) - 1, Math.max(a.bottom, b.bottom) + 1];
+    const there = page.drawn.filter((d) => d.x < x1 && d.x + d.w > x0 && d.y < y1 && d.y + d.h > y0);
+    return there.some((d) => d.w > 1.5 && d.h > 1.5 && d.w <= 1.5 * a.size && d.h <= 1.2 * a.size)
+      && there.every((d) => d.x >= x0 && d.x + d.w <= x1 && d.y >= y0 && d.y + d.h <= y1);
+  }));
+}
+
+// Lines read as they are set: their runs row by row and left to right,
+// a tall brace on the row it spans, scripts and runs set much smaller
+// dropped. The layout may part a triple's big brace from its
+// postcondition and run the rest together ("{True} init_client 𝑠𝑟𝑣 𝑐.
+// ConnectionState(𝑐, CanStart)}" with "{" apart under rc-init-client-spec,
+// its "RC" prefix at a script's size).
+function asSet(lines: Line[], size: number): string {
+  const runs = lines.flatMap((l) => l.runs).filter((r) => !r.sub && !r.sup && r.size >= 0.7 * size && r.text.trim());
+  const normal = runs.filter((r) => r.size <= 1.3 * size);
+  const rowOf = (r: (typeof runs)[number]) => (r.size <= 1.3 * size ? r.baseline
+    : normal.map((n) => n.baseline).filter((b) => b <= r.baseline + 0.3 * r.size && b >= r.baseline - r.size).sort((a, b) => Math.abs(a - r.baseline) - Math.abs(b - r.baseline))[0] ?? r.baseline);
+  const placed = runs.map((r) => ({ r, y: rowOf(r) })).sort((a, b) => a.y - b.y);
+  const rows: (typeof placed)[] = [];
+  for (const p of placed) { const last = rows[rows.length - 1]; if (last && p.y - last[0].y <= 0.5 * size) last.push(p); else rows.push([p]); }
+  // Runs a blank apart are words apart; runs set hard by each other one word.
+  return rows.map((row) => row.sort((a, b) => a.r.x - b.r.x).map((p, i, all) => (i > 0 && p.r.x - all[i - 1].r.x - all[i - 1].r.width > 0.05 * size ? " " : "") + p.r.text).join("")).join(" ");
 }
 
 // A line's text without its subscripts, smaller runs set below its
 // baseline: a relation indexed so ("⊢CSL") stands between its terms.
-function unscripted(line: Line): string {
+function unscripted(from: Line): string {
+  const line = relational(from);
   let text = line.text, at = 0;
   for (const r of line.runs) {
     const i = text.indexOf(r.text, at);
@@ -963,12 +1037,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label)
       && !others.some((o) => reach(l, o) < reach(l, label)));
     if (!under.length) return null;
-    // The row runs on past the label in pieces a big operator apart.
+    // The row runs on past the label in pieces a big operator apart, or a
+    // relation drawn as a picture (drawnRelation).
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
         if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label))) continue;
-        if (under.some((u) => (Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size)) { under.push(l); grew = true; }
+        if (under.some((u) => ((Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size) || drawnRelation(page, [u, l]))) { under.push(l); grew = true; }
       }
     }
     const x0 = Math.min(...under.map((l) => l.x0)), x1 = Math.max(...under.map((l) => l.x1)), bottom = Math.max(...under.map((l) => l.bottom));
@@ -976,7 +1051,32 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // A stroke under one letter ($N̲) marks the letter, no bar.
     const stroke = page.drawn.some((d) => across(d) && d.w >= 1.3 * label.size && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
     const blocked = row.some((l) => !hangs(l) && l.x0 < x1 && l.x1 > x0 && /[\p{L}\d]/u.test(l.text));
-    return aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && related(under.map(unscripted).join(" "), token) ? under : null;
+    // A specification stacked line by line, its precondition in braces
+    // alone on the line under the label, runs on to its postcondition,
+    // each line hard under the last within the block ("{True}" over
+    // "⟨ip; socket ()⟩" over "{𝑤. ∃𝑠ℎ. 𝑤 = 𝑠ℎ ∗ …}" under Ht-newsocket).
+    const stack = [...under];
+    if (/^\s*\{[^{}]*\}\s*$/u.test([...under].sort((a, b) => a.top - b.top)[0].text)) {
+      for (let grew = true; grew;) {
+        grew = false;
+        const end = Math.max(...stack.map((l) => l.bottom)), from = Math.min(...stack.map((l) => l.x0)), to = Math.max(...stack.map((l) => l.x1));
+        for (const l of lines) {
+          if (stack.includes(l) || l.x0 < from - label.size || l.x0 > to + label.size || !sameColumn(page, l, label) || tokenOf(l)?.side === "whole" || others.some((o) => reach(l, o) < reach(l, label))) continue;
+          if ((l.top < end - 1 && !stack.some((t) => level(t, l))) || l.top - end > 0.6 * type.leading) continue;
+          stack.push(l); grew = true;
+        }
+      }
+    }
+    // The lines are read as set (asSet) only where the layout parted a
+    // brace from them (ru-init-client-spec's postcondition): a judgment's
+    // scripts read so no longer cling to its turnstile ("values" over
+    // "Ω | Σ | Γ ⊢ᵢ 𝑣 : 𝑇" in a diagram's box).
+    const parted = (set: Line[]) => set.some((l) => STRETCHED.test(l.text));
+    const told = (set: Line[]) => related(set.map(unscripted).join(" "), token) || (parted(set) && related(asSet(set, label.size), token)) || (drawnRelation(page, set) && set.length >= 2);
+    // A line of running text under it is a paragraph citing the name, the
+    // relation its prose names ("GHOST-ALLOC is a view shift …: P ⇛ Q").
+    const running = under.some((l) => prose(l, type) && worded(l));
+    return aligned && !stroke && !blocked && !running && !under.some((l) => production(l, page, type)) && (told(under) || (stack.length > under.length && TRIPLE.test(asSet(stack, label.size)))) ? under : null;
   };
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
@@ -1048,6 +1148,18 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       for (const l of page.lines) if (fences.includes(l) || beyond(l) || (onRow(l, label) && !row.includes(l) && between(l))) parted.add(l);
     }
   }
+  // A label ending a formula of its own line, set apart only by its size,
+  // has its row in that line and what runs on from it: what stands a
+  // blank off on the row is a neighbour's ((<:-∧)'s rule left of
+  // "Γ ⊢ T <: T (<:-Refl)").
+  if (token.side === "tail" && RELATION.test(relational(label).text.slice(0, token.start)) && blankBefore(label, token.start - (token.bracketed ? 1 : 0)) < APART * label.size) {
+    const kept = [label];
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const l of row) if (!kept.includes(l) && kept.some((k) => Math.max(k.x0, l.x0) - Math.min(k.x1, l.x1) <= label.size)) { kept.push(l); grew = true; }
+    }
+    row = row.filter((l) => kept.includes(l));
+  }
   const rest = (token.side === "whole" ? "" : label.text.slice(0, token.start) + " " + label.text.slice(token.end) + " ") + row.map((l) => l.text).join(" ");
   const body = /\p{L}|[^\p{L}\d\s\[\]()]/u.test(rest.replace(/[\[\]()]/g, "")) && rest.replace(/\s/g, "").length >= 3;
   if (!body) return { category: "none", bar: null, row, side: "right" };
@@ -1067,11 +1179,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const right = columnRight(page, label);
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
   // A row opening with a quantifier states a lemma, no rule
-  // ("∀𝑥 : Nat. half (add 𝑥 𝑥) ≐ 𝑥   (half_double)"); a premise over its
+  // ("∀𝑥 : Nat. half (add 𝑥 𝑥) ≐ 𝑥   (half_double)"), unless the paper
+  // sets rules so beside it (findRules: rwp-alloc's "∀ℓ. ℓ ↦ 𝑣 ∗ 𝛷(ℓ) ⊢
+  // rwp ref 𝑣 {𝛷}" among rwp-load and rwp-store); a premise over its
   // conclusion is a rule however it opens ("∃ 𝑑𝑏 ∈ 𝐷 (…)" over
   // G–Collective-Local's step).
   const stacked = row.some((a) => row.some((b) => b.top >= a.bottom - 1));
-  if (atMargin && !stacked && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "none", bar: null, row, side: "right" };
+  if (atMargin && !stacked && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "margin", bar: null, row, side: "right", quantified: true };
   // Ending a line of a conclusion set over several lines, each hard under
   // the last from the bar down within its span, and past the bar's end,
   // the label stands beside that rule (ExecCallback at its call's line,
@@ -1103,7 +1217,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // "𝐹𝑉 (𝑀) ∩ 𝐹𝑉 (𝑞...) = ∅)"): its brackets close in the last.
   const sideNote = (l: Line) => /^\s*(?:\(.*\)|(?:where|when|if|iff|provided|unless)\s.*)$/.test(l.text)
     || (/^\s*\(/.test(l.text) && /^\s*\(.*\)\s*$/.test(row.filter((o) => onRow(o, l) && o.x0 >= l.x0).sort((a, b) => a.x0 - b.x0).map((o) => o.text).join(" ")));
-  if (row.some((l) => !sibling(l) && !sideNote(l) && faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
+  if (row.some((l) => !sibling(l) && !sideNote(l) && faceOf(l) === family(type.font) && !RELATION.test(relational(l).text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
   // The label stands at a side of its row, or over it. With lines on
   // both sides, its row is the nearer side where the other is twice as
   // far (a page of axioms set two to a row).
@@ -1126,7 +1240,24 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // A relation only inside a note of figures is a table's measurement,
   // no row's ("✗ (2.3s / B=4)" beside a benchmark).
   const figured = (t: string) => t.replace(/\([^()]*\d[^()]*\)/gu, " ");
-  return side && RELATION.test(figured(text + " " + levelled)) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
+  // A relation read from a symbol font's letter (relational) makes no
+  // row of a sentence ("GHOST-ALLOC is a view shift, also known as a
+  // ghost move: P ⇛ Q").
+  const read = row.filter((l) => !worded(l)).map((l) => relational(l).text).join(" ");
+  // A judgment's form framed alone beside a heading ("Well-Formedness"
+  // with "Γ ⊢U τ" boxed at the column's end) is no rule's row.
+  if (token.side === "whole" && row.length && row.every((l) => framedAlone(page, l))) return { category: "none", bar: null, row, side: "right" };
+  // A bare name in the text's face heading a column of glosses, phrases
+  // in that face flush with it a line or two over or under, names a
+  // judgment in a table of them ("Well-kindedness" over "Well-formedness
+  // of propositions", each right of its form "Σ ⊢ A : κ"); a column of
+  // reductions named so is rules ("β-reduction" by "Case of known
+  // constr." after "(𝜆𝑥. 𝑒) 𝑒′ ⟹ 𝑒[𝑒′/𝑥]").
+  const glossed = !token.bracketed && row.length > 0 && row.every((l) => l.x1 <= label.x0) && !row.some(reduces) && faceOf(label, token) === family(type.font)
+    && page.lines.some((l) => l !== label && !l.furniture && Math.abs(l.x0 - label.x0) <= 0.5 * label.size && Math.abs(l.top - label.top) <= 2.5 * type.leading
+      && faceOf(l) === family(type.font) && !RELATION.test(l.text) && l.text.trim().split(/\s+/).filter((w) => /\p{L}{2}/u.test(w)).length >= 2);
+  if (token.side === "whole" && glossed) return { category: "cell", bar: null, row, side: "right" };
+  return side && (RELATION.test(figured(text + " " + levelled)) || RELATION.test(figured(read))) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
 }
 
 // ------------------------------------------------------------ pass 3: names
@@ -1171,6 +1302,17 @@ function shortShape(line: Line, token: Token, setting: Setting): Shape | null {
 const ringed = (page: Page, line: Line) => page.drawn.some((d) => d.w > 1.5 && d.h > 1.5 && d.w <= 2.5 * line.size && d.h <= 2.5 * line.size
   && d.x <= line.x0 + 0.5 && d.x + d.w >= line.x1 - 0.5 && d.y <= line.top + 0.5 && d.y + d.h >= line.bottom - 0.5);
 
+// A line in a frame drawn round it alone, a rectangle or two uprights and
+// two strokes across hugging it: a judgment's form.
+function framedAlone(page: Page, line: Line): boolean {
+  const pad = 1.5 * line.size;
+  const holds = (x0: number, y0: number, x1: number, y1: number) => x0 <= line.x0 + 0.5 && x1 >= line.x1 - 0.5 && y0 <= line.top + 0.5 && y1 >= line.bottom - 0.5
+    && x0 >= line.x0 - pad && x1 <= line.x1 + pad && y0 >= line.top - pad && y1 <= line.bottom + pad;
+  if (page.drawn.some((d) => d.w > 1.5 && d.h > 1.5 && holds(d.x, d.y, d.x + d.w, d.y + d.h))) return true;
+  const sides = page.drawn.filter((d) => upright(d) && d.y <= line.top + 0.5 && d.y + d.h >= line.bottom - 0.5 && d.h <= line.bottom - line.top + 2 * pad);
+  return sides.some((a) => sides.some((b) => b.x > a.x && holds(a.x, Math.max(a.y, b.y), b.x, Math.min(a.y + a.h, b.y + b.h))));
+}
+
 // A short name with a sign or a Greek letter in it, not a lone letter
 // or digit: its face is the math's (a lone "c" is set as its paper's
 // labels are, or is a diagram's lettering).
@@ -1189,6 +1331,7 @@ const STEP = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩]|->|=>|~>/
 // tagged "(Tile1D)").
 const CLOSURE = /(?:[→⟶↦⟼⇒⟹⇛⤇⇝↝⤳↠−-]|->|=>|~>)+\s*[∗*⋆]/gu;
 const steps = (l: Line) => STEP.test(l.text.replace(CLOSURE, " "));
+const LAW = /[⇔⟺]|[−-]∗/u;
 // A row that reduces: an arrow between its sides. A turnstile's row
 // states a judgment, and a bare word heading one names its form
 // ("Typing" before "Γ ⊢ 𝑒 : 𝜏"), as one heading a grammar's row names
@@ -1198,10 +1341,12 @@ const reduces = (l: Line) => ARROW.test(l.text.replace(CLOSURE, " "));
 
 function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [], side: Setting["side"] = "right"): string | null {
   // A word in parentheses at the margin names a row that steps ("(send)"
-  // after a reduction); beside a grammar's equation it tags a category
-  // ("(Actors)" after "A = x : Σ"), unless in lower case it names a law
+  // after a reduction) or states a separation logic's law, an equivalence
+  // or a wand ("(TokSplit)" after "TokState𝑞₁+𝑞₂(𝛾, 𝑠) ⇔ …"); beside a
+  // grammar's equation it tags a category ("(Actors)" after "A = x :
+  // Σ"), unless in lower case it names a law
   // as below ("(filter)" after "push(𝑣) · pop(𝑤) ≡ 0").
-  if (category === "margin" && shape === "word" && token.bracketed && !token.square && row.some(steps)) return RULE_NAME_MARGIN.id;
+  if (category === "margin" && shape === "word" && token.bracketed && !token.square && row.map(relational).some((l) => steps(l) || LAW.test(l.text))) return RULE_NAME_MARGIN.id;
   // Capitalised words name a rule only beside its bar: over one they head
   // a group of rules or a table's rows ("Well-formed Type", "Prior Work"),
   // at a row or the margin a figure's group (rule.shape.title).
@@ -1346,12 +1491,22 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const columns = !bar && setting.side === "over" ? [...others.lines].filter((o) => o !== label && level(o, label)) : [];
   const fence = Math.min(...columns.filter((o) => o.x0 > label.x1).map((o) => o.x0));
   const fenced = (l: Line) => columns.length > 0 && ((l.x0 + l.x1) / 2 < label.x0 || (l.x0 + l.x1) / 2 > fence);
+  // A row opening with a relation goes on from the line hard over it
+  // (GetTicket's "⇛ MyTkts(…)" under "MyTkts(…) ∗ AllTkts(M) ∗ t = …"):
+  // that line is the row's first, not the row's over it.
+  const opens = (l: Line) => /^\s*(?:[→⟶⇒⟹⇛↦=≡⊢⇔∗]|[−-]∗)/u.test(relational(l).text);
+  const leads = (l: Line, r: Line) => r !== l && r.top >= l.bottom - tolerance(l, r) && r.top - l.bottom <= 0.6 * type.leading && r.x0 >= l.x0 && r.x0 < l.x1 && opens(r);
+  const continued = (l: Line) => !bar && page.lines.some((r) => !setting.row.includes(r) && leads(l, r) && [...others.lines].some((o) => onRow(o, r)));
+  if (!bar) {
+    for (const r of setting.row.filter(opens)) for (const l of lines) if (leads(l, r) && !taken.has(l)) taken.add(l);
+    x0 = Math.min(...[...taken].map((l) => l.x0)); x1 = Math.max(...[...taken].map((l) => l.x1));
+  }
   // A label over a tall stack of premises reaches its bar's conclusion.
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
-      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
+      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line) || continued(line)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
@@ -1683,7 +1838,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // "(perform)" as long as its row's indent, E_PreCheck at the end of a
   // long reduction.
   for (const page of pages) {
-    const rows = seen.filter((s) => s.page === page && (s.setting.category === "row" || s.setting.category === "margin"));
+    const rows = seen.filter((s) => s.page === page && (s.setting.category === "row" || s.setting.category === "margin") && !s.setting.quantified);
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
@@ -1818,9 +1973,20 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // only among two of them (rule.setting), and counts for nothing else.
   const overBarred = new Map<string, number>();
   for (const c of candidates) if (c.setting.category === "over" && c.setting.bar) overBarred.set(c.convention, (overBarred.get(c.convention) ?? 0) + 1);
-  const barless = (c: Candidate) => weak(c) && c.setting.category === "over" && !c.setting.bar && (overBarred.get(c.convention) ?? 0) < 2;
+  // So does one of three or more set alike without a bar on a page, where
+  // the paper sets one so over a bar (RepeatStandby, RepeatHalt and
+  // RepeatFail beside RepeatSingle's rule): a figure of axioms.
+  const alikeBarless = (c: Candidate) => candidates.filter((o) => o.page === c.page && o.convention === c.convention && o.setting.category === "over" && !o.setting.bar).length;
+  const barless = (c: Candidate) => weak(c) && c.setting.category === "over" && !c.setting.bar && (overBarred.get(c.convention) ?? 0) < 2
+    && !((overBarred.get(c.convention) ?? 0) >= 1 && alikeBarless(c) >= 3);
   for (const c of candidates) if (barless(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !barless(c));
+  // A quantified row's label names a rule only beside a strong label set as
+  // it is on its page (rwp-alloc among rwp-load and rwp-store, rwp-tape-alloc
+  // over rwp-tape-empty); alone it names a lemma (settingOf).
+  const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && !weak(o) && o.convention === c.convention);
+  for (const c of candidates) if (lemma(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => !lemma(c));
   // A bare word over a bar with a hyphenated, spaced or symbol name
   // between it and the bar heads a group of rules ("(Reduction)" over
   // R-Proj2Beta) and labels nothing (rule.heading).
@@ -1847,7 +2013,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const conjunct = (c: Candidate) => /[∧∨∗]\s*$/u.test([...c.setting.row].sort((a, b) => a.x0 - b.x0).map((l) => l.text).join(" "));
   const named = (c: Candidate) => candidates.some((o) => o !== c && Boolean(o.setting.bar) && keyOf(fold(o.token.text)) === keyOf(fold(c.token.text)));
   const titled = (c: Candidate) => !camel(c.token.text) || conjunct(c) || named(c) || !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, new Set(candidates.map((o) => o.line)), faceOf(c.line, c.token), type);
-  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2 && titled(c);
+  // One set as a cited camelCase name next to it, within a few rows, is a
+  // rule as that one is ("(TokSplit)" over the cited "(TokCombine)"); a
+  // conjunct is none, whatever its neighbours ("(lockedLvl)" in a lock's
+  // specification).
+  const kin = (c: Candidate) => !conjunct(c) && candidates.some((o) => o !== c && o.page === c.page && o.convention === c.convention && o.setting.category === "margin"
+    && Math.abs(o.line.top - c.line.top) <= 4 * type.leading && camel(o.token.text) && !titled(o));
+  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2 && titled(c) && !(camel(c.token.text) && kin(c));
   for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !tagged(c));
   // A lone letter or digit in brackets beside a bar names a rule only
@@ -1984,7 +2156,8 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // A bracketed label at the margin is its row's, its name standing or
   // not: the row is no part of the next ("(GetPerms)" over GetTicket's
   // rows, uncited).
-  const margins = seen.filter((s) => s.setting.category === "margin" && s.token.bracketed);
+  // (A quantified row's label is weighed as a lemma's, no fence.)
+  const margins = seen.filter((s) => s.setting.category === "margin" && s.token.bracketed && !s.setting.quantified);
   for (const p of placed) {
     const rest = placed.filter((o) => o.page === p.page && o !== p);
     const set: { lines: Line[] } = { lines: [] };
