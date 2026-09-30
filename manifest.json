@@ -1,5 +1,5 @@
 {
- "analyzer": "PR #399 (c369d258)",
+ "analyzer": "main 428aa934",
  "legend": {
   "rule box colour by how the name was found": {
    "over": "#c2410c",
@@ -278,6 +278,91 @@
    ]
   },
   {
+   "paper": "Low-level liquid types",
+   "id": "2010-POPL-low-level-liquid-types",
+   "venue": "POPL",
+   "year": 2010,
+   "folder": "ranjit-jhala/2010-POPL-low-level-liquid-types",
+   "author": "Ranjit Jhala",
+   "source_pdf": "https://ranjitjhala.github.io/static/low_level_liquid_types.pdf",
+   "rules": 40,
+   "mentions": 22,
+   "pages_total": 13,
+   "pages": [
+    {
+     "page": 7,
+     "file": "p07.jpg",
+     "rules": 10,
+     "rule_names": [
+      "WF-INT",
+      "WF-REF",
+      "WF-FIELD",
+      "WF-ARRAY",
+      "WF-CONCBLOCK",
+      "WF-EMPTY",
+      "WF-CONCRETE",
+      "WF-ABSTRACT",
+      "WF-WORLD",
+      "WF-SCHEMA"
+     ],
+     "mentions": 10
+    },
+    {
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 17,
+     "rule_names": [
+      "T-PURESUB",
+      "<:-INT",
+      "<:-REF",
+      "T-INT",
+      "<:-ABSTRACT",
+      "T-REF",
+      "<:-NULLPTR",
+      "T-VAR",
+      "<:-BLOCK-EMPTY",
+      "T-ARITH",
+      "T-PTR-ARITH",
+      "<:-FIELD",
+      "T-PTR-COMP",
+      "<:-ARRAY",
+      "T-ASSERT",
+      "<:-HEAP",
+      "<:-WORLD"
+     ],
+     "mentions": 1
+    },
+    {
+     "page": 9,
+     "file": "p09.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 11
+    },
+    {
+     "page": 10,
+     "file": "p10.jpg",
+     "rules": 13,
+     "rule_names": [
+      "T-PURE",
+      "T-SUB",
+      "T-IF",
+      "T-LET",
+      "T-READ",
+      "T-WRITE-FIELD",
+      "T-WRITE-ARRAY",
+      "T-UNFOLD",
+      "T-FOLD",
+      "T-MALLOC",
+      "T-CALL",
+      "T-FUN",
+      "T-MAIN"
+     ],
+     "mentions": 0
+    }
+   ]
+  },
+  {
    "paper": "A kripke logical relation for effect-based program transformations",
    "id": "2011-ICFP-a-kripke-logical-relation-for-effect-based-program-transform",
    "venue": "ICFP",
@@ -440,6 +525,42 @@
    ]
   },
   {
+   "paper": "Path-based inductive synthesis for program inversion",
+   "id": "2011-PLDI-path-based-inductive-synthesis-for-program-inversion",
+   "venue": "PLDI",
+   "year": 2011,
+   "folder": "sumit-gulwani/2011-PLDI-path-based-inductive-synthesis-for-program-inversion",
+   "author": "Sumit Gulwani",
+   "source_pdf": "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/12/pldi11-inverse-synthesis.pdf",
+   "rules": 7,
+   "mentions": 9,
+   "pages_total": 12,
+   "pages": [
+    {
+     "page": 3,
+     "file": "p03.jpg",
+     "rules": 7,
+     "rule_names": [
+      "ASSN",
+      "ASSUME",
+      "SEQ",
+      "EXIT",
+      "COND",
+      "LOOP",
+      "INOUT"
+     ],
+     "mentions": 8
+    },
+    {
+     "page": 4,
+     "file": "p04.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 1
+    }
+   ]
+  },
+  {
    "paper": "Step-indexed kripke models over recursive worlds",
    "id": "2011-POPL-step-indexed-kripke-models-over-recursive-worlds",
    "venue": "POPL",
@@ -587,14 +708,14 @@
    "year": 2011,
    "folder": "derek-dreyer/2011-POPL-a-kripke-logical-relation-between-ml-and-assembly",
    "author": "Derek Dreyer",
-   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/lrmlasm/appendix.pdf",
+   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/lrmlasm/main.pdf",
    "rules": 1,
    "mentions": 0,
-   "pages_total": 77,
+   "pages_total": 14,
    "pages": [
     {
-     "page": 19,
-     "file": "p19.jpg",
+     "page": 9,
+     "file": "p09.jpg",
      "rules": 1,
      "rule_names": [
       "List X"
@@ -627,6 +748,45 @@
     {
      "page": 7,
      "file": "p07.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 1
+    }
+   ]
+  },
+  {
+   "paper": "Superficially substructural types",
+   "id": "2012-ICFP-superficially-substructural-types",
+   "venue": "ICFP",
+   "year": 2012,
+   "folder": "derek-dreyer/2012-ICFP-superficially-substructural-types",
+   "author": "Derek Dreyer",
+   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/supsub/icfp.pdf",
+   "rules": 2,
+   "mentions": 1,
+   "pages_total": 13,
+   "pages": [
+    {
+     "page": 7,
+     "file": "p07.jpg",
+     "rules": 1,
+     "rule_names": [
+      "!ReadOnlyOp"
+     ],
+     "mentions": 0
+    },
+    {
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 1,
+     "rule_names": [
+      "ValPred"
+     ],
+     "mentions": 0
+    },
+    {
+     "page": 10,
+     "file": "p10.jpg",
      "rules": 0,
      "rule_names": [],
      "mentions": 1
@@ -975,6 +1135,43 @@
       "C-VALID-N"
      ],
      "mentions": 6
+    }
+   ]
+  },
+  {
+   "paper": "The marriage of bisimulations and Kripke logical relations",
+   "id": "2012-POPL-the-marriage-of-bisimulations-and-kripke-logical-relations",
+   "venue": "POPL",
+   "year": 2012,
+   "folder": "derek-dreyer/2012-POPL-the-marriage-of-bisimulations-and-kripke-logical-relations",
+   "author": "Derek Dreyer",
+   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/marriage/popl.pdf",
+   "rules": 8,
+   "mentions": 5,
+   "pages_total": 14,
+   "pages": [
+    {
+     "page": 5,
+     "file": "p05.jpg",
+     "rules": 8,
+     "rule_names": [
+      "FIX",
+      "APP",
+      "REFL",
+      "SYMM",
+      "CONG",
+      "SUBST",
+      "EXPAND",
+      "BETA"
+     ],
+     "mentions": 3
+    },
+    {
+     "page": 6,
+     "file": "p06.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 2
     }
    ]
   },
@@ -1972,214 +2169,53 @@
    "year": 2014,
    "folder": "derek-dreyer/2014-POPL-backpack-retrofitting-haskell-with-interfaces",
    "author": "Derek Dreyer",
-   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/backpack/appendix.pdf",
-   "rules": 63,
-   "mentions": 7,
-   "pages_total": 53,
+   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/backpack/paper.pdf",
+   "rules": 13,
+   "mentions": 19,
+   "pages_total": 13,
    "pages": [
     {
-     "page": 5,
-     "file": "p05.jpg",
-     "rules": 1,
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 6,
      "rule_names": [
-      "stamps"
+      "SHALIAS",
+      "SHMOD",
+      "SHSIG",
+      "SHINC",
+      "SHNIL",
+      "SHSEQ"
      ],
-     "mentions": 2
+     "mentions": 7
     },
     {
      "page": 9,
      "file": "p09.jpg",
-     "rules": 1,
+     "rules": 7,
      "rule_names": [
-      "IlCoreMod"
+      "TYALIAS",
+      "TYMOD",
+      "TYSIG",
+      "TYINC",
+      "TYNIL",
+      "TYSEQ",
+      "TYPKG"
      ],
-     "mentions": 0
+     "mentions": 9
     },
     {
      "page": 10,
      "file": "p10.jpg",
-     "rules": 1,
-     "rule_names": [
-      "CoreMod"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 12,
-     "file": "p12.jpg",
-     "rules": 3,
-     "rule_names": [
-      "EenvRes",
-      "ExpLocal",
-      "ExpList"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 13,
-     "file": "p13.jpg",
-     "rules": 5,
-     "rule_names": [
-      "ExpSimple",
-      "ExpSimpleEmpty",
-      "ExpSubList",
-      "ExpSubAll",
-      "ExpModAll"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 19,
-     "file": "p19.jpg",
-     "rules": 11,
-     "rule_names": [
-      "ShPath1",
-      "ShPath2",
-      "ShMod",
-      "ShSig",
-      "ShBind",
-      "ShInc",
-      "ShNil",
-      "ShSeq",
-      "TyPath1",
-      "TyPath2",
-      "TyMod"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 20,
-     "file": "p20.jpg",
-     "rules": 6,
-     "rule_names": [
-      "TySig",
-      "TyBind",
-      "TyInc",
-      "TyNil",
-      "TySeq",
-      "TyPkg"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 21,
-     "file": "p21.jpg",
-     "rules": 6,
-     "rule_names": [
-      "TyDNil",
-      "TyDCons",
-      "WfLogSig",
-      "WfShLogSig",
-      "WfSig",
-      "WfShSig"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 22,
-     "file": "p22.jpg",
-     "rules": 9,
-     "rule_names": [
-      "WfPhCtx",
-      "WfShPhCtx",
-      "WfSpecs",
-      "WfShSpecs",
-      "WfExports",
-      "WfShExports",
-      "WfDepsMod",
-      "WfDepsSig",
-      "WfModTyp"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 23,
-     "file": "p23.jpg",
-     "rules": 12,
-     "rule_names": [
-      "WfVal",
-      "WfModSh",
-      "WfValSh",
-      "WfDataAbs",
-      "WfDataAbsSh",
-      "WfDataCon",
-      "WfDataConSh",
-      "WfESpc",
-      "WfShESpc",
-      "KndVar",
-      "KndAll",
-      "KndCtor"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 26,
-     "file": "p26.jpg",
-     "rules": 1,
-     "rule_names": [
-      "dspc"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 27,
-     "file": "p27.jpg",
-     "rules": 1,
-     "rule_names": [
-      "f:ftypm"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 29,
-     "file": "p29.jpg",
-     "rules": 3,
-     "rule_names": [
-      "IlTypDexp",
-      "IlTypHsmod",
-      "IlTypStub"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 30,
-     "file": "p30.jpg",
-     "rules": 2,
-     "rule_names": [
-      "IlEenvRes",
-      "IlExpSimple"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 31,
-     "file": "p31.jpg",
-     "rules": 1,
-     "rule_names": [
-      "IlExpSubList"
-     ],
-     "mentions": 0
-    },
-    {
-     "page": 40,
-     "file": "p40.jpg",
      "rules": 0,
      "rule_names": [],
      "mentions": 1
     },
     {
-     "page": 45,
-     "file": "p45.jpg",
+     "page": 11,
+     "file": "p11.jpg",
      "rules": 0,
      "rule_names": [],
-     "mentions": 1
-    },
-    {
-     "page": 50,
-     "file": "p50.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 3
+     "mentions": 2
     }
    ]
   },
@@ -2722,60 +2758,74 @@
    "year": 2016,
    "folder": "derek-dreyer/2016-ICFP-higher-order-ghost-state",
    "author": "Derek Dreyer",
-   "source_pdf": "https://pure.au.dk/ws/files/417855185/3607856.pdf",
-   "rules": 14,
-   "mentions": 16,
-   "pages_total": 28,
+   "source_pdf": "https://iris-project.org/pdfs/2016-icfp-iris2-final.pdf",
+   "rules": 18,
+   "mentions": 17,
+   "pages_total": 14,
    "pages": [
     {
-     "page": 10,
-     "file": "p10.jpg",
-     "rules": 14,
+     "page": 4,
+     "file": "p04.jpg",
+     "rules": 9,
      "rule_names": [
-      "Ht-frame",
-      "Ht-val",
-      "Ht-fork",
-      "Ht-alloc",
-      "Ht-load",
-      "Ht-store",
-      "Ht-free",
-      "Ht-inv-alloc",
-      "Ht-inv-open-close",
-      "Ht-later-frame",
-      "Ht-later-timeless",
-      "Ht-ghost-alloc",
-      "Tok-excl",
-      "L\u00f6b"
+      "GHOST-OP",
+      "GHOST-VALID",
+      "GHOST-ALLOC",
+      "GHOST-UPDATE",
+      "PERSISTENT-GHOST",
+      "INV-ALLOC",
+      "CSQ",
+      "PERSISTENT-DUP",
+      "INV"
+     ],
+     "mentions": 4
+    },
+    {
+     "page": 5,
+     "file": "p05.jpg",
+     "rules": 2,
+     "rule_names": [
+      "GHOST-OP",
+      "PERSISTENT-GHOST"
+     ],
+     "mentions": 5
+    },
+    {
+     "page": 6,
+     "file": "p06.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 2
+    },
+    {
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 2
+    },
+    {
+     "page": 9,
+     "file": "p09.jpg",
+     "rules": 1,
+     "rule_names": [
+      "CMRA-VALID-MONO"
      ],
      "mentions": 0
     },
     {
-     "page": 11,
-     "file": "p11.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 6
-    },
-    {
-     "page": 12,
-     "file": "p12.jpg",
-     "rules": 0,
-     "rule_names": [],
+     "page": 10,
+     "file": "p10.jpg",
+     "rules": 6,
+     "rule_names": [
+      "NEWBARRIER",
+      "SIGNAL",
+      "WAIT",
+      "RECV-MONO",
+      "RECV-SPLIT",
+      "GHOST-OP"
+     ],
      "mentions": 4
-    },
-    {
-     "page": 13,
-     "file": "p13.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 5
-    },
-    {
-     "page": 14,
-     "file": "p14.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 1
     }
    ]
   },
@@ -3573,113 +3623,58 @@
    "year": 2017,
    "folder": "lars-birkedal/2017-POPL-interactive-proofs-in-higher-order-concurrent-separation-log",
    "author": "Lars Birkedal",
-   "source_pdf": "https://robbertkrebbers.nl/research/slides/mfps_ipm.pdf",
-   "rules": 10,
-   "mentions": 20,
-   "pages_total": 87,
+   "source_pdf": "https://iris-project.org/pdfs/2017-popl-proofmode-final.pdf",
+   "rules": 17,
+   "mentions": 13,
+   "pages_total": 13,
    "pages": [
     {
-     "page": 58,
-     "file": "p58.jpg",
-     "rules": 1,
+     "page": 5,
+     "file": "p05.jpg",
+     "rules": 7,
      "rule_names": [
-      "wp-seq"
+      "WP-FRAME",
+      "WP-VAL",
+      "WP-BIND",
+      "WP-LAM",
+      "WP-ALLOC",
+      "WP-REC",
+      "WP-STORE"
      ],
      "mentions": 0
     },
     {
-     "page": 59,
-     "file": "p59.jpg",
-     "rules": 2,
+     "page": 6,
+     "file": "p06.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 2
+    },
+    {
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 9,
      "rule_names": [
-      "wp-store",
-      "wp-seq"
+      "UPD-INTRO",
+      "UPD-TRANS",
+      "UPD-FRAME",
+      "OWN-ALLOC",
+      "OWN-OP",
+      "OWN-VALID",
+      "UPD-OWN",
+      "UPD-WP",
+      "INV-OPEN"
      ],
      "mentions": 0
     },
     {
-     "page": 60,
-     "file": "p60.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 2
-    },
-    {
-     "page": 61,
-     "file": "p61.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 2
-    },
-    {
-     "page": 62,
-     "file": "p62.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 2
-    },
-    {
-     "page": 63,
-     "file": "p63.jpg",
+     "page": 9,
+     "file": "p09.jpg",
      "rules": 1,
      "rule_names": [
-      "wp-store"
+      "OWN-OP"
      ],
-     "mentions": 2
-    },
-    {
-     "page": 64,
-     "file": "p64.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
-    },
-    {
-     "page": 65,
-     "file": "p65.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
-    },
-    {
-     "page": 66,
-     "file": "p66.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
-    },
-    {
-     "page": 67,
-     "file": "p67.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
-    },
-    {
-     "page": 68,
-     "file": "p68.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
-    },
-    {
-     "page": 69,
-     "file": "p69.jpg",
-     "rules": 1,
-     "rule_names": [
-      "wp-store"
-     ],
-     "mentions": 2
+     "mentions": 11
     }
    ]
   },
@@ -8526,62 +8521,55 @@
    "year": 2021,
    "folder": "derek-dreyer/2021-PLDI-refinedc-automating-the-foundational-verification-of-c-code",
    "author": "Derek Dreyer",
-   "source_pdf": "https://plv.mpi-sws.org/refinedc/appendix.pdf",
-   "rules": 21,
-   "mentions": 1,
-   "pages_total": 5,
+   "source_pdf": "https://plv.mpi-sws.org/refinedc/paper.pdf",
+   "rules": 9,
+   "mentions": 29,
+   "pages_total": 17,
    "pages": [
-    {
-     "page": 2,
-     "file": "p02.jpg",
-     "rules": 0,
-     "rule_names": [],
-     "mentions": 1
-    },
-    {
-     "page": 3,
-     "file": "p03.jpg",
-     "rules": 2,
-     "rule_names": [
-      "r-expressions",
-      "l-expressions"
-     ],
-     "mentions": 0
-    },
     {
      "page": 4,
      "file": "p04.jpg",
-     "rules": 11,
-     "rule_names": [
-      "T-goto-precond",
-      "T-goto",
-      "T-assign",
-      "T-return",
-      "T-if",
-      "T-switch",
-      "T-call",
-      "T-assert",
-      "T-annotS",
-      "T-exprS",
-      "T-skipS"
-     ],
-     "mentions": 0
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 3
     },
     {
-     "page": 5,
-     "file": "p05.jpg",
-     "rules": 8,
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 4
+    },
+    {
+     "page": 9,
+     "file": "p09.jpg",
+     "rules": 9,
      "rule_names": [
-      "T-val",
-      "T-unop",
+      "If-bool",
+      "If-int",
+      "T-if",
       "T-binop",
-      "T-cas",
-      "T-skipE",
-      "T-use",
-      "T-addr-of",
-      "T-annotE"
+      "O-optional-eq",
+      "S-null",
+      "S-own",
+      "O-add-uninit",
+      "Cas-bool"
      ],
-     "mentions": 0
+     "mentions": 11
+    },
+    {
+     "page": 10,
+     "file": "p10.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 10
+    },
+    {
+     "page": 12,
+     "file": "p12.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 1
     }
    ]
   },
@@ -10598,6 +10586,36 @@
     {
      "page": 25,
      "file": "p25.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 1
+    }
+   ]
+  },
+  {
+   "paper": "Finding real bugs in big programs with incorrectness logic",
+   "id": "2022-OOPSLA-finding-real-bugs-in-big-programs-with-incorrectness-logic",
+   "venue": "OOPSLA",
+   "year": 2022,
+   "folder": "derek-dreyer/2022-OOPSLA-finding-real-bugs-in-big-programs-with-incorrectness-logic",
+   "author": "Derek Dreyer",
+   "source_pdf": "https://people.mpi-sws.org/~dreyer/papers/finding-real-bugs/paper.pdf",
+   "rules": 1,
+   "mentions": 1,
+   "pages_total": 27,
+   "pages": [
+    {
+     "page": 11,
+     "file": "p11.jpg",
+     "rules": 1,
+     "rule_names": [
+      "Malloc-ISL"
+     ],
+     "mentions": 0
+    },
+    {
+     "page": 12,
+     "file": "p12.jpg",
      "rules": 0,
      "rule_names": [],
      "mentions": 1
@@ -16889,6 +16907,67 @@
       "Run-spec"
      ],
      "mentions": 5
+    }
+   ]
+  },
+  {
+   "paper": "Type-Constrained Code Generation with Language Models",
+   "id": "2025-PLDI-type-constrained-code-generation-with-language-models",
+   "venue": "PLDI",
+   "year": 2025,
+   "folder": "martin-t-vechev/2025-PLDI-type-constrained-code-generation-with-language-models",
+   "author": "Martin T. Vechev",
+   "source_pdf": "https://arxiv.org/pdf/2504.09246",
+   "rules": 25,
+   "mentions": 21,
+   "pages_total": 38,
+   "pages": [
+    {
+     "page": 7,
+     "file": "p07.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 13
+    },
+    {
+     "page": 8,
+     "file": "p08.jpg",
+     "rules": 25,
+     "rule_names": [
+      "lit-num",
+      "lit-str",
+      "lit-bool",
+      "anon",
+      "call",
+      "ident",
+      "op",
+      "mem",
+      "group",
+      "decl",
+      "expr",
+      "ret",
+      "block",
+      "fun",
+      "ite",
+      "nop",
+      "seq",
+      "r-decl",
+      "r-expr",
+      "r-ret",
+      "r-block-next",
+      "r-block-self",
+      "r-fun",
+      "r-ite-self",
+      "r-ite-next"
+     ],
+     "mentions": 6
+    },
+    {
+     "page": 14,
+     "file": "p14.jpg",
+     "rules": 0,
+     "rule_names": [],
+     "mentions": 2
     }
    ]
   },
