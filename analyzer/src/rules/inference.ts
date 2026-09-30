@@ -720,9 +720,19 @@ function citedAnywhere(flows: Flow[], rule: { name: string; shape: Shape; bracke
  */
 // A bar set as text: a line of dashes, with digits on it or a star at
 // its end as Iris draws its rules (rule.bar).
+// Two such bars on one baseline reach the layout as one line ("−−−∗ −−−∗")
+// and are two bars, split at the blank between them.
 const TEXT_BAR = /^[−–—\-]{4,}(?:\d[−–—\-]+)*∗?$/;
-const textBars = (page: Page): Drawn[] => page.lines.filter((l) => TEXT_BAR.test(l.text.replace(/\s/g, "")))
-  .map((l) => ({ x: l.x0, y: l.bottom - 0.4 * l.size, w: l.x1 - l.x0, h: 0, image: false }));
+const textBars = (page: Page): Drawn[] => page.lines.flatMap((l) => {
+  const parts = l.text.split(/\s+/).filter(Boolean);
+  if (!parts.length || !parts.every((p) => TEXT_BAR.test(p))) return [];
+  const bars: Drawn[] = [];
+  for (const m of l.text.matchAll(/\S+/g)) {
+    const x0 = edgesOf(l, m.index!)?.[0] ?? l.x0, x1 = edgesOf(l, m.index! + m[0].length - 1)?.[1] ?? l.x1;
+    bars.push({ x: x0, y: l.bottom - 0.4 * l.size, w: x1 - x0, h: 0, image: false });
+  }
+  return bars;
+});
 
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
