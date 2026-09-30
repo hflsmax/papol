@@ -101,7 +101,10 @@ const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 // A line of capitalised words, a name set in small capitals whose
 // letters after the first reach the text layer in lowercase ("Free Ok",
-// "If (Multi-Outcome)"): a token only as the whole line (rule.shape.title).
+// "If (Multi-Outcome)"): a token only as the whole line, and only where the
+// line is weighed as a label itself; read as a neighbour it stays words (a
+// grammar's glosses, "Powerset Lattices", keep "Set 𝑈" a table's cell)
+// (rule.shape.title).
 const TITLED = new RegExp(`^\\s*(?<token>${RULE_SHAPE_TITLE.pattern!.source.slice(1, -1)})\\s*$`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 // A name as its shape is judged: mathematical letters folded to the
@@ -160,7 +163,7 @@ const SYMBOLIC = /stmary|symbol|txsy|cmsy|msam|msbm|esint|wasy|rsfs|MnSymbol/i;
 // is a variable, not a rule's side.
 const ITALIC = /italic|ital|cmmi|lmmi|(?:T|M|-)I\d*$|-It$|Italic/i;
 
-function tokenOf(line: Line, column = false): Token | null {
+function tokenOf(line: Line, column = false, titles = false): Token | null {
   const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
   const found = (match: RegExpExecArray | null, side: Token["side"]): Token | null => {
     if (!match?.groups) return null;
@@ -219,7 +222,9 @@ function tokenOf(line: Line, column = false): Token | null {
     }
     return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed, side, start, end: start + token.length };
   };
-  const whole = found(WHOLE.exec(text), "whole") ?? found(TITLED.exec(text), "whole");
+  // A whole line of capitalised words is a title's only (Set 𝑈 is a
+  // grammar's type former, not a name spaced from its capital).
+  const whole = found(WHOLE.exec(text), "whole") ?? (titles ? ((t) => (t && shapeOf(t.text) === "title" ? t : null))(found(TITLED.exec(text), "whole")) : null);
   if (whole) return whole;
   const headMatch = HEAD.exec(text);
   const head = found(headMatch, "head");
@@ -1629,7 +1634,7 @@ function unwrapped(page: Page, type: Type): Page {
   const out: Line[] = [];
   let split = false;
   for (const line of page.lines) {
-    const token = line.furniture ? null : tokenOf(line);
+    const token = line.furniture ? null : tokenOf(line, false, true);
     const k = token?.side === "tail" ? line.chars[token.start]?.run ?? -1 : -1;
     const whole = k > 0 && line.chars.slice(token!.start).every((c) => c.run < 0 || c.run >= k) && line.chars.slice(0, token!.start).every((c) => c.run < k)
       && line.runs.slice(k).map((r) => r.text).join("").trim() === line.text.slice(token!.start).trim();
@@ -1666,7 +1671,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line) ?? shortOf(line, false, true);
+      const token = tokenOf(line, false, true) ?? shortOf(line, false, true);
       // A lone letter or digit in brackets counts only beside a bar
       // (shortShape): elsewhere it tags an item or an equation.
       const setting = token && settingOf(page, line, token, type);
@@ -1682,7 +1687,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line, true) ?? phraseOf(line) ?? shortOf(line, true);
+      const token = tokenOf(line, true, true) ?? phraseOf(line) ?? shortOf(line, true);
       if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       const column = rows.filter((s) => (s.token.side === token.side || s.token.side === "whole") && Math.abs(edge(s.line, token.side) - edge(line, token.side)) <= 1 && Math.abs(s.line.size - line.size) <= 0.5
         && faceOf(s.line, s.token) === faceOf(line, token));
