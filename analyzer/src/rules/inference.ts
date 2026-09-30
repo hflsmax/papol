@@ -563,7 +563,10 @@ function concludes(page: Page, d: Drawn, type: Type): boolean {
 function dividing(page: Page, d: Drawn, type: Type): boolean {
   if (d.w < BAR_SHARE * (type.text.x1 - type.text.x0)) return false;
   const centre = d.x + d.w / 2;
-  const centred = (x0: number, x1: number) => Math.abs((x0 + x1) / 2 - centre) <= 2 * type.bodySize && x1 - x0 >= 0.3 * d.w;
+  // However short, a formula centred under it concludes (MWP-bind-gen's
+  // "mwp 𝐾[𝑒] {𝛷}" under a bar across the column); a caption or heading
+  // is set in the text's face.
+  const centred = (x0: number, x1: number, l?: Line) => Math.abs((x0 + x1) / 2 - centre) <= 2 * type.bodySize && (x1 - x0 >= 0.3 * d.w || (l !== undefined && /[\u{1D400}-\u{1D7FF}]/u.test(l.text) && faceOf(l) !== family(type.font)));
   const under = page.lines.filter((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading);
   // A brace reaching up past the bar is a piece all the same.
   const pieces = page.lines.filter((l) => !l.furniture && l.bottom > d.y + 1 && l.top <= d.y + type.leading);
@@ -579,7 +582,7 @@ function dividing(page: Page, d: Drawn, type: Type): boolean {
     }
     return [x0, x1];
   };
-  return !under.some((l) => centred(l.x0, l.x1) || centred(...whole(l)));
+  return !under.some((l) => centred(l.x0, l.x1, l) || centred(...whole(l)));
 }
 // The bar a step's conclusion leads into (the wider, or one as a tree
 // that does not nest has it: derivation), where no label of its
