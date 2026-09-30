@@ -1314,7 +1314,12 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // … and …" under E_Forget).
   // A side condition ("where 0−free(ℓ, E) and …") set in from the rule's
   // edge under its row is no running text either.
-  const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize
+  // Nor is a line set in from both edges of the paper's column, as a
+  // display is: a paragraph's lines start at the column's edge or an
+  // indent from it and fill it but the last (au-access-diaframe's "∅|⇛ match
+  // 𝑚𝑣 with None ⇒ … end").
+  const displayed = (l: Line) => ((c) => l.x0 > c.x0 + 2 * label.size && l.x1 < c.x1 - label.size)(type.columns.find((c) => c.x0 <= (l.x0 + l.x1) / 2 && (l.x0 + l.x1) / 2 <= c.x1) ?? type.text);
+  const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize && !displayed(l)
     && !(/^\s*(?:where|if|when|provided|unless)\b/i.test(l.text) && l.x0 > label.x0 + 2 * label.size);
   // Nor is a line set from the column's left edge reaching well left of
   // the bar and its label: a paragraph's line hard by a rule set in the
@@ -1375,8 +1380,16 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const fenced = (l: Line) => columns.length > 0 && ((l.x0 + l.x1) / 2 < label.x0 || (l.x0 + l.x1) / 2 > fence);
   // A label over a tall stack of premises reaches its bar's conclusion.
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
+  // A symbol drawn as a path, no text, is a piece of the row all the same
+  // (RustBelt's ⇛∗ between "▷P" and "&κfull P ∗ …" in LftL-borrow).
+  const glyphs = bar ? [] : page.drawn.filter((d) => d.w >= 1.5 && d.h > 1.5 && d.w <= 2 * label.size && d.h <= 2 * label.size);
   for (let grew = true; grew;) {
     grew = false;
+    for (const d of glyphs) {
+      if (d.x > x1 + slack || d.x + d.w < x0 - slack || (d.x >= x0 && d.x + d.w <= x1) || fenced({ x0: d.x, x1: d.x + d.w } as Line)) continue;
+      if (![...taken].some((t) => t !== label && d.y < t.bottom && d.y + d.h > t.top && sameColumn(page, t, label))) continue;
+      x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x + d.w);
+    }
     for (const line of lines) {
       if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
       if (![...taken].some((t) => (tall.includes(t) || tall.includes(line) ? levelBy(t, line, label.size) : level(t, line)))) continue;
