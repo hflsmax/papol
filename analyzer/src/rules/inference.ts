@@ -1523,7 +1523,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // Its braces, however tall, carry the stack on: one opening on its
       // last line, reaching down past it, takes in what it brackets
       // (rc-commit-spec's postcondition, two cases in one tall ⟨ ⟩).
-      const braces = [...taken].filter((t) => STRETCHED.test(t.text) && t.size > 2 * label.size);
+      // A tall bracket may reach the layout with the big operator inside it
+      // on its line ("⟨ ⊛ .𝑘 ↦ 𝑉 ⟩" of ru-commit-spec's postcondition).
+      const delimited = (l: Line) => l.size > 2 * label.size && (STRETCHED.test(l.text) || /^\s*[⟨({[⦃]/u.test(l.text));
+      const braces = [...taken].filter(delimited);
       const stack = [...taken].filter((t) => !braces.includes(t));
       // A brace closing on the stack's last line ends there with it.
       const end = ((e) => Math.max(e, ...braces.filter((b) => b.bottom <= e + type.leading).map((b) => b.bottom)))(Math.max(...stack.map((t) => t.bottom)));
@@ -1540,12 +1543,12 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // A row set level with such braces stands centred on them, further
       // down than a line's leading (Abs-Hb-Enq's "⟨𝐺, vs. Queue(…)⟩ enq(q, v)"
       // beside its postcondition's two lines).
-      const talls = page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size);
-      const opens = (d: Line) => d.x0 >= from - label.size && d.x0 <= to + 2 * label.size && d.top >= last - label.size && d.top <= end + 0.6 * type.leading && d.bottom > end + type.leading;
+      const talls = page.lines.filter((l) => !l.furniture && delimited(l) && l.size <= 12 * label.size);
+      const opens = (d: Line) => d.x0 >= from - label.size && d.x0 <= to + 2 * label.size && d.top >= last - label.size && d.top <= end + type.leading && d.bottom > end + type.leading;
       for (const line of [...lines, ...talls]) {
         const tallOne = talls.includes(line);
         if (taken.has(line) || line.x0 < from - label.size || (line.x0 > (tallOne ? to + 2 * label.size : to) && !bracketed(line)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole" || line.top >= next - 1) continue;
-        const opening = tallOne && opens(line) && line.top < end + 0.6 * type.leading;
+        const opening = tallOne && opens(line);
         const centred = !tallOne && line.top > end - 1 && talls.some((d) => opens(d) && levelBy(d, line, label.size));
         if (!opening && !centred && !bracketed(line) && (tallOne && line.x0 > to || line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2))) continue;
         // Upright words with no relation among them head what follows
