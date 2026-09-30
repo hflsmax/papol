@@ -263,6 +263,7 @@ const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furni
 // one within a few lines at the production's own indent ("| f" in "H | f"
 // is a heap).
 const GRAMMAR = /⩴|::=|∷=|∶∶=|:=[^|]*\|/u;
+const SIGN = /^\s*(?:⩴|::=|∷=|∶∶=|:=)\s*$/u;
 function production(line: Line, page: Page, type: Type, depth = 0): boolean {
   if (GRAMMAR.test(line.text)) return true;
   // A grammar may set a spaced colon for its sign, the "|" of its
@@ -273,6 +274,13 @@ function production(line: Line, page: Page, type: Type, depth = 0): boolean {
     const next = (l: Line) => l !== line && l.top > line.top + 1 && l.top <= line.bottom + type.leading;
     if (page.lines.some((l) => next(l) && /^\s*\|/.test(l.text) && Math.abs(l.x0 - colon) <= line.size)) return true;
     if (page.lines.some((l) => next(l) && colonAt(l) !== null && production(l, page, type, depth + 1))) return true;
+  }
+  // A grammar's sign may be set as a line of its own, the signs stacked
+  // in a column and the "|" of the alternatives hung under the last
+  // ("Parser 𝑃" beside ":=" over ":=" over "|").
+  if (SIGN.test(line.text) && depth <= 12) {
+    const under = (l: Line) => l !== line && l.top > line.top + 1 && l.top <= line.bottom + type.leading && Math.abs(l.x0 - line.x0) <= line.size;
+    if (page.lines.some((l) => under(l) && (/^\s*\|\s*$/.test(l.text) || (SIGN.test(l.text) && production(l, page, type, depth + 1))))) return true;
   }
   if (!/^\s*\|/.test(line.text) || depth > 12) return false;
   const over = (l: Line) => Math.abs(l.x0 - line.x0) <= 4 * line.size && l.top < line.top && l.top >= line.top - 1.5 * type.leading;
@@ -848,7 +856,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // reaching well past the row parts a figure ((obs) over one).
   const from = Math.min(label.x0, ...row.map((l) => l.x0)), to = Math.max(label.x1, ...row.map((l) => l.x1));
   if (bars.some((b) => b.y > label.bottom - 1 && b.y - label.bottom <= type.leading && Math.abs(b.x - from) <= 2 * label.size && Math.abs(b.x + b.w - to) <= 2 * label.size)) return { category: "none", bar: null, row, side: "right" };
-  return side && RELATION.test(text + " " + levelled) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
+  // A relation only inside a note of figures is a table's measurement,
+  // no row's ("✗ (2.3s / B=4)" beside a benchmark).
+  const figured = (t: string) => t.replace(/\([^()]*\d[^()]*\)/gu, " ");
+  return side && RELATION.test(figured(text + " " + levelled)) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
 }
 
 // ------------------------------------------------------------ pass 3: names
@@ -1325,8 +1336,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const atBar = (c: Candidate) => (c.setting.category === "beside" || c.setting.category === "over") && Boolean(c.setting.bar);
   // The face, and whether at the text's size or a figure's, whatever
   // size a figure is scaled to (Fig. 7's labels set at 6.5pt, Fig. 26's
-  // at 9pt).
-  const style = (c: Candidate) => `${c.convention.split("|")[3]}|${Math.abs(c.line.size - type.bodySize) <= 0.25 ? "text" : "figure"}`;
+  // at 9pt). A text italic and a math italic are one face to the reader
+  // (Work among ⊕𝑅 and ∃𝑅).
+  const italics = (faces: string) => [...new Set(faces.split("+").map((f) => (ITALIC.test(f) ? "italic" : f)))].sort().join("+");
+  const style = (c: Candidate) => `${italics(c.convention.split("|")[3])}|${Math.abs(c.line.size - type.bodySize) <= 0.25 ? "text" : "figure"}`;
   const styles = new Map<string, number>();
   for (const c of candidates) if (!weak(c) && atBar(c)) styles.set(style(c), (styles.get(style(c)) ?? 0) + 1);
   const ruled = [...styles.values()].reduce((a, b) => a + b, 0) >= 8;

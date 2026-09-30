@@ -231,16 +231,18 @@ export const FLOAT_RULED = rule({
 
 // The shapes a rule's name may take. Small capitals reach the text layer
 // as capitals or in lowercase by font, so a name is matched without
-// regard to case, and a wholly lowercase prefix is kept short.
+// regard to case, and a wholly lowercase prefix is kept short (accented
+// letters as in naïve-⊕PL).
 // A part is letters and digits, or connectives, and may end in a sign
 // (WF-var+, Rel-Fun±, S-Trans′); parts are joined by a hyphen, a colon
 // or a slash (T:Proc, Step/Seq, Program_E).
 // The connectives a symbol name is made of, or a part of a hyphenated
-// name may be (→L, ×T, Sem-⊤, ≤-Base, Prf-⊃-Intro).
-export const RULE_CONNECTIVES = "→⇒⇓⇛⇝↪⤳∀∃⊢⊣⊨⊩⊗⊕⊸⊠∧∨¬<:=≤≥≼≽⪯⪰⊑⊒⊂⊃⊆⊇×+&∼~⋍≃≈≡⊲⊳▷◁⊤⊥∂⋆∘";
+// name may be (→L, ×T, Sem-⊤, ≤-Base, Prf-⊃-Intro); linear logic's
+// exponentials among them (?R, !L).
+export const RULE_CONNECTIVES = "→⇒⇓⇛⇝↪⤳∀∃⊢⊣⊨⊩⊗⊕⊸⊠∧∨¬<:=≤≥≼≽⪯⪰⊑⊒⊂⊃⊆⊇×+&∼~⋍≃≈≡⊲⊳▷◁⊤⊥∂⋆∘?!";
 const RULE_SIGN = "(?:[+−±†‡♠♣♦*∗?!↓↑'′’-]{1,2})";
 const RULE_PART = "(?:[\\p{L}\\d][\\p{L}\\d'′’]*" + RULE_SIGN + "?|[" + RULE_CONNECTIVES + "*∗|/]+[\\p{L}\\d" + RULE_CONNECTIVES + "*∗|/'′]*)";
-export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,3}(?:\\|[a-z]{1,3})+|[a-z]{1,8}(?:[A-Z][a-z]{0,8}){1,2}|\\p{Script=Greek}{1,2}|[" + RULE_CONNECTIVES + "]{1,2})(?:[-‐‑–−:/_]" + RULE_PART + ")+(?: ?\\([\\p{L}\\d]{1,4}\\))?";
+export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-zà-öø-ÿ]{1,8}|[a-z]{1,3}(?:\\|[a-z]{1,3})+|[a-z]{1,8}(?:[A-Z][a-z]{0,8}){1,2}|\\p{Script=Greek}{1,2}|[" + RULE_CONNECTIVES + "]{1,2})(?:[-‐‑–−:/_]" + RULE_PART + ")+(?: ?\\([\\p{L}\\d]{1,4}\\))?";
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
@@ -262,7 +264,7 @@ export const RULE_SHAPE_HYPHEN = rule({
   summary: "A hyphenated name: a prefix of a capital and up to nineteen letters (up to eight when all lowercase, short lowercase modes joined by bars (c|q), camelCase, a lowercase word and one or two capitalised ones after it, one or two Greek letters, or one or two connectives), then one or more parts in any case, or of connectives, joined by a hyphen (a minus sign too, as Hyper Hoare Logic's text layer reads While−∀∗∃∗), a colon, a slash or an underscore, a part may end in a sign (a trailing hyphen too), and the name in a short parenthesised tag (\"T-App\", \"LT-APP\", \"k-var\", \"cmpList-Nil\", \"S-refl\", \"DEC-<:-BASE\", \"WF-var+\", \"WF-var-\", \"β-reduction\", \"T:Proc\", \"≤-Base\", \"Sem-⊤\", \"cbncoeff-app\", \"extS-addSk\"); Curry-Howard is one by shape and told apart by its setting.",
   why: "acmart's small capitals reach the text layer in lowercase, so the parts may be in any case; \"call-by-name\" and \"well-typed\" are names by shape and told apart by their setting. Generic Refinement Types ends names in a sign, Hyper Hoare Logic in a quantifier, Ownership Types in a colon; PACMPL papers since 2024 prefix names with a judgment's whole word (MAInconsistentTypes-C, bigbmix-frame) or a connective (≤-Base) and end parts in one (Sem-⊤, bdg-∂).",
   pattern: new RegExp("^" + RULE_NAME + "$", "u"),
-  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red", "WF-var-", "MAInconsistentTypes-C", "bigbmix-frame", "cbncoeff-app", "extS-addSk", "cmpList-Cons", "T-Letmod’", "E-Op♠†", "Sem-⊤", "≤-Base", "Prf-⊃-Intro", "bdg-∂", "c|q-Splice", "c|q-Sub-Expr", "⪯-Base", "While−∀∗∃∗"],
+  matches: ["T-App", "LT-APP", "E-Beta", "WT-Fun", "DEC-<:-BASE", "S-Trans", "R-IfTrue", "Ty-Lam", "E-β", "T-App-Abs", "S-refl", "k-var", "pgm-dt", "t-named", "C-trans", "a-kapp-kuvar", "WF-var+", "Rel-Fun±", "β-reduction", "T:Proc", "Step/Seq", "Program_E", "While-∀*∃*", "DS-∀", "PiggyBank-Persist", "coeff-var", "tcwf-app", "Curry-Howard", "call-by-name", "thoare-inv", "η-Red", "WF-var-", "MAInconsistentTypes-C", "bigbmix-frame", "cbncoeff-app", "extS-addSk", "cmpList-Cons", "T-Letmod’", "E-Op♠†", "Sem-⊤", "≤-Base", "Prf-⊃-Intro", "bdg-∂", "c|q-Splice", "c|q-Sub-Expr", "⪯-Base", "While−∀∗∃∗", "naïve-⊕PL"],
   rejects: ["T-", "-App", "jump", "T-App:", "(T-App)", "Choice(L)", "|q-Nat"],
 });
 export const RULE_SHAPE_SPACED = rule({
@@ -286,7 +288,7 @@ export const RULE_SHAPE_SYMBOL = rule({
   summary: "A symbol name: one or two connectives, or a digit or a truth constant, with one to three side letters and a digit (\"→L\", \"∀R\", \"⊗L\", \"×T\", \"+I0\", \"1I\", \"⊕PR\", \"⊤T\"), a connective with a digit or ∞ (\"⋍0\", \"=0\", \"=inf\") or a word of two to twelve letters or a Greek letter, with a side after a slash (\"∼Empty\", \"<:eq\", \"<:reft/l\", \"≡inst\", \"≡κ/l\"), one or two capitals and a connective (\"L→\"), or a capitalised word, a connective and one to three lowercase letters (\"St+i\", \"St+uu\"), as sequent calculi and logical relations name their rules.",
   why: "Sequent Calculus as a Compiler IR names →L and ∀R beside their bars and cites them so; a call-by-push-value paper names ×T, +T, 1I and &T after the connective; a bidirectional typing paper names ∼Empty, ⋍0 and ⋍∞; PACMPL subtyping and equivalence papers name <:eq, <:reft/l and ≡inst after the relation; a bidirectional typing paper names its addition's steps St+i and St+uu after the step judgment.",
   pattern: new RegExp("^(?:[" + RULE_CONNECTIVES + "]{1,2}(?:[A-Z]{1,3}\\d?|\\d|∞|\\p{L}{2,12}(?:/\\p{L}{1,2})?|\\p{Script=Greek}(?:/\\p{L}{1,2})?)|[\\d⊤⊥][A-Z]{1,3}\\d?|[A-Z]{1,2}[" + RULE_CONNECTIVES + "]{1,2}|[A-Z][a-z]{1,11}[" + RULE_CONNECTIVES + "]\\p{Ll}{1,3})$", "u"),
-  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu"],
+  matches: ["→L", "∀R", "⊗L", "L→", "∀L", "×T", "+I0", "&T", "1I", "⊕PR", "⊲V", "⋍0", "⋍∞", "∼Empty", "<:eq", "<:reft/l", "≡inst", "≡κ/l", "~Cons", "=0", "=inf", "⊤T", "▷V", "St+i", "St+uu", "?R", "!L"],
   rejects: ["→", "L", "→→→L", "→l", "12", "∞", "<:a"],
 });
 export const RULE_SHAPE_PHRASE = rule({
