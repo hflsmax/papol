@@ -1412,7 +1412,17 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         // A row centred over the bar may run past its ends (Wp-Conj's side
         // conditions "idx(Q₁) ⊆ supp(t₁) …" over its premise).
         const centred = Math.abs((line.x0 + line.x1) / 2 - (bar.x + bar.w / 2)) <= label.size && line.x1 - line.x0 <= 2 * bar.w;
-        if (taken.has(line) || (!centred && (line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        // A name's shape on a premise's row is a premise all the same
+        // ("red(𝜌₁)" beside step-exp's "Pr_step(𝜌₁)[¬𝑅] ≤ 𝜀").
+        if (taken.has(line) || (!centred && (line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size)) || !sameColumn(page, line, label)
+          || (tokenOf(line)?.side === "whole" && ![...taken].some((t) => t !== label && t.bottom < bar.y + 1 && onRow(t, line)))) continue;
+        // A big operator's glyph the layout set apart, reaching down into
+        // the premise it opens, is that premise's: the premises over it
+        // stack on from its top (step-exp's ∑ between "red(𝜌₁)" and
+        // "𝜀₁ + ∑ … ≤ 𝜀").
+        const operator = line.text.trim().length === 1 && line.runs.every((r) => !/\S/.test(r.text) || EXTENSION.test(r.font) || BIG_OPERATOR.test(r.text)) && line.top < start
+          && line.bottom > start - 1 && over.some((t) => t.top <= start + 1 && t.x0 <= line.x1 + label.size && t.x1 >= line.x0 - label.size);
+        if (operator) { taken.add(line); grew = true; continue; }
         if (line.bottom > start + 1 || start - line.bottom > 0.6 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
         // Upright words in the text's face are a note beside the rules
         // ("No ⊤L rules"), no premise; with a relation between them they
