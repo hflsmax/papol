@@ -21,7 +21,7 @@
 import type { DocumentLink } from "../../../cloudflare/src/papers/reading";
 import { citedAway } from "./cited";
 import { typeOf, type Found, type Type } from "./floats";
-import { boxesOf, type Flow, type Layout, type Line } from "./layout";
+import { BIG_OPERATOR, boxesOf, type Flow, type Layout, type Line } from "./layout";
 import type { Drawn } from "./page";
 import {
   RULE_CONNECTIVES,
@@ -334,8 +334,16 @@ function sameColumn(page: Page, a: Line, b: Line): boolean {
 // into a rule). A big operator is no broken font: a line whose large runs
 // hold no letter is sized by its lettered ones (multris' ⁎ over its
 // range "𝑖 ↦ p ∈ p⃗"); a big brace's pieces are no letters ("Û" for ⋀).
+// So is a big operator set alone with its limits under or over it
+// (PROTO-ALLOC's ∗ over "i ↦ p ∈ p⃗"); one bare, or with only a big
+// bracket's pieces beside it, stands as tall as its size, lines over and
+// under.
 const lettered = (l: Line) => ((runs) => (runs.length ? Math.max(...runs.map((r) => r.size)) : l.size))(l.runs.filter((r) => /\p{L}/u.test(r.text) && !EXTENSION.test(r.font)));
-const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furniture && l !== label && (l.size <= 2 * label.size || lettered(l) <= 2 * label.size) && /[^\s\p{C}]/u.test(l.text));
+function limited(l: Line): boolean {
+  const op = l.runs.filter((r) => !r.sub && !r.sup);
+  return BIG_OPERATOR.test(op.map((r) => r.text).join("")) && l.runs.some((r) => (r.sub || r.sup) && op.some((o) => r.x < o.x + o.width && r.x + r.width > o.x));
+}
+const ruleLines = (page: Page, label: Line) => page.lines.filter((l) => !l.furniture && l !== label && /[^\s\p{C}]/u.test(l.text) && (l.size <= 2 * label.size || lettered(l) <= 2 * label.size || limited(l)));
 
 // What a line level with a bracketed word says when the word comments a
 // grammar production: the production itself, or a "|" alternative under
@@ -1062,10 +1070,14 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // Ending a line of a conclusion set over several lines, each hard under
   // the last from the bar down within its span, and past the bar's end,
   // the label stands beside that rule (ExecCallback at its call's line,
-  // between the precondition and the postcondition under the bar).
+  // between the precondition and the postcondition under the bar). No
+  // other stroke stands between: a row over a bar of its own is that
+  // rule's (P-Seq's premise under P-Arm's conclusion), a row in a frame
+  // a judgment's form ("⊢ σ ⊲ σ₁ → σ₂" boxed under LT-LAMC).
   if (row.every((l) => l.x1 <= label.x0 + tolerance(l, label))) {
     const hung = page.drawn.filter((d) => across(d) && d.w >= 2 * label.size && d.y < label.top && d.y >= label.top - REACH * type.leading && d.x + d.w <= label.x0 && !framed(page, d) && !overline(page, d, type) && !struck(page, d)
       && row.every((l) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
+      && !page.drawn.some((e) => e !== d && across(e) && e.w >= label.size && e.y > d.y + 1 && e.y < label.bottom && e.x < d.x + d.w && e.x + e.w > d.x)
       && lines.some((l) => l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
       && ((stack) => {
         let end = d.y;
@@ -1825,9 +1837,11 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // ("(RegRoot)" after its Hoare triple, cited as RegRoot): a group's
   // title is a plain word. A row left open by a connective is a conjunct
   // of a definition running on under it, no rule ("(lockedExcl)" after
-  // "□ (∀s₁, s₂. …) ∧").
+  // "□ (∀s₁, s₂. …) ∧"); a name another label sets at its bar is that
+  // rule's, cited by a proof's step ("(HavocS)" after HavocS's rule).
   const conjunct = (c: Candidate) => /[∧∨∗]\s*$/u.test([...c.setting.row].sort((a, b) => a.x0 - b.x0).map((l) => l.text).join(" "));
-  const titled = (c: Candidate) => !camel(c.token.text) || conjunct(c) || !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, new Set(candidates.map((o) => o.line)), faceOf(c.line, c.token), type);
+  const named = (c: Candidate) => candidates.some((o) => o !== c && Boolean(o.setting.bar) && keyOf(fold(o.token.text)) === keyOf(fold(c.token.text)));
+  const titled = (c: Candidate) => !camel(c.token.text) || conjunct(c) || named(c) || !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, new Set(candidates.map((o) => o.line)), faceOf(c.line, c.token), type);
   const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2 && titled(c);
   for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !tagged(c));
