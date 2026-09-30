@@ -1417,6 +1417,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     for (const line of lines) {
       if (taken.has(line) || (line.x0 > x1 + slack && (bar || blankBetween(page, { x1 }, line) > slack)) || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
+      // A bar is about as wide as its rule's widest line: one running far
+      // past an end of the rule is another rule's, touching a premise
+      // over it (T-While's axiom over T-Read's and T-ReadL's premises).
+      if (bar && (line.x0 < x0 - 4 * label.size || line.x1 > x1 + 4 * label.size)) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
       // (a big operator splits "⨁ₓ Pₓ ⊢ (⨁ₓ Pₓ) + (⨁ₓ Qₓ)" into lines).
@@ -1466,6 +1470,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line)) continue;
         // A lone glyph (a piece of the next line's tall brace) runs nothing on.
         if (line.top < end - 1 || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
+        // Upright words with no relation between them head the next
+        // group ("Fuel burning, fork and the full transition of OM" under
+        // oms-expects-ep's conclusion): no conclusion runs on in words.
+        if (!RELATION.test(line.text) && line.runs.filter((r) => /\p{L}{3}/u.test(r.text) && !ITALIC.test(r.font) && !SYMBOLIC.test(r.font) && !MONO.test(r.font)).reduce((n, r) => n + r.text.split(/\s+/).filter((w) => /\p{L}{3}/u.test(w)).length, 0) >= 3) continue;
         taken.add(line); grew = true;
       }
     }
