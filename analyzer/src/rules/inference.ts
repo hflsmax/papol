@@ -1775,7 +1775,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
-      if (scripted) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      // So is a line of its own set smaller within a larger line's span on
+      // its row, off its baseline: the index of a relation the layout split
+      // off (NOM under the "d" of noms-exchanges-fuel's conclusion).
+      const indexing = page.lines.some((o) => o !== line && !o.furniture && o.size >= 1.25 * line.size && level(o, line) && o.x0 < line.x0 - 1 && o.x1 > line.x1 + 1
+        && Math.abs(o.baseline - line.baseline) >= 0.2 * line.size);
+      if (scripted || indexing) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A short name set a blank apart from its row, as a label is: one
       // hard by it is a piece of the formula the layout split off ("(Γ)"
       // after a big ⨂).
