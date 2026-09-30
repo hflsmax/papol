@@ -330,7 +330,7 @@ function readingOrder(lines: Line[], bodySize: number): { lines: Line[]; twoColu
 
 const shape = (text: string) => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim().toLowerCase();
 
-function markFurniture(pages: Layout["pages"]): void {
+function markFurniture(pages: Layout["pages"], bodySize: number): void {
   const seen = new Map<string, number>();
   const marginal = (line: Line, height: number) => line.top < height * MARGIN || line.bottom > height * (1 - MARGIN);
   for (const page of pages) {
@@ -344,8 +344,11 @@ function markFurniture(pages: Layout["pages"]): void {
   // A page with wide margins sets its running head further in (ACM's
   // journals on a letter page, 12% down): further in, only a line that
   // recurs at the very height it sits at on a quarter of the pages is one
-  // — not a margin's line number, which recurs as much.
+  // and is set apart from the text — not a margin's line number, which
+  // recurs as much, nor a sentence a paper repeats.
   const outer = (line: Line, height: number) => line.top < height * OUTER || line.bottom > height * (1 - OUTER);
+  // Set apart from the text as a running head is: smaller, or in italic.
+  const apart = (line: Line) => line.size < bodySize - 0.5 || line.runs.filter((r) => /\p{L}/u.test(r.text)).every((r) => r.italic || /ital|obli/i.test(r.font));
   const placed = (line: Line) => `${shape(line.text)}\n${Math.round(line.top / 2)}`;
   const at = new Map<string, number>();
   for (const page of pages) {
@@ -353,7 +356,7 @@ function markFurniture(pages: Layout["pages"]): void {
   }
   for (const page of pages) for (const line of page.lines) {
     if (!marginal(line, page.height)) {
-      if (outer(line, page.height) && shape(line.text) !== "#" && (at.get(placed(line)) ?? 0) >= Math.max(RECURS, pages.length / 4)) line.furniture = true;
+      if (outer(line, page.height) && apart(line) && shape(line.text) !== "#" && (at.get(placed(line)) ?? 0) >= Math.max(RECURS, pages.length / 4)) line.furniture = true;
       continue;
     }
     const s = shape(line.text);
@@ -367,7 +370,7 @@ export function layout(doc: Doc): Layout {
     number: page.number, width: page.width, height: page.height, twoColumn: false, drawn: page.drawn,
     lines: buildLines(page).map((runs) => lineOf(runs, page.number)),
   }));
-  markFurniture(pages);
+  markFurniture(pages, bodySize);
   for (const page of pages) {
     const ordered = readingOrder(page.lines, bodySize);
     page.lines = ordered.lines;
