@@ -755,7 +755,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const gapTo = (d: Drawn) => Math.max(0, d.x - label.x1, label.x0 - (d.x + d.w));
   const blankTo = (d: Drawn) => {
     const from = Math.min(label.x1, d.x + d.w), to = Math.max(label.x0, d.x);
-    return (d.x + d.w <= label.x0 + slack || (edged && d.x >= label.x1 - slack)) && gapTo(d) <= (edged ? 2 * FAR : FAR) * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
+    return (d.x + d.w <= label.x0 + slack || (edged && d.x >= label.x1 - slack)) && gapTo(d) <= (edged && d.x >= label.x1 - slack ? 2 * FAR : FAR) * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
       && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from);
   };
   // What counts as a rule's bar (rule.bar).
@@ -1396,6 +1396,9 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       for (const l of lines) {
         if (l.top > bar.y + 0.5 * l.size || l.bottom < bar.y - 0.5 * l.size || tokenOf(l)?.side === "whole" || !sameColumn(page, l, label)) continue;
         if (!(l.x0 >= bar.x + bar.w - label.size && l.x0 - bar.x - bar.w <= 2 * label.size) && !(l.x1 <= bar.x + label.size && bar.x - l.x1 <= 2 * label.size)) continue;
+        // One over or under a bar of its own is the next rule's premise or
+        // conclusion (AltNNot WHNF's beside AltNWHNF).
+        if (page.drawn.some((d) => d !== bar && across(d) && d.w >= 2 * label.size && d.x < l.x1 && d.x + d.w > l.x0 && (Math.abs(d.y - l.bottom) <= 0.5 * type.leading || Math.abs(d.y - l.top) <= 0.5 * type.leading))) continue;
         taken.add(l); x0 = Math.min(x0, l.x0); x1 = Math.max(x1, l.x1);
       }
     }
