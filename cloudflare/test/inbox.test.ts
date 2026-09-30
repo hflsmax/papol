@@ -81,7 +81,7 @@ describe("feedback", () => {
     };
     const sent = await ok("POST", "/api/feedback", { headers: reporter.headers, json: { content: "Boxes overlap", page: "/viewer/p1", context } });
     expect(sent.context).toEqual(context);
-    const [listed] = await ok("GET", "/api/admin/feedback", { headers: admin.headers });
+    const listed = (await ok("GET", "/api/admin/feedback", { headers: admin.headers }))[0];
     expect(listed.context).toEqual(context);
     const [mail] = (await rows("SELECT payload FROM jobs WHERE kind = 'send_email'")).map((j) => JSON.parse(j.payload as string));
     expect(mail.body).toContain('Where: /viewer/p1 "Effect Handlers, Evidently" in Effects');
