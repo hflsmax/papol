@@ -326,6 +326,9 @@ function framed(page: Page, d: Drawn): boolean {
   return page.drawn.some((v) => v !== d && through(v)
     && ((upright(v) && v.h >= 3 && ends(v))
       || (v.w > 1.5 && v.h > 1.5 && Math.abs(v.x - d.x) <= 1.5 && Math.abs(v.x + v.w - d.x - d.w) <= 1.5)
+      // Laid along a box's top or bottom edge within its span: a plot's
+      // flat series on its axis (a memory curve at its floor over "iterations").
+      || (v.w > 1.5 && v.h > 1.5 && (Math.abs(v.y - d.y) <= 0.5 || Math.abs(v.y + v.h - d.y) <= 0.5) && v.x <= d.x + 0.5 && v.x + v.w >= d.x + d.w - 0.5)
       || (v.w > 1.5 && v.w <= 8 && v.h > 1.5 && v.h <= 8 && [d.x, d.x + d.w].some((end) => end >= v.x - 2 && end <= v.x + v.w + 2))));
 }
 

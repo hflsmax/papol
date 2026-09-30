@@ -1,0 +1,13 @@
+{"rules": [
+  {"page": 12, "name": "T-Local", "box": [154.1, 87.5, 440.7, 112.2]},
+  {"page": 12, "name": "T-Load", "box": [149.2, 120.3, 440.7, 145.0]},
+  {"page": 12, "name": "T-Store", "box": [147.3, 153.1, 440.7, 177.8]},
+  {"page": 12, "name": "T-Sync-Arrive", "box": [158.3, 213.9, 440.7, 238.5]},
+  {"page": 12, "name": "T-Sync-Execute", "box": [123.1, 247.1, 440.7, 276.0]},
+  {"page": 12, "name": "G–Collective-Local", "box": [110.1, 312.6, 440.6, 340.7]},
+  {"page": 12, "name": "G–Collective-Subgroup", "box": [95.5, 349.9, 440.7, 394.6]},
+  {"page": 12, "name": "G–Collective-Mem", "box": [92.7, 403.7, 440.7, 448.5]},
+  {"page": 13, "name": "T-Ubranch", "box": [258.7, 334.8, 440.7, 376.6]},
+  {"page": 13, "name": "T-Cbranch", "box": [256.0, 390.7, 440.6, 432.4]},
+  {"page": 13, "name": "G–Collective-Cbranch", "box": [253.0, 446.5, 440.7, 538.9]}
+]}
