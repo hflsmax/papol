@@ -79,7 +79,7 @@ export function Faces({ users, max = 4 }) {
 
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
-export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead }) {
+export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard }) {
   const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -260,7 +260,7 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 onRead={onRead}
               />
             )}
-            {view === 'boards' && <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} />}
+            {view === 'boards' && <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} onOpenBoard={onOpenBoard} />}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
           </div>
         </>
@@ -696,9 +696,11 @@ function useWide(query = '(min-width: 1000px)') {
 }
 
 // The project's boards, which every member arranges; a board is known by
-// its shape, so its map is the card. The last tile is the one way to make
-// one more.
-function ProjectBoards({ project, act, hasNews, currentUser }) {
+// its shape, so its map is the card. A board picked here opens its jacket,
+// as it does from the nook and the Bazaar, and so does one just made; the
+// canvas is the jacket's way in. The last tile is the one way to make one
+// more.
+function ProjectBoards({ project, act, hasNews, currentUser, onOpenBoard }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -711,14 +713,14 @@ function ProjectBoards({ project, act, hasNews, currentUser }) {
     setBusy(true);
     const board = await act(() => createProjectBoard(project.uuid, next));
     setBusy(false);
-    if (board) window.location.assign(appPath(`/boards/${board.uuid}`));
+    if (board) onOpenBoard(board.uuid);
   };
   return (
     <section className="project-section" aria-label="Boards">
       <ul className="project-boards project-grid">
         {boards.map((board) => {
           const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
-          const href = appPath(`/boards/${board.uuid}`);
+          const href = appPath(`/board/${board.uuid}`);
           const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
           return (
             <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">

@@ -310,6 +310,13 @@ function answer(method, path, search, sent = {}) {
     const own = personal.find((d) => d.uuid === dig[1]);
     return own ? personalOf(own) : digOf(dig[1]);
   }
+  // A project's board, as any member reads it: it is on the project.
+  const projectBoardAsked = boards.find((b) => path === `/boards/${b.uuid}`);
+  if (projectBoardAsked) {
+    const onIt = papers.slice(0, 2);
+    const items = onIt.map((p, i) => ({ uuid: `af00000${i}-0000-4000-8000-000000000001`, kind: 'excerpt', source_url: `https://papol.io/viewer/?pdf=${p.sha256}`, source_label: p.title, excerpt_text: null, content: null, x: 40 + i * 260, y: 60 + i * 40, width: 220, height: 140 }));
+    return { ...projectBoardAsked, items, project: { uuid: PROJECT, name: summary.name }, digs: {}, staged_items: [], papers: onIt.map(({ sha256, title, authors, year }) => ({ sha256, title, authors, year })), groups: [], revision: 1, user_uuid: projectBoardAsked.owner.uuid, can_edit: true, created_at: daysAgo(9) };
+  }
   const nookBoardAsked = NOOK_BOARDS.find((b) => path === `/boards/${b.uuid}`);
   if (nookBoardAsked) {
     const onIt = nookBoardAsked === NOOK_BOARDS[1] ? papers.slice(0, 2) : [];
