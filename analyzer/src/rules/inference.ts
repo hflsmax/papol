@@ -696,6 +696,19 @@ function framedLabel(page: Page, label: Line): boolean {
   return side(top.x) && side(top.x + top.w);
 }
 
+// The blank between two pieces of a row, less what is drawn in it on the
+// row: a symbol set as paths, not text (Iris's ⇛∗ between "[†𝛼]" and
+// "⊲ 𝑃" under LftL-borrow), fills the blank it leaves.
+function blankBetween(page: Page, a: { x1: number }, b: Line): number {
+  const from = a.x1, to = b.x0;
+  if (to <= from) return to - from;
+  const marks = page.drawn.filter((d) => d.x < to && d.x + d.w > from && d.y < b.bottom && d.y + d.h > b.top && d.h <= 2 * b.size && d.w <= 2 * b.size)
+    .map((d) => [Math.max(from, d.x), Math.min(to, d.x + d.w)] as [number, number]).sort((p, q) => p[0] - q[0]);
+  let covered = 0, end = from;
+  for (const [x0, x1] of marks) { if (x1 > end) { covered += x1 - Math.max(x0, end); end = x1; } }
+  return to - from - covered;
+}
+
 // A vertical stroke or a box's edge crossing the label's row between the
 // label and its row: the row is a diagram's other panel or a listing's.
 function walled(page: Page, label: Line, span: [number, number], row: Line[]): boolean {
@@ -1011,7 +1024,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
       grew = false;
       for (const l of lines) {
         if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label)) || barred(l)) continue;
-        if (under.some((u) => (Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size)) { under.push(l); grew = true; }
+        if (under.some((u) => (Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && (Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size || (u.x1 <= l.x0 && blankBetween(page, u, l) <= 2 * label.size)))) { under.push(l); grew = true; }
       }
     }
     const x0 = Math.min(...under.map((l) => l.x0)), x1 = Math.max(...under.map((l) => l.x1)), bottom = Math.max(...under.map((l) => l.bottom));
@@ -1402,7 +1415,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
-      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
+      if (taken.has(line) || (line.x0 > x1 + slack && (bar || blankBetween(page, { x1 }, line) > slack)) || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
