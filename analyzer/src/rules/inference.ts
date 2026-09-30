@@ -27,11 +27,11 @@ import {
   RULE_CONNECTIVES,
   RULE_BAR,
   RULE_BOX, RULE_CANDIDATE, RULE_CELL, RULE_CONVENTION, RULE_DERIVATION, RULE_HEADING, RULE_MENTION, RULE_NAME_BESIDE, RULE_NAME_LETTERS,
-  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_WORD,
+  RULE_NAME_MARGIN, RULE_NAME_OVER, RULE_NAME_ROW, RULE_SETTING, RULE_SHAPE_HYPHEN, RULE_SHAPE_PHRASE, RULE_SHAPE_SPACED, RULE_SHAPE_SYMBOL, RULE_SHAPE_WORD,
 } from "./registry";
 import type { Trace } from "./trace";
 
-export type Shape = "hyphen" | "spaced" | "word" | "symbol";
+export type Shape = "hyphen" | "spaced" | "word" | "symbol" | "phrase";
 export type Category = "beside" | "over" | "row" | "margin";
 
 export interface Rule extends Found {
@@ -160,8 +160,11 @@ function tokenOf(line: Line, column = false): Token | null {
     if (/^\p{L}/u.test(token) && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
     if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
-    // not a name.
-    if (!open && /^\p{L}{1,2}\d*['′]*$/u.test(token) && [...token].every((c, i) => !/\p{L}/u.test(c) || ITALIC.test(font(start + i)))) return null;
+    // not a name; in brackets too where the index is set as a subscript
+    // (a constraint's tag "(ℓ1)").
+    const run = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run] : null);
+    const subscripted = /\d$/.test(token) && [...token].every((c, i) => !/\d/.test(c) || ((r) => r !== null && r.size < line.size - 0.5 && r.baseline > line.baseline + 0.5)(run(start + i)));
+    if ((!open || subscripted) && /^\p{L}{1,2}\d*['′]*$/u.test(token) && [...token].every((c, i) => !/\p{L}/u.test(c) || ITALIC.test(font(start + i)))) return null;
     // One opening with a connective whose letters are all mathematical
     // alphanumerics with no capital among them (⊕𝜎𝑓, ¬𝜑), or all set in
     // an italic face (× 1/fps), is a formula: ×𝑇 and <:eq open otherwise.
@@ -184,6 +187,15 @@ function tokenOf(line: Line, column = false): Token | null {
   const tail = found(tailMatch, "tail");
   if (tail && tailMatch && blankBefore(line, tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length) >= (column ? 0.25 : APART) * line.size) return tail;
   return null;
+}
+
+// A bracketed phrase making up its line ("(Sequential composition)"):
+// a label only in a column of labels set alike (rule.shape.phrase).
+function phraseOf(line: Line): Token | null {
+  const match = /^\s*\((?<token>[^()]+)\)\s*$/u.exec(line.text);
+  if (!match?.groups || !PHRASE.test(match.groups.token)) return null;
+  const start = line.text.indexOf(match.groups.token);
+  return { text: match.groups.token, bracketed: true, square: false, colon: false, side: "whole", start, end: start + match.groups.token.length };
 }
 
 // ------------------------------------------------------------ pass 2: setting
@@ -280,7 +292,7 @@ function framed(page: Page, d: Drawn): boolean {
   return page.drawn.some((v) => v !== d && through(v)
     && ((upright(v) && v.h >= 3 && ends(v))
       || (v.w > 1.5 && v.h > 1.5 && Math.abs(v.x - d.x) <= 1.5 && Math.abs(v.x + v.w - d.x - d.w) <= 1.5)
-      || (v.w > 1.5 && v.w <= 8 && v.h > 1.5 && v.h <= 8 && (Math.abs(v.x - d.x - d.w) <= 2 || Math.abs(v.x + v.w - d.x) <= 2))));
+      || (v.w > 1.5 && v.w <= 8 && v.h > 1.5 && v.h <= 8 && [d.x, d.x + d.w].some((end) => end >= v.x - 2 && end <= v.x + v.w + 2))));
 }
 
 // A line drawn just under a line of text, from its first letter or to its
@@ -371,6 +383,18 @@ const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩⊑⊆�
 
 // A relation between two terms, a blank on each side of it.
 const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
+
+// A line's text without its subscripts, smaller runs set below its
+// baseline: a relation indexed so ("⊢CSL") stands between its terms.
+function unscripted(line: Line): string {
+  let text = line.text, at = 0;
+  for (const r of line.runs) {
+    const i = text.indexOf(r.text, at);
+    if (i < 0) continue;
+    if (r.size < line.size - 0.5 && r.baseline > line.baseline + 0.5) { text = text.slice(0, i) + text.slice(i + r.text.length); at = i; } else at = i + r.text.length;
+  }
+  return text;
+}
 
 // A table's cell of figures: numerals and their marks, no term.
 const NUMERALS = /^[\s\d.,%±×†*()]*\d[\s\d.,%±×†*()]*$/u;
@@ -520,13 +544,18 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1));
   const figures = cells.filter((l) => NUMERALS.test(l.text));
   if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
+  // A bar with a label of its own set beside it (SSub_Refine) is that
+  // label's rule: a label over it is the axiom's under the rule above.
+  const claimed = (bar: Drawn) => lines.some((l) => Math.abs((l.top + l.bottom) / 2 - bar.y) <= LEVEL * label.size && l.x0 >= bar.x + bar.w - slack && l.x0 - bar.x - bar.w <= 2 * label.size
+    && Math.abs(l.size - label.size) <= 0.5 && tokenOf(l)?.side === "whole" && faceOf(l) === faceOf(label));
   const beside: Setting[] = [];
   for (const bar of bars) {
     if (!concluded1(bar)) continue;
     // Raised onto the last premise's line, an em clear of it, its right
     // edge at the bar's end (Oxidizing OCaml's CASE): beside it all the
-    // same. A table's header over its rule has no premise beside it.
-    const perched = token.side === "whole" && !RELATION.test(label.text) && row.some((l) => l.x1 <= label.x0 && RELATION.test(l.text)) && row.every((l) => l.x1 <= label.x0 - label.size || l.x0 >= label.x1) && label.x0 > bar.x && Math.abs(label.x1 - bar.x - bar.w) <= 2 * slack && bar.y >= label.bottom - 1 && bar.y - label.bottom <= 0.5 * type.leading;
+    // same. A table's header over its rule has no premise beside it, and
+    // a bar with its own label level beside it (Cex-Emp) is that one's.
+    const perched = token.side === "whole" && !claimed(bar) && !RELATION.test(label.text) && row.some((l) => l.x1 <= label.x0 && RELATION.test(l.text)) && row.every((l) => l.x1 <= label.x0 - label.size || l.x0 >= label.x1) && label.x0 > bar.x && Math.abs(label.x1 - bar.x - bar.w) <= 2 * slack && bar.y >= label.bottom - 1 && bar.y - label.bottom <= 0.5 * type.leading;
     if (perched) beside.push({ category: "beside", bar, row, side: "right", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     else if (Math.abs(bar.y - mid) <= LEVEL * label.size) {
       // Level with the bar: beside it, or a cell over a table's rule.
@@ -563,10 +592,6 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     const other = beside.find((s) => s.side !== beside[0].side);
     return other ? { ...beside[0], other } : beside[0];
   }
-  // A bar with a label of its own set beside it (SSub_Refine) is that
-  // label's rule: a label over it is the axiom's under the rule above.
-  const claimed = (bar: Drawn) => lines.some((l) => Math.abs((l.top + l.bottom) / 2 - bar.y) <= LEVEL * label.size && l.x0 >= bar.x + bar.w - slack && l.x0 - bar.x - bar.w <= 2 * label.size
-    && Math.abs(l.size - label.size) <= 0.5 && tokenOf(l)?.side === "whole" && faceOf(l) === faceOf(label));
   // A bar a wider one runs under, from its left edge, its conclusion the
   // one row between, may end a premise's own derivation (PGM-DT-TT): the
   // rule's is the wider where the label stands over it.
@@ -673,7 +698,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     const aligned = Math.abs(x0 - label.x0) <= 2 * label.size || Math.abs((x0 + x1) / 2 - centre) <= 2 * label.size;
     const stroke = page.drawn.some((d) => across(d) && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
     const blocked = row.some((l) => !hangs(l) && l.x0 < x1 && l.x1 > x0 && /[\p{L}\d]/u.test(l.text));
-    return aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && BETWEEN.test(under.map((l) => l.text).join(" ")) ? under : null;
+    return aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && BETWEEN.test(under.map(unscripted).join(" ")) ? under : null;
   };
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
@@ -755,12 +780,14 @@ const HYPHEN = RULE_SHAPE_HYPHEN.pattern!;
 const SPACED = RULE_SHAPE_SPACED.pattern!;
 const WORD = RULE_SHAPE_WORD.pattern!;
 const SYMBOL = RULE_SHAPE_SYMBOL.pattern!;
+const PHRASE = RULE_SHAPE_PHRASE.pattern!;
 
 function shapeOf(text: string): Shape | null {
   if (HYPHEN.test(text)) return "hyphen";
   if (SPACED.test(text)) return "spaced";
   if (WORD.test(text)) return "word";
   if (SYMBOL.test(text)) return "symbol";
+  if (PHRASE.test(text)) return "phrase";
   return null;
 }
 
@@ -776,9 +803,9 @@ function allowed(shape: Shape, token: Token, category: Category): string | null 
     case "over":
       return RULE_NAME_OVER.id;
     case "row":
-      return shape === "symbol" || (shape === "word" && !token.bracketed && !token.colon) ? null : RULE_NAME_ROW.id;
+      return shape === "symbol" || (shape === "word" && !token.bracketed && !token.colon) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
     case "margin":
-      return shape === "hyphen" || shape === "spaced" || (shape === "word" && token.square) ? RULE_NAME_MARGIN.id : null;
+      return shape === "phrase" ? null : shape === "hyphen" || shape === "spaced" || (shape === "word" && token.square) ? RULE_NAME_MARGIN.id : null;
   }
 }
 
@@ -1077,8 +1104,8 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
       if (line.furniture || skip.has(line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line, true);
-      if (!token || token.side === "whole" || (token.side === "head" && !token.bracketed)) continue;
+      const token = tokenOf(line, true) ?? phraseOf(line);
+      if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       const column = rows.filter((s) => (s.token.side === token.side || s.token.side === "whole") && Math.abs(edge(s.line, token.side) - edge(line, token.side)) <= 1 && Math.abs(s.line.size - line.size) <= 0.5
         && faceOf(s.line, s.token) === faceOf(line, token));
       if (column.length >= 2) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
