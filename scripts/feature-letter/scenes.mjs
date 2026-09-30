@@ -52,6 +52,39 @@ async function activityPage() {
 
 const button = (text) => `return [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)});`;
 
+// The viewer over a pretend server (viewer/scripts/fixtures/projectViewer.mjs)
+// showing a paper from disk: PAPOL_FIXTURE_PDF names it. Papers with named
+// rules are PL papers kept outside the repository, so a rule scene reads its
+// paper from there rather than from papol.io.
+async function viewerPage() {
+  if (!process.env.PAPOL_FIXTURE_PDF) throw new Error('Set PAPOL_FIXTURE_PDF to the paper to show');
+  const { PAPER, viewerServer } = await import('../../viewer/scripts/fixtures/projectViewer.mjs');
+  const server = await viewerServer();
+  await server.listen();
+  return { origin: `http://127.0.0.1:${server.httpServer.address().port}`, paper: PAPER, close: () => server.close() };
+}
+
+// The nth link to a named rule on a page, counted from the top.
+const ruleLink = (page, rule, nth = 0) => `return [...document.querySelectorAll('.pdf-page[data-page="${page}"] .pdf-link')]
+  .filter((link) => link.getAttribute('aria-label') === ${JSON.stringify(`Go to Rule ${rule}`)})[${nth}];`;
+
+// What the telescoping scenes share: the paper at page 8, the name of
+// T-Var near the top, the viewer's bar cropped away so rules read at the
+// letter's width.
+const telescoping = {
+  viewport: { width: 1180, height: 760 },
+  crop: { x: 130, y: 56, width: 940, height: 704 },
+  seconds: 8,
+  setup: viewerPage,
+  url: ({ origin, paper }) => `${origin}/viewer/?pdf=${paper}&page=8`,
+  async prepare(stage) {
+    await stage.waitFor(`(() => { ${ruleLink(8, 'T-Var')} })()`, { timeout: 90_000 });
+    await stage.evaluate(bringTo(ruleLink(8, 'T-Var'), 0.3));
+    await stage.waitFor('document.fonts.ready.then(() => true)');
+    await stage.wait(2500);
+  },
+};
+
 export const SCENES = {
   // My activity: the week, then the month, by paper, then one day.
   'reading-log': {
@@ -158,6 +191,67 @@ export const SCENES = {
       await stage.wait(900);
       await stage.key('[');
       await stage.wait(2000);
+    },
+  },
+
+  // Telescoping, one scene per way in, on Internalizing Indistinguishability
+  // with Dependent Types (POPL '24): page 8 cites the typing rules set on
+  // page 7. Hover shows a rule under the line while the pointer rests on
+  // its name.
+  'telescoping-hover': {
+    ...telescoping,
+    async play(stage) {
+      await stage.move({ x: 880, y: 640 }, { ms: 10 });
+      await stage.wait(300);
+      for (const rule of ['T-Var', 'T-Abs', 'T-App']) {
+        await stage.move(ruleLink(8, rule, 1), { ms: 600 });
+        await stage.waitFor('document.querySelector(".paper-clip.peek canvas")', { timeout: 10_000 });
+        await stage.wait(1500);
+      }
+      await stage.move({ x: 960, y: 640 }, { ms: 500 });
+      await stage.wait(500);
+    },
+  },
+
+  // A click goes to the rule's definition, [ comes back, ] goes there
+  // again, and [ returns for good.
+  'telescoping-click': {
+    ...telescoping,
+    async play(stage) {
+      await stage.move({ x: 880, y: 640 }, { ms: 10 });
+      await stage.wait(300);
+      await stage.click(ruleLink(8, 'T-App'), { ms: 700 });
+      await stage.wait(1700);
+      await stage.key('[', { code: 'BracketLeft' });
+      await stage.wait(1500);
+      await stage.key(']', { code: 'BracketRight' });
+      await stage.wait(1500);
+      await stage.key('[', { code: 'BracketLeft' });
+      await stage.wait(1600);
+    },
+  },
+
+  // Cmd-click keeps a clip of each rule beside its name: T-Var, T-Abs and
+  // T-App, cited together on one line. Each kept clip is dragged to its own
+  // place under the line, left to right, so the three sit side by side.
+  'telescoping-clip': {
+    ...telescoping,
+    async play(stage) {
+      await stage.move({ x: 880, y: 640 }, { ms: 10 });
+      await stage.wait(200);
+      const places = [{ x: 330, y: 530 }, { x: 590, y: 530 }, { x: 850, y: 530 }];
+      for (const [i, rule] of ['T-Var', 'T-Abs', 'T-App'].entries()) {
+        await stage.click(ruleLink(8, rule, 1), { ms: 450, modifiers: 4 });
+        await stage.waitFor(`document.querySelectorAll('.paper-clip:not(.peek)').length === ${i + 1}`, { timeout: 10_000 });
+        // The rule shown on hover sits over the kept clip while the pointer
+        // is on the name: a nudge past the end of the name lets it go, and
+        // the pointer goes from there down to the clip.
+        await stage.move({ x: stage.at.x + 34, y: stage.at.y + 4 }, { ms: 150 });
+        await stage.waitFor('!document.querySelector(".paper-clip.peek")', { timeout: 10_000 });
+        await stage.drag(`return [...document.querySelectorAll('.paper-clip:not(.peek)')].at(-1);`, places[i], { ms: 450 });
+      }
+      await stage.move({ x: 960, y: 660 }, { ms: 400 });
+      await stage.wait(1400);
     },
   },
 };
