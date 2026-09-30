@@ -1448,12 +1448,15 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
     for (let grew = true; grew;) {
       grew = false;
       const under = [...taken].filter((t) => t.top > bar.y - 1 && t.size <= 2 * label.size);
-      const end = Math.max(...under.map((t) => t.bottom));
-      if (!under.length) break;
+      // A conclusion holding a program's block set over lines stands
+      // further under its bar, the block's first line a leading down
+      // (R-Loop-Upd's "for q in Q do" over "A" and "end").
+      const end = under.length ? Math.max(...under.map((t) => t.bottom)) : bar.y;
+      const reach = under.length ? 0.4 * type.leading : 1.2 * type.leading;
       for (const line of lines) {
         if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line, end)) continue;
         // A lone glyph (a piece of the next line's tall brace) runs nothing on.
-        if (line.top < end - 1 || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
+        if (line.top < end - 1 || line.top - end > reach || line.text.replace(/\s/g, "").length < 2) continue;
         taken.add(line); grew = true;
       }
     }
