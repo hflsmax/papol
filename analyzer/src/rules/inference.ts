@@ -680,6 +680,21 @@ function boxSide(page: Page, d: Drawn, label: Line): boolean {
   return closes(d.y) && closes(d.y + d.h);
 }
 
+// A frame drawn round a label and nothing else, its sides within a size
+// of the label's ends and its top and bottom within a size of its own
+// (Race-1's): a rectangle, or four strokes.
+function framedLabel(page: Page, label: Line): boolean {
+  const s = label.size;
+  const round = (x0: number, y0: number, x1: number, y1: number) => x0 <= label.x0 + 1 && x0 >= label.x0 - s && x1 >= label.x1 - 1 && x1 <= label.x1 + s
+    && y0 <= label.top + 1 && y0 >= label.top - s && y1 >= label.bottom - 1 && y1 <= label.bottom + s;
+  if (page.drawn.some((d) => d.w > 1.5 && d.h > 1.5 && round(d.x, d.y, d.x + d.w, d.y + d.h))) return true;
+  const top = page.drawn.find((d) => across(d) && d.y <= label.top + 1 && d.y >= label.top - s && d.x <= label.x0 + 1 && d.x >= label.x0 - s && d.x + d.w >= label.x1 - 1 && d.x + d.w <= label.x1 + s);
+  const bottom = page.drawn.find((d) => across(d) && top && d !== top && d.y >= label.bottom - 1 && d.y <= label.bottom + s && Math.abs(d.x - top.x) <= 1 && Math.abs(d.w - top.w) <= 1);
+  if (!top || !bottom) return false;
+  const side = (x: number) => page.drawn.some((d) => upright(d) && Math.abs(d.x - x) <= 1 && d.y <= top.y + 1 && d.y + d.h >= bottom.y - 1);
+  return side(top.x) && side(top.x + top.w);
+}
+
 // A vertical stroke or a box's edge crossing the label's row between the
 // label and its row: the row is a diagram's other panel or a listing's.
 function walled(page: Page, label: Line, span: [number, number], row: Line[]): boolean {
@@ -747,9 +762,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // A label with a line just under it heads a rule of its own (DirVal).
   const under = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 0.8 * type.leading && l.x0 < label.x1 && l.x1 > label.x0);
   const gapTo = (d: Drawn) => Math.max(0, d.x - label.x1, label.x0 - (d.x + d.w));
+  // A label in a frame of its own is a label on either side of its bar
+  // at any distance, blank between (Race-1 and Max-Par boxed at the
+  // column's edge, their rules centred): it heads nothing under it.
+  const boxed = framedLabel(page, label);
   const blankTo = (d: Drawn) => {
     const from = Math.min(label.x1, d.x + d.w), to = Math.max(label.x0, d.x);
-    return d.x + d.w <= label.x0 + slack && gapTo(d) <= FAR * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
+    return (d.x + d.w <= label.x0 + slack || (boxed && d.x >= label.x1 - slack)) && gapTo(d) <= (boxed ? measure : FAR * label.size) && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
       && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from);
   };
   // What counts as a rule's bar (rule.bar).
@@ -804,8 +823,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // Under the label's row, beside the label's own column, stand
   // numerals, a row's heading at most to their left: the row heads a
   // table's columns ("MLKit" over its timings, "Program/Compiler" over
-  // counts), however its cells are ruled.
-  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1));
+  // counts), however its cells are ruled. Numerals in the page's margin,
+  // outside the text, number its lines (a review copy's, "1846" by Fld-2).
+  const margin = (l: Line) => l.x1 <= type.text.x0 || l.x0 >= type.text.x1;
+  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1) && !margin(l));
   const figures = cells.filter((l) => NUMERALS.test(l.text));
   if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
   // A bar with a label of its own set beside it (SSub_Refine) is that
@@ -854,8 +875,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // Two sizes or more from the label, a stroke past a bar just under
       // the label spanning it is another rule's: the label stands over
       // that bar (M-Interface beside M-Struct's "‾η ⊢ τ ↦ t†‾").
+      // A figure's own rule parting it from the next is no such bar
+      // (the rule under Max-Par over Fig. 8's definitions).
       const far = (right ? label.x0 - bar.x - bar.w : bar.x - label.x1) >= 2 * label.size;
-      if (far && page.drawn.some((d) => d !== bar && across(d) && !framed(page, d) && d.y > label.bottom - 1 && d.y - label.bottom <= 2 * type.leading && d.x <= label.x0 + slack && d.x + d.w >= label.x1)) continue;
+      if (far && page.drawn.some((d) => d !== bar && across(d) && !framed(page, d) && !dividing(page, d, type) && d.y > label.bottom - 1 && d.y - label.bottom <= 2 * type.leading && d.x <= label.x0 + slack && d.x + d.w >= label.x1)) continue;
       beside.push({ category: "beside", bar, row, side: right ? "right" : "left", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     }
   }
