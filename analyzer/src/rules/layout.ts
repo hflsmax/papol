@@ -55,11 +55,15 @@ const LOWERED = [0.08, 0.5] as const;
 // beside 10pt text, a pair of angles at 26pt round two lines) base no
 // scripts.
 const DELIMITER = /^[(){}[\]⟨⟩⟪⟫|‖⌈⌉⌊⌋\s]+$/u;
+// A word in the text's letters, not mathematical alphanumerics.
+const TEXT_WORD = /[^\P{L}\u{1D400}-\u{1D7FF}]{5,}/u;
 // Space between two runs this wide, in font sizes, is a word space.
 const WORD_SPACE = 0.12;
 // A small word this far from the line beside it, in that line's size, is
 // not its script.
 const APART_WORD = 0.25;
+// A big operator set alone, its limits under or over it.
+export const BIG_OPERATOR = /^\s*[∗∑∏∐⋃⋂⨁⨂⨀⨄⨆⋁⋀⊛]\s*$/u;
 // The page margin running heads and footers sit in, as a fraction of its
 // height, and on how many pages the same text has to recur there.
 const MARGIN = 0.09;
@@ -233,6 +237,10 @@ export function buildLines(page: Page): Placed[][] {
       if (j === i || merged.has(j)) return;
       const bigSize = median(big.map((r) => r.size));
       if (size > SCRIPT_SIZE * bigSize || DELIMITER.test(big.map((r) => r.text).join("").trim())) return;
+      // A word of five letters or more set upright is no script of a bare
+      // symbol, letterless: a symbol some fonts draw at a huge size (the
+      // ∗ of VerusBelt's ⇛∗, read as 24pt) under a rule's name over it.
+      if (TEXT_WORD.test(small.map((r) => r.text).join("")) && !big.some((r) => /\p{L}/u.test(r.text))) return;
       const bigBase = median(big.map((r) => r.baseline));
       const lift = (bigBase - base) / bigSize;
       const up = lift >= RAISED[0] && lift <= RAISED[1];
@@ -247,6 +255,13 @@ export function buildLines(page: Page): Placed[][] {
       // between two of its runs stacks under a drawn arrow ("dir").
       const past = x0 >= most(big.map((r) => r.x + r.width)) || x1 <= least(big.map((r) => r.x));
       if (gap > APART_WORD * bigSize && letters >= 3 && past) return;
+      // A superscript follows its base, and a limit is centred on its
+      // operator: a word raised over a big operator standing alone, from
+      // before its start and off its middle, is a label set over it (FREE-C
+      // over its formula's big ∗, the operator rising to the label's
+      // baseline).
+      const start = least(big.map((r) => r.x)), end = most(big.map((r) => r.x + r.width));
+      if (up && letters >= 3 && BIG_OPERATOR.test(big.map((r) => r.text).join("")) && x0 < start - 0.2 * size && Math.abs((x0 + x1) / 2 - (start + end) / 2) > 0.1 * bigSize) return;
       // Touching two lines alike, a script belongs to the nearer baseline
       // (Pₓ's subscript against the big operator under it).
       if (Math.abs(gap - bestGap) <= 0.5 ? Math.abs(lift) < bestLift : gap < bestGap) { best = j; bestGap = gap; bestLift = Math.abs(lift); raised = up; }
@@ -333,12 +348,18 @@ function lineOf(runs: Placed[], page: number, drawn: Drawn[] = []): Line {
     }
   });
   const letters = body.filter((r) => /\p{L}/u.test(r.text));
+  // A big operator with its scripts (MoSeL's ⁎ read as 34pt, its range
+  // under it at 7pt) reaches no further than its letters would: the
+  // size its font reads as overstates the glyph.
+  const lettered = runs.filter((r) => /\p{L}/u.test(r.text));
+  const cap = lettered.length && !letters.length ? 1.5 * most(lettered.map((r) => r.size)) : Infinity;
+  const reach = (r: Placed) => Math.min(r.size, cap);
   return {
     page, index: 0, runs, text, chars,
     x0: least(runs.map((r) => r.x)),
     x1: most(runs.map((r) => r.x + r.width)),
-    top: least(runs.map((r) => r.baseline - r.size * 0.8)),
-    bottom: most(runs.map((r) => r.baseline + r.size * 0.22)),
+    top: least(runs.map((r) => r.baseline - reach(r) * 0.8)),
+    bottom: most(runs.map((r) => r.baseline + reach(r) * 0.22)),
     baseline, size,
     bold: letters.length > 0 && letters.every((r) => r.bold),
     column: "",
