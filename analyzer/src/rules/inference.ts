@@ -975,11 +975,14 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label)
       && !others.some((o) => reach(l, o) < reach(l, label)));
     if (!under.length) return null;
-    // The row runs on past the label in pieces a big operator apart.
+    // The row runs on past the label in pieces a big operator apart; a
+    // piece hard under a bar of its own spanning it is that rule's
+    // conclusion, set level beside the axiom (Wp-load's beside Wp-alloc's).
+    const barred = (l: Line) => page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && l.top - d.y <= 0.5 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size);
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
-        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label))) continue;
+        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label)) || barred(l)) continue;
         if (under.some((u) => (Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size)) { under.push(l); grew = true; }
       }
     }
@@ -1667,6 +1670,46 @@ function unwrapped(page: Page, type: Type): Page {
   return split ? { ...page, lines: out } : page;
 }
 
+// Two rules set side by side can reach the layout as one line: an axiom's
+// conclusion run into the next rule's, level with it ("wp ref 𝑣 {ℓ. ℓ ↦ 𝑣}"
+// and Wp-load's "wp !ℓ {𝑤. …}" under its bar). A bar drawn hard over or
+// under the line that ends in a wide blank between two of its runs parts
+// them there: a rule's conclusion or premises stand within its bar.
+function parted(page: Page, type: Type): Page {
+  const bars = page.drawn.filter((d) => across(d) && d.w >= 2 * type.bodySize);
+  const out: Line[] = [];
+  let split = false;
+  for (const line of page.lines) {
+    const hard = bars.filter((d) => (d.y <= line.top + 1 && line.top - d.y <= 0.5 * type.leading) || (d.y >= line.bottom - 1 && d.y - line.bottom <= 0.5 * type.leading));
+    const cuts: number[] = [];
+    if (!line.furniture && hard.length) {
+      for (let k = 1; k < line.runs.length; k += 1) {
+        const end = Math.max(...line.runs.slice(0, k).map((r) => r.x + r.width)), start = Math.min(...line.runs.slice(k).map((r) => r.x));
+        if (start - end < line.size) continue;
+        if (hard.some((d) => [d.x, d.x + d.w].some((x) => x >= end - 1 && x <= start + 1))) cuts.push(k);
+      }
+    }
+    if (!cuts.length) { out.push(line); continue; }
+    const at = (k: number) => line.chars.findIndex((c) => c.run >= k);
+    let from = 0;
+    for (const k of [...cuts, line.runs.length]) {
+      const runs = line.runs.slice(from, k);
+      const c0 = at(from), c1 = k < line.runs.length ? at(k) : line.text.length;
+      const text = line.text.slice(c0, c1);
+      const lead = text.length - text.trimStart().length, tail = text.length - text.trimEnd().length;
+      const piece: Line = {
+        ...line, runs, text: text.trim(), chars: line.chars.slice(c0 + lead, c1 - tail).map((c) => (c.run < 0 ? c : { run: c.run - from, at: c.at })),
+        x0: Math.min(...runs.map((r) => r.x)), x1: Math.max(...runs.map((r) => r.x + r.width)),
+      };
+      parents.set(piece, parents.get(line) ?? line);
+      out.push(piece);
+      from = k;
+    }
+    split = true;
+  }
+  return split ? { ...page, lines: out } : page;
+}
+
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
   let candidates: Candidate[] = [];
@@ -1679,7 +1722,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of layout.pages) for (const l of page.lines) if (!l.furniture && l.text.length >= 60) sizes.set(Math.round(l.size * 2) / 2, (sizes.get(Math.round(l.size * 2) / 2) ?? 0) + 1);
   const proseSize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? layout.bodySize;
   const bodySize = Math.max(layout.bodySize, proseSize);
-  const pages = layout.pages.map((page) => { const bars = textBars(page); return unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type); });
+  const pages = layout.pages.map((page) => { const bars = textBars(page); return parted(unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type), type); });
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
