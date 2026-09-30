@@ -99,6 +99,20 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
   }, [projectUuid]);
 
   useEffect(() => load(), [load]);
+  // A dig written in the viewer reaches this page only when it is fetched
+  // again: on the Mac the viewer is a window of its own, and this one stays
+  // as it was while it sits behind it. Fetch in place when it comes back.
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      getProject(projectUuid).then((next) => { if (active) setProject(show(next)); }).catch(() => {});
+    };
+    window.addEventListener('focus', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refresh);
+    };
+  }, [projectUuid, show]);
   useEffect(() => {
     if (project?.uuid === projectUuid) keep(`project:${projectUuid}`, settled(project));
   }, [project, projectUuid]);
