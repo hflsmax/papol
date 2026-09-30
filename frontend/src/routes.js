@@ -26,6 +26,9 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if ((uuid = at(`/shelf/${UUID}`))) return { page: 'shelf', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
   if ((uuid = at(`/project/${UUID}`))) return { page: 'project', uuid };
+  // A board opened inside a project: its jacket in the project's frame.
+  const inProject = path.match(new RegExp(`^/project/${UUID}/board/${UUID}/?$`, 'i'));
+  if (inProject) return { page: 'project', uuid: inProject[1].toLowerCase(), board: inProject[2].toLowerCase() };
   // An invitation's code is case-sensitive, so it is read as written.
   const invitation = path.match(/^\/projects\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
   if (invitation) return { page: 'invitation', code: invitation };

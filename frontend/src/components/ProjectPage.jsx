@@ -22,6 +22,7 @@ import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import PaperBrief from './PaperBrief';
+import BoardJacket from './BoardJacket';
 import { keep, kept } from '../lastMember';
 
 // Opening a project marks what others added as seen, so every later answer
@@ -79,12 +80,19 @@ export function Faces({ users, max = 4 }) {
 
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
-export default function ProjectPage({ projectUuid, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard }) {
+export default function ProjectPage({ projectUuid, board = null, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard, onOpenCanvas }) {
   const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const [view, setView] = useView(projectUuid);
+  const [chosenView, chooseView] = useView(projectUuid);
+  // A board's jacket opens under the tabs, in the Boards tab; another tab
+  // leaves it for the project's own address.
+  const view = board ? 'boards' : chosenView;
+  const setView = (next) => {
+    chooseView(next);
+    if (board) onOpenBoard(null, { replace: true });
+  };
   const [picked, pick] = usePicked(projectUuid);
   const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
 
@@ -260,7 +268,19 @@ export default function ProjectPage({ projectUuid, currentUser, onBack, backHref
                 onRead={onRead}
               />
             )}
-            {view === 'boards' && <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} onOpenBoard={onOpenBoard} />}
+            {view === 'boards' && (board ? (
+              <div className="project-board-open">
+                <BoardJacket
+                  key={board}
+                  boardUuid={board}
+                  onOpen={onOpenCanvas}
+                  hideBack
+                  held
+                  onChanged={talked}
+                  onDeleted={() => { talked(); onOpenBoard(null, { replace: true }); }}
+                />
+              </div>
+            ) : <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} onOpenBoard={onOpenBoard} />)}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
           </div>
         </>
@@ -696,8 +716,8 @@ function useWide(query = '(min-width: 1000px)') {
 }
 
 // The project's boards, which every member arranges; a board is known by
-// its shape, so its map is the card. A board picked here opens its jacket,
-// as it does from the nook and the Bazaar, and so does one just made; the
+// its shape, so its map is the card. A board picked here opens its jacket
+// in its place, under the project's tabs, and so does one just made; the
 // canvas is the jacket's way in. The last tile is the one way to make one
 // more.
 function ProjectBoards({ project, act, hasNews, currentUser, onOpenBoard }) {
@@ -720,7 +740,7 @@ function ProjectBoards({ project, act, hasNews, currentUser, onOpenBoard }) {
       <ul className="project-boards project-grid">
         {boards.map((board) => {
           const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
-          const href = appPath(`/board/${board.uuid}`);
+          const href = appPath(`/project/${project.uuid}/board/${board.uuid}`);
           const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
           return (
             <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">

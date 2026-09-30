@@ -170,7 +170,9 @@ sidebar, toolbar and document windows.
   `/project/<uuid>` a project's desk and `/paper/<name>` a paper's jacket.
   A paper picked from a shelf or a board may carry that place in front of it
   (`/shelf/<uuid>/paper/<name>`, `/board/<uuid>/paper/<name>`); that only
-  says which rail row stays chosen, and the paper is the same thing. No page
+  says which rail row stays chosen, and the paper is the same thing. A board
+  opened in a project is `/project/<uuid>/board/<uuid>`: its jacket under the
+  project's tabs, the project's name kept in the bar (web and Mac). No page
   state lives in the query: query links get lost across sign-in and can't
   hand off to the Mac app.
 - **The nook is the frame, not the URL.** A signed-in member on the web sees

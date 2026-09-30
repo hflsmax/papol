@@ -5343,6 +5343,10 @@ ${talkStyles}
 .project-row.is-selected, .project-row.is-selected:hover { background: var(--card); }
 .project-row.is-selected .project-card-title { color: var(--ink); }
 .project-papers-panel { position: sticky; top: var(--space-4); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
+/* A board opened in the Boards tab: its jacket on the one raised sheet,
+   under the tabs, as a paper's brief sits beside its list. */
+.project-board-open { border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 1px 2px rgba(29, 33, 41, 0.06), 0 4px 14px rgba(29, 33, 41, 0.06); }
+.project-board-open .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
 .project-paper-open { margin: -2px 0 var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
 
 /* The open row and what it opens are the only raised white surfaces on
