@@ -1059,6 +1059,22 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // G–Collective-Local's step).
   const stacked = row.some((a) => row.some((b) => b.top >= a.bottom - 1));
   if (atMargin && !stacked && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "none", bar: null, row, side: "right" };
+  // Ending a line of a conclusion set over several lines, each hard under
+  // the last from the bar down within its span, and past the bar's end,
+  // the label stands beside that rule (ExecCallback at its call's line,
+  // between the precondition and the postcondition under the bar).
+  if (row.every((l) => l.x1 <= label.x0 + tolerance(l, label))) {
+    const hung = page.drawn.filter((d) => across(d) && d.w >= 2 * label.size && d.y < label.top && d.y >= label.top - REACH * type.leading && d.x + d.w <= label.x0 && !framed(page, d) && !overline(page, d, type) && !struck(page, d)
+      && row.every((l) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
+      && lines.some((l) => l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size)
+      && ((stack) => {
+        let end = d.y;
+        for (const l of stack) { if (l.x0 < d.x - label.size || l.x1 > d.x + d.w + label.size || l.top - end > 0.5 * type.leading) return false; end = Math.max(end, l.bottom); }
+        return stack.length >= 2 && row.every((r) => stack.includes(r));
+      })(lines.filter((l) => l.top >= d.y - 1 && l.top < label.bottom && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top)))
+      .sort((a, b) => b.y - a.y)[0];
+    if (hung) return { category: "beside", bar: hung, row, side: "right", derived: derivation(page, hung, lines, type, slack), step: stepInto(page, hung, lines, type, slack) };
+  }
   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
   // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name); another label set
@@ -1805,7 +1821,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // form ("(Matching)" by "σ ⊲ σ1 → σ2").
   const hyphened = new Map<string, number>();
   for (const c of candidates) if (!weak(c)) hyphened.set(c.convention, (hyphened.get(c.convention) ?? 0) + 1);
-  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2;
+  // A camelCase word the text cites names its rule all the same
+  // ("(RegRoot)" after its Hoare triple, cited as RegRoot): a group's
+  // title is a plain word. A row left open by a connective is a conjunct
+  // of a definition running on under it, no rule ("(lockedExcl)" after
+  // "□ (∀s₁, s₂. …) ∧").
+  const conjunct = (c: Candidate) => /[∧∨∗]\s*$/u.test([...c.setting.row].sort((a, b) => a.x0 - b.x0).map((l) => l.text).join(" "));
+  const titled = (c: Candidate) => !camel(c.token.text) || conjunct(c) || !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, new Set(candidates.map((o) => o.line)), faceOf(c.line, c.token), type);
+  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2 && titled(c);
   for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !tagged(c));
   // A lone letter or digit in brackets beside a bar names a rule only
@@ -1939,10 +1962,15 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   }
   // Each box again, kept only from the labels and bars of the rules found:
   // a token weighed and dropped (the Γ heading a conclusion) is no label.
+  // A bracketed label at the margin is its row's, its name standing or
+  // not: the row is no part of the next ("(GetPerms)" over GetTicket's
+  // rows, uncited).
+  const margins = seen.filter((s) => s.setting.category === "margin" && s.token.bracketed);
   for (const p of placed) {
     const rest = placed.filter((o) => o.page === p.page && o !== p);
     const set: { lines: Line[] } = { lines: [] };
-    Object.assign(p.rule, boxOf(p.page, p.label, p.setting, type, { lines: new Set(rest.map((o) => o.label)), bars: rest.flatMap((o) => (o.bar ? [o.bar] : [])) }, set));
+    const fences = margins.filter((s) => s.page === p.page && s.line !== p.label).map((s) => s.line);
+    Object.assign(p.rule, boxOf(p.page, p.label, p.setting, type, { lines: new Set([...rest.map((o) => o.label), ...fences]), bars: rest.flatMap((o) => (o.bar ? [o.bar] : [])) }, set));
     p.lines = set.lines;
   }
   separate(placed);
@@ -1984,7 +2012,15 @@ function separate(placed: Placed[]): void {
       // "(σ; η[r.ref r′]) ⟶ …" over its "if l fresh, …").
       const heads = (p: Placed) => !p.bar && l.bottom <= p.label.top + 1 && p.label.top - l.bottom <= p.label.size && l.x1 < p.label.x0
         && p.lines.some((o) => o !== p.label && onRow(o, p.label)) && p.lines.every((o) => o === p.label || !onRow(o, p.label) || o.x0 >= l.x0 + 4 * p.label.size);
-      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
+      // A big brace's piece reaches the layout raised off its row, its
+      // depth under the baseline lost, into the row over it: it is the
+      // bar-less row's whose baseline is the first at or under its own, a
+      // label on its row giving the baseline (RegRoot's precondition braces
+      // reaching up to AllocCustom's row).
+      const onOwn = (p: Placed) => !p.bar && p.setting.side !== "over";
+      const rows = STRETCHED.test(l.text) ? ps.filter((p) => onOwn(p) && p.label.baseline >= l.baseline - 1) : [];
+      const braced = rows.length && ps.every(onOwn) ? rows.reduce((a, b) => (b.label.baseline < a.label.baseline ? b : a)) : undefined;
+      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? braced ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
       for (const p of ps) if (p !== own) p.lines = p.lines.filter((x) => x !== l);
     }
     // Each box round its own lines and bar, and what it holds (unpadded).

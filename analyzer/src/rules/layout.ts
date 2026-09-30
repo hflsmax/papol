@@ -253,6 +253,12 @@ export function buildLines(page: Page): Placed[][] {
       // between two of its runs stacks under a drawn arrow ("dir").
       const past = x0 >= most(big.map((r) => r.x + r.width)) || x1 <= least(big.map((r) => r.x));
       if (gap > APART_WORD * bigSize && letters >= 3 && past) return;
+      // A superscript follows its base, and a limit is centred on its
+      // operator: a word raised over the line from before its start and
+      // off its middle is a label set over it (FREE-C over its formula's
+      // big ∗, the operator rising to the label's baseline).
+      const start = least(big.map((r) => r.x)), end = most(big.map((r) => r.x + r.width));
+      if (up && letters >= 3 && x0 < start - 0.2 * size && Math.abs((x0 + x1) / 2 - (start + end) / 2) > 0.1 * bigSize) return;
       // Touching two lines alike, a script belongs to the nearer baseline
       // (Pₓ's subscript against the big operator under it).
       if (Math.abs(gap - bestGap) <= 0.5 ? Math.abs(lift) < bestLift : gap < bestGap) { best = j; bestGap = gap; bestLift = Math.abs(lift); raised = up; }
