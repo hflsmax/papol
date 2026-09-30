@@ -733,8 +733,8 @@
     ]
   },
   "named-handlers": {
-    "rules": 37,
-    "mentions": 60,
+    "rules": 38,
+    "mentions": 59,
     "names": [
       "abs",
       "app",
@@ -768,6 +768,7 @@
       "u-handler",
       "u-handler",
       "u-ops",
+      "u-perform",
       "u-perform",
       "u-return",
       "val",
@@ -1087,8 +1088,8 @@
     ]
   },
   "tackling-the-awkward-squad-monadic-input-output-concurrency-exceptions-and-foreign-language-calls-in-haskell": {
-    "rules": 34,
-    "mentions": 42,
+    "rules": 35,
+    "mentions": 44,
     "names": [
       "ASSOC",
       "BIND",
@@ -1102,6 +1103,7 @@
       "FUN",
       "FUN1",
       "FUN2",
+      "GETC",
       "INT",
       "IOERROR",
       "LUNIT",
