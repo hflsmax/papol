@@ -2079,7 +2079,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const overs = atBars("over") > atBars("beside");
   // Level with the bar, not under the conclusion by its end (containConcat
   // under local's conclusion stands over a rule of its own).
-  const aside = (c: Candidate) => c.setting.perched || (overs && Math.abs((c.line.top + c.line.bottom) / 2 - c.setting.bar!.y) <= LEVEL * c.line.size);
+  // A side condition hugs the bar's end: a label an inch off heads a rule
+  // of its own (OWN-OP beside OWN-ALLOC's bar).
+  const aside = (c: Candidate) => c.setting.perched || (overs && Math.abs((c.line.top + c.line.bottom) / 2 - c.setting.bar!.y) <= LEVEL * c.line.size
+    && c.line.x0 >= c.setting.bar!.x + c.setting.bar!.w - c.line.size && c.line.x0 - c.setting.bar!.x - c.setting.bar!.w <= 2 * c.line.size);
   for (const c of candidates) {
     if (c.setting.category !== "beside" || !c.setting.bar || !aside(c)) continue;
     for (const o of candidates) {
