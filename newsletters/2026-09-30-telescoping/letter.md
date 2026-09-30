@@ -12,22 +12,24 @@ T-App on page 8, the rule is defined on page 7, and you scroll back and forth
 until you have it memorised. Telescoping ends the scrolling: every mention of
 a named rule in a paper now leads to the rule itself.
 
-There are three ways to use it:
+There are three ways to use it.
 
-- **Hover.** Rest the pointer on a rule's name and the rule appears right
-  under the line you are reading. Move on and it is gone.
-- **Click.** Go to the rule's definition. Press `[` to return to where you
-  were.
-- **⌘ Click** (Ctrl click on Windows and Linux). Keep a clip of the rule
-  beside its name, so it stays with you as you read the proof.
+**Hover.** Rest the pointer on a rule's name and the rule appears right under
+the line you are reading. Move on and it is gone.
 
-The GIF below shows all three on one page of a POPL paper: a hover on T-Var,
-a click on T-App and the way back with `[`, then a ⌘ click that keeps T-Abs
-beside the text.
+![Resting the pointer on T-Var, T-Abs and T-App in turn shows each rule under the line](https://files.papol.io/admin/95817dc22673ef956c69610bb773a424eb9f13b720491d617d8d4faca54ee711.gif)
 
-![Hovering T-Var shows the rule under the line; clicking T-App goes to its definition on page 7 and [ returns; ⌘ clicking T-Abs keeps the rule as a clip beside the name](https://files.papol.io/admin/bc95618cde18cd13b89e9ba67dd1914dcdbacccf7220b7a5aeb1887079320c3c.gif)
+**Click.** Go to the rule's definition. Press `[` to return to where you were,
+and `]` to go there again.
 
-Telescoping is live on papol.io today, and in Papol for Mac 0.6.1, released
-at the same time.
+![Clicking T-App goes to its definition on page 7, then the bracket keys go back to page 8, to the rule again, and back](https://files.papol.io/admin/b8ba3702b57724922017619cf64f04f834f8e28b5a60664ba5c9dc05eb16a239.gif)
+
+**⌘ Click** (Ctrl click on Windows and Linux). Keep a clip of the rule beside
+its name, so it stays with you as you read the proof. Drag clips to arrange
+them.
+
+![⌘ clicking T-Var, T-Abs and T-App keeps each rule as a clip, set side by side under the line](https://files.papol.io/admin/35dca620af04a8b0d035a59d32791f2b76fa5943ce6bfc896865f102926f9131.gif)
+
+Telescoping is live on papol.io today, and in the latest Papol for Mac.
 
 — the Papol Team

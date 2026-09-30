@@ -86,6 +86,25 @@ export class Stage {
     await this.browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1, modifiers });
   }
 
+  // Press on the target, carry it to `to` and let go, as a hand drags.
+  async drag(target, to, { ms = 800 } = {}) {
+    await this.move(target, { ms: 500 });
+    await sleep(200);
+    const { x, y } = this.at;
+    await this.browser.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
+    const steps = Math.max(8, Math.round(ms / 25));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      const point = { x: x + (to.x - x) * ease, y: y + (to.y - y) * ease };
+      await this.browser.evaluate(`document.getElementById('__letter-pointer').style.transform = 'translate(${point.x - 5}px, ${point.y - 3}px)'; return true;`);
+      await this.browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point, button: 'left', buttons: 1 });
+      await sleep(ms / steps);
+    }
+    await this.browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...to, button: 'left', buttons: 0, clickCount: 1 });
+    this.at = to;
+  }
+
   // Something the pointer drags, like a folder from the Finder: a label
   // with a folder glyph, following the pointer until `drop`.
   async carry(label) {
