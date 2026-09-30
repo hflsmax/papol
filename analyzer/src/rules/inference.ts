@@ -749,13 +749,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // unless set in a column of labels flush with it at their left, each
   // left of its rule ("(If 3)" an inch left of its bar, under "(If 2)").
   const edged = token.side === "whole" && lines.filter((o) => o !== label && Math.abs(o.x0 - label.x0) <= 1 && Math.abs(o.size - label.size) <= 0.5 && Math.abs(o.top - label.top) <= 12 * type.leading
-    && tokenOf(o)?.side === "whole" && lines.some((r) => r !== o && onRow(r, o) && r.x0 >= o.x1 + label.size)).length >= 2;
+    && tokenOf(o)?.side === "whole").length >= 2;
   // A label with a line just under it heads a rule of its own (DirVal).
   const under = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 0.8 * type.leading && l.x0 < label.x1 && l.x1 > label.x0);
   const gapTo = (d: Drawn) => Math.max(0, d.x - label.x1, label.x0 - (d.x + d.w));
   const blankTo = (d: Drawn) => {
     const from = Math.min(label.x1, d.x + d.w), to = Math.max(label.x0, d.x);
-    return (d.x + d.w <= label.x0 + slack || (edged && d.x >= label.x1 - slack)) && gapTo(d) <= FAR * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
+    return (d.x + d.w <= label.x0 + slack || (edged && d.x >= label.x1 - slack)) && gapTo(d) <= (edged ? 2 * FAR : FAR) * label.size && !under.length && !lines.some((l) => level(l, label) && l.x0 < to - 0.5 * label.size && l.x1 > from + 0.5 * label.size)
       && !page.drawn.some((o) => o !== d && across(o) && Math.abs(o.y - mid) <= LEVEL * label.size && o.x < to && o.x + o.w > from);
   };
   // What counts as a rule's bar (rule.bar).
@@ -862,7 +862,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // the label spanning it is another rule's: the label stands over
       // that bar (M-Interface beside M-Struct's "‾η ⊢ τ ↦ t†‾").
       const far = (right ? label.x0 - bar.x - bar.w : bar.x - label.x1) >= 2 * label.size;
-      if (far && page.drawn.some((d) => d !== bar && across(d) && !framed(page, d) && d.y > label.bottom - 1 && d.y - label.bottom <= 2 * type.leading && d.x <= label.x0 + slack && d.x + d.w >= label.x1)) continue;
+      if (far && !edged && page.drawn.some((d) => d !== bar && across(d) && !framed(page, d) && d.y > label.bottom - 1 && d.y - label.bottom <= 2 * type.leading && d.x <= label.x0 + slack && d.x + d.w >= label.x1)) continue;
       beside.push({ category: "beside", bar, row, side: right ? "right" : "left", derived: derivation(page, bar, lines, type, slack), step: stepInto(page, bar, lines, type, slack) });
     }
   }
