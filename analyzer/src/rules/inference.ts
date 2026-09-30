@@ -903,7 +903,15 @@ const capitalised = (text: string) => /^\p{Lu}/u.test(text);
 
 // Whether a name of this shape may label a rule in this category, and
 // the rule that says so; null where it may not.
-function allowed(shape: Shape, token: Token, category: Category): string | null {
+// A row that steps: an arrow or a turnstile between its sides, not the
+// equation a grammar defines its categories by.
+const STEP = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩]|->|=>|~>/u;
+
+function allowed(shape: Shape, token: Token, category: Category, row: Line[] = []): string | null {
+  // A word in parentheses at the margin names a row that steps ("(send)"
+  // after a reduction); beside a grammar's equation it tags a category
+  // ("(Actors)" after "A = x : Σ").
+  if (category === "margin" && shape === "word" && token.bracketed && !token.square) return row.some((l) => STEP.test(l.text)) ? RULE_NAME_MARGIN.id : null;
   switch (category) {
     case "beside":
       return RULE_NAME_BESIDE.id;
@@ -1134,7 +1142,13 @@ const sameName = (printed: string, name: string) => fold(printed) === fold(name)
 // name in capitals as it is; a bracketed word in brackets; a bare word,
 // or a spaced name with a capitalised word, in its printed case within a
 // few words of "rule".
-function cites(rule: { name: string; shape: Shape; bracketed: boolean }, printed: string, bracketed: boolean, before: string, after: string): boolean {
+// pdf.js may set a blank between two mathematical italic letters of a
+// name, after the italic correction of an 𝑓 ("while𝑓 𝑎𝑙𝑠𝑒" citing
+// while𝑓𝑎𝑙𝑠𝑒): no blank of the name's.
+const MATH_GAP = /(?<=[\u{1D400}-\u{1D7FF}])\s(?=[\u{1D400}-\u{1D7FF}])/gu;
+
+function cites(rule: { name: string; shape: Shape; bracketed: boolean }, spaced: string, bracketed: boolean, before: string, after: string): boolean {
+  const printed = spaced.replace(MATH_GAP, "");
   const exact = printed.replace(/\s+/g, " ") === rule.name;
   if (rule.shape === "symbol") return exact;
   if (rule.shape === "hyphen" || (rule.shape === "spaced" && capitals(rule.name))) return sameName(printed.replace(/[\s\u00ad]+/g, " ").replace(/([-‐‑–]) /g, "$1"), rule.name);
@@ -1153,7 +1167,8 @@ function* mentionsIn(text: string, rules: { name: string; shape: Shape; brackete
   // A hyphen may break the name over a line ("(Sec-" / "Chs)").
   // A minus sign and an asterisk operator stand for a hyphen and an
   // asterisk (While−∀∗∃∗ cited as While-∀*∃*).
-  const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")).join("|");
+  const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")
+    .replace(/(?<=[\u{1D400}-\u{1D7FF}])(?=[\u{1D400}-\u{1D7FF}])/gu, "\\s?")).join("|");
   const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
   let match: RegExpExecArray | null;
   while ((match = re.exec(text))) {
@@ -1307,7 +1322,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
       if (scripted) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
-      const rule = allowed(shape, token, setting.category);
+      // A row opening with "where" goes on from the line over it
+      // ("where π′ = …" under spawn's reduction).
+      const over = (r: Line) => page.lines.filter((l) => !l.furniture && l.bottom <= r.top + 1 && r.top - l.bottom <= 0.5 * type.leading && l.x0 < r.x1 && l.x1 > r.x0);
+      const rule = allowed(shape, token, setting.category, setting.row.flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])));
       if (!rule) {
         if (setting.category === "margin") trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box));
         continue;
@@ -1340,6 +1358,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       && o.setting.category === "over" && o.setting.bar === c.setting.bar && o.line.top > c.line.top);
   for (const c of candidates) if (heading(c)) trace.add(RULE_HEADING.id, c.page.number, `${c.token.text} heading`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !heading(c));
+  // A word in parentheses at the margin names a rule only among hyphenated
+  // names set so ("(send)" by "(relay-in)"); alone it heads a judgment's
+  // form ("(Matching)" by "σ ⊲ σ1 → σ2").
+  const hyphened = new Map<string, number>();
+  for (const c of candidates) if (!weak(c)) hyphened.set(c.convention, (hyphened.get(c.convention) ?? 0) + 1);
+  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2;
+  for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => !tagged(c));
   const conventions = new Map<string, number>();
   const strong = new Map<string, number>();
   for (const c of candidates) {
