@@ -149,10 +149,12 @@ function drawnOn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<s
 // (layout.ligature): Libertine's small-capital "qu" is one glyph,
 // q.sc_u.sc, that the font's ToUnicode maps to "q" alone.
 export type Glyph = { unicode?: string; width?: number; originalCharCode?: number; spelled?: string };
-type Glyphs = { widths: Map<string, Map<string, number>>; glyphs: Map<string, Glyph[]> };
+// `all` is every glyph of every font in the order drawn.
+type Glyphs = { widths: Map<string, Map<string, number>>; glyphs: Map<string, Glyph[]>; all: Glyph[] };
 function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>, names: (id: string) => ((code: number) => string | undefined) | undefined = () => undefined): Glyphs {
   const widths = new Map<string, Map<string, number>>();
   const glyphs = new Map<string, Glyph[]>();
+  const all: Glyph[] = [];
   let font: Map<string, number> | null = null;
   let drawn: Glyph[] | null = null;
   let named: ((code: number) => string | undefined) | undefined;
@@ -169,12 +171,14 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
       for (const glyph of args[0] as (Glyph | number)[]) {
         if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width)) continue;
         const spelled = named && glyph.originalCharCode !== undefined ? ligatureSpelling(named(glyph.originalCharCode)) : undefined;
-        drawn.push(spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { ...glyph, spelled } : glyph);
+        const kept = spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { ...glyph, spelled } : glyph;
+        drawn.push(kept);
+        all.push(kept);
         if (!font.has(glyph.unicode)) font.set(glyph.unicode, glyph.width!);
       }
     }
   });
-  return { widths, glyphs };
+  return { widths, glyphs, all };
 }
 
 // A run's character offsets from the glyphs it was drawn with, read from
@@ -262,20 +266,34 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
     if (!font?.differences && !font?.defaultEncoding) return undefined;
     return (code: number) => font.differences?.[code] || font.defaultEncoding?.[code] || undefined;
   };
-  const { widths, glyphs } = glyphsDrawn(operators, OPS, glyphNames);
+  const { widths, glyphs, all } = glyphsDrawn(operators, OPS, glyphNames);
   const cursors = new Map<string, number>();
+  let cursor = 0; // in `all`: just past the last run found there
+  const along = (text: string, width: number, drawn: Glyph[], at: number, to: number) => {
+    for (let from = at; from < Math.min(drawn.length, to); from += 1) {
+      const found = offsetsAlong(text, width, drawn, from);
+      if (found) return found;
+    }
+    return undefined;
+  };
   // The run's offsets from the glyphs it was drawn with, taken in order
-  // from its font's glyphs; from the font's widths where they do not spell it.
+  // from its font's glyphs. pdf.js names one font for a run drawn in more
+  // ("(uniqe)": the brackets in the text's face, the name in small
+  // capitals; "uniqe property", the name in small capitals and the rest
+  // not), and those are found among every font's glyphs in the order drawn,
+  // on from the last run found there and else from the page's first. Only
+  // where no glyphs spell the run are its font's widths taken: another
+  // font's widths put a small-capital name a letter off where it is printed.
   // The run as its glyphs spell it comes back with them.
   const offsetsFor = (id: string, text: string, width: number): { offsets?: number[]; text: string } => {
     const drawn = glyphs.get(id);
     if (drawn?.length) {
       const at = cursors.get(id) ?? 0;
-      for (let from = at; from < Math.min(drawn.length, at + LOOK_AHEAD); from += 1) {
-        const along = offsetsAlong(text, width, drawn, from);
-        if (along) { cursors.set(id, along.next); return along; }
-      }
+      const found = along(text, width, drawn, at, at + LOOK_AHEAD);
+      if (found) { cursors.set(id, found.next); return found; }
     }
+    const found = along(text, width, all, cursor, all.length) ?? along(text, width, all, 0, cursor);
+    if (found) { cursor = found.next; return found; }
     return { offsets: offsetsOf(text, width, widths.get(id)), text };
   };
   const fonts = new Map<string, string>();
