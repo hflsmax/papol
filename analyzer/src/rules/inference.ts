@@ -1086,6 +1086,12 @@ const STEP = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩]|->|=>|~>/
 // tagged "(Tile1D)").
 const CLOSURE = /(?:[→⟶↦⟼⇒⟹⇛⤇⇝↝⤳↠−-]|->|=>|~>)+\s*[∗*⋆]/gu;
 const steps = (l: Line) => STEP.test(l.text.replace(CLOSURE, " "));
+// A row that reduces: an arrow between its sides. A turnstile's row
+// states a judgment, and a bare word heading one names its form
+// ("Typing" before "Γ ⊢ 𝑒 : 𝜏"), as one heading a grammar's row names
+// its category.
+const ARROW = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠]|->|=>|~>/u;
+const reduces = (l: Line) => ARROW.test(l.text.replace(CLOSURE, " "));
 
 function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [], side: Setting["side"] = "right"): string | null {
   // A word in parentheses at the margin names a row that steps ("(send)"
@@ -1099,11 +1105,12 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
     case "over":
       return shape === "short" && !token.bracketed ? null : RULE_NAME_OVER.id;
     case "row":
-      // A bare word heading a row stands as the paper's convention
-      // allows, a weak label among strong ones set as it is (app and
-      // beta in small capitals at the head of reductions headed
-      // unw-inter-zone); ending a row it is the grammar's category.
-      return shape === "symbol" || (shape === "short" && !token.bracketed) || (shape === "word" && !token.bracketed && (token.colon || side !== "left")) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
+      // A bare word heading a row that reduces stands as the paper's
+      // convention allows, a weak label among strong ones set as it is
+      // (app and beta in small capitals at the head of reductions headed
+      // unw-inter-zone); heading a judgment or a grammar's row, or
+      // ending a row, it names the judgment's form or the category.
+      return shape === "symbol" || (shape === "short" && !token.bracketed) || (shape === "word" && !token.bracketed && (token.colon || side !== "left" || !row.some(reduces))) || (shape === "phrase" && !token.bracketed) ? null : RULE_NAME_ROW.id;
     case "margin":
       // A parenthesised word there in lower case names a law as its
       // neighbours do ("(filter)" between "(push-pop)" and "(pop-push)");
@@ -1660,6 +1667,16 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       candidates.push({ line, page, token, shape, setting: setting as Candidate["setting"], rule, convention });
     }
   }
+  // A bare word heading a row stands in a column of labels with a
+  // hyphenated or spaced name heading a row on its page, set in its face
+  // and size and aligned with it at either end (app, beta and invoke
+  // under unw-inter-zone, all flush right); alone it is a grammar's
+  // category or a judgment's form (rule.name.row).
+  const headed = (c: Candidate) => c.setting.category === "row" && c.setting.side === "left" && !c.token.bracketed;
+  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && headed(o) && !weak(o)
+    && o.convention === c.convention && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
+  for (const c of candidates) if (!columnHead(c)) trace.add(RULE_NAME_ROW.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter(columnHead);
   // Conventions: how many labels the paper sets each way, and whether the
   // text cites any weak name set that way (rule.convention): a table's
   // headers and a plot's legend are set alike too, but never cited.

@@ -319,8 +319,8 @@ export const RULE_NAME_OVER = rule({
 });
 export const RULE_NAME_ROW = rule({
   id: "rule.name.row", stage: "rule",
-  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word; at its head, a bare word too, standing as the convention allows (rule.convention).",
-  why: "(BIND), (lamr), T FUNC; app, beta and invoke in small capitals heading reductions among unw-inter-zone and unw-intra-zone; a bare word ending a row is the grammar's category (\"program\", \"Syntax\") or a heading (\"INTRODUCTION\").",
+  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word; at the head of a row that reduces (an arrow between its sides), a bare word too, standing as the convention allows (rule.convention).",
+  why: "(BIND), (lamr), T FUNC; app, beta and invoke in small capitals heading reductions among unw-inter-zone and unw-intra-zone; a bare word ending a row is the grammar's category (\"program\", \"Syntax\") or a heading (\"INTRODUCTION\"), and one heading a judgment's row names its form (\"Typing\" before Γ ⊢ 𝑒 : 𝜏).",
 });
 export const RULE_NAME_MARGIN = rule({
   id: "rule.name.margin", stage: "rule",
