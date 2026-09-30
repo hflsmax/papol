@@ -332,9 +332,12 @@ function overline(page: Page, d: Drawn, type: Type): boolean {
 
 // Text reaching up to a stroke from under it, or another
 // stroke just under it, is what it overlines (TCInst's "‾Γ ⊢ τ′ₖ : κₖ‾",
-// PRODORSUM's): a conclusion stands clear of its bar.
+// PRODORSUM's): a conclusion stands clear of its bar, its baseline a
+// full size under it however tight its box (a compact derivation's
+// "• ⊢¹ λx. x ⇒ a → a"); a subscript's overline hugs it all the same
+// ("‾Δᵢ‾").
 function hugs(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.6 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && l.x0 < d.x + d.w && l.x1 > d.x)
+  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.6 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && (l.baseline - d.y < 0.95 * l.size || l.size < 0.8 * type.bodySize) && l.x0 < d.x + d.w && l.x1 > d.x)
     || page.drawn.some((e) => e !== d && across(e) && e.y > d.y + 0.2 && e.y - d.y <= 0.4 * type.bodySize && e.x >= d.x - 1 && e.x + e.w <= d.x + d.w + 1);
 }
 
@@ -1242,6 +1245,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // names that wider bar.
   const barred = new Set(seen.map((s) => s.setting.bar).filter(Boolean));
   for (const s of seen) if (s.setting.step && !barred.has(s.setting.step)) s.setting.derived = true;
+  // ... and a bar leading into a step is one: its conclusion is that
+  // step's premise (T-Lam over T-App in let-arguments' desugared tree).
+  const labelOf = new Map(seen.filter((s) => s.setting.bar).map((s) => [s.setting.bar, s]));
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const s of seen) if (!s.setting.derived && s.setting.step && labelOf.get(s.setting.step)?.setting.derived) { s.setting.derived = true; grown = true; }
+  }
   const boxAt = (page: Page, line: Line, setting: Setting, out?: { lines: Line[] }) => {
     const rest = seen.filter((s) => s.page === page && s.line !== line);
     return boxOf(page, line, setting, type, { lines: new Set(rest.map((s) => s.line)), bars: rest.flatMap((s) => (s.setting.bar ? [s.setting.bar] : [])) }, out);
@@ -1479,7 +1489,7 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
     if (!at || labels.has(at.line)) continue;
     // A name defined more than once names the last definition before it,
     // or the first where it comes before them all.
-    const named = all.filter((r) => keyOf(fold(r.name)) === keyOf(fold(all[m.rule].name)));
+    const named = all.filter((r) => keyOf(fold(r.name)) === keyOf(fold(all[m.rule].name))).sort((a, b) => place(a.caption.page, a.caption.top) - place(b.caption.page, b.caption.top));
     const here = place(at.line.page, at.line.top);
     const rule = named.filter((r) => place(r.caption.page, r.caption.top) <= here).pop() ?? named[0];
     // A word only from running text, a line mostly in the text's face:
