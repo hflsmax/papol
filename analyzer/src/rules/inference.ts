@@ -367,7 +367,7 @@ function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: numb
 // What stands at a row's end names a rule only where the row is one: a
 // relation between its sides (an arrow, a turnstile, an equation), not a
 // table's numbers or a paragraph's words.
-const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈⊕⊗∗⊸⊳⊲▷◁]|->|=>|~>|<:|:>|::=/u;
+const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈⊕⊗∗⊸⊳⊲▷◁]|->|=>|~>|<:|:>|::=/u;
 
 // A relation between two terms, a blank on each side of it.
 const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
@@ -879,6 +879,29 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       if (!bar) { x0 = Math.min(x0, line.x0); x1 = Math.max(x1, line.x1); }
     }
   }
+  // Premises stacked over the bar reach up the same way, each line hard
+  // over the next within the bar's span (T-If's three premises, each in
+  // its grey panel).
+  if (bar) {
+    for (let grew = true; grew;) {
+      grew = false;
+      const over = [...taken].filter((t) => t.bottom < bar.y + 1 && t !== label);
+      if (!over.length) break;
+      const start = Math.min(...over.map((t) => t.top));
+      for (const line of lines) {
+        if (taken.has(line) || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        if (line.bottom > start + 1 || start - line.bottom > 0.6 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
+        // Upright words in the text's face are a note beside the rules
+        // ("No ⊤L rules"), no premise.
+        if (faceOf(line) === family(type.font) && line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2) continue;
+        // Another bar over it or under it makes it another rule's.
+        const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
+          && ((d.y >= line.top - 0.8 * type.leading && d.y <= line.top + 1) || (d.y >= line.bottom - 1 && d.y <= start + 1)));
+        if (barred) continue;
+        taken.add(line); grew = true;
+      }
+    }
+  }
   // A conclusion set over several lines runs on, each line hard under
   // the last within the bar's span: a specification's program and its
   // postcondition in braces under a stack of bars (POOL-SIZE-SPEC).
@@ -1227,8 +1250,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
 }
 
 // Rules set side by side never share ground (rule.box): a line two boxes
-// took belongs to the rule whose label it is or stands level with, else
-// to the rule whose bar (or label) it sits nearest, each box
+// took belongs to the rule whose label it is or stands level with, or
+// whose row it opens (a row broken over two lines), else to the rule
+// whose bar (or label) it sits nearest, each box
 // is drawn again round its own lines, and two boxes that still meet — a
 // wide bar reaching past a neighbour's corner, the padding round each —
 // are cut apart halfway across the blank between what each holds.
@@ -1254,7 +1278,12 @@ function separate(placed: Placed[]): void {
     for (const p of here) for (const l of p.lines) owners.set(l, [...(owners.get(l) ?? []), p]);
     for (const [l, ps] of owners) {
       if (ps.length < 2) continue;
-      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
+      // A row broken over two lines, its label at the end of the second
+      // set in past the first's start, owns the first (ALLOC's
+      // "(σ; η[r.ref r′]) ⟶ …" over its "if l fresh, …").
+      const heads = (p: Placed) => !p.bar && l.bottom <= p.label.top + 1 && p.label.top - l.bottom <= p.label.size && l.x1 < p.label.x0
+        && p.lines.some((o) => o !== p.label && onRow(o, p.label)) && p.lines.every((o) => o === p.label || !onRow(o, p.label) || o.x0 >= l.x0 + 4 * p.label.size);
+      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
       for (const p of ps) if (p !== own) p.lines = p.lines.filter((x) => x !== l);
     }
     // Each box round its own lines and bar, and what it holds (unpadded).
