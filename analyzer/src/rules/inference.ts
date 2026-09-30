@@ -344,8 +344,6 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const lines = ruleLines(page, label);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
-  // A bare token set in a listing's face is code (a bracketed one names a lemma).
-  if (!token.bracketed && MONO.test(faceOf(label, token))) return { category: "comment", bar: null, row: [], side: "right" };
   const slack = BESIDE * label.size;
   const mid = (label.top + label.bottom) / 2;
   const centre = (label.x0 + label.x1) / 2;
@@ -720,9 +718,20 @@ function citedAnywhere(flows: Flow[], rule: { name: string; shape: Shape; bracke
  */
 // A bar set as text: a line of dashes, with digits on it or a star at
 // its end as Iris draws its rules (rule.bar).
-const TEXT_BAR = /^[−–—\-]{4,}(?:\d[−–—\-]+)*∗?$/;
-const textBars = (page: Page): Drawn[] => page.lines.filter((l) => TEXT_BAR.test(l.text.replace(/\s/g, "")))
-  .map((l) => ({ x: l.x0, y: l.bottom - 0.4 * l.size, w: l.x1 - l.x0, h: 0, image: false }));
+// Two such bars on one baseline reach the layout as one line ("−−−∗ −−−∗")
+// and are two bars, split at the blank between them.
+const TEXT_BAR = /^[−–—\-][−–—\-\d]*∗?$/;
+const textBar = (part: string) => TEXT_BAR.test(part) && part.replace(/[^−–—\-]/g, "").length >= 4;
+const textBars = (page: Page): Drawn[] => page.lines.flatMap((l) => {
+  const parts = l.text.split(/\s+/).filter(Boolean);
+  if (!parts.length || !parts.every(textBar)) return [];
+  const bars: Drawn[] = [];
+  for (const m of l.text.matchAll(/\S+/g)) {
+    const x0 = edgesOf(l, m.index!)?.[0] ?? l.x0, x1 = edgesOf(l, m.index! + m[0].length - 1)?.[1] ?? l.x1;
+    bars.push({ x: x0, y: l.bottom - 0.4 * l.size, w: x1 - x0, h: 0, image: false });
+  }
+  return bars;
+});
 
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
@@ -743,6 +752,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       const token = tokenOf(line);
       if (token) seen.push({ page, line, token, setting: settingOf(page, line, token, type) });
     }
+  }
+  // A bare token set in a listing's face is code (a bracketed one names a
+  // lemma), unless the paper sets its labels so: five or more at bars.
+  const mono = seen.filter((s) => !s.token.bracketed && MONO.test(faceOf(s.line, s.token)));
+  if (mono.filter((s) => (s.setting.category === "beside" || s.setting.category === "over") && s.setting.bar).length < 5) {
+    for (const s of mono) s.setting = { category: "comment", bar: null, row: [], side: "right" };
   }
   // A label level with a bar on either side stands on the side most of
   // the paper's other labels do; short of a majority, on the first found.
