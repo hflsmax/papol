@@ -411,15 +411,25 @@ function overline(page: Page, d: Drawn, type: Type): boolean {
     && r.x >= d.x + d.w - 2 && r.x <= d.x + d.w + 3 && r.baseline <= d.y + 0.6 * r.size && r.baseline >= d.y - 1.5 * r.size));
 }
 
+// A sub- or superscript: a line set smaller than a line it sits on the
+// row of, beside or around it ("ᵢ" by "Δ"); a derivation
+// set small throughout (staging's) has no larger line beside its
+// judgments.
+function script(page: Page, l: Line): boolean {
+  return page.lines.some((o) => o !== l && !o.furniture && o.size >= 1.25 * l.size && level(o, l) && o.x0 <= l.x1 + o.size && o.x1 >= l.x0 - o.size);
+}
+
 // Text reaching up to a stroke from under it, or another
 // stroke just under it, is what it overlines (TCInst's "‾Γ ⊢ τ′ₖ : κₖ‾",
-// PRODORSUM's): a conclusion stands clear of its bar, its baseline a
+// PRODORSUM's; a box's edge under it is a boxed tag's, "9d" in a
+// conclusion): a conclusion stands clear of its bar, its baseline a
 // full size under it however tight its box (a compact derivation's
 // "• ⊢¹ λx. x ⇒ a → a"); a subscript's overline hugs it all the same
-// ("‾Δᵢ‾").
+// ("‾Δᵢ‾"), a stroke about as wide as it. An accent alone (T⃗'s arrow,
+// set as "#»" under sequent's Case bar) is overlined by nothing.
 function hugs(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && l.top < d.y + 0.6 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && (l.baseline - d.y < 0.95 * l.size || l.size < 0.8 * type.bodySize) && l.x0 < d.x + d.w && l.x1 > d.x)
-    || page.drawn.some((e) => e !== d && across(e) && e.y > d.y + 0.2 && e.y - d.y <= 0.4 * type.bodySize && e.x >= d.x - 1 && e.x + e.w <= d.x + d.w + 1);
+  return page.lines.some((l) => !l.furniture && /[\p{L}\p{N}]/u.test(l.text) && l.top < d.y + 0.6 && l.top > d.y - 0.5 * l.size && l.bottom > d.y + 0.5 * l.size && (l.baseline - d.y < 0.95 * l.size || (script(page, l) && d.w <= l.x1 - l.x0 + 2 * l.size)) && l.x0 < d.x + d.w && l.x1 > d.x)
+    || page.drawn.some((e) => e !== d && across(e) && !framed(page, e) && e.y > d.y + 0.2 && e.y - d.y <= 0.4 * type.bodySize && e.x >= d.x - 1 && e.x + e.w <= d.x + d.w + 1);
 }
 
 function underline(page: Page, d: Drawn): boolean {
@@ -446,6 +456,34 @@ function struck(page: Page, d: Drawn): boolean {
   return crossed && !page.lines.some((l) => !through.includes(l) && l.top >= d.y - 1 && l.top <= d.y + 0.5 * l.size && l.x0 < d.x + d.w && l.x1 > d.x);
 }
 
+// A stroke with a heading set level between it and another stroke on
+// its line, the two across the text's width ("—— Structural rules ——"
+// over kokke-popl19's rules), rules the heading off: no step's bar (a
+// label between two steps' bars leaves the width open).
+function headed(page: Page, d: Drawn, type: Type): boolean {
+  return page.lines.some((l) => !l.furniture && Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size
+    && [[d.x + d.w, l.x0], [l.x1, d.x]].some(([a, b]) => b - a >= -1 && b - a <= 2 * l.size)
+    && page.drawn.some((e) => e !== d && across(e) && Math.abs(e.y - d.y) <= 1 && (e.x >= l.x1 - 1 && e.x - l.x1 <= 2 * l.size || l.x0 >= e.x + e.w - 1 && l.x0 - e.x - e.w <= 2 * l.size)
+      && Math.max(d.x + d.w, e.x + e.w) - Math.min(d.x, e.x) >= BAR_SHARE * (type.text.x1 - type.text.x0)));
+}
+// A step boxed apart from a bar over it: a term of that rule's
+// conclusion (kokke-popl19's AXCUT concludes with a boxed H-CUT), not
+// the next step of its tree.
+function boxedApart(page: Page, inner: Drawn, outer: Drawn): boolean {
+  const beside = (v: Drawn, d: Drawn) => v.y < d.y - 1 && v.y + v.h > d.y + 1;
+  const holds = (v: Drawn, d: Drawn) => v.x <= d.x + 1 && v.x + v.w >= d.x + d.w - 1 && beside(v, d);
+  const sides = page.drawn.filter((v) => v.w <= 1.5 && v.h > 1.5);
+  return page.drawn.some((v) => v.w > 1.5 && v.h > 1.5 && holds(v, inner) && !holds(v, outer))
+    || sides.some((a) => beside(a, inner) && a.x <= inner.x + 1 && sides.some((b) => beside(b, inner) && b.x >= inner.x + inner.w - 1 && b.y === a.y && b.h === a.h
+      && !(beside(a, outer) && a.x <= outer.x + 1 && b.x >= outer.x + outer.w - 1)));
+}
+// A stroke over a subterm of a line, from a character's start to another's
+// end with the line going on past it ("‾τ ↦ t†‾" in M-SIG's "η ⊢ ‾τ ↦ t†‾"),
+// overlines that part: a step's bar spans its conclusion.
+function subterm(d: Drawn, l: Line): boolean {
+  return (l.x0 < d.x - 1 || l.x1 > d.x + d.w + 1) && l.runs.some((r) => Math.abs(r.x - d.x) <= 1) && l.runs.some((r) => Math.abs(r.x + r.width - d.x - d.w) <= 1.5);
+}
+
 // A bar is a step of a derivation tree, not a rule's definition, where a
 // narrower bar stands within its span just over it with a line between
 // touching both and as wide as the upper bar: that line is the upper
@@ -456,6 +494,13 @@ function struck(page: Page, d: Drawn): boolean {
 // form is no conclusion.
 // Or a wider bar stands just under it spanning it with a line between:
 // this step's conclusion is the lower step's premise.
+// A tree need not nest: a step's bar may stand to one side of the one it
+// leads into (POPL-011's DT-App over the root's), or be the wider of the
+// two (its premises the longer). The two bars then share half the
+// narrower's span, the line between lies over the lower bar and mostly
+// under the upper, is a judgment (a relation in it) with nothing else
+// beside it over the lower bar, and the upper bar has premises over it
+// (no caption), nor is either boxed apart from the other.
 // For a label over its bar the upper bar stands under the label (`from`):
 // a heading's underline over the label is no step.
 function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number, from = -Infinity): boolean {
@@ -464,11 +509,15 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
   // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's). Running text over it is no
   // premise ("… it sends the next queued event:" over dispatch's
   // "‾A_Q −→α A′‾").
-  const held = (d: Drawn) => lines.some((l) => (l.top > from && !prose(l, type) && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
-    || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
-  return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
-    && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
-    && lines.some((l) => /[\p{L}\d]/u.test(l.text) && l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
+  const premised = (d: Drawn, running = true) => lines.some((l) => !CAPTION.test(l.text) && (running || !prose(l, type)) && l.top > from && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && Math.min(l.x1, d.x + d.w) - Math.max(l.x0, d.x) >= 0.5 * Math.min(l.x1 - l.x0, d.w));
+  const held = (d: Drawn) => premised(d, false)
+    || lines.some((l) => Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size));
+  return page.drawn.some((d) => d !== bar && across(d) && d.w >= 1.5 * type.bodySize && !framed(page, d) && !headed(page, d, type) && !dividing(page, d, type) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
+    && Math.min(d.x + d.w, bar.x + bar.w) - Math.max(d.x, bar.x) >= 0.5 * Math.min(bar.w, d.w)
+    && lines.some((l) => /[\p{L}\d]/u.test(l.text) && l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading
+      && Math.min(l.x1, d.x + d.w) - Math.max(l.x0, d.x) >= 0.5 * (l.x1 - l.x0) && l.x0 >= bar.x - slack && l.x1 <= bar.x + bar.w + slack && !subterm(d, l)
+      && (d.w < bar.w || (RELATION.test(l.text) && premised(d) && !boxedApart(page, bar, d)
+        && !lines.some((o) => o.top >= d.y - 1 && o.bottom <= bar.y + 1 && o.x0 < d.x + d.w && o.x1 > d.x && (o.x1 < bar.x - slack || o.x0 > bar.x + bar.w + slack))))));
 }
 // A step's bar has its conclusion right under it, its baseline within a
 // leading (a label raised beside the bar may lift the line's top): a
@@ -505,16 +554,21 @@ function dividing(page: Page, d: Drawn, type: Type): boolean {
   };
   return !under.some((l) => centred(l.x0, l.x1) || centred(...whole(l)));
 }
-// The wider bar a step's conclusion leads into, where no label of its
+// The bar a step's conclusion leads into (the wider, or one as a tree
+// that does not nest has it: derivation), where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
 // another's conclusion is not a step, nor is a frame's edge under it (the
 // judgment's box under NEVER) a bar, nor a table's rule with no
 // conclusion under it (Table 8's LoadLarger over running text).
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
-  return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
-    && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
+  const shared = (d: Drawn) => Math.min(d.x + d.w, bar.x + bar.w) - Math.max(d.x, bar.x);
+  return page.drawn.find((d) => d !== bar && across(d) && d.w >= 1.5 * type.bodySize && !framed(page, d) && !headed(page, d, type) && !hugs(page, d, type) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
+    && shared(d) >= 0.5 * Math.min(bar.w, d.w)
     && concludes(page, d, type) && !dividing(page, d, type)
-    && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
+    && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading
+      && Math.min(l.x1, bar.x + bar.w) - Math.max(l.x0, bar.x) >= 0.5 * (l.x1 - l.x0) && l.x0 >= d.x - slack && l.x1 <= d.x + d.w + slack
+      && (d.w > bar.w + 1 || (RELATION.test(l.text) && !boxedApart(page, d, bar)
+        && !lines.some((o) => o.top >= bar.y - 1 && o.bottom <= d.y + 1 && o.x0 < bar.x + bar.w && o.x1 > bar.x && (o.x1 < d.x - slack || o.x0 > d.x + d.w + slack)))))) ?? null;
 }
 
 // What stands at a row's end names a rule only where the row is one: a
@@ -1580,11 +1634,18 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const barred = new Set(seen.map((s) => s.setting.bar).filter(Boolean));
   for (const s of seen) if (s.setting.step && !barred.has(s.setting.step)) s.setting.derived = true;
   // ... and a bar leading into a step is one: its conclusion is that
-  // step's premise (T-Lam over T-App in let-arguments' desugared tree).
-  const labelOf = new Map(seen.filter((s) => s.setting.bar).map((s) => [s.setting.bar, s]));
+  // step's premise (T-Lam over T-App in let-arguments' desugared tree);
+  // so is a label at a step's bar (a second label beside it). A bar is
+  // a step where any label found at it is, whatever else (a premise's
+  // cell) stands there too.
+  const steps = new Set(seen.filter((s) => s.setting.derived && s.setting.bar).map((s) => s.setting.bar));
   for (let grown = true; grown;) {
     grown = false;
-    for (const s of seen) if (!s.setting.derived && s.setting.step && labelOf.get(s.setting.step)?.setting.derived) { s.setting.derived = true; grown = true; }
+    for (const s of seen) {
+      if (s.setting.derived || !((s.setting.step && steps.has(s.setting.step)) || (s.setting.category === "beside" && s.setting.bar && steps.has(s.setting.bar)))) continue;
+      s.setting.derived = true; grown = true;
+      if (s.setting.bar) steps.add(s.setting.bar);
+    }
   }
   const boxAt = (page: Page, line: Line, setting: Setting, out?: { lines: Line[] }) => {
     const rest = seen.filter((s) => s.page === page && s.line !== line);
@@ -1753,8 +1814,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     }
   }
   const rules = new Map<string, Rule>();
-  // A label at a step of a derivation defines its rule only where no
-  // label at a rule's own setting does (rule.derivation).
+  // A label at a step of a derivation cites its rule, never defines it
+  // (rule.derivation); a step's label read after the rule's own setting
+  // lets a stacked rule keep its place.
   const ordered = [...candidates.filter((c) => !c.setting.derived), ...candidates.filter((c) => c.setting.derived)];
   // One label stands over a bar: under a rule's label found over it, a
   // token over the same bar is a premise ("⌉A⌈" under TL-and).
@@ -1778,7 +1840,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const bar = c.setting.bar;
     const stacked = bar && placed.some((p) => p.page === c.page && p.bar && p.bar !== bar && p.bar.y < bar.y - 2 && p.bar.y >= bar.y - 2.2 * type.leading
       && p.bar.x >= bar.x - type.bodySize && p.bar.x + p.bar.w <= bar.x + bar.w + type.bodySize && p.bar.w < bar.w);
-    if (c.setting.derived && !stacked && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, labels, faceOf(c.line, c.token), type)) {
+    if (c.setting.derived && !stacked) {
       labels.delete(c.line); trace.add(RULE_DERIVATION.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue;
     }
     const set: { lines: Line[] } = { lines: [] };
