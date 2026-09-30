@@ -11,13 +11,17 @@ import { WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
 
 // The account's synchronized rows, complete, with the papers its copies
-// name. This is the authoritative half of a pull: every reconciliation
+// name, and the log cursor they are current to. This is the authoritative half of a pull: every reconciliation
 // fetches it first, so a replica that missed a change learns the same
 // state here a moment later. Listed parents before children, which is
 // the order a replica can store them in.
 export async function snapshot({ request, env }: RouteContext): Promise<Response> {
   requireSupportedClient(request);
   const user = await currentUser(request, env);
+  // Read before the rows, so a change written while they are read is
+  // pulled again rather than skipped: applying a row twice is harmless.
+  const head = await one<{ cursor: number }>(env.DB,
+    "SELECT COALESCE(MAX(sequence), 0) AS cursor FROM _server_change_log WHERE user_uuid = ?", user.uuid);
   const mine = (table: string) => all(env.DB, `SELECT * FROM ${table} WHERE user_uuid = ?`, user.uuid);
   const throughBoards = (table: string) => all(env.DB,
     `SELECT t.* FROM ${table} t JOIN boards b ON b.uuid = t.board_uuid WHERE b.user_uuid = ?`, user.uuid);
@@ -36,7 +40,10 @@ export async function snapshot({ request, env }: RouteContext): Promise<Response
   for (const table of WRITE_ORDER) {
     for (const row of byTable[table]) rows.push({ ...(await rowSnapshot(env.DB, table, row)), table });
   }
-  return json({ rows });
+  // Where the log stood: everything logged up to here is in these rows,
+  // so a replica pulls from here and never replays older entries, which
+  // may be in a shape the service has since moved past.
+  return json({ rows, cursor: head?.cursor ?? 0 });
 }
 
 interface Change extends Row {

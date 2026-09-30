@@ -407,6 +407,17 @@ describe("the nook", () => {
     expect((await rows<{ kind: string }>("SELECT kind FROM annotations ORDER BY kind")).map((r) => r.kind)).toEqual(["anchor", "clip", "ink"]);
   });
 
+  it("hands a replica the cursor its snapshot is current to, so the pull after it replays nothing older", async () => {
+    const account = await register();
+    const board = uuid();
+    await pushed(account, mutation([{ table: "boards", uuid: board, operation: "upsert", values: { name: "Before the snapshot" } }]));
+    const snapshot = await ok("GET", "/api/sync/snapshot", { headers: account.headers });
+    expect(snapshot.rows.some((r: any) => r.uuid === board)).toBe(true);
+    const [logged] = await rows<{ sequence: number }>("SELECT sequence FROM _server_change_log WHERE row_uuid = ?", board);
+    expect(snapshot.cursor).toBe(logged.sequence);
+    expect((await ok("GET", `/api/sync/pull?cursor=${snapshot.cursor}`, { headers: account.headers })).changes).toEqual([]);
+  });
+
   it("refuses an annotation that is not its kind's shape", async () => {
     const account = await register();
     const digest = "5".repeat(64);

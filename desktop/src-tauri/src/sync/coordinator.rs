@@ -258,6 +258,8 @@ struct PullResponse {
 #[derive(Deserialize)]
 struct SnapshotResponse {
     rows: Vec<Map<String, Value>>,
+    /// Where the change log stood when the rows were read.
+    cursor: i64,
 }
 
 impl Coordinator {
@@ -494,7 +496,7 @@ impl Coordinator {
         let snapshot: SnapshotResponse =
             serde_json::from_slice(&snapshot).map_err(|error| error.to_string())?;
         store
-            .apply_snapshot(account_uuid, snapshot.rows)
+            .apply_snapshot(account_uuid, snapshot.rows, snapshot.cursor)
             .map_err(|error| format!("Applying snapshot failed: {error}"))?;
         meter.item_done();
 
@@ -956,8 +958,8 @@ mod tests {
                     "GET",
                     "/api/sync/snapshot",
                     vec![
-                        Reply::cut_short(json!({"rows": []})),
-                        Reply::ok(json!({"rows": []})),
+                        Reply::cut_short(json!({"rows": [], "cursor": 0})),
+                        Reply::ok(json!({"rows": [], "cursor": 0})),
                     ],
                 )
                 .reply("GET", "/api/sync/pull", empty_pull());
@@ -1015,7 +1017,11 @@ mod tests {
         bounded(async {
             let server = FakeServer::start();
             server
-                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply(
+                    "GET",
+                    "/api/sync/snapshot",
+                    Reply::ok(json!({"rows": [], "cursor": 0})),
+                )
                 .reply("GET", "/api/sync/pull", empty_pull());
 
             let directory = tempfile::tempdir().unwrap();
@@ -1079,7 +1085,11 @@ mod tests {
                         })),
                     ],
                 )
-                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply(
+                    "GET",
+                    "/api/sync/snapshot",
+                    Reply::ok(json!({"rows": [], "cursor": 0})),
+                )
                 .reply("GET", "/api/sync/pull", empty_pull());
 
             let directory = tempfile::tempdir().unwrap();
@@ -1137,7 +1147,11 @@ mod tests {
                         "conflicts": []
                     })),
                 )
-                .reply("GET", "/api/sync/snapshot", Reply::ok(json!({"rows": []})))
+                .reply(
+                    "GET",
+                    "/api/sync/snapshot",
+                    Reply::ok(json!({"rows": [], "cursor": 0})),
+                )
                 .reply("GET", "/api/sync/pull", empty_pull());
 
             let directory = tempfile::tempdir().unwrap();
