@@ -1341,9 +1341,19 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // Past the conclusion, a line over another bar is that rule's premise
   // (Assign's over Access's conclusion; 1⊥'s over ⊗⅋'s, though "1⊥" is no
   // name found), unless it opens with a relation: the conclusion broken
-  // over two lines (Define's "→ ⟨body…⟩").
-  const beyond = (l: Line) => Boolean(bar) && l.top > bar!.y + 0.8 * type.leading && !/^\s*[→⟶⇒↦=≡⊢]/u.test(l.text)
-    && page.drawn.some((d) => d !== bar && across(d) && d.y > l.bottom && d.y - l.bottom <= 2 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size);
+  // over two lines (Define's "→ ⟨body…⟩"). That bar has a conclusion
+  // under it: a frame's edge under the figure concludes nothing (CAS's
+  // "B′(x) = ε" over the edge of Semantics 2). Running on from a line
+  // over it (`end`), a line hard under that and further from the lines
+  // under it hangs from this rule, the other rule's premise between (STORE's
+  // "B′(x) = l · pc" over FLUSH's "B(x) = l · b").
+  const beyond = (l: Line, end?: number) => Boolean(bar) && l.top > bar!.y + 0.8 * type.leading && !/^\s*[→⟶⇒↦=≡⊢]/u.test(l.text)
+    && page.drawn.some((d) => {
+      if (d === bar || !across(d) || d.y <= l.bottom || d.y - l.bottom > 2 * type.leading || d.x > l.x0 + label.size || d.x + d.w < l.x1 - label.size || !concludes(page, d, type)) return false;
+      if (end === undefined) return true;
+      const between = page.lines.filter((o) => o !== l && !o.furniture && o.top >= l.bottom - 1 && o.bottom <= d.y + 1 && o.x0 < l.x1 && o.x1 > l.x0);
+      return !between.length || Math.min(...between.map((o) => o.top)) - l.bottom <= l.top - end + 1;
+    });
   // Labels set level over bar-less rows head columns: a row keeps to its
   // own, from its label's left edge to the next label's ("(Ast-Gen)" and
   // "(Sec-Tls)" over two reductions).
@@ -1400,7 +1410,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       const end = Math.max(...under.map((t) => t.bottom));
       if (!under.length) break;
       for (const line of lines) {
-        if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line)) continue;
+        if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line, end)) continue;
         // A lone glyph (a piece of the next line's tall brace) runs nothing on.
         if (line.top < end - 1 || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
         taken.add(line); grew = true;
