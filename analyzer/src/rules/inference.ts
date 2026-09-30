@@ -1519,6 +1519,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         if (taken.has(line) || Math.abs(line.x0 - start) > 2 * label.size || line.x1 - line.x0 > width || line.x1 > label.x0 - label.size || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
         if (line.bottom > top + 1 || top - line.bottom > 0.6 * type.leading || line.text.replace(/\s/g, "").length < 3 || NUMERALS.test(line.text)) continue;
         if (page.lines.some((o) => o !== line && !o.furniture && onRow(o, line) && sameColumn(page, o, label))) continue;
+        // An assertion, in brackets end to end (a symbol font's letter for
+        // stmary's ⦇ ⦈, VAE-spec's "L True M"): a signature over equations
+        // ("inject : α × C → C" over relay-in's) is none.
+        const glyph = (i: number) => { const c = line.text[i], ref = line.chars[i]; return "{⟨([⦃⦇⟦}⟩)]⦄⦈⟧".includes(c) || (/\p{L}/u.test(c) && ref?.run >= 0 && SYMBOLIC.test(line.runs[ref.run].font)); };
+        if (!glyph(line.text.search(/\S/)) || !glyph(line.text.trimEnd().length - 1)) continue;
         taken.add(line); grew = true;
       }
     }
@@ -2034,7 +2039,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const key = keyOf(fold(c.token.text));
     const premise = c.setting.category === "over" && c.setting.bar && labelled.get(c.setting.bar) !== undefined && c.line.top - labelled.get(c.setting.bar)! <= 3 * type.leading
       && c.setting.bar.y - labelled.get(c.setting.bar)! <= 3.5 * type.leading;
-    if (premise) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
+    // So is a token raised onto the last premise's line within the bar's
+    // span where a label stands over that bar (phys_atomic(e) beside inv's
+    // premise "{R ∗ P} e {v. R ∗ Q(v)}").
+    const raised = (b: Drawn) => c.setting.category === "beside" && c.line.x0 > b.x + c.line.size && c.line.x1 <= b.x + b.w + c.line.size && c.line.bottom <= b.y + 1
+      && candidates.some((o) => o !== c && o.setting.category === "over" && o.setting.bar === b && o.line.top < c.line.top);
+    if (premise || (c.setting.bar && raised(c.setting.bar))) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
     // A name defined again (a second system's Var, a rule restated in
     // related work) is a rule of its own there; a mention names the
     // definition it follows (findRuleMentions). A derivation's step
