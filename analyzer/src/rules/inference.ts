@@ -1298,6 +1298,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // span, is no running text.
   const bar = setting.bar;
   const premise = (l: Line) => Boolean(bar) && l.x0 >= bar!.x - label.size && l.x1 <= bar!.x + bar!.w + label.size && l.bottom <= bar!.y + 1 && l.bottom >= bar!.y - 1.5 * type.leading;
+  // Nor is a conclusion as long as a line of text, set in the text's face
+  // hard under the bar within its span (wp-conj0's "wp 𝒕₁{𝑄₁} ∧ wp 𝒕₂{𝑄₂} ⊢
+  // wp (𝒕₁+𝒕₂) {𝑄₁∧𝑄₂}").
+  const conclusion = (l: Line) => Boolean(bar) && l.x0 >= bar!.x - label.size && l.x1 <= bar!.x + bar!.w + label.size && l.top >= bar!.y - 1 && l.top <= bar!.y + 0.8 * type.leading;
   // Nor is a line set smaller than the text, as a figure is ("when T₂ ≠
   // … and …" under E_Forget).
   // A side condition ("where 0−free(ℓ, E) and …") set in from the rule's
@@ -1321,7 +1325,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const body = setting.row.filter((l) => l !== label && l.x0 > label.x1);
   const gloss = (l: Line) => !bar && setting.side !== "over" && body.length > 0 && l.top >= label.bottom - 1
     && l.x0 > Math.min(...body.map((r) => r.x0)) + 2 * label.size && l.x0 < Math.max(...body.map((r) => r.x1));
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l) || conclusion(l) || gloss(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
