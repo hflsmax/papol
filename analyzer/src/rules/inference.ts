@@ -400,8 +400,10 @@ function struck(page: Page, d: Drawn): boolean {
 function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number, from = -Infinity): boolean {
   // A step's bar has premises over it (under the rule's label) or its
   // label beside it; a stroke with neither over a premise is its overline
-  // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's).
-  const held = (d: Drawn) => lines.some((l) => (l.top > from && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
+  // (CDRcd's "‾Γ ⊢ eᵢ : Aᵢ‾", LIST's). Running text over it is no
+  // premise ("… it sends the next queued event:" over dispatch's
+  // "‾A_Q −→α A′‾").
+  const held = (d: Drawn) => lines.some((l) => (l.top > from && !prose(l, type) && l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading && l.x0 < d.x + d.w && l.x1 > d.x)
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
   return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
@@ -895,8 +897,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const right = columnRight(page, label);
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
   // A row opening with a quantifier states a lemma, no rule
-  // ("∀𝑥 : Nat. half (add 𝑥 𝑥) ≐ 𝑥   (half_double)").
-  if (atMargin && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "none", bar: null, row, side: "right" };
+  // ("∀𝑥 : Nat. half (add 𝑥 𝑥) ≐ 𝑥   (half_double)"); a premise over its
+  // conclusion is a rule however it opens ("∃ 𝑑𝑏 ∈ 𝐷 (…)" over
+  // G–Collective-Local's step).
+  const stacked = row.some((a) => row.some((b) => b.top >= a.bottom - 1));
+  if (atMargin && !stacked && /^\s*[∀∃]/u.test([...row].sort((a, b) => a.x0 - b.x0)[0].text)) return { category: "none", bar: null, row, side: "right" };
   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
   // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name); another label set
@@ -956,12 +961,18 @@ const capitalised = (text: string) => /^\p{Lu}/u.test(text);
 // A row that steps: an arrow or a turnstile between its sides, not the
 // equation a grammar defines its categories by.
 const STEP = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩]|->|=>|~>/u;
+// An arrow starred is the relation's closure: its row states where many
+// steps lead, a goal reached, no step of its own ("𝑚𝑎𝑝 (𝑛1 × 32) 𝑓 ↦−→∗ …"
+// tagged "(Tile1D)").
+const CLOSURE = /(?:[→⟶↦⟼⇒⟹⇛⤇⇝↝⤳↠−-]|->|=>|~>)+\s*[∗*⋆]/gu;
+const steps = (l: Line) => STEP.test(l.text.replace(CLOSURE, " "));
 
 function allowed(shape: Shape, token: Token, category: Category, row: Line[] = []): string | null {
   // A word in parentheses at the margin names a row that steps ("(send)"
   // after a reduction); beside a grammar's equation it tags a category
-  // ("(Actors)" after "A = x : Σ").
-  if (category === "margin" && shape === "word" && token.bracketed && !token.square) return row.some((l) => STEP.test(l.text)) ? RULE_NAME_MARGIN.id : null;
+  // ("(Actors)" after "A = x : Σ"), unless in lower case it names a law
+  // as below ("(filter)" after "push(𝑣) · pop(𝑤) ≡ 0").
+  if (category === "margin" && shape === "word" && token.bracketed && !token.square && row.some(steps)) return RULE_NAME_MARGIN.id;
   switch (category) {
     case "beside":
       return RULE_NAME_BESIDE.id;
@@ -1410,7 +1421,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
       // A Latin capital alone in brackets tags its row as a word does ("(𝐹 )"
       // among "(𝑅1)" … "(𝑅9)"), standing only where others are set alike.
-      const shape = shapeOf(fold(token.text)) ?? (token.bracketed && /^[A-Z]$/.test(fold(token.text)) ? "word" : null);
+      // Set in the math face the rules are; an upright one letters a
+      // displayed term as a numeral numbers an equation ("(A)" and "(B)"
+      // tagging a program before and after its rewriting).
+      const shape = shapeOf(fold(token.text)) ?? (token.bracketed && /^[A-Z]$/.test(fold(token.text)) && !/^[A-Z]$/.test(token.text) ? "word" : null);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
@@ -1499,8 +1513,11 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // Words set alike over their rules, two of them over premises over
       // a bar and the rest over a triple or relation each, are a figure's
       // labels (Snapshottable Stores' CREATE, REF, GET, CAPTURE, SET,
-      // RESTORE); a table's headers stand right over its rule.
-      const premised = (c: Candidate) => c.setting.category === "over" && Boolean(c.setting.bar)
+      // RESTORE); a table's headers stand right over its rule. Such a
+      // label heads its rule, flush with its bar's left end ("Get" over
+      // "𝑟 ∈ dom(𝜎)"); a word centred over a table's rule ("Inner" over
+      // "𝐴 ⋈ 𝐵") or over a row of rules ("Union") titles them.
+      const premised = (c: Candidate) => c.setting.category === "over" && Boolean(c.setting.bar) && Math.abs(c.line.x0 - c.setting.bar!.x) <= 0.5 * c.line.size
         && c.page.lines.some((l) => l !== c.line && l.top >= c.line.bottom - 1 && l.bottom <= c.setting.bar!.y + 1 && l.x0 < c.setting.bar!.x + c.setting.bar!.w && l.x1 > c.setting.bar!.x);
       if (members.length >= 3 && members.filter(premised).length >= 2) { confirmed.add(convention); continue; }
       const names = members.map((c) => ({ name: c.token.text, shape: c.shape, bracketed: c.token.bracketed }));
