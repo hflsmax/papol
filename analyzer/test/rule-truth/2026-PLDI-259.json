@@ -1,0 +1,565 @@
+{
+ "rules": [
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-model-exclusive",
+   "box": [
+    46.5,
+    98.1,
+    166.8,
+    130.4
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-owner-exclusive",
+   "box": [
+    187.3,
+    98.1,
+    309.8,
+    130.4
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-owner-model",
+   "box": [
+    330.6,
+    98.1,
+    439.4,
+    130.4
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-create-spec",
+   "box": [
+    50.9,
+    163.9,
+    152.9,
+    232.4
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-size-spec",
+   "box": [
+    175.7,
+    145.4,
+    279.5,
+    250.9
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-is-empty-spec",
+   "box": [
+    302.0,
+    145.4,
+    435.5,
+    250.9
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-push-spec",
+   "box": [
+    112.1,
+    262.7,
+    224.3,
+    356.2
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-steal-spec",
+   "box": [
+    277.3,
+    274.5,
+    373.5,
+    344.3
+   ]
+  },
+  {
+   "page": 6,
+   "name": "inf-ws-deqe-pop-spec",
+   "box": [
+    158.5,
+    368.1,
+    327.5,
+    569.4
+   ]
+  },
+  {
+   "page": 7,
+   "name": "ws-deqe-steal-spec-weak",
+   "box": [
+    111.2,
+    101.9,
+    216.7,
+    255.4
+   ]
+  },
+  {
+   "page": 7,
+   "name": "ws-deqe-pop-spec-weak",
+   "box": [
+    269.2,
+    90.0,
+    375.2,
+    267.3
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-inv-agree",
+   "box": [
+    57.0,
+    111.4,
+    144.5,
+    143.7
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-consumer-finished",
+   "box": [
+    171.5,
+    111.4,
+    286.0,
+    144.2
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-obligation-finished",
+   "box": [
+    312.7,
+    111.4,
+    428.2,
+    142.7
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-create-spec",
+   "box": [
+    48.8,
+    169.4,
+    116.0,
+    224.9
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-run-spec",
+   "box": [
+    137.9,
+    157.4,
+    341.9,
+    236.6
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-close-spec",
+   "box": [
+    363.2,
+    175.3,
+    437.4,
+    218.8
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-size-spec",
+   "box": [
+    57.4,
+    266.8,
+    168.9,
+    334.1
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-async-spec",
+   "box": [
+    194.4,
+    248.9,
+    428.9,
+    351.9
+   ]
+  },
+  {
+   "page": 13,
+   "name": "pool-wait-ivar-spec",
+   "box": [
+    184.3,
+    364.1,
+    301.8,
+    431.4
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-result-agree",
+   "box": [
+    85.7,
+    98.7,
+    168.0,
+    142.7
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-inv-result",
+   "box": [
+    208.0,
+    98.7,
+    280.5,
+    143.2
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-inv-finished",
+   "box": [
+    320.7,
+    98.7,
+    400.7,
+    141.5
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-consumer-divide",
+   "box": [
+    51.6,
+    156.4,
+    162.1,
+    230.6
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-inv-result-consumer",
+   "box": [
+    186.1,
+    162.5,
+    300.6,
+    219.3
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-obligation-finished",
+   "box": [
+    323.4,
+    174.5,
+    434.7,
+    217.5
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-async-spec",
+   "box": [
+    47.3,
+    243.7,
+    269.8,
+    370.2
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-wait-spec",
+   "box": [
+    290.3,
+    267.3,
+    438.8,
+    346.3
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-iter-spec",
+   "box": [
+    53.9,
+    394.2,
+    230.8,
+    533.2
+   ]
+  },
+  {
+   "page": 16,
+   "name": "future-map-spec",
+   "box": [
+    254.5,
+    382.5,
+    432.2,
+    544.7
+   ]
+  },
+  {
+   "page": 17,
+   "name": "prophet-model-exclusive",
+   "box": [
+    68.8,
+    94.7,
+    237.8,
+    125.5
+   ]
+  },
+  {
+   "page": 17,
+   "name": "wp-proph",
+   "box": [
+    270.1,
+    89.8,
+    417.6,
+    133.0
+   ]
+  },
+  {
+   "page": 17,
+   "name": "wp-resolve",
+   "box": [
+    70.4,
+    145.2,
+    414.9,
+    227.4
+   ]
+  },
+  {
+   "page": 18,
+   "name": "typed-prophet-model-exclusive",
+   "box": [
+    69.1,
+    94.7,
+    237.8,
+    125.5
+   ]
+  },
+  {
+   "page": 18,
+   "name": "typed-prophet-proph-spec",
+   "box": [
+    270.1,
+    89.8,
+    417.6,
+    133.0
+   ]
+  },
+  {
+   "page": 18,
+   "name": "typed-prophet-resolve-spec",
+   "box": [
+    57.7,
+    145.2,
+    428.0,
+    227.4
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-model-exclusive",
+   "box": [
+    60.8,
+    111.1,
+    297.5,
+    142.1
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-full-get",
+   "box": [
+    326.3,
+    111.1,
+    424.1,
+    144.4
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-full-valid",
+   "box": [
+    73.2,
+    157.4,
+    248.7,
+    190.6
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-full-agree",
+   "box": [
+    283.4,
+    157.4,
+    412.1,
+    190.6
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-snapshot-get",
+   "box": [
+    56.1,
+    203.6,
+    165.9,
+    236.9
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-snapshot-valid",
+   "box": [
+    191.1,
+    203.6,
+    429.1,
+    237.1
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-lb-get",
+   "box": [
+    63.5,
+    249.9,
+    161.5,
+    283.1
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-lb-valid",
+   "box": [
+    191.0,
+    249.9,
+    421.8,
+    283.1
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-proph-spec",
+   "box": [
+    156.7,
+    295.8,
+    329.7,
+    339.3
+   ]
+  },
+  {
+   "page": 19,
+   "name": "wise-prophet-resolve-spec",
+   "box": [
+    77.5,
+    351.5,
+    407.3,
+    433.5
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-model-exclusive",
+   "box": [
+    49.8,
+    98.2,
+    299.8,
+    129.2
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-full-get",
+   "box": [
+    322.9,
+    98.2,
+    435.4,
+    131.4
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-full-valid",
+   "box": [
+    66.9,
+    144.4,
+    246.9,
+    177.7
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-full-agree",
+   "box": [
+    278.3,
+    144.4,
+    418.3,
+    177.9
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-snapshot-get",
+   "box": [
+    178.7,
+    190.7,
+    306.7,
+    223.9
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-snapshot-valid",
+   "box": [
+    50.0,
+    236.9,
+    307.1,
+    270.2
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-lb-get",
+   "box": [
+    330.4,
+    236.9,
+    434.9,
+    270.2
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-lb-valid",
+   "box": [
+    118.5,
+    283.2,
+    367.0,
+    316.7
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-proph-spec",
+   "box": [
+    141.2,
+    329.1,
+    344.8,
+    372.6
+   ]
+  },
+  {
+   "page": 20,
+   "name": "wise-prophets-resolve-spec",
+   "box": [
+    61.9,
+    384.5,
+    423.4,
+    466.5
+   ]
+  }
+ ],
+ "notes": " The PDF maps the small-caps \"qu\" ligature to \"q\", so names say deqe as the text layer does."
+}

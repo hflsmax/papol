@@ -202,7 +202,11 @@ const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min
 const level = (a: Line, b: Line) => a.top <= b.bottom + tolerance(a, b) && b.top <= a.bottom + tolerance(a, b);
 // Sharing most of its height with the label: on its row, not the line
 // under it that merely touches.
-const onRow = (a: Line, b: Line) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) >= 0.5 * Math.min(a.size, b.size);
+// A delimiter stretched over a stack of lines (a spec's tall braces)
+// stands on no row.
+const STRETCHED = /^[(){}[\]⟨⟩⟪⟫|‖⌈⌉⌊⌋\s]+$/u;
+const onRow = (a: Line, b: Line) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) >= 0.5 * Math.min(a.size, b.size)
+  && !(STRETCHED.test(a.text) && a.size > 1.5 * b.size) && !(STRETCHED.test(b.text) && b.size > 1.5 * a.size);
 
 // Two lines are in one column: on a two-column page, on the same side of
 // the middle.
@@ -325,7 +329,9 @@ function struck(page: Page, d: Drawn): boolean {
 // touching both and as wide as the upper bar: that line is the upper
 // step's conclusion and this step's premise (rule.derivation); an accent
 // drawn over part of a premise, or an overline, is no bar, nor a stroke
-// with no premise over it and no label beside it.
+// with no premise over it and no label beside it. The line between holds
+// a letter or digit: a row of vector arrows under a judgment's framed
+// form is no conclusion.
 // Or a wider bar stands just under it spanning it with a line between:
 // this step's conclusion is the lower step's premise.
 // For a label over its bar the upper bar stands under the label (`from`):
@@ -338,7 +344,7 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
     || (Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * l.size && (Math.abs(l.x0 - d.x - d.w) <= 2 * l.size || Math.abs(d.x - l.x1) <= 2 * l.size)));
   return page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && held(d) && !hugs(page, d, type) && d.y > from && d.y < bar.y - 2 && d.y >= bar.y - 2.2 * type.leading
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
-    && lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
+    && lines.some((l) => /[\p{L}\d]/u.test(l.text) && l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
 // A step's bar has its conclusion right under it, its baseline within a
 // leading (a label raised beside the bar may lift the line's top): a
@@ -466,16 +472,34 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // A short bar (an axiom's, as wide as its one-symbol conclusion) is a
   // bar only level with the label or under it; a stroke that touches the
   // line over it is a bar only with a conclusion centred under it.
-  const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)))
+  // Further down, a bar ends a stack of premises that runs unbroken from
+  // the label, each line hard under the last (a specification's
+  // precondition, nine lines in braces over FUTURE-ITER-SPEC's bar).
+  const unbroken = (d: Drawn) => {
+    const stack = lines.filter((l) => l !== label && l.bottom > label.bottom && l.bottom < d.y + 1 && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top);
+    let end = label.bottom;
+    for (const l of stack) { if (l.top - end > 0.5 * type.leading) return false; end = Math.max(end, l.bottom); }
+    return d.y - end <= 0.5 * type.leading;
+  };
+  // Under the label, a bar as wide as the one line under it is an
+  // axiom's however short (Ctx-Empty's "⊢ ·").
+  const matched = (d: Drawn) => lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + type.leading && Math.abs(l.x0 - d.x) <= 1 && Math.abs(l.x1 - d.x - d.w) <= 1);
+  const near = page.drawn.filter((d) => across(d) && d.w <= widest && (d.w >= 2 * label.size || (d.w >= 1.3 * label.size && (besides(d) || d.y >= label.bottom - 1)) || (d.w >= label.size && d.y >= label.bottom - 1 && matched(d)))
     && (d.w <= wide || concluded(d) || besides(d) || sized(d) || (topping(d) && capping(d) && d.w <= HUGGED * (type.text.x1 - type.text.x0)))
-    && d.y >= label.top - OVER_REACH * type.leading && d.y <= label.bottom + OVER_REACH * type.leading
+    && d.y >= label.top - OVER_REACH * type.leading && (d.y <= label.bottom + OVER_REACH * type.leading || (d.y <= label.bottom + 2 * OVER_REACH * type.leading && unbroken(d)))
     && ((d.x <= label.x1 + 2 * slack && d.x + d.w >= label.x0 - 2 * slack) || (besides(d) && blankTo(d)) || (margined && d.y > label.bottom && d.x >= label.x0 && d.x + d.w <= colRight + slack)) && !framed(page, d) && !overline(page, d, type) && !struck(page, d) && (!underline(page, d) || concluded(d) || topping(d)) && !inProse(page, d, type));
   const bars = near.filter((d) => d.y >= label.top - NEAR_BAR * type.leading && d.y <= label.bottom + NEAR_BAR * type.leading)
     .sort((a, b) => Math.abs(a.y - mid) - Math.abs(b.y - mid) || gapTo(a) - gapTo(b));
   // The nearest bar under the label, for a label standing over its premises.
   const aside = (d: Drawn) => Math.abs(d.x + d.w / 2 - (label.x0 + label.x1) / 2);
   const below = near.filter((d) => d.y >= label.bottom - 1).sort((a, b) => (Math.abs(a.y - b.y) > 1 ? a.y - b.y : aside(a) - aside(b)));
-  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label));
+  // A line hard under another label is that label's premise, on no row
+  // of this one's (HThunk-Force's precondition, set lower beside
+  // HThunk-Consequence), unless it shares the label's baseline (a
+  // table's cells, each under the one over it).
+  const headedBy = (l: Line) => lines.some((o) => o !== label && o.top < l.top && l.top - o.bottom <= 0.5 * type.leading && o.x0 < l.x1 && o.x1 > l.x0 && tokenOf(o)?.side === "whole");
+  const lowered = (l: Line) => headedBy(l) && Math.abs(l.baseline - label.baseline) > 1;
+  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l));
   // A conclusion stands under a bar; an axiom's has nothing over it.
   // The conclusion sits within the bar's span, the bar being as wide as
   // the widest of premises and conclusion: a plot's tick labels and a
@@ -608,7 +632,9 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // label heads ("(tapp)" over the next figure's rule); a premise over a
     // bar of its own is the next rule's (ENV-R-KVAR's beside ENV-R-EMPTY).
     const premised = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2);
-    const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l));
+    // ... nor is one hard under another label, that label's premise
+    // (POOL-RUN-SPEC's "model t ∗" beside POOL-CREATE-SPEC).
+    const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l) && !headedBy(l));
     // Three plain upright words or more with no relation or formula under
     // the bar are a table's subheadings ("LOC Spec Time (s)" under Flux's rule) or a
     // plot's axis labels ("pgn ppm sexp" under ParTS's legend swatch).
@@ -676,14 +702,15 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   }
   // A label set level with a stack of lines touches each without sharing
   // half its height with any: the stack is its row. Other labels on the
-  // label's row (the next rule's, set beside) are not its row.
-  if (row.every((l) => WHOLE.test(l.text))) row = lines.filter((l) => level(l, label) && !onRow(l, label) && sameColumn(page, l, label));
+  // label's row (the next rule's, set beside) are not its row, nor the
+  // lines hard under them.
+  if (row.every((l) => WHOLE.test(l.text))) row = lines.filter((l) => level(l, label) && !onRow(l, label) && sameColumn(page, l, label) && tokenOf(l)?.side !== "whole");
   const rest = (token.side === "whole" ? "" : label.text.slice(0, token.start) + " " + label.text.slice(token.end) + " ") + row.map((l) => l.text).join(" ");
   const body = /\p{L}|[^\p{L}\d\s\[\]()]/u.test(rest.replace(/[\[\]()]/g, "")) && rest.replace(/\s/g, "").length >= 3;
   if (!body) return { category: "none", bar: null, row, side: "right" };
   // A relation level with the label counts, on its row or in a line the
   // layout set apart (a tall arrow between two lines of terms).
-  const levelled = page.lines.filter((l) => l !== label && onRow(l, label) && sameColumn(page, l, label)).map((l) => l.text).join(" ");
+  const levelled = page.lines.filter((l) => l !== label && onRow(l, label) && sameColumn(page, l, label) && !lowered(l)).map((l) => l.text).join(" ");
   const span = spanOf(label, token);
   if (token.side !== "whole") {
     if (production(label, page, type)) return { category: "comment", bar: null, row, side: "right" };
@@ -850,6 +877,40 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // Without a bar the row is as wide as its pieces, set a blank apart
       // (a big operator splits "⨁ₓ Pₓ ⊢ (⨁ₓ Pₓ) + (⨁ₓ Qₓ)" into lines).
       if (!bar) { x0 = Math.min(x0, line.x0); x1 = Math.max(x1, line.x1); }
+    }
+  }
+  // A conclusion set over several lines runs on, each line hard under
+  // the last within the bar's span: a specification's program and its
+  // postcondition in braces under a stack of bars (POOL-SIZE-SPEC).
+  if (bar) {
+    for (let grew = true; grew;) {
+      grew = false;
+      const under = [...taken].filter((t) => t.top > bar.y - 1 && t.size <= 2 * label.size);
+      const end = Math.max(...under.map((t) => t.bottom));
+      if (!under.length) break;
+      for (const line of lines) {
+        if (taken.has(line) || line.size > 2 * label.size || line.x0 < bar.x - label.size || line.x1 > bar.x + bar.w + label.size || !sameColumn(page, line, label) || beyond(line)) continue;
+        // A lone glyph (a piece of the next line's tall brace) runs nothing on.
+        if (line.top < end - 1 || line.top - end > 0.4 * type.leading || line.text.replace(/\s/g, "").length < 2) continue;
+        taken.add(line); grew = true;
+      }
+    }
+  }
+  // Without a bar, a specification set under its label runs on the same
+  // way: its program and postcondition, each line hard under the last,
+  // opening within the block (STREAM-APPEND's "append s₁ s₂" under its
+  // precondition in braces).
+  if (!bar && setting.side === "over") {
+    for (let grew = true; grew;) {
+      grew = false;
+      const end = Math.max(...[...taken].map((t) => t.bottom));
+      const from = Math.min(...[...taken].map((t) => t.x0)), to = Math.max(...[...taken].map((t) => t.x1));
+      // Its braces, however tall, carry the stack on.
+      for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size)]) {
+        if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        if (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2)) continue;
+        taken.add(line); grew = true;
+      }
     }
   }
   const all = [...taken];
