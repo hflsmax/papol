@@ -76,6 +76,27 @@ test("a ligature's glyph spells the letters its name joins (Verified Lock-Free S
   assert.equal(offsetsAlong("unique", 30.67, [...drawn.slice(0, 4), glyph("u", 1), glyph("e", 477)], 0).text, "unique");
 });
 
+test("glyphs keep their widths at the size drawn and the blanks take the slack (Concurrent Incorrectness Separation Logic, page 15)", () => {
+  // "; // RD-Lock" measured 44.6pt at 8.9664pt: stretching every glyph
+  // put the R a point right of where it is printed, at 108.1 for 107.0.
+  const glyph = (unicode, width) => ({ unicode, width });
+  // Libertine's widths; the blanks are gaps pdf.js put a space for.
+  const drawn = [";", "/", "/", "R", "D", "-", "L", "o", "c", "k"].map((c) => glyph(c, { ";": 234, "/": 323, R: 591, D: 691, "-": 346, L: 524, o: 569, c: 491, k: 546 }[c]));
+  const along = offsetsAlong("; // RD-Lock", 44.6, drawn, 0, 8.9664);
+  assert.ok(Math.abs(96.1 + along.offsets[5] - 106.96) < 0.3, `R at ${96.1 + along.offsets[5]}`);
+  assert.equal(along.offsets[12], 44.6);
+  // Without the size, or with a blank squeezed under half its width (the
+  // glyphs not all at one size), the whole is stretched evenly.
+  assert.ok(offsetsAlong("; // RD-Lock", 44.6, drawn, 0).offsets[5] > along.offsets[5] + 0.8, "stretched evenly, the R is a point right");
+  assert.deepEqual(offsetsAlong("S EMPTY", 20, [glyph("S", 556), glyph("E", 611), glyph("M", 889), glyph("P", 556), glyph("T", 611), glyph("Y", 722)], 0, 10).offsets.map((o) => Math.round(o * 100) / 100),
+    offsetsAlong("S EMPTY", 20, [glyph("S", 556), glyph("E", 611), glyph("M", 889), glyph("P", 556), glyph("T", 611), glyph("Y", 722)], 0).offsets.map((o) => Math.round(o * 100) / 100));
+});
+
+test("a glyph named a small capital marks its letter (Iris-WasmFX, page 10)", () => {
+  const drawn = [{ unicode: "W", width: 889 }, { unicode: "h", width: 540, small: true }, { unicode: "i", width: 270, small: true }];
+  assert.deepEqual(offsetsAlong("Whi", 10, drawn, 0).small, [false, true, true]);
+});
+
 test("a font whose glyphs were not read leaves the run evenly spaced", () => {
   assert.equal(offsetsOf("Figure 3", 40, undefined), undefined);
   assert.equal(offsetsOf("Figure 3", 40, new Map()), undefined);

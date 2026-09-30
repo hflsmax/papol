@@ -35,7 +35,7 @@
   },
   "consistent-subtyping": {
     "rules": 66,
-    "mentions": 43,
+    "mentions": 42,
     "names": [
       "AAnno",
       "AApp",
@@ -796,7 +796,7 @@
   },
   "named-handlers": {
     "rules": 38,
-    "mentions": 58,
+    "mentions": 56,
     "names": [
       "abs",
       "app",
@@ -840,7 +840,7 @@
   },
   "perceus": {
     "rules": 31,
-    "mentions": 46,
+    "mentions": 45,
     "names": [
       "app",
       "app",
@@ -1088,7 +1088,7 @@
       "c-pgm-def",
       "c-pgm-expr",
       "c-pgm-spdef",
-      "c-qote",
+      "c-quote",
       "c-s-cons",
       "c-s-empty",
       "c-spdef",
@@ -1105,7 +1105,7 @@
       "ce-pgm-expr",
       "ce-pgm-spbeta",
       "ce-pgm-spdef",
-      "ce-qote",
+      "ce-quote",
       "ce-s-head",
       "ce-s-tail",
       "ce-spdef",
@@ -1136,7 +1136,7 @@
       "s-pgm-def",
       "s-pgm-expr",
       "s-pgm-inst",
-      "s-qote",
+      "s-quote",
       "s-solve-decr",
       "s-solve-global",
       "s-solve-incr",

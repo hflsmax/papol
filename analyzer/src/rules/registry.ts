@@ -116,6 +116,21 @@ export const LAYOUT_LIGATURE = rule({
   summary: "A glyph the font names as a ligature of letters (its parts joined by \"_\", each a letter's name with any suffix: q.sc_u.sc, f_f_i) spells all of them, where the text layer maps it to fewer.",
   why: "Libertine sets the small-capital \"qu\" as one glyph whose ToUnicode entry is \"q\": UNIQUE read as \"uniqe\", F-CONSEQUENCE as \"F-conseqence\", and a name no one would type.",
 });
+export const LAYOUT_FONTS = rule({
+  id: "layout.fonts", stage: "layout",
+  summary: "A run whose own font's glyphs do not spell it is placed by every font's glyphs in the order drawn: pdf.js names one font for text drawn in several.",
+  why: "\"(uniqe)\" is reported in its brackets' font while the name is drawn in small capitals: the other font's widths put small-capital mentions a letter left, clipping their last letter, and left the ligature unread.",
+});
+export const LAYOUT_BLANKS = rule({
+  id: "layout.blanks", stage: "layout",
+  summary: "A run's glyphs keep their widths at the size drawn and its blanks take what is left of its width, unless a blank would shrink under half its own width; then the whole is stretched evenly.",
+  why: "In \"; // RD-Lock\" a narrow gap stretched with every glyph put the R a point right of where it is printed; faked small capitals (\"S EMPTY\" with MPTY smaller) are not at one size.",
+});
+export const LAYOUT_SMALL_CAPITALS = rule({
+  id: "layout.small-capitals", stage: "layout",
+  summary: "A lowercase letter is a small capital where its glyph is named one (u.sc, a.smcp) or its font is set in them (cmcsc).",
+  why: "Small capitals reach the text layer as lowercase: the rule DUAL and the word \"dual\" read the same until the glyphs say which is which.",
+});
 
 // --------------------------------------------------------------- captions
 
@@ -373,8 +388,8 @@ export const RULE_BOX = rule({
 });
 export const RULE_MENTION = rule({
   id: "rule.mention", stage: "rule",
-  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase, or set off by a comma, an \"and\" or an \"and then\" from a hyphenated or spaced name's citation. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing.",
-  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\", \"raise, unw-intra-zone, and invoke\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose.",
+  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase, or set off by a comma, an \"and\" or an \"and then\" from a hyphenated or spaced name's citation. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing. A name is a whole name, not part of a longer hyphenated one; \"rule\" before it counts only within its sentence; and a label set in capitals or small capitals is not cited by the same word in lowercase set as the text around it.",
+  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\", \"raise, unw-intra-zone, and invoke\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose, \"exactly the dual of\" is not the rule DUAL, and \"sim-vis\" in no-sim-vis-ex-comm is not the rule sim-vis.",
 });
 
 // --------------------------------------------------------------- mentions

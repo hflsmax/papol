@@ -20,7 +20,7 @@ export interface Run {
   offsets?: number[];
   // Which characters are drawn as small capitals: a lowercase letter the
   // font draws as a capital (Libertine's u.sc, Computer Modern's cmcsc).
-  // Absent where none is.
+  // Absent where none is (layout.small-capitals).
   smallCaps?: boolean[];
   size: number; // the font's height on the page
   font: string;
@@ -203,7 +203,7 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
 // `text` is the run as its glyphs spell it: where a ligature's name spells
 // more than the text layer says (q.sc_u.sc read as "q"), the letters
 // left out are put back (layout.ligature).
-export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number): { offsets: number[]; next: number; text: string; small: boolean[] } | undefined {
+export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from: number, scale?: number): { offsets: number[]; next: number; text: string; small: boolean[] } | undefined {
   if ([...text].length !== text.length) return undefined;
   const widths: number[] = [];
   const small: boolean[] = [];
@@ -224,6 +224,23 @@ export function offsetsAlong(text: string, width: number, glyphs: Glyph[], from:
   if (!(sum > 0)) return undefined;
   const offsets = [0];
   let at = 0;
+  // Where the glyphs at the size drawn (`scale`, the font size across) (layout.blanks)
+  // come near the width measured, the glyphs keep their widths and the
+  // blanks take up the rest, as a justified line or a gap between two
+  // pieces of text puts it there: stretching every glyph instead puts a
+  // word after a narrow gap (": // RD-Lock") a point off.
+  const blanks = [...spelled].filter((c) => c === " ").length;
+  const natural = scale ? (sum * scale) / 1000 : 0;
+  if (blanks && natural > 0 && Math.abs(width - natural) <= 0.15 * width) {
+    const extra = (width - natural) / blanks;
+    for (let k = 0; k < widths.length; k += 1) { at += (widths[k] * scale!) / 1000 + (spelled[k] === " " ? extra : 0); offsets.push(at); }
+    // A blank squeezed to less than half its width says the glyphs are
+    // not all at that size (capitals faked small: "S EMPTY" with MPTY set
+    // smaller), and then the whole is stretched as before.
+    const narrowest = Math.min(...widths.filter((w, k) => spelled[k] === " ").map((w) => (w * scale!) / 1000 + extra - (w * scale!) / 2000));
+    if (narrowest >= 0) return { offsets, next: j, text: spelled, small };
+    offsets.length = 1; at = 0;
+  }
   for (const w of widths) { at += w; offsets.push((at / sum) * width); }
   return { offsets, next: j, text: spelled, small };
 }
@@ -284,9 +301,9 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   const { widths, glyphs, all } = glyphsDrawn(operators, OPS, glyphNames);
   const cursors = new Map<string, number>();
   let cursor = 0; // in `all`: just past the last run found there
-  const along = (text: string, width: number, drawn: Glyph[], at: number, to: number) => {
+  const along = (text: string, width: number, drawn: Glyph[], at: number, to: number, scale: number) => {
     for (let from = at; from < Math.min(drawn.length, to); from += 1) {
-      const found = offsetsAlong(text, width, drawn, from);
+      const found = offsetsAlong(text, width, drawn, from, scale);
       if (found) return found;
     }
     return undefined;
@@ -298,16 +315,17 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
   // not), and those are found among every font's glyphs in the order drawn,
   // on from the last run found there and else from the page's first. Only
   // where no glyphs spell the run are its font's widths taken: another
-  // font's widths put a small-capital name a letter off where it is printed.
+  // font's widths put a small-capital name a letter off where it is printed
+  // (layout.fonts).
   // The run as its glyphs spell it comes back with them.
-  const offsetsFor = (id: string, text: string, width: number): { offsets?: number[]; text: string; small?: boolean[] } => {
+  const offsetsFor = (id: string, text: string, width: number, scale: number): { offsets?: number[]; text: string; small?: boolean[] } => {
     const drawn = glyphs.get(id);
     if (drawn?.length) {
       const at = cursors.get(id) ?? 0;
-      const found = along(text, width, drawn, at, at + LOOK_AHEAD);
+      const found = along(text, width, drawn, at, at + LOOK_AHEAD, scale);
       if (found) { cursors.set(id, found.next); return found; }
     }
-    const found = along(text, width, all, cursor, all.length) ?? along(text, width, all, 0, cursor);
+    const found = along(text, width, all, cursor, all.length, scale) ?? along(text, width, all, 0, cursor, scale);
     if (found) { cursor = found.next; return found; }
     return { offsets: offsetsOf(text, width, widths.get(id)), text };
   };
@@ -329,7 +347,7 @@ export async function readPage(page: PdfPage, number: number, OPS: Record<string
     if (Math.abs(b) > 0.01 || Math.abs(c) > 0.01 || a <= 0 || d <= 0) continue;
     const size = Math.hypot(c, d) || raw.height;
     const font = fontName(raw.fontName);
-    const spelled = offsetsFor(raw.fontName, raw.str, raw.width);
+    const spelled = offsetsFor(raw.fontName, raw.str, raw.width, a);
     const smallCaps = SMALL_CAPITAL_FONT.test(font) ? Array.from(spelled.text, () => true) : spelled.small;
     runs.push({
       text: spelled.text,

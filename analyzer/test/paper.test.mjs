@@ -206,6 +206,25 @@ describe("the paper", () => {
     }
   });
 
+  it("links a name in the case its label is set in, not the same word in the text's lowercase", async () => {
+    // A law named "(DUAL)" in capitals: "the rule DUAL" cites it, and so
+    // does "(dual)" set off in italic, but "the rule is exactly the dual
+    // of" is the English word, however near "rule" it stands.
+    const pdf = writtenPdf([
+      [60, 740, "By the rule DUAL the relation flips; the rule is exactly the dual of"],
+      [60, 725, "the one before, as"],
+      [150, 725, "(dual)", 10, "italic"],
+      [190, 725, "shows."],
+      [100, 500, "m <= n = n >= m"],
+      [189, 500, "(DUAL)"],
+    ]);
+    const body = (await analyzeWithRules(pdf)).analysis;
+    const [law] = body.floats.filter((f) => f.kind === "rule");
+    assert.equal(law?.label, "DUAL");
+    const mentions = body.links.filter((l) => l.float === law.key).map((l) => [l.label, Math.round(l.y * 800)]);
+    assert.deepEqual(mentions, [["DUAL", 52], ["(dual)", 67]]);
+  });
+
   it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {
     // Small capitals from a text font reach the text layer in lowercase
     // ("s-refl"); Sequent Core names its rules with a bare word beside

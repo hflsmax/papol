@@ -171,7 +171,21 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // A colon after a letter ends the label, no part of its name ("Load:"
     // heading its rule; the colon is a connective only among others, "<:").
     const trailing = /[\p{L}\d]:$/u.test(match.groups.token);
-    const token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
+    let token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
+    // A word after the name whose letters are all read from a symbol font,
+    // off the name's baseline, is a formula's script beside it, not a word
+    // of the name: "InvPreAlloc" with the superscript 𝒩 of its premise's
+    // invariant (txsys's "N") read after it.
+    for (let cut = /\s\S+$/u.exec(token); cut && !open; cut = /\s\S+$/u.exec(token)) {
+      const from = match.index + match[0].indexOf(token) + cut.index + 1;
+      const word = [...cut[0].slice(1)];
+      const letters = word.map((c, i) => ({ c, i: from + word.slice(0, i).join("").length })).filter(({ c }) => /\p{L}/u.test(c));
+      const first = line.chars[match.index + match[0].indexOf(token)];
+      const base = first?.run >= 0 ? line.runs[first.run].baseline : line.baseline;
+      if (!letters.length || !letters.every(({ i }) => line.chars[i]?.run >= 0 && SYMBOLIC.test(line.runs[line.chars[i].run].font)
+        && Math.abs(line.runs[line.chars[i].run].baseline - base) > 0.2 * line.size)) break;
+      token = token.slice(0, cut.index).trimEnd();
+    }
     const colon = match.groups.colon || (trailing ? ":" : undefined);
     // Straight after its last letter the colon closes the word ("Party A:"
     // over a listing), after a bullet it only sets the label off.
@@ -1463,7 +1477,9 @@ const NEAR = 60;
 // "rule" (or a kin) within six words before or after the name: "the
 // sapp rule", "rule containTrans", "rules slam, sbind and sapp".
 const RULE_WORDS = /\b(?:rules?|laws?|axioms?)\b/i;
-const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)\s*[[(]?\s*(?:[^\s,()[\]]+,?\s+(?:and\s+|or\s+)?){0,6}$/iu;
+// Not across a sentence's end: "the more general Fusion 2 rule. If it is
+// the procedure" does not cite the rule If ("(Unit, ..., Inr)" goes on).
+const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)(?![.!?]\s)\s*[[(]?\s*(?:(?:[^\s,()[\]]*[^\s,()[\].!?]|\.{3}|…),?\s+(?:and\s+|or\s+)?){0,6}$/iu;
 const RULE_AFTER = /^\s*(?:[\])]\s*)?(?:,?\s*(?:and\s+|or\s+)?[^\s,()[\]]+){0,6}\s+(?:rules?|laws?|axioms?)\b/iu;
 // ... and for a short name, "rule" hard by it, or a list of names in
 // between: "rule !", "rules ⊗, ⅋, 1 and ⊥", "the c and w rules"; not
@@ -1582,7 +1598,9 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   // asterisk (While−∀∗∃∗ cited as While-∀*∃*).
   const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")
     .replace(/(?<=[\u{1D400}-\u{1D7FF}])(?=[\u{1D400}-\u{1D7FF}])/gu, "\\s?")).join("|");
-  const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
+  // A name is a whole name, not a part of a longer hyphenated one
+  // ("sim-vis" in no-sim-vis-ex-comm).
+  const re = new RegExp(`(?<![\\p{L}\\d]|[\\p{L}\\d][-‐‑])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d]|[-‐‑][\\p{L}\\d])`, "giu");
   type Found = { index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number };
   const found: Found[] = [];
   // A bare word is cited where a name it is listed with is ("are raise,
