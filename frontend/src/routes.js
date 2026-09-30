@@ -38,5 +38,9 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/bazaar' || path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
-  return { page: 'home' };
+  // The page file itself is where the Mac app's window opens.
+  if (path === '/' || path === '/index.html') return { page: 'home' };
+  // No page answers this path: a link that leads nowhere is a bug to report,
+  // not a reason to show some other page as if it were asked for.
+  return { page: 'unknown', path };
 }

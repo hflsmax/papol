@@ -78,6 +78,10 @@ const SHOTS = {
   'phone-desk': { ...desk('papers', '.project-paper', null, '?shell=web'), size: phone },
   // A dig opened under its row on a phone.
   'phone-digs': { ...desk('digs', '.project-talk-panel .talk-post', "const go = () => { const d = document.querySelector('.project-talk-item'); if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=web'), size: phone },
+  // A path no page answers: the report is offered over the nook.
+  'unknown-page': { path: '/nowhere?shell=web', ready: "document.querySelector('.nook .desk-title') && document.querySelector('[role=dialog]') && location.pathname === '/'", size: wide },
+  // A link in the app to such a path: the report, and the page stays put.
+  'unknown-link': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const a = document.createElement('a'); a.href = '/nowhere'; document.querySelector('.desk-title').append(a); a.click(); return true;", settled: "document.querySelector('[role=dialog]') && location.pathname === '/' && document.querySelector('.nook .desk-title')", size: wide },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },

@@ -86,10 +86,20 @@ const macosBannerWasDismissed = () => isFeatureStateSet(MACOS_DOWNLOAD_BANNER_DI
 // A path as the address bar spells it: under the base the app is served from.
 const mountedPath = (path) => appPath(path);
 
+// Told of a move to a path no page answers; App offers the report.
+let reportUnknownPage = () => {};
+
 function navigate(path, { replace = false } = {}) {
+  const mountedDestination = mountedPath(path);
+  // A move to nowhere is the app's own bug: it is reported, and the page
+  // stays where it is rather than showing another in its place.
+  const destination = parseRoute(new URL(mountedDestination, window.location.origin).pathname);
+  if (destination.page === 'unknown') {
+    reportUnknownPage(destination.path);
+    return;
+  }
   // Don't push a history entry when already there; otherwise Back appears
   // to do nothing.
-  const mountedDestination = mountedPath(path);
   if (`${window.location.pathname}${window.location.search}` === mountedDestination) return;
   // A jacket's Back leads to the nook or Desk it was opened from,
   // and this is the one door every in-app move goes through.
@@ -202,6 +212,13 @@ export default function App({ startupUser = null, startupError = null }) {
       reportError: true,
     }));
   }, []);
+
+  // A path no page answers, moved to in the app or arrived at from outside,
+  // is offered as a report.
+  useEffect(() => {
+    reportUnknownPage = (path) => offerErrorReport(new Error(`No page at ${path}`), 'navigation');
+    return () => { reportUnknownPage = () => {}; };
+  }, [offerErrorReport]);
 
   // Every runtime offers to report an unexpected error: an error nobody
   // hears about is an error that stays.
@@ -379,6 +396,13 @@ export default function App({ startupUser = null, startupError = null }) {
     if (restoreScroll.current == null) return;
     window.scrollTo(0, restoreScroll.current);
     restoreScroll.current = null;
+  }, [route]);
+  // One arrived at leaves for the nook, whose path replaces it; this runs
+  // after the Back listener above is in place, so the move is heard.
+  useEffect(() => {
+    if (route.page !== 'unknown') return;
+    reportUnknownPage(route.path);
+    navigate('/', { replace: true });
   }, [route]);
   useEffect(() => {
     if (route.page !== 'home') return;
