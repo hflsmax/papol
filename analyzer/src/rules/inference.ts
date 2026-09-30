@@ -1430,6 +1430,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size)]) {
         if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
         if (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2)) continue;
+        // Upright words with no relation among them head what follows
+        // ("Rules for the post-crash modality" under pfs-pf).
+        const words = line.text.split(/\s+/).filter((w) => /^\p{L}{3,}$/u.test(w) && line.runs.some((r) => r.text.includes(w) && !ITALIC.test(r.font) && !MONO.test(r.font) && !SYMBOLIC.test(r.font)));
+        if (words.length >= 3 && !RELATION.test(line.text)) continue;
         taken.add(line); grew = true;
       }
     }
@@ -2011,7 +2015,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     Object.assign(p.rule, boxOf(p.page, p.label, p.setting, type, { lines: new Set([...rest.map((o) => o.label), ...fences]), bars: rest.flatMap((o) => (o.bar ? [o.bar] : [])) }, set));
     p.lines = set.lines;
   }
-  separate(placed);
+  separate(placed, type);
   for (const p of placed) trace.add(RULE_BOX.id, p.page.number, p.rule.name, [{ page: p.page.number, x: p.rule.x, y: p.rule.y, w: p.rule.w, h: p.rule.h }]);
   return rules;
 }
@@ -2024,7 +2028,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
 // wide bar reaching past a neighbour's corner, the padding round each —
 // are cut apart halfway across the blank between what each holds.
 interface Placed { rule: Rule; page: Page; label: Line; bar: Drawn | null; lines: Line[]; setting: Setting }
-function separate(placed: Placed[]): void {
+function separate(placed: Placed[], type: Type): void {
   const pages = new Map<Page, Placed[]>();
   for (const p of placed) pages.set(p.page, [...(pages.get(p.page) ?? []), p]);
   for (const [page, here] of pages) {
@@ -2058,7 +2062,16 @@ function separate(placed: Placed[]): void {
       const onOwn = (p: Placed) => !p.bar && p.setting.side !== "over";
       const rows = STRETCHED.test(l.text) ? ps.filter((p) => onOwn(p) && p.label.baseline >= l.baseline - 1) : [];
       const braced = rows.length && ps.every(onOwn) ? rows.reduce((a, b) => (b.label.baseline < a.label.baseline ? b : a)) : undefined;
-      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? braced ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
+      // A line hard over a bar or hard under it, within its span, is that
+      // rule's premise or conclusion, whatever bar-less label stands level
+      // with it further along (T-NEW's premise "Γ, z : C, … ⊢ Tᵢ ≤ R, …"
+      // level with T-CTXEMP across the figure); so is one between a label
+      // over its premises and the bar (the tall brackets round T-NEW's
+      // "class(C)").
+      const barred = ps.find((p) => p.bar && l.x0 >= p.bar.x - p.label.size && l.x1 <= p.bar.x + p.bar.w + p.label.size
+        && ((l.bottom <= p.bar.y + 1 && l.bottom >= p.bar.y - 0.8 * type.leading) || (l.top >= p.bar.y - 1 && l.top <= p.bar.y + 0.8 * type.leading)
+          || (p.setting.side === "over" && l.top >= p.label.bottom - 1 && l.bottom <= p.bar.y + 1)));
+      const own = ps.find((p) => p.label === l) ?? (barred && ps.every((p) => p === barred || !p.bar) ? barred : undefined) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? braced ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
       for (const p of ps) if (p !== own) p.lines = p.lines.filter((x) => x !== l);
     }
     // Each box round its own lines and bar, and what it holds (unpadded).
