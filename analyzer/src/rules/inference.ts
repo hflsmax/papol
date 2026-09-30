@@ -1281,6 +1281,27 @@ const weak = (c: Candidate) => c.shape === "word" || c.shape === "short" || c.sh
 
 interface Box { x: number; y: number; w: number; h: number }
 
+// A line of delimiters alone: stretched ones set as a line of their own
+// (a spec's tall braces), or the pieces of one from the extension font.
+const extended = (l: Line) => l.runs.some((r) => EXTENSION.test(r.font)) && l.runs.every((r) => EXTENSION.test(r.font) || !r.text.trim());
+// Its index goes with it (the "tid,Φ" of a triple's closing brace).
+const delimiting = (l: Line) => STRETCHED.test(l.text) || extended(l)
+  || (l.runs.some((r) => EXTENSION.test(r.font)) && l.runs.every((r) => EXTENSION.test(r.font) || !r.text.trim() || r.size < l.size - 0.5));
+// Where a line reaches up and down the page. A big delimiter set alone
+// from the extension font hangs from where it is set, its glyph under its
+// baseline, at least as deep as the smallest (a \\big one, 1.2 of its
+// size): the layout sets it as a letter, raised off the row it encloses
+// (Ht-na-alloc's "}" closing its postcondition). The pieces of one
+// stretched further stand one on the next, each as deep as the step
+// between them, and the layout's letter box holds them.
+function extentOf(page: Page, l: Line): [number, number] {
+  if (!extended(l)) return [l.top, l.bottom];
+  const stacked = page.lines.some((o) => o !== l && extended(o) && o.x0 < l.x1 && o.x1 > l.x0 && Math.abs(o.baseline - l.baseline) <= l.size);
+  return stacked ? [l.top, l.bottom] : [Math.min(...l.runs.map((r) => r.baseline)) - 0.1 * l.size, Math.max(...l.runs.map((r) => r.baseline)) + 1.2 * l.size];
+}
+// A side condition: a relation, a membership or a word that sets one.
+const CONDITION = new RegExp(`${RELATION.source}|[∈∉≠<>∤#]|\\b(?:if|where|when|fresh|provided|unless)\\b`, "u");
+
 // The rule a label names, as set (rule.box). With a bar, the bar's width
 // joined with the label, the lines within 0.8 of a leading of the bar,
 // then every line touching those within reach. Without one, the row. A
@@ -1348,10 +1369,30 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const fenced = (l: Line) => columns.length > 0 && ((l.x0 + l.x1) / 2 < label.x0 || (l.x0 + l.x1) / 2 > fence);
   // A label over a tall stack of premises reaches its bar's conclusion.
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
+  // Without a bar, a glyph the font drew as a path, level with the row,
+  // carries it on over the blank it fills (the ⇛ of Raw-CInv-Model-Update
+  // and the ⇛∗ of LftL-full-acc, drawn, the right side set past them).
+  const glyphs = bar ? [] : page.drawn.filter((d) => d.w <= 2 * label.size && d.h <= 1.5 * label.size && (d.h > 1.5 || d.w <= label.size));
+  const inked = (from: number, to: number, line: Line) => {
+    const row = (d: Drawn) => [...taken].some((t) => level(t, line) && d.y >= Math.max(t.top, line.top) - 1 && d.y + d.h <= Math.min(t.bottom, line.bottom) + 1);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const d of glyphs) {
+        if (!row(d) || d.x > to + slack || d.x + d.w < from - slack || (d.x >= from && d.x + d.w <= to)) continue;
+        from = Math.min(from, d.x); to = Math.max(to, d.x + d.w); grew = true;
+      }
+    }
+    return [from, to];
+  };
+  const reaches = (line: Line) => {
+    if (line.x0 <= x1 + slack && line.x1 >= x0 - slack) return true;
+    const [from, to] = inked(x0, x1, line);
+    return line.x0 <= to + slack && line.x1 >= from - slack;
+  };
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
-      if (taken.has(line) || line.x0 > x1 + slack || line.x1 < x0 - slack || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
+      if (taken.has(line) || !reaches(line) || !within(line) || !sameColumn(page, line, label) || beyond(line) || fenced(line)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
@@ -1410,12 +1451,23 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   if (!bar && setting.side === "over") {
     for (let grew = true; grew;) {
       grew = false;
-      const end = Math.max(...[...taken].map((t) => t.bottom));
+      // A brace pieced from the extension font stands beside the lines it
+      // encloses: the stack runs on from its last line of text, and the
+      // brace's first piece, set in the blank under it, carries it on to
+      // the lines beside it (HT-MICRO-MEMREAD-RDEP-EXT's postcondition,
+      // a big operator's limits spacing it from "MemRead os vr x d").
+      const end = Math.max(...[...taken].filter((t) => !extended(t)).map((t) => t.bottom));
       const from = Math.min(...[...taken].map((t) => t.x0)), to = Math.max(...[...taken].map((t) => t.x1));
-      // Its braces, however tall, carry the stack on.
-      for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && STRETCHED.test(l.text) && l.size > 2 * label.size)]) {
-        if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
-        if (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2)) continue;
+      const braced = (line: Line) => [...taken].some((p) => extended(p) && p.top >= end - 1 - type.leading && p.top <= line.bottom && p.bottom >= line.top);
+      // A line the layout broke at a blank runs on past the block's edge
+      // (the ") ∗" ending its first line).
+      const piece = (line: Line) => [...taken].some((t) => onRow(t, line) && line.x0 >= t.x1 - 1 && line.x0 - t.x1 <= label.size);
+      // Its braces, however tall, carry the stack on. A line whose top a
+      // tall parenthesis raises into the last still stands under it, its
+      // baseline clear (HT-MICRO-MEMWRITE's "(Lob(dom(𝑚), 𝑒) ∗ …)").
+      for (const line of [...lines, ...page.lines.filter((l) => !l.furniture && ((STRETCHED.test(l.text) && l.size > 2 * label.size) || extended(l)))]) {
+        if (taken.has(line) || line.x0 < from - label.size || (line.x0 > to && !piece(line)) || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+        if (((line.top < Math.min(end - 1, line.baseline > end + 0.5 * line.size ? end - 0.3 * line.size : end) || (line.top - end > 0.6 * type.leading && !braced(line))) && !piece(line)) || (!STRETCHED.test(line.text) && !extended(line) && line.text.replace(/\s/g, "").length < 2)) continue;
         taken.add(line); grew = true;
       }
     }
@@ -1439,9 +1491,43 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       }
     }
   }
+  // A side condition set past an end of the bar, level with it or on the
+  // row of the premise or conclusion hard by it, is the rule's
+  // (wp-idx-post's "𝑗 ∉ supp(𝒕)" right of its bar, T-Sub's "(FRV(ε₂) ⊆ Π)"
+  // beside its conclusion): a condition, a relation in it, with no other
+  // bar over or under it as wide (a neighbour's premise stands over its
+  // own; T-goto's "Σ = (𝐶, …, ∃𝑥 . 𝜏(𝑥); 𝐻(𝑥))" overlines a term).
+  if (bar) {
+    const hard = [...taken].filter((t) => t !== label && ((t.bottom <= bar.y + 1 && t.bottom >= bar.y - 0.5 * t.size) || (t.top >= bar.y - 1 && t.top <= bar.y + 0.5 * t.size)));
+    for (const l of lines) {
+      if (taken.has(l) || !sameColumn(page, l, label) || !CONDITION.test(l.text) || tokenOf(l)?.side === "whole") continue;
+      const past = Math.max(l.x0 - bar.x - bar.w, bar.x - l.x1);
+      if (past < -1 || past > 2 * label.size) continue;
+      if (Math.abs((l.top + l.bottom) / 2 - bar.y) > LEVEL * l.size && !hard.some((t) => onRow(t, l))) continue;
+      if (page.drawn.some((d) => d !== bar && across(d) && d.w >= Math.max(type.bodySize, 0.5 * (l.x1 - l.x0)) && d.x < l.x1 && d.x + d.w > l.x0 && Math.abs(d.y - bar.y) <= type.leading)) continue;
+      taken.add(l);
+    }
+  }
+  // A delimiter stretched round what the rule holds is the rule's, set as
+  // a line of its own however tall (Ht-send's braces round its two-line
+  // pre- and postcondition), or pieced from the extension font, hanging
+  // from where the layout sets it (Ht-na-alloc's "}" closing its
+  // postcondition): it stands on the rows it encloses, within their span.
+  const held = [...taken].filter((t) => t !== label);
+  for (const l of page.lines) {
+    if (l.furniture || taken.has(l) || others.lines.has(l) || !delimiting(l) || !sameColumn(page, l, label)) continue;
+    const [top, bottom] = extentOf(page, l);
+    if (!held.some((t) => Math.min(t.bottom, bottom) - Math.max(t.top, top) >= 0.5 * Math.min(t.bottom - t.top, bottom - top))) continue;
+    const from = Math.min(x0, ...held.map((t) => t.x0)), to = Math.max(x1, ...held.map((t) => t.x1));
+    if (l.x1 < from - label.size || l.x0 > to + label.size) continue;
+    // Past the end it closes, past the start it opens: a neighbour's
+    // opening brace a blank past this rule's end is the neighbour's.
+    if ((l.x1 > to + 1 && /^[\s({[⟨⟪⌈⌊]+$/u.test(l.text)) || (l.x0 < from - 1 && /^[\s)}\]⟩⟫⌉⌋]+$/u.test(l.text))) continue;
+    taken.add(l);
+  }
   const all = [...taken];
   if (out) out.lines = all;
-  const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => l.top)), Math.max(...all.map((l) => l.bottom)));
+  const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => extentOf(page, l)[0])), Math.max(...all.map((l) => extentOf(page, l)[1])));
   return { x: b.x0 / page.width, y: b.y0 / page.height, w: (b.x1 - b.x0) / page.width, h: (b.y1 - b.y0) / page.height };
 }
 // A box padded round what it holds, the padding stopping at a caption
@@ -2045,7 +2131,7 @@ function separate(placed: Placed[]): void {
     // Each box round its own lines and bar, and what it holds (unpadded).
     const held = here.map((p) => {
       const xs = [...p.lines.flatMap((l) => [leftOf(l, p.bar, p.label), l.x1]), ...(p.bar ? [p.bar.x, p.bar.x + p.bar.w] : [])];
-      const ys = [...p.lines.flatMap((l) => [l.top, l.bottom]), ...(p.bar ? [p.bar.y] : [])];
+      const ys = [...p.lines.flatMap((l) => extentOf(page, l)), ...(p.bar ? [p.bar.y] : [])];
       return { p, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     });
     const box = held.map((h) => padded(page, h.x0, h.x1, h.y0, h.y1));
