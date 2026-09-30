@@ -379,10 +379,27 @@ function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: numb
 // What stands at a row's end names a rule only where the row is one: a
 // relation between its sides (an arrow, a turnstile, an equation), not a
 // table's numbers or a paragraph's words.
-const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈⊕⊗∗⊸⊳⊲▷◁]|->|=>|~>|<:|:>|::=/u;
+const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠⇐⊢⊣⊨⊩⊑⊆≡≜≔=∼≈≤≥⊕⊗∗⊸⊳⊲▷◁]|[−-]∗|->|=>|~>|<:|:>|::=/u;
 
-// A relation between two terms, a blank on each side of it.
-const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
+// A row ending in its relation, its right side on the lines under it.
+const OPEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\s*$`, "u");
+
+// A relation between two terms, a blank on each side of it: a term on
+// its left, not a list's comma or an opening bracket ("{< 0.1, ≤ 0.8}"
+// lists bounds).
+const BETWEEN = new RegExp(`(?:^|(?<![,;({[]\\s*)\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
+
+// A Hoare triple, a command between its pre- and postcondition's
+// braces, the line's whole text.
+const TRIPLE = /^\s*\{[^{}]+\}\s*[^{}\s][^{}]*\{[^{}]+\}\s*$/u;
+
+// Whether the line under a label over it states a rule: a relation
+// between terms, a Hoare triple ("{$E} empty () {λq. …}"), or, under a
+// hyphenated or spaced name, one predicate applied to its terms
+// ("persistent(Thunk F t n R φ)").
+function related(text: string, token: Token): boolean {
+  return BETWEEN.test(text) || TRIPLE.test(text) || (["hyphen", "spaced"].includes(shapeOf(fold(token.text)) ?? "") && /^\s*\p{L}[\p{L}\d]*\(.+\)\s*$/u.test(text));
+}
 
 // A line's text without its subscripts, smaller runs set below its
 // baseline: a relation indexed so ("⊢CSL") stands between its terms.
@@ -696,9 +713,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     }
     const x0 = Math.min(...under.map((l) => l.x0)), x1 = Math.max(...under.map((l) => l.x1)), bottom = Math.max(...under.map((l) => l.bottom));
     const aligned = Math.abs(x0 - label.x0) <= 2 * label.size || Math.abs((x0 + x1) / 2 - centre) <= 2 * label.size;
-    const stroke = page.drawn.some((d) => across(d) && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
+    // A stroke under one letter ($N̲) marks the letter, no bar.
+    const stroke = page.drawn.some((d) => across(d) && d.w >= 1.3 * label.size && d.y > label.bottom - 1 && d.y < bottom && d.x < x1 && d.x + d.w > x0);
     const blocked = row.some((l) => !hangs(l) && l.x0 < x1 && l.x1 > x0 && /[\p{L}\d]/u.test(l.text));
-    return aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && BETWEEN.test(under.map(unscripted).join(" ")) ? under : null;
+    return aligned && !stroke && !blocked && !under.some((l) => production(l, page, type)) && related(under.map(unscripted).join(" "), token) ? under : null;
   };
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
@@ -960,6 +978,25 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         if (taken.has(line) || line.x0 < from - label.size || line.x0 > to || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
         if (line.top < end - 1 || line.top - end > 0.6 * type.leading || (!STRETCHED.test(line.text) && line.text.replace(/\s/g, "").length < 2)) continue;
         taken.add(line); grew = true;
+      }
+    }
+  }
+  // A row left open by its relation ("⟪ e[e′](e₁, …) ⟫ =") runs on under
+  // itself, each line hard under the last and set in past the row's
+  // start, until a line back at the start opens the next row (DS-CTOR's
+  // six lines of lets).
+  if (!bar && setting.side !== "over") {
+    const row = [...taken].filter((t) => t !== label).sort((a, b) => a.x0 - b.x0);
+    const start = Math.min(...row.map((t) => t.x0));
+    if (row.length && OPEN.test(row.map((t) => t.text).join(" "))) {
+      for (let grew = true; grew;) {
+        grew = false;
+        const end = Math.max(...[...taken].map((t) => t.bottom));
+        for (const line of lines) {
+          if (taken.has(line) || line.x0 <= start + 0.5 * label.size || !sameColumn(page, line, label) || tokenOf(line)?.side === "whole") continue;
+          if (line.top < end - 1 || line.top - end > 0.6 * type.leading) continue;
+          taken.add(line); grew = true;
+        }
       }
     }
   }
