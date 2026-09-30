@@ -1,0 +1,7 @@
+{"rules": [
+  {"page": 9, "name": "Refl", "box": [90.1, 100.1, 178.9, 115.8]},
+  {"page": 9, "name": "Rewr", "box": [200.0, 87.7, 394.7, 115.8]},
+  {"page": 9, "name": "Ind", "box": [89.9, 119.5, 394.9, 145.6]},
+  {"page": 9, "name": "Case", "box": [89.0, 148.1, 395.8, 173.6]}
+],
+"cited": [{"page": 10, "name": "Refl"}, {"page": 10, "name": "Refl"}, {"page": 10, "name": "Rewr"}, {"page": 10, "name": "Rewr"}, {"page": 10, "name": "Rewr"}, {"page": 10, "name": "Rewr"}, {"page": 10, "name": "Case"}, {"page": 10, "name": "Ind"}]}

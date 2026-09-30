@@ -173,8 +173,11 @@ export function buildLines(page: Page): Placed[][] {
     const anchor = current?.[0];
     const last = current?.[current.length - 1];
     const touching = last && near(run, last) && run.x - (last.x + last.width) <= 0.5 * Math.min(run.size, last.size);
-    if (anchor && Math.abs(anchor.baseline - run.baseline) <= SAME_LINE * Math.min(anchor.size, run.size)
-      && (near(run, anchor) || touching)) current.push(run);
+    // Touching it on its own baseline, a run stays with it however far the
+    // first run's baseline sits (a line of the other column two points
+    // higher opening the baseline, "[<:-V" then "AR" at 6.4pt).
+    const abuts = touching && run.x >= last.x && Math.abs(last.baseline - run.baseline) <= SAME_LINE * Math.min(last.size, run.size);
+    if (anchor && ((Math.abs(anchor.baseline - run.baseline) <= SAME_LINE * Math.min(anchor.size, run.size) && (near(run, anchor) || touching)) || abuts)) current.push(run);
     else clusters.push([run]);
   }
   const groups: { runs: Placed[] }[] = [];

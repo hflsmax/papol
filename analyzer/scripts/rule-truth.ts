@@ -2,7 +2,8 @@
 // every named rule a reader of the paper listed, with its page and the box
 // round the whole rule in points. For each paper, the names found and
 // missed, the rules found that are none (a step of a worked derivation
-// that cites a rule is listed as cited, not counted), the pairs of boxes
+// that cites a rule, listed as cited, is none too: it is no rule's
+// definition), the pairs of boxes
 // that overlap, and the boxes far from the rule (overlapping it less than
 // 0.6 of their union). Boxes in an inventory were drawn by eye, so a box a
 // little off is reported, not judged; a missed name, a false one or an
@@ -55,12 +56,11 @@ for (const file of fs.readdirSync(truthDir).filter((f) => f.endsWith(".json") &&
     if (iou < 0.6) off.push(`${want.name}@${want.page}(${iou.toFixed(2)})`);
   }
   const cited = [...(truth.cited ?? [])];
-  const extra = got.filter((g, i) => {
-    if (used.has(i)) return false;
+  const extra = got.filter((g, i) => !used.has(i)).map((g) => {
     const at = cited.findIndex((c) => c.page === g.page && norm(c.name) === norm(g.name));
-    if (at >= 0) { cited.splice(at, 1); return false; }
-    return true;
-  }).map((g) => `${g.name}@${g.page}`);
+    if (at >= 0) cited.splice(at, 1);
+    return `${g.name}@${g.page}${at >= 0 ? " (a cited step)" : ""}`;
+  });
   const overlaps: string[] = [];
   for (let i = 0; i < got.length; i += 1) for (let j = i + 1; j < got.length; j += 1) {
     const [a, b] = [got[i], got[j]];

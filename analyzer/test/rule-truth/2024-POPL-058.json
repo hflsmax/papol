@@ -1,0 +1,6 @@
+{"rules": [
+  {"page": 20, "name": "map-fusion", "box": [66.5, 93.3, 440.8, 103.4]},
+  {"page": 20, "name": "map-fission", "box": [82.3, 108.4, 440.8, 118.5]},
+  {"page": 20, "name": "𝛽-reduction", "box": [110.2, 123.5, 440.8, 133.6]},
+  {"page": 20, "name": "𝜂-reduction", "box": [115.7, 138.6, 440.8, 148.7]}
+]}

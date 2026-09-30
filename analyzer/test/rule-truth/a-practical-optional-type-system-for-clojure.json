@@ -1,0 +1,8 @@
+{"rules": [
+  {"page": 73, "name": "E-Assoc", "box": [198.4, 198.9, 416.0, 243.0]},
+  {"page": 73, "name": "E-Dissoc", "box": [174.4, 254.8, 440.0, 298.9]},
+  {"page": 73, "name": "E-GetMapExist", "box": [240.8, 310.7, 373.6, 354.9]},
+  {"page": 73, "name": "E-GetMapNotExist", "box": [162.9, 366.7, 451.6, 410.8]},
+  {"page": 74, "name": "T-AssocHMap", "box": [160.8, 198.9, 453.6, 243.5]},
+  {"page": 74, "name": "T-AssocPromote", "box": [113.8, 254.8, 500.7, 313.9]}
+]}

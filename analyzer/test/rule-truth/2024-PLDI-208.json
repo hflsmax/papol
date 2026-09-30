@@ -1,0 +1,12 @@
+{"rules": [
+  {"page": 7, "name": "exh-succ", "box": [50.8, 91.0, 227.2, 128.5]},
+  {"page": 7, "name": "exh-fail", "box": [248.0, 96.2, 400.5, 122.2]},
+  {"page": 7, "name": "rc-sep", "box": [50.8, 141.5, 191.2, 180.0]},
+  {"page": 7, "name": "rc-acc", "box": [202.0, 141.2, 434.2, 180.2]},
+  {"page": 11, "name": "comp", "box": [52.0, 91.0, 280.2, 152.5]},
+  {"page": 11, "name": "bprop", "box": [283.8, 97.0, 433.0, 146.5]},
+  {"page": 11, "name": "seq-sim", "box": [52.0, 166.2, 222.8, 204.0]},
+  {"page": 12, "name": "exh-sim", "box": [54.0, 90.0, 431.0, 128.8]},
+  {"page": 13, "name": "rsep-sim", "box": [45.8, 90.0, 442.0, 145.2]}
+],
+"cited": [{"page": 15, "name": "rsep2-sim"}, {"page": 15, "name": "rcprop"}, {"page": 15, "name": "exh-sim"}]}

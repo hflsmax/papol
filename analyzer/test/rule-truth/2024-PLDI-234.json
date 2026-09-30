@@ -1,0 +1,10 @@
+{"rules": [
+  {"page": 11, "name": "AddNode", "box": [58.0, 90.1, 262.5, 134.0]},
+  {"page": 11, "name": "AddEdge", "box": [280.4, 90.6, 427.6, 134.0]},
+  {"page": 11, "name": "SpecializeNode", "box": [71.7, 145.3, 235.2, 204.1]},
+  {"page": 11, "name": "SpecializeEdge", "box": [253.2, 145.4, 413.9, 204.1]},
+  {"page": 12, "name": "RemoveNode", "box": [58.9, 90.1, 282.7, 133.5]},
+  {"page": 12, "name": "RemoveEdge", "box": [300.7, 103.8, 426.6, 133.5]},
+  {"page": 12, "name": "GeneralizeNode", "box": [67.7, 144.8, 234.3, 203.6]},
+  {"page": 12, "name": "GeneralizeEdge", "box": [252.3, 144.9, 417.9, 203.6]}
+]}
