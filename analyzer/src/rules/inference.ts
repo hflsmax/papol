@@ -166,7 +166,10 @@ function tokenOf(line: Line, column = false): Token | null {
     // letter from a symbol font is a glyph the PDF maps wrong, no letter
     // ("𝐴𝑏 F", txsyc's F being ⩴).
     const plain = [...token].map((c, i, all) => (SYMBOLIC.test(font(start + all.slice(0, i).join("").length)) ? " " : c)).join("");
-    if (/^\p{L}/u.test(token) && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
+    // In brackets making up its line, one such capital with its number
+    // tags a row as its name ("(𝑅1)", "(𝐹 )" heading reductions).
+    const tag = side === "whole" && Boolean(open) && new RegExp(`^[${CAP}]\\d{0,2}$`, "u").test(token);
+    if (/^\p{L}/u.test(token) && !tag && !/\p{L}/u.test(plain.replace(/[\u{1D400}-\u{1D7FF}]/gu, ""))) return null;
     if (/\p{L}/u.test(token[0]) && SYMBOLIC.test(font(start))) return null;
     // One or two italic letters with an index is a metavariable (S1, e′),
     // not a name; in brackets too where the index is set as a subscript
@@ -413,10 +416,18 @@ function concludes(page: Page, d: Drawn, type: Type): boolean {
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
 // over its boxed judgments, a table's rule), no rule's bar.
+// The conclusion may reach the layout in pieces on one row, a big brace
+// apart (ConstructTerm's), and is centred as one.
 function dividing(page: Page, d: Drawn, type: Type): boolean {
   const centre = d.x + d.w / 2;
+  const centred = (x0: number, x1: number) => Math.abs((x0 + x1) / 2 - centre) <= 2 * type.bodySize && x1 - x0 >= 0.3 * d.w;
+  const inside = (l: Line) => !l.furniture && l.x0 >= d.x - type.bodySize && l.x1 <= d.x + d.w + type.bodySize;
+  const joined = (l: Line) => {
+    const row = page.lines.filter((o) => o === l || (inside(o) && onRow(o, l)));
+    return centred(Math.min(...row.map((o) => o.x0)), Math.max(...row.map((o) => o.x1)));
+  };
   return d.w >= BAR_SHARE * (type.text.x1 - type.text.x0) && !page.lines.some((l) => !l.furniture && l.top >= d.y - 1 && l.top <= d.y + type.leading
-    && Math.abs((l.x0 + l.x1) / 2 - centre) <= 2 * type.bodySize && l.x1 - l.x0 >= 0.3 * d.w);
+    && (centred(l.x0, l.x1) || (inside(l) && joined(l))));
 }
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
@@ -538,8 +549,16 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // A bar set close under its premises is no underline where a
   // conclusion as wide stands under it (CD-ST-DEF): text underlined runs
   // on past the stroke.
-  const fitting = (l: Line, d: Drawn) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size
+  // A line may reach the layout in pieces on one row, a big brace or
+  // operator apart (ConstructTerm's "⟨t⟩ —Construct(k),G→" and its set of
+  // edges): it fits, and is sized, as one.
+  const joined = (l: Line, d: Drawn) => {
+    const row = lines.filter((o) => onRow(o, l) && o.x0 >= d.x - label.size && o.x1 <= d.x + d.w + label.size);
+    return { x0: Math.min(l.x0, ...row.map((o) => o.x0)), x1: Math.max(l.x1, ...row.map((o) => o.x1)) };
+  };
+  const fits = (l: { x0: number; x1: number }, d: Drawn) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size
     && (l.x1 - l.x0 >= 0.5 * d.w || Math.abs((l.x0 + l.x1) / 2 - (d.x + d.w / 2)) <= 2 * label.size);
+  const fitting = (l: Line, d: Drawn) => fits(l, d) || fits(joined(l, d), d);
   // A table's figures ("2.59±0.05" under a best result's underline)
   // conclude nothing.
   const tabulated = (l: Line) => /^[\d\s.,:±%×+−–-]+$/u.test(l.text);
@@ -551,8 +570,8 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // ... or drawn exactly as wide as the conclusion under it or a premise
   // over it, however wide (E-APP-FUNCTOR's across the column): a figure's
   // own rule is drawn to the figure, not to a line of it.
-  const edge = (l: Line, d: Drawn) => Math.abs(l.x0 - d.x) <= 0.5 * label.size && Math.abs(l.x1 - d.x - d.w) <= 0.5 * label.size;
-  const sized = (d: Drawn) => topping(d) && capping(d) && lines.some((l) => ((l.top >= d.y - 1 && l.top <= d.y + type.leading) || (l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading)) && edge(l, d));
+  const edge = (l: { x0: number; x1: number }, d: Drawn) => Math.abs(l.x0 - d.x) <= 0.5 * label.size && Math.abs(l.x1 - d.x - d.w) <= 0.5 * label.size;
+  const sized = (d: Drawn) => topping(d) && capping(d) && lines.some((l) => ((l.top >= d.y - 1 && l.top <= d.y + type.leading) || (l.bottom <= d.y + 1 && l.bottom >= d.y - type.leading)) && (edge(l, d) || edge(joined(l, d), d)));
   // ... or with the label standing beside it, level with it.
   const besides = (d: Drawn) => Math.abs(d.y - mid) <= LEVEL * label.size && (d.x >= label.x1 - slack || d.x + d.w <= label.x0 + slack);
   // A label level with its bar may stand further off to its right (JFP's
@@ -640,6 +659,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
         return { category: "cell", bar, row, side: "over" };
       }
       const right = bar.x + bar.w <= label.x0 + slack;
+      // Wholly under the bar, the bar reaching over it, the label stands
+      // among what the bar concludes, not beside it ("pgn", first of a
+      // plot's tick labels under its axis).
+      if (label.top >= bar.y - 0.5 && Math.min(label.x1, bar.x + bar.w) - Math.max(label.x0, bar.x) > tolerance(label, label)) continue;
       // A word set into a rule, the bar touching it on both sides, heads a
       // group ("——— Structural ———"); a rule's label has a gap on its side.
       const touching = (d: Drawn) => across(d) && Math.abs(d.y - bar.y) <= 1
@@ -744,9 +767,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l) && !headedBy(l));
     // Three plain upright words or more with no relation or formula under
     // the bar are a table's subheadings ("LOC Spec Time (s)" under Flux's rule) or a
-    // plot's axis labels ("pgn ppm sexp" under ParTS's legend swatch).
+    // plot's axis labels ("pgn ppm sexp" under ParTS's legend swatch),
+    // on one line or each word a line of its own.
     // A lone constant ("False", "Proph") concludes all the same.
-    const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && l.text.trim().split(/\s+/).length >= 3 && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
+    const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && (l.text.trim().split(/\s+/).length >= 3 || concluding.length >= 3) && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
       && !/[\u{1D400}-\u{1D7FF}]/u.test(l.text) && l.runs.every((r) => !/\p{L}/u.test(r.text) || (!ITALIC.test(r.font) && !SYMBOLIC.test(r.font) && !MONO.test(r.font))));
     if (under && token.side === "whole" && aligned && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
@@ -1122,9 +1146,10 @@ const NEAR = 60;
 const RULE_WORDS = /\b(?:rules?|laws?|axioms?)\b/i;
 const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)\s*[[(]?\s*(?:[^\s,()[\]]+,?\s+(?:and\s+|or\s+)?){0,6}$/iu;
 const RULE_AFTER = /^\s*(?:[\])]\s*)?(?:,?\s*(?:and\s+|or\s+)?[^\s,()[\]]+){0,6}\s+(?:rules?|laws?|axioms?)\b/iu;
-// A word with a capital after a lowercase letter is no English word: a
+// A word with a capital after a lowercase letter, or capitals running
+// into a capitalised word (MKSVar, MALam1), is no English word: a
 // camelCase name cites its rule wherever it is printed.
-const camel = (text: string) => /\p{Ll}\p{Lu}/u.test(text);
+const camel = (text: string) => /\p{Ll}\p{Lu}|\p{Lu}{2}\p{Ll}{2}/u.test(text);
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // A name in the text is the label's, whatever its case, only where one of
@@ -1313,7 +1338,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      const shape = shapeOf(fold(token.text));
+      // A Latin capital alone in brackets tags its row as a word does ("(𝐹 )"
+      // among "(𝑅1)" … "(𝑅9)"), standing only where others are set alike.
+      const shape = shapeOf(fold(token.text)) ?? (token.bracketed && /^[A-Z]$/.test(fold(token.text)) ? "word" : null);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
@@ -1330,7 +1357,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
         if (setting.category === "margin") trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box));
         continue;
       }
-      const convention = `${setting.category}|${setting.side}|${token.bracketed ? "[]" : ""}|${facesOf(line, token)}|${Math.round(line.size * 2) / 2}`;
+      // The size of the label's own letters: a brace's piece set on its
+      // line ("MSLocalConflict{") sizes nothing.
+      const size = line.runs[line.chars[token.start]?.run]?.size ?? line.size;
+      const convention = `${setting.category}|${setting.side}|${token.bracketed ? "[]" : ""}|${facesOf(line, token)}|${Math.round(size * 2) / 2}`;
       candidates.push({ line, page, token, shape, setting: setting as Candidate["setting"], rule, convention });
     }
   }
