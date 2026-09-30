@@ -285,7 +285,7 @@ function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: numb
 const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳⇐⊢⊨⊩⊑⊆≡≜≔=∼≈⊕⊗∗⊸⊳⊲▷◁]|->|=>|~>|<:|:>|::=/u;
 
 // A relation between two terms, a blank on each side of it.
-const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})(?:\\s|$)`, "u");
+const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
 
 // A figure's or table's caption under a rule concludes nothing.
 const CAPTION = /^\s*(?:Fig(?:ure)?|Table|Listing)\.?\s*\d/i;
@@ -436,11 +436,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     }
   }
   // Over the one line of an axiom set without a bar, aligned with it:
-  // the line under the label holds a relation and nothing else on the
-  // label's row reaches over it. Only a name of a strong shape (hyphen,
-  // spaced, bracketed) stands so: a bare word over a line with a relation
-  // heads a listing ("in", "Core") or a grammar's column ("id ⇒ Return").
-  if (token.side === "whole" && (token.bracketed || ["hyphen", "spaced"].includes(shapeOf(fold(token.text)) ?? ""))) {
+  // the line under the label holds a relation between terms and nothing
+  // else on the label's row reaches over it. A bare word stands so only
+  // where the paper sets two labels over bars the same way (findRules):
+  // alone it heads a listing ("in", "Core") or a grammar's column ("id ⇒
+  // Return").
+  if (token.side === "whole") {
     const under = lines.filter((l) => l.top >= label.bottom - tolerance(l, label) && l.top <= label.bottom + 1.2 * type.leading
       && l.x0 < label.x1 + 2 * label.size && l.x1 > label.x0 - 2 * label.size && sameColumn(page, l, label));
     if (under.length) {
@@ -476,7 +477,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   if (atMargin) return { category: "margin", bar: null, row, side: "right" };
   // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name).
-  if (row.some((l) => faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
+  // A row holding words in the text's face with no relation is a
+  // table's ("MaxMigrate" beside a benchmark's name); another label set
+  // as this one is (a rule beside, Wp-store beside Wp-load) is not.
+  const sibling = (l: Line) => tokenOf(l)?.side === "whole" && faceOf(l) === faceOf(label) && Math.abs(l.size - label.size) <= 0.5;
+  if (row.some((l) => !sibling(l) && faceOf(l) === family(type.font) && !RELATION.test(l.text) && /\p{L}{3}/u.test(l.text))) return { category: "cell", bar: null, row, side: "right" };
   // The label stands at a side of its row, or over it. With lines on
   // both sides, its row is the nearer side where the other is twice as
   // far (a page of axioms set two to a row).
@@ -700,7 +705,7 @@ function citedAnywhere(flows: Flow[], rule: { name: string; shape: Shape; bracke
  */
 export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace): Map<string, Rule> {
   const type = typeOf(layout);
-  const candidates: Candidate[] = [];
+  let candidates: Candidate[] = [];
   const at = (page: Page, line: Line, box: Box) => [{ page: page.number, ...box }];
   const seen: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
   for (const page of layout.pages) {
@@ -749,6 +754,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // headers and a plot's legend are set alike too, but never cited.
   // A weak label also stands where two strong ones (hyphenated, spaced,
   // symbols) are set the same way.
+  // Labels over a bar, by convention: a bar-less axiom's word stands
+  // only among two of them (rule.setting), and counts for nothing else.
+  const overBarred = new Map<string, number>();
+  for (const c of candidates) if (c.setting.category === "over" && c.setting.bar) overBarred.set(c.convention, (overBarred.get(c.convention) ?? 0) + 1);
+  const barless = (c: Candidate) => weak(c) && c.setting.category === "over" && !c.setting.bar && (overBarred.get(c.convention) ?? 0) < 2;
+  for (const c of candidates) if (barless(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => !barless(c));
   const conventions = new Map<string, number>();
   const strong = new Map<string, number>();
   for (const c of candidates) {
