@@ -94,13 +94,15 @@ const CONNECTIVE = RULE_CONNECTIVES;
 // Mathematical partials (𝜕, bold and sans too) fold to the connective ∂
 // (bdg-𝜕 in a POPL paper's text layer).
 const PARTIAL = "\\u{1D6DB}\\u{1D715}\\u{1D74F}\\u{1D789}\\u{1D7C3}";
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${PARTIAL}~*|/_\\-‐‑–∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}]))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}]|-\\p{L}))[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${PARTIAL}~*∗|/_\\-‐‑–−∞]{0,35}[+−±†‡♠♣♦?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?))?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 const TAIL = new RegExp(`(?<=\\s)(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 // A name as its shape is judged: mathematical letters folded to the
 // plain ones (×𝑇 is ×T, 𝜂-Red is η-Red).
-const fold = (text: string) => text.normalize("NFKC");
+// A minus sign joins a name's parts as a hyphen does, an asterisk operator
+// marks it as an asterisk (Hyper Hoare Logic's While−∀∗∃∗, cited While-∀*∃*).
+const fold = (text: string) => text.normalize("NFKC").replace(/−/g, "-").replace(/∗/g, "*");
 
 // Where a character of a line begins and ends across the page.
 function edgesOf(line: Line, char: number): [number, number] | null {
@@ -500,7 +502,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // on past the stroke.
   const fitting = (l: Line, d: Drawn) => l.x0 >= d.x - label.size && l.x1 <= d.x + d.w + label.size
     && (l.x1 - l.x0 >= 0.5 * d.w || Math.abs((l.x0 + l.x1) / 2 - (d.x + d.w / 2)) <= 2 * label.size);
-  const topping = (d: Drawn) => lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + type.leading && fitting(l, d));
+  // A table's figures ("2.59±0.05" under a best result's underline)
+  // conclude nothing.
+  const tabulated = (l: Line) => /^[\d\s.,:±%×+−–-]+$/u.test(l.text);
+  const topping = (d: Drawn) => lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + type.leading && fitting(l, d) && !tabulated(l));
   // ... and as wide as a column of text only between premises and a
   // conclusion that fit it, well short of the page's text (a figure's
   // own rule runs across it).
@@ -917,7 +922,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // edge under its row is no running text either.
   const running = (l: Line) => prose(l, type) && l.size >= 0.95 * type.bodySize
     && !(/^\s*(?:where|if|when|provided|unless)\b/i.test(l.text) && l.x0 > label.x0 + 2 * label.size);
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l)) && !CAPTION.test(l.text)
+  // Nor is a line set from the column's left edge reaching well left of
+  // the bar and its label: a paragraph's line hard by a rule set in the
+  // text ("ℓ₁ ≻ ℓ₂, and …:" over N-Strict, a theorem under E-β).
+  const flushLeft = (l: Line) => Boolean(bar) && l.x0 <= type.text.x0 + label.size && l.x0 < Math.min(bar!.x, label.x0) - 2 * label.size;
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && (!running(l) || premise(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
@@ -1058,8 +1067,8 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // A hyphenated name whose prefix is printed as labelled and whose parts
 // differ only in case is the same name (WS-app for WS-App).
 const prefix = (text: string) => text.split(/[-‐‑–:/_]/)[0];
-const sameName = (printed: string, name: string) => printed === name
-  || (printed.toLowerCase() === name.toLowerCase() && (capitals(printed) || capitals(name) || (name.includes("-") && prefix(printed) === prefix(name))));
+const sameName = (printed: string, name: string) => fold(printed) === fold(name)
+  || (fold(printed).toLowerCase() === fold(name).toLowerCase() && (capitals(printed) || capitals(name) || (name.includes("-") && prefix(printed) === prefix(name))));
 
 // Whether a place in the text cites the rule, in the form its shape and
 // setting allow (rule.mention): a hyphenated name, a symbol or a spaced
@@ -1083,7 +1092,9 @@ function* mentionsIn(text: string, rules: { name: string; shape: Shape; brackete
   if (!rules.length) return;
   const order = rules.map((r, i) => i).sort((a, b) => rules[b].name.length - rules[a].name.length);
   // A hyphen may break the name over a line ("(Sec-" / "Chs)").
-  const names = order.map((i) => escape(rules[i].name).replace(/-/g, "[-‐‑–]\\s?").replace(/ /g, "\\s+")).join("|");
+  // A minus sign and an asterisk operator stand for a hyphen and an
+  // asterisk (While−∀∗∃∗ cited as While-∀*∃*).
+  const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")).join("|");
   const re = new RegExp(`(?<![\\p{L}\\d])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d])`, "giu");
   let match: RegExpExecArray | null;
   while ((match = re.exec(text))) {
@@ -1225,7 +1236,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–:/_][^-‐‑–:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
+      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓∀∃⊢⊗⊕⊸∧∨¬<∂]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
       const scripted = [...token.text].every((c, i) => { const ref = line.chars[token.start + [...token.text].slice(0, i).join("").length]; return /\s/u.test(c) || (ref?.run >= 0 && (line.runs[ref.run].sup || line.runs[ref.run].sub)); });
@@ -1316,7 +1327,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const known = rules.get(key);
     if (known && c.setting.derived) { labels.delete(c.line); trace.add(RULE_DERIVATION.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
     const again = known ? `${key}#${[...rules.keys()].filter((k) => k === key || k.startsWith(`${key}#`)).length}` : key;
-    if (c.setting.derived && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed }, labels, faceOf(c.line, c.token), type)) {
+    // A rule defined just over the bar, its conclusion standing as this
+    // bar's premise, is a figure's rule stacked on another, no step
+    // (S-Elem over the axiom S-ElemPartial).
+    const bar = c.setting.bar;
+    const stacked = bar && placed.some((p) => p.page === c.page && p.bar && p.bar !== bar && p.bar.y < bar.y - 2 && p.bar.y >= bar.y - 2.2 * type.leading
+      && p.bar.x >= bar.x - type.bodySize && p.bar.x + p.bar.w <= bar.x + bar.w + type.bodySize && p.bar.w < bar.w);
+    if (c.setting.derived && !stacked && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed }, labels, faceOf(c.line, c.token), type)) {
       labels.delete(c.line); trace.add(RULE_DERIVATION.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue;
     }
     const set: { lines: Line[] } = { lines: [] };

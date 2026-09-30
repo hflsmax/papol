@@ -1,0 +1,21 @@
+{"rules": [
+  {"page": 8, "name": "S-Pure", "box": [75.5, 87.5, 222.9, 114.0]},
+  {"page": 8, "name": "S-Pick", "box": [243.8, 88.4, 409.9, 114.8]},
+  {"page": 8, "name": "S-Bind", "box": [52.5, 117.2, 266.0, 143.6]},
+  {"page": 8, "name": "S-Convert", "box": [286.9, 118.1, 432.9, 143.6]},
+  {"page": 8, "name": "S-Assumption", "box": [102.6, 147.8, 214.8, 173.3]},
+  {"page": 8, "name": "S-Intro", "box": [235.7, 147.8, 382.8, 173.3]},
+  {"page": 8, "name": "S-Uncurry", "box": [114.2, 177.4, 371.2, 203.0]},
+  {"page": 8, "name": "S-SplitBool", "box": [115.0, 207.1, 369.9, 233.0]},
+  {"page": 8, "name": "S-SplitNat", "box": [116.0, 236.6, 369.4, 263.0]},
+  {"page": 9, "name": "S-Choose", "box": [148.1, 225.3, 337.3, 249.4]},
+  {"page": 9, "name": "S-ChoosePartial", "box": [102.4, 254.0, 383.0, 270.2]},
+  {"page": 9, "name": "S-Elem", "box": [161.5, 275.7, 323.9, 299.8]},
+  {"page": 9, "name": "S-ElemPartial", "box": [115.1, 304.4, 370.3, 320.5]},
+  {"page": 13, "name": "S-List-Unfold’", "box": [96.2, 324.1, 389.3, 364.6]},
+  {"page": 14, "name": "S-List-Unfold", "box": [68.8, 107.9, 408.9, 193.4]},
+  {"page": 27, "name": "S-GreaterThan", "box": [130.4, 146.5, 354.8, 163.5]},
+  {"page": 27, "name": "S-LessThan", "box": [144.9, 222.4, 340.3, 250.6]},
+  {"page": 27, "name": "S-LessThanPartial", "box": [97.8, 254.7, 387.5, 271.8]}
+],
+"cited": [{"page": 26, "name": "S-Pick"}, {"page": 26, "name": "S-Pure"}, {"page": 26, "name": "S-Pick"}, {"page": 26, "name": "S-Pure"}, {"page": 26, "name": "S-Pure"}, {"page": 26, "name": "S-Pick"}]}
