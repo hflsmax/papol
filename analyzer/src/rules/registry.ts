@@ -244,7 +244,7 @@ export const RULE_NAME = "(?:[A-Z][\\p{L}]{0,19}|[a-z]{1,8}|[a-z]{1,8}(?:[A-Z][a
 
 export const RULE_CANDIDATE = rule({
   id: "rule.candidate", stage: "rule",
-  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon), may label a rule: up to 36 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, before a trailing capital, digit or arrow, or before a parenthesised tag), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\", \"<:eq\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation; after a connective, letters all mathematical with no capital among them, or all lowercase in an italic face: ⊕𝜎𝑓, × 1/fps). A piece of a large brace set at a token's end is no letter of it. The size a label is measured against is the text's, or the size most lines of a prose line's length are set in where that is larger; a line under 0.55 of it is a diagram's lettering (Sparse Workspaces labels a matrix's levels \"(Level J)\" at half the text's size).",
+  summary: "A line that is one token, or that opens or ends with one an em or more apart from the rest (or set off by a colon, which ends it after a letter; so closed it labels a rule only at a bar), may label a rule: up to 36 characters with no inner space (one between a one- or two-letter prefix and a capitalised word, before a trailing capital, digit or arrow, or before a parenthesised tag), a letter in it, opening with a letter, a digit or a symbol name's connective (\"→L\", \"<:eq\"), brackets that pair, not a number, a citation or a formula (every letter mathematical, or the first read from a symbol font: the ⟦ ⟧ of a denotation; after a connective, letters all mathematical with no capital among them, or all lowercase in an italic face: ⊕𝜎𝑓, × 1/fps). A piece of a large brace set at a token's end is no letter of it. The size a label is measured against is the text's, or the size most lines of a prose line's length are set in where that is larger; a line under 0.55 of it is a diagram's lettering (Sparse Workspaces labels a matrix's levels \"(Level J)\" at half the text's size).",
   why: "Every label in the corpus is set apart from its rule by a line break or a gap; none runs into prose. \"Cut\", \"(value)\", \"k-var\", \"E Beta\" and \"Definition\" all pass here and are told apart by their setting; Sequent Core's →R and ∀R open with their connective.",
 });
 export const RULE_BAR = rule({
@@ -275,10 +275,10 @@ export const RULE_SHAPE_SPACED = rule({
 });
 export const RULE_SHAPE_WORD = rule({
   id: "rule.shape.word", stage: "rule",
-  summary: "A single word of two to twenty-four letters and digits, with or without a short parenthesised tag, spaced or not (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"MKSRelocationConflict\", \"A1\", \"Choice(L)\", \"LChoice (L)\", \"SeqCompDiv (1)\").",
+  summary: "A single word of two to twenty-four letters and digits, primed or not, with or without a short parenthesised tag, spaced or not (\"Cut\", \"BIND\", \"step\", \"InstLSolve\", \"MKSRelocationConflict\", \"MKSIf’\", \"A1\", \"Choice(L)\", \"LChoice (L)\", \"SeqCompDiv (1)\").",
   why: "Sequent Core, the Awkward Squad and Consistent Subtyping name rules with one word; where it stands decides whether it labels a rule.",
-  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,23}(?: ?\([\p{L}\d]{1,4}\))?$/u,
-  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)", "LChoice (L)", "SeqCompDiv (1)", "MKSRelocationConflict"],
+  pattern: /^\p{L}[\p{L}\d\p{Co}]{1,23}['′’]?(?: ?\([\p{L}\d]{1,4}\))?$/u,
+  matches: ["Cut", "BIND", "step", "InstLSolve", "A1", "jump", "Choice(L)", "FixedPoint(Err)", "LChoice (L)", "SeqCompDiv (1)", "MKSRelocationConflict", "MKSIf’"],
   rejects: ["a", "1", "T-App", "E Beta", "Cut:", "verylongwordthatisnotaname"],
 });
 export const RULE_SHAPE_SYMBOL = rule({
@@ -326,13 +326,13 @@ export const RULE_HEADING = rule({
 });
 export const RULE_DERIVATION = rule({
   id: "rule.derivation", stage: "rule",
-  summary: "A bar with a narrower bar just over it (under the label, for a label over its bar) within its span, and a line between within the upper bar's span, or one whose conclusion leads into a wider bar under it that no label of its own names, is a step of a derivation tree; a label there defines its rule only where no label at a rule's own setting does or the text cites it, and otherwise cites it.",
+  summary: "A bar with a narrower bar just over it (under the label, for a label over its bar) within its span, and a line between within the upper bar's span, or one whose conclusion leads into a wider bar under it that no label of its own names and that has a conclusion of its own under it (not running text or the next row's labels: a table's rule), is a step of a derivation tree; a label there defines its rule only where no label at a rule's own setting does or the text cites it, and otherwise cites it.",
   why: "Mechanizing Refinement Types and Frame Inference for Rust set example derivations with each step labelled by its rule; a link to the name should open the rule, not the example.",
 });
 export const RULE_CELL = rule({
   id: "rule.cell", stage: "rule",
-  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's. An upright closed at both ends by strokes across is a judgment's box, not a wall, unless those strokes close three uprights or more: a grid's row (ticks and \"n/a\" in a table of formats).",
-  why: "Program, Line, Char over a table's rule; \"——— Structural ———\" between groups of rules, while [fvar] has a gap before the next rule's bar; (base) and (offset) in a ruled table's cell.",
+  summary: "A token level with a bar and within its span is a cell over a table's rule, as is one between two rules of one span with the upper right over it; one with the bar touching it on both sides heads a group; one with a vertical rule drawn through its row within three sizes, or a wall (an upright stroke, or the edge of a box taller than two lines) between it and its row, is in a table, a box round a judgment's form beside it aside; a row holding words in the text's face and no relation is a table's, and so is one with numerals under it beside the token (a row's heading at most to their left), however its cells are ruled. An upright closed at both ends by strokes across is a judgment's box, not a wall, unless those strokes close three uprights or more: a grid's row (ticks and \"n/a\" in a table of formats).",
+  why: "Program, Line, Char over a table's rule; MLKit over a column of timings, underlined where they improve; \"——— Structural ———\" between groups of rules, while [fvar] has a gap before the next rule's bar; (base) and (offset) in a ruled table's cell.",
 });
 export const RULE_BOX = rule({
   id: "rule.box", stage: "rule",

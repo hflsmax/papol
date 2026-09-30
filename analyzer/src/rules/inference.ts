@@ -76,6 +76,7 @@ interface Token {
   bracketed: boolean;
   square: boolean; // in square brackets ([Int]), not parentheses
   colon: boolean; // set off by a colon after it ("Load:")
+  closed?: boolean; // the colon ends a word ("Load:", "follows:")
   side: "whole" | "head" | "tail"; // the whole line, or its head or tail set apart
   start: number; // in the line's text
   end: number;
@@ -138,7 +139,12 @@ function tokenOf(line: Line, column = false): Token | null {
   const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 && EXTENSION.test(line.runs[line.chars[i].run].font) ? " " : c)).join("");
   const found = (match: RegExpExecArray | null, side: Token["side"]): Token | null => {
     if (!match?.groups) return null;
-    const { open, close, token, colon } = match.groups;
+    const { open, close } = match.groups;
+    // A colon after a letter ends the label, no part of its name ("Load:"
+    // heading its rule; the colon is a connective only among others, "<:").
+    const trailing = /[\p{L}\d]:$/u.test(match.groups.token);
+    const token = trailing ? match.groups.token.slice(0, -1) : match.groups.token;
+    const colon = match.groups.colon || (trailing ? ":" : undefined);
     if (Boolean(open) !== Boolean(close)) return null;
     if (open && close && "[(".indexOf(open) !== "])".indexOf(close)) return null;
     // A letter in it, unless it opens with a connective (⋍0); not a
@@ -164,7 +170,7 @@ function tokenOf(line: Line, column = false): Token | null {
       if (letters.length && !/\p{L}/u.test(token.replace(/[\u{1D400}-\u{1D7FF}]/gu, "")) && !new RegExp(`[${CAP}]`, "u").test(token)) return null;
       if (letters.length && letters.every((m) => /[a-z]/.test(m[0]) && ITALIC.test(font(start + m.index!)))) return null;
     }
-    return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), side, start, end: start + token.length };
+    return { text: token, bracketed: Boolean(open), square: open === "[", colon: Boolean(colon), closed: trailing, side, start, end: start + token.length };
   };
   const whole = found(WHOLE.exec(text), "whole");
   if (whole) return whole;
@@ -334,13 +340,21 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
     && d.x >= bar.x - slack && d.x + d.w <= bar.x + bar.w + slack && d.w < bar.w
     && lines.some((l) => l.top >= d.y - 1 && l.top <= d.y + 0.8 * type.leading && l.bottom <= bar.y + 1 && l.bottom >= bar.y - 0.8 * type.leading && l.x0 >= d.x - 1 && l.x1 <= d.x + d.w + 1));
 }
+// A step's bar has its conclusion right under it, its baseline within a
+// leading (a label raised beside the bar may lift the line's top): a
+// table's rule has running text under it, or the next row's labels.
+function concludes(page: Page, d: Drawn, type: Type): boolean {
+  return page.lines.some((l) => !l.furniture && !prose(l, type) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
+}
 // The wider bar a step's conclusion leads into, where no label of its
 // own names that bar (findRules knows): a rule's own bar set right under
 // another's conclusion is not a step, nor is a frame's edge under it (the
-// judgment's box under NEVER) a bar.
+// judgment's box under NEVER) a bar, nor a table's rule with no
+// conclusion under it (Table 8's LoadLarger over running text).
 function stepInto(page: Page, bar: Drawn, lines: Line[], type: Type, slack: number): Drawn | null {
   return page.drawn.find((d) => d !== bar && across(d) && !framed(page, d) && d.y > bar.y + 2 && d.y <= bar.y + 2.2 * type.leading
     && d.x <= bar.x + slack && d.x + d.w >= bar.x + bar.w - slack && d.w > bar.w
+    && concludes(page, d, type)
     && lines.some((l) => l.top >= bar.y - 1 && l.top <= bar.y + 0.8 * type.leading && l.bottom <= d.y + 1 && l.bottom >= d.y - 0.6 * type.leading && l.x0 >= bar.x - 1 && l.x1 <= bar.x + bar.w + 1)) ?? null;
 }
 
@@ -352,11 +366,15 @@ const RELATION = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳⇐⊢⊣⊨⊩⊑⊆≡�
 // A relation between two terms, a blank on each side of it.
 const BETWEEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\S{0,2}(?:\\s|$)`, "u");
 
+// A table's cell of figures: numerals and their marks, no term.
+const NUMERALS = /^[\s\d.,%±×†*()]*\d[\s\d.,%±×†*()]*$/u;
+
 // A figure's or table's caption under a rule concludes nothing.
 const CAPTION = /^\s*(?:Fig(?:ure)?|Table|Listing)\.?\s*\d/i;
 
-// A listing's face: a word at the head of a row set in it is code.
-const MONO = /mono|consol|courier|typewriter|cmtt|lmtt|menlo|firacode|sourcecodepro|dejavusansm|inconsolata/i;
+// A listing's face (Computer Modern's typewriter in its cm, lm, EC and
+// CM-Super cuts, and the like): a word at the head of a row set in it is code.
+const MONO = /mono|consol|courier|typewriter|cmtt|lmtt|sftt|ectt|menlo|firacode|sourcecodepro|dejavusansm|inconsolata/i;
 
 // A vertical rule drawn beside the label, on its row: a table's.
 function ruledAside(page: Page, label: Line, span: [number, number], type: Type): boolean {
@@ -471,6 +489,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const banded = page.drawn.some((top) => across(top) && top.y < label.top && top.y >= label.top - 0.8 * type.leading && top.x <= label.x0 + 1 && top.x + top.w >= label.x1 - 1 && !framed(page, top)
     && page.drawn.some((b) => b !== top && across(b) && b.y > label.bottom - 1 && b.y <= label.bottom + 2 * type.leading && Math.abs(b.x - top.x) <= 1 && Math.abs(b.w - top.w) <= 1 && top.w >= 4 * label.size));
   if (banded) return { category: "cell", bar: null, row, side: "over" };
+  // Under the label's row, beside the label's own column, stand
+  // numerals, a row's heading at most to their left: the row heads a
+  // table's columns ("MLKit" over its timings, "Program/Compiler" over
+  // counts), however its cells are ruled.
+  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1));
+  const figures = cells.filter((l) => NUMERALS.test(l.text));
+  if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
   const beside: Setting[] = [];
   for (const bar of bars) {
     if (!concluded1(bar)) continue;
@@ -523,7 +548,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // rule's is the wider where the label stands over it.
   const oneRow = (between: Line[]) => between.length > 0 && Math.max(...between.map((l) => l.top)) - Math.min(...between.map((l) => l.top)) < 0.5 * type.leading;
   const main = (bar: Drawn): Drawn => {
-    const wider = near.find((d) => d.y > bar.y && d.y - bar.y <= 2 * type.leading && d.x <= bar.x + 2 && d.x + d.w >= bar.x + bar.w - 2 && d.w >= bar.w + label.size && concluded1(d)
+    const wider = near.find((d) => d.y > bar.y && d.y - bar.y <= 2 * type.leading && d.x <= bar.x + 2 && d.x + d.w >= bar.x + bar.w - 2 && d.w >= bar.w + label.size && concluded1(d) && concludes(page, d, type)
       && oneRow(lines.filter((l) => l.top > bar.y - 1 && l.bottom < d.y + 1 && l.x0 < bar.x + bar.w && l.x1 > bar.x)));
     return wider ? main(wider) : bar;
   };
@@ -584,7 +609,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     // bar of its own is the next rule's (ENV-R-KVAR's beside ENV-R-EMPTY).
     const premised = (l: Line) => page.drawn.some((d) => d !== bar && across(d) && d.y >= l.bottom - 1 && d.y <= l.bottom + type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2);
     const rowed = row.some((l) => !spans(l) && l.x0 >= label.x1 - tolerance(l, label) && l.x0 - label.x1 <= 4 * label.size && RELATION.test(l.text) && !premised(l));
-    if (under && token.side === "whole" && aligned && !overhangs && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
+    // Three plain upright words or more with no relation or formula under
+    // the bar are a table's subheadings ("LOC Spec Time (s)" under Flux's rule) or a
+    // plot's axis labels ("pgn ppm sexp" under ParTS's legend swatch).
+    // A lone constant ("False", "Proph") concludes all the same.
+    const worded = concluding.length > 0 && concluding.every((l) => /\p{L}{3}/u.test(l.text) && l.text.trim().split(/\s+/).length >= 3 && l.text.split(/\s+/).every((w) => /^[\p{L}\d().,%-]*$/u.test(w))
+      && !/[\u{1D400}-\u{1D7FF}]/u.test(l.text) && l.runs.every((r) => !/\p{L}/u.test(r.text) || (!ITALIC.test(r.font) && !SYMBOLIC.test(r.font) && !MONO.test(r.font))));
+    if (under && token.side === "whole" && aligned && !overhangs && !worded && !relabelled && !headed && !gapped && !barred && !rowed && !row.some(blocks)) return { category: "over", bar, row, side: "over", derived: derivation(page, bar, lines, type, slack, label.bottom - 1), step: stepInto(page, bar, lines, type, slack) };
   }
   // Over the one line of an axiom set without a bar, aligned with it:
   // the line under the label holds a relation between terms and nothing
@@ -1004,6 +1035,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       const box = boxAt(page, line, setting);
       trace.add(RULE_CANDIDATE.id, page.number, token.text, at(page, line, box));
       if (setting.category === "none") continue;
+      // A word closed by a colon names the rule at its bar ("Load:");
+      // elsewhere it opens a sentence's clause ("as follows:", "Otherwise:").
+      if (token.closed && !setting.bar) continue;
       if (setting.category === "cell" || setting.category === "group") { trace.add(RULE_CELL.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
