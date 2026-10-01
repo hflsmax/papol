@@ -609,6 +609,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
     <PaperBrief
       key={paper.sha256} project={project} paper={paper} currentUser={currentUser} underRow={!wide}
       unread={unreadOn(paper)} onChanged={onChanged} onRead={onRead}
+      tags={<ProjectPaperTags project={project} paper={paper} onChanged={onChanged} />}
     />
   );
   const move = (e) => {
@@ -678,7 +679,11 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
                     </button>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
-                  <ProjectPaperTags project={project} paper={paper} onChanged={onChanged} />
+                  {(paper.tags ?? []).length > 0 && (
+                    <span className="project-paper-tag-list" aria-label="Project tags">
+                      {paper.tags.map((item) => <span className="project-paper-tag" key={item.uuid}>#{item.name}</span>)}
+                    </span>
+                  )}
                 </div>
                 <span className="project-row-facts">
                   <span className="project-row-cite">{where}</span>

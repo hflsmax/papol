@@ -5242,7 +5242,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tags-none { margin: var(--space-5) var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .project-tag-filter-error { margin: 0 var(--space-3) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
 .project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
-.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .project-paper-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1.3 var(--font-ui); }
 .project-tag-edit, .project-tag-done { min-height: 20px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
 .project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible, .project-tag-done:hover:not(:disabled), .project-tag-done:focus-visible { border: 0; background: transparent; color: var(--accent); }
@@ -5263,6 +5263,8 @@ button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper
 .project-tag-options button span:last-child { color: var(--ink-faint); font-size: var(--fs-2xs); }
 .project-tag-options .project-tag-create { color: var(--accent); }
 .project-tag-error { color: var(--red); font: var(--fs-2xs) var(--font-ui); }
+.paper-brief-tags .project-paper-tags { margin-top: var(--space-1); }
+.paper-brief-tags .project-tag-editor { max-width: 34rem; }
 @media (hover: none) {
   .project-tag-filter > .project-tag-delete { opacity: 1; }
 }
