@@ -15,6 +15,7 @@ const MIA = 'a1b2c3d4-0000-4000-8000-000000000004';
 export const PROJECT = 'b1b2c3d4-0000-4000-8000-000000000010';
 const BOARD_PLAN = 'c1b2c3d4-0000-4000-8000-000000000020';
 const BOARD_MAP = 'c1b2c3d4-0000-4000-8000-000000000021';
+const BOARD_BUDGET = 'c1b2c3d4-0000-4000-8000-000000000022';
 const CARD_SPARSE = 'd1b2c3d4-0000-4000-8000-000000000030';
 export const DIG_PAPER = 'e1b2c3d4-0000-4000-8000-000000000040';
 const DIG_CARD = 'e1b2c3d4-0000-4000-8000-000000000041';
@@ -80,15 +81,21 @@ const papers = [
   },
 ];
 
-const box = (x, y, w, h, kind = 'comment') => ({ x, y, w, h, kind });
+// Each board as the project lists it, latest first: known by what its
+// newest card says and who put it there.
+const latest = (text, kind, by, at) => ({ text, kind, added_by: by, added_at: at });
 const boards = [
   {
-    uuid: BOARD_PLAN, name: 'Bench plan', description: null, owner: me, item_count: 12, updated_at: hoursAgo(2),
-    boxes: [box(0, 0, 300, 112), box(340, 0, 300, 145, 'excerpt'), box(0, 150, 300, 112), box(340, 180, 300, 112), box(700, 40, 300, 180, 'image'), box(0, 300, 300, 145, 'excerpt'), box(340, 330, 300, 112), box(700, 260, 300, 112), box(1040, 0, 300, 112), box(1040, 150, 300, 145, 'excerpt'), box(1040, 330, 300, 112), box(700, 410, 300, 82, 'file')],
+    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, created_at: daysAgo(6), updated_at: hoursAgo(1), is_new: true,
+    latest_card: latest('Linear attention loses the long-range term we need for tip-tilt; keep the sparse variant for now.', 'comment', ana, hoursAgo(1)),
   },
   {
-    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, updated_at: hoursAgo(1), is_new: true,
-    boxes: [box(0, 0, 300, 145, 'excerpt'), box(360, 0, 300, 145, 'excerpt'), box(180, 200, 300, 112), box(540, 220, 300, 180, 'image'), box(0, 260, 300, 112)],
+    uuid: BOARD_PLAN, name: 'Bench plan', description: null, owner: me, item_count: 12, created_at: daysAgo(9), updated_at: hoursAgo(2),
+    latest_card: latest('Measure the loop delay before tuning the integrator gain', 'comment', me, hoursAgo(2)),
+  },
+  {
+    uuid: BOARD_BUDGET, name: 'Error budget', description: null, owner: ben, item_count: 7, created_at: daysAgo(12), updated_at: daysAgo(3),
+    latest_card: latest('The servo-lag term dominates above 40 Hz; fitting error is flat across every run we have.', 'excerpt', ben, daysAgo(3)),
   },
 ];
 

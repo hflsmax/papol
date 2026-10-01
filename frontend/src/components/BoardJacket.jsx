@@ -267,7 +267,7 @@ export default function BoardJacket({
             rows={3}
             maxLength={appLimits.text.board_description}
             autoFocus
-            placeholder="What are you exploring on this board?"
+            placeholder="Description"
             aria-label="Board description"
             onChange={(event) => setDraft(event.target.value)}
             onBlur={finishEditing}
@@ -284,7 +284,7 @@ export default function BoardJacket({
             onClick={() => beginEditing('description')}
             onKeyDown={beginWithKeyboard('description')}
           >
-            {board.description || 'What are you exploring on this board?'}
+            {board.description || 'Description'}
           </p>
         ) : board.description && <p className="board-jacket-description">{board.description}</p>}
 
