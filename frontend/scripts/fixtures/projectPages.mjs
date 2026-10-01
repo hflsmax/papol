@@ -81,20 +81,20 @@ const papers = [
   },
 ];
 
-// Each board as the project lists it, latest first: known by what its
-// newest card says and who put it there.
+// Each board as the project lists it, latest first: known by its
+// description and who last put something there.
 const latest = (text, kind, by, at) => ({ text, kind, added_by: by, added_at: at });
 const boards = [
   {
-    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, created_at: daysAgo(6), updated_at: hoursAgo(1), is_new: true,
+    uuid: BOARD_MAP, name: 'Attention variants map', description: 'Compare the controller families worth taking to the bench.', owner: ana, item_count: 5, created_at: daysAgo(6), updated_at: hoursAgo(1), is_new: true,
     latest_card: latest('Linear attention loses the long-range term we need for tip-tilt; keep the sparse variant for now.', 'comment', ana, hoursAgo(1)),
   },
   {
-    uuid: BOARD_PLAN, name: 'Bench plan', description: null, owner: me, item_count: 12, created_at: daysAgo(9), updated_at: hoursAgo(2),
+    uuid: BOARD_PLAN, name: 'Bench plan', description: 'Turn the strongest candidates into a repeatable experiment.', owner: me, item_count: 12, created_at: daysAgo(9), updated_at: hoursAgo(2),
     latest_card: latest('Measure the loop delay before tuning the integrator gain', 'comment', me, hoursAgo(2)),
   },
   {
-    uuid: BOARD_BUDGET, name: 'Error budget', description: null, owner: ben, item_count: 7, created_at: daysAgo(12), updated_at: daysAgo(3),
+    uuid: BOARD_BUDGET, name: 'Error budget', description: 'Account for the limits that decide whether prediction helps.', owner: ben, item_count: 7, created_at: daysAgo(12), updated_at: daysAgo(3),
     latest_card: latest('The servo-lag term dominates above 40 Hz; fitting error is flat across every run we have.', 'excerpt', ben, daysAgo(3)),
   },
 ];
