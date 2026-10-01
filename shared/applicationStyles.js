@@ -5049,7 +5049,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 /* Online status belongs to a member's chip, not their identity everywhere.
    The card-coloured keyline keeps the dot legible over any avatar colour. */
 .project-presence-avatar { position: relative; display: inline-flex; flex: none; }
-.project-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--card); border-radius: 50%; background: var(--green); }
+.project-presence-dot { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; box-sizing: border-box; border: 2px solid var(--card); border-radius: 50%; background: var(--green); }
 .project-seat .project-presence-dot { border-color: var(--paper); }
 .project-seat:hover .project-presence-dot { border-color: var(--fill); }
 

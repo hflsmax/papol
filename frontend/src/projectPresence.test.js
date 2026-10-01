@@ -11,7 +11,9 @@ test('project member chips expose online status visually and accessibly', () => 
   assert.match(page, /aria-label=\{`\$\{user\.display_name\}, \$\{user\.online \? 'online' : 'offline'\}`\}/);
   assert.match(page, /user\.online && <span className="project-presence-dot"/);
   assert.match(page, /user\.online && <span className="project-person-online">Online<\/span>/);
-  assert.match(styles, /\.project-presence-dot/);
+  // Its 7px coloured centre is the same size as the shared golden news dot;
+  // the extra 4px are the two-pixel keyline on either side.
+  assert.match(styles, /\.project-presence-dot \{[^}]*width: 11px; height: 11px;/);
 });
 
 test('presence renews while the app is visible and project status refreshes', () => {
