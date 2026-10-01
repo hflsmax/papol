@@ -214,14 +214,16 @@ export function paperRoutes(router: Router) {
     const tagUuids = await ownTags(env, user, data.tag_uuids);
     const shelf = await ownShelf(env, user, data.shelf_uuid);
     if (!shelf) refuse(400, "Shelf does not belong to you");
+    const removed = await one<Copy>(env.DB, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paper.sha256, user.uuid);
     const copy: Copy = {
-      uuid: newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf.uuid as string,
+      ...(removed ?? {}),
+      uuid: removed?.uuid ?? newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf.uuid as string,
       summary: summary ?? null, thought: thought ?? null, is_author: data.is_author ? 1 : 0,
       rating_expertise: data.rating_expertise ?? null, rating_reading: data.rating_reading ?? null, rating_liking: data.rating_liking ?? null,
       ...NEW_COPY_VISIBILITY,
-      created_at: at, updated_at: at, revision: 0, deleted_at: null,
+      created_at: removed?.created_at ?? at, updated_at: at, revision: removed?.revision ?? 0, deleted_at: null,
     };
-    const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, true)];
+    const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, !removed)];
     statements.push(...await setCopyTags(env, copy, tagUuids));
     // A first thought is its writer's own dig on the paper, unless one is
     // still there from an earlier time in their nook.
