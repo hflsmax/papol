@@ -725,9 +725,9 @@ strict, and nobody exercised the real thing before a person did. So:
   upload, a save, a stroke, the PDF, the refusals — failing on the first
   wrong answer. It passes against dev.papol.io.
 - `.github/workflows/worker.yml`: the Worker's suite on every pull
-  request that touches it; on `main`, a deploy to dev followed by the
-  smoke test; production only from the Actions tab, by choice, after
-  dev is green. Needs the `CLOUDFLARE_API_TOKEN` and
+  request that touches it; on `main`, parallel deploys to dev and production,
+  each followed by smoke and link checks. A manual run can still redeploy one
+  chosen environment. Needs the `CLOUDFLARE_API_TOKEN` and
   `CLOUDFLARE_ACCOUNT_ID` repository secrets.
 - Plain HTTP is redirected to HTTPS at the edge, by the zone's "Always
   Use HTTPS" setting, not by the Worker: a redirect in the Worker fired
