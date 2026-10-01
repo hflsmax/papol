@@ -47,6 +47,7 @@ export default function PaperJacket({
   const [error, setError] = useState(null);
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
+  const [metadataExtractStatus, setMetadataExtractStatus] = useState('Reading PDF…');
   const [toggleWarning, setToggleWarning] = useState(null);
   const [editingThought, setEditingThought] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
@@ -359,13 +360,37 @@ export default function PaperJacket({
   const handleMetadataExtract = async () => {
     setError(null);
     setIsExtractingMetadata(true);
+    setMetadataExtractStatus('Reading PDF…');
+    let href = null;
+    let readFromPdf = false;
     try {
       // The title block is read here, off the PDF this jacket shows: the
       // Mac's own copy, else the file on the server.
-      const href = localPdf ? await nativeBlobUrl(paper.sha256, 'application/pdf').catch(() => null) : pdfHref(paper);
-      const printed = href ? readPrintedAt(href) : null;
+      href = localPdf ? await nativeBlobUrl(paper.sha256, 'application/pdf').catch(() => null) : pdfHref(paper);
+      const printed = href ? await readPrintedAt(href) : null;
+      const titleBlock = printed?.title_block;
+      if (titleBlock) {
+        readFromPdf = true;
+        setEditData((current) => ({
+          ...current,
+          ...(titleBlock.title != null && { title: titleBlock.title }),
+          ...(titleBlock.authors?.length && { authors: titleBlock.authors.join(', ') }),
+          ...(titleBlock.journal != null && { journal: titleBlock.journal }),
+          ...(titleBlock.year != null && { year: titleBlock.year }),
+          ...(titleBlock.doi != null && { doi: titleBlock.doi }),
+        }));
+        const found = [
+          titleBlock.title && 'title',
+          titleBlock.authors?.length && `${titleBlock.authors.length} author${titleBlock.authors.length === 1 ? '' : 's'}`,
+          titleBlock.journal && 'venue',
+          titleBlock.year && 'year',
+          (titleBlock.doi || titleBlock.arxiv_id) && 'identifier',
+        ].filter(Boolean).join(', ');
+        setMetadataExtractStatus(`Found ${found} in the PDF. Checking scholarly registries…`);
+      } else {
+        setMetadataExtractStatus('No title block found in the PDF. Checking scholarly registries…');
+      }
       const extracted = await reextractPaperMetadata(paper.sha256, printed);
-      if (localPdf && href) URL.revokeObjectURL(href);
       setEditData((current) => ({
         ...current,
         ...(extracted.title != null && { title: extracted.title }),
@@ -377,8 +402,9 @@ export default function PaperJacket({
         ...(extracted.doi != null && { doi: extracted.doi }),
       }));
     } catch (err) {
-      setError(err.message);
+      setError(readFromPdf ? `PDF metadata was loaded, but registry enrichment failed: ${err.message}` : err.message);
     } finally {
+      if (localPdf && href) URL.revokeObjectURL(href);
       setIsExtractingMetadata(false);
     }
   };
@@ -556,7 +582,7 @@ export default function PaperJacket({
             >
               {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
             </button>
-            {isExtractingMetadata && <Working label="Extracting…" />}
+            {isExtractingMetadata && <Working label={metadataExtractStatus} />}
           </div>
 
           <div className="form-group">
