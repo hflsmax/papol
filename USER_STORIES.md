@@ -19,11 +19,11 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
 ## 1. Accounts
 
 - **US-1.1** As a visitor, I can register with my email, a display name, an affiliation (optional), and a password, so I get my own nook.
-- **US-1.7** As a user, I choose whether my email shows on my nook, with a tick box on my profile. It is on by default; turning it off keeps my address to myself, and it is never sent to other users while off. My email is always my login identifier and cannot be changed.
+- **US-1.7** As a user, I choose whether my email shows on my nook, with a tick box on my profile. It is on by default; turning it off keeps my address to myself, and it is never sent to other users while off. My email is my login identifier, and I can change it from my profile.
 - **US-1.2** As a user, I can log in with my email and password, and log out; my session persists across page reloads.
 - **US-1.3** As a visitor who is not logged in, I am not met by a login wall: I land on the home page, which says what Papol is, and the sign-in and register pages are one click away.
 - **US-1.4** As a visitor without an account, every page of the community requires signing in; a sharable someone sent me (§7c) reads without one. Signing out returns me to the home page.
-- **US-1.5** As a user, I can edit my profile (display name and affiliation) and change my password from a profile page reached by clicking my name in the navigation. My email is my login identifier and cannot be changed.
+- **US-1.5** As a user, I can edit my profile (email, display name and affiliation) and change my password from a profile page reached by clicking my name in the navigation. My changed email becomes my login identifier.
 - **US-1.6** As a user, I can upload a profile image (PNG/JPEG/WebP, up to 2 MB), replace or remove it; it appears wherever I do. Without one, my initial shows in its place.
 
 ## 2. Papers, ratings, and shelves

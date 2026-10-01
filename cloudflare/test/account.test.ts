@@ -56,15 +56,27 @@ async function adasNook(ada: Account, grace: Account) {
 }
 
 describe("the profile", () => {
-  it("changes the name, the affiliation and whether the email shows, and nothing else", async () => {
+  it("changes the email, name, affiliation and whether the email shows", async () => {
     const ada = await register("ada@example.test", "Ada");
-    const changed = await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { display_name: "  Ada L.  ", affiliation: " Analytical Engines ", email_public: false } });
-    expect(changed).toMatchObject({ display_name: "Ada L.", affiliation: "Analytical Engines", email_public: false, email: "ada@example.test" });
-    expect(await ok("GET", "/api/auth/me", { headers: ada.headers })).toMatchObject({ display_name: "Ada L.", email_public: false });
+    const changed = await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { email: "ADA.L@example.test", display_name: "  Ada L.  ", affiliation: " Analytical Engines ", email_public: false } });
+    expect(changed).toMatchObject({ display_name: "Ada L.", affiliation: "Analytical Engines", email_public: false, email: "ada.l@example.test" });
+    expect(await ok("GET", "/api/auth/me", { headers: ada.headers })).toMatchObject({ display_name: "Ada L.", email: "ada.l@example.test", email_public: false });
+    expect((await call("POST", "/api/auth/login", { json: { email: "ada@example.test", password: "testing-password" } })).status).toBe(401);
+    expect((await call("POST", "/api/auth/login", { json: { email: "ada.l@example.test", password: "testing-password" } })).status).toBe(200);
     // A field left out is left alone; an empty affiliation is none.
     expect(await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { affiliation: "" } })).toMatchObject({ display_name: "Ada L.", affiliation: null, email_public: false });
     expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { display_name: "  " } })).status).toBe(400);
     expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { display_name: "x".repeat(81) } })).status).toBe(422);
+  });
+
+  it("rejects an invalid email or one belonging to another account", async () => {
+    const ada = await register("ada@example.test", "Ada");
+    await register("grace@example.test", "Grace");
+    expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { email: "not-an-email" } })).status).toBe(422);
+    const taken = await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { email: "GRACE@example.test" } });
+    expect(taken.status).toBe(400);
+    expect(await taken.json()).toMatchObject({ detail: "Email already registered" });
+    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).email).toBe("ada@example.test");
   });
 });
 
