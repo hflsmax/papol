@@ -589,7 +589,10 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
   const [tag, setTag] = useState(null);
-  const papers = tag ? project.papers.filter((paper) => paper.tags?.some((item) => item.uuid === tag)) : project.papers;
+  const usedTagUuids = new Set(project.papers.flatMap((paper) => (paper.tags ?? []).map((item) => item.uuid)));
+  const usedTags = (project.tags ?? []).filter((item) => usedTagUuids.has(item.uuid));
+  const selectedTag = usedTagUuids.has(tag) ? tag : null;
+  const papers = selectedTag ? project.papers.filter((paper) => paper.tags?.some((item) => item.uuid === selectedTag)) : project.papers;
   // Beside the list there is always a brief: the one picked, else the first
   // new paper, else the top one. Under a row it is only the one picked.
   const chosen = papers.find((p) => p.sha256 === picked)
@@ -617,13 +620,13 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   };
   return (
     <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
-      {(project.tags ?? []).length > 0 && (
+      {usedTags.length > 0 && (
         <div className="project-tag-filters" aria-label="Filter papers by project tag">
-          <button type="button" className={!tag ? 'is-on' : ''} aria-pressed={!tag} onClick={() => setTag(null)}>All</button>
-          {(project.tags ?? []).map((item) => (
+          <button type="button" className={!selectedTag ? 'is-on' : ''} aria-pressed={!selectedTag} onClick={() => setTag(null)}>All</button>
+          {usedTags.map((item) => (
             <button
-              type="button" key={item.uuid} className={tag === item.uuid ? 'is-on' : ''} aria-pressed={tag === item.uuid}
-              onClick={() => setTag(tag === item.uuid ? null : item.uuid)}
+              type="button" key={item.uuid} className={selectedTag === item.uuid ? 'is-on' : ''} aria-pressed={selectedTag === item.uuid}
+              onClick={() => setTag(selectedTag === item.uuid ? null : item.uuid)}
             >#{item.name}</button>
           ))}
         </div>
