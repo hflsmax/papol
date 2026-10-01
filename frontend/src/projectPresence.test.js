@@ -9,9 +9,11 @@ const styles = fs.readFileSync(new URL('../../shared/applicationStyles.js', impo
 test('project member chips expose online status visually and accessibly', () => {
   assert.match(page, /data-online=\{user\.online \|\| undefined\}/);
   assert.match(page, /aria-label=\{`\$\{user\.display_name\}, \$\{user\.online \? 'online' : 'offline'\}`\}/);
-  assert.match(page, /user\.online && <span className="project-presence-dot"/);
+  assert.match(page, /user\.online && <span className="news-dot project-presence-dot"/);
   assert.match(page, /user\.online && <span className="project-person-online">Online<\/span>/);
-  assert.match(styles, /\.project-presence-dot \{[^}]*width: 8px; height: 8px;[^}]*border: 2px solid var\(--card\)/);
+  // The avatar overlap and pale green edge make the circle read smaller than
+  // a freestanding news dot, so it is optically corrected by two pixels.
+  assert.match(styles, /\.project-presence-dot \{[^}]*width: 9px; height: 9px;[^}]*box-shadow:/);
 });
 
 test('presence renews while the app is visible and project status refreshes', () => {
