@@ -124,6 +124,10 @@ papers in, and I decide where they go.
 - **US-5c.3** On my own nook, each paper says, in small type on its author line, how long I have spent reading it, tinted by one of five effort levels — lightest under half an hour, darkest past ten hours — so I can see down the page which papers took the most. Pressing it opens that paper's time: the total and since when, its last twelve weeks as a small calendar, and my latest days with it. Nobody else sees my activity or my effort, on my nook or anywhere.
 - **US-5c.4** My activity is in my data export, and goes when I close my account.
 
+## 5d. Presence in a project
+
+- **US-5d.1** As a project member, I can see which other members are online from their user chips, so I know who may be available to work with now. Online members carry a green dot on the project's compact chips and an explicit **Online** label in its people panel; the chip's accessible name says the same thing. A visible Papol window renews presence, and silence for two minutes becomes offline without depending on a browser closing cleanly. Presence is shown only to members of the same project—never on a public project summary or a user's profile.
+
 ## 6. Feedback
 
 - **US-6.1** As anyone using Papol — user, visitor, or someone who cannot even sign in — I can report a bug or ask for a feature from a **Feedback** button floating in the bottom-right corner of every page — one box, free text, no form to fill in — without leaving the page I am on. A visitor may leave an email so the admins can reply.

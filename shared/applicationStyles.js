@@ -5039,11 +5039,19 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-person-name { color: var(--ink); text-decoration: none; }
 .project-person-name:hover { color: var(--accent); }
 .project-person-role { color: var(--ink-faint); font-size: var(--fs-xs); }
+.project-person-online { color: var(--green-ink); font-size: var(--fs-xs); font-weight: 600; }
 .project-person-actions { display: flex; gap: var(--space-1); margin-left: auto; opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
 .project-people .project-person-name { font-weight: 500; }
 .project-person:hover .project-person-actions,
 .project-person:focus-within .project-person-actions { opacity: 1; }
 @media (hover: none) { .project-person-actions { opacity: 1; } }
+
+/* Online status belongs to a member's chip, not their identity everywhere.
+   The card-coloured keyline keeps the dot legible over any avatar colour. */
+.project-presence-avatar { position: relative; display: inline-flex; flex: none; }
+.project-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px; background: var(--green); box-shadow: 0 0 0 2px var(--card); }
+.project-seat .project-presence-dot { box-shadow: 0 0 0 2px var(--paper); }
+.project-seat:hover .project-presence-dot { box-shadow: 0 0 0 2px var(--fill); }
 
 .project-closed { margin: 0; color: var(--ink-soft); font-size: var(--fs-md); }
 

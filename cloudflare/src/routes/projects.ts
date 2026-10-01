@@ -83,13 +83,22 @@ async function membersOf(env: Env, projectUuids: string[]): Promise<(Member & Ro
 
 function membersStatement(env: Env, projectUuids: string[]) {
   return statement(env.DB,
-    `SELECT m.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
+    `SELECT m.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
+            presence.last_seen_at AS presence_seen_at
      FROM project_members m JOIN users u ON u.uuid = m.user_uuid
+     LEFT JOIN user_presence presence ON presence.user_uuid = m.user_uuid
      WHERE m.project_uuid IN (${projectUuids.map(() => "?").join(",")}) ORDER BY m.joined_at, m.uuid`, ...projectUuids);
 }
 
-function memberOut(member: Member & Row) {
-  return { user: userPublic({ ...member, uuid: member.user_uuid }), is_keeper: Boolean(member.is_keeper), joined_at: member.joined_at };
+const ONLINE_WITHIN_MS = 2 * 60 * 1000;
+
+function memberOut(member: Member & Row, showPresence = false, meUuid?: string) {
+  const user: Row = userPublic({ ...member, uuid: member.user_uuid });
+  if (showPresence) {
+    const seen = member.presence_seen_at ? Date.parse(String(member.presence_seen_at)) : 0;
+    user.online = member.user_uuid === meUuid || seen > Date.now() - ONLINE_WITHIN_MS;
+  }
+  return { user, is_keeper: Boolean(member.is_keeper), joined_at: member.joined_at };
 }
 
 // What anyone signed in sees of a project: that it exists, and who is in it.
@@ -97,7 +106,7 @@ function summaryOut(project: Project, members: (Member & Row)[], me: User) {
   const mine = members.find((m) => m.user_uuid === me.uuid);
   return {
     uuid: project.uuid, name: project.name, created_at: project.created_at,
-    members: members.map(memberOut), is_member: Boolean(mine), is_keeper: Boolean(mine?.is_keeper),
+    members: members.map((member) => memberOut(member, Boolean(mine), me.uuid)), is_member: Boolean(mine), is_keeper: Boolean(mine?.is_keeper),
   };
 }
 
@@ -752,7 +761,7 @@ export function projectRoutes(router: Router) {
     // has dug there says nothing to the project.
     const shown = rows.filter((a) => a.kind !== "anchor" || a.user_uuid === me.uuid || `annotation:${a.uuid}` in annotationPins);
     return json({
-      project: { uuid: project.uuid, name: project.name, members: members.map(memberOut) },
+      project: { uuid: project.uuid, name: project.name, members: members.map((projectMember) => memberOut(projectMember)) },
       me: me.uuid,
       annotations: shown.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
       digs: Object.fromEntries(Object.entries(annotationPins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
