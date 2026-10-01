@@ -5243,28 +5243,24 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tag-filter-error { margin: 0 var(--space-3) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
 .project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
 .project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.project-paper-tags > .project-paper-tag-list { margin-top: 0; }
 .project-paper-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1.3 var(--font-ui); }
-.project-tag-edit, .project-tag-done { min-height: 20px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
-.project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible, .project-tag-done:hover:not(:disabled), .project-tag-done:focus-visible { border: 0; background: transparent; color: var(--accent); }
-.project-paper-tags.is-editing { display: block; }
-.project-paper-tags.is-editing > .project-paper-tag-list { display: none; }
-.project-tag-editor { display: grid; gap: var(--space-2); max-width: 28rem; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sm); }
-.project-tag-editor-head { display: flex; align-items: center; justify-content: space-between; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
-.project-tag-assigned { display: flex; flex-wrap: wrap; gap: 4px; }
-button.project-paper-tag.is-removable { box-shadow: none; }
+.project-tag-edit { min-height: 20px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible { border: 0; background: transparent; color: var(--accent); }
+button.project-paper-tag.is-removable { gap: 4px; box-shadow: none; }
+button.project-paper-tag.is-removable span { color: var(--ink-faint); }
 button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
-.project-tag-picker { position: relative; }
-.project-tag-input { width: 100%; min-height: 34px; box-sizing: border-box; padding: 5px 9px; border-color: var(--line-strong); border-radius: var(--radius); font: var(--fs-xs) var(--font-ui); }
+.project-tag-picker { position: relative; flex: 1 1 12rem; max-width: 18rem; }
+.project-tag-input { width: 100%; min-height: 26px; box-sizing: border-box; padding: 3px 8px; border-color: var(--line-strong); border-radius: var(--radius); font: var(--fs-xs) var(--font-ui); }
 .project-tag-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
-.project-tag-options { display: grid; max-height: 10rem; margin-top: 3px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.project-tag-options { position: absolute; z-index: 3; top: calc(100% + 3px); right: 0; left: 0; display: grid; max-height: 10rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-sm); }
 .project-tag-options button { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: var(--fs-xs) var(--font-ui); text-align: left; }
 .project-tag-options button + button { border-top: 1px solid var(--line); }
 .project-tag-options button:hover:not(:disabled), .project-tag-options button:focus-visible { border-color: var(--line); background: var(--paper-sunken); color: var(--accent); }
 .project-tag-options button span:last-child { color: var(--ink-faint); font-size: var(--fs-2xs); }
 .project-tag-options .project-tag-create { color: var(--accent); }
-.project-tag-error { color: var(--red); font: var(--fs-2xs) var(--font-ui); }
+.project-tag-error { flex-basis: 100%; color: var(--red); font: var(--fs-2xs) var(--font-ui); }
 .paper-brief-tags .project-paper-tags { margin-top: var(--space-1); }
-.paper-brief-tags .project-tag-editor { max-width: 34rem; }
 @media (hover: none) {
   .project-tag-filter > .project-tag-delete { opacity: 1; }
 }

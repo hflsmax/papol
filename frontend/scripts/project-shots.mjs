@@ -31,7 +31,7 @@ const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob
 const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   // A project's shared vocabulary, with one paper's tag editor open.
-  'desk-paper-tags': { ...desk('papers', '.project-tag-editor', "document.querySelector('.project-tag-edit').click(); return true;"), size: wide },
+  'desk-paper-tags': { ...desk('papers', '.project-tag-picker', "document.querySelector('.project-tag-edit').click(); return true;"), size: wide },
   // A keeper writing what the project is about, under its name.
   'desk-description': { ...desk('papers', '.project-description-input:focus', "document.querySelector('.project-description-input').focus(); return true;"), size: wide },
   // The Boards tab: a row per board, the latest's jacket beside them.

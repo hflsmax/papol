@@ -18,7 +18,8 @@ test('a paper can take an existing project tag or make a new one', () => {
   assert.match(tags, /createProjectTag\(project\.uuid, draft\.trim\(\)\)/);
   assert.match(tags, /addProjectPaperTag\(project\.uuid, paper\.sha256, tag\.uuid\)/);
   assert.match(tags, /removeProjectPaperTag\(project\.uuid, paper\.sha256, tag\.uuid\)/);
-  assert.match(tags, /placeholder="Find or create a tag…"/);
+  assert.match(tags, /placeholder="Add a tag…"/);
+  assert.doesNotMatch(tags, />Done<|project-tag-editor/);
 });
 
 test('paper rows show tags while editing belongs to the open brief', () => {
