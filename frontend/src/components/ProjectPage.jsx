@@ -354,7 +354,7 @@ function PresenceAvatar({ user }) {
   return (
     <span className="project-presence-avatar" aria-hidden="true">
       <Avatar user={user} className="mini-avatar" />
-      {user.online && <span className="news-dot project-presence-dot" />}
+      {user.online && <span className="project-presence-dot" />}
     </span>
   );
 }

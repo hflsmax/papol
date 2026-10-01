@@ -9,10 +9,9 @@ const styles = fs.readFileSync(new URL('../../shared/applicationStyles.js', impo
 test('project member chips expose online status visually and accessibly', () => {
   assert.match(page, /data-online=\{user\.online \|\| undefined\}/);
   assert.match(page, /aria-label=\{`\$\{user\.display_name\}, \$\{user\.online \? 'online' : 'offline'\}`\}/);
-  assert.match(page, /user\.online && <span className="news-dot project-presence-dot"/);
+  assert.match(page, /user\.online && <span className="project-presence-dot"/);
   assert.match(page, /user\.online && <span className="project-person-online">Online<\/span>/);
-  assert.match(styles, /\.project-presence-dot \{[^}]*background: color-mix\(in srgb, var\(--green\) 75%, var\(--green-ink\)\)/);
-  assert.doesNotMatch(styles, /\.project-presence-dot \{[^}]*(?:width|height|border|box-shadow):/);
+  assert.match(styles, /\.project-presence-dot \{[^}]*width: 8px; height: 8px;[^}]*border: 2px solid var\(--card\)/);
 });
 
 test('presence renews while the app is visible and project status refreshes', () => {

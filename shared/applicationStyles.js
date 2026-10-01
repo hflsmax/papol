@@ -5047,10 +5047,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @media (hover: none) { .project-person-actions { opacity: 1; } }
 
 /* Online status belongs to a member's chip, not their identity everywhere.
-   Its size and shape come from .news-dot. A little ink gives the soft green
-   enough weight beside gold without making it dark or changing its geometry. */
+   The card-coloured keyline keeps the dot legible over any avatar colour. */
 .project-presence-avatar { position: relative; display: inline-flex; flex: none; }
-.project-presence-dot { position: absolute; right: -1px; bottom: -1px; background: color-mix(in srgb, var(--green) 75%, var(--green-ink)); }
+.project-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--card); border-radius: 50%; background: var(--green); }
+.project-seat .project-presence-dot { border-color: var(--paper); }
+.project-seat:hover .project-presence-dot { border-color: var(--fill); }
 
 .project-closed { margin: 0; color: var(--ink-soft); font-size: var(--fs-md); }
 
