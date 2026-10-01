@@ -131,20 +131,25 @@ const NEW_CARD = "bi.created_at > ? AND bi.added_by != <me> AND bi.deleted_at IS
 async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
   const rows = await all<{ project_uuid: string; n: number }>(env.DB,
     `SELECT m.project_uuid, count(pp.uuid) AS n FROM project_members m
-     JOIN project_papers pp ON pp.project_uuid = m.project_uuid AND pp.added_at > m.seen_at AND pp.added_by != m.user_uuid
-     WHERE m.user_uuid = ? GROUP BY m.project_uuid
+     JOIN project_papers pp ON pp.project_uuid = m.project_uuid AND pp.added_by != m.user_uuid
+     LEFT JOIN project_member_reads r ON r.member_uuid = m.uuid AND r.item_kind = 'paper' AND r.item_uuid = pp.paper_sha256
+     WHERE m.user_uuid = ? AND pp.added_at > coalesce(r.seen_at, m.seen_at) GROUP BY m.project_uuid
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
      JOIN digs d ON d.project_uuid = m.project_uuid
-     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${LIVE_SUBJECT} AND ((d.created_at > m.seen_at AND d.user_uuid != m.user_uuid)
-       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > m.seen_at AND dp.user_uuid != m.user_uuid))
+     LEFT JOIN project_member_reads r ON r.member_uuid = m.uuid AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
+     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${LIVE_SUBJECT} AND ((d.created_at > coalesce(r.seen_at, m.seen_at) AND d.user_uuid != m.user_uuid)
+       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > coalesce(r.seen_at, m.seen_at) AND dp.user_uuid != m.user_uuid))
      GROUP BY m.project_uuid
      UNION ALL
-     SELECT m.project_uuid, count(bi.uuid) AS n FROM project_members m
+     SELECT m.project_uuid, count(DISTINCT b.uuid) AS n FROM project_members m
      JOIN project_boards pb ON pb.project_uuid = m.project_uuid
      JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
-     JOIN board_items bi ON bi.board_uuid = b.uuid AND ${NEW_CARD.replace(/\?/g, "m.seen_at").replace("<me>", "m.user_uuid")}
-     WHERE m.user_uuid = ? GROUP BY m.project_uuid`, user.uuid, user.uuid, user.uuid);
+     LEFT JOIN project_member_reads r ON r.member_uuid = m.uuid AND r.item_kind = 'board' AND r.item_uuid = b.uuid
+     JOIN board_items bi ON bi.board_uuid = b.uuid AND bi.created_at > coalesce(r.seen_at, m.seen_at)
+       AND bi.added_by != m.user_uuid AND bi.deleted_at IS NULL AND NOT bi.staged
+     WHERE m.user_uuid = ? GROUP BY m.project_uuid
+     `, user.uuid, user.uuid, user.uuid);
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.project_uuid, (counts.get(r.project_uuid) ?? 0) + r.n);
   return counts;
@@ -166,18 +171,23 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     membersStatement(env, [project.uuid]),
     statement(env.DB,
       `SELECT pp.paper_sha256, pp.added_by, pp.added_at, p.title, p.authors, p.journal, p.year, p.doi,
+              coalesce(r.seen_at, ?) AS read_at,
               u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
        FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 JOIN users u ON u.uuid = pp.added_by
-       WHERE pp.project_uuid = ? ORDER BY pp.added_at DESC, pp.uuid`, project.uuid),
+       LEFT JOIN project_member_reads r ON r.member_uuid = ? AND r.item_kind = 'paper' AND r.item_uuid = pp.paper_sha256
+       WHERE pp.project_uuid = ? ORDER BY pp.added_at DESC, pp.uuid`, member.seen_at, member.uuid, project.uuid),
     statement(env.DB,
       `SELECT DISTINCT c.paper_sha256 FROM copies c JOIN project_papers pp ON pp.paper_sha256 = c.paper_sha256 AND pp.project_uuid = ?
        WHERE c.user_uuid = ? AND c.deleted_at IS NULL`, project.uuid, me.uuid),
     statement(env.DB,
       `SELECT b.uuid, b.name, b.description, b.created_at, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
               (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count,
-              EXISTS (SELECT 1 FROM board_items bi WHERE bi.board_uuid = b.uuid AND ${NEW_CARD.replace("<me>", "?")}) AS is_new
+              EXISTS (SELECT 1 FROM board_items bi WHERE bi.board_uuid = b.uuid AND bi.created_at > coalesce(r.seen_at, ?)
+                AND bi.added_by != ? AND bi.deleted_at IS NULL AND NOT bi.staged) AS is_new,
+              (SELECT max(bi.created_at) FROM board_items bi WHERE bi.board_uuid = b.uuid AND bi.deleted_at IS NULL AND NOT bi.staged) AS news_through
        FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid LEFT JOIN users u ON u.uuid = b.user_uuid
-       WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, member.seen_at, me.uuid, project.uuid),
+       LEFT JOIN project_member_reads r ON r.member_uuid = ? AND r.item_kind = 'board' AND r.item_uuid = b.uuid
+       WHERE pb.project_uuid = ? AND b.deleted_at IS NULL ORDER BY b.updated_at DESC, b.uuid`, member.seen_at, me.uuid, member.uuid, project.uuid),
     // Which of the project's boards carry a card from each paper: an
     // excerpt's backlink names the paper by the first half of its digest.
     statement(env.DB,
@@ -233,7 +243,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     boards: boards.map((b) => ({
       uuid: b.uuid, name: b.name, description: b.description,
       owner: b.owner_uuid ? userPublic({ ...b, uuid: b.owner_uuid }) : null,
-      item_count: b.item_count, updated_at: b.updated_at, is_new: Boolean(b.is_new),
+      item_count: b.item_count, updated_at: b.updated_at, is_new: Boolean(b.is_new), news_through: b.news_through,
       created_at: b.created_at,
       latest_card: latest.get(b.uuid as string) ?? null,
     })),
@@ -241,7 +251,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     papers: entries.map((e) => ({
       sha256: e.paper_sha256, title: e.title, authors: e.authors, journal: e.journal, year: e.year, doi: e.doi,
       added_by: userPublic({ ...e, uuid: e.added_by }), added_at: e.added_at,
-      is_new: e.added_by !== me.uuid && (e.added_at as string) > member.seen_at,
+      is_new: e.added_by !== me.uuid && (e.added_at as string) > (e.read_at as string), news_through: e.added_at,
       in_my_nook: mine.has(e.paper_sha256 as string),
       users: copies.get(e.paper_sha256 as string) ?? [],
       board_uuids: onBoards.get(e.paper_sha256 as string) ?? [],
@@ -262,11 +272,13 @@ function digsStatement(env: Env, projectUuid: string, me: User, member: Member, 
   return statement(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
             (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
+            max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid), d.created_at)) AS news_through,
+            (d.phase = 'digging') * ((d.created_at > coalesce(r.seen_at, ?) AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > coalesce(r.seen_at, ?) AND dp.user_uuid != ?)) AS unread,
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d ${SUBJECT_JOINS}
+     LEFT JOIN project_member_reads r ON r.member_uuid = ? AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
      WHERE d.project_uuid = ? AND ${LIVE_SUBJECT} ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
-    member.seen_at, me.uuid, member.seen_at, me.uuid, projectUuid, ...(only ? [only] : []));
+    member.seen_at, me.uuid, member.seen_at, me.uuid, member.uuid, projectUuid, ...(only ? [only] : []));
 }
 
 // The last post in each dig and everyone who spoke, read together.
@@ -293,7 +305,7 @@ export async function digsFrom(env: Env, rows: Row[], me: User) {
       owner: people.get(String(d.user_uuid)) ?? null, is_mine: d.user_uuid === me.uuid,
       text: d.text, excerpt: excerpt(String(d.text)), phase: d.phase,
       subject: subjectOut(d),
-      post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0,
+      post_count: d.post_count, unread: Number(d.unread), is_new: Number(d.unread) > 0, news_through: d.news_through,
       voices: String(d.voices ?? "").split(",").filter(Boolean).map((uuid) => people.get(uuid)).filter(Boolean),
       last_post: { user: posted ? userPublic(last) : people.get(String(d.user_uuid)) ?? null, excerpt: excerpt(String(last.body)), created_at: last.created_at },
     };
@@ -434,8 +446,8 @@ export function projectRoutes(router: Router) {
     return json(await projectOut(env, project, me, member));
   });
 
-  // Opening a project is looking at it: what others added until now is
-  // no longer new. Anyone else is told only what the listing says.
+  // Looking is read-only. Background refreshes and another open window must
+  // never consume news; the client explicitly acknowledges displayed items.
   router.on("GET", "/api/projects/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const [project, member] = await Promise.all([
@@ -443,13 +455,34 @@ export function projectRoutes(router: Router) {
       one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", params.uuid, me.uuid),
     ]);
     if (!member) return json(summaryOut(project, await membersOf(env, [project.uuid]), me));
-    // What is new is read against the member's last look, held above, so
-    // the look can be recorded while the page is read.
-    const [out] = await Promise.all([
-      projectOut(env, project, me, member),
-      batch(env.DB, [statement(env.DB, "UPDATE project_members SET seen_at = ? WHERE uuid = ?", now(), member.uuid)]),
-    ]);
-    return json(out);
+    return json(await projectOut(env, project, me, member));
+  });
+
+  router.on("POST", "/api/projects/:uuid/reads", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    const member = await membership(env, project, me);
+    const data = await readJson<Row>(request);
+    const kind = String(data.kind ?? "");
+    const item = String(data.item ?? "");
+    const through = String(data.through ?? "");
+    if (!['paper', 'board', 'dig'].includes(kind) || !item || !through || Number.isNaN(Date.parse(through))) {
+      refuse(422, "kind, item and through are required");
+    }
+    const belongs = kind === 'paper'
+      ? await one(env.DB, "SELECT added_at AS latest FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, item)
+      : kind === 'board'
+        ? await one(env.DB, `SELECT b.uuid, max(bi.created_at) AS latest FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
+            LEFT JOIN board_items bi ON bi.board_uuid = b.uuid AND bi.deleted_at IS NULL AND NOT bi.staged WHERE pb.project_uuid = ? AND b.uuid = ?`, project.uuid, item)
+        : await one(env.DB, `SELECT d.uuid, max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid), d.created_at)) AS latest
+            FROM digs d WHERE d.project_uuid = ? AND d.uuid = ?`, project.uuid, item);
+    if (!belongs || (kind !== 'paper' && !belongs.uuid)) refuse(404, "Project item not found");
+    const latest = String(belongs.latest ?? through);
+    const seenAt = through > latest ? latest : through;
+    await statement(env.DB, `INSERT INTO project_member_reads (member_uuid, item_kind, item_uuid, seen_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(member_uuid, item_kind, item_uuid) DO UPDATE SET seen_at = max(seen_at, excluded.seen_at)`,
+    member.uuid, kind, item, seenAt).run();
+    return json({ kind, item, seen_at: seenAt });
   });
 
   router.on("PUT", "/api/projects/:uuid", async ({ request, env, params }) => {

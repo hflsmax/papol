@@ -20,7 +20,8 @@ test('a row says what the board is for, not what its newest card holds', () => {
 });
 
 test('moving between boards replaces the address, so Back leaves the tab', () => {
-  assert.match(boards, /const pick = \(uuid\) => onOpenBoard\(uuid, board \? \{ replace: true \} : undefined\);/);
+  assert.match(boards, /onOpenBoard\(uuid, board \? \{ replace: true \} : undefined\);/);
+  assert.match(boards, /onLoaded=/);
 });
 
 test('the last row makes a board, named in place', () => {

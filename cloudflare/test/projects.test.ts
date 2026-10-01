@@ -264,7 +264,7 @@ describe("what members see of each other", () => {
 });
 
 describe("what is new", () => {
-  it("counts what others added since a member last opened the project", async () => {
+  it("keeps what others added new until that item is explicitly seen", async () => {
     const dana = await register(), ana = await register();
     const project = await start(dana);
     await invite(dana, project, ana);
@@ -277,6 +277,11 @@ describe("what is new", () => {
     expect(mine.new_count).toBe(1);
     const opened = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
     expect(opened.papers.map((p: any) => [p.sha256, p.is_new])).toEqual(expect.arrayContaining([[A_PAPER, true], [B_PAPER, false]]));
+    // Passive fetches, including focus refreshes, do not consume the news.
+    expect((await ok("GET", "/api/projects", { headers: dana.headers })).find((p: any) => p.uuid === project.uuid).new_count).toBe(1);
+    const paper = opened.papers.find((p: any) => p.sha256 === A_PAPER);
+    await ok("POST", `/api/projects/${project.uuid}/reads`, { headers: dana.headers,
+      json: { kind: "paper", item: A_PAPER, through: paper.news_through } });
     expect((await ok("GET", "/api/projects", { headers: dana.headers })).find((p: any) => p.uuid === project.uuid).new_count).toBe(0);
   });
 

@@ -8,7 +8,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import {
   addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
   findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
-  describeProject, renameProject, revokeInvitation, setKeeper,
+  describeProject, markProjectItemRead, markProjectRead, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath, backendPath } from '../base';
@@ -26,39 +26,13 @@ import PaperBrief from './PaperBrief';
 import BoardJacket from './BoardJacket';
 import { keep, kept } from '../lastMember';
 
-// Opening a project marks what others added as seen, so every later answer
-// calls nothing new, and this page may be fetched more than once as the app
-// settles. What was new on arriving stays marked until another project, or
-// the list of projects, is opened.
-let arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
+// Kept for the projects-list cache boundary. Read state now lives on the
+// server, per item, rather than in one module-global visit snapshot.
+export function forgetArrivals() {}
 
-export function forgetArrivals() {
-  arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
-}
-
-// A dig stays unread for the visit until it is opened, though the project
-// counts as seen as soon as it loads.
-export function readDigs(uuids) {
-  uuids.forEach((uuid) => arrivals.digs.delete(uuid));
-}
-
-export function markArrivals(projectUuid, project) {
-  if (!project?.papers) return project;
-  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), boards: new Set(), digs: new Map() };
-  project.papers.forEach((paper) => { if (paper.is_new) arrivals.papers.add(paper.sha256); });
-  (project.boards ?? []).forEach((board) => { if (board.is_new) arrivals.boards.add(board.uuid); });
-  (project.digs ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
-  return {
-    ...project,
-    papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })),
-    boards: (project.boards ?? []).map((board) => ({ ...board, is_new: arrivals.boards.has(board.uuid) })),
-    digs: (project.digs ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
-  };
-}
-
-// A project as last seen, shown at once while it is fetched again. What
-// was new then has since been seen, so it is kept without the marks.
-const lastSeen = (projectUuid) => markArrivals(projectUuid, kept(`project:${projectUuid}`));
+// A cached project is shown at once while its server-authoritative read state
+// is fetched again. Cache writes below omit transient news marks.
+const lastSeen = (projectUuid) => kept(`project:${projectUuid}`);
 const settled = (project) => (project.papers ? {
   ...project,
   papers: project.papers.map((paper) => ({ ...paper, is_new: false })),
@@ -85,6 +59,9 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [readStatus, setReadStatus] = useState('');
+  const [markingAll, setMarkingAll] = useState(false);
+  const acknowledging = useRef(new Set());
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [chosenView, chooseView] = useView(projectUuid);
   // A board's jacket opens in the Boards tab; another tab leaves it for
@@ -95,7 +72,7 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
     if (board && next !== 'boards') onOpenBoard(null, { replace: true });
   };
   const [picked, pick] = usePicked(projectUuid);
-  const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
+  const show = useCallback((next) => next, []);
 
   const load = useCallback(() => {
     let active = true;
@@ -157,9 +134,24 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const openPaper = (sha256) => { pick(sha256); setView('papers'); };
   // Anything new in the project, a new paper or a dig someone else moved
   // on, is the one news dot on whatever it concerns.
-  const readDig = (uuid) => {
-    readDigs([uuid]);
-    setProject((p) => ({ ...p, digs: p.digs.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
+  const readItem = async (kind, item, through) => {
+    const key = `${kind}:${item}:${through}`;
+    if (!through || acknowledging.current.has(key)) return;
+    acknowledging.current.add(key);
+    try {
+      await markProjectItemRead(project.uuid, kind, item, through);
+      setProject((p) => ({
+        ...p,
+        papers: kind === 'paper' ? p.papers.map((x) => (x.sha256 === item && x.news_through <= through ? { ...x, is_new: false } : x)) : p.papers,
+        boards: kind === 'board' ? p.boards.map((x) => (x.uuid === item && x.news_through <= through ? { ...x, is_new: false } : x)) : p.boards,
+        digs: kind === 'dig' ? p.digs.map((x) => (x.uuid === item && x.news_through <= through ? { ...x, unread: 0, is_new: false } : x)) : p.digs,
+      }));
+      onChanged?.();
+    } catch {
+      setNotice("Couldn’t mark project news as seen. Try again.");
+    } finally {
+      acknowledging.current.delete(key);
+    }
   };
   const hasNews = (about) => (project.digs ?? []).some((d) => d.is_new && about(d.subject));
   // Folded until asked for, even for a keeper alone in the project:
@@ -174,17 +166,55 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const boards = project.boards ?? [];
   const newPapers = project.papers.some((p) => p.is_new);
   const newTalk = talkedAbout.some((d) => d.is_new);
+  const fresh = {
+    papers: project.papers.some((p) => p.is_new),
+    boards: boards.some((b) => b.is_new),
+    digs: talkedAbout.some((d) => d.is_new),
+  };
+  const markAll = async () => {
+    const items = [
+      ...project.papers.filter((x) => x.is_new).map((x) => ({ kind: 'paper', item: x.sha256, through: x.news_through })),
+      ...boards.filter((x) => x.is_new).map((x) => ({ kind: 'board', item: x.uuid, through: x.news_through })),
+      ...talkedAbout.filter((x) => x.is_new).map((x) => ({ kind: 'dig', item: x.uuid, through: x.news_through })),
+    ];
+    setMarkingAll(true);
+    setNotice(null);
+    setReadStatus('');
+    try {
+      await markProjectRead(project.uuid, items);
+      const through = new Map(items.map((x) => [`${x.kind}:${x.item}`, x.through]));
+      setProject((current) => ({
+        ...current,
+        papers: current.papers.map((x) => x.news_through <= through.get(`paper:${x.sha256}`) ? { ...x, is_new: false } : x),
+        boards: current.boards.map((x) => x.news_through <= through.get(`board:${x.uuid}`) ? { ...x, is_new: false } : x),
+        digs: current.digs.map((x) => x.news_through <= through.get(`dig:${x.uuid}`) ? { ...x, unread: 0, is_new: false } : x),
+      }));
+      setReadStatus('All project news marked as seen.');
+      onChanged?.();
+      requestAnimationFrame(() => document.querySelector(`#project-tab-${view}`)?.focus());
+    } catch {
+      setNotice("Couldn’t mark project news as seen. Try again.");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
   const about = project.is_member && (
     <ProjectDescription project={project} onDescribe={(text) => act(() => describeProject(project.uuid, text))} />
   );
   const tabs = project.is_member && (
-    <DeskTabs
-      view={view} onView={setView}
-      counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
-      fresh={{ papers: newPapers, boards: boards.some((b) => b.is_new), digs: newTalk }}
-    />
+    <div className="project-tabs-row">
+      <DeskTabs
+        view={view} onView={setView}
+        counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
+        fresh={fresh}
+      />
+      {newPapers || boards.some((b) => b.is_new) || newTalk ? (
+        <button type="button" className="project-quiet project-mark-all" disabled={markingAll} aria-busy={markingAll}
+          onClick={markAll}>{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</button>
+      ) : null}
+    </div>
   );
   const seats = project.is_member ? (
     <div className="project-seats">
@@ -259,6 +289,7 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
         </>
       )}
       {notice && <div className="error" role="alert">{notice}</div>}
+      {readStatus && <span className="visually-hidden" role="status">{readStatus}</span>}
 
       {!project.is_member ? (
         <p className="project-closed">By invitation. Kept by {keeperNames(project.members)}.</p>
@@ -271,7 +302,11 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
                 hasNews={hasNews}
                 currentUser={currentUser}
                 picked={picked}
-                onPick={pick}
+                onPick={(sha256) => {
+                  pick(sha256);
+                  const paper = project.papers.find((x) => x.sha256 === sha256);
+                  if (paper?.is_new) void readItem('paper', sha256, paper.news_through);
+                }}
                 onChanged={reload}
                 onRead={onRead}
               />
@@ -280,9 +315,11 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
               <ProjectBoards
                 project={project} board={board} act={act} hasNews={hasNews}
                 onOpenBoard={onOpenBoard} onOpenCanvas={onOpenCanvas} onChanged={talked}
+                onViewed={(b) => { if (b?.is_new) void readItem('board', b.uuid, b.news_through); }}
               />
             )}
-            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked}
+              onRead={(d) => { if (d?.is_new) void readItem('dig', d.uuid, d.news_through); }} onOpenPaper={openPaper} />}
           </div>
         </>
       )}
@@ -496,11 +533,12 @@ function DeskTabs({ view, onView, counts, fresh }) {
         <button
           key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
           aria-selected={view === v} tabIndex={view === v ? 0 : -1}
+          aria-label={`${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total`}
           className={`project-tab${view === v ? ' is-on' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >
           {label}
-          {counts[v] > 0 && <span className="project-tab-count">{counts[v]}</span>}
+          {counts[v] > 0 && <span className="project-tab-count" aria-hidden="true">{counts[v]}</span>}
           {fresh[v] && <NewsDot />}
         </button>
       ))}
@@ -733,14 +771,14 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   // A dig opens right here, never on a page of its own. On a wide window
   // the list stays put and the dig opens beside it: on arrival the first
   // unread one, else the latest. Narrower, it opens under its row, and a
-  // second press folds it. Read when the selection moves on.
+  // second press folds it. It is seen as soon as its open pane is rendered.
   const [picked, setPicked] = useState(() => (wide ? (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null : null));
   const shown = all.find((d) => d.uuid === picked) ?? (wide ? discussions[0] : null) ?? null;
   // A dig moved into a folded band keeps its band open.
   const shownPhase = shown && phaseOf(shown);
   useEffect(() => { if (shownPhase && folded[shownPhase]) fold(shownPhase, false); }, [shown?.uuid, shownPhase]);
   const pick = (uuid) => setPicked(wide || shown?.uuid !== uuid ? uuid : null);
-  useEffect(() => () => { if (shown) onRead(shown.uuid); }, [shown?.uuid]);
+  useEffect(() => { if (shown) onRead(shown); }, [shown?.uuid, shown?.news_through]);
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step || !shown) return;
@@ -850,11 +888,15 @@ function useWide(query = '(min-width: 1000px)') {
 // own; the canvas is the jacket's way in. On a wide window there is always
 // a jacket beside the list: the one picked, else the first new board,
 // else the latest. The last row makes one more.
-function ProjectBoards({ project, board, act, hasNews, onOpenBoard, onOpenCanvas, onChanged }) {
+function ProjectBoards({ project, board, act, hasNews, onOpenBoard, onOpenCanvas, onChanged, onViewed }) {
   const wide = useWide();
   const boards = project.boards ?? [];
+  const loaded = useRef(new Set());
   const chosen = boards.find((b) => b.uuid === board)
     ?? (wide ? boards.find((b) => b.is_new) ?? boards[0] : null);
+  useEffect(() => {
+    if (board && loaded.current.has(board) && chosen?.uuid === board) onViewed(chosen);
+  }, [board, chosen?.uuid, chosen?.news_through]);
   // Moving from one board to the next replaces the address, so Back
   // leaves the tab rather than walking through every board looked at.
   const pick = (uuid) => onOpenBoard(uuid, board ? { replace: true } : undefined);
@@ -866,6 +908,10 @@ function ProjectBoards({ project, board, act, hasNews, onOpenBoard, onOpenCanvas
       hideBack
       held
       onChanged={onChanged}
+      onLoaded={() => {
+        loaded.current.add(b.uuid);
+        if (board === b.uuid) onViewed(b);
+      }}
       onDeleted={() => { onChanged(); onOpenBoard(null, { replace: true }); }}
     />
   );

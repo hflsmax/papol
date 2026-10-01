@@ -54,7 +54,7 @@ const paperByline = (paper) => {
 
 export default function BoardJacket({
   boardUuid, onOpen, onBack, backHref, backLabel = 'Back',
-  hideBack = false, held = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
+  hideBack = false, held = false, onChanged, onDeleted, onLoaded, refreshKey, paperLink = paperHref,
 }) {
   const [board, setBoard] = useState(() => kept(`board:${boardUuid}`));
   const [error, setError] = useState(null);
@@ -71,6 +71,7 @@ export default function BoardJacket({
       .then((found) => {
         if (gone) return;
         setBoard(found);
+        onLoaded?.(found);
         if (found.can_edit) listShelves().then((list) => !gone && setShelves(list)).catch(() => {});
       })
       .catch((err) => !gone && setError(err?.message || String(err)));
