@@ -22,14 +22,18 @@ const { analyzeWithRules, headerWithRules } = await import(pathToFileURL(out).hr
 // bibliography of three entries (fewer is not taken for a bibliography).
 // A string instead of a line is drawing operators, put in as they are; a
 // fifth item "italic" sets the line in Helvetica-Oblique.
-function writtenPdf(lines) {
-  const content = lines.map((line) => (typeof line === "string" ? line
-    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
+function writtenPdf(lines) { return writtenPdfPages([lines]); }
+
+function writtenPdfPages(pages) {
+  const contents = pages.map((lines) => lines.map((line) => (typeof line === "string" ? line
+    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n"));
+  const firstContent = 3 + pages.length;
+  const firstFont = firstContent + pages.length;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    ...pages.map((_, i) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents ${firstContent + i} 0 R /Resources << /Font << /F1 ${firstFont} 0 R /F2 ${firstFont + 1} 0 R >> >> >>`),
+    ...contents.map((content) => `<< /Length ${content.length} >>\nstream\n${content}\nendstream`),
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>",
   ];
@@ -61,7 +65,7 @@ describe("the title block", () => {
     }
   });
 
-  it("ignores a large drop cap whose remaining letters are superscript", async () => {
+  it("ignores a large drop cap whose remaining letters are superscript (c8d08f75)", async () => {
     const page = writtenPdf([
       [250, 740, "RipTide", 24],
       [50, 708, "A programmable, energy-minimal dataflow compiler and architecture", 18],
@@ -74,6 +78,62 @@ describe("the title block", () => {
     const { header } = await headerWithRules(page);
     assert.equal(header.title, "RipTide: A programmable, energy-minimal dataflow compiler and architecture");
     assert.deepEqual(header.authors, ["Graham Gobieski", "Souradip Ghosh", "Marijn Heule"]);
+  });
+
+  it("prefers the coherent title and author block to a larger conference logo", async () => {
+    const page = writtenPdf([
+      [150, 760, "SYSTEMS WEEK", 28],
+      [70, 690, "Small but complete paper title", 17],
+      [70, 665, "Ada Lovelace and Alan Turing", 10],
+      [70, 640, "University of Example, London, UK", 9],
+      [70, 610, "Abstract", 10],
+      [70, 590, "This paper presents a result whose body is set in ordinary type."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Small but complete paper title");
+    assert.deepEqual(header.authors, ["Ada Lovelace", "Alan Turing"]);
+  });
+
+  it("returns no low-confidence title for an isolated display label", async () => {
+    const page = writtenPdf([
+      [220, 700, "SYSTEM", 30],
+      [60, 620, "Ordinary body text continues here with enough words to establish its normal font size."],
+      [60, 605, "It has no title block, author row, abstract boundary, or corroborating document title."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, null);
+    assert.deepEqual(header.authors, []);
+  });
+
+  it("removes a source line number merged onto a review manuscript's title", async () => {
+    const page = writtenPdf([
+      [20, 740, "1 Choreographing Effects", 15],
+      [20, 720, "2", 7],
+      [45, 712, "The abstract begins without a heading and fills the width of the manuscript."],
+      [20, 700, "3", 7],
+      [45, 692, "Its next line establishes the ordinary body font size for title scoring."],
+      [20, 680, "4", 7],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Choreographing Effects");
+  });
+
+  it("finds a title page after a cover and joins quirky author names", async () => {
+    const pdf = writtenPdfPages([
+      [[60, 700, "A publisher cover leaf with ordinary descriptive copy and no title block."]],
+      [[60, 700, "This page intentionally left blank."]],
+      [
+        [70, 680, "Geometric Folding", 28],
+        [70, 645, "Algorithms", 28],
+        [70, 585, "Linkages, Origami, Polyhedra", 18],
+        [70, 530, "Xiaoyu (Rayne) Zheng, and Michael Kirkedal", 11],
+        [250, 512, "Thomsen", 11],
+        [70, 485, "Example University, Denmark", 9],
+      ],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "Geometric Folding Algorithms: Linkages, Origami, Polyhedra");
+    assert.deepEqual(header.authors, ["Xiaoyu Zheng", "Michael Kirkedal Thomsen"]);
   });
 
 });
