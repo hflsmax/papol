@@ -114,6 +114,22 @@ describe("the paper", () => {
     }
   });
 
+  it("reads titleless physics references as authors, venue and year", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "The mechanism follows earlier work [1]."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] D. Mamaluy and X. Gao, Appl. Phys. Lett. 106, 193503 (2015)."],
+      [60, 265, "[2] K. Proesmans, J. Ehrich, and J. Bechhoefer, Phys. Rev. E 102, 032105 (2020)."],
+      [60, 250, "[3] J. Hernandez, E. Kay, and D. R. Leigh, Science 306, 1532 (2004)."],
+    ]);
+    const references = (await analyzeWithRules(pdf)).analysis.references;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, journal: r.journal, year: r.year })), [
+      { title: null, authors: ["D. Mamaluy", "X. Gao"], journal: "Appl. Phys. Lett", year: 2015 },
+      { title: null, authors: ["K. Proesmans", "J. Ehrich", "J. Bechhoefer"], journal: "Phys. Rev. E", year: 2020 },
+      { title: null, authors: ["J. Hernandez", "E. Kay", "D. R. Leigh"], journal: "Science", year: 2004 },
+    ]);
+  });
+
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
   const WRAPPED = writtenPdf([
     [60, 740, "Mechanisms were studied before [1], and again [2]."],
