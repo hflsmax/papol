@@ -11,9 +11,9 @@ test('project member chips expose online status visually and accessibly', () => 
   assert.match(page, /aria-label=\{`\$\{user\.display_name\}, \$\{user\.online \? 'online' : 'offline'\}`\}/);
   assert.match(page, /user\.online && <span className="news-dot project-presence-dot"/);
   assert.match(page, /user\.online && <span className="project-person-online">Online<\/span>/);
-  // It inherits the shared news dot's exact 7px geometry; its keyline is an
-  // outside shadow, so it cannot consume or distort that circle.
-  assert.match(styles, /\.project-presence-dot \{[^}]*box-shadow:/);
+  // The avatar overlap and pale green edge make the circle read smaller than
+  // a freestanding news dot, so it is optically corrected by two pixels.
+  assert.match(styles, /\.project-presence-dot \{[^}]*width: 9px; height: 9px;[^}]*box-shadow:/);
 });
 
 test('presence renews while the app is visible and project status refreshes', () => {
