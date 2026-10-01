@@ -11,7 +11,7 @@ test('project member chips expose online status visually and accessibly', () => 
   assert.match(page, /aria-label=\{`\$\{user\.display_name\}, \$\{user\.online \? 'online' : 'offline'\}`\}/);
   assert.match(page, /user\.online && <span className="news-dot project-presence-dot"/);
   assert.match(page, /user\.online && <span className="project-person-online">Online<\/span>/);
-  assert.match(styles, /\.project-presence-dot \{[^}]*background: var\(--green-ink\)/);
+  assert.match(styles, /\.project-presence-dot \{[^}]*background: color-mix\(in srgb, var\(--green\) 75%, var\(--green-ink\)\)/);
   assert.doesNotMatch(styles, /\.project-presence-dot \{[^}]*(?:width|height|border|box-shadow):/);
 });
 

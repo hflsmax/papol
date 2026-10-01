@@ -5047,10 +5047,10 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @media (hover: none) { .project-person-actions { opacity: 1; } }
 
 /* Online status belongs to a member's chip, not their identity everywhere.
-   Its size and shape come from .news-dot. The darker green gives it comparable
-   contrast to gold without changing its geometry or adding an outer ring. */
+   Its size and shape come from .news-dot. A little ink gives the soft green
+   enough weight beside gold without making it dark or changing its geometry. */
 .project-presence-avatar { position: relative; display: inline-flex; flex: none; }
-.project-presence-dot { position: absolute; right: -1px; bottom: -1px; background: var(--green-ink); }
+.project-presence-dot { position: absolute; right: -1px; bottom: -1px; background: color-mix(in srgb, var(--green) 75%, var(--green-ink)); }
 
 .project-closed { margin: 0; color: var(--ink-soft); font-size: var(--fs-md); }
 
