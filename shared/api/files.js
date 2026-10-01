@@ -8,10 +8,13 @@
 // either way. The server is then told, by the route that records the
 // row, and that is the only request of the upload it ever handles.
 //
-// The wait is measured (docs/waiting.md): the hash is taken in slices
-// and the bytes go up through XMLHttpRequest, whose upload.onprogress
-// says how many have gone, so `onProgress` hears the whole of it.
+// The wait is measured (docs/waiting.md): the hash is taken in slices.
+// A web page sends the bytes through XMLHttpRequest, whose upload progress
+// can be watched. The Mac sends them through Tauri's native HTTP client,
+// like its other programmatic network traffic; that client reports the
+// beginning and end of the upload, but does not expose intermediate bytes.
 
+import { IS_DESKTOP } from '../appEnvironment.js';
 import { backendPath } from '../appUrls.js';
 import { runtimeFetch } from '../connectivity.js';
 import { sha256File } from '../fileHash.js';
@@ -23,16 +26,22 @@ export async function sha256Hex(blob, onProgress) {
   return sha256File(blob, onProgress);
 }
 
-// A PUT whose progress can be watched. fetch says nothing about a request
-// body on its way up; XMLHttpRequest's upload.onprogress does. The
-// headers are exactly the ones the address lists. Answers `{ status, ok }`;
-// rejects on a network failure or when `signal` aborts.
-export function putWithProgress(url, { headers = {}, body, signal, onProgress = () => {} } = {}) {
+// A PUT by the runtime's own network transport. On the web, XHR provides
+// upload progress. On the Mac, native HTTP keeps programmatic transfers out
+// of WebKit's CSP/CORS/network layer, at the cost of progress between start
+// and finish. The headers are exactly the ones the signed address lists.
+export async function putWithProgress(url, { headers = {}, body, signal, onProgress = () => {} } = {}) {
+  const total = body?.size ?? body?.byteLength ?? 0;
+  if (IS_DESKTOP) {
+    onProgress({ loaded: 0, total });
+    const response = await runtimeFetch(url, { method: 'PUT', headers, body, signal });
+    onProgress({ loaded: total, total });
+    return { status: response.status, ok: response.ok };
+  }
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url, true);
     for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
-    const total = body?.size ?? body?.byteLength ?? 0;
     onProgress({ loaded: 0, total });
     xhr.upload.onprogress = (event) => {
       onProgress({ loaded: Math.min(event.loaded, total), total });
