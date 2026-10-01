@@ -44,10 +44,12 @@ test('unexpected runtime reports include a redacted bounded stack', () => {
   error.stack = 'TypeError: failed\n    at /Users/alice/src/App.jsx:10\n    at second';
   const report = unexpectedDesktopErrorReport(error, 'local account startup', {
     platform: 'MacIntel',
+    version: '0.6.2',
   });
 
   assert.match(report.content, /Area: local account startup/);
   assert.match(report.content, /Error type: TypeError/);
+  assert.match(report.content, /Papol version: 0\.6\.2/);
   assert.match(report.content, /\/Users\/<redacted>\/src\/App\.jsx:10/);
   assert.doesNotMatch(report.content, /alice/);
 });
