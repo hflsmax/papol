@@ -21,6 +21,12 @@ export function getProject(uuid) {
   return request(`/projects/${uuid}`);
 }
 
+// Renewed only while an authenticated Papol window is visible. Other members
+// learn the result through their ordinary project refreshes.
+export function markPresent() {
+  return request('/presence', { method: 'POST' });
+}
+
 export function renameProject(uuid, name) {
   return jsonRequest(`/projects/${uuid}`, 'PUT', { name });
 }

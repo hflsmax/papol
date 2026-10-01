@@ -24,8 +24,8 @@ const DIG_PAPER_MIA = 'e1b2c3d4-0000-4000-8000-000000000049';
 const DIG_PAPER_BEN = 'e1b2c3d4-0000-4000-8000-000000000045';
 
 const user = (uuid, display_name, affiliation) => ({ uuid, display_name, affiliation, avatar_path: null, email: null });
-const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
-const ana = user(ANA, 'Ana Reyes', 'ESO');
+const me = { ...user(ME, 'Dana Okafor', 'Leiden Observatory'), online: true };
+const ana = { ...user(ANA, 'Ana Reyes', 'ESO'), online: true };
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 const mia = user(MIA, 'Mia Tanaka', 'Subaru Telescope');
 // People in Papol who are not in the project, for a keeper to add.

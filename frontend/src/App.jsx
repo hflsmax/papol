@@ -24,7 +24,7 @@ import ProjectsPage from './components/ProjectsPage';
 import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
-import { listProjects } from '../../shared/api/projects.js';
+import { listProjects, markPresent } from '../../shared/api/projects.js';
 import { BAZAAR, WayBar, WayFoot, WayShown } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
@@ -454,6 +454,24 @@ export default function App({ startupUser = null, startupError = null }) {
   useEffect(() => {
     if (user && !DESKTOP) rememberLastMember(user);
   }, [user]);
+
+  // Presence is a renewable hint, not a promise that a browser closed
+  // cleanly. A hidden window goes quiet and naturally becomes offline.
+  useEffect(() => {
+    if (!user) return undefined;
+    const heartbeat = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine !== false) markPresent().catch(() => {});
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 60_000);
+    document.addEventListener('visibilitychange', heartbeat);
+    window.addEventListener('focus', heartbeat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', heartbeat);
+      window.removeEventListener('focus', heartbeat);
+    };
+  }, [user?.uuid]);
 
   useEffect(() => {
     if (!user) {

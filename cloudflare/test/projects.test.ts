@@ -94,6 +94,35 @@ describe("a project of one", () => {
   });
 });
 
+describe("project presence", () => {
+  it("shows recent members as online only to people in the project", async () => {
+    const dana = await register(), ana = await register(), stranger = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+
+    // Your own chip is live immediately; another member becomes live after a
+    // heartbeat. Presence is not disclosed on the public project summary.
+    let asDana = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(asDana.members.find((m: any) => m.user.uuid === dana.uuid).user.online).toBe(true);
+    expect(asDana.members.find((m: any) => m.user.uuid === ana.uuid).user.online).toBe(false);
+
+    await ok("POST", "/api/presence", { headers: ana.headers });
+    asDana = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(asDana.members.find((m: any) => m.user.uuid === ana.uuid).user.online).toBe(true);
+
+    const publicView = await ok("GET", `/api/projects/${project.uuid}`, { headers: stranger.headers });
+    expect(publicView.members.every((m: any) => m.user.online === undefined)).toBe(true);
+
+    await exec("UPDATE user_presence SET last_seen_at = ? WHERE user_uuid = ?", "2000-01-01T00:00:00.000Z", ana.uuid);
+    asDana = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(asDana.members.find((m: any) => m.user.uuid === ana.uuid).user.online).toBe(false);
+  });
+
+  it("requires a signed-in user to send a heartbeat", async () => {
+    expect((await call("POST", "/api/presence")).status).toBe(401);
+  });
+});
+
 describe("project tags", () => {
   it("gives the project one shared vocabulary and lets every member classify its papers", async () => {
     const dana = await register(), ana = await register(), stranger = await register();

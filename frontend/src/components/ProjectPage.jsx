@@ -114,11 +114,14 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   useEffect(() => {
     let active = true;
     const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
       getProject(projectUuid).then((next) => { if (active) setProject(show(next)); }).catch(() => {});
     };
+    const timer = window.setInterval(refresh, 60_000);
     window.addEventListener('focus', refresh);
     return () => {
       active = false;
+      window.clearInterval(timer);
       window.removeEventListener('focus', refresh);
     };
   }, [projectUuid, show]);
@@ -188,8 +191,12 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
       {open && <People project={project} showing={open} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
       <div className="project-seat-row" aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}>
         {people.slice(0, 5).map((user) => (
-          <a className="project-seat" key={user.uuid} href={appPath(`/u/${user.uuid}`)} title={user.display_name}>
-            <Avatar user={user} className="mini-avatar" />
+          <a className="project-seat" key={user.uuid} href={appPath(`/u/${user.uuid}`)}
+            data-online={user.online || undefined}
+            title={`${user.display_name} · ${user.online ? 'Online' : 'Offline'}`}
+            aria-label={`${user.display_name}, ${user.online ? 'online' : 'offline'}`}
+          >
+            <PresenceAvatar user={user} />
             <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
           </a>
         ))}
@@ -313,10 +320,11 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
           const me = member.user.uuid === currentUser?.uuid;
           return (
             <li key={member.user.uuid} className="project-person">
-              <Face user={member.user} />
+              <PresenceAvatar user={member.user} />
               <a className="project-person-name" href={appPath(`/u/${member.user.uuid}`)}>
                 {member.user.display_name}
               </a>
+              {member.user.online && <span className="project-person-online">Online</span>}
               {(me || member.is_keeper) && (
                 <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
               )}
@@ -339,6 +347,15 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
         })}
       </ul>}
     </section>
+  );
+}
+
+function PresenceAvatar({ user }) {
+  return (
+    <span className="project-presence-avatar" aria-hidden="true">
+      <Avatar user={user} className="mini-avatar" />
+      {user.online && <span className="project-presence-dot" />}
+    </span>
   );
 }
 
