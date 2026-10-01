@@ -38,6 +38,8 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/about') return { page: 'about' };
   if (path === '/learn') return { page: 'learn' };
   if (path === '/signin') return { page: 'signin' };
+  const resetToken = path.match(/^\/reset-password\/([0-9a-f]{64})\/?$/i)?.[1];
+  if (resetToken) return { page: 'reset-password', token: resetToken.toLowerCase() };
   if (path === '/bazaar' || path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };

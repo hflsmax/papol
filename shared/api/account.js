@@ -85,6 +85,14 @@ export async function login(email, password) {
   return result;
 }
 
+export function forgotPassword(email) {
+  return jsonRequest('/auth/forgot-password', 'POST', { email });
+}
+
+export function resetPassword(token, password) {
+  return jsonRequest('/auth/reset-password', 'POST', { token, password });
+}
+
 export async function logout(accountUuid = nativeAccountUuid()) {
   if (IS_DESKTOP && accountUuid != null) await removeNativeAccount(accountUuid);
   resetPaperState();
