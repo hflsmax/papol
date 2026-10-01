@@ -29,7 +29,10 @@ test('paper rows show tags while editing belongs to the open brief', () => {
 });
 
 test('the shared vocabulary filters papers without deleting tags from the papers view', () => {
-  assert.match(papers, /project\.papers\.filter\(\(paper\) => paper\.tags\?\.some\(\(item\) => item\.uuid === tag\)\)/);
+  assert.match(papers, /usedTagUuids = new Set\(project\.papers\.flatMap/);
+  assert.match(papers, /usedTags = \(project\.tags \?\? \[\]\)\.filter\(\(item\) => usedTagUuids\.has\(item\.uuid\)\)/);
+  assert.match(papers, /project\.papers\.filter\(\(paper\) => paper\.tags\?\.some\(\(item\) => item\.uuid === selectedTag\)\)/);
+  assert.match(papers, /{usedTags\.map\(\(item\) => \(/);
   assert.match(papers, /aria-label="Filter papers by project tag"/);
   assert.doesNotMatch(papers, /deleteProjectTag|project-tag-delete/);
 });
