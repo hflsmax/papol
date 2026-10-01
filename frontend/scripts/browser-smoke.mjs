@@ -161,7 +161,7 @@ const desktopReadiness = {
       const row = document.querySelector('.desktop-browser .desktop-row');
       if (row && !row.classList.contains('selected')) row.click();
       const name = document.querySelector('.board-jacket h2');
-      if (name && name.textContent.trim() && document.querySelector('.board-jacket .board-preview svg')
+      if (name && name.textContent.trim()
           && document.querySelector('.board-jacket-papers a')?.textContent === 'The Smoke Paper') {
         fetch('/__papol_smoke_ready?page=desk-board', { method: 'POST' });
         return;

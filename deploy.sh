@@ -24,9 +24,9 @@
 #
 # Production is the Cloudflare Worker in cloudflare/, at https://papol.io:
 # the API, the jobs, and the three built apps served as its static assets,
-# on D1, R2 and a Queue. Main deploys itself to dev.papol.io (the worker
-# workflow, .github/workflows/worker.yml); `prod` asks that workflow for
-# production, which tests, migrates D1 and deploys. A paper is read by
+# on D1, R2 and a Queue. Main deploys itself to both dev.papol.io and
+# production (the worker workflow, .github/workflows/worker.yml); `prod`
+# asks that workflow for a production redeploy. A paper is read by
 # rules (analyzer/src/rules/) in the browser, not on a server.
 # Development is wrangler's
 # local runtime on this machine, with a D1 and an R2 of its own under

@@ -9,7 +9,6 @@ import { confirmAction } from '../../../shared/confirmAction';
 import appLimits from '../../../shared/appLimits.js';
 import Avatar from './Avatar';
 import AutoTextarea from './AutoTextarea';
-import BoardPreview from './BoardPreview';
 import HintPop from './HintPop';
 import { boardFacts } from '../boardFacts';
 import { authorList } from '../paperFormat';
@@ -291,8 +290,6 @@ export default function BoardJacket({
         <div className="paper-actions">
           <button type="button" className="primary" onClick={open}>Open board</button>
         </div>
-
-        <BoardPreview board={board} onOpen={open} />
 
         {papers.length > 0 && (
           <section className="board-jacket-section" aria-labelledby="board-jacket-papers">
