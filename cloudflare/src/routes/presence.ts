@@ -16,4 +16,3 @@ export function presenceRoutes(router: Router) {
     return json({ seen_at: seenAt });
   });
 }
-
