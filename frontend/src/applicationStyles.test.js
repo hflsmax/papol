@@ -19,6 +19,10 @@ test('textual chip families share one vertical-centering rule', () => {
   assert.match(rule, /align-items: center !important/);
 });
 
+test("a project's board jacket starts flush with its pane", () => {
+  assert.match(applicationStyles, /\.project-boards-view \.board-jacket > \.panel \{[^}]*padding-top: 0;/);
+});
+
 // A rule left open swallows every rule after it without a parse error.
 test('every block in the shared application styles is closed', () => {
   let depth = 0;

@@ -5359,7 +5359,7 @@ ${talkStyles}
    row, with the pane's own sheet and no panel of its own. */
 .project-boards-panel { padding: 0; }
 .project-board-open { margin: -2px 0 var(--space-3); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
-.project-boards-view .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
+.project-boards-view .board-jacket > .panel { margin: 0; padding-top: 0; border: 0; background: transparent; box-shadow: none; }
 .project-boards-view .board-jacket-papers li, .project-boards-view .board-jacket-papers li:last-child { border: 0; }
 .project-paper-open { margin: -2px 0 var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
 
