@@ -517,6 +517,25 @@ describe("saving, opening and editing", () => {
     expect((await ok("GET", "/api/papers", { headers: ada.headers }))[0].title).toBe("Retitled by Grace");
   });
 
+  it("revives the existing copy when a removed PDF is uploaded again", async () => {
+    const account = await register();
+    const digest = await stored("%PDF-1.4 uploaded, removed, and uploaded again");
+    const first = await ok("POST", "/api/papers", { headers: account.headers, json: {
+      title: "First reading", file_path: `${digest}.pdf`, summary: "Old summary",
+    } });
+    await ok("DELETE", `/api/papers/${digest.slice(0, 32)}`, { headers: account.headers });
+    const tag = await ok("POST", "/api/tags", { headers: account.headers, json: { name: "reread" } });
+
+    const again = await ok("POST", "/api/papers", { headers: account.headers, json: {
+      title: "Second reading", file_path: `${digest}.pdf`, summary: "New summary", tag_uuids: [tag.uuid],
+    } });
+
+    expect(again).toMatchObject({ copy_uuid: first.copy_uuid, title: "Second reading", summary: "New summary",
+      tags: [{ uuid: tag.uuid, name: "reread" }] });
+    expect(await count("copies", "paper_sha256 = ? AND user_uuid = ?", digest, account.uuid)).toBe(1);
+    expect(await row("SELECT deleted_at FROM copies WHERE uuid = ?", first.copy_uuid)).toEqual({ deleted_at: null });
+  });
+
   it("offers the known version: taking it makes a copy of that paper and lets the upload go, keeping this one makes a paper of its own", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     const published = await stored("%PDF-1.4 the published version");
