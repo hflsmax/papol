@@ -249,6 +249,17 @@ describe("what a PDF says about itself", () => {
     asked.length = 0;
     await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.0000/stale-doi")}`]);
+
+    // A PDF is still the source when its DOI is absent from the indexes.
+    // Re-reading it must not turn a successfully parsed title block into a
+    // misleading "Metadata was not found" response.
+    apis({
+      "api.crossref.org": () => new Response("", { status: 404 }),
+      "api.datacite.org": () => new Response("", { status: 404 }),
+    });
+    const printed = titleBlock({ title: "What the PDF Says", authors: ["Ada Author"], journal: "PDF Conf", year: 2024 });
+    const fallback = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: printed } });
+    expect(fallback).toEqual({ doi: null, title: "What the PDF Says", authors: JSON.stringify(["Ada Author"]), journal: "PDF Conf", year: 2024 });
   });
 });
 
