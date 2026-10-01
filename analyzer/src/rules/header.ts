@@ -25,6 +25,8 @@ import { Trace } from "./trace";
 export const HEADER_PAGES = 3;
 const PAGES = HEADER_PAGES;
 const LATEST_YEAR = new Date().getUTCFullYear() + 1;
+const MIN_TITLE_SCORE = 5;
+const MIN_DEFERRED_TITLE_SIZE = 1.35;
 
 export interface HeaderResult {
   header: HeaderMetadata;
@@ -72,7 +74,7 @@ export function headerOf(doc: Doc): HeaderResult {
     // On a later body page, an enlarged equation or proposition can gather
     // accidental title-like evidence. A deferred title page is conspicuously
     // larger than body text and begins in its upper half.
-    if (found.length && found[0].size >= 1.35 * laid.bodySize && found[0].top < 0.5 * page.height) {
+    if (found.length && found[0].size >= MIN_DEFERRED_TITLE_SIZE * laid.bodySize && found[0].top < 0.5 * page.height) {
       titlePage = page; titleSource = pageLines; titleLines = found;
     }
   }
@@ -200,6 +202,13 @@ function inRows(lines: Line[]): Line[] {
 }
 
 type TitleCandidate = { lines: Line[]; score: number };
+type TitleContext = {
+  body: number;
+  width: number;
+  height: number;
+  abstract: Line | undefined;
+  infoTitle: string | null;
+};
 
 // Words shared by two possible renderings of a title. PDF Info titles are
 // useful corroboration, but never the sole answer: they are often filenames,
@@ -210,6 +219,49 @@ function titleAgreement(a: string, b: string): number {
   if (!left.size || !right.size) return 0;
   const common = [...left].filter((word) => right.has(word)).length;
   return common / Math.max(left.size, right.size);
+}
+
+function titleBlock(start: Line, eligible: Line[]): Line[] {
+  const sameSize = (line: Line) => Math.abs(line.size - start.size) <= 0.05 * start.size;
+  const block = [start];
+  for (const line of eligible) {
+    if (line.top <= start.top || !sameSize(line)) continue;
+    if (line.top - block[block.length - 1].top > 2.2 * start.size) break;
+    block.push(line);
+  }
+  return block;
+}
+
+function titleScore(block: Line[], lines: Line[], context: TitleContext): number {
+  const { body, width, height, abstract, infoTitle } = context;
+  const start = block[0];
+  const last = block[block.length - 1];
+  const text = block.map((line) => cleanTitle(line, lines, body)).reduce(joinLine);
+  const next = lines.find((line) => line.top > last.top);
+  // Names close below a candidate are the strongest evidence that it is a
+  // title rather than a logo, a figure label or an opening drop cap.
+  const nearby = lines.filter((line) => line.top > last.top
+    && line.top <= Math.min(abstract?.top ?? Infinity, last.bottom + 12 * body));
+  const authorCount = authorsOf(nearby).length;
+  const words = text.split(/\s+/).filter((word) => /\p{L}/u.test(word));
+  const allCaps = letters(text) >= 3 && text === text.toUpperCase();
+
+  const size = Math.min(4, Math.max(0, (start.size / body - 1) * 4));
+  const position = Math.max(0, 3 - (4 * start.top) / height);
+  const language = words.length >= 2 ? 1 : 0;
+  const isolatedCaps = allCaps && words.length <= 2 ? -2 : 0;
+  const authorBlock = Math.min(authorCount, 3) * 2;
+  const affiliation = authorCount > 0 && nearby.some((line) => HEADER_AFFILIATION.pattern!.test(line.text)) ? 0.5 : 0;
+  const beforeAbstract = abstract && last.top < abstract.top ? 1 : 0;
+  const leadsSubtitle = next && isSubtitle(next, last, body) ? 2 : 0;
+  const similarity = infoTitle ? titleAgreement(text, infoTitle) : 0;
+  const agreement = similarity >= 0.7 ? 3 : similarity >= 0.4 ? 1 : 0;
+  // A wide line is mild supporting evidence only: short one-word titles
+  // and narrow title columns are both legitimate.
+  const breadth = (start.x1 - start.x0) / width >= 0.35 ? 0.5 : 0;
+
+  return size + position + language + isolatedCaps + authorBlock + affiliation
+    + beforeAbstract + leadsSubtitle + agreement + breadth;
 }
 
 function titleOf(lines: Line[], body: number, width: number, height: number, infoTitle: string): Line[] {
@@ -228,45 +280,19 @@ function titleOf(lines: Line[], body: number, width: number, height: number, inf
     && !HEADER_NOT_TITLE.pattern!.test(line.text) && !/^(?:fig(?:ure)?\.?|table)\s*\d+\b/i.test(line.text)
     && !/^(?:\d+(?:\.\d+)*|[IVXLCDM]+\.?)\s+(?:introduction|background|methods?|results?|discussion|conclusions?)\b/i.test(line.text)
     && !allNames(line) && !underNames(line));
-  const corroborates = plausibleInfoTitle(infoTitle) ? infoTitle : null;
+  const context: TitleContext = {
+    body, width, height, abstract,
+    infoTitle: plausibleInfoTitle(infoTitle) ? infoTitle : null,
+  };
   const candidates: TitleCandidate[] = [];
   for (const start of eligible) {
     if (start.size < body * 1.05) continue;
-    const same = (line: Line) => Math.abs(line.size - start.size) <= 0.05 * start.size;
-    const block = [start];
-    for (const line of eligible) {
-      if (line.top <= start.top || !same(line)) continue;
-      if (line.top - block[block.length - 1].top > 2.2 * start.size) break;
-      block.push(line);
-    }
-    const text = block.map((line) => cleanTitle(line, lines, body)).reduce(joinLine);
-    const last = block[block.length - 1];
-    const next = lines.find((line) => line.top > last.top);
-    // Names close below a candidate are the strongest evidence that it is a
-    // title rather than a logo, a figure label or an opening drop cap.
-    const nearby = lines.filter((line) => line.top > last.top
-      && line.top <= Math.min(abstract?.top ?? Infinity, last.bottom + 12 * body));
-    const authors = authorsOf(nearby, new Trace()).length;
-    const words = text.split(/\s+/).filter((word) => /\p{L}/u.test(word));
-    const allCaps = letters(text) >= 3 && text === text.toUpperCase();
-    const size = Math.min(4, Math.max(0, (start.size / body - 1) * 4));
-    const position = Math.max(0, 3 - (4 * start.top) / height);
-    const language = words.length >= 2 ? 1 : 0;
-    const isolatedCaps = allCaps && words.length <= 2 ? -2 : 0;
-    const authorBlock = Math.min(authors, 3) * 2;
-    const affiliation = authors > 0 && nearby.some((line) => HEADER_AFFILIATION.pattern!.test(line.text)) ? 0.5 : 0;
-    const beforeAbstract = abstract && last.top < abstract.top ? 1 : 0;
-    const leadsSubtitle = next && isSubtitle(next, last, body) ? 2 : 0;
-    const similarity = corroborates ? titleAgreement(text, corroborates) : 0;
-    const agreement = similarity >= 0.7 ? 3 : similarity >= 0.4 ? 1 : 0;
-    // A wide line is mild supporting evidence only: short one-word titles
-    // and narrow title columns are both legitimate.
-    const breadth = (start.x1 - start.x0) / width >= 0.35 ? 0.5 : 0;
-    candidates.push({ lines: block, score: size + position + language + isolatedCaps + authorBlock + affiliation + beforeAbstract + leadsSubtitle + agreement + breadth });
+    const block = titleBlock(start, eligible);
+    candidates.push({ lines: block, score: titleScore(block, lines, context) });
   }
   candidates.sort((a, b) => b.score - a.score || a.lines[0].top - b.lines[0].top);
   // Below this, size and position alone did not form a convincing title.
-  return candidates[0]?.score >= 5 ? candidates[0].lines : [];
+  return candidates[0]?.score >= MIN_TITLE_SCORE ? candidates[0].lines : [];
 }
 
 // A subtitle: a line set smaller, directly under the title, that is not the
@@ -359,12 +385,12 @@ function isProse(line: Line): boolean {
   return lower / words.length > 0.4;
 }
 
-function authorsOf(lines: Line[], trace: Trace): string[] {
+function authorsOf(lines: Line[], trace?: Trace): string[] {
   const names: string[] = [];
   let looked = 0;
   let namedLine: Line | null = null;
   for (const line of lines) {
-    if (HEADER_ABSTRACT.pattern!.test(line.text)) { trace.add(HEADER_ABSTRACT.id, 1, line.text, []); break; }
+    if (HEADER_ABSTRACT.pattern!.test(line.text)) { trace?.add(HEADER_ABSTRACT.id, 1, line.text, []); break; }
     if (isProse(line)) { if (names.length) break; continue; }
     if (++looked > 40) break;
     // "NAME, Affiliation, City, Country": once a part is not a name, the
@@ -378,7 +404,6 @@ function authorsOf(lines: Line[], trace: Trace): string[] {
     if (names.length && namedLine && parts.length === 1 && /^\p{Lu}[\p{L}'’.-]+$/u.test(parts[0])
       && Math.abs(line.size - namedLine.size) <= 0.05 * line.size && line.top - namedLine.top <= 1.8 * line.size) {
       names[names.length - 1] += ` ${parts[0]}`;
-      trace.add(HEADER_AUTHORS.id, 1, names[names.length - 1], []);
       namedLine = line;
       continue;
     }
@@ -390,10 +415,11 @@ function authorsOf(lines: Line[], trace: Trace): string[] {
       const name = nameOf(part);
       if (!name) { if (named) break; continue; }
       named = true;
-      if (!names.includes(name)) { names.push(name); trace.add(HEADER_AUTHORS.id, 1, name, []); }
+      if (!names.includes(name)) names.push(name);
     }
     if (named) namedLine = line;
   }
+  for (const name of names) trace?.add(HEADER_AUTHORS.id, 1, name, []);
   return names;
 }
 
