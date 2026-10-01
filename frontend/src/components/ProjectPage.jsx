@@ -6,7 +6,7 @@ import { PHASES, PhaseGlyph, DigThread, phaseRank, when } from '../../../shared/
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag, deleteProjectTag,
+  addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
   findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
   describeProject, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
@@ -491,9 +491,10 @@ function DeskTabs({ view, onView, counts, fresh }) {
   );
 }
 
-// A project's shared tags on one paper: quiet chips until a member opens
-// the editor, then the project's remaining vocabulary and a new name are
-// both ways to classify it. The mutation lives online with the project.
+// A project's shared tags on one paper: each chip can be removed in place,
+// and a small picker adds an existing name or creates one. It closes when
+// the choice is made or focus leaves it, so editing has no separate mode to
+// finish. The mutation lives online with the project.
 function ProjectPaperTags({ project, paper, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -504,13 +505,15 @@ function ProjectPaperTags({ project, paper, onChanged }) {
   const available = (project.tags ?? []).filter((tag) => !assigned.has(tag.uuid)
     && (!query || tag.name.toLocaleLowerCase('en').includes(query)));
   const exact = (project.tags ?? []).find((tag) => tag.name.toLocaleLowerCase('en') === query);
-  const act = async (work) => {
+  const closePicker = () => { setEditing(false); setDraft(''); };
+  const act = async (work, close = false) => {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
       await work();
       setDraft('');
+      if (close) setEditing(false);
       onChanged();
     } catch (err) {
       setError(err.message);
@@ -518,45 +521,38 @@ function ProjectPaperTags({ project, paper, onChanged }) {
       setBusy(false);
     }
   };
-  const add = (tag) => act(() => addProjectPaperTag(project.uuid, paper.sha256, tag.uuid));
+  const add = (tag) => act(() => addProjectPaperTag(project.uuid, paper.sha256, tag.uuid), true);
   const create = () => act(async () => {
     const tag = await createProjectTag(project.uuid, draft.trim());
     await addProjectPaperTag(project.uuid, paper.sha256, tag.uuid);
-  });
+  }, true);
   return (
     <div className={`project-paper-tags${editing ? ' is-editing' : ''}`} onClick={(event) => event.stopPropagation()}>
       <span className="project-paper-tag-list">
-        {(paper.tags ?? []).map((tag) => <span className="project-paper-tag" key={tag.uuid}>#{tag.name}</span>)}
+        {(paper.tags ?? []).map((tag) => (
+          <button
+            type="button" className="project-paper-tag is-removable" key={tag.uuid} disabled={busy}
+            aria-label={`Remove ${tag.name} from this paper`}
+            onClick={() => act(() => removeProjectPaperTag(project.uuid, paper.sha256, tag.uuid))}
+          ><span className="project-paper-tag-label">#{tag.name}</span><span className="project-paper-tag-remove" aria-hidden="true">×</span></button>
+        ))}
       </span>
       {!editing && (
         <button type="button" className="project-tag-edit" onClick={() => setEditing(true)}>
-          {(paper.tags ?? []).length ? 'Edit tags' : '+ Tag'}
+          + Tag
         </button>
       )}
       {editing && (
-        <div className="project-tag-editor">
-          <div className="project-tag-editor-head">
-            <span>Tags for this paper</span>
-            <button type="button" className="project-tag-done" onClick={() => { setEditing(false); setDraft(''); }}>Done</button>
-          </div>
-          {(paper.tags ?? []).length > 0 && (
-            <div className="project-tag-assigned">
-              {paper.tags.map((tag) => (
-                <button
-                  type="button" className="project-paper-tag is-removable" key={tag.uuid} disabled={busy}
-                  title={`Remove ${tag.name} from this paper`}
-                  onClick={() => act(() => removeProjectPaperTag(project.uuid, paper.sha256, tag.uuid))}
-                >#{tag.name} ×</button>
-              ))}
-            </div>
-          )}
-          <div className="project-tag-picker">
+        <div
+          className="project-tag-picker"
+          onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closePicker(); }}
+        >
             <input
               autoFocus className="project-tag-input" value={draft} maxLength={appLimits.text.tag_name}
-              placeholder="Find or create a tag…" aria-label={`Add a project tag to ${paper.title}`}
+              placeholder="Add a tag…" aria-label={`Add a project tag to ${paper.title}`}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') { setEditing(false); setDraft(''); }
+                if (event.key === 'Escape') closePicker();
                 if (event.key !== 'Enter' || !query) return;
                 event.preventDefault();
                 if (exact && !assigned.has(exact.uuid)) add(exact);
@@ -577,10 +573,9 @@ function ProjectPaperTags({ project, paper, onChanged }) {
                 )}
               </div>
             )}
-          </div>
-          {error && <span className="project-tag-error" role="alert">{error}</span>}
         </div>
       )}
+      {error && <span className="project-tag-error" role="alert">{error}</span>}
     </div>
   );
 }
@@ -594,7 +589,6 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
   const [tag, setTag] = useState(null);
-  const [tagError, setTagError] = useState(null);
   const papers = tag ? project.papers.filter((paper) => paper.tags?.some((item) => item.uuid === tag)) : project.papers;
   // Beside the list there is always a brief: the one picked, else the first
   // new paper, else the top one. Under a row it is only the one picked.
@@ -623,37 +617,18 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   };
   return (
     <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
+      {(project.tags ?? []).length > 0 && (
+        <div className="project-tag-filters" aria-label="Filter papers by project tag">
+          <button type="button" className={!tag ? 'is-on' : ''} aria-pressed={!tag} onClick={() => setTag(null)}>All</button>
+          {(project.tags ?? []).map((item) => (
+            <button
+              type="button" key={item.uuid} className={tag === item.uuid ? 'is-on' : ''} aria-pressed={tag === item.uuid}
+              onClick={() => setTag(tag === item.uuid ? null : item.uuid)}
+            >#{item.name}</button>
+          ))}
+        </div>
+      )}
       <div className="project-papers-list">
-        {(project.tags ?? []).length > 0 && (
-          <div className="project-tag-filters" aria-label="Filter papers by project tag">
-            <button type="button" className={!tag ? 'is-on' : ''} aria-pressed={!tag} onClick={() => setTag(null)}>All</button>
-            {(project.tags ?? []).map((item) => (
-              <span className="project-tag-filter" key={item.uuid}>
-                <button
-                  type="button" className={tag === item.uuid ? 'is-on' : ''} aria-pressed={tag === item.uuid}
-                  onClick={() => setTag(tag === item.uuid ? null : item.uuid)}
-                >#{item.name}</button>
-                {project.is_keeper && (
-                  <button
-                    type="button" className="project-tag-delete" aria-label={`Delete project tag ${item.name}`}
-                    onClick={async () => {
-                      if (!await confirmAction(`Delete “${item.name}” from this project and every paper?`, { confirmLabel: 'Delete tag', destructive: true })) return;
-                      setTagError(null);
-                      try {
-                        await deleteProjectTag(project.uuid, item.uuid);
-                        if (tag === item.uuid) setTag(null);
-                        onChanged();
-                      } catch (err) {
-                        setTagError(err.message);
-                      }
-                    }}
-                  >×</button>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-        {tagError && <p className="project-tag-filter-error" role="alert">{tagError}</p>}
         {papers.length === 0 && <p className="project-tags-none">No papers have this tag.</p>}
         <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {
@@ -681,7 +656,11 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
                   {(paper.tags ?? []).length > 0 && (
                     <span className="project-paper-tag-list" aria-label="Project tags">
-                      {paper.tags.map((item) => <span className="project-paper-tag" key={item.uuid}>#{item.name}</span>)}
+                      {paper.tags.map((item) => (
+                        <span className="project-paper-tag" key={item.uuid}>
+                          <span className="project-paper-tag-label">#{item.name}</span>
+                        </span>
+                      ))}
                     </span>
                   )}
                 </div>

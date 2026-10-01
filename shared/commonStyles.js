@@ -409,6 +409,28 @@ button:disabled {
   text-decoration: none;
 }
 
+/* Text inside every compact pill uses one centering mechanism. Component
+   rules still choose each chip's height, padding, colour and border; this
+   rule trims the inherited line box and centres that box in the pill.
+   New chip families wear .text-chip instead of rebuilding this geometry. */
+.text-chip,
+:where(
+  .chip, .nook-chip, .tag-chip, .user-filter, .author-tag, .badge,
+  .chip-pop-tag, .nook-effort,
+  .project-paper-tag, .project-tag-edit,
+  .project-tag-filters > button, .project-tag-filter > button,
+  .project-tab, .project-tab-new, .nook-projects-chip, .desk-tag,
+  .board-toolbar-project, .board-selection-menu button,
+  .board-group-arrange button, .board-notice button,
+  .dig-phase-word, .dig-phase-menu button, .talk-card-owners button,
+  .project-pill, .thing-face
+) {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center !important;
+  line-height: 1 !important;
+}
+
 /* The identity disc. Sizes come from the place it sits. */
 .avatar-initial,
 .avatar-img {
