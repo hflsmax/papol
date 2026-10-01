@@ -24,6 +24,10 @@ test("a project's board jacket starts beside its rail instead of below an empty 
   assert.match(applicationStyles, /\.project-boards-view\.is-wide > \.project-boards \{ grid-area: list; \}/);
 });
 
+test('board jackets do not reserve a canvas preview', () => {
+  assert.doesNotMatch(applicationStyles, /\.board-preview(?:[\s.{:#]|$)/);
+});
+
 // A rule left open swallows every rule after it without a parse error.
 test('every block in the shared application styles is closed', () => {
   let depth = 0;

@@ -2147,10 +2147,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   margin-top: 12px;
 }
 
-/* The preview, the papers and the waiting clips each stand a little apart
-   from what is above them, as the paper page's sections do. */
-.board-jacket .board-preview { margin-top: 20px; }
-
 .board-jacket-section { margin-top: 24px; }
 .board-jacket-section .kicker { margin: 0 0 6px; }
 
@@ -2266,102 +2262,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   place-items: center;
   color: var(--ink-soft);
   font: 600 var(--fs-sm) var(--font-ui);
-}
-
-/* A board seen from a distance, every card where it sits. The frame takes
-   the proportions of the cards' own extent (--preview-ratio, set by
-   BoardPreview), no taller than 320px — 200px on a phone — and no wider than
-   the panel, centred in it: the cards fill it rather than floating in it. */
-.board-preview {
-  --preview-height: 320px;
-  position: relative;
-  display: grid;
-  width: min(100%, calc(var(--preview-height) * var(--preview-ratio, 1.6)));
-  aspect-ratio: var(--preview-ratio, 1.6);
-  margin-inline: auto;
-  overflow: hidden;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background-color: var(--paper-sunken);
-  background-image: radial-gradient(circle, var(--line-strong) .65px, transparent .75px);
-  background-size: 16px 16px;
-  cursor: pointer;
-  user-select: none;
-  transition: border-color var(--motion-fast) var(--ease-out);
-}
-
-.board-preview:hover,
-.board-preview:focus-visible {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.board-preview svg {
-  width: 100%;
-  height: 100%;
-}
-
-@media (max-width: 600px) {
-  .board-preview { --preview-height: 200px; }
-}
-
-.board-preview-card rect {
-  fill: var(--card);
-  stroke: var(--line-strong);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 3px 3px rgba(29,33,41,.10));
-}
-
-.board-preview-card line {
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.board-preview-card text {
-  fill: var(--ink-soft);
-  font: 14px var(--font-serif);
-  pointer-events: none;
-}
-
-.board-preview-card text.kind {
-  fill: var(--ink-faint);
-  font: 700 10px var(--font-ui);
-  letter-spacing: .6px;
-  text-transform: uppercase;
-}
-
-.board-preview-card.comment rect {
-  fill: var(--accent-soft);
-  stroke: var(--accent-line);
-}
-
-.board-preview.empty {
-  width: 100%;
-  min-height: 180px;
-  aspect-ratio: auto;
-  align-content: center;
-  justify-items: center;
-  gap: 5px;
-  padding: 28px 20px;
-  color: var(--ink-faint);
-  background-image: none;
-  font: var(--fs-sm) var(--font-ui);
-  text-align: center;
-}
-
-.board-preview.empty svg {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  padding: 0;
-  fill: none;
-  stroke: var(--line-strong);
-  stroke-width: 1.2;
-}
-
-.board-preview.empty strong {
-  color: var(--ink-soft);
-  font-size: var(--fs-base);
 }
 
 .nook-chip {
