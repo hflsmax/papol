@@ -167,9 +167,9 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const newPapers = project.papers.some((p) => p.is_new);
   const newTalk = talkedAbout.some((d) => d.is_new);
   const fresh = {
-    papers: project.papers.filter((p) => p.is_new).length,
-    boards: boards.filter((b) => b.is_new).length,
-    digs: talkedAbout.filter((d) => d.is_new).length,
+    papers: project.papers.some((p) => p.is_new),
+    boards: boards.some((b) => b.is_new),
+    digs: talkedAbout.some((d) => d.is_new),
   };
   const markAll = async () => {
     const items = [
@@ -533,13 +533,13 @@ function DeskTabs({ view, onView, counts, fresh }) {
         <button
           key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
           aria-selected={view === v} tabIndex={view === v ? 0 : -1}
-          aria-label={`${label}, ${fresh[v] ? `${fresh[v]} new, ` : ''}${counts[v]} total`}
+          aria-label={`${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total`}
           className={`project-tab${view === v ? ' is-on' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >
           {label}
           {counts[v] > 0 && <span className="project-tab-count" aria-hidden="true">{counts[v]}</span>}
-          {fresh[v] > 0 && <span className="project-tab-new" aria-hidden="true">{fresh[v]}</span>}
+          {fresh[v] && <NewsDot />}
         </button>
       ))}
     </nav>
