@@ -31,6 +31,7 @@ const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
+  'mac-forgot-password': { path: '/signin?shell=desktop', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
   'reset-password': { path: `/reset-password/${'ab'.repeat(32)}?shell=web`, ready: "document.querySelector('#auth-password-confirmation')", size: wide },
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   // A project's shared vocabulary, with one paper's tag editor open.
