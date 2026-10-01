@@ -5070,8 +5070,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 .project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-4); }
 .project-head > .project-title-row { flex: 1 1 22rem; }
-.project-head > .project-tabs { margin: 0; }
-.project-head:has(> .project-title-row) > .project-tabs { order: 3; flex-basis: 100%; }
+.project-head > .project-tabs-row { margin: 0; }
+.project-head:has(> .project-title-row) > .project-tabs-row { order: 3; flex-basis: 100%; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
 /* The name and its badge, and under them what the project is about. */
 .project-title-row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; }
@@ -5118,6 +5118,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 [data-shell='desktop'] .project-desk { margin-top: 0; }
 /* The desk's three views: quiet words, the one shown on a soft pill. */
 .project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); }
+.project-tabs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.project-tabs-row > .project-mark-all { margin-top: var(--space-2); margin-left: auto; }
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
@@ -5325,7 +5327,7 @@ ${talkStyles}
 .project-toolbar { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; align-items: stretch; gap: 0; min-width: 0; }
 .project-toolbar .project-title-line { flex-wrap: nowrap; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
-[data-shell='desktop'] .project-page > .project-tabs { margin: 0 0 var(--space-4); }
+[data-shell='desktop'] .project-page > .project-tabs-row { margin: 0 0 var(--space-4); }
 .desktop-toolbar .project-seats { flex: none; margin-left: auto; justify-content: flex-end; align-items: center; gap: var(--space-1); }
 .desktop-toolbar .project-seat-row { gap: 0; }
 .desktop-toolbar .project-seat-more { align-self: center; margin: 0 0 0 var(--space-1); }

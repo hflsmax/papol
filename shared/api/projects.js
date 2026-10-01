@@ -21,6 +21,17 @@ export function getProject(uuid) {
   return request(`/projects/${uuid}`);
 }
 
+// Reading is explicit: ordinary project fetches are safe to use for polling.
+// `through` is the newest activity actually displayed, so a concurrent newer
+// arrival is not accidentally consumed.
+export function markProjectItemRead(uuid, kind, item, through) {
+  return jsonRequest(`/projects/${uuid}/reads`, 'POST', { kind, item, through });
+}
+
+export function markProjectRead(uuid, items) {
+  return Promise.all(items.map(({ kind, item, through }) => markProjectItemRead(uuid, kind, item, through)));
+}
+
 // Renewed only while an authenticated Papol window is visible. Other members
 // learn the result through their ordinary project refreshes.
 export function markPresent() {
