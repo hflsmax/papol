@@ -104,6 +104,17 @@ describe("resolving a reference", () => {
     const summary = (title: string, authors: string[]): Summary => ({ title, authors, year: 2013, venue: "Proceedings of the National Academy of Sciences", abstract: null, citations: null, doi: null, url: null, pdf_url: null, source: "crossref" });
     expect(candidates([summary("Geometry of Miura-folded metamaterials", ["Mark Schenk", "Simon D. Guest"])], "crossref", context)).toHaveLength(1);
     expect(candidates([summary("A different paper", ["Rita Guest", "Another Author"])], "crossref", context)).toHaveLength(0);
+
+    const abbreviated = { ...context, journal: "Appl. Phys. Lett." };
+    const fullVenue = { ...summary("The limiting switching speed of a nanomagnetic logic gate", ["Denis Mamaluy", "Xujiao Gao"]), venue: "Applied Physics Letters", year: 2015 };
+    abbreviated.raw = "D. Mamaluy and X. Gao, Appl. Phys. Lett. 106, 193503 (2015).";
+    abbreviated.year = 2015;
+    abbreviated.authors = ["D. Mamaluy", "X. Gao"];
+    expect(candidates([fullVenue], "crossref", abbreviated)).toHaveLength(1);
+
+    const singleAuthor = { ...abbreviated, raw: "R. Landauer, IBM J. Res. Dev. 5, 183 (1961).", journal: "IBM J. Res. Dev.", year: 1961, authors: ["R. Landauer"] };
+    const landauer = { ...fullVenue, title: "Irreversibility and Heat Generation in the Computing Process", authors: ["Rolf Landauer"], venue: "IBM Journal of Research and Development", year: 1961 };
+    expect(candidates([landauer], "crossref", singleAuthor)).toHaveLength(1);
   });
 
   it("gives an unindexed web reference an honest card, inferring the repository and the year", () => {

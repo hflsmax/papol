@@ -201,6 +201,35 @@ const cleanTitle = (title: string | null) => {
   return t.length >= 4 ? t : null;
 };
 
+// APS and several physics journals print compact references without article
+// titles: "A. Author and B. Author, Phys. Rev. E 102, 032105 (2020)."
+// The ordinary sentence parser cannot see through the initials' full stops
+// and consequently turns pieces of the venue into authors and a title. Read
+// the repeated initials-first names, but only accept the form when what
+// follows has the unmistakable venue-volume-page shape. That guard leaves
+// initials-first references which do print a title to the general parser.
+function compactJournalEntry(raw: string): { authors: string[]; journal: string } | null {
+  const name = /^((?:(?:\p{Lu}\.(?:-\p{Lu}\.)?)\s*)+(?:(?:de|del|van|von|da|di)\s+)?[\p{Lu}][\p{L}'’.-]*)/u;
+  const authors: string[] = [];
+  let rest = raw;
+  while (true) {
+    const found = name.exec(rest);
+    if (!found) break;
+    authors.push(found[1].replace(/\s+/g, " ").replace(/\.$/, "").trim());
+    rest = rest.slice(found[0].length);
+    const separator = /^(?:,\s+(?:and\s+)?|\s+and\s+)/.exec(rest);
+    if (!separator) return null;
+    rest = rest.slice(separator[0].length);
+    const next = name.exec(rest);
+    if (!next || !/^(?:,\s+(?:and\s+)?|\s+and\s+)/.test(rest.slice(next[0].length))) break;
+  }
+  if (!authors.length) return null;
+  const venue = /^(.{2,120}?)\s+\d+(?:\s+\d+)?\s*,\s*[\dA-Za-z]/u.exec(rest);
+  if (!venue || /^in\s/i.test(venue[1])) return null;
+  const journal = venue[1].replace(/^[\s,.;:]+|[\s,.;:]+$/g, "").trim();
+  return journal ? { authors, journal } : null;
+}
+
 export function parseEntry(raw: string): Pick<Entry, "title" | "authors" | "surnames" | "year" | "yearSuffix" | "doi" | "arxiv_id" | "journal"> & { rules: string[] } {
   const rules: string[] = [];
   const doiMatch = FIELD_DOI.pattern!.exec(raw);
@@ -220,11 +249,15 @@ export function parseEntry(raw: string): Pick<Entry, "title" | "authors" | "surn
     const m = all[all.length - 1];
     if (m) { year = Number(m.groups!.year); suffix = m.groups!.suffix ?? ""; rules.push(FIELD_YEAR_ANY.id); }
   }
-  let authors: string[] = [], title: string | null = null;
+  let authors: string[] = [], title: string | null = null, journal: string | null = null;
+  const compact = compactJournalEntry(raw);
   const inverted = FIELD_AUTHORS_INVERTED.pattern!.exec(raw);
   const yearFirst = FIELD_AUTHORS_YEAR_FIRST.pattern!.exec(raw);
   const quoted = FIELD_TITLE_QUOTED.pattern!.exec(raw);
-  if (inverted?.groups && inverted.groups.rest) {
+  if (compact) {
+    authors = compact.authors;
+    journal = compact.journal;
+  } else if (inverted?.groups && inverted.groups.rest) {
     rules.push(FIELD_AUTHORS_INVERTED.id);
     authors = [...inverted.groups.authors.matchAll(/([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?),\s((?:[\p{Lu}]\.\s?-?)+)/gu)].map((m) => `${m[2].trim()} ${m[1]}`);
     const rest = inverted.groups.rest;
@@ -255,7 +288,7 @@ export function parseEntry(raw: string): Pick<Entry, "title" | "authors" | "surn
   }
   authors = authors.map((a) => a.replace(/\s+/g, " ").replace(/\.$/, "").trim()).filter((a) => a.length > 1 && a.length < 80);
   const surnames = authors.map((a) => normalizeName(a.includes(",") ? a.split(",")[0] : surnameOf(a))).filter(Boolean);
-  return { title, authors, surnames, year, yearSuffix: suffix, doi, arxiv_id: arxiv, journal: null, rules };
+  return { title, authors, surnames, year, yearSuffix: suffix, doi, arxiv_id: arxiv, journal, rules };
 }
 
 // ----------------------------------------------------------- the whole
@@ -285,7 +318,15 @@ export function findBibliography(layout: Layout, trace: Trace): Bibliography {
       }
       starts.forEach((start, i) => {
         const end = i + 1 < starts.length ? starts[i + 1].at : block.lines.length;
-        const lines = block.lines.slice(start.at, end);
+        let lines = block.lines.slice(start.at, end);
+        // In a two-column last page, a reference can begin at the foot of
+        // the left column and continue at the top of the right. Editorial
+        // matter above that continuation (for example ACKNOWLEDGMENTS and
+        // its prose) lies between the two entry markers in reading order.
+        // Bibliography lines keep one type size; omit the intervening page
+        // matter instead of splicing it into the printed reference.
+        const entrySize = lines[0]?.size ?? 0;
+        lines = lines.filter((line, at) => at === 0 || (Math.abs(line.size - entrySize) < 0.6 && (!line.bold || lines[0].bold)));
         const flow = flowOf(lines);
         const raw = flow.text.slice(start.prefix).replace(/\s+/g, " ").trim();
         if (raw.length < 12) return;
