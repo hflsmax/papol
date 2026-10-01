@@ -6,7 +6,18 @@ import {
 } from "../auth";
 import { batch, insert, newUuid, now, one, statement } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
+import { queueEmail, siteUrl } from "../jobs/notifications";
+import { wake } from "../jobs/queue";
+import limits from "../../../config/app_limits.json";
 import { registration } from "../validate";
+
+const RESET_LIFETIME_MS = 60 * 60 * 1000;
+const RESET_REPLY = "If that address belongs to an account, a password reset link is on its way.";
+
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 // The {name} placeholder is filled with the new user's display name.
 // Overridden by the settings table key "welcome_message".
@@ -64,6 +75,58 @@ export function authRoutes(router: Router) {
     }
     await batch(env.DB, statements);
     return json({ token, user: userPrivate(user) });
+  });
+
+  router.on("POST", "/api/auth/forgot-password", async ({ request, env }) => {
+    const data = await readJson<{ email?: unknown }>(request);
+    const email = typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+    if (email.length > limits.text.email) refuse(422, `email must be at most ${limits.text.email} characters`);
+    const user = email ? await one<User>(env.DB, "SELECT * FROM users WHERE email = ? AND deleted_at IS NULL", email) : null;
+    if (user) {
+      const token = newToken();
+      const tokenHash = await sha256(token);
+      const at = now();
+      const expires = new Date(Date.now() + RESET_LIFETIME_MS).toISOString();
+      const resetUrl = `${(await siteUrl(env)).replace(/\/$/, "")}/reset-password/${encodeURIComponent(token)}`;
+      const mail = queueEmail(
+        env.DB, user.email, "Reset your Papol password",
+        `Hello ${user.display_name},\n\nUse this link to choose a new Papol password:\n\n${resetUrl}\n\nThis link expires in one hour and can be used once. If you did not ask for it, you can ignore this email.`,
+      );
+      await batch(env.DB, [
+        statement(env.DB, "UPDATE password_resets SET used_at = ? WHERE user_uuid = ? AND used_at IS NULL", at, user.uuid),
+        statement(env.DB, "INSERT INTO password_resets (token_hash, user_uuid, created_at, expires_at) VALUES (?, ?, ?, ?)", tokenHash, user.uuid, at, expires),
+        mail.statement,
+      ]);
+      await wake(env, [mail.uuid]);
+    }
+    return json({ message: RESET_REPLY });
+  });
+
+  router.on("POST", "/api/auth/reset-password", async ({ request, env }) => {
+    const data = await readJson<{ token?: unknown; password?: unknown }>(request);
+    const token = typeof data.token === "string" ? data.token : "";
+    const password = typeof data.password === "string" ? data.password : "";
+    if (password.length < 6 || password.length > limits.text.password) {
+      refuse(422, `password must be between 6 and ${limits.text.password} characters`);
+    }
+    const tokenHash = await sha256(token);
+    const reset = await one<{ user_uuid: string }>(
+      env.DB,
+      "SELECT user_uuid FROM password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+      tokenHash, now(),
+    );
+    if (!reset) refuse(400, "This password reset link is invalid or has expired");
+    const at = now();
+    const results = await env.DB.batch([
+      statement(env.DB, "UPDATE password_resets SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?", at, tokenHash, at),
+      statement(env.DB, `UPDATE users SET password_hash = ? WHERE uuid = ? AND EXISTS
+        (SELECT 1 FROM password_resets WHERE token_hash = ? AND user_uuid = users.uuid AND used_at = ?)`, await hashPassword(password), reset.user_uuid, tokenHash, at),
+      statement(env.DB, "UPDATE auth_tokens SET revoked_at = ? WHERE user_uuid = ? AND revoked_at IS NULL", at, reset.user_uuid),
+    ]);
+    if ((results[0].meta.changes ?? 0) !== 1 || (results[1].meta.changes ?? 0) !== 1) {
+      refuse(400, "This password reset link is invalid or has expired");
+    }
+    return json({ message: "Password updated. You can now sign in." });
   });
 
   router.on("POST", "/api/auth/logout", async ({ request, env }) => {

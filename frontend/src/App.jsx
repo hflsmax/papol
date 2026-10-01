@@ -920,6 +920,9 @@ export default function App({ startupUser = null, startupError = null }) {
       {route.page === 'signin' && (
         <AuthPage onAuth={handleAuth} initialMode="login" />
       )}
+      {route.page === 'reset-password' && (
+        <AuthPage onAuth={handleAuth} initialMode="reset" resetToken={route.token} />
+      )}
       {hasWay && (route.page === 'profile' || route.page === 'inbox') && (
         <YouPage
           key={route.page}

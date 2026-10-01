@@ -57,6 +57,12 @@ test('every standing page is reachable by its path', () => {
   }
 });
 
+test('a password reset link carries its opaque credential', () => {
+  const token = 'ab'.repeat(32);
+  assert.deepEqual(parseRoute(`/reset-password/${token}`), { page: 'reset-password', token });
+  assert.equal(parseRoute('/reset-password/short').page, 'unknown');
+});
+
 // A name of the wrong shape is not a page. Landing on the home page for a
 // link that was meant for a paper is how a good link goes quietly dead.
 // Half a name is not a shorter name, it is a different one. One length is

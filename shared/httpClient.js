@@ -45,7 +45,7 @@ export async function handleResponse(response) {
 // not a verdict on their session. From anywhere else it says this Papol has
 // no session the server accepts: none was sent, or the one sent has expired,
 // been revoked, or belongs to a closed account.
-const CREDENTIAL_CHECKS = ['/auth/login', '/auth/logout', '/auth/password'];
+const CREDENTIAL_CHECKS = ['/auth/login', '/auth/logout', '/auth/password', '/auth/forgot-password', '/auth/reset-password'];
 
 const unauthenticatedListeners = new Set();
 

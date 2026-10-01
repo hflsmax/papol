@@ -35,6 +35,7 @@ const pages = [
   { path: '/projects/join/Ab3dE5gH7j', page: 'invitation' },
   { path: '/learn', page: 'learn' },
   { path: '/signin', page: 'signin' },
+  { path: `/reset-password/${'ab'.repeat(32)}`, page: 'reset-password' },
 ];
 
 // The same bundle again, as Papol macOS runs it: a desktop environment and a

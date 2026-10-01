@@ -29,6 +29,9 @@ const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunnin
 // A PDF dropped on the window, as the browser hands one over.
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
+  'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
+  'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
+  'reset-password': { path: `/reset-password/${'ab'.repeat(32)}?shell=web`, ready: "document.querySelector('#auth-password-confirmation')", size: wide },
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
   // A project's shared vocabulary, with one paper's tag editor open.
   'desk-paper-tags': { ...desk('papers', '.project-tag-picker', "document.querySelector('.project-tag-edit').click(); return true;"), size: wide },
