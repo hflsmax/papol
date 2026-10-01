@@ -5244,11 +5244,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
 .project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .project-paper-tags > .project-paper-tag-list { margin-top: 0; }
-.project-paper-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1.3 var(--font-ui); }
-.project-tag-edit { min-height: 20px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-paper-tag { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 22px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1 var(--font-ui); }
+.project-tag-edit { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 22px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs)/1 var(--font-ui); }
 .project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible { border: 0; background: transparent; color: var(--accent); }
 button.project-paper-tag.is-removable { gap: 4px; box-shadow: none; }
-button.project-paper-tag.is-removable span { color: var(--ink-faint); }
+button.project-paper-tag.is-removable span { display: inline-flex; align-items: center; line-height: 1; color: var(--ink-faint); }
 button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .project-tag-picker { position: relative; flex: 1 1 12rem; max-width: 18rem; }
 .project-tag-input { width: 100%; min-height: 26px; box-sizing: border-box; padding: 3px 8px; border-color: var(--line-strong); border-radius: var(--radius); font: var(--fs-xs) var(--font-ui); }
