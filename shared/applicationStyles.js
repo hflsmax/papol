@@ -5248,7 +5248,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tag-edit { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 22px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs)/1 var(--font-ui); }
 .project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible { border: 0; background: transparent; color: var(--accent); }
 button.project-paper-tag.is-removable { gap: 4px; box-shadow: none; }
-button.project-paper-tag.is-removable span { display: inline-flex; align-items: center; line-height: 1; color: var(--ink-faint); }
+.project-paper-tag-label, .project-paper-tag-remove { display: inline-flex; align-items: center; line-height: 1; transform: translateY(-1px); }
+button.project-paper-tag.is-removable .project-paper-tag-remove { color: var(--ink-faint); }
 button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .project-tag-picker { position: relative; flex: 1 1 12rem; max-width: 18rem; }
 .project-tag-input { width: 100%; min-height: 26px; box-sizing: border-box; padding: 3px 8px; border-color: var(--line-strong); border-radius: var(--radius); font: var(--fs-xs) var(--font-ui); }

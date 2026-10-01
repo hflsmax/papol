@@ -534,7 +534,7 @@ function ProjectPaperTags({ project, paper, onChanged }) {
             type="button" className="project-paper-tag is-removable" key={tag.uuid} disabled={busy}
             aria-label={`Remove ${tag.name} from this paper`}
             onClick={() => act(() => removeProjectPaperTag(project.uuid, paper.sha256, tag.uuid))}
-          >#{tag.name}<span aria-hidden="true">×</span></button>
+          ><span className="project-paper-tag-label">#{tag.name}</span><span className="project-paper-tag-remove" aria-hidden="true">×</span></button>
         ))}
       </span>
       {!editing && (
@@ -676,7 +676,11 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
                   {(paper.tags ?? []).length > 0 && (
                     <span className="project-paper-tag-list" aria-label="Project tags">
-                      {paper.tags.map((item) => <span className="project-paper-tag" key={item.uuid}>#{item.name}</span>)}
+                      {paper.tags.map((item) => (
+                        <span className="project-paper-tag" key={item.uuid}>
+                          <span className="project-paper-tag-label">#{item.name}</span>
+                        </span>
+                      ))}
                     </span>
                   )}
                 </div>

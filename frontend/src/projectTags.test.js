@@ -24,7 +24,7 @@ test('a paper can take an existing project tag or make a new one', () => {
 
 test('paper rows show tags while editing belongs to the open brief', () => {
   assert.match(papers, /tags={<ProjectPaperTags project={project} paper={paper} onChanged={onChanged} \/>}/);
-  assert.match(papers, /paper\.tags\.map\(\(item\) => <span className="project-paper-tag"/);
+  assert.match(papers, /paper\.tags\.map[\s\S]*className="project-paper-tag-label"/);
   assert.match(brief, /{tags && <div className="paper-brief-tags">{tags}<\/div>}/);
 });
 
