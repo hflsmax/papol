@@ -86,6 +86,12 @@ function uploadFixture(server) {
               step: 'put', method: options.method, headers: Object.fromEntries(new Headers(options.headers)),
               size: options.body?.size,
             });
+            window.putDone = false;
+            const heldSince = Date.now();
+            while (window.holdPut && !window.lookupSeen.length && Date.now() - heldSince < 20000) {
+              await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            window.putDone = true;
             return new Response(null, {status: 200});
           }
           if (path.endsWith('/files/upload-address')) {
