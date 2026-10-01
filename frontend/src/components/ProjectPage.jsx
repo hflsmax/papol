@@ -709,8 +709,8 @@ function useWide(query = '(min-width: 1000px)') {
 }
 
 // The project's boards, which every member arranges, as a list read like
-// the papers: each board by its name, what its newest card says and who
-// put it there. A board picked here opens its jacket beside the list on a
+// the papers: each board by its name and description, then who last put
+// something there. A board picked here opens its jacket beside the list on a
 // wide window, under its row on a narrow one, and has the address of its
 // own; the canvas is the jacket's way in. On a wide window there is always
 // a jacket beside the list: the one picked, else the first new board,
@@ -770,7 +770,7 @@ function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard,
                       {b.name}
                     </button>
                   </h4>
-                  {latest?.text && <p className="project-card-authors project-board-latest">{latest.text}</p>}
+                  {b.description && <p className="project-card-authors project-board-description">{b.description}</p>}
                 </div>
                 <span className="project-row-facts">
                   <span className="project-card-added">

@@ -5250,8 +5250,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-/* Boards as rows, read like the papers: the name, what the newest card
-   says, who put it there. The last row makes one more, quiet until
+/* Boards as rows, read like the papers: the name, its description, and who
+   last put something there. The last row makes one more, quiet until
    pressed, when it takes the name in place. */
 .project-row.project-board-new { display: block; padding: 0; cursor: default; }
 .project-row.project-board-new:hover { background: none; }
