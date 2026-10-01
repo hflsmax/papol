@@ -94,6 +94,57 @@ describe("a project of one", () => {
   });
 });
 
+describe("project tags", () => {
+  it("gives the project one shared vocabulary and lets every member classify its papers", async () => {
+    const dana = await register(), ana = await register(), stranger = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+
+    const methods = await ok("POST", `/api/projects/${project.uuid}/tags`, { headers: ana.headers, json: { name: "  Bench   Methods " } });
+    expect(methods.name).toBe("Bench Methods");
+    // Case and whitespace name the same project-owned tag.
+    expect((await ok("POST", `/api/projects/${project.uuid}/tags`, { headers: dana.headers, json: { name: "bench methods" } })).uuid).toBe(methods.uuid);
+    expect((await call("POST", `/api/projects/${project.uuid}/tags`, { headers: stranger.headers, json: { name: "private" } })).status).toBe(403);
+
+    await ok("POST", `/api/projects/${project.uuid}/papers/${A_PAPER}/tags/${methods.uuid}`, { headers: ana.headers });
+    await ok("POST", `/api/projects/${project.uuid}/papers/${A_PAPER}/tags/${methods.uuid}`, { headers: dana.headers });
+    let shown = await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers });
+    expect(shown.tags).toEqual([{ uuid: methods.uuid, name: "Bench Methods" }]);
+    expect(shown.papers[0].tags).toEqual([{ uuid: methods.uuid, name: "Bench Methods" }]);
+
+    // Members use tags; keepers alone curate the shared vocabulary.
+    expect((await call("PUT", `/api/projects/${project.uuid}/tags/${methods.uuid}`, { headers: ana.headers, json: { name: "Experiments" } })).status).toBe(403);
+    expect(await ok("PUT", `/api/projects/${project.uuid}/tags/${methods.uuid}`, { headers: dana.headers, json: { name: "Experiments" } }))
+      .toEqual({ uuid: methods.uuid, name: "Experiments" });
+    await ok("DELETE", `/api/projects/${project.uuid}/papers/${A_PAPER}/tags/${methods.uuid}`, { headers: ana.headers });
+    shown = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
+    expect(shown.papers[0].tags).toEqual([]);
+
+    await ok("POST", `/api/projects/${project.uuid}/papers/${A_PAPER}/tags/${methods.uuid}`, { headers: ana.headers });
+    expect((await call("DELETE", `/api/projects/${project.uuid}/tags/${methods.uuid}`, { headers: ana.headers })).status).toBe(403);
+    await ok("DELETE", `/api/projects/${project.uuid}/tags/${methods.uuid}`, { headers: dana.headers });
+    shown = await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers });
+    expect(shown.tags).toEqual([]);
+    expect(shown.papers[0].tags).toEqual([]);
+  });
+
+  it("removes a paper's tag links before taking the paper out", async () => {
+    const dana = await register();
+    const project = await start(dana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const tag = await ok("POST", `/api/projects/${project.uuid}/tags`, { headers: dana.headers, json: { name: "methods" } });
+    await ok("POST", `/api/projects/${project.uuid}/papers/${A_PAPER}/tags/${tag.uuid}`, { headers: dana.headers });
+
+    const removed = await ok("DELETE", `/api/projects/${project.uuid}/papers/${A_PAPER}`, { headers: dana.headers });
+    expect(removed.papers).toEqual([]);
+    expect(await row("SELECT 1 FROM project_paper_tags WHERE project_uuid = ?", project.uuid)).toBeNull();
+    expect(removed.tags).toEqual([{ uuid: tag.uuid, name: "methods" }]);
+  });
+});
+
 describe("joining by invitation", () => {
   it("gives one link per project, lets anyone signed in join with it, and stops when revoked", async () => {
     const dana = await register(), ana = await register(), ben = await register();

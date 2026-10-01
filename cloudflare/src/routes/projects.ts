@@ -45,6 +45,16 @@ function tidy(name: string): string {
   return name.split(/\s+/).filter(Boolean).join(" ");
 }
 
+// Tag identity is case-insensitive and indifferent to the whitespace a
+// member happened to type; its kept name still preserves their casing.
+function tagName(value: unknown): { name: string; normalized: string } {
+  const check = validate.checking();
+  const name = tidy(check.string("name", value, { min: 1, max: limits.text.tag_name }) ?? "");
+  check.done();
+  if (!name) refuse(422, "name is required");
+  return { name, normalized: name.toLocaleLowerCase("en") };
+}
+
 function projectName(value: unknown): string {
   const check = validate.checking();
   const name = tidy(check.string("name", value, { min: 1, max: limits.text.project_name }) ?? "");
@@ -143,7 +153,7 @@ function cardLine(card: Row) {
 async function projectOut(env: Env, project: Project, me: User, member: Member) {
   // Everything the page shows in one trip, then the two things that
   // depend on what came back.
-  const [members, entries, held, boards, placed, latestCards, digRows] = (await env.DB.batch<Row>([
+  const [members, entries, held, boards, placed, latestCards, tagRows, tagLinks, digRows] = (await env.DB.batch<Row>([
     membersStatement(env, [project.uuid]),
     statement(env.DB,
       `SELECT pp.paper_sha256, pp.added_by, pp.added_at, p.title, p.authors, p.journal, p.year, p.doi,
@@ -180,8 +190,15 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
          LEFT JOIN users u ON u.uuid = bi.added_by
          WHERE bi.deleted_at IS NULL AND NOT bi.staged)
        WHERE nth = 1`, project.uuid),
+    statement(env.DB,
+      `SELECT uuid, name FROM project_tags WHERE project_uuid = ? ORDER BY normalized_name, uuid`, project.uuid),
+    statement(env.DB,
+      `SELECT pp.paper_sha256, t.uuid, t.name FROM project_paper_tags l
+       JOIN project_papers pp ON pp.uuid = l.project_paper_uuid
+       JOIN project_tags t ON t.uuid = l.tag_uuid
+       WHERE l.project_uuid = ? ORDER BY t.normalized_name, t.uuid`, project.uuid),
     digsStatement(env, project.uuid, me, member),
-  ])).map((r) => r.results) as [(Member & Row)[], Row[], Row[], Row[], Row[], Row[], Row[]];
+  ])).map((r) => r.results) as [(Member & Row)[], Row[], Row[], Row[], Row[], Row[], Row[], Row[], Row[]];
   const digests = entries.map((e) => e.paper_sha256 as string);
   const [copies, digs] = await Promise.all([
     membersCopies(env.DB, digests, members.map((m) => m.user_uuid)),
@@ -194,10 +211,16 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
   }]));
   const onBoards = new Map<string, string[]>();
   for (const r of placed) onBoards.set(r.paper_sha256 as string, [...(onBoards.get(r.paper_sha256 as string) ?? []), r.board_uuid as string]);
+  const tagsOn = new Map<string, { uuid: string; name: string }[]>();
+  for (const r of tagLinks) tagsOn.set(r.paper_sha256 as string, [
+    ...(tagsOn.get(r.paper_sha256 as string) ?? []),
+    { uuid: r.uuid as string, name: r.name as string },
+  ]);
   return {
     ...summaryOut(project, members, me),
     description: project.description,
     invite_code: member.is_keeper ? project.invite_code : null,
+    tags: tagRows.map((t) => ({ uuid: t.uuid, name: t.name })),
     boards: boards.map((b) => ({
       uuid: b.uuid, name: b.name, description: b.description,
       owner: b.owner_uuid ? userPublic({ ...b, uuid: b.owner_uuid }) : null,
@@ -213,6 +236,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
       in_my_nook: mine.has(e.paper_sha256 as string),
       users: copies.get(e.paper_sha256 as string) ?? [],
       board_uuids: onBoards.get(e.paper_sha256 as string) ?? [],
+      tags: tagsOn.get(e.paper_sha256 as string) ?? [],
     })),
   };
 }
@@ -593,6 +617,96 @@ export function projectRoutes(router: Router) {
     return json(await boardOut(env, board as never, { canEdit: true }));
   });
 
+  // --------------------------------------------------------------- tags
+
+  // A project's tags belong to the project. Any member may extend its
+  // vocabulary and use it; keepers curate names and remove tags everywhere.
+  router.on("POST", "/api/projects/:uuid/tags", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await membership(env, project, me);
+    const data = await readJson<Row>(request);
+    const { name, normalized } = tagName(data.name);
+    const existing = await one<{ uuid: string; name: string }>(env.DB,
+      "SELECT uuid, name FROM project_tags WHERE project_uuid = ? AND normalized_name = ?", project.uuid, normalized);
+    if (existing) return json(existing);
+    const at = now();
+    const tag = { uuid: newUuid(), project_uuid: project.uuid, name, normalized_name: normalized, created_at: at, updated_at: at };
+    await batch(env.DB, [insert(env.DB, "project_tags", tag), touched(env, project)]);
+    return json({ uuid: tag.uuid, name: tag.name });
+  });
+
+  router.on("PUT", "/api/projects/:uuid/tags/:tag", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await keeping(env, project, me);
+    const tag = await one<Row>(env.DB, "SELECT * FROM project_tags WHERE uuid = ? AND project_uuid = ?", params.tag, project.uuid);
+    if (!tag) refuse(404, "Tag not found");
+    const data = await readJson<Row>(request);
+    const { name, normalized } = tagName(data.name);
+    const duplicate = await one(env.DB,
+      "SELECT 1 FROM project_tags WHERE project_uuid = ? AND normalized_name = ? AND uuid != ?", project.uuid, normalized, tag.uuid);
+    if (duplicate) refuse(409, "That tag already exists");
+    const at = now();
+    await batch(env.DB, [
+      update(env.DB, "project_tags", "uuid", tag.uuid, { name, normalized_name: normalized, updated_at: at }),
+      touched(env, project),
+    ]);
+    return json({ uuid: tag.uuid, name });
+  });
+
+  router.on("DELETE", "/api/projects/:uuid/tags/:tag", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await keeping(env, project, me);
+    const tag = await one<Row>(env.DB, "SELECT * FROM project_tags WHERE uuid = ? AND project_uuid = ?", params.tag, project.uuid);
+    if (!tag) refuse(404, "Tag not found");
+    await batch(env.DB, [
+      statement(env.DB, "DELETE FROM project_paper_tags WHERE tag_uuid = ?", tag.uuid),
+      statement(env.DB, "DELETE FROM project_tags WHERE uuid = ?", tag.uuid),
+      touched(env, project),
+    ]);
+    return new Response(null, { status: 204 });
+  });
+
+  const tagPaper = async (env: Env, project: Project, digest: string, tagUuid: string) => {
+    const entry = await one<{ uuid: string }>(env.DB,
+      "SELECT uuid FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, digest);
+    if (!entry) refuse(404, "That paper is not in this project");
+    const tag = await one<{ uuid: string; name: string }>(env.DB,
+      "SELECT uuid, name FROM project_tags WHERE uuid = ? AND project_uuid = ?", tagUuid, project.uuid);
+    if (!tag) refuse(404, "Tag not found");
+    return { entry, tag };
+  };
+
+  router.on("POST", "/api/projects/:uuid/papers/:sha256/tags/:tag", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await membership(env, project, me);
+    const { entry, tag } = await tagPaper(env, project, params.sha256.toLowerCase(), params.tag);
+    const existing = await one(env.DB,
+      "SELECT 1 FROM project_paper_tags WHERE project_paper_uuid = ? AND tag_uuid = ?", entry.uuid, tag.uuid);
+    if (!existing) await batch(env.DB, [
+      insert(env.DB, "project_paper_tags", {
+        uuid: newUuid(), project_uuid: project.uuid, project_paper_uuid: entry.uuid, tag_uuid: tag.uuid, created_at: now(),
+      }),
+      touched(env, project),
+    ]);
+    return json(tag);
+  });
+
+  router.on("DELETE", "/api/projects/:uuid/papers/:sha256/tags/:tag", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    await membership(env, project, me);
+    const { entry, tag } = await tagPaper(env, project, params.sha256.toLowerCase(), params.tag);
+    await batch(env.DB, [
+      statement(env.DB, "DELETE FROM project_paper_tags WHERE project_paper_uuid = ? AND tag_uuid = ?", entry.uuid, tag.uuid),
+      touched(env, project),
+    ]);
+    return new Response(null, { status: 204 });
+  });
+
   router.on("POST", "/api/projects/:uuid/papers", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const project = await liveProject(env, params.uuid);
@@ -656,7 +770,11 @@ export function projectRoutes(router: Router) {
       "SELECT uuid, added_by FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, params.sha256.toLowerCase());
     if (!entry) refuse(404, "That paper is not in this project");
     if (entry.added_by !== me.uuid && !member.is_keeper) refuse(403, "Only whoever added it, or a keeper, can take it out");
-    await batch(env.DB, [statement(env.DB, "DELETE FROM project_papers WHERE uuid = ?", entry.uuid), touched(env, project)]);
+    await batch(env.DB, [
+      statement(env.DB, "DELETE FROM project_paper_tags WHERE project_paper_uuid = ?", entry.uuid),
+      statement(env.DB, "DELETE FROM project_papers WHERE uuid = ?", entry.uuid),
+      touched(env, project),
+    ]);
     return json(await projectOut(env, project, me, member));
   });
 }

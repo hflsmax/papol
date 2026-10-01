@@ -5231,6 +5231,36 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-facts { display: contents; }
 .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.project-tag-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-2); padding: 0 var(--space-3); }
+.project-tag-filters > button, .project-tag-filter > button { min-height: 26px; padding: 2px 8px; border: 1px solid transparent; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
+.project-tag-filters button:hover, .project-tag-filters button:focus-visible { border-color: var(--line); background: var(--card); color: var(--accent); }
+.project-tag-filters button.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.project-tag-filter { display: inline-flex; align-items: center; border-radius: var(--radius-pill); }
+.project-tag-filter > .project-tag-delete { width: 22px; min-height: 22px; margin-left: -6px; padding: 0; color: var(--ink-faint); }
+.project-tag-filter > .project-tag-delete:hover, .project-tag-filter > .project-tag-delete:focus-visible { border-color: transparent; background: var(--red-soft); color: var(--red); }
+.project-tags-none { margin: var(--space-5) var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+.project-tag-filter-error { margin: 0 var(--space-3) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
+.project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
+.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.project-paper-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1.3 var(--font-ui); }
+.project-tag-edit, .project-tag-done { min-height: 20px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible, .project-tag-done:hover:not(:disabled), .project-tag-done:focus-visible { border: 0; background: transparent; color: var(--accent); }
+.project-paper-tags.is-editing { display: block; }
+.project-paper-tags.is-editing > .project-paper-tag-list { display: none; }
+.project-tag-editor { display: grid; gap: 5px; max-width: 28rem; padding: var(--space-2); border: 1px solid var(--accent-line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-sm); }
+.project-tag-editor-head { display: flex; align-items: center; justify-content: space-between; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .04em; text-transform: uppercase; }
+.project-tag-assigned { display: flex; flex-wrap: wrap; gap: 4px; }
+button.project-paper-tag.is-removable { box-shadow: none; }
+button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.project-tag-picker { position: relative; }
+.project-tag-input { width: 100%; min-height: 30px; box-sizing: border-box; padding: 4px 8px; border-color: var(--line); font: var(--fs-xs) var(--font-ui); }
+.project-tag-options { display: grid; max-height: 10rem; margin-top: 3px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.project-tag-options button { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: var(--fs-xs) var(--font-ui); text-align: left; }
+.project-tag-options button + button { border-top: 1px solid var(--line); }
+.project-tag-options button:hover:not(:disabled), .project-tag-options button:focus-visible { border-color: var(--line); background: var(--paper-sunken); color: var(--accent); }
+.project-tag-options button span:last-child { color: var(--ink-faint); font-size: var(--fs-2xs); }
+.project-tag-options .project-tag-create { color: var(--accent); }
+.project-tag-error { color: var(--red); font: var(--fs-2xs) var(--font-ui); }
 @container (max-width: 1099px) {
   .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */

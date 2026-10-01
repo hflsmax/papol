@@ -81,7 +81,8 @@ describe("client requirements", () => {
       "_server_change_log", "_server_clients", "activity", "admin_message_deliveries", "admin_messages",
       "annotations", "applied_mutations", "auth_tokens", "board_groups", "board_items", "boards",
       "copies", "copy_tags", "dig_posts", "digs", "error_logs", "feedback", "jobs", "notifications", "paper_references", "papers",
-      "project_boards", "project_members", "project_papers", "projects", "settings", "sharables", "shelves", "tags", "users",
+      "project_boards", "project_members", "project_paper_tags", "project_papers", "project_tags", "projects",
+      "settings", "sharables", "shelves", "tags", "users",
     ]);
   });
 });

@@ -6,7 +6,8 @@ import { PHASES, PhaseGlyph, DigThread, phaseRank, when } from '../../../shared/
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  addMember, annotationViewerPath, createProjectBoard, findPeople, getProject, invitationPath, openInvitation, removeMember,
+  addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag, deleteProjectTag,
+  findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
   describeProject, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -490,6 +491,100 @@ function DeskTabs({ view, onView, counts, fresh }) {
   );
 }
 
+// A project's shared tags on one paper: quiet chips until a member opens
+// the editor, then the project's remaining vocabulary and a new name are
+// both ways to classify it. The mutation lives online with the project.
+function ProjectPaperTags({ project, paper, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const assigned = new Set((paper.tags ?? []).map((tag) => tag.uuid));
+  const query = draft.trim().toLocaleLowerCase('en');
+  const available = (project.tags ?? []).filter((tag) => !assigned.has(tag.uuid)
+    && (!query || tag.name.toLocaleLowerCase('en').includes(query)));
+  const exact = (project.tags ?? []).find((tag) => tag.name.toLocaleLowerCase('en') === query);
+  const act = async (work) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      setDraft('');
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const add = (tag) => act(() => addProjectPaperTag(project.uuid, paper.sha256, tag.uuid));
+  const create = () => act(async () => {
+    const tag = await createProjectTag(project.uuid, draft.trim());
+    await addProjectPaperTag(project.uuid, paper.sha256, tag.uuid);
+  });
+  return (
+    <div className={`project-paper-tags${editing ? ' is-editing' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <span className="project-paper-tag-list">
+        {(paper.tags ?? []).map((tag) => <span className="project-paper-tag" key={tag.uuid}>#{tag.name}</span>)}
+      </span>
+      {!editing && (
+        <button type="button" className="project-tag-edit" onClick={() => setEditing(true)}>
+          {(paper.tags ?? []).length ? 'Edit tags' : '+ Tag'}
+        </button>
+      )}
+      {editing && (
+        <div className="project-tag-editor">
+          <div className="project-tag-editor-head">
+            <span>Project tags</span>
+            <button type="button" className="project-tag-done" onClick={() => { setEditing(false); setDraft(''); }}>Done</button>
+          </div>
+          {(paper.tags ?? []).length > 0 && (
+            <div className="project-tag-assigned">
+              {paper.tags.map((tag) => (
+                <button
+                  type="button" className="project-paper-tag is-removable" key={tag.uuid} disabled={busy}
+                  title={`Remove ${tag.name} from this paper`}
+                  onClick={() => act(() => removeProjectPaperTag(project.uuid, paper.sha256, tag.uuid))}
+                >#{tag.name} ×</button>
+              ))}
+            </div>
+          )}
+          <div className="project-tag-picker">
+            <input
+              autoFocus className="project-tag-input" value={draft} maxLength={appLimits.text.tag_name}
+              placeholder="Find or create a tag…" aria-label={`Add a project tag to ${paper.title}`}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') { setEditing(false); setDraft(''); }
+                if (event.key !== 'Enter' || !query) return;
+                event.preventDefault();
+                if (exact && !assigned.has(exact.uuid)) add(exact);
+                else if (!exact) create();
+              }}
+            />
+            {(available.length > 0 || (query && !exact)) && (
+              <div className="project-tag-options">
+                {available.map((tag) => (
+                  <button type="button" key={tag.uuid} disabled={busy} onClick={() => add(tag)}>
+                    <span>#{tag.name}</span><span>Add</span>
+                  </button>
+                ))}
+                {query && !exact && (
+                  <button type="button" className="project-tag-create" disabled={busy} onClick={create}>
+                    <span>Create “{draft.trim()}”</span><span>New</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {error && <span className="project-tag-error" role="alert">{error}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Each paper is a row of a list, the way a bibliography reads: its title
 // and authors, where it appeared, who brought it in, and
 // what is unread about it. Picking a row shows the paper's brief: beside
@@ -498,12 +593,14 @@ function DeskTabs({ view, onView, counts, fresh }) {
 function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChanged, onRead }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
-  const papers = project.papers;
+  const [tag, setTag] = useState(null);
+  const [tagError, setTagError] = useState(null);
+  const papers = tag ? project.papers.filter((paper) => paper.tags?.some((item) => item.uuid === tag)) : project.papers;
   // Beside the list there is always a brief: the one picked, else the first
   // new paper, else the top one. Under a row it is only the one picked.
   const chosen = papers.find((p) => p.sha256 === picked)
     ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
-  if (!papers.length) return <section className="project-section" aria-label="Papers" />;
+  if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
   // What is new in each of the paper's digs, by dig.
   const unreadOn = (paper) => Object.fromEntries((project.digs ?? [])
     .filter((d) => d.subject.key === `paper:${paper.sha256}`)
@@ -525,6 +622,37 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   };
   return (
     <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
+      {(project.tags ?? []).length > 0 && (
+        <div className="project-tag-filters" aria-label="Filter papers by project tag">
+          <button type="button" className={!tag ? 'is-on' : ''} aria-pressed={!tag} onClick={() => setTag(null)}>All</button>
+          {(project.tags ?? []).map((item) => (
+            <span className="project-tag-filter" key={item.uuid}>
+              <button
+                type="button" className={tag === item.uuid ? 'is-on' : ''} aria-pressed={tag === item.uuid}
+                onClick={() => setTag(tag === item.uuid ? null : item.uuid)}
+              >#{item.name}</button>
+              {project.is_keeper && (
+                <button
+                  type="button" className="project-tag-delete" aria-label={`Delete project tag ${item.name}`}
+                  onClick={async () => {
+                    if (!await confirmAction(`Delete “${item.name}” from this project and every paper?`, { confirmLabel: 'Delete tag', destructive: true })) return;
+                    setTagError(null);
+                    try {
+                      await deleteProjectTag(project.uuid, item.uuid);
+                      if (tag === item.uuid) setTag(null);
+                      onChanged();
+                    } catch (err) {
+                      setTagError(err.message);
+                    }
+                  }}
+                >×</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {tagError && <p className="project-tag-filter-error" role="alert">{tagError}</p>}
+      {papers.length === 0 && <p className="project-tags-none">No papers have this tag.</p>}
       <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
@@ -549,6 +677,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
                     </button>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
+                  <ProjectPaperTags project={project} paper={paper} onChanged={onChanged} />
                 </div>
                 <span className="project-row-facts">
                   <span className="project-row-cite">{where}</span>

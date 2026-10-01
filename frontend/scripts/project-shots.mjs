@@ -30,6 +30,8 @@ const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunnin
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
+  // A project's shared vocabulary, with one paper's tag editor open.
+  'desk-paper-tags': { ...desk('papers', '.project-tag-editor', "document.querySelector('.project-tag-edit').click(); return true;"), size: wide },
   // A keeper writing what the project is about, under its name.
   'desk-description': { ...desk('papers', '.project-description-input:focus', "document.querySelector('.project-description-input').focus(); return true;"), size: wide },
   // The Boards tab: a row per board, the latest's jacket beside them.

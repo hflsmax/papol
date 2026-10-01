@@ -76,6 +76,29 @@ export function removePaperFromProject(uuid, paperSha256) {
   return request(`/projects/${uuid}/papers/${paperSha256}`, { method: 'DELETE' });
 }
 
+// The shared vocabulary of a project, and its many-to-many assignments to
+// the papers the project holds. These stay online with the project rather
+// than entering any member's private replica.
+export function createProjectTag(uuid, name) {
+  return jsonRequest(`/projects/${uuid}/tags`, 'POST', { name });
+}
+
+export function renameProjectTag(uuid, tagUuid, name) {
+  return jsonRequest(`/projects/${uuid}/tags/${tagUuid}`, 'PUT', { name });
+}
+
+export function deleteProjectTag(uuid, tagUuid) {
+  return request(`/projects/${uuid}/tags/${tagUuid}`, { method: 'DELETE' });
+}
+
+export function addProjectPaperTag(uuid, paperSha256, tagUuid) {
+  return request(`/projects/${uuid}/papers/${paperSha256}/tags/${tagUuid}`, { method: 'POST' });
+}
+
+export function removeProjectPaperTag(uuid, paperSha256, tagUuid) {
+  return request(`/projects/${uuid}/papers/${paperSha256}/tags/${tagUuid}`, { method: 'DELETE' });
+}
+
 // A board the project holds, made by the member who asks.
 export function createProjectBoard(uuid, name) {
   return jsonRequest(`/projects/${uuid}/boards`, 'POST', { name });
