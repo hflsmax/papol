@@ -32,7 +32,7 @@ import { TalkCard } from '../../../shared/ui/Talk.jsx';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
-  hideBack = false, backLabel = 'Back', onReportableError,
+  onDeleted, hideBack = false, backLabel = 'Back', onReportableError,
 }) {
   // Under the bar the paper's title, authors and venue stand on it.
   const inBar = useContext(WayShown);
@@ -326,7 +326,8 @@ export default function PaperJacket({
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and annotations will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
       await deletePaper(paper.sha256);
-      onBack();
+      onChanged?.();
+      (onDeleted || onBack)?.();
     } catch (err) {
       setError(err.message);
     }

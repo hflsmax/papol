@@ -772,12 +772,14 @@ export default function App({ startupUser = null, startupError = null }) {
             board={route.page === 'board' ? route.uuid : route.page === 'paper' ? route.board ?? null : null}
             project={route.page === 'project' ? route.uuid : null}
             paper={route.page === 'paper' ? route.uuid : null}
-            renderPaper={(name) => (
+            renderPaper={(name, refreshNook) => (
               <PaperJacket
                 key={name}
                 paperSha256={name}
                 currentUser={user}
                 hideBack
+                onChanged={refreshNook}
+                onDeleted={() => navigate('/', { replace: true })}
                 onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
                 onReportableError={offerErrorReport}
               />

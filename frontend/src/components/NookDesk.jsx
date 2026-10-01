@@ -234,7 +234,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
       </aside>
 
       {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
-      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>}
+      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper, onChanged)}</section>}
       {board && (
         <section className="desk-main desk-board" hidden={Boolean(paper)}>
           <BoardJacket
