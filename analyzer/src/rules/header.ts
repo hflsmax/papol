@@ -60,8 +60,8 @@ export function headerOf(doc: Doc): HeaderResult {
     lines = lines.filter((l) => l.top > homepage.top);
   }
 
-  const titleLines = titleOf(lines, laid.bodySize, first.height);
-  let title: string | null = titleLines.length ? titleLines.map(clean).reduce(joinLine) : null;
+  const titleLines = titleOf(lines, laid.bodySize, first.width, first.height, doc.info.title);
+  let title: string | null = titleLines.length ? titleLines.map((line) => cleanTitle(line, lines, laid.bodySize)).reduce(joinLine) : null;
   let after = titleLines[titleLines.length - 1];
   if (title) {
     trace.add(HEADER_TITLE.id, 1, title, []);
@@ -145,6 +145,17 @@ function clean(line: Line): string {
 
 const joinLine = (out: string, text: string) => (/\p{L}-$/u.test(out) ? out.slice(0, -1) + text : `${out} ${text}`);
 
+// Review manuscripts often print source line numbers down the left margin.
+// The first one can share the title's baseline and be joined to it by PDF
+// extraction ("1 Choreographing Effects"). Remove it only when the page has
+// the continuing margin-number sequence that proves what it is.
+function cleanTitle(line: Line, lines: Line[], body: number): string {
+  const text = clean(line);
+  if (!/^\d+\s+\p{L}/u.test(text)) return text;
+  const marginNumbers = lines.filter((other) => /^\s*\d+\s*$/.test(other.text) && Math.abs(other.x0 - line.x0) <= body);
+  return marginNumbers.length >= 3 ? text.replace(/^\d+\s+/, "") : text;
+}
+
 // A line of names, which a title never is: more than one, or one with its
 // affiliation, and nothing else. A short title in capitals ("Metamaterial
 // Mechanisms") is one part and no name.
@@ -173,7 +184,20 @@ function inRows(lines: Line[]): Line[] {
   return [...out, ...row.sort((a, b) => a.x0 - b.x0)];
 }
 
-function titleOf(lines: Line[], body: number, height: number): Line[] {
+type TitleCandidate = { lines: Line[]; score: number };
+
+// Words shared by two possible renderings of a title. PDF Info titles are
+// useful corroboration, but never the sole answer: they are often filenames,
+// templates or stale titles from an earlier draft.
+function titleAgreement(a: string, b: string): number {
+  const words = (s: string) => new Set(s.normalize("NFKD").toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []);
+  const left = words(a), right = words(b);
+  if (!left.size || !right.size) return 0;
+  const common = [...left].filter((word) => right.has(word)).length;
+  return common / Math.max(left.size, right.size);
+}
+
+function titleOf(lines: Line[], body: number, width: number, height: number, infoTitle: string): Line[] {
   // The affiliation under a line of names, set as large as the names.
   const underNames = (l: Line) => {
     const above = lines[lines.indexOf(l) - 1];
@@ -183,18 +207,51 @@ function titleOf(lines: Line[], body: number, height: number): Line[] {
   // other decorated initials can otherwise look like enormous title lines:
   // e.g. an introduction beginning with R + superscript "ECENT" cleans to
   // just "R", but its uncleaned text used to outrank the paper's title.
-  const candidates = lines.filter((l) => l.top < height * 0.7 && letters(clean(l)) >= 3 && !HEADER_NOT_TITLE.pattern!.test(l.text) && !allNames(l) && !underNames(l));
-  const largest = Math.max(0, ...candidates.map((l) => l.size));
-  if (largest < body * 1.1) return [];
-  const same = (l: Line) => Math.abs(l.size - largest) <= 0.05 * largest;
-  const start = candidates.find(same)!;
-  const block = [start];
-  for (const line of candidates) {
-    if (line.top <= start.top || !same(line)) continue;
-    if (line.top - block[block.length - 1].top > 2.2 * largest) break;
-    block.push(line);
+  const abstract = lines.find((line) => HEADER_ABSTRACT.pattern!.test(line.text));
+  const cutoff = Math.min(height * 0.7, abstract?.top ?? Infinity);
+  const eligible = lines.filter((line) => line.top < cutoff && letters(clean(line)) >= 3
+    && !HEADER_NOT_TITLE.pattern!.test(line.text) && !/^(?:fig(?:ure)?\.?|table)\s*\d+\b/i.test(line.text)
+    && !/^(?:\d+(?:\.\d+)*|[IVXLCDM]+\.?)\s+(?:introduction|background|methods?|results?|discussion|conclusions?)\b/i.test(line.text)
+    && !allNames(line) && !underNames(line));
+  const corroborates = plausibleInfoTitle(infoTitle) ? infoTitle : null;
+  const candidates: TitleCandidate[] = [];
+  for (const start of eligible) {
+    if (start.size < body * 1.05) continue;
+    const same = (line: Line) => Math.abs(line.size - start.size) <= 0.05 * start.size;
+    const block = [start];
+    for (const line of eligible) {
+      if (line.top <= start.top || !same(line)) continue;
+      if (line.top - block[block.length - 1].top > 2.2 * start.size) break;
+      block.push(line);
+    }
+    const text = block.map((line) => cleanTitle(line, lines, body)).reduce(joinLine);
+    const last = block[block.length - 1];
+    const next = lines.find((line) => line.top > last.top);
+    // Names close below a candidate are the strongest evidence that it is a
+    // title rather than a logo, a figure label or an opening drop cap.
+    const nearby = lines.filter((line) => line.top > last.top
+      && line.top <= Math.min(abstract?.top ?? Infinity, last.bottom + 12 * body));
+    const authors = authorsOf(nearby, new Trace()).length;
+    const words = text.split(/\s+/).filter((word) => /\p{L}/u.test(word));
+    const allCaps = letters(text) >= 3 && text === text.toUpperCase();
+    const size = Math.min(4, Math.max(0, (start.size / body - 1) * 4));
+    const position = Math.max(0, 3 - (4 * start.top) / height);
+    const language = words.length >= 2 ? 1 : 0;
+    const isolatedCaps = allCaps && words.length <= 2 ? -2 : 0;
+    const authorBlock = Math.min(authors, 3) * 2;
+    const affiliation = authors > 0 && nearby.some((line) => HEADER_AFFILIATION.pattern!.test(line.text)) ? 0.5 : 0;
+    const beforeAbstract = abstract && last.top < abstract.top ? 1 : 0;
+    const leadsSubtitle = next && isSubtitle(next, last, body) ? 2 : 0;
+    const similarity = corroborates ? titleAgreement(text, corroborates) : 0;
+    const agreement = similarity >= 0.7 ? 3 : similarity >= 0.4 ? 1 : 0;
+    // A wide line is mild supporting evidence only: short one-word titles
+    // and narrow title columns are both legitimate.
+    const breadth = (start.x1 - start.x0) / width >= 0.35 ? 0.5 : 0;
+    candidates.push({ lines: block, score: size + position + language + isolatedCaps + authorBlock + affiliation + beforeAbstract + leadsSubtitle + agreement + breadth });
   }
-  return block;
+  candidates.sort((a, b) => b.score - a.score || a.lines[0].top - b.lines[0].top);
+  // Below this, size and position alone did not form a convincing title.
+  return candidates[0]?.score >= 5 ? candidates[0].lines : [];
 }
 
 // ACM's subtitle: a line set smaller, directly under the title, that is

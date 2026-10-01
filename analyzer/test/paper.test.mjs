@@ -61,7 +61,7 @@ describe("the title block", () => {
     }
   });
 
-  it("ignores a large drop cap whose remaining letters are superscript", async () => {
+  it("ignores a large drop cap whose remaining letters are superscript (c8d08f75)", async () => {
     const page = writtenPdf([
       [250, 740, "RipTide", 24],
       [50, 708, "A programmable, energy-minimal dataflow compiler and architecture", 18],
@@ -74,6 +74,44 @@ describe("the title block", () => {
     const { header } = await headerWithRules(page);
     assert.equal(header.title, "RipTide: A programmable, energy-minimal dataflow compiler and architecture");
     assert.deepEqual(header.authors, ["Graham Gobieski", "Souradip Ghosh", "Marijn Heule"]);
+  });
+
+  it("prefers the coherent title and author block to a larger conference logo", async () => {
+    const page = writtenPdf([
+      [150, 760, "SYSTEMS WEEK", 28],
+      [70, 690, "Small but complete paper title", 17],
+      [70, 665, "Ada Lovelace and Alan Turing", 10],
+      [70, 640, "University of Example, London, UK", 9],
+      [70, 610, "Abstract", 10],
+      [70, 590, "This paper presents a result whose body is set in ordinary type."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Small but complete paper title");
+    assert.deepEqual(header.authors, ["Ada Lovelace", "Alan Turing"]);
+  });
+
+  it("returns no low-confidence title for an isolated display label", async () => {
+    const page = writtenPdf([
+      [220, 700, "SYSTEM", 30],
+      [60, 620, "Ordinary body text continues here with enough words to establish its normal font size."],
+      [60, 605, "It has no title block, author row, abstract boundary, or corroborating document title."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, null);
+    assert.deepEqual(header.authors, []);
+  });
+
+  it("removes a source line number merged onto a review manuscript's title", async () => {
+    const page = writtenPdf([
+      [20, 740, "1 Choreographing Effects", 15],
+      [20, 720, "2", 7],
+      [45, 712, "The abstract begins without a heading and fills the width of the manuscript."],
+      [20, 700, "3", 7],
+      [45, 692, "Its next line establishes the ordinary body font size for title scoring."],
+      [20, 680, "4", 7],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Choreographing Effects");
   });
 
 });

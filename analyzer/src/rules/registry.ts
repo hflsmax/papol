@@ -737,8 +737,8 @@ export const CITE_LABEL = rule({
 
 export const HEADER_TITLE = rule({
   id: "header.title", stage: "header",
-  summary: "The title is the largest text in the top two thirds of the first page, larger than the body, with the lines set in that size directly under it.",
-  why: "Every publisher sets the title as the page's largest words; a CHORUS or arXiv cover line above it is set smaller.",
+  summary: "The title is the strongest block before the abstract, scored by type, position, text shape, nearby authors and agreement with document metadata.",
+  why: "Publishers emphasize titles, but logos, diagrams and drop caps can be larger; the surrounding title block distinguishes them.",
 });
 export const HEADER_NOT_TITLE = rule({
   id: "header.not-title", stage: "header",

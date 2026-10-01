@@ -17,7 +17,8 @@ type Truth = { sha256: string; title: string | null; authors: string[]; journal:
 const [dir, only = ""] = process.argv.slice(2);
 const truth: Truth[] = JSON.parse(fs.readFileSync(path.join(dir, "truth.json"), "utf8"));
 
-const words = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const words = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+  .replace(/^(?:a|an|the)\s+/, "");
 const surname = (name: string) => normalizeName(name.trim().split(/\s+/).pop() ?? "");
 function titleScore(got: string | null, want: string): number {
   if (!got) return 0;
