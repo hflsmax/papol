@@ -460,7 +460,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
                 maxLength={254}
                 required
               />
-              <p className="field-hint">Use this address the next time you sign in.</p>
             </div>
 
             <div className="form-group">
