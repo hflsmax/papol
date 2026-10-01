@@ -1,4 +1,5 @@
 import { BACKEND_BASE } from './appUrls.js';
+import { DESKTOP_VERSION } from './appEnvironment.js';
 
 export function diagnosticText(value) {
   return String(value || 'Unknown error')
@@ -7,9 +8,10 @@ export function diagnosticText(value) {
     .slice(0, 2400);
 }
 
-// Where the report came from, the same three lines in every report.
+// Where the report came from, the same lines in every report.
 export function environmentLines(environment = {}) {
   return [
+    `Papol version: ${environment.version || DESKTOP_VERSION || 'unknown'}`,
     `Backend: ${BACKEND_BASE || 'not configured'}`,
     `Surface: ${environment.surface || 'desk'}`,
     `Platform: ${environment.platform || 'unknown'}`,
