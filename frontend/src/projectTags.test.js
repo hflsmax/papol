@@ -28,9 +28,8 @@ test('paper rows show tags while editing belongs to the open brief', () => {
   assert.match(brief, /{tags && <div className="paper-brief-tags">{tags}<\/div>}/);
 });
 
-test('the shared vocabulary filters papers and only a keeper can delete from it', () => {
+test('the shared vocabulary filters papers without deleting tags from the papers view', () => {
   assert.match(papers, /project\.papers\.filter\(\(paper\) => paper\.tags\?\.some\(\(item\) => item\.uuid === tag\)\)/);
   assert.match(papers, /aria-label="Filter papers by project tag"/);
-  assert.match(papers, /project\.is_keeper && \(/);
-  assert.match(papers, /deleteProjectTag\(project\.uuid, item\.uuid\)/);
+  assert.doesNotMatch(papers, /deleteProjectTag|project-tag-delete/);
 });

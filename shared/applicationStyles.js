@@ -5231,16 +5231,11 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-facts { display: contents; }
 .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.project-tag-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-2); padding: 0 var(--space-3); }
-.project-tag-filters > button, .project-tag-filter > button { min-height: 26px; padding: 2px 8px; border: 1px solid transparent; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
+.project-tag-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin: 0 0 var(--space-2); padding: 0 var(--space-3); }
+.project-tag-filters > button { min-height: 22px; padding: 1px 7px; border: 1px solid transparent; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-2xs) var(--font-ui); }
 .project-tag-filters button:hover, .project-tag-filters button:focus-visible { border-color: var(--line); background: var(--card); color: var(--accent); }
 .project-tag-filters button.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
-.project-tag-filter { display: inline-flex; align-items: center; border-radius: var(--radius-pill); }
-.project-tag-filter > .project-tag-delete { width: 22px; min-height: 22px; margin-left: -6px; padding: 0; color: var(--ink-faint); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
-.project-tag-filter:hover > .project-tag-delete, .project-tag-filter:focus-within > .project-tag-delete { opacity: 1; }
-.project-tag-filter > .project-tag-delete:hover, .project-tag-filter > .project-tag-delete:focus-visible { border-color: transparent; background: var(--red-soft); color: var(--red); }
 .project-tags-none { margin: var(--space-5) var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
-.project-tag-filter-error { margin: 0 var(--space-3) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
 .project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
 .project-paper-tag-list { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
 .project-paper-tags > .project-paper-tag-list { margin-top: 0; }
@@ -5262,9 +5257,6 @@ button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper
 .project-tag-options .project-tag-create { color: var(--accent); }
 .project-tag-error { flex-basis: 100%; color: var(--red); font: var(--fs-2xs) var(--font-ui); }
 .paper-brief-tags .project-paper-tags { margin-top: var(--space-1); }
-@media (hover: none) {
-  .project-tag-filter > .project-tag-delete { opacity: 1; }
-}
 @container (max-width: 1099px) {
   .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */
@@ -5351,7 +5343,10 @@ ${talkStyles}
 
 /* The Papers tab: the list, and the picked paper's brief beside it on a
    wide window, laid out as the Digs tab lays out a dig. */
-.project-papers-view.is-wide { display: grid; grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
+.project-papers-view.is-wide { display: grid; grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr); grid-template-areas: 'filters filters' 'list panel'; column-gap: var(--space-6); align-items: start; }
+.project-papers-view.is-wide > .project-tag-filters { grid-area: filters; }
+.project-papers-view.is-wide > .project-papers-list { grid-area: list; }
+.project-papers-view.is-wide > .project-papers-panel { grid-area: panel; }
 .project-papers-list { min-width: 0; }
 /* The list reads its own width, so its rows fold as they do on a phone. */
 .project-papers-view.is-wide .project-papers { container-type: inline-size; }
