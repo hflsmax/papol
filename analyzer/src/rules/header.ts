@@ -179,7 +179,11 @@ function titleOf(lines: Line[], body: number, height: number): Line[] {
     const above = lines[lines.indexOf(l) - 1];
     return !!above && allNames(above) && Math.abs(above.size - l.size) < 0.05 * l.size;
   };
-  const candidates = lines.filter((l) => l.top < height * 0.7 && letters(l.text) >= 3 && !HEADER_NOT_TITLE.pattern!.test(l.text) && !allNames(l) && !underNames(l));
+  // Judge the visible baseline text after stripping scripts. Drop caps and
+  // other decorated initials can otherwise look like enormous title lines:
+  // e.g. an introduction beginning with R + superscript "ECENT" cleans to
+  // just "R", but its uncleaned text used to outrank the paper's title.
+  const candidates = lines.filter((l) => l.top < height * 0.7 && letters(clean(l)) >= 3 && !HEADER_NOT_TITLE.pattern!.test(l.text) && !allNames(l) && !underNames(l));
   const largest = Math.max(0, ...candidates.map((l) => l.size));
   if (largest < body * 1.1) return [];
   const same = (l: Line) => Math.abs(l.size - largest) <= 0.05 * largest;

@@ -61,6 +61,21 @@ describe("the title block", () => {
     }
   });
 
+  it("ignores a large drop cap whose remaining letters are superscript", async () => {
+    const page = writtenPdf([
+      [250, 740, "RipTide", 24],
+      [50, 708, "A programmable, energy-minimal dataflow compiler and architecture", 18],
+      [50, 675, "Graham Gobieski, Souradip Ghosh and Marijn Heule", 10],
+      [50, 640, "Abstract", 10],
+      // TeX-style drop cap: only the R is on the baseline. The rest of the
+      // word is raised and must not make this look like a 26-point title.
+      "BT /F1 26 Tf 50 300 Td (R) Tj /F1 10 Tf 7 Ts (ECENT) Tj ET",
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "RipTide: A programmable, energy-minimal dataflow compiler and architecture");
+    assert.deepEqual(header.authors, ["Graham Gobieski", "Souradip Ghosh", "Marijn Heule"]);
+  });
+
 });
 
 // PACMPL's first page, as acmart sets it: the venue is only in the
