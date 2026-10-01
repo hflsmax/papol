@@ -270,7 +270,7 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
             )}
             {view === 'boards' && (
               <ProjectBoards
-                project={project} board={board} act={act} hasNews={hasNews} currentUser={currentUser}
+                project={project} board={board} act={act} hasNews={hasNews}
                 onOpenBoard={onOpenBoard} onOpenCanvas={onOpenCanvas} onChanged={talked}
               />
             )}
@@ -709,13 +709,13 @@ function useWide(query = '(min-width: 1000px)') {
 }
 
 // The project's boards, which every member arranges, as a list read like
-// the papers: each board by its name and description, then who last put
-// something there. A board picked here opens its jacket beside the list on a
-// wide window, under its row on a narrow one, and has the address of its
+// the papers: each board by its name and description. A board picked here
+// opens its jacket beside the list on a wide window, under its row on a
+// narrow one, and has the address of its
 // own; the canvas is the jacket's way in. On a wide window there is always
 // a jacket beside the list: the one picked, else the first new board,
 // else the latest. The last row makes one more.
-function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard, onOpenCanvas, onChanged }) {
+function ProjectBoards({ project, board, act, hasNews, onOpenBoard, onOpenCanvas, onChanged }) {
   const wide = useWide();
   const boards = project.boards ?? [];
   const chosen = boards.find((b) => b.uuid === board)
@@ -723,7 +723,6 @@ function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard,
   // Moving from one board to the next replaces the address, so Back
   // leaves the tab rather than walking through every board looked at.
   const pick = (uuid) => onOpenBoard(uuid, board ? { replace: true } : undefined);
-  const isMe = (user) => user.uuid === currentUser?.uuid;
   const jacket = (b) => (
     <BoardJacket
       key={b.uuid}
@@ -751,8 +750,6 @@ function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard,
           const selected = chosen?.uuid === b.uuid;
           // A narrow window folds the jacket away again on a second press.
           const choose = () => (selected && !wide ? onOpenBoard(null, { replace: true }) : pick(b.uuid));
-          const latest = b.latest_card;
-          const who = latest ? latest.added_by : b.owner;
           return (
             <React.Fragment key={b.uuid}>
               <li
@@ -772,12 +769,6 @@ function ProjectBoards({ project, board, act, hasNews, currentUser, onOpenBoard,
                   </h4>
                   {b.description && <p className="project-card-authors project-board-description">{b.description}</p>}
                 </div>
-                <span className="project-row-facts">
-                  <span className="project-card-added">
-                    {who && <>{isMe(who) ? 'You' : firstName(who)} {latest ? 'added' : 'made it'} · </>}
-                    {when(latest ? latest.added_at : b.created_at ?? b.updated_at)}
-                  </span>
-                </span>
                 <span className="project-row-end">
                   {(b.is_new || hasNews((subject) => subject.board_uuid === b.uuid)) && <NewsDot />}
                 </span>

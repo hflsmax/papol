@@ -16,8 +16,7 @@ test('boards are rows with a pane, as papers are', () => {
 
 test('a row says what the board is for, not what its newest card holds', () => {
   assert.match(boards, /b\.description && <p className="project-card-authors project-board-description">\{b\.description\}<\/p>/);
-  assert.doesNotMatch(boards, /latest\?\.text/);
-  assert.match(boards, /\{isMe\(who\) \? 'You' : firstName\(who\)\} \{latest \? 'added' : 'made it'\}/);
+  assert.doesNotMatch(boards, /latest_card|project-card-added|firstName|when\(/);
 });
 
 test('moving between boards replaces the address, so Back leaves the tab', () => {
