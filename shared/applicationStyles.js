@@ -5241,14 +5241,14 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-tag-filter > .project-tag-delete:hover, .project-tag-filter > .project-tag-delete:focus-visible { border-color: transparent; background: var(--red-soft); color: var(--red); }
 .project-tags-none { margin: var(--space-5) var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
 .project-tag-filter-error { margin: 0 var(--space-3) var(--space-2); color: var(--red); font: var(--fs-xs) var(--font-ui); }
-.project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
-.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.project-paper-tags { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
+.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-top: 4px; }
 .project-paper-tags > .project-paper-tag-list { margin-top: 0; }
-.project-paper-tag { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 22px; padding: 1px 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/1 var(--font-ui); }
-.project-tag-edit { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 22px; padding: 1px 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs)/1 var(--font-ui); }
+.project-paper-tag { display: inline-flex; align-items: baseline; justify-content: center; box-sizing: border-box; height: 22px; padding: 0 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs)/20px var(--font-ui); }
+.project-tag-edit { display: inline-flex; align-items: baseline; justify-content: center; box-sizing: border-box; height: 22px; min-height: 0; padding: 0 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs)/20px var(--font-ui); }
 .project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible { border: 0; background: transparent; color: var(--accent); }
 button.project-paper-tag.is-removable { gap: 4px; box-shadow: none; }
-.project-paper-tag-label, .project-paper-tag-remove { display: inline-flex; align-items: center; line-height: 1; transform: translateY(-1px); }
+.project-paper-tag-label, .project-paper-tag-remove { display: inline-block; line-height: 20px; }
 button.project-paper-tag.is-removable .project-paper-tag-remove { color: var(--ink-faint); }
 button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .project-tag-picker { position: relative; flex: 1 1 12rem; max-width: 18rem; }
