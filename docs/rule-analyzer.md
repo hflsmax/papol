@@ -146,8 +146,9 @@ no identifier, or one no index knows (`cloudflare/src/papers/extract.ts`).
   relative to the body, page position, title-like text, nearby authors,
   subtitle shape, line breadth and agreement with plausible PDF metadata;
   banners, notices, names, affiliations and Elsevier mastheads are excluded,
-  and a low-confidence page falls back to the running head of later pages or
-  plausible PDF metadata rather than inventing a title;
+  a title page may follow a cover leaf, and a low-confidence document falls
+  back to the running head of later pages or plausible PDF metadata rather
+  than inventing a title;
 - the authors are the names under it before the abstract, split at commas,
   "and", affiliation marks and wide gaps, an affiliation ending its line;
   TeX's detached accents are put back on their letters; an IOP cover
@@ -185,8 +186,9 @@ beside the published one's. The journal matters least: it is kept only
 when no index knows the paper.
 
 Re-measured on 2026-10-01 over the 63-paper production corpus after title
-blocks became scored hypotheses: title 62/63, authors 53/60, year 40/44,
+blocks became scored hypotheses: title 63/63, authors 57/60, year 40/44,
 DOI 46/48 and journal 13/55. The preceding largest-font selector read
-61/63 titles under the same comparison. The remaining title miss is a
-scanned book cover whose text layer contains its back cover rather than a
-paper-style title block.
+61/63 titles and 53/60 author lists under the same comparison. Of the three
+remaining author differences, one PDF prints an author absent from its
+catalogue row, one catalogue row names an author absent from the PDF, and
+one scan exposes no author text to the parser.

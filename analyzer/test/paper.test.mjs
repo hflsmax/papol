@@ -22,14 +22,18 @@ const { analyzeWithRules, headerWithRules } = await import(pathToFileURL(out).hr
 // bibliography of three entries (fewer is not taken for a bibliography).
 // A string instead of a line is drawing operators, put in as they are; a
 // fifth item "italic" sets the line in Helvetica-Oblique.
-function writtenPdf(lines) {
-  const content = lines.map((line) => (typeof line === "string" ? line
-    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
+function writtenPdf(lines) { return writtenPdfPages([lines]); }
+
+function writtenPdfPages(pages) {
+  const contents = pages.map((lines) => lines.map((line) => (typeof line === "string" ? line
+    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n"));
+  const firstContent = 3 + pages.length;
+  const firstFont = firstContent + pages.length;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    ...pages.map((_, i) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents ${firstContent + i} 0 R /Resources << /Font << /F1 ${firstFont} 0 R /F2 ${firstFont + 1} 0 R >> >> >>`),
+    ...contents.map((content) => `<< /Length ${content.length} >>\nstream\n${content}\nendstream`),
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>",
   ];
@@ -112,6 +116,24 @@ describe("the title block", () => {
     ]);
     const { header } = await headerWithRules(page);
     assert.equal(header.title, "Choreographing Effects");
+  });
+
+  it("finds a title page after a cover and joins quirky author names", async () => {
+    const pdf = writtenPdfPages([
+      [[60, 700, "A publisher cover leaf with ordinary descriptive copy and no title block."]],
+      [[60, 700, "This page intentionally left blank."]],
+      [
+        [70, 680, "Geometric Folding", 28],
+        [70, 645, "Algorithms", 28],
+        [70, 585, "Linkages, Origami, Polyhedra", 18],
+        [70, 530, "Xiaoyu (Rayne) Zheng, and Michael Kirkedal", 11],
+        [250, 512, "Thomsen", 11],
+        [70, 485, "Example University, Denmark", 9],
+      ],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "Geometric Folding Algorithms: Linkages, Origami, Polyhedra");
+    assert.deepEqual(header.authors, ["Xiaoyu Zheng", "Michael Kirkedal Thomsen"]);
   });
 
 });
