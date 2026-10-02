@@ -2125,8 +2125,8 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
         ? <DesktopNav desk={{ onClick: focusDesktopDeskWindow, label: 'Open Desk' }} />
         : <BackLink
             className="board-home"
-            href={homeHref()}
-            onBack={onHome}
+            href={homeHref(board)}
+            onBack={() => onHome(board)}
             aria-label="Papol home"
             title="Papol home"
           >
