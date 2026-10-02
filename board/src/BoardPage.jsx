@@ -496,10 +496,21 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       }).filter(Boolean));
       scheduleCompact();
     };
-    const frame = requestAnimationFrame(measure);
-    const observer = new ResizeObserver(measure);
+    let frame = null;
+    const scheduleMeasure = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    scheduleMeasure();
+    const observer = new ResizeObserver(scheduleMeasure);
     stageRef.current.querySelectorAll('.board-canvas-card').forEach((element) => observer.observe(element));
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); if (reflowTimer != null) clearTimeout(reflowTimer); };
+    return () => {
+      if (frame != null) cancelAnimationFrame(frame);
+      observer.disconnect();
+      if (reflowTimer != null) clearTimeout(reflowTimer);
+    };
   }, [bookletKey, imageUuids, board?.items]);
 
   const paintView = (next) => {

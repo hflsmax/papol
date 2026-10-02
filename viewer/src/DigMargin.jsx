@@ -79,10 +79,15 @@ export default function DigMargin({
   // faces already move with their page; this only settles which give way.
   useLayoutEffect(() => {
     place();
-    const observer = new ResizeObserver(() => {
-      place();
-      if (Date.now() < revealUntil.current) card.current?.scrollIntoView({ block: 'nearest' });
-    });
+    let frame = null;
+    const schedulePlace = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        place();
+        if (Date.now() < revealUntil.current) card.current?.scrollIntoView({ block: 'nearest' });
+      });
+    };
+    const observer = new ResizeObserver(schedulePlace);
     elements.current.forEach((el) => observer.observe(el));
     if (card.current) observer.observe(card.current);
     const scroller = scrollerRef.current;
@@ -90,7 +95,10 @@ export default function DigMargin({
       observer.observe(scroller);
       scroller.querySelectorAll('.pdf-page').forEach((el) => observer.observe(el));
     }
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame != null) cancelAnimationFrame(frame);
+    };
   }, [place, layoutKey, open?.key, open?.dig]);
 
   // Opened from the margin or a pin, a dig near the foot of the window
