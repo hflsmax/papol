@@ -243,10 +243,24 @@ function useWidth(ref) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    let frame = null;
+    const measure = () => setWidth((was) => {
+      const next = el.clientWidth;
+      return was === next ? was : next;
+    });
+    const scheduleMeasure = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(el);
-    setWidth(el.clientWidth);
-    return () => observer.disconnect();
+    measure();
+    return () => {
+      observer.disconnect();
+      if (frame != null) cancelAnimationFrame(frame);
+    };
   }, [ref.current]); // eslint-disable-line react-hooks/exhaustive-deps
   return width;
 }

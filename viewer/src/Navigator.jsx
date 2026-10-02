@@ -262,10 +262,20 @@ export default function Navigator({
     const root = rootRef.current;
     if (!shown || !root) return undefined;
     const measure = () => setWidth(Math.round(root.getBoundingClientRect().width));
-    const resized = new ResizeObserver(measure);
+    let frame = null;
+    const scheduleMeasure = () => {
+      if (!frame) frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    const resized = new ResizeObserver(scheduleMeasure);
     resized.observe(root);
     measure();
-    return () => resized.disconnect();
+    return () => {
+      resized.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [shown]);
 
   // The bar's scale. Sections are drawn by their evened lengths over a
