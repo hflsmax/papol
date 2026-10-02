@@ -25,6 +25,19 @@ try {
     { timeout: 60_000, what: 'the margin faces' });
   await browser.evaluate("document.querySelectorAll('.dig-margin-face')[2].click(); return true;");
   await browser.waitFor("document.querySelector('.dig-margin-card .talk-post')", { what: 'the dig to open' });
+  // ResizeObserver placement is deliberately committed on the next animation
+  // frame, outside the browser's resize-delivery phase. Wait for that frame's
+  // stacking decision before checking what is under the pointer.
+  await browser.waitFor(`
+    (() => {
+      const sheet = document.querySelector('.dig-margin-card .talk-card');
+      if (!sheet) return false;
+      const box = sheet.getBoundingClientRect();
+      return sheet.contains(document.elementFromPoint(
+        box.left + box.width / 2, box.top + box.height / 2
+      ));
+    })()
+  `, { what: 'the opened dig to settle over its page' });
   const card = await browser.evaluate(`
     const shell = document.querySelector('.dig-margin-card');
     const sheet = shell.querySelector('.talk-card');
