@@ -22,6 +22,7 @@ import Avatar from './Avatar';
 import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { paperName } from '../../../shared/paperName.js';
 import PaperBrief from './PaperBrief';
 import BoardJacket from './BoardJacket';
 import { keep, kept } from '../lastMember';
@@ -55,7 +56,7 @@ export function Faces({ users, max = 4 }) {
 
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
-export default function ProjectPage({ projectUuid, board = null, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard, onOpenCanvas }) {
+export default function ProjectPage({ projectUuid, board = null, paper = null, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard, onOpenPaper, onOpenCanvas }) {
   const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -66,12 +67,16 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const [chosenView, chooseView] = useView(projectUuid);
   // A board's jacket opens in the Boards tab; another tab leaves it for
   // the project's own address.
-  const view = board ? 'boards' : chosenView;
+  const view = board ? 'boards' : paper ? 'papers' : chosenView;
   const setView = (next) => {
     chooseView(next);
     if (board && next !== 'boards') onOpenBoard(null, { replace: true });
+    if (paper && next !== 'papers') onOpenPaper(null, { replace: true });
   };
   const [picked, pick] = usePicked(projectUuid);
+  const focusedPaper = paper
+    ? project?.papers?.find((candidate) => paperName(candidate.sha256) === paper)?.sha256 ?? paper
+    : picked;
   const show = useCallback((next) => next, []);
 
   const load = useCallback(() => {
@@ -131,7 +136,11 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   // How a dig card or a brief tells the page it changed something.
   const reload = () => getProject(project.uuid).then((next) => setProject(show(next)));
   const talked = () => { reload().catch(() => {}); };
-  const openPaper = (sha256) => { pick(sha256); setView('papers'); };
+  const openPaper = (sha256) => {
+    pick(sha256);
+    chooseView('papers');
+    onOpenPaper?.(sha256);
+  };
   // Anything new in the project, a new paper or a dig someone else moved
   // on, is the one news dot on whatever it concerns.
   const readItem = async (kind, item, through) => {
@@ -301,11 +310,12 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
                 project={project}
                 hasNews={hasNews}
                 currentUser={currentUser}
-                picked={picked}
+                picked={focusedPaper}
                 onPick={(sha256) => {
                   pick(sha256);
-                  const paper = project.papers.find((x) => x.sha256 === sha256);
-                  if (paper?.is_new) void readItem('paper', sha256, paper.news_through);
+                  if (paper) onOpenPaper(sha256, { replace: true });
+                  const selectedPaper = project.papers.find((x) => x.sha256 === sha256);
+                  if (selectedPaper?.is_new) void readItem('paper', sha256, selectedPaper.news_through);
                 }}
                 onChanged={reload}
                 onRead={onRead}

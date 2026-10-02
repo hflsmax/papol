@@ -52,6 +52,15 @@ export function boardJacketPath(uuid) {
   return appPath(`/board/${uuid}`);
 }
 
+// Project work returns to the project's desk with the item still selected.
+export function projectBoardPath(projectUuid, boardUuid) {
+  return appPath(`/project/${projectUuid}/board/${boardUuid}`);
+}
+
+export function projectPaperPath(projectUuid, paper) {
+  return appPath(`/project/${projectUuid}/paper/${paper}`);
+}
+
 export function stripAppBase(value) {
   if (!APP_BASE) return value || '/';
   if (value === APP_BASE) return '/';

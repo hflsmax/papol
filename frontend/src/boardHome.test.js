@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardJacketPath, homePath } from '../../shared/appUrls.js';
+import { boardJacketPath, homePath, projectBoardPath, projectPaperPath } from '../../shared/appUrls.js';
 
 const BOARD = '11111111-1111-4111-8111-111111111111';
 
@@ -13,4 +13,10 @@ test('the house leads out of the board and onto its jacket', () => {
 
 test('with no board to name, the house leads to Papol itself', () => {
   assert.equal(homePath(), '/');
+});
+
+test('project items return to their focused rows in the project', () => {
+  const PROJECT = '22222222-2222-4222-8222-222222222222';
+  assert.equal(projectBoardPath(PROJECT, BOARD), `/project/${PROJECT}/board/${BOARD}`);
+  assert.equal(projectPaperPath(PROJECT, 'abc123'), `/project/${PROJECT}/paper/abc123`);
 });

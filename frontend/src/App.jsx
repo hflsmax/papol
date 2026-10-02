@@ -135,6 +135,9 @@ function openBoard(uuid) {
 const openProjectBoard = (projectUuid) => (boardUuid, options) => {
   navigate(boardUuid ? `/project/${projectUuid}/board/${boardUuid}` : `/project/${projectUuid}`, options);
 };
+const openProjectPaper = (projectUuid) => (paper, options) => {
+  navigate(paper ? `/project/${projectUuid}/paper/${paperName(paper)}` : `/project/${projectUuid}`, options);
+};
 
 // Paths served by the board canvas and the PDF viewer, not by this app.
 const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
@@ -901,12 +904,14 @@ export default function App({ startupUser = null, startupError = null }) {
           key={route.uuid}
           projectUuid={route.uuid}
           board={route.board ?? null}
+          paper={route.paper ?? null}
           currentUser={user}
           onBack={goBack}
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
           onOpenBoard={openProjectBoard(route.uuid)}
+          onOpenPaper={openProjectPaper(route.uuid)}
           onOpenCanvas={openBoardCanvas}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
         />
