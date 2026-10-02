@@ -5,7 +5,7 @@ import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
 import { closeDesktopDocumentWindow } from '../../shared/desktopShell.js';
-import { boardJacketPath, homePath, projectBoardPath } from '../../shared/appUrls.js';
+import { boardHomePath } from '../../shared/appUrls.js';
 
 function route() {
   const match = window.location.pathname.match(/\/boards\/([^/]+)\/?$/);
@@ -22,13 +22,9 @@ function route() {
  * link or a file opened from disk. A board always has one, because opening
  * its canvas already asked who you are.
  */
-const papolHome = (uuid, project) => (project?.uuid
-  ? projectBoardPath(project.uuid, uuid)
-  : uuid ? boardJacketPath(uuid) : homePath());
-
 function goHome(uuid, project) {
   if (closeDesktopDocumentWindow()) return;
-  window.location.assign(papolHome(uuid, project));
+  window.location.assign(boardHomePath(uuid, project));
 }
 
 export default function App() {
@@ -48,7 +44,7 @@ export default function App() {
       ? <BoardPage
           boardUuid={boardUuid}
           onHome={(board) => goHome(boardUuid, board?.project)}
-          homeHref={(board) => papolHome(boardUuid, board?.project)}
+          homeHref={(board) => boardHomePath(boardUuid, board?.project)}
         />
       : <main className="empty-state"><h1>No board given</h1><p>Open a board from Papol.</p></main>}
   </>;

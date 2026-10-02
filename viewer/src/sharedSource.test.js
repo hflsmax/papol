@@ -4,6 +4,7 @@ import test from 'node:test';
 const SHARE = 'k3M9x2P7q4';
 const HASH = 'b'.repeat(64);
 const PAPER = '44444444-4444-4444-8444-444444444444';
+const PROJECT = '22222222-2222-4222-8222-222222222222';
 
 const reading = {
   uuid: SHARE,
@@ -71,6 +72,11 @@ global.fetch = async (url, options = {}) => {
   }
   if (path === `/api/viewer/${HASH}/lean`) {
     return new Response(JSON.stringify({ ...reading, uuid: null, kind: 'lean', user: null, annotations: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (path === `/api/viewer/${HASH}`) {
+    return new Response(JSON.stringify(reading.paper), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -313,6 +319,20 @@ test('a paper’s own address asks a signed-in user’s nook first, and falls ba
       const added = await lean.addToNook();
       assert.deepEqual(pathsAsked(), [`/api/papers/${HASH.slice(0, 32)}/add-to-nook`]);
       assert.equal(lean.nookHref(added), `/viewer/?pdf=${HASH}`);
+    });
+  } finally {
+    await signedOut();
+  }
+});
+
+test('a project paper returns home to its focused brief in the project', async () => {
+  await signedInAs('a-session-token');
+  try {
+    await at(`http://127.0.0.1/viewer/?pdf=${HASH}&project=${PROJECT}`, async () => {
+      const source = resolveSource();
+      assert.equal(source.homeHref, '/');
+      await source.load();
+      assert.equal(source.homeHref, `/project/${PROJECT}/paper/${HASH.slice(0, 32)}`);
     });
   } finally {
     await signedOut();

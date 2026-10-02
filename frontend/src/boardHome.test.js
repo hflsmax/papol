@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardJacketPath, homePath, projectBoardPath, projectPaperPath } from '../../shared/appUrls.js';
+import { boardHomePath, boardJacketPath, homePath, projectBoardPath, projectPaperPath } from '../../shared/appUrls.js';
 
 const BOARD = '11111111-1111-4111-8111-111111111111';
 
@@ -19,4 +19,10 @@ test('project items return to their focused rows in the project', () => {
   const PROJECT = '22222222-2222-4222-8222-222222222222';
   assert.equal(projectBoardPath(PROJECT, BOARD), `/project/${PROJECT}/board/${BOARD}`);
   assert.equal(projectPaperPath(PROJECT, 'abc123'), `/project/${PROJECT}/paper/abc123`);
+});
+
+test('a board canvas returns home through its project when it belongs to one', () => {
+  const PROJECT = '22222222-2222-4222-8222-222222222222';
+  assert.equal(boardHomePath(BOARD, { uuid: PROJECT }), `/project/${PROJECT}/board/${BOARD}`);
+  assert.equal(boardHomePath(BOARD), `/board/${BOARD}`);
 });

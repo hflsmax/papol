@@ -61,6 +61,11 @@ export function projectPaperPath(projectUuid, paper) {
   return appPath(`/project/${projectUuid}/paper/${paper}`);
 }
 
+export function boardHomePath(boardUuid, project = null) {
+  if (project?.uuid) return projectBoardPath(project.uuid, boardUuid);
+  return boardUuid ? boardJacketPath(boardUuid) : homePath();
+}
+
 export function stripAppBase(value) {
   if (!APP_BASE) return value || '/';
   if (value === APP_BASE) return '/';
