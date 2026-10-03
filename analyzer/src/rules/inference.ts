@@ -1052,7 +1052,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // wider than any of them).
   const paper = type.columns.find((c) => c.x0 <= centre && centre <= c.x1) ?? type.text;
   const spanned = columnSpan(page, label);
-  const column: [number, number] = spanned ? [Math.min(spanned[0], paper.x0), Math.max(spanned[1], paper.x1)] : [paper.x0, paper.x1];
+  // A table's rules, three or more as long and set from one edge, are no
+  // figure's formulas: in a table the column is its lines' (TypeWhich's
+  // Fig. 17, a rule across it under each benchmark's rows).
+  const ruled = page.drawn.filter((d) => across(d) && d.w >= 0.6 * (paper.x1 - paper.x0));
+  const table = ruled.some((d) => ruled.filter((o) => Math.abs(o.x - d.x) <= 1 && Math.abs(o.w - d.w) <= 1).length >= 3);
+  const column: [number, number] = spanned && table ? spanned : spanned ? [Math.min(spanned[0], paper.x0), Math.max(spanned[1], paper.x1)] : [paper.x0, paper.x1];
   const measure = column[1] - column[0];
   const wide = BAR_SHARE * measure;
   const widest = measure + 3 * label.size;
@@ -1331,10 +1336,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // Under the label's row, beside the label's own column, stand
   // numerals, a row's heading at most to their left: the row heads a
   // table's columns ("MLKit" over its timings, "Program/Compiler" over
-  // counts), however its cells are ruled. Numerals in the page's margin,
-  // outside the text, number its lines (a review copy's, "1846" by Fld-2).
-  const margin = (l: Line) => l.x1 <= type.text.x0 || l.x0 >= type.text.x1;
-  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1) && !margin(l) && l.x1 > colLeft - slack && l.x0 < colRight + slack);
+  // counts), however its cells are ruled. A review copy's line numbers,
+  // outside the text column, are no cells ("446" left of Base-Trans,
+  // "1846" and "1847" left of FLD-2's row).
+  const cells = lines.filter((l) => l.top >= label.bottom - 1 && l.top <= label.bottom + 1.5 * type.leading && sameColumn(page, l, label) && (l.x1 <= label.x0 || l.x0 >= label.x1) && l.x1 > colLeft - slack && l.x0 < colRight + slack);
   const figures = cells.filter((l) => NUMERALS.test(l.text));
   if (token.side === "whole" && figures.length >= 2 && cells.every((l) => figures.includes(l) || figures.every((f) => l.x1 <= f.x0))) return { category: "cell", bar: null, row, side: "over" };
   // A bar with a label of its own set beside it (SSub_Refine) is that
@@ -3677,9 +3682,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // ("Typing" over FT-PRIM's).
   const alike = new Map<string, number>();
   for (const c of candidates) alike.set(c.convention, (alike.get(c.convention) ?? 0) + 1);
+  // The name stands hard by that bar, nothing between: one a formula
+  // apart heads its own axiom (INV-ALLOC left of "𝐼 ⇛ …", INV over the bar).
+  const hard = (o: Candidate, bar: Drawn) => (o.line.x0 >= bar.x + bar.w - o.line.size && o.line.x0 - bar.x - bar.w <= 2 * o.line.size)
+    || (o.line.x1 <= bar.x + o.line.size && bar.x - o.line.x1 <= 2 * o.line.size);
   const heading = (c: Candidate) => weak(c) && c.setting.category === "over" && Boolean(c.setting.bar)
     && candidates.some((o) => o !== c && (!weak(o) || alike.get(o.convention)! >= Math.max(3, 3 * alike.get(c.convention)!))
-      && o.setting.bar === c.setting.bar && ((o.setting.category === "over" && o.line.top > c.line.top) || (o.setting.category === "beside" && !weak(o) && (o.line.x0 >= c.setting.bar!.x + c.setting.bar!.w - o.line.size || o.line.x1 <= c.setting.bar!.x + o.line.size))));
+      && o.setting.bar === c.setting.bar && ((o.setting.category === "over" && o.line.top > c.line.top) || (o.setting.category === "beside" && !weak(o) && hard(o, c.setting.bar!))));
   for (const c of candidates) if (heading(c)) trace.add(RULE_HEADING.id, c.page.number, `${c.token.text} heading`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !heading(c));
   // Capitalised words over a bar name its rule only where two more labels
