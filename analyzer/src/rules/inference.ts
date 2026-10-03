@@ -784,8 +784,11 @@ function derivation(page: Page, bar: Drawn, lines: Line[], type: Type, slack: nu
 // table's rule has running text under it, or the next row's labels; a
 // figure's closing rule its caption, which concludes nothing (Fig. 13
 // under SV-CS in CISL, Fig. 6 under T-FO's bar in Px86).
+// A formula set in the text's face concludes all the same, a relation
+// in it and no sentence's words (a hyper-triple "x⃗(1) = x⃗(2) ⊢ wp […] {…}"
+// under the bars of a derivation).
 function concludes(page: Page, d: Drawn, type: Type): boolean {
-  return page.lines.some((l) => !l.furniture && !prose(l, type) && !CAPTION.test(l.text) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
+  return page.lines.some((l) => !l.furniture && !(prose(l, type) && (worded(l) || !RELATION.test(l.text))) && !CAPTION.test(l.text) && tokenOf(l)?.side !== "whole" && l.baseline > d.y + 1 && l.baseline <= d.y + 1.2 * type.leading && l.x0 < d.x + d.w && l.x1 > d.x);
 }
 // A line across the text's width with no conclusion centred under it
 // and a good part as wide divides a figure's parts (PLDI-199's Fig. 8
