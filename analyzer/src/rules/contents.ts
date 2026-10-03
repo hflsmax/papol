@@ -116,7 +116,7 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
     // heads a section all the same.
     if (line.furniture || taken.has(line) || listing.has(page.number)) continue;
     if (skip.has(line) && !SECTION_UNNUMBERED_NAME.pattern!.test(text)) continue;
-    if (line.x1 - line.x0 > 0.8 * type.measure) continue;
+    if (line.x1 - line.x0 > type.measure + 1) continue;
     if (inFloat(line, page) || !alone(line, page)) continue;
     candidates.push({ page, line, text });
   }
@@ -132,7 +132,7 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
   const around = /^(?:abstract|summary|acknowledge?ments?|references|bibliography|literature cited|works cited|appendix(?: [A-Z])?|appendices|supplementary (?:material|information)|data availability|code availability|author contributions|competing interests|funding)[.:]?$/i;
   const named: { page: Page; line: Line }[] = [];
   for (const { page, line, text } of candidates) {
-    if (!SECTION_UNNUMBERED_NAME.pattern!.test(text) || !setApart(line)) continue;
+    if (!SECTION_UNNUMBERED_NAME.pattern!.test(text) || !setApart(line) || line.x1 - line.x0 > 0.8 * type.measure) continue;
     if (numberedSections >= 2 && !around.test(text)) continue;
     const title = text.replace(/[.:]$/, "");
     if (titles.has(title.toLowerCase())) continue;
@@ -141,14 +141,20 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
   }
 
   // A paper that numbers none: its other headings are the lines set as the
-  // named ones are, once two of those make the style plain.
+  // named ones are, once the style is plain: two named headings set in it,
+  // or one and two more lines that read as titles — a magazine names only
+  // its "References" and titles the rest ("Maxwell and Szilard"). The style
+  // sets them apart from the text, so a heading may run nearly the width of
+  // its column ("From experiments to applications"), where a named one must
+  // be well short of it.
   if (numberedSections < 2) {
-    const counts = new Map<string, number>();
-    for (const n of named) counts.set(styleOf(n.line), (counts.get(styleOf(n.line)) ?? 0) + 1);
-    const styles = new Set([...counts].filter(([, count]) => count >= 2).map(([style]) => style));
-    for (const { page, line, text } of candidates) {
-      if (taken.has(line) || !styles.has(styleOf(line)) || !setApart(line)) continue;
-      if (!SECTION_UNNUMBERED_STYLE.pattern!.test(text)) continue;
+    const titled = candidates.filter(({ line, text }) => !taken.has(line) && setApart(line) && SECTION_UNNUMBERED_STYLE.pattern!.test(text));
+    const count = (lines: Line[]) => { const c = new Map<string, number>(); for (const l of lines) c.set(styleOf(l), (c.get(styleOf(l)) ?? 0) + 1); return c; };
+    const namedCounts = count(named.map((n) => n.line));
+    const titledCounts = count(titled.map((t) => t.line));
+    const styles = new Set([...namedCounts].filter(([style, n]) => n >= 2 || n + (titledCounts.get(style) ?? 0) >= 3).map(([style]) => style));
+    for (const { page, line, text } of titled) {
+      if (!styles.has(styleOf(line))) continue;
       add(page, line, text.replace(/[.:]$/, ""), SECTION_UNNUMBERED_STYLE.id);
     }
   }

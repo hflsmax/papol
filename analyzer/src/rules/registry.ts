@@ -511,8 +511,8 @@ const NOT_A_HEADING = ["fig", "figure", "table", "tab", "eq", "equation", "theor
   "table of contents", "contents"].map(anyCase).join("|");
 export const SECTION_UNNUMBERED_STYLE = rule({
   id: "section.unnumbered-style", stage: "section",
-  summary: "After section.unnumbered-name, a line alone on its row set in the font and size of at least two headings already found — named ones, or the numbered sections — and reading as a title (a capital, at most twelve words, no closing stop after a sentence), heads an unnumbered section too.",
-  why: "A journal names only some of its sections from a common stock (\"Introduction\", \"Discussion\"); the rest (\"Graphene growth on copper\") share their style, which is the paper's own sign of a heading.",
+  summary: "After section.unnumbered-name, a line alone on its row, no wider than the measure, set in the font and size of the headings already found — two named ones, or one named and two more lines in its style that read as titles — and reading as a title (a capital, at most twelve words, no closing stop after a sentence), heads an unnumbered section too.",
+  why: "A journal names only some of its sections from a common stock (\"Introduction\", \"Discussion\"); the rest (\"Graphene growth on copper\") share their style, which is the paper's own sign of a heading. A magazine may name only its \"References\": Physics Today's \"From Maxwell's demon to Landauer's eraser\" titles every other section (\"Maxwell and Szilard\", \"Dancing with the demon\") and had no contents.",
   pattern: new RegExp(`^(?=\\p{Lu})(?![IVX]{1,5}\\.\\s)(?!(?:${NOT_A_HEADING})\\b)(?!.*[.,;]$)(?:\\S+\\s+){0,11}\\S+$`, "u"),
   matches: ["Graphene growth on copper", "Statement of need", "THE ARCHITECTURE", "Why functional programming matters"],
   rejects: ["Figure 3", "Theorem 2.", "lower-case start of a sentence", "One two three four five six seven eight nine ten eleven twelve thirteen", "4.3 [D1] Discover", "II. METHODS", "Keywords", "General Terms", "It ends as a sentence does."],
