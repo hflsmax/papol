@@ -1077,8 +1077,8 @@
     ]
   },
   "staging": {
-    "rules": 65,
-    "mentions": 112,
+    "rules": 64,
+    "mentions": 113,
     "names": [
       "c-abs",
       "c-app",
@@ -1119,7 +1119,6 @@
       "s-clap-rec",
       "s-cls",
       "s-def",
-      "s-inj-cons",
       "s-inj-cons",
       "s-inj-empty",
       "s-inst",

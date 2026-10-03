@@ -15,7 +15,7 @@ for (const rule of rules) {
   console.log(`${rule.label.padEnd(16)} ${how.padEnd(18)} ${where(rule).padEnd(22)} ${mentions.length} mentions: ${mentions.slice(0, 6).map((m) => `${m.label}@p${m.page}`).join(" ")}`);
 }
 console.log(`${rules.size ?? rules.length} rules, ${analysis.links.filter((l) => byKey.has(l.float)).length} mentions`);
-for (const t of trace.items.filter((t) => ["rule.heading", "rule.cell"].includes(t.rule) || (t.rule === "rule.convention" && t.text.endsWith(" alone")))) console.log(`${t.rule.slice(5).padEnd(10)} p${t.page} ${t.text}`);
+for (const t of trace.items.filter((t) => ["rule.heading", "rule.cell", "rule.clause"].includes(t.rule) || (t.rule === "rule.convention" && t.text.endsWith(" alone")))) console.log(`${t.rule.slice(5).padEnd(10)} p${t.page} ${t.text}`);
 if (process.env.ALL) {
   const named = new Set(trace.items.filter((t) => t.rule.startsWith("rule.name")).map((t) => `${t.page} ${t.text}`));
   const set = new Set(trace.items.filter((t) => t.rule === "rule.setting").map((t) => `${t.page} ${t.text.split(" ")[0]}`));

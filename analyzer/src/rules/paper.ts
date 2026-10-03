@@ -52,7 +52,7 @@ function analyzed(layout: Layout) {
   const sections = findSections(layout, bibliography.lines, floats.values(), trace);
   // A section's heading labels no rule ("D Erasure" over the erasure's
   // equations).
-  const rules = findRules(layout, new Set([...bibliography.lines, ...[...sections.values()].map((s) => s.caption)]), flows, trace);
+  const rules = findRules(layout, new Set([...bibliography.lines, ...[...sections.values()].map((s) => s.caption)]), flows, trace, floats.values());
   const statements = findStatements(layout, bibliography.lines, floats.values(), trace);
   const links = flows.flatMap((flow) => [
     ...findMentions(flow, floats, layout, trace), ...findSectionMentions(flow, sections, layout, trace), ...findRuleMentions(flow, rules, layout, trace),
