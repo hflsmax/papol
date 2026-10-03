@@ -160,7 +160,14 @@ function scriptFills(runs: Placed[], left: number, right: number, baseline: numb
 }
 
 export function buildLines(page: Page): Placed[][] {
-  const runs: Placed[] = page.runs.map((run) => ({ ...run, sup: false, sub: false }));
+  // An accent some fonts set as a period, larger than the letter it dots
+  // and over it (ExoTerra's ẋ and ė: an 11pt "." over 8pt letters), is
+  // no text of a line of its own: it would bridge the gap from a formula
+  // to a label level with it (". (TCTX)") or base the letters under it as
+  // scripts.
+  const dots = new Set(page.runs.filter((d) => d.text.trim() === "." && page.runs.some((r) => r !== d && /\p{L}/u.test(r.text) && d.size >= 1.2 * r.size
+    && d.x + d.width / 2 >= r.x && d.x + d.width / 2 <= r.x + r.width && r.baseline - d.baseline >= 0.3 * r.size && r.baseline - d.baseline <= 1.2 * r.size)));
+  const runs: Placed[] = page.runs.filter((run) => !dots.has(run)).map((run) => ({ ...run, sup: false, sub: false }));
   runs.sort((a, b) => a.baseline - b.baseline || a.x - b.x);
   // First every run on one baseline together, then each baseline cut
   // left to right wherever a gutter or a gap too wide for a word space
