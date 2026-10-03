@@ -358,6 +358,17 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
   const declared = Boolean(headMatch) && text[colonAt] === ":" && /\s/u.test(text[colonAt + 1] ?? "")
     && blankAfter(line, headMatch!.index + headMatch![0].trimEnd().length) > 2 * blankAfter(line, colonAt + 1);
   if (head && headMatch && !declared && (head.colon || blankAfter(line, headMatch.index + headMatch[0].trimEnd().length) >= apart * line.size)) return head;
+  // A hyphenated name heading a judgment, its turnstile a thin blank after
+  // it in a symbol font, labels an axiom set bare as mathpar sets a rule
+  // with no premise beside it (a visualization synthesizer's "Base-Ref ⊢
+  // {𝜈 : 𝜏 | 𝜙} <: 𝜏" and Table-Width): no context is named so. Words
+  // joined by an underscore are a predicate's name ("has_state(𝜎) ⊢ wp …"
+  // stating a theorem, "heap_ctx ⊢ □heap_ctx").
+  if (head && headMatch && !head.bracketed && /^[\p{L}\d]+(?:[-‐‑–][\p{L}\d]+)+$/u.test(head.text)) {
+    const after = headMatch.index + headMatch[0].trimEnd().length;
+    const turnstile = after + (/^\s*/u.exec(text.slice(after))?.[0].length ?? 0);
+    if (/[⊢⊨]/u.test(text[turnstile] ?? "") && line.chars[turnstile]?.run >= 0 && SYMBOLIC.test(line.runs[line.chars[turnstile].run].font) && blankAfter(line, after) >= 0.2 * line.size) return head;
+  }
   // A hyphenated name with a note on it in parentheses making up the rest
   // of the line, words set in the name's face, labels as the name alone
   // does ("HOARE-BIND (INADMISSIBLE IN PRESENCE OF CONTINUATIONS)" over its
@@ -388,7 +399,13 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
   const from = tailMatch ? tailMatch.index + tailMatch[0].length - tailMatch[0].trimStart().length : 0;
   const sized = (i: number) => (line.chars[i]?.run >= 0 ? line.runs[line.chars[i].run] : null);
   const before = line.text.slice(0, from);
-  const resized = Boolean(tail?.bracketed && (before.trim().length < 40 || (RELATION.test(before) && (before.match(/(?<!\p{L})[a-z]{2,}(?!\p{L})/gu) ?? []).length < 2) || (!sentence(before) && RELATION.test(relational(line).text.slice(0, from)))) && sized(from) && Math.abs(sized(from)!.size - line.size) >= 0.5 && Math.abs(sized(from)!.baseline - line.baseline) <= 0.5);
+  // Small capitals faked from two sizes of a text face's capitals set it
+  // apart as well ("(TYINT)", its Y and NT smaller, after Terra's
+  // "P Γ ⊢ cInt : Int").
+  const faked = (at: number) => Boolean(tail && /^\p{Lu}+$/u.test(tail.text) && sized(at) && Math.abs(sized(at)!.baseline - line.baseline) <= 0.5
+    && new Set([...tail.text].map((_, i) => Math.round((sized(tail.start + i)?.size ?? 0) * 2))).size === 2 && !MONO.test(sized(at)!.font) && !SYMBOLIC.test(sized(at)!.font));
+  const resized = Boolean(tail?.bracketed && (before.trim().length < 40 || (RELATION.test(before) && (before.match(/(?<!\p{L})[a-z]{2,}(?!\p{L})/gu) ?? []).length < 2) || (!sentence(before) && RELATION.test(relational(line).text.slice(0, from)))) && sized(from)
+    && ((Math.abs(sized(from)!.size - line.size) >= 0.5 && Math.abs(sized(from)!.baseline - line.baseline) <= 0.5) || faked(from)));
   // So is a name in capitals throughout ending a formula set in the math
   // fonts, in an upright text face of its own: a bar-less axiom's label
   // a thin space after its triple ("C ⊢ {True} i ⇛ v {x. x = v} RET" in
@@ -467,6 +484,7 @@ interface Setting {
   derived?: boolean; // the bar is a step of a derivation, not a rule's definition
   step?: Drawn | null; // the wider bar under it the conclusion leads into: a step, unless that bar has a label
   quantified?: boolean; // at the margin of a row opening with a quantifier: a lemma, unless among rules set so
+  ended?: boolean; // on a line of its own under its formula's end: the rule's last line
 }
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
@@ -809,6 +827,8 @@ const DEFINES = /[≜≝≙]|\bdef\b/u;
 
 // A row ending in its relation, its right side on the lines under it.
 const OPEN = new RegExp(`(?:^|\\s)(?:${RELATION.source})\\s*$`, "u");
+// ... or one run into the term before it ("hb(a, b) =⇒").
+const RUN_OPEN = new RegExp(`(?:${RELATION.source})\\s*$`, "u");
 
 // A relation between two terms, a blank on each side of it: a term on
 // its left, not a list's comma or an opening bracket ("{< 0.1, ≤ 0.8}"
@@ -840,18 +860,18 @@ function related(text: string, token: Token): boolean {
 
 // The relations of the TeX symbol fonts (cmsy and its txfonts, pxfonts
 // and Latin Modern cuts; the AMS msam) that reach the text layer as the
-// letter at their slot: ⊢ as "`", ⊑ as "v", ⇛ as msam's "V" ("Γ, Φ, Ω `
-// bv : bool" under T-Bool, Spirea's "ℓ %p 𝜎 ` ℓ %f 𝜎", GPS's "… V
-// UsedUP(t + 1)").
+// letter at their slot: ⊢ as "`", ⊑ as "v", ⇛ as msam's "V" and ≜ as
+// its "," ("Γ, Φ, Ω ` bv : bool" under T-Bool, Spirea's "ℓ %p 𝜎 ` ℓ %f
+// 𝜎", GPS's "… V UsedUP(t + 1)" and "consistentC11(A, sb, mo, rf) ,").
 const TEX_SYMBOLS = /cmsy|txsy|pxsy|lmsy/i;
 const AMS_SYMBOLS = /msam/i;
 const TEX_RELATIONS: Record<string, string> = { "`": "⊢", a: "⊣", v: "⊑", w: "⊒" };
-const AMS_RELATIONS: Record<string, string> = { V: "⇛", W: "⇚" };
+const AMS_RELATIONS: Record<string, string> = { V: "⇛", W: "⇚", ",": "≜" };
 const texRelation = (c: string, font: string) => (TEX_SYMBOLS.test(font) && TEX_RELATIONS[c]) || (AMS_SYMBOLS.test(font) && AMS_RELATIONS[c]) || c;
 // A line as its relations read: a symbol font's letters read as the
 // relations they draw.
 function relational(line: Line): Line {
-  if (!line.runs.some((r) => (TEX_SYMBOLS.test(r.font) && /[`avw]/.test(r.text)) || (AMS_SYMBOLS.test(r.font) && /[VW]/.test(r.text)))) return line;
+  if (!line.runs.some((r) => (TEX_SYMBOLS.test(r.font) && /[`avw]/.test(r.text)) || (AMS_SYMBOLS.test(r.font) && /[VW,]/.test(r.text)))) return line;
   const text = line.text.split("").map((c, i) => (line.chars[i]?.run >= 0 ? texRelation(c, line.runs[line.chars[i].run].font) : c)).join("");
   return { ...line, text, runs: line.runs.map((r) => ({ ...r, text: r.text.split("").map((c) => texRelation(c, r.font)).join("") })) };
 }
@@ -1519,7 +1539,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // axioms to a row, each labelled at its end ("(ra-valid-op)" ending the
   // row "(ra-assoc)" ends on its left).
   const parted = new Set<Line>();
-  let underEnd = false;
+  let underEnd = false, last = false;
   if (token.side === "whole" && token.bracketed) {
     // A hyphenated name at the row's end, set in this label's face past a
     // formula, ends a row part of its own: a table of axioms two to a row
@@ -1554,6 +1574,28 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       for (const l of page.lines) if (fences.includes(l) || beyond(l) || (onRow(l, label) && !row.includes(l) && between(l))) parted.add(l);
     }
   }
+  // A bracketed label alone on its line under a bar-less formula's end,
+  // the formula hard over it reaching from well left of the label to
+  // within a size of its right end, nothing on its row but what stands
+  // well off to either side (another rule's, the next column's prose),
+  // the lines it touches over and under aside, ends that formula (a
+  // sentence over it leads into the next row: "… is PTSO-valid iff:" over
+  // "• tso is total on E \ R;  (tso-total)"): Terra's
+  // (TAPP) and (LAPP) set under their reductions' right ends, a relational
+  // verification paper's (CallIncr-incorrect-spec) under its specification.
+  if (token.side === "whole" && token.bracketed && !underEnd && row.filter((l) => onRow(l, label)).every((l) => l.x1 <= label.x0 - 2 * label.size || l.x0 >= label.x1 + 2 * label.size)) {
+    const over = lines.filter((l) => l.bottom <= label.top + tolerance(l, label) && label.top - l.bottom <= 0.5 * type.leading && l.x0 < label.x0 - label.size && l.x1 >= label.x0 && l.x1 <= label.x1 + label.size
+      && sameColumn(page, l, label) && !["whole", "tail"].includes(tokenOf(l)?.side ?? "") && !worded(l));
+    const barred = (l: Line) => page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && d.y >= l.top - type.leading && d.x < l.x1 && d.x + d.w > l.x0);
+    // The formula is one line, nothing hard over it but prose, a label or
+    // a grammar's production (Terra's "Ċ ::= …" over TAPP's reduction): the
+    // last line of a stack is a display's ("(tysp-sem-1)" under a two-line
+    // interpretation), and a definition is no rule ("(blocking-initial)"
+    // under "obls := …").
+    const stacked = (l: Line) => lines.some((o) => o !== l && o.bottom <= l.top + tolerance(o, l) && l.top - o.bottom <= 0.5 * type.leading && o.x0 < l.x1 && o.x1 > l.x0
+      && !prose(o, type) && tokenOf(o)?.side !== "whole" && !GRAMMAR.test(o.text));
+    if (over.length === 1 && RELATION.test(relational(over[0]).text) && !barred(over[0]) && !stacked(over[0]) && !DEFINES.test(over[0].text) && !/:=|≔/u.test(over[0].text)) { underEnd = true; last = true; row = over; }
+  }
   // A label ending a formula of its own line, set apart only by its size,
   // has its row in that line and what runs on from it: what stands a
   // blank off on the row is a neighbour's ((<:-∧)'s rule left of
@@ -1581,7 +1623,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     if (production(label, page, type)) return { category: "comment", bar: null, row, side: "right" };
     if (MONO.test(faceOf(label, token))) return { category: "comment", bar: null, row, side: "right" };
     if (ruledAside(page, label, span, type) || walled(page, label, span, row)) return { category: "cell", bar: null, row, side: "right" };
-    return RELATION.test(rest + " " + levelled) ? { category: "row", bar: null, row, side: token.side === "head" ? "left" : "right" } : { category: "none", bar: null, row, side: "right" };
+    // A label heading its line heads what follows it: a line on its row
+    // ending left of it is another rule's (Base-Trans's conclusion left of
+    // "Base-Ref ⊢ {𝜈 : 𝜏 | 𝜙} <: 𝜏").
+    const ahead = token.side === "head" ? row.filter((l) => l.x1 > label.x0 + tolerance(l, label)) : row;
+    return RELATION.test(rest + " " + levelled) ? { category: "row", bar: null, row: ahead, side: token.side === "head" ? "left" : "right" } : { category: "none", bar: null, row, side: "right" };
   }
   if (!row.length) return { category: "none", bar: null, row, side: "right" };
   if (row.some((l) => production(l, page, type))) return { category: "comment", bar: null, row, side: "right" };
@@ -1725,7 +1771,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // to its term states that axiom as a relation would ("V(ε)  (ora-unit-valid)"
   // closing MoSeL's Fig. 9).
   const predicate = token.bracketed && side === "right" && HYPHEN.test(fold(token.text)) && row.length === 1 && /^\s*\p{L}[\p{L}\d]{0,2}\s?\([^()]+\)\s*$/u.test(row[0].text);
-  return side && (RELATION.test(figured(text + " " + levelled)) || RELATION.test(figured(read)) || predicate) ? { category: "row", bar: null, row, side } : { category: "none", bar: null, row, side: "right" };
+  return side && (RELATION.test(figured(text + " " + levelled)) || RELATION.test(figured(read)) || predicate) ? { category: "row", bar: null, row, side, ...(last ? { ended: true } : {}) } : { category: "none", bar: null, row, side: "right" };
 }
 
 // ------------------------------------------------------------ pass 3: names
@@ -1818,6 +1864,18 @@ const LAW = /[⇔⟺]|[−-]∗/u;
 const ARROW = /[→⟶↦⟼⇒⟹⇛⤇⇓⇝↝⤳↠]|->|=>|~>/u;
 const reduces = (l: Line) => ARROW.test(l.text.replace(CLOSURE, " "));
 
+// A phrase in parentheses at the margin ending a row with a relation, or
+// a capitalised word (not camelCase) ending one that neither steps nor
+// states a law (one that does may name its rule already): a group's title
+// ("(Kinding)") or a rule's name, as findRules weighs it. A numeral, roman
+// or a letter's with digits, tags an equation or a program ("(II)", "(P2)");
+// by a definition the name is the definition's ("(Conflict relation)" by
+// "G.cf ≜ …"), and a program's bindings relate nothing ("(Awkward)" by
+// "let r = ref(0) in λf. r ← 1; f (); !r").
+const entitled = (shape: Shape, token: Token, category: Category | Setting["category"], row: Line[]) => category === "margin" && token.bracketed && !token.square
+  && (shape === "phrase" || (shape === "word" && capitalised(token.text) && !camel(token.text) && /\p{L}{3}/u.test(token.text) && !/^[IVXL]+$/u.test(token.text) && !row.map(relational).some((l) => steps(l) || LAW.test(l.text))))
+  && !row.some((l) => DEFINES.test(l.text) || /:=|≔/u.test(l.text)) && RELATION.test(row.map((l) => relational(l).text.replace(/\blet\s+[^=]{1,20}=/gu, " ")).join(" "));
+
 function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [], side: Setting["side"] = "right"): string | null {
   // A word in parentheses at the margin names a row that steps ("(send)"
   // after a reduction) or states a separation logic's law, an equivalence
@@ -1859,6 +1917,13 @@ function allowed(shape: Shape, token: Token, category: Category, row: Line[] = [
       // A bare name in capitals there, small capitals as a bar-less axiom's
       // label is set, names a law or a step at the row's end as a bracketed
       // one does (CaReSL's SPLITISL after "s₁; T₁ ∗ s₂; T₂ ⇔ …").
+      // A capitalised word or phrase in parentheses ending a row that
+      // relates stands as findRules weighs it (entitled): cited in its
+      // brackets, or set among strong names or a figure of axioms
+      // ("(Neutrality)" after "𝑒 ⪯ctx () : 1", cited as "Refinement
+      // (Neutrality) expresses …"; "(Atomicity)" among "(RR-coherence)"
+      // and "(No-promises)").
+      if (entitled(shape, token, category, row)) return RULE_NAME_MARGIN.id;
       return shape === "phrase" || shape === "short" ? null : shape === "hyphen" || shape === "spaced" || (shape === "word" && (token.square || (token.bracketed && (!capitalised(token.text) || (camel(token.text) && !row.some((l) => DEFINES.test(l.text) || /:=|≔|;\s*$/u.test(l.text)))))))
         || (shape === "word" && !token.bracketed && capitals(token.text) && /\p{Lu}{2}/u.test(token.text) && row.map(relational).some((l) => steps(l) || LAW.test(l.text))) ? RULE_NAME_MARGIN.id : null;
   }
@@ -1981,7 +2046,15 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // numbered paragraph's head ("G.2.6 [!C]. The rule is" over !C).
   const heading = (l: Line) => l !== label && ((!RELATION.test(l.text) && /^\s*\p{L}[\p{L}\s.,-]*\s\p{L}[\p{L}\s.,-]*:?\s*$/u.test(l.text) && (l.bold || /:\s*$/u.test(l.text)))
     || /^\s*(?:[A-Z]|\d+)(?:\.\d+)+\.?\s.*\b\p{Ll}{2,}\s+\p{Ll}{2,}/u.test(l.text));
-  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && !heading(l) && (!running(l) || premise(l) || conclusion(l) || gloss(l) || specified(l)) && !flushLeft(l) && !CAPTION.test(l.text)
+  // A definition's head over a bar-less row ("consistentC11(…) ≜" over
+  // ConsistentMO1's axiom) and a "where" clause set out left of the row
+  // under it, what stands on its line with it ("where hb ≜ (sb ∪ sw)⁺"
+  // under GPS's ConsistentAlloc, RSL's "where iswrite…(𝑎) ≝ …"), are the
+  // definition's, no rule's lines.
+  const rowTop = Math.min(...setting.row.map((l) => l.top)), rowBottom = Math.max(...setting.row.map((l) => l.bottom)), rowLeft = Math.min(...setting.row.map((l) => l.x0));
+  const defining = (l: Line) => !bar && setting.side === "right" && setting.row.length > 0 && !setting.row.includes(l)
+    && ((/[≜≝≙]\s*$/u.test(relational(l).text) && l.bottom <= rowTop + 1) || (l.top >= rowBottom - 1 && page.lines.some((w) => /^\s*where\s/u.test(w.text) && (w === l || onRow(w, l)) && w.x0 < rowLeft - label.size)));
+  const lines = ruleLines(page, label).filter((l) => !others.lines.has(l) && !another(l) && !setInto(page, l) && !heading(l) && !defining(l) && (!running(l) || premise(l) || conclusion(l) || gloss(l) || specified(l)) && !flushLeft(l) && !CAPTION.test(l.text)
     && (setting.side !== "over" || l.top >= label.top - tolerance(l, label))
     && (setting.bar || ![...others.lines].some((o) => onRow(o, l) && !(setting.side === "over" && o.x0 >= l.x1 + 4 * label.size))));
   const slack = setting.bar ? 0 : BESIDE * label.size;
@@ -2027,8 +2100,14 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const opens = (l: Line) => /^\s*(?:[→⟶⇒⟹⇛↦=≡⊢⇔∗]|[−-]∗)/u.test(relational(l).text);
   const leads = (l: Line, r: Line) => r !== l && r.top >= l.bottom - tolerance(l, r) && r.top - l.bottom <= 0.6 * type.leading && r.x0 >= l.x0 && r.x0 < l.x1 && opens(r);
   const continued = (l: Line) => !bar && page.lines.some((r) => !setting.row.includes(r) && leads(l, r) && [...others.lines].some((o) => onRow(o, r)));
+  // So does a row from a line hard over it left open by its relation, set
+  // out left of it with no label on its row ("∀a, b. hb(a, b) ⟹" over
+  // Coherence's "a ≠ b, ¬mo(rf(b), rf(a)), …").
+  const heads = (l: Line, r: Line) => setting.side === "right" && r.top >= l.bottom - tolerance(l, r) && r.top - l.bottom <= 0.6 * type.leading && l.x0 < r.x0 - label.size && l.x1 > r.x0
+    && RUN_OPEN.test(relational(l).text) && ![...others.lines].some((o) => onRow(o, l));
   if (!bar) {
     for (const r of setting.row.filter(opens)) for (const l of lines) if (leads(l, r) && !taken.has(l)) taken.add(l);
+    for (const r of setting.row) for (const l of lines) if (heads(l, r) && !taken.has(l)) taken.add(l);
     x0 = Math.min(...[...taken].map((l) => l.x0)); x1 = Math.max(...[...taken].map((l) => l.x1));
   }
   // Without a bar, a relation drawn rather than set (Raw-CInv-Model-
@@ -2036,8 +2115,19 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // the blank it stands in.
   const bridged = (l: Line) => !bar && page.drawn.some((d) => d.w <= 3 * label.size && across(d) && d.y >= l.top && d.y <= l.bottom
     && (l.x0 > x1 ? d.x <= x1 + 2 * label.size && d.x + d.w >= l.x0 - 2 * label.size : d.x + d.w >= x0 - 2 * label.size && d.x <= l.x1 + 2 * label.size));
-  // A label over a tall stack of premises reaches its bar's conclusion.
-  const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity);
+  // A label over a tall stack of premises reaches its bar's conclusion;
+  // one set under its formula's end ends its rule ((TAPP) over TUNWRAP's
+  // reduction).
+  // A bar-less specification labelled at its middle opens with its
+  // quantifier: a triple closing in its brace hard over that line is the
+  // specification before, and nothing over it is this one's
+  // (acquireSpec's "{∃𝑠ᵣ ∉ O. …}𝜏" over "(∀𝜏, 𝜋, O, 𝑠ᵣ, 𝑄." opening
+  // releaseSpec in Lawyer's Fig. 15).
+  const closes = (l: Line) => lines.some((o) => o.bottom <= l.top + tolerance(o, l) && l.top - o.bottom <= 1.2 * type.leading && o.text.trim().length > 3 && /[}⟩][})⟩]*[^\s∗*−-]{0,3}\s*$/u.test(o.text) && o.x0 <= l.x0 + 2 * label.size && o.x1 > l.x0);
+  const opening = !bar && setting.side === "right" ? lines.filter((l) => /^\s*\(?\s*∀/u.test(l.text) && l.top <= label.top + 1 && label.top - l.top <= REACH * type.leading && l.x1 < label.x0 && closes(l)).sort((a, b) => b.top - a.top)[0] : undefined;
+  const closed = Boolean(opening);
+  const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity)
+    && !(setting.ended && l.top >= label.bottom - tolerance(l, label)) && !(closed && opening && l !== opening && l.bottom <= opening.top + tolerance(l, opening));
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
@@ -2268,6 +2358,8 @@ const RULE_AFTER = /^\s*(?:[\])]\s*)?(?:,?\s*(?:and\s+|or\s+)?[^\s,()[\]]+){0,6}
 // between: "rule !", "rules ⊗, ⅋, 1 and ⊥", "the c and w rules"; not
 // "rules displayed in Figure 1".
 const RULE_JUST_BEFORE = /\b(?:rules?|laws?|axioms?)\s+(?:[^\s,()[\]]+(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+))*$/iu;
+// Only a rule has premises: "the premise of tarski" calls it one.
+const PREMISE_OF = /\b(?:premises?|conclusion) of\s*$/iu;
 const RULE_JUST_AFTER = /^(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)[^\s,()[\]]+)*\s+(?:rules?|laws?|axioms?)\b/iu;
 // A word with a capital after a lowercase letter, or capitals running
 // into a capitalised word (MKSVar, MALam1), is no English word: a
@@ -2312,14 +2404,15 @@ function cites(rule: { name: string; shape: Shape; bracketed: boolean }, spaced:
   if (rule.shape === "hyphen" || (rule.shape === "spaced" && capitals(rule.name))) return sameName(printed.replace(/[\s\u00ad]+/g, " ").replace(/([-‐‑–]) /g, "$1"), rule.name);
   // A word: in brackets as the label was, or as printed with "rule"
   // (or a kin) within three words: "the sapp rule", "(rule slam and
-  // sbind)"; a camelCase word as printed anywhere.
+  // sbind)", or after "the premise of" ("the premise of tarski"); a
+  // camelCase word as printed anywhere.
   if (bracketed) return sameName(printed, rule.name);
   // A label of a lowercase letter or two, set in brackets, is a keyword
   // or a little word in prose ("(do)", "(as)"; "the do identity", "rules
   // do a switch"): bare, it cites its rule only as a short name does, a
   // list of names ending where "rule" stands by it.
   if (rule.bracketed && /^\p{Ll}{1,2}$/u.test(rule.name)) return sameName(printed, rule.name) && (RULE_JUST_AFTER.test(after) || (RULE_JUST_BEFORE.test(before) && /^\s*(?:[,.;:)]|(?:and|or)\s|$)/u.test(after)));
-  return sameName(printed, rule.name) && (camel(rule.name) || RULE_BEFORE.test(before) || RULE_AFTER.test(after));
+  return sameName(printed, rule.name) && (camel(rule.name) || RULE_BEFORE.test(before) || PREMISE_OF.test(before) || RULE_AFTER.test(after));
 }
 
 // Every place in the text that names one of the rules, longest names
@@ -2383,8 +2476,10 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
   const names = order.map((i) => escape(rules[i].name).replace(/[-−]/g, "[-‐‑–−]\\s?").replace(/\\\*|∗/g, "[*∗]").replace(/ /g, "\\s+")
     .replace(/(?<=[\u{1D400}-\u{1D7FF}])(?=[\u{1D400}-\u{1D7FF}])/gu, "\\s?")).join("|");
   // A name is a whole name, not a part of a longer hyphenated one
-  // ("sim-vis" in no-sim-vis-ex-comm).
-  const re = new RegExp(`(?<![\\p{L}\\d]|[\\p{L}\\d][-‐‑])(?<open>[\\[(])?(?<name>${names})(?<close>[\\])])?(?![\\p{L}\\d]|[-‐‑][\\p{L}\\d])`, "giu");
+  // ("sim-vis" in no-sim-vis-ex-comm). A name ending in a subscript may
+  // reach the text a blank short of its closing bracket ("(Detop )" for
+  // (Det_op)).
+  const re = new RegExp(`(?<![\\p{L}\\d]|[\\p{L}\\d][-‐‑])(?<open>[\\[(])?(?<name>${names})(?: ?(?<close>[\\])]))?(?![\\p{L}\\d]|[-‐‑][\\p{L}\\d])`, "giu");
   type Found = { index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number };
   const found: Found[] = [];
   // A bare word is cited where a name it is listed with is ("are raise,
@@ -2406,7 +2501,7 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const nameStart = match.index + (groups.open ? 1 : 0);
     // "rule" hard by names the word a rule whatever its case ("the bind
     // rule", "the exhaustion rule").
-    const hard = RULE_JUST_BEFORE.test(before) || RULE_JUST_AFTER.test(after);
+    const hard = RULE_JUST_BEFORE.test(before) || PREMISE_OF.test(before) || RULE_JUST_AFTER.test(after);
     const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && (hard || caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i])));
     const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && asLabel(i));
     const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
@@ -2435,6 +2530,9 @@ function inText(at: { line: Line; char: number }, length: number, labelFace: str
   if (rest === family(type.font)) return true;
   return rest === "" && faceOf(at.line) === labelFace;
 }
+
+// ... and only so: the rest of its line in the text's face.
+const amidText = (at: { line: Line; char: number }, length: number, type: Type) => faceOf(at.line, { start: at.char, end: at.char + length, but: true }) === family(type.font);
 
 function citedAnywhere(flows: Flow[], rule: Named, labels: Set<Line>, labelFace: string, type: Type): boolean {
   for (const flow of flows) {
@@ -2882,7 +2980,29 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // "(IrreflexiveHB)" and "(CoherentRR)", their rows opening otherwise),
   // but for a conjunct of a definition ("(lockedExcl)" ending "… ∧").
   const open = (o: Candidate) => /[∧∨∗]\s*$/u.test([...o.setting.row].sort((a, b) => a.x0 - b.x0).map((l) => l.text).join(" "));
-  const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
+  // A column of three bracketed labels or more set alike at the margin,
+  // under a heading a few leadings over it that calls what follows axioms,
+  // rules or laws, is a figure of axioms whatever their rows open with
+  // and however their names are cited ("(ConsistentMO1)" to
+  // "(ConsistentAlloc)" closing consistentC11's definition under GPS's
+  // "A.3.5 Axioms").
+  const axiomatic = (() => {
+    const found = new Set<Candidate>();
+    for (const c of candidates) {
+      if (found.has(c) || c.setting.category !== "margin" || !c.token.bracketed) continue;
+      const column = candidates.filter((o) => o.page === c.page && o.setting.category === "margin" && o.token.bracketed && o.convention === c.convention);
+      if (column.length < 3) continue;
+      const top = Math.min(...column.map((o) => o.line.top));
+      const [x0, x1] = [Math.min(...column.flatMap((o) => [o.line.x0, ...o.setting.row.map((l) => l.x0)])), Math.max(...column.map((o) => o.line.x1))];
+      const headed = c.page.lines.some((l) => !l.furniture && l.bold && l.bottom <= top && top - l.bottom <= 4 * type.leading && l.x0 >= x0 - 2 * l.size && l.x0 < x1 && l.text.trim().length <= 60 && RULE_WORDS.test(l.text));
+      if (headed) for (const o of column) found.add(o);
+    }
+    return found;
+  })();
+  // A specification's label names it however its row opens: a triple's
+  // binders open with ∀ ("∀𝑓, 𝑃, Φ. {𝑃} 𝑓 () {Φ} ⇒ … (runAsync-spec)").
+  const specified = (c: Candidate) => /spec$/iu.test(fold(c.token.text)) && /[{}]/u.test(c.setting.row.map((l) => l.text).join(" "));
+  const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !axiomatic.has(c) && !specified(c) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
   for (const c of candidates) if (lemma(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !lemma(c));
   // A bare word over a bar with a hyphenated, spaced or symbol name
@@ -2915,7 +3035,8 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // names set so ("(send)" by "(relay-in)"); alone it heads a judgment's
   // form ("(Matching)" by "σ ⊲ σ1 → σ2").
   const hyphened = new Map<string, number>();
-  for (const c of candidates) if (!weak(c)) hyphened.set(c.convention, (hyphened.get(c.convention) ?? 0) + 1);
+  const titling = (c: Candidate) => entitled(c.shape, c.token, c.setting.category, c.setting.row);
+  for (const c of candidates) if (!weak(c) && !titling(c)) hyphened.set(c.convention, (hyphened.get(c.convention) ?? 0) + 1);
   // A camelCase word the text cites names its rule all the same
   // ("(RegRoot)" after its Hoare triple, cited as RegRoot): a group's
   // title is a plain word. A row left open by a connective is a conjunct
@@ -2937,17 +3058,43 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const cited = (c: Candidate) => citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, new Set(candidates.map((o) => o.line)), faceOf(c.line, c.token), type);
   const called = (c: Candidate) => flows.some((flow) => [...mentionsIn(flow.text, [{ name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }], flow.at)].some((m) => {
     const at = flow.at[m.nameStart];
-    return at && at.line !== c.line && (RULE_JUST_BEFORE.test(flow.text.slice(Math.max(0, m.index - NEAR), m.index)) || RULE_JUST_AFTER.test(flow.text.slice(m.index + m.length, m.index + m.length + NEAR)));
+    const before = flow.text.slice(Math.max(0, m.index - NEAR), m.index);
+    return at && at.line !== c.line && (RULE_JUST_BEFORE.test(before) || PREMISE_OF.test(before) || RULE_JUST_AFTER.test(flow.text.slice(m.index + m.length, m.index + m.length + NEAR)));
   }));
+  // A word in capitals is set alike with a cited one at the margin on
+  // its page, or anywhere in the paper at the margin as it is (COEN after
+  // its principle, set as TARSKI is pages before and cited "(TARSKI)").
   const titled = (c: Candidate) => conjunct(c) || named(c)
-    || !(camel(c.token.text) ? cited(c) : !capitalised(c.token.text) ? called(c) : capital(c) && candidates.some((o) => o.page === c.page && (o.setting.category === "margin" || kind(o) !== o.convention) && kind(o) === kind(c) && capital(o) && cited(o)));
+    || !(camel(c.token.text) ? cited(c) : !capitalised(c.token.text) ? called(c) : capital(c) && candidates.some((o) => (o.page === c.page || (o.setting.category === "margin" && o.convention === c.convention)) && (o.setting.category === "margin" || kind(o) !== o.convention) && kind(o) === kind(c) && capital(o) && cited(o)));
   // One set as a cited camelCase name next to it, within a few rows, is a
   // rule as that one is ("(TokSplit)" over the cited "(TokCombine)"); a
   // conjunct is none, whatever its neighbours ("(lockedLvl)" in a lock's
   // specification).
   const kin = (c: Candidate) => !conjunct(c) && candidates.some((o) => o !== c && o.page === c.page && o.convention === c.convention && o.setting.category === "margin"
     && Math.abs(o.line.top - c.line.top) <= 4 * type.leading && camel(o.token.text) && !titled(o));
-  const tagged = (c: Candidate) => c.setting.category === "margin" && c.shape === "word" && c.token.bracketed && !c.token.square && (hyphened.get(c.convention) ?? 0) < 2 && titled(c) && !(camel(c.token.text) && kin(c));
+  // A capitalised word or a phrase (entitled, or a capitalised word after
+  // a row that steps) names its rule where the text cites it in its
+  // brackets ("Refinement (Neutrality) expresses …", "the hyper-triple
+  // (Idem𝑡)"), or one set as it is at the margin on its page is cited
+  // ("(Left Identity)" in Fig. 3 under Fig. 2's cited "(Neutrality)"),
+  // among two strong names set as it is ("(Atomicity)" by
+  // "(RR-coherence)" and "(No-promises)"), or in a figure of axioms
+  // ("(Coherence)" among "(ConsistentRF2)" and "(AtomicCAS)"); else it
+  // titles a group ("(Kinding)").
+  const plain = (c: Candidate) => titling(c) || (c.shape === "word" && capitalised(c.token.text) && !capital(c) && !camel(c.token.text));
+  // In its brackets, in a line of running text: "the Kinding rules" cites
+  // a group by its title, and a figure's label lines cite nothing.
+  const bracketedly = (c: Candidate) => flows.some((flow) => [...mentionsIn(flow.text, [{ name: c.token.text, shape: c.shape, bracketed: true, set: c.line }], flow.at)].some((m) => {
+    const at = flow.at[m.nameStart];
+    return m.bracketed && at && !seen.some((o) => o.line === at.line) && amidText(at, m.nameEnd - m.nameStart, type);
+  }));
+  const quoted = (c: Candidate) => bracketedly(c) || candidates.some((o) => o !== c && o.page === c.page && o.setting.category === "margin" && o.convention === c.convention && plain(o) && bracketedly(o));
+  // Strong names set alike count on its own page for a name after a row
+  // with no step nor law (a grammar's "(Actors)" after "A = x : Σ" in a
+  // paper setting (E-Send) at the margin elsewhere).
+  const strongHere = (c: Candidate) => candidates.filter((o) => o.page === c.page && o.convention === c.convention && !weak(o) && !titling(o)).length;
+  const tagged = (c: Candidate) => c.setting.category === "margin" && c.token.bracketed && !c.token.square && !axiomatic.has(c)
+    && (titling(c) ? !quoted(c) && strongHere(c) < 2 : (hyphened.get(c.convention) ?? 0) < 2 && (plain(c) ? !quoted(c) : c.shape === "word" && titled(c) && !(camel(c.token.text) && kin(c))));
   for (const c of candidates) if (tagged(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !tagged(c));
   // A lone letter or digit in brackets beside a bar names a rule only
@@ -2999,8 +3146,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const bare = (c: Candidate) => !/[\p{L}\d]/u.test(notation(c.line, c.token));
   const family = new Set(candidates.filter((c) => beside(c) && signed(c.shape, c.line, c.token) && bare(c)).map((c) => notation(c.line, c.token)));
   const figured = (c: Candidate) => candidates.filter((o) => o !== c && o.page === c.page && beside(o) && o.setting.side === c.setting.side).length >= 2;
-  const established = (c: Candidate) => atBar(c) && ((ruled && (styles.get(style(c)) ?? 0) >= 2) || (camel(c.token.text) && (camelled.get(c.convention) ?? 0) >= 5)
-    || (ruled && signed(c.shape, c.line, c.token) && beside(c) && figured(c) && (!bare(c) || family.size >= 2)));
+  // A name that calls itself a law, a rule or an axiom by its number, two
+  // or more set alike on its page, names what it labels whatever the text
+  // cites ("(Law 1)" to "(Law 6)" ending a weak isolation paper's
+  // entailments).
+  const selfNamed = (c: Candidate) => /^(?:Law|Rule|Axiom) \d{1,2}$/u.test(c.token.text) && (c.setting.category === "margin" || c.setting.category === "row")
+    && candidates.filter((o) => o.page === c.page && o.convention === c.convention && /^(?:Law|Rule|Axiom) \d{1,2}$/u.test(o.token.text)).length >= 2;
+  const established = (c: Candidate) => selfNamed(c) || (atBar(c) && ((ruled && (styles.get(style(c)) ?? 0) >= 2) || (camel(c.token.text) && (camelled.get(c.convention) ?? 0) >= 5)
+    || (ruled && signed(c.shape, c.line, c.token) && beside(c) && figured(c) && (!bare(c) || family.size >= 2))));
   {
     const byConvention = new Map<string, Candidate[]>();
     for (const c of candidates) if (weak(c) && !confirmed.has(kind(c))) byConvention.set(kind(c), [...(byConvention.get(kind(c)) ?? []), c]);
@@ -3087,7 +3240,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const setAlike = (o: Candidate) => o !== c && o.token.bracketed && Boolean(o.setting.bar) && o.setting.category === c.setting.category && o.setting.side === c.setting.side && Math.abs(o.line.size - c.line.size) <= 0.5;
     const phrased = c.shape === "phrase" && Boolean(c.setting.bar) && candidates.filter((o) => o.page === c.page && setAlike(o)).length < 2
       && candidates.filter((o) => o.page !== c.page && o.shape === "phrase" && setAlike(o)).length < 2;
-    if (phrased || (weak(c) && !established(c) && !columned.has(c) && (((conventions.get(kind(c)) ?? 0) < 2 && (strong.get(kind(c)) ?? 0) < 2) || !confirmed.has(kind(c)))
+    if (phrased || (weak(c) && !established(c) && !columned.has(c) && !axiomatic.has(c) && (((conventions.get(kind(c)) ?? 0) < 2 && (strong.get(kind(c)) ?? 0) < 2) || !confirmed.has(kind(c)))
       && !citedAnywhere(flows, { name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, set: c.line }, labels, faceOf(c.line, c.token), type))) {
       trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, boxes);
       continue;
@@ -3165,7 +3318,12 @@ function separate(placed: Placed[]): void {
       // A row parted between labels along it (settingOf's fences) is the
       // label's whose row settingOf gave it: "∀𝑎. 𝑎 ⊑ 𝑎" is ora-⊑-refl's
       // at the margin, not ora-assoc's left of it.
-      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label) && p.setting.row.includes(l)) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? braced ?? ps.find(heads) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
+      // So does one left open by its relation, set in past its start by a
+      // size or more ("∀a, b. hb(a, b) ⟹" over Coherence's second line,
+      // not ConsistentRFNA's over it).
+      const opens = (p: Placed) => !p.bar && RUN_OPEN.test(relational(l).text) && l.bottom <= p.label.top + 1 && p.label.top - l.bottom <= p.label.size
+        && p.lines.some((o) => o !== p.label && onRow(o, p.label)) && p.lines.every((o) => o === p.label || !onRow(o, p.label) || o.x0 >= l.x0 + p.label.size);
+      const own = ps.find((p) => p.label === l) ?? ps.find((p) => !p.bar && onRow(l, p.label) && p.setting.row.includes(l)) ?? ps.find((p) => !p.bar && onRow(l, p.label)) ?? braced ?? ps.find(heads) ?? ps.find(opens) ?? ps.reduce((a, b) => (distance(l, b) < distance(l, a) ? b : a));
       for (const p of ps) if (p !== own) p.lines = p.lines.filter((x) => x !== l);
     }
     // Each box round its own lines and bar, and what it holds (unpadded).
