@@ -20,7 +20,7 @@ import limits from "../../../config/app_limits.json";
 import { one, statement, type Row } from "../db";
 import { refuse } from "../http";
 import { blobKey, boardFileKey, sha256Hex, stored } from "../files";
-import { writeSynced } from "../sync/write";
+import { boardReplica, writeSynced } from "../sync/write";
 import { JobError } from "./queue";
 
 export const WEBPAGE = "capture_webpage";
@@ -100,9 +100,9 @@ async function attach(env: Env, item: Row, image: Uint8Array, mime: string, orig
   item.sha256 = digest;
   item.original_filename = original;
   item.mime_type = mime;
-  const board = await one<{ user_uuid: string }>(env.DB, "SELECT user_uuid FROM boards WHERE uuid = ?", item.board_uuid);
+  const board = await one<{ uuid: string; user_uuid: string }>(env.DB, "SELECT uuid, user_uuid FROM boards WHERE uuid = ?", item.board_uuid);
   await env.DB.batch([
-    ...await writeSynced(env.DB, "board_items", item, board!.user_uuid, false),
+    ...await writeSynced(env.DB, "board_items", item, await boardReplica(env.DB, board!), false),
     statement(env.DB, "UPDATE boards SET updated_at = ? WHERE uuid = ?", new Date().toISOString(), item.board_uuid),
   ]);
   return { file_path: key, sha256: item.sha256 };

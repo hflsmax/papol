@@ -23,13 +23,15 @@ export async function snapshot({ request, env }: RouteContext): Promise<Response
   const head = await one<{ cursor: number }>(env.DB,
     "SELECT COALESCE(MAX(sequence), 0) AS cursor FROM _server_change_log WHERE user_uuid = ?", user.uuid);
   const mine = (table: string) => all(env.DB, `SELECT * FROM ${table} WHERE user_uuid = ?`, user.uuid);
-  const throughBoards = (table: string) => all(env.DB,
-    `SELECT t.* FROM ${table} t JOIN boards b ON b.uuid = t.board_uuid WHERE b.user_uuid = ?`, user.uuid);
+  // The boards of the nook: a project's board is the project's, and no
+  // replica holds it (boardReplica).
+  const nookBoards = `SELECT uuid FROM boards WHERE user_uuid = ? AND uuid NOT IN (SELECT board_uuid FROM project_boards)`;
+  const throughBoards = (table: string) => all(env.DB, `SELECT * FROM ${table} WHERE board_uuid IN (${nookBoards})`, user.uuid);
   const byTable: Record<string, Row[]> = {
     papers: await all(env.DB, "SELECT p.* FROM papers p WHERE p.sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ?)", user.uuid),
     shelves: await mine("shelves"),
     tags: await mine("tags"),
-    boards: await mine("boards"),
+    boards: await all(env.DB, `SELECT * FROM boards WHERE uuid IN (${nookBoards})`, user.uuid),
     board_groups: await throughBoards("board_groups"),
     board_items: await throughBoards("board_items"),
     annotations: await mine("annotations"),

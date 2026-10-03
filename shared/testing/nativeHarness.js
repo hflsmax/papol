@@ -76,6 +76,8 @@ const QUERY_DEFAULTS = {
   board: () => { throw 'Board not found'; },
   board_group: () => { throw 'Board group not found'; },
   boards: () => [],
+  // The boards a test writes are the nook's, in the replica.
+  holds_board_row: () => true,
   nook: () => ({ shelves: defaultShelves(), tags: [], copies: [], copy_tags: [] }),
   paper: () => { throw 'Paper not found'; },
   paper_by_pdf: () => { throw 'Paper not found'; },

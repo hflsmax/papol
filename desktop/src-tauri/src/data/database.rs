@@ -294,6 +294,15 @@ impl LocalStore {
                     .ok_or("board_group query requires a uuid")?;
                 query_board_group(&connection, account_uuid, uuid)
             }
+            "holds_board_row" => {
+                let table = parameters["table"]
+                    .as_str()
+                    .ok_or("holds_board_row query requires a table")?;
+                let uuid = parameters["uuid"]
+                    .as_str()
+                    .ok_or("holds_board_row query requires a uuid")?;
+                holds_board_row(&connection, account_uuid, table, uuid).map(Value::Bool)
+            }
             // Asked for by paper: narrowing to one kind is the caller's
             // business.
             "annotations" => query_annotations(&connection, account_uuid, parameters),
@@ -2135,6 +2144,33 @@ fn query_boards(connection: &Connection, account_uuid: &str) -> Result<Value, St
         .map(Value::Array)
 }
 
+/// Whether this replica holds a board, or a group or card on one, deleted
+/// or not. The replica is the nook: it holds this account's own boards and
+/// nothing of a project's, which the service alone holds; the page asks
+/// before reading or writing a board here.
+fn holds_board_row(
+    connection: &Connection,
+    account_uuid: &str,
+    table: &str,
+    uuid: &str,
+) -> Result<bool, String> {
+    let board = match table {
+        "boards" => "SELECT user_uuid FROM boards WHERE uuid=?1",
+        "board_groups" => {
+            "SELECT b.user_uuid FROM board_groups t JOIN boards b ON b.uuid=t.board_uuid WHERE t.uuid=?1"
+        }
+        "board_items" => {
+            "SELECT b.user_uuid FROM board_items t JOIN boards b ON b.uuid=t.board_uuid WHERE t.uuid=?1"
+        }
+        _ => return Err(format!("Not a board table: {table}")),
+    };
+    let owner: Option<String> = connection
+        .query_row(board, [uuid], |row| row.get(0))
+        .optional()
+        .map_err(|error| error.to_string())?;
+    Ok(owner.as_deref() == Some(account_uuid))
+}
+
 fn query_board(connection: &Connection, account_uuid: &str, uuid: &str) -> Result<Value, String> {
     let owner: Option<String> = connection
         .query_row(
@@ -2756,6 +2792,61 @@ mod tests {
             store.query("7", "board", json!({"uuid": uuid})).unwrap()["name"],
             json!("Kept"),
         );
+    }
+
+    #[test]
+    fn holds_only_this_accounts_boards_and_what_is_on_them() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let board = Uuid::new_v4().to_string();
+        let card = Uuid::new_v4().to_string();
+        store
+            .mutate(
+                "7",
+                vec![
+                    board_change(&board, "Mine"),
+                    DataChange {
+                        table: "board_items".into(),
+                        uuid: card.clone(),
+                        operation: "upsert".into(),
+                        values: Map::from_iter([
+                            ("board_uuid".into(), json!(board)),
+                            ("kind".into(), json!("comment")),
+                            ("content".into(), json!("Hello")),
+                        ]),
+                    },
+                ],
+            )
+            .unwrap();
+        let holds = |account: &str, table: &str, uuid: &str| {
+            store
+                .query(
+                    account,
+                    "holds_board_row",
+                    json!({"table": table, "uuid": uuid}),
+                )
+                .unwrap()
+        };
+
+        assert_eq!(holds("7", "boards", &board), json!(true));
+        assert_eq!(holds("7", "board_items", &card), json!(true));
+        assert_eq!(holds("8", "boards", &board), json!(false));
+        // A project's board is in no replica, so the page asks the service.
+        assert_eq!(
+            holds("7", "boards", &Uuid::new_v4().to_string()),
+            json!(false)
+        );
+        assert_eq!(
+            holds("7", "board_groups", &Uuid::new_v4().to_string()),
+            json!(false)
+        );
+        assert!(store
+            .query(
+                "7",
+                "holds_board_row",
+                json!({"table": "copies", "uuid": board})
+            )
+            .is_err());
     }
 
     fn board_change(uuid: &str, name: &str) -> DataChange {

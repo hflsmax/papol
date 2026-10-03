@@ -11,6 +11,15 @@ import { canPreview, videoLink, videoPreview } from '../videos.js';
 
 // ---------- Boards (private spaces inside the user's nook) ----------
 
+// Where a board is read and written. On the Mac the replica is the nook:
+// it holds the user's own boards and nothing of a project's, which the
+// service alone holds for all its members. A board the replica holds, or a
+// group or card on one, is written there; any other is the service's, on
+// the Mac as on the web.
+function inReplica(table, uuid) {
+  return nativeDataActive() ? nativeRepository.holdsBoardRow(table, uuid) : Promise.resolve(false);
+}
+
 export function listBoards() {
   if (nativeDataActive()) return nativeRepository.boards().then((rows) => rows.map((row) => boardView(row)));
   return request('/boards');
@@ -35,7 +44,7 @@ export async function createBoard(data) {
 // which is every paper in this user's nook. One it does not keep is left
 // to the title its cards were labelled with.
 export async function getBoard(uuid) {
-  if (!nativeDataActive()) return request(`/boards/${uuid}`);
+  if (!(await inReplica('boards', uuid))) return request(`/boards/${uuid}`);
   const board = boardView(await nativeRepository.board(uuid), true);
   const kept = await Promise.all(boardSourceDigests(board.items).map(
     (sha256) => nativeRepository.paperByPdf(sha256).catch(() => null),
@@ -46,23 +55,23 @@ export async function getBoard(uuid) {
   return board;
 }
 
-export function updateBoard(uuid, data) {
-  if (nativeDataActive()) {
+export async function updateBoard(uuid, data) {
+  if (await inReplica('boards', uuid)) {
     return nativeRepository.transact([{ table: 'boards', uuid, operation: 'upsert', values: data }])
       .then((receipt) => nativeRepository.board(uuid).then((row) => boardView(row, true)));
   }
   return jsonRequest(`/boards/${uuid}`, 'PUT', data);
 }
 
-export function deleteBoard(uuid) {
-  if (nativeDataActive()) {
+export async function deleteBoard(uuid) {
+  if (await inReplica('boards', uuid)) {
     return nativeRepository.transact([{ table: 'boards', uuid, operation: 'delete', values: {} }]).then(() => null);
   }
   return request(`/boards/${uuid}`, { method: 'DELETE' });
 }
 
 export async function createBoardGroup(uuid, data) {
-  if (nativeDataActive()) {
+  if (await inReplica('boards', uuid)) {
     const groupUuid = newUuid();
     const changes = [{
       table: 'board_groups', uuid: groupUuid, operation: 'upsert',
@@ -80,7 +89,7 @@ export async function createBoardGroup(uuid, data) {
 }
 
 export async function moveBoardGroup(uuid, dx, dy) {
-  if (nativeDataActive()) {
+  if (await inReplica('board_groups', uuid)) {
     const context = await nativeRepository.boardGroup(uuid);
     const receipt = await nativeRepository.transact(context.items.map((item) => ({
       table: 'board_items', uuid: item.uuid, operation: 'upsert',
@@ -92,7 +101,7 @@ export async function moveBoardGroup(uuid, dx, dy) {
 }
 
 export async function updateBoardGroup(uuid, data) {
-  if (nativeDataActive()) {
+  if (await inReplica('board_groups', uuid)) {
     await nativeRepository.transact([{ table: 'board_groups', uuid, operation: 'upsert', values: data }]);
     const context = await nativeRepository.boardGroup(uuid);
     return { ...context.group, item_uuids: context.items.map((item) => item.uuid) };
@@ -100,8 +109,8 @@ export async function updateBoardGroup(uuid, data) {
   return jsonRequest(`/board-groups/${uuid}`, 'PUT', data);
 }
 
-export function ungroupBoardGroup(uuid, items) {
-  if (nativeDataActive()) {
+export async function ungroupBoardGroup(uuid, items) {
+  if (await inReplica('board_groups', uuid)) {
     return nativeRepository.transact([
       { table: 'board_groups', uuid, operation: 'delete', values: {} },
       ...items.map((item) => ({
@@ -113,8 +122,8 @@ export function ungroupBoardGroup(uuid, items) {
   return jsonRequest(`/board-groups/${uuid}/ungroup`, 'POST', { items });
 }
 
-export function layoutBoardGroup(uuid, items) {
-  if (nativeDataActive()) {
+export async function layoutBoardGroup(uuid, items) {
+  if (await inReplica('board_groups', uuid)) {
     return nativeRepository.transact(items.map((item) => ({
       table: 'board_items', uuid: item.uuid, operation: 'upsert',
       values: { x: item.x, y: item.y },
@@ -124,7 +133,7 @@ export function layoutBoardGroup(uuid, items) {
 }
 
 export async function addBoardComment(uuid, content, x, y) {
-  if (nativeDataActive()) {
+  if (await inReplica('boards', uuid)) {
     const receipt = await nativeRepository.transact([{
       table: 'board_items', uuid: newUuid(), operation: 'upsert',
       values: { board_uuid: uuid, kind: 'comment', content, x, y },
@@ -136,7 +145,7 @@ export async function addBoardComment(uuid, content, x, y) {
 
 // `onProgress` hears the upload as it goes (shared/api/files.js).
 export async function addBoardFile(uuid, file, caption = '', position = null, { onProgress } = {}) {
-  if (nativeDataActive()) {
+  if (await inReplica('boards', uuid)) {
     const blob = await nativeBlobImport(file);
     try {
       const receipt = await nativeRepository.transact([{
@@ -167,31 +176,31 @@ export async function addBoardFile(uuid, file, caption = '', position = null, { 
   });
 }
 
-export function deleteBoardItem(uuid) {
-  if (nativeDataActive()) {
+export async function deleteBoardItem(uuid) {
+  if (await inReplica('board_items', uuid)) {
     return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'delete', values: {} }]).then(() => null);
   }
   return request(`/board-items/${uuid}`, { method: 'DELETE' });
 }
 
-export function restoreBoardItem(uuid) {
-  if (nativeDataActive()) {
+export async function restoreBoardItem(uuid) {
+  if (await inReplica('board_items', uuid)) {
     return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: {} }])
       .then((receipt) => receipt.rows[0]);
   }
   return request(`/board-items/${uuid}/restore`, { method: 'POST' });
 }
 
-export function moveBoardItem(uuid, x, y) {
-  if (nativeDataActive()) {
+export async function moveBoardItem(uuid, x, y) {
+  if (await inReplica('board_items', uuid)) {
     return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: { x, y } }])
       .then((receipt) => receipt.rows[0]);
   }
   return jsonRequest(`/board-items/${uuid}`, 'PUT', { x, y });
 }
 
-export function updateBoardItem(uuid, data) {
-  if (nativeDataActive()) {
+export async function updateBoardItem(uuid, data) {
+  if (await inReplica('board_items', uuid)) {
     return nativeRepository.transact([{ table: 'board_items', uuid, operation: 'upsert', values: data }])
       .then((receipt) => receipt.rows[0]);
   }
@@ -248,13 +257,13 @@ export async function fillVideoCard(item) {
   if (nativeDataActive() && inOfflineMode()) return null;
   const preview = await videoPreview(item.source_url);
   const bare = !item.content || item.content === item.source_url;
-  if (nativeDataActive()) {
+  if (await inReplica('board_items', item.uuid)) {
     const picture = await nativePicture(item.kind, preview);
     return writeNativeCard(picture, {
       uuid: item.uuid, values: { ...picture.values, ...(bare && preview.title ? { content: preview.title } : {}) },
     });
   }
-  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: preview.sha256, title: preview.title });
+  return jsonRequest(`/board-items/${item.uuid}/thumbnail`, 'POST', { sha256: await bucketPicture(item.kind, preview), title: preview.title });
 }
 
 const thumbnailName = (kind, id) => `${kind}-${id || 'video'}.jpg`;
@@ -267,6 +276,14 @@ async function nativePicture(kind, preview) {
     ? (await ensureNativeBlob(preview.sha256, undefined, { kind: 'board_file' }), preview.sha256)
     : (await nativeBlobImport(preview.image)).sha256;
   return { sha256, values: { sha256, original_filename: thumbnailName(kind, preview.id), mime_type: 'image/jpeg' } };
+}
+
+// A video's picture in the bucket, for a card the service writes: a
+// YouTube picture is there already; a Bilibili cover the Mac fetched is
+// put there.
+async function bucketPicture(kind, preview) {
+  if (preview.sha256) return preview.sha256;
+  return (await storeFile('board_file', preview.image, { name: thumbnailName(kind, preview.id), mime: 'image/jpeg' })).sha256;
 }
 
 // The card written in the nook, and the picture let go if it could not be.
@@ -292,7 +309,8 @@ export function pageCardUnfilled(item) {
 // title as its text while that is still the bare hostname. Answers the
 // card, or null when there is nothing to do or no way to do it now.
 export async function fillPageCard(item) {
-  if (!pageCardUnfilled(item) || inOfflineMode()) return null;
+  // The service's cards are pictured by the Cloudflare Worker, as on the web.
+  if (!pageCardUnfilled(item) || inOfflineMode() || !(await inReplica('board_items', item.uuid))) return null;
   const picture = await nativeCaptureWebpage(item.source_url);
   const bare = !item.content || item.content === pageHost(item.source_url);
   try {
@@ -327,17 +345,16 @@ const pageHost = (url) => {
 const pageCaptureName = (url) => `webpage-${(pageHost(url) || 'page').slice(0, 80)}.jpg`;
 
 async function makeVideoCard(uuid, url, link, x, y, preview) {
-  if (nativeDataActive()) {
+  if (await inReplica('boards', uuid)) {
     const picture = preview ? await nativePicture(link.kind, preview) : null;
     return writeNativeCard(picture, {
       uuid: newUuid(),
       values: { board_uuid: uuid, kind: link.kind, content: preview?.title || url, source_url: url, x, y, ...picture?.values },
     });
   }
-  // The thumbnail is in the bucket already (POST /api/video-preview):
-  // the card names it.
+  // The thumbnail is in the bucket (bucketPicture): the card names it.
   return jsonRequest(`/boards/${uuid}/video`, 'POST', {
-    url, x, y, ...(preview ? { sha256: preview.sha256, title: preview.title } : {}),
+    url, x, y, ...(preview ? { sha256: await bucketPicture(link.kind, preview), title: preview.title } : {}),
   });
 }
 
@@ -358,15 +375,16 @@ async function captured(queuing) {
   return item;
 }
 
-// A page card. On the web the Cloudflare Worker renders the page and the
-// card waits for its job (`captured`). On the Mac the app takes the
-// picture itself (nativeCaptureWebpage) and makes the card with it;
+// A page card. On the service's boards (every board on the web, a
+// project's on the Mac) the Cloudflare Worker renders the page and the
+// card waits for its job (`captured`). On a board in the Mac's replica the
+// app takes the picture itself (nativeCaptureWebpage) and makes the card with it;
 // offline the card is the link, and `fillPageCard` takes the picture when
 // a board is next open online; a page that could not be captured is the
 // link too, and the promise rejects with the card on the error, as on the
 // web.
 export async function addBoardWebpage(uuid, url, x, y) {
-  if (!nativeDataActive()) return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
+  if (!(await inReplica('boards', uuid))) return captured(jsonRequest(`/boards/${uuid}/webpage`, 'POST', { url, x, y }));
   const parsed = new URL(url);
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Page links must use http or https');
   let picture = null, failure = null;
@@ -399,8 +417,8 @@ export async function addBoardWebpage(uuid, url, x, y) {
   return item;
 }
 
-export function placeStagedBoardItem(uuid, x, y) {
-  if (nativeDataActive()) {
+export async function placeStagedBoardItem(uuid, x, y) {
+  if (await inReplica('board_items', uuid)) {
     return nativeRepository.transact([{
       table: 'board_items', uuid, operation: 'upsert', values: { x, y, staged: false },
     }]).then((receipt) => receipt.rows[0]);
@@ -412,7 +430,7 @@ export function placeStagedBoardItem(uuid, x, y) {
 // else from where the card says it is fetched from — the bucket's own
 // address, which no Worker touches, or a local Worker's route.
 export async function boardFileBlob(item) {
-  if (nativeDataActive()) {
+  if (await inReplica('board_items', item.uuid)) {
     if (!item.sha256) throw new Error('Board image is not available in the local replica');
     return nativeBlobUrl(item.sha256, item.mime_type);
   }

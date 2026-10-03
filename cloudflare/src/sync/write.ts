@@ -2,16 +2,18 @@
 // replicas — the one way a row of a registered table changes, whether a
 // route or the push is changing it.
 
-import { columns, insert, now, update, type Row } from "../db";
+import { columns, insert, now, one, update, type Row } from "../db";
 import { logChange } from "./log";
 import { keyColumn } from "./registry";
 import { rowSnapshot } from "./rows";
 
 // The statements that make this row the next version of itself: its write
-// and its change-log entry. The row is versioned in place, so what the
-// caller answers with is what was written.
+// and, for a row a replica holds, its change-log entry under that
+// replica's user. `replica` is null for a row no replica holds (a
+// project's board and what is on it, boardReplica). The row is versioned
+// in place, so what the caller answers with is what was written.
 export async function writeSynced(
-  db: D1Database, table: string, row: Row, ownerUuid: string, isNew: boolean,
+  db: D1Database, table: string, row: Row, replica: string | null, isNew: boolean,
 ): Promise<D1PreparedStatement[]> {
   row.revision = Number(row.revision ?? 0) + 1;
   row.updated_at = now();
@@ -20,7 +22,16 @@ export async function writeSynced(
   for (const name of names) full[name] = row[name] ?? null;
   const key = keyColumn(table);
   const write = isNew ? insert(db, table, full) : update(db, table, key, row[key], omit(full, key));
-  return [write, logChange(db, ownerUuid, table, String(row[key]), await rowSnapshot(db, table, row))];
+  if (replica === null) return [write];
+  return [write, logChange(db, replica, table, String(row[key]), await rowSnapshot(db, table, row))];
+}
+
+// Whose replica holds a board, and so its groups and cards: its maker's,
+// as part of their nook. A project's board is the project's, read and
+// written through the service by every member, and no replica holds it.
+export async function boardReplica(db: D1Database, board: { uuid: unknown; user_uuid: unknown }): Promise<string | null> {
+  const inProject = await one(db, "SELECT 1 FROM project_boards WHERE board_uuid = ?", board.uuid);
+  return inProject ? null : String(board.user_uuid);
 }
 
 // A paper is a dependency, not a synchronized row: versioned and written,

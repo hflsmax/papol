@@ -3,7 +3,7 @@
 // a subject.
 import { describe, expect, it } from "vitest";
 
-import { call, defaultShelf, exec, ok, paperWithCopy, register, row, type Account } from "./helpers";
+import { call, defaultShelf, exec, mutation, ok, paperWithCopy, register, row, uuid, type Account } from "./helpers";
 
 const A_PAPER = "c".repeat(64);
 
@@ -25,14 +25,13 @@ describe("project boards", () => {
     const board = await boardIn(ana, project.uuid);
     expect(board.project).toEqual({ uuid: project.uuid, name: "Wavefronts" });
     expect(board.user_uuid).toBe(ana.uuid);
-    expect(board.shelf_uuid).toBe(await defaultShelf(ana));
+    expect(board.shelf_uuid).toBeNull();
 
     const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "A killer app" } });
     expect((await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers })).can_edit).toBe(true);
     await ok("PUT", `/api/board-items/${card.uuid}`, { headers: ana.headers, json: { content: "A killer app: live correction" } });
-    // The change is logged to the board's maker, whose replica holds it.
-    expect(await row("SELECT user_uuid FROM _server_change_log WHERE row_uuid = ? ORDER BY rowid DESC LIMIT 1", card.uuid))
-      .toEqual({ user_uuid: ana.uuid });
+    // The board is the project's: no replica holds it, so nothing of it is logged.
+    expect(await row("SELECT count(*) AS n FROM _server_change_log WHERE row_uuid IN (?, ?)", board.uuid, card.uuid)).toEqual({ n: 0 });
 
     expect((await call("GET", `/api/boards/${board.uuid}`, { headers: sam.headers })).status).toBe(404);
     expect((await call("POST", `/api/boards/${board.uuid}/comments`, { headers: sam.headers, json: { content: "hi" } })).status).toBe(404);
@@ -88,11 +87,12 @@ describe("project boards", () => {
     expect(await count(ana)).toBe(1);
   });
 
-  it("lets only its maker shelve it, and its maker or a keeper delete it", async () => {
+  it("puts it on nobody's shelf, and lets its maker or a keeper delete it", async () => {
     const { dana, ana, project } = await group();
     const board = await boardIn(ana, project.uuid);
     const other = await boardIn(dana, project.uuid, "Mine");
-    expect((await call("PUT", `/api/boards/${board.uuid}`, { headers: dana.headers, json: { shelf_uuid: await defaultShelf(dana) } })).status).toBe(403);
+    expect((await call("PUT", `/api/boards/${board.uuid}`, { headers: ana.headers, json: { shelf_uuid: await defaultShelf(ana) } })).status).toBe(409);
+    expect((await call("PUT", `/api/boards/${board.uuid}`, { headers: dana.headers, json: { shelf_uuid: await defaultShelf(dana) } })).status).toBe(409);
     expect((await call("DELETE", `/api/boards/${other.uuid}`, { headers: ana.headers })).status).toBe(403);
     await ok("DELETE", `/api/boards/${board.uuid}`, { headers: dana.headers });
   });
@@ -105,6 +105,28 @@ describe("project boards", () => {
     const kept = await ok("GET", `/api/boards/${board.uuid}`, { headers: dana.headers });
     expect(kept.user_uuid).toBe(dana.uuid);
     expect(kept.items.map((i: { content: string }) => i.content)).toEqual(["Keep me"]);
+    expect(await row("SELECT count(*) AS n FROM _server_change_log WHERE user_uuid = ?", dana.uuid)).toEqual({ n: 0 });
+  });
+
+  it("stays out of its maker's nook and replica, and a replica cannot write it", async () => {
+    const { dana, ana, project } = await group();
+    const own = await ok("POST", "/api/boards", { headers: ana.headers, json: { name: "Mine alone" } });
+    const board = await boardIn(ana, project.uuid);
+    const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "Hello" } });
+
+    const nook = await ok("GET", `/api/users/${ana.uuid}/nook`, { headers: ana.headers });
+    expect(nook.boards.map((b: { uuid: string }) => b.uuid)).toEqual([own.uuid]);
+    const snapshot = await ok("GET", "/api/sync/snapshot", { headers: ana.headers });
+    const held = snapshot.rows.filter((r: { table: string }) => r.table.startsWith("board")).map((r: { uuid: string }) => r.uuid);
+    expect(held).toEqual([own.uuid]);
+
+    const refused = await call("POST", "/api/sync/push", { headers: ana.headers, json: mutation([
+      { table: "board_items", uuid: card.uuid, base_revision: null, operation: "upsert", values: { content: "From the replica" } },
+    ]) });
+    expect(refused.status).toBe(404);
+    expect((await call("POST", "/api/sync/push", { headers: ana.headers, json: mutation([
+      { table: "board_items", uuid: uuid(), base_revision: 0, operation: "upsert", values: { board_uuid: board.uuid, kind: "comment", content: "New" } },
+    ]) })).status).toBe(409);
   });
 });
 
