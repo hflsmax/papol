@@ -41,10 +41,10 @@ function uploadFixture(server) {
         // The upload as the bucket and the Worker see it: the address asked
         // for, the PUT to the bucket, and the word that the bytes are in.
         window.uploadSeen = [];
-        // The PUT goes through XMLHttpRequest, for its upload progress; the
-        // bucket is played here, answering in three steps so the bar has
-        // something to show. Every value the bar took is recorded as it
-        // goes, and whether "Extracting…" was ever on screen beside it.
+        // The web PUT goes through XMLHttpRequest, for its upload progress;
+        // the bucket is played here, answering in three steps so the bar has
+        // something to show. The native PUT is played by fetch below, the
+        // stand-in for Tauri's HTTP plugin.
         window.barSeen = [];
         window.extractingBesideBar = false;
         window.barObserver = new MutationObserver(() => {
@@ -81,6 +81,19 @@ function uploadFixture(server) {
         window.realFetch = window.fetch.bind(window);
         window.fetch = async (url, options = {}) => {
           const path = String(url);
+          if (path.startsWith('https://bucket.test/')) {
+            window.uploadSeen.push({
+              step: 'put', method: options.method, headers: Object.fromEntries(new Headers(options.headers)),
+              size: options.body?.size,
+            });
+            window.putDone = false;
+            const heldSince = Date.now();
+            while (window.holdPut && !window.lookupSeen.length && Date.now() - heldSince < 20000) {
+              await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            window.putDone = true;
+            return new Response(null, {status: 200});
+          }
           if (path.endsWith('/files/upload-address')) {
             // What the Tauri HTTP plugin says of a host outside its scope.
             if (window.failSend) throw new Error('url not allowed on the configured scope');
@@ -200,16 +213,17 @@ try {
     await choose();
     await browser.waitFor('document.querySelector("#upload-paper-title")');
     assert.match(await browser.text(), /Paper Metadata/);
+    // The bytes went to the bucket by the address the server gave, with
+    // the headers it listed and no credential; the server was then told,
+    // with the arXiv id the browser read off the first page. On the Mac the
+    // same exchange uses native HTTP rather than the page's XHR.
+    const seen = await browser.evaluate('return window.uploadSeen;');
+    assert.deepEqual(seen.map((step) => step.step), ['address', 'put', 'uploaded']);
+    assert.deepEqual(seen[0].body, { kind: 'paper', sha256: fixtureDigest, size: fixtureSize, name: 'attention.pdf', mime: 'application/pdf' });
+    assert.equal(seen[1].method, 'PUT');
+    assert.equal(seen[1].size, fixtureSize);
+    assert.deepEqual(seen[1].headers, { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' });
     if (mode === 'web') {
-      // The bytes went to the bucket by the address the server gave, with
-      // the headers it listed and no credential; the server was then told,
-      // with the arXiv id the browser read off the first page.
-      const seen = await browser.evaluate('return window.uploadSeen;');
-      assert.deepEqual(seen.map((step) => step.step), ['address', 'put', 'uploaded']);
-      assert.deepEqual(seen[0].body, { kind: 'paper', sha256: fixtureDigest, size: fixtureSize, name: 'attention.pdf', mime: 'application/pdf' });
-      assert.equal(seen[1].method, 'PUT');
-      assert.equal(seen[1].size, fixtureSize);
-      assert.deepEqual(seen[1].headers, { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' });
       // With the title block the browser read off the first page by the
       // analyzer's rules (shared/printed.js).
       const { title_block: titleBlock, ...told } = seen[2].body;

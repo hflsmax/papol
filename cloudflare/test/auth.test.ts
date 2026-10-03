@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { call, ok, register, row } from "./helpers";
+import { call, exec, ok, register, row } from "./helpers";
 
 describe("accounts", () => {
   it("signs a new user up with their furniture and a session", async () => {
@@ -36,6 +36,37 @@ describe("accounts", () => {
     const right = await ok("POST", "/api/auth/login", { json: { email: "LOGIN@example.test", password: "testing-password" } });
     expect(right.user.uuid).toBe(account.uuid);
     expect(right.token).not.toBe(account.headers.Authorization.slice(7));
+  });
+
+  it("resets a forgotten password through a single-use emailed link", async () => {
+    const account = await register("forgotten@example.test", "Forgotten Reader");
+    const requested = await ok("POST", "/api/auth/forgot-password", { json: { email: "FORGOTTEN@example.test" } });
+    expect(requested.message).toContain("If that address belongs to an account");
+
+    const job = await row<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'send_email'");
+    const body = JSON.parse(job!.payload).body as string;
+    const token = body.match(/\/reset-password\/([0-9a-f]{64})/)?.[1];
+    expect(token).toHaveLength(64);
+
+    expect((await call("POST", "/api/auth/reset-password", { json: { token, password: "short" } })).status).toBe(422);
+    await ok("POST", "/api/auth/reset-password", { json: { token, password: "replacement-password" } });
+    expect((await call("POST", "/api/auth/reset-password", { json: { token, password: "another-password" } })).status).toBe(400);
+    expect((await call("GET", "/api/auth/me", { headers: account.headers })).status).toBe(401);
+    expect((await call("POST", "/api/auth/login", { json: { email: account.email, password: "testing-password" } })).status).toBe(401);
+    expect((await call("POST", "/api/auth/login", { json: { email: account.email, password: "replacement-password" } })).status).toBe(200);
+  });
+
+  it("does not reveal whether a password-reset address exists and rejects expired links", async () => {
+    const missing = await ok("POST", "/api/auth/forgot-password", { json: { email: "nobody@example.test" } });
+    expect(missing.message).toContain("If that address belongs to an account");
+    expect(await row("SELECT * FROM jobs WHERE kind = 'send_email'")).toBeNull();
+
+    await register("expired@example.test");
+    await ok("POST", "/api/auth/forgot-password", { json: { email: "expired@example.test" } });
+    const job = await row<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'send_email'");
+    const token = (JSON.parse(job!.payload).body as string).match(/\/reset-password\/([0-9a-f]{64})/)?.[1];
+    await exec("UPDATE password_resets SET expires_at = '2000-01-01T00:00:00.000Z'");
+    expect((await call("POST", "/api/auth/reset-password", { json: { token, password: "replacement-password" } })).status).toBe(400);
   });
 
   it("ends a session on sign-out and keeps its record", async () => {

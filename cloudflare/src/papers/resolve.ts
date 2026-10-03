@@ -130,14 +130,22 @@ function metadataMatchesUntitled(summary: Summary, context: Context): boolean {
   if (context.year === null || summary.year !== context.year || !context.journal || !context.authors.length) return false;
   const venueWords = contentWords(context.journal);
   const candidateVenue = contentWords(summary.venue ?? "");
-  if (!venueWords.size || ![...venueWords].every((w) => candidateVenue.has(w))) return false;
+  // Printed physics venues are routinely abbreviated ("Appl. Phys. Lett.")
+  // while CrossRef returns their full names ("Applied Physics Letters").
+  // A token must still agree from its beginning, so an abbreviation cannot
+  // merely occur somewhere in an unrelated venue.
+  if (!venueWords.size || ![...venueWords].every((w) => [...candidateVenue].some((candidate) => candidate.startsWith(w) || w.startsWith(candidate)))) return false;
   const candidateNames = nameWords((summary.authors ?? []).join(" "));
   const surnames = new Set<string>();
   for (const author of context.authors) {
     const parts = author.match(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g);
     if (parts) { const words = nameWords(parts[parts.length - 1]); if (words.size) surnames.add([...words][0]); }
   }
-  return surnames.size >= 2 && [...surnames].every((s) => candidateNames.has(s));
+  // Two authors are decisive. A single-author paper is still safe when the
+  // exact year and a multi-word venue agree with CrossRef's first result;
+  // a one-word venue plus one surname is too little identity.
+  return (surnames.size >= 2 || (surnames.size === 1 && venueWords.size >= 2))
+    && [...surnames].every((s) => candidateNames.has(s));
 }
 
 function nameWords(text: string): Set<string> {

@@ -69,7 +69,7 @@
   {"page": 32, "name": "bigmix-frame", "box": [295.1, 307.5, 432.1, 332.3]},
   {"page": 32, "name": "bigmix-unframe", "box": [80.7, 344.6, 219.3, 385.2]},
   {"page": 32, "name": "bigmix-frame-frameable", "box": [259.4, 344.6, 402.6, 385.2]},
-  {"page": 37, "name": "inner-prod-uniqe", "box": [301.8, 454.8, 424.4, 493.6]},
+  {"page": 37, "name": "inner-prod-unique", "box": [301.8, 454.8, 424.4, 493.6]},
   {"page": 37, "name": "inner-prod-sum", "box": [159.4, 524.4, 285.3, 546.6]},
   {"page": 37, "name": "inner-prod-sum-exact", "box": [308.4, 508.6, 434.9, 546.8]},
   {"page": 37, "name": "inner-prod-bigbmix", "box": [51.3, 578.2, 229.1, 607.1]},

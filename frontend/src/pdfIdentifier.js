@@ -10,6 +10,7 @@
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
+import { pdfFetchCredentials } from './pdfFetch.js';
 
 // PDF.js is loaded the first time a file is chosen, not with the page:
 // it is most of a megabyte, and the library page has no other use for it.
@@ -49,7 +50,7 @@ export function readIdentifier(file) {
 // paper read again from its jacket. Null when it cannot be fetched.
 export function readPrintedAt(href) {
   return identifierWithin((async () => {
-    const response = await fetch(href, { credentials: 'include' });
+    const response = await fetch(href, { credentials: pdfFetchCredentials(href) });
     if (!response.ok) return null;
     return identifierInBytes(new Uint8Array(await response.arrayBuffer()));
   })());

@@ -1,9 +1,8 @@
-# The Worker: on main, its suite and, beside it, a deploy to the dev
-# environment (dev.papol.io) followed by the smoke test against it;
-# production only by hand, from the Actions tab. The suite runs on the
-# merge, once, and a deploy does not wait for it: a deploy by hand is of a
-# commit whose suite already ran on main. A pull request runs the same
-# suite in pr.yml (the `tests` check), so it is not repeated here.
+# The Worker: on main, its suite and, beside it, deploys to dev and production,
+# each followed by smoke and link checks. A manual run deploys only the chosen
+# environment. The suite runs on the merge, once, and the deploys do not wait
+# for it: the same revision's pull request already ran the suite in pr.yml (the
+# `tests` check), so it is not repeated here.
 #
 # Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
 # "Edit Cloudflare Workers" template plus D1 edit, Queues edit and, for the
@@ -43,22 +42,26 @@ jobs:
       - run: npm test
 
   deploy:
-    name: worker-deploy
-    # main lands on dev by itself; production is asked for.
+    name: worker-deploy-${{ matrix.target }}
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ github.event.inputs.environment || 'dev' }}
+    strategy:
+      matrix:
+        # A merge updates both live environments. A dispatch remains a precise
+        # one-environment operation for retries and deliberate redeploys.
+        target: ${{ fromJSON(github.event_name == 'push' && '["dev", "production"]' || format('["{0}"]', inputs.environment)) }}
+    environment: ${{ matrix.target }}
     # Two deploys to one environment at once would interleave migrations and
     # uploads. The second waits for the first rather than cancelling it: a
     # deploy stopped halfway leaves the environment between two versions.
     concurrency:
-      group: worker-deploy-${{ github.event.inputs.environment || 'dev' }}
+      group: worker-deploy-${{ matrix.target }}
       cancel-in-progress: false
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      TARGET: ${{ github.event.inputs.environment || 'dev' }}
+      TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

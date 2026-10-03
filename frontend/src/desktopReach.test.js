@@ -44,6 +44,8 @@ test('every host Papol asks for says which way it is asked, and why', () => {
     assert.ok(['page', 'plugin'].includes(entry.by), `${entry.host} is asked in no known way`);
     assert.ok(entry.why.length > 20, `${entry.host} does not say why`);
   }
-  // The R2 upload address is one a release shipped without.
-  assert.ok(pageHosts().some((host) => host.endsWith('.r2.cloudflarestorage.com')));
+  // The R2 upload address is one a release shipped without. Uploads are
+  // programmatic transfers, so the native client — not WebKit — owns it.
+  assert.ok(pluginHosts().some((host) => host.endsWith('.r2.cloudflarestorage.com')));
+  assert.equal(pageHosts().some((host) => host.endsWith('.r2.cloudflarestorage.com')), false);
 });

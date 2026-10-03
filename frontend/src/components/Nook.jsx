@@ -67,6 +67,25 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
     return loadNook();
   }, [loadNook]);
 
+  // A paper can be added from a viewer in another tab or window while this
+  // nook remains mounted. Bring its list up to date when the user returns;
+  // pageshow also covers a nook restored from the browser's back/forward
+  // cache after adding and reading a paper.
+  useEffect(() => {
+    if (!isOwn) return undefined;
+    const refresh = () => loadNook();
+    const onShow = (event) => { if (event.persisted) refresh(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isOwn, loadNook]);
+
   // A folder, or several PDFs, dropped on the window: their review opens
   // here, where the papers go.
   useEffect(() => {

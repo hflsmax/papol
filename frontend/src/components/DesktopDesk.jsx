@@ -360,7 +360,7 @@ export function DesktopBrowser({
         <strong>{boardsView ? 'No board selected' : 'No paper selected'}</strong>
         <span>
           {boardsView
-            ? 'Choose a board to preview it and continue where you left off.'
+            ? 'Choose a board to see its details and continue where you left off.'
             : 'Choose a paper from the list.'}
         </span>
       </div>

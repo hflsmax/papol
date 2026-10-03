@@ -1,26 +1,39 @@
 import React, { useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { login, register } from '../../../shared/api/account.js';
+import { forgotPassword, login, register, resetPassword } from '../../../shared/api/account.js';
 
-export default function AuthPage({ onAuth, initialMode = 'login' }) {
+export default function AuthPage({ onAuth, initialMode = 'login', resetToken = '' }) {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [affiliation, setAffiliation] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setMessage(null);
     setIsLoading(true);
     try {
-      const result =
-        mode === 'login'
+      if (mode === 'forgot') {
+        const result = await forgotPassword(email.trim());
+        setMessage(result.message);
+      } else if (mode === 'reset') {
+        if (password !== passwordConfirmation) throw new Error('Passwords do not match');
+        const result = await resetPassword(resetToken, password);
+        setMessage(result.message);
+        setMode('complete');
+        setPassword('');
+      } else {
+        const result = mode === 'login'
           ? await login(email.trim(), password)
           : await register(email.trim(), displayName.trim(), affiliation.trim(), password);
-      onAuth(result);
+        onAuth(result);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -31,14 +44,16 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h2>{mode === 'login' ? 'Sign in' : 'Join Papol'}</h2>
+        <h2>{mode === 'login' ? 'Sign in' : mode === 'register' ? 'Join Papol' : mode === 'forgot' ? 'Reset password' : mode === 'complete' ? 'Password reset' : 'Choose a new password'}</h2>
         <p className="auth-subtitle">
           Papol is your paper-reading companion.
         </p>
 
         {error && <div className="error" role="alert">{error}</div>}
+        {message && <div className="notice" role="status">{message}</div>}
 
-        <form onSubmit={handleSubmit}>
+        {mode !== 'complete' && <form onSubmit={handleSubmit}>
+          {mode !== 'reset' && (
           <div className="form-group">
             <label htmlFor="auth-email">Email</label>
             <input
@@ -50,6 +65,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               required
             />
           </div>
+          )}
 
           {mode === 'register' && (
             <>
@@ -79,8 +95,8 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
             </>
           )}
 
-          <div className="form-group">
-            <label htmlFor="auth-password">Password</label>
+          {(mode === 'login' || mode === 'register' || mode === 'reset') && <div className="form-group">
+            <label htmlFor="auth-password">{mode === 'reset' ? 'New password' : 'Password'}</label>
             <input
               id="auth-password"
               type="password"
@@ -90,30 +106,53 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               minLength={6}
               required
             />
-          </div>
+          </div>}
+
+          {mode === 'reset' && <div className="form-group">
+            <label htmlFor="auth-password-confirmation">Confirm new password</label>
+            <input
+              id="auth-password-confirmation"
+              type="password"
+              value={passwordConfirmation}
+              onChange={(e) => setPasswordConfirmation(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+              required
+            />
+          </div>}
 
           <button type="submit" className="primary full-width" disabled={isLoading}>
             {mode === 'login'
               ? (isLoading ? 'Signing in…' : 'Sign in')
-              : (isLoading ? 'Creating account…' : 'Create account')}
+              : mode === 'register' ? (isLoading ? 'Creating account…' : 'Create account')
+                : mode === 'forgot' ? (isLoading ? 'Sending…' : 'Send reset link')
+                  : (isLoading ? 'Updating…' : 'Update password')}
           </button>
-        </form>
+        </form>}
 
         <p className="auth-switch">
           {mode === 'login' ? (
             <>
+              <button className="link-button" onClick={() => { setMode('forgot'); setError(null); setMessage(null); }}>
+                Forgot password?
+              </button>
+              <br />
               New here?{' '}
               <button className="link-button" onClick={() => { setMode('register'); setError(null); }}>
                 Create an account
               </button>
             </>
-          ) : (
+          ) : mode === 'register' ? (
             <>
               Already a member?{' '}
               <button className="link-button" onClick={() => { setMode('login'); setError(null); }}>
                 Sign in
               </button>
             </>
+          ) : (
+            <button className="link-button" onClick={() => { setMode('login'); setError(null); setMessage(null); }}>
+              Return to sign in
+            </button>
           )}
         </p>
       </div>

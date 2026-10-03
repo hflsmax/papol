@@ -2147,10 +2147,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   margin-top: 12px;
 }
 
-/* The preview, the papers and the waiting clips each stand a little apart
-   from what is above them, as the paper page's sections do. */
-.board-jacket .board-preview { margin-top: 20px; }
-
 .board-jacket-section { margin-top: 24px; }
 .board-jacket-section .kicker { margin: 0 0 6px; }
 
@@ -2266,102 +2262,6 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   place-items: center;
   color: var(--ink-soft);
   font: 600 var(--fs-sm) var(--font-ui);
-}
-
-/* A board seen from a distance, every card where it sits. The frame takes
-   the proportions of the cards' own extent (--preview-ratio, set by
-   BoardPreview), no taller than 320px — 200px on a phone — and no wider than
-   the panel, centred in it: the cards fill it rather than floating in it. */
-.board-preview {
-  --preview-height: 320px;
-  position: relative;
-  display: grid;
-  width: min(100%, calc(var(--preview-height) * var(--preview-ratio, 1.6)));
-  aspect-ratio: var(--preview-ratio, 1.6);
-  margin-inline: auto;
-  overflow: hidden;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background-color: var(--paper-sunken);
-  background-image: radial-gradient(circle, var(--line-strong) .65px, transparent .75px);
-  background-size: 16px 16px;
-  cursor: pointer;
-  user-select: none;
-  transition: border-color var(--motion-fast) var(--ease-out);
-}
-
-.board-preview:hover,
-.board-preview:focus-visible {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.board-preview svg {
-  width: 100%;
-  height: 100%;
-}
-
-@media (max-width: 600px) {
-  .board-preview { --preview-height: 200px; }
-}
-
-.board-preview-card rect {
-  fill: var(--card);
-  stroke: var(--line-strong);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 3px 3px rgba(29,33,41,.10));
-}
-
-.board-preview-card line {
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.board-preview-card text {
-  fill: var(--ink-soft);
-  font: 14px var(--font-serif);
-  pointer-events: none;
-}
-
-.board-preview-card text.kind {
-  fill: var(--ink-faint);
-  font: 700 10px var(--font-ui);
-  letter-spacing: .6px;
-  text-transform: uppercase;
-}
-
-.board-preview-card.comment rect {
-  fill: var(--accent-soft);
-  stroke: var(--accent-line);
-}
-
-.board-preview.empty {
-  width: 100%;
-  min-height: 180px;
-  aspect-ratio: auto;
-  align-content: center;
-  justify-items: center;
-  gap: 5px;
-  padding: 28px 20px;
-  color: var(--ink-faint);
-  background-image: none;
-  font: var(--fs-sm) var(--font-ui);
-  text-align: center;
-}
-
-.board-preview.empty svg {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  padding: 0;
-  fill: none;
-  stroke: var(--line-strong);
-  stroke-width: 1.2;
-}
-
-.board-preview.empty strong {
-  color: var(--ink-soft);
-  font-size: var(--fs-base);
 }
 
 .nook-chip {
@@ -5139,11 +5039,19 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-person-name { color: var(--ink); text-decoration: none; }
 .project-person-name:hover { color: var(--accent); }
 .project-person-role { color: var(--ink-faint); font-size: var(--fs-xs); }
+.project-person-online { color: var(--green-ink); font-size: var(--fs-xs); font-weight: 600; }
 .project-person-actions { display: flex; gap: var(--space-1); margin-left: auto; opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
 .project-people .project-person-name { font-weight: 500; }
 .project-person:hover .project-person-actions,
 .project-person:focus-within .project-person-actions { opacity: 1; }
 @media (hover: none) { .project-person-actions { opacity: 1; } }
+
+/* Online status belongs to a member's chip, not their identity everywhere.
+   The card-coloured keyline keeps the dot legible over any avatar colour. */
+.project-presence-avatar { position: relative; display: inline-flex; flex: none; }
+.project-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px; background: var(--green); box-shadow: 0 0 0 2px var(--card); }
+.project-seat .project-presence-dot { box-shadow: 0 0 0 2px var(--paper); }
+.project-seat:hover .project-presence-dot { box-shadow: 0 0 0 2px var(--fill); }
 
 .project-closed { margin: 0; color: var(--ink-soft); font-size: var(--fs-md); }
 
@@ -5162,8 +5070,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 
 .project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-4); }
 .project-head > .project-title-row { flex: 1 1 22rem; }
-.project-head > .project-tabs { margin: 0; }
-.project-head:has(> .project-title-row) > .project-tabs { order: 3; flex-basis: 100%; }
+.project-head > .project-tabs-row { margin: 0; }
+.project-head:has(> .project-title-row) > .project-tabs-row { order: 3; flex-basis: 100%; }
 .is-desk .project-title { font: 600 var(--fs-hero)/1.15 var(--font-serif); }
 /* The name and its badge, and under them what the project is about. */
 .project-title-row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; }
@@ -5210,6 +5118,8 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 [data-shell='desktop'] .project-desk { margin-top: 0; }
 /* The desk's three views: quiet words, the one shown on a soft pill. */
 .project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); }
+.project-tabs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.project-tabs-row > .project-mark-all { margin-top: var(--space-2); margin-left: auto; }
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
@@ -5231,6 +5141,32 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-row-facts { display: contents; }
 .project-row .project-card-added { margin: 0; padding: 0; white-space: nowrap; }
 .project-row-end { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.project-tag-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin: 0 0 var(--space-2); padding: 0 var(--space-3); }
+.project-tag-filters > button { min-height: 22px; padding: 1px 7px; border: 1px solid transparent; border-radius: var(--radius-pill); background: transparent; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-tag-filters button:hover, .project-tag-filters button:focus-visible { border-color: var(--line); background: var(--card); color: var(--accent); }
+.project-tag-filters button.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.project-tags-none { margin: var(--space-5) var(--space-3); color: var(--ink-faint); font: var(--fs-sm) var(--font-ui); }
+.project-paper-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-family: var(--font-ui); }
+.project-paper-tag-list { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
+.project-paper-tags > .project-paper-tag-list { margin-top: 0; }
+.project-paper-tag { justify-content: center; height: 22px; padding: 0 7px; border: 1px solid var(--accent-line); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-tag-edit { justify-content: center; height: 22px; min-height: 0; padding: 0 5px; border: 0; background: transparent; box-shadow: none; color: var(--ink-faint); font: 500 var(--fs-2xs) var(--font-ui); }
+.project-tag-edit:hover:not(:disabled), .project-tag-edit:focus-visible { border: 0; background: transparent; color: var(--accent); }
+button.project-paper-tag.is-removable { gap: 4px; box-shadow: none; }
+.project-paper-tag-label, .project-paper-tag-remove { display: inline-block; line-height: inherit; }
+button.project-paper-tag.is-removable .project-paper-tag-remove { color: var(--ink-faint); }
+button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper-tag.is-removable:focus-visible { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.project-tag-picker { position: relative; flex: 1 1 12rem; max-width: 18rem; }
+.project-tag-input { width: 100%; min-height: 26px; box-sizing: border-box; padding: 3px 8px; border-color: var(--line-strong); border-radius: var(--radius); font: var(--fs-xs) var(--font-ui); }
+.project-tag-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
+.project-tag-options { position: absolute; z-index: 3; top: calc(100% + 3px); right: 0; left: 0; display: grid; max-height: 10rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-sm); }
+.project-tag-options button { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: var(--fs-xs) var(--font-ui); text-align: left; }
+.project-tag-options button + button { border-top: 1px solid var(--line); }
+.project-tag-options button:hover:not(:disabled), .project-tag-options button:focus-visible { border-color: var(--line); background: var(--paper-sunken); color: var(--accent); }
+.project-tag-options button span:last-child { color: var(--ink-faint); font-size: var(--fs-2xs); }
+.project-tag-options .project-tag-create { color: var(--accent); }
+.project-tag-error { flex-basis: 100%; color: var(--red); font: var(--fs-2xs) var(--font-ui); }
+.paper-brief-tags .project-paper-tags { margin-top: var(--space-1); }
 @container (max-width: 1099px) {
   .project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'text end' 'facts end'; row-gap: 2px; column-gap: var(--space-3); }
   /* The facts share one line and one left edge whatever a row lacks. */
@@ -5243,42 +5179,25 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 @container (max-width: 559px) {
   .project-row-cite { display: none; }
 }
-.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); align-items: stretch; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.project-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-sm); transition: border-color var(--motion-fast) var(--ease-out); }
-.project-card:hover { border-color: var(--accent); }
 .project-paper { cursor: pointer; }
-.project-paper:focus-within:has(.project-card-title a:focus-visible) { border-color: var(--accent); }
-.project-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 36px; padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: color-mix(in srgb, var(--paper) 72%, var(--card)); }
 .project-card-kind { display: inline-flex; align-items: center; color: var(--ink-faint); font: 650 var(--fs-2xs) var(--font-ui); letter-spacing: .045em; text-transform: uppercase; }
-.project-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-3) var(--space-2); }
 .project-card-title { display: -webkit-box; margin: 0; overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .project-card-title a { color: inherit; }
 .project-card-authors { margin: 0; overflow: hidden; color: var(--ink-soft); font: italic var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
 .project-card-added { margin: var(--space-2) 0 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-board-map { display: block; width: 100%; height: 96px; margin-bottom: var(--space-2); border-radius: 6px; background: var(--paper); }
-.project-board-map rect { fill: var(--card); stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2) var(--space-2); }
 .project-paper-added { margin: 0; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-board-tile { display: grid; min-height: 160px; }
-.project-board-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); width: 100%; min-height: 96px; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: 10px; background: none; box-shadow: none; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); text-align: center; }
-.project-paper-empty span, .project-board-add span { color: var(--ink-faint); font-size: var(--fs-xs); font-weight: 400; }
-.project-board-add { font-weight: 500; }
-.project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-
-.project-board-name { min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); font: var(--fs-md) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
+/* Boards as rows, read like the papers: the name and its description. The
+   news dot keeps the far edge. The last row makes one more, quiet until
+   pressed, when it takes the name in place. */
+.project-row.project-board { grid-template-columns: minmax(0, 1fr) auto; }
+.project-row.project-board-new { display: block; padding: 0; cursor: default; }
+.project-row.project-board-new:hover { background: none; }
+.project-board-add { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 0; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); text-align: left; }
+.project-board-add:hover:not(:disabled), .project-board-add:focus-visible { border: 0; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--accent); }
+.project-board-new-form { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); color: var(--ink-soft); }
+.project-board-new-form .action-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.project-board-name { flex: 1 1 auto; min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); font: 600 var(--fs-base) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
-
-.project-board-link { color: inherit; text-decoration: none; }
-/* The whole card opens the board. */
-.project-board .project-board-link::after { content: ''; position: absolute; inset: 0; }
-.project-board > .news-dot { position: absolute; top: var(--space-3); right: var(--space-3); }
-
-.project-board-link:hover .project-card-title { color: var(--accent); }
-.project-board-meta { justify-content: flex-start; margin-top: auto; padding: var(--space-1) var(--space-3) var(--space-2); color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.project-boards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
-.project-board.is-naming { border-color: var(--accent); }
-.project-board-name { font-weight: 600; }
-.project-board-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 
 /* Digs as rows, the soft tiles of the Papers tab; a dig opens beside its
    row on a wide window, under it on a narrow one. */
@@ -5325,7 +5244,6 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
   .project-head { align-items: flex-start; }
   .project-seat small { display: none; }
   .project-seat { width: auto; }
-  .project-boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 ${talkStyles}
@@ -5335,7 +5253,11 @@ ${talkStyles}
 
 /* The Papers tab: the list, and the picked paper's brief beside it on a
    wide window, laid out as the Digs tab lays out a dig. */
-.project-papers-view.is-wide { display: grid; grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr); column-gap: var(--space-6); align-items: start; }
+.project-papers-view.is-wide { display: grid; grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr); grid-template-areas: 'filters filters' 'list panel'; column-gap: var(--space-6); align-items: start; }
+.project-papers-view.is-wide > .project-tag-filters { grid-area: filters; }
+.project-papers-view.is-wide > .project-papers-list { grid-area: list; }
+.project-papers-view.is-wide > .project-papers-panel { grid-area: panel; }
+.project-papers-list { min-width: 0; }
 /* The list reads its own width, so its rows fold as they do on a phone. */
 .project-papers-view.is-wide .project-papers { container-type: inline-size; }
 .project-row-open { display: inline; width: auto; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; }
@@ -5343,10 +5265,14 @@ ${talkStyles}
 .project-row.is-selected, .project-row.is-selected:hover { background: var(--card); }
 .project-row.is-selected .project-card-title { color: var(--ink); }
 .project-papers-panel { position: sticky; top: var(--space-4); padding: var(--space-5) var(--space-5) 0; border-radius: var(--radius-lg); background: var(--card); }
-/* A board opened in the Boards tab: its jacket on the one raised sheet,
-   under the tabs, as a paper's brief sits beside its list. */
-.project-board-open { border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 1px 2px rgba(29, 33, 41, 0.06), 0 4px 14px rgba(29, 33, 41, 0.06); }
-.project-board-open .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
+/* A board picked in the Boards tab: its jacket on the pane, or under its
+   row, with the pane's own sheet and no panel of its own. */
+.project-boards-panel { padding: 0; }
+.project-board-open { margin: -2px 0 var(--space-3); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
+.project-boards-view.is-wide { grid-template-areas: 'list panel'; }
+.project-boards-view.is-wide > .project-boards { grid-area: list; }
+.project-boards-view .board-jacket > .panel { margin: 0; border: 0; background: transparent; box-shadow: none; }
+.project-boards-view .board-jacket-papers li, .project-boards-view .board-jacket-papers li:last-child { border: 0; }
 .project-paper-open { margin: -2px 0 var(--space-3); padding: var(--space-4) var(--space-3) var(--space-5); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--card); }
 
 /* The open row and what it opens are the only raised white surfaces on
@@ -5401,7 +5327,7 @@ ${talkStyles}
 .project-toolbar { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; align-items: stretch; gap: 0; min-width: 0; }
 .project-toolbar .project-title-line { flex-wrap: nowrap; }
 .project-toolbar .project-title { flex: 0 1 auto; max-width: 100%; margin: 0; font: 600 var(--fs-base)/1.3 var(--font-ui); }
-[data-shell='desktop'] .project-page > .project-tabs { margin: 0 0 var(--space-4); }
+[data-shell='desktop'] .project-page > .project-tabs-row { margin: 0 0 var(--space-4); }
 .desktop-toolbar .project-seats { flex: none; margin-left: auto; justify-content: flex-end; align-items: center; gap: var(--space-1); }
 .desktop-toolbar .project-seat-row { gap: 0; }
 .desktop-toolbar .project-seat-more { align-self: center; margin: 0 0 0 var(--space-1); }

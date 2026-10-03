@@ -11,6 +11,23 @@ test('shared application styles can be evaluated outside the app module', () => 
   assert.doesNotMatch(applicationStyles, /desktopChrome/);
 });
 
+test('textual chip families share one vertical-centering rule', () => {
+  const rule = applicationStyles.match(/\.text-chip,[\s\S]*?line-height: 1 !important;\n}/)?.[0] ?? '';
+  for (const family of ['.tag-chip', '.badge', '.project-paper-tag', '.project-tag-edit', '.desk-tag', '.chip-pop-tag']) {
+    assert.match(rule, new RegExp(family.replace('.', '\\.')), `${family} is outside the shared chip rule`);
+  }
+  assert.match(rule, /align-items: center !important/);
+});
+
+test("a project's board jacket starts beside its rail instead of below an empty filters row", () => {
+  assert.match(applicationStyles, /\.project-boards-view\.is-wide \{ grid-template-areas: 'list panel'; \}/);
+  assert.match(applicationStyles, /\.project-boards-view\.is-wide > \.project-boards \{ grid-area: list; \}/);
+});
+
+test('board jackets do not reserve a canvas preview', () => {
+  assert.doesNotMatch(applicationStyles, /\.board-preview(?:[\s.{:#]|$)/);
+});
+
 // A rule left open swallows every rule after it without a parse error.
 test('every block in the shared application styles is closed', () => {
   let depth = 0;

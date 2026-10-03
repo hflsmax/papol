@@ -22,14 +22,18 @@ const { analyzeWithRules, headerWithRules } = await import(pathToFileURL(out).hr
 // bibliography of three entries (fewer is not taken for a bibliography).
 // A string instead of a line is drawing operators, put in as they are; a
 // fifth item "italic" sets the line in Helvetica-Oblique.
-function writtenPdf(lines) {
-  const content = lines.map((line) => (typeof line === "string" ? line
-    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n");
+function writtenPdf(lines) { return writtenPdfPages([lines]); }
+
+function writtenPdfPages(pages) {
+  const contents = pages.map((lines) => lines.map((line) => (typeof line === "string" ? line
+    : `BT /${line[4] === "italic" ? "F2" : "F1"} ${line[3] ?? 10} Tf ${line[0]} ${line[1]} Td (${line[2].replace(/[()\\]/g, "\\$&")}) Tj ET`)).join("\n"));
+  const firstContent = 3 + pages.length;
+  const firstFont = firstContent + pages.length;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    ...pages.map((_, i) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents ${firstContent + i} 0 R /Resources << /Font << /F1 ${firstFont} 0 R /F2 ${firstFont + 1} 0 R >> >> >>`),
+    ...contents.map((content) => `<< /Length ${content.length} >>\nstream\n${content}\nendstream`),
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>",
   ];
@@ -59,6 +63,77 @@ describe("the title block", () => {
         journal: null, year: 2016, doi: "10.1145/2984511.2984540", arxiv_id: null,
       });
     }
+  });
+
+  it("ignores a large drop cap whose remaining letters are superscript (c8d08f75)", async () => {
+    const page = writtenPdf([
+      [250, 740, "RipTide", 24],
+      [50, 708, "A programmable, energy-minimal dataflow compiler and architecture", 18],
+      [50, 675, "Graham Gobieski, Souradip Ghosh and Marijn Heule", 10],
+      [50, 640, "Abstract", 10],
+      // TeX-style drop cap: only the R is on the baseline. The rest of the
+      // word is raised and must not make this look like a 26-point title.
+      "BT /F1 26 Tf 50 300 Td (R) Tj /F1 10 Tf 7 Ts (ECENT) Tj ET",
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "RipTide: A programmable, energy-minimal dataflow compiler and architecture");
+    assert.deepEqual(header.authors, ["Graham Gobieski", "Souradip Ghosh", "Marijn Heule"]);
+  });
+
+  it("prefers the coherent title and author block to a larger conference logo", async () => {
+    const page = writtenPdf([
+      [150, 760, "SYSTEMS WEEK", 28],
+      [70, 690, "Small but complete paper title", 17],
+      [70, 665, "Ada Lovelace and Alan Turing", 10],
+      [70, 640, "University of Example, London, UK", 9],
+      [70, 610, "Abstract", 10],
+      [70, 590, "This paper presents a result whose body is set in ordinary type."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Small but complete paper title");
+    assert.deepEqual(header.authors, ["Ada Lovelace", "Alan Turing"]);
+  });
+
+  it("returns no low-confidence title for an isolated display label", async () => {
+    const page = writtenPdf([
+      [220, 700, "SYSTEM", 30],
+      [60, 620, "Ordinary body text continues here with enough words to establish its normal font size."],
+      [60, 605, "It has no title block, author row, abstract boundary, or corroborating document title."],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, null);
+    assert.deepEqual(header.authors, []);
+  });
+
+  it("removes a source line number merged onto a review manuscript's title", async () => {
+    const page = writtenPdf([
+      [20, 740, "1 Choreographing Effects", 15],
+      [20, 720, "2", 7],
+      [45, 712, "The abstract begins without a heading and fills the width of the manuscript."],
+      [20, 700, "3", 7],
+      [45, 692, "Its next line establishes the ordinary body font size for title scoring."],
+      [20, 680, "4", 7],
+    ]);
+    const { header } = await headerWithRules(page);
+    assert.equal(header.title, "Choreographing Effects");
+  });
+
+  it("finds a title page after a cover and joins quirky author names", async () => {
+    const pdf = writtenPdfPages([
+      [[60, 700, "A publisher cover leaf with ordinary descriptive copy and no title block."]],
+      [[60, 700, "This page intentionally left blank."]],
+      [
+        [70, 680, "Geometric Folding", 28],
+        [70, 645, "Algorithms", 28],
+        [70, 585, "Linkages, Origami, Polyhedra", 18],
+        [70, 530, "Xiaoyu (Rayne) Zheng, and Michael Kirkedal", 11],
+        [250, 512, "Thomsen", 11],
+        [70, 485, "Example University, Denmark", 9],
+      ],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "Geometric Folding Algorithms: Linkages, Origami, Polyhedra");
+    assert.deepEqual(header.authors, ["Xiaoyu Zheng", "Michael Kirkedal Thomsen"]);
   });
 
 });
@@ -112,6 +187,22 @@ describe("the paper", () => {
       assert.equal(body.floats[0].title, "A door latch made of cells");
       assert.deepEqual(body.links.map((l) => [l.float, l.label, l.page]), [["f0", "1", 1]]);
     }
+  });
+
+  it("reads titleless physics references as authors, venue and year", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "The mechanism follows earlier work [1]."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] D. Mamaluy and X. Gao, Appl. Phys. Lett. 106, 193503 (2015)."],
+      [60, 265, "[2] K. Proesmans, J. Ehrich, and J. Bechhoefer, Phys. Rev. E 102, 032105 (2020)."],
+      [60, 250, "[3] J. Hernandez, E. Kay, and D. R. Leigh, Science 306, 1532 (2004)."],
+    ]);
+    const references = (await analyzeWithRules(pdf)).analysis.references;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, journal: r.journal, year: r.year })), [
+      { title: null, authors: ["D. Mamaluy", "X. Gao"], journal: "Appl. Phys. Lett", year: 2015 },
+      { title: null, authors: ["K. Proesmans", "J. Ehrich", "J. Bechhoefer"], journal: "Phys. Rev. E", year: 2020 },
+      { title: null, authors: ["J. Hernandez", "E. Kay", "D. R. Leigh"], journal: "Science", year: 2004 },
+    ]);
   });
 
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
@@ -204,6 +295,52 @@ describe("the paper", () => {
       const mentions = body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [l.float, l.label, Math.round(l.y * 800)]);
       assert.deepEqual(mentions, [[app.key, "T-App", 52], [variable.key, "(T-Var)", 52], [law.key, "(RUNIT)", 67], [app.key, "T-App", 67]]);
     }
+  });
+
+  it("links a name in the case its label is set in, not the same word in the text's lowercase", async () => {
+    // A law named "(DUAL)" in capitals: "the rule DUAL" cites it, and so
+    // does "(dual)" set off in italic, but "the rule is exactly the dual
+    // of" is the English word, however near "rule" it stands; "the dual
+    // rule", with "rule" hard by, is the rule again.
+    const pdf = writtenPdf([
+      [60, 740, "By the rule DUAL the relation flips; the rule is exactly the dual of"],
+      [60, 725, "the one before, as"],
+      [150, 725, "(dual)", 10, "italic"],
+      [190, 725, "shows."],
+      [60, 710, "Finally the dual rule is sound."],
+      [100, 500, "m <= n = n >= m"],
+      [189, 500, "(DUAL)"],
+    ]);
+    const body = (await analyzeWithRules(pdf)).analysis;
+    const [law] = body.floats.filter((f) => f.kind === "rule");
+    assert.equal(law?.label, "DUAL");
+    const mentions = body.links.filter((l) => l.float === law.key).map((l) => [l.label, Math.round(l.y * 800)]);
+    assert.deepEqual(mentions, [["DUAL", 52], ["(dual)", 67], ["dual", 82]]);
+  });
+
+  it("links a bracketed word in capitals listed with a hyphenated name's citation", async () => {
+    // "(STORE, LOAD-G)": LOAD-G is cited by its shape, and STORE, set off
+    // from it by a comma, with it, though no "rule" stands near.
+    const pdf = writtenPdf([
+      [60, 740, "Values move to and from main memory (STORE, LOAD-G) as the thread runs."],
+      [100, 600, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 596 m 200 596 l S",
+      [110, 585, "G |- x := v"],
+      [210, 592, "(STORE)", 8],
+      [100, 540, "x : t in G"],
+      "0 0 0 RG 0.4 w 100 536 m 200 536 l S",
+      [110, 525, "G |- v := x"],
+      [210, 532, "(LOAD-G)", 8],
+      [300, 600, "b is empty"],
+      "0 0 0 RG 0.4 w 300 596 m 380 596 l S",
+      [310, 585, "G |- fence"],
+      [390, 592, "(FENCE)", 8],
+    ]);
+    const body = (await analyzeWithRules(pdf)).analysis;
+    const rules = body.floats.filter((f) => f.kind === "rule");
+    assert.deepEqual(rules.map((r) => r.label).sort(), ["FENCE", "LOAD-G", "STORE"]);
+    const named = (key) => rules.find((r) => r.key === key).label;
+    assert.deepEqual(body.links.filter((l) => rules.some((r) => r.key === l.float)).map((l) => [named(l.float), l.label]), [["STORE", "STORE"], ["LOAD-G", "LOAD-G"]]);
   });
 
   it("names a rule in lowercase or by a bare word beside its bar, and takes no heading or production comment for one", async () => {

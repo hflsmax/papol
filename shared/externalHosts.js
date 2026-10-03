@@ -9,8 +9,8 @@
 // its upload. So the hosts live here, once, and a test holds the two
 // lists to this one (frontend/src/desktopReach.test.js).
 //
-// `page` hosts are asked by the page itself: fetch, XMLHttpRequest, the
-// bytes of a picture. They belong in `connect-src`.
+// `page` hosts are asked by the page itself: the bytes of a picture. They
+// belong in `connect-src`.
 // `plugin` hosts are asked through the HTTP plugin (shared/connectivity.js
 // `runtimeFetch`), which goes out through the application, not the page;
 // they belong in the capabilities' `http:default` scope.
@@ -22,8 +22,8 @@ export const R2_ACCOUNT = '9315a859bb8887b2a0ca2cc576f57ae2';
 export const EXTERNAL_HOSTS = [
   {
     host: `https://${R2_ACCOUNT}.r2.cloudflarestorage.com`,
-    by: 'page',
-    why: 'a paper or a board file, PUT to the bucket by the signed address (shared/api/files.js)',
+    by: 'plugin',
+    why: 'a paper or a board file, PUT by native HTTP to the signed bucket address (shared/api/files.js)',
   },
   {
     host: 'https://files.papol.io',

@@ -111,6 +111,27 @@ export const LAYOUT_SMALL_CAPS = rule({
   why: "Small capitals faked from a text font set \"LT-V\" at 8pt and \"AR\" at 6.4pt on a row that opens with 9pt mathematics; the name is one word.",
 });
 
+export const LAYOUT_LIGATURE = rule({
+  id: "layout.ligature", stage: "layout",
+  summary: "A glyph the font names as a ligature of letters (its parts joined by \"_\", each a letter's name with any suffix: q.sc_u.sc, f_f_i) spells all of them, where the text layer maps it to fewer.",
+  why: "Libertine sets the small-capital \"qu\" as one glyph whose ToUnicode entry is \"q\": UNIQUE read as \"uniqe\", F-CONSEQUENCE as \"F-conseqence\", and a name no one would type.",
+});
+export const LAYOUT_FONTS = rule({
+  id: "layout.fonts", stage: "layout",
+  summary: "A run whose own font's glyphs do not spell it is placed by every font's glyphs in the order drawn: pdf.js names one font for text drawn in several.",
+  why: "\"(uniqe)\" is reported in its brackets' font while the name is drawn in small capitals: the other font's widths put small-capital mentions a letter left, clipping their last letter, and left the ligature unread.",
+});
+export const LAYOUT_BLANKS = rule({
+  id: "layout.blanks", stage: "layout",
+  summary: "A run's glyphs keep their widths at the size drawn and its blanks take what is left of its width, unless a blank would shrink under half its own width; then the whole is stretched evenly.",
+  why: "In \"; // RD-Lock\" a narrow gap stretched with every glyph put the R a point right of where it is printed; faked small capitals (\"S EMPTY\" with MPTY smaller) are not at one size.",
+});
+export const LAYOUT_SMALL_CAPITALS = rule({
+  id: "layout.small-capitals", stage: "layout",
+  summary: "A lowercase letter is a small capital where its glyph is named one (u.sc, a.smcp) or its font is set in them (cmcsc).",
+  why: "Small capitals reach the text layer as lowercase: the rule DUAL and the word \"dual\" read the same until the glyphs say which is which.",
+});
+
 // --------------------------------------------------------------- captions
 
 const CAPTION_KINDS = "Figure|FIGURE|Fig\\.?|FIG\\.?|Table|TABLE|Tab\\.|TAB\\.|Box|BOX|Algorithm|ALGORITHM|Listing|LISTING";
@@ -367,8 +388,8 @@ export const RULE_BOX = rule({
 });
 export const RULE_MENTION = rule({
   id: "rule.mention", stage: "rule",
-  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase, or set off by a comma, an \"and\" or an \"and then\" from a hyphenated or spaced name's citation. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing.",
-  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\", \"raise, unw-intra-zone, and invoke\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose.",
+  summary: "A rule's name in running text cites the rule in the form its shape allows: a hyphenated name (its parts in any case where the prefix is as labelled, a line break after a hyphen allowed), a symbol or a spaced name in capitals as printed, bare or in brackets; a word or a spaced name with a capitalised word in brackets, or in its printed case within six words of \"rule\", \"law\" or \"axiom\", or anywhere when camelCase, or set off by a comma, an \"and\" or an \"and then\" from a hyphenated or spaced name's citation. Running text is a line whose other letters are in the text's face, or the name alone set as its label is. Labels do not cite themselves, nor does a word in a listing. A name is a whole name, not part of a longer hyphenated one; \"rule\" before it counts only within its sentence; and a label set in capitals or small capitals is not cited by the same word in lowercase set as the text around it, unless \"rule\" stands hard by (\"the bind rule\").",
+  why: "\"by T-App\", \"rule [LT-IF]\", \"the (BIND) law\", \"the sapp rule\", \"the Jump and Label rules\", \"T FUNC adds\", \"via containConcat\", \"raise, unw-intra-zone, and invoke\" and a proof case headed \"T CONTRACT\" point the reader at the rule; \"[Response]\" in a Haskell listing is a list type, \"case\" in prose is a word, and \"the elements of the pair\" with a rule named pair cited three lines on is prose, \"exactly the dual of\" is not the rule DUAL, and \"sim-vis\" in no-sim-vis-ex-comm is not the rule sim-vis.",
 });
 
 // --------------------------------------------------------------- mentions
@@ -393,8 +414,8 @@ export const SECTION_HEADING = rule({
   // closed by a point ("6.2. A program inverter") — not a unit's "A"
   // ("5 A current"), nor a run of letters ("2 A B C"); or a Greek letter
   // naming the paper's calculus ("4.1 λQC Kinding"), not a relation.
-  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
-  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material",
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:(?:[A-Z]\s+){3,}[A-Z]|[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
+  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "3. B R O W N I A N C O M P U T E R S", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material",
     "2 A TOUR OF TWO-LEVEL TYPE THEORY", "6.2. A program inverter for a reversible language", "4.1 λQC Kinding System"],
   rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 α = 0.5"],
 });
@@ -716,8 +737,8 @@ export const CITE_LABEL = rule({
 
 export const HEADER_TITLE = rule({
   id: "header.title", stage: "header",
-  summary: "The title is the largest text in the top two thirds of the first page, larger than the body, with the lines set in that size directly under it.",
-  why: "Every publisher sets the title as the page's largest words; a CHORUS or arXiv cover line above it is set smaller.",
+  summary: "The title is the strongest block before the abstract, scored by type, position, text shape, nearby authors and agreement with document metadata.",
+  why: "Publishers emphasize titles, but logos, diagrams and drop caps can be larger; the surrounding title block distinguishes them.",
 });
 export const HEADER_NOT_TITLE = rule({
   id: "header.not-title", stage: "header",

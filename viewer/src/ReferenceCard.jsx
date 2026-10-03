@@ -84,16 +84,25 @@ export default function ReferenceCard({
       }px, ${viewportTop - scrollerBox.top + scroller.scrollTop}px, 0)`;
     };
 
+    let frame = null;
+    const schedulePlace = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        place();
+      });
+    };
+
     place();
     // Scroll is captured because it does not bubble; this follows the
     // paper's own scroller as well as the window. ResizeObserver covers a
     // zoom changing the marker's box without changing the window itself.
-    window.addEventListener('resize', place);
-    const observer = new ResizeObserver(place);
+    window.addEventListener('resize', schedulePlace);
+    const observer = new ResizeObserver(schedulePlace);
     observer.observe(anchor);
     return () => {
-      window.removeEventListener('resize', place);
+      window.removeEventListener('resize', schedulePlace);
       observer.disconnect();
+      if (frame != null) cancelAnimationFrame(frame);
     };
   }, [anchor, reference, error, requiresNook, showAll, holding]);
 

@@ -24,7 +24,7 @@ import ProjectsPage from './components/ProjectsPage';
 import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
-import { listProjects } from '../../shared/api/projects.js';
+import { listProjects, markPresent } from '../../shared/api/projects.js';
 import { BAZAAR, WayBar, WayFoot, WayShown } from './components/Way';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
@@ -134,6 +134,9 @@ function openBoard(uuid) {
 // under the project's tabs; none picked is the project's Boards again.
 const openProjectBoard = (projectUuid) => (boardUuid, options) => {
   navigate(boardUuid ? `/project/${projectUuid}/board/${boardUuid}` : `/project/${projectUuid}`, options);
+};
+const openProjectPaper = (projectUuid) => (paper, options) => {
+  navigate(paper ? `/project/${projectUuid}/paper/${paperName(paper)}` : `/project/${projectUuid}`, options);
 };
 
 // Paths served by the board canvas and the PDF viewer, not by this app.
@@ -455,6 +458,24 @@ export default function App({ startupUser = null, startupError = null }) {
     if (user && !DESKTOP) rememberLastMember(user);
   }, [user]);
 
+  // Presence is a renewable hint, not a promise that a browser closed
+  // cleanly. A hidden window goes quiet and naturally becomes offline.
+  useEffect(() => {
+    if (!user) return undefined;
+    const heartbeat = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine !== false) markPresent().catch(() => {});
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 60_000);
+    document.addEventListener('visibilitychange', heartbeat);
+    window.addEventListener('focus', heartbeat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', heartbeat);
+      window.removeEventListener('focus', heartbeat);
+    };
+  }, [user?.uuid]);
+
   useEffect(() => {
     if (!user) {
       setUnreadCount(0);
@@ -772,12 +793,14 @@ export default function App({ startupUser = null, startupError = null }) {
             board={route.page === 'board' ? route.uuid : route.page === 'paper' ? route.board ?? null : null}
             project={route.page === 'project' ? route.uuid : null}
             paper={route.page === 'paper' ? route.uuid : null}
-            renderPaper={(name) => (
+            renderPaper={(name, refreshNook) => (
               <PaperJacket
                 key={name}
                 paperSha256={name}
                 currentUser={user}
                 hideBack
+                onChanged={refreshNook}
+                onDeleted={() => navigate('/', { replace: true })}
                 onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
                 onReportableError={offerErrorReport}
               />
@@ -881,12 +904,14 @@ export default function App({ startupUser = null, startupError = null }) {
           key={route.uuid}
           projectUuid={route.uuid}
           board={route.board ?? null}
+          paper={route.paper ?? null}
           currentUser={user}
           onBack={goBack}
           backHref={backHref}
           onChanged={() => setProjectsRevision((r) => r + 1)}
           onLeft={() => navigate('/projects', { replace: true })}
           onOpenBoard={openProjectBoard(route.uuid)}
+          onOpenPaper={openProjectPaper(route.uuid)}
           onOpenCanvas={openBoardCanvas}
           onRead={DESKTOP ? (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820') : undefined}
         />
@@ -917,6 +942,9 @@ export default function App({ startupUser = null, startupError = null }) {
       )}
       {route.page === 'signin' && (
         <AuthPage onAuth={handleAuth} initialMode="login" />
+      )}
+      {route.page === 'reset-password' && (
+        <AuthPage onAuth={handleAuth} initialMode="reset" resetToken={route.token} />
       )}
       {hasWay && (route.page === 'profile' || route.page === 'inbox') && (
         <YouPage

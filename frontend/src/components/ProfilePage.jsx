@@ -271,6 +271,7 @@ function LocalDeviceSettings({ onSynced }) {
 export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, withActivity = true, inTab = false }) {
   // Account settings in this component are global: their handlers call the
   // backend and the resulting values follow the user to every device.
+  const [email, setEmail] = useState(user.email);
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
   const [emailPublic, setEmailPublic] = useState(user.email_public);
@@ -361,11 +362,13 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
     setIsSavingProfile(true);
     try {
       const updated = await updateProfile({
+        email: email.trim(),
         display_name: displayName.trim(),
         affiliation: affiliation.trim(),
         email_public: emailPublic,
       });
       onUserUpdated(updated);
+      setEmail(updated.email);
       setProfileSaved(true);
     } catch (err) {
       setProfileError(err.message);
@@ -414,10 +417,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
             </p>
           </>
         )}
-        <p className="profile-email">
-          Signed in as <strong>{user.email}</strong>.
-        </p>
-
         {profileError && <div className="error" role="alert">{profileError}</div>}
         {profileSaved && <div className="success" role="status">Profile updated.</div>}
 
@@ -450,6 +449,19 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
           </div>
 
           <form onSubmit={handleProfileSubmit} className="profile-form">
+            <div className="form-group">
+              <label htmlFor="profile-email">Email</label>
+              <input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                maxLength={254}
+                required
+              />
+            </div>
+
             <div className="form-group">
               <label htmlFor="profile-display-name">Display name</label>
               <input

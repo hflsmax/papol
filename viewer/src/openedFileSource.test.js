@@ -213,6 +213,34 @@ test('an online opened-file import stores parsed bibliographic metadata', async 
   assert.deepEqual(told.json(), { file_path: `${HASH}.pdf`, uploaded_name: 'Local paper.pdf', identifier: { doi: '10.1234/parsed' } });
 });
 
+test('an opened file reaches the bucket through native HTTP, outside the WebView', async () => {
+  signedIn({ offline: false });
+  navigator.onLine = true;
+  await hydrateCredential();
+  const bucket = `https://bucket.test/uploads/${HASH}.pdf?signature=short-lived`;
+  native.route('POST /api/files/upload-address', {
+    json: {
+      stored: false, url: bucket, file_path: `${HASH}.pdf`,
+      headers: { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'digest' },
+    },
+  });
+  native.route(`PUT ${bucket}`, { status: 200 });
+  native.route('POST /api/papers/uploaded', {
+    json: { job: null, file_path: `${HASH}.pdf`, sha256: HASH },
+  });
+  const progress = [];
+
+  await resolveSource().addToNook({ onProgress: (event) => progress.push(event) });
+
+  const nativePut = native.requests('plugin').find(({ method }) => method === 'PUT');
+  assert.equal(nativePut?.url, bucket);
+  assert.equal(native.requests('webview').some(({ method }) => method === 'PUT'), false);
+  assert.deepEqual(
+    progress.filter(({ phase }) => phase === 'uploading').map(({ loaded }) => loaded),
+    [0, PDF.byteLength],
+  );
+});
+
 test('an opened file whose send fails is added under its name, and the nook page says why', async () => {
   signedIn({ offline: false });
   navigator.onLine = true;

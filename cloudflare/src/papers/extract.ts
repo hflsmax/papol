@@ -185,6 +185,15 @@ export interface Reextracted {
 export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata | null, paperDoi: string | null): Promise<Reextracted | null> {
   const printed = lookupDoi(titleBlock) ?? paperDoi;
   const known = printed ? await byDoi(env, printed) : null;
-  if (!known) return null;
+  // The button promises to read the PDF, not only to look its DOI up. An
+  // unregistered DOI (or a paper with no DOI) still has useful metadata in
+  // the title block the browser just extracted from its pages.
+  if (!known) return titleBlock ? {
+    doi: lookupDoi(titleBlock),
+    title: titleBlock.title,
+    authors: titleBlock.authors.length ? JSON.stringify(titleBlock.authors) : null,
+    journal: paperVenue(titleBlock.journal),
+    year: titleBlock.year,
+  } : null;
   return { ...knownFields(known, printed!, known.title ?? "", titleBlock), title: known.title };
 }

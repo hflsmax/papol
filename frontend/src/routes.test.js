@@ -57,6 +57,12 @@ test('every standing page is reachable by its path', () => {
   }
 });
 
+test('a password reset link carries its opaque credential', () => {
+  const token = 'ab'.repeat(32);
+  assert.deepEqual(parseRoute(`/reset-password/${token}`), { page: 'reset-password', token });
+  assert.equal(parseRoute('/reset-password/short').page, 'unknown');
+});
+
 // A name of the wrong shape is not a page. Landing on the home page for a
 // link that was meant for a paper is how a good link goes quietly dead.
 // Half a name is not a shorter name, it is a different one. One length is
@@ -104,8 +110,8 @@ test('projects have a list, a page each, and an invitation link read as written'
   assert.deepEqual(parseRoute('/projects/join/Ab3dE5gH9k'), { page: 'invitation', code: 'Ab3dE5gH9k' });
   assert.equal(parseRoute('/projects/join/short').page, 'unknown');
   const NAME = 'ab'.repeat(16);
-  // A paper's brief is in the project's Papers tab, not a place of its own.
-  assert.equal(parseRoute(`/project/${UUID}/paper/${NAME}`).page, 'unknown');
+  // Returning from a project reading focuses that paper's brief.
+  assert.deepEqual(parseRoute(`/project/${UUID}/paper/${NAME}`), { page: 'project', uuid: UUID, paper: NAME });
 });
 
 test('a dig is not a place of its own', () => {

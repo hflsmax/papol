@@ -243,10 +243,24 @@ function useWidth(ref) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    let frame = null;
+    const measure = () => setWidth((was) => {
+      const next = el.clientWidth;
+      return was === next ? was : next;
+    });
+    const scheduleMeasure = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(el);
-    setWidth(el.clientWidth);
-    return () => observer.disconnect();
+    measure();
+    return () => {
+      observer.disconnect();
+      if (frame != null) cancelAnimationFrame(frame);
+    };
   }, [ref.current]); // eslint-disable-line react-hooks/exhaustive-deps
   return width;
 }
@@ -1140,6 +1154,9 @@ export default function App() {
           // Lets pdf.js's own scratch canvases (soft masks, patterns) stay
           // on the GPU rather than being kept readable on the CPU.
           enableHWA: true,
+          // The fonts' glyph names, which the reading rules need to spell a
+          // ligature the text layer shortens (analyzer page.ts, layout.ligature).
+          fontExtraProperties: true,
         });
         task.onProgress = ({ loaded, total }) => {
           if (!cancelled) setPdfProgress({ loaded, total });

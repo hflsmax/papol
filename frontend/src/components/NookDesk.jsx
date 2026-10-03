@@ -96,11 +96,27 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   useEffect(() => {
     const filter = filterRef.current;
     if (!filter || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => {
-      papersRef.current?.style.setProperty('--desk-filter-h', `${filter.getBoundingClientRect().height}px`);
+    let frame = null;
+    let measuredHeight = null;
+    const observer = new ResizeObserver(([entry]) => {
+      const borderBox = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+      const height = borderBox?.blockSize ?? filter.getBoundingClientRect().height;
+      if (height === measuredHeight) return;
+      measuredHeight = height;
+      // Writing a style while ResizeObserver is delivering can resize the
+      // observed filter again in WebKit. Move the write to the next frame so
+      // each delivery remains read-only and cannot form an observer loop.
+      if (frame != null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        papersRef.current?.style.setProperty('--desk-filter-h', `${height}px`);
+      });
     });
     observer.observe(filter);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame != null) cancelAnimationFrame(frame);
+    };
   }, []);
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [naming, setNaming] = useState(false);
@@ -234,7 +250,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
       </aside>
 
       {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
-      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper)}</section>}
+      {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper, onChanged)}</section>}
       {board && (
         <section className="desk-main desk-board" hidden={Boolean(paper)}>
           <BoardJacket

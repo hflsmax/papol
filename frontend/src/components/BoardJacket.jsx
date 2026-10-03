@@ -9,7 +9,6 @@ import { confirmAction } from '../../../shared/confirmAction';
 import appLimits from '../../../shared/appLimits.js';
 import Avatar from './Avatar';
 import AutoTextarea from './AutoTextarea';
-import BoardPreview from './BoardPreview';
 import HintPop from './HintPop';
 import { boardFacts } from '../boardFacts';
 import { authorList } from '../paperFormat';
@@ -55,7 +54,7 @@ const paperByline = (paper) => {
 
 export default function BoardJacket({
   boardUuid, onOpen, onBack, backHref, backLabel = 'Back',
-  hideBack = false, held = false, onChanged, onDeleted, refreshKey, paperLink = paperHref,
+  hideBack = false, held = false, onChanged, onDeleted, onLoaded, refreshKey, paperLink = paperHref,
 }) {
   const [board, setBoard] = useState(() => kept(`board:${boardUuid}`));
   const [error, setError] = useState(null);
@@ -72,6 +71,7 @@ export default function BoardJacket({
       .then((found) => {
         if (gone) return;
         setBoard(found);
+        onLoaded?.(found);
         if (found.can_edit) listShelves().then((list) => !gone && setShelves(list)).catch(() => {});
       })
       .catch((err) => !gone && setError(err?.message || String(err)));
@@ -267,7 +267,7 @@ export default function BoardJacket({
             rows={3}
             maxLength={appLimits.text.board_description}
             autoFocus
-            placeholder="What are you exploring on this board?"
+            placeholder="Description"
             aria-label="Board description"
             onChange={(event) => setDraft(event.target.value)}
             onBlur={finishEditing}
@@ -284,15 +284,13 @@ export default function BoardJacket({
             onClick={() => beginEditing('description')}
             onKeyDown={beginWithKeyboard('description')}
           >
-            {board.description || 'What are you exploring on this board?'}
+            {board.description || 'Description'}
           </p>
         ) : board.description && <p className="board-jacket-description">{board.description}</p>}
 
         <div className="paper-actions">
           <button type="button" className="primary" onClick={open}>Open board</button>
         </div>
-
-        <BoardPreview board={board} onOpen={open} />
 
         {papers.length > 0 && (
           <section className="board-jacket-section" aria-labelledby="board-jacket-papers">

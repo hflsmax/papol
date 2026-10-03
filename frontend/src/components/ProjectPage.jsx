@@ -6,8 +6,9 @@ import { PHASES, PhaseGlyph, DigThread, phaseRank, when } from '../../../shared/
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  addMember, annotationViewerPath, createProjectBoard, findPeople, getProject, invitationPath, openInvitation, removeMember,
-  describeProject, renameProject, revokeInvitation, setKeeper,
+  addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
+  findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
+  describeProject, markProjectItemRead, markProjectRead, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
 import { appPath, backendPath } from '../base';
@@ -21,43 +22,18 @@ import Avatar from './Avatar';
 import Face from '../../../shared/ui/Face.jsx';
 import { keeperNames } from './ProjectMembers';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { paperName } from '../../../shared/paperName.js';
 import PaperBrief from './PaperBrief';
 import BoardJacket from './BoardJacket';
 import { keep, kept } from '../lastMember';
 
-// Opening a project marks what others added as seen, so every later answer
-// calls nothing new, and this page may be fetched more than once as the app
-// settles. What was new on arriving stays marked until another project, or
-// the list of projects, is opened.
-let arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
+// Kept for the projects-list cache boundary. Read state now lives on the
+// server, per item, rather than in one module-global visit snapshot.
+export function forgetArrivals() {}
 
-export function forgetArrivals() {
-  arrivals = { project: null, papers: new Set(), boards: new Set(), digs: new Map() };
-}
-
-// A dig stays unread for the visit until it is opened, though the project
-// counts as seen as soon as it loads.
-export function readDigs(uuids) {
-  uuids.forEach((uuid) => arrivals.digs.delete(uuid));
-}
-
-export function markArrivals(projectUuid, project) {
-  if (!project?.papers) return project;
-  if (arrivals.project !== projectUuid) arrivals = { project: projectUuid, papers: new Set(), boards: new Set(), digs: new Map() };
-  project.papers.forEach((paper) => { if (paper.is_new) arrivals.papers.add(paper.sha256); });
-  (project.boards ?? []).forEach((board) => { if (board.is_new) arrivals.boards.add(board.uuid); });
-  (project.digs ?? []).forEach((d) => { if (d.unread) arrivals.digs.set(d.uuid, d.unread); });
-  return {
-    ...project,
-    papers: project.papers.map((paper) => ({ ...paper, is_new: arrivals.papers.has(paper.sha256) })),
-    boards: (project.boards ?? []).map((board) => ({ ...board, is_new: arrivals.boards.has(board.uuid) })),
-    digs: (project.digs ?? []).map((d) => ({ ...d, unread: arrivals.digs.get(d.uuid) ?? 0, is_new: arrivals.digs.has(d.uuid) })),
-  };
-}
-
-// A project as last seen, shown at once while it is fetched again. What
-// was new then has since been seen, so it is kept without the marks.
-const lastSeen = (projectUuid) => markArrivals(projectUuid, kept(`project:${projectUuid}`));
+// A cached project is shown at once while its server-authoritative read state
+// is fetched again. Cache writes below omit transient news marks.
+const lastSeen = (projectUuid) => kept(`project:${projectUuid}`);
 const settled = (project) => (project.papers ? {
   ...project,
   papers: project.papers.map((paper) => ({ ...paper, is_new: false })),
@@ -80,21 +56,28 @@ export function Faces({ users, max = 4 }) {
 
 // One project. Its members see its papers, discussions and boards; anyone
 // else sees who is in it, and whom to ask to be let in.
-export default function ProjectPage({ projectUuid, board = null, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard, onOpenCanvas }) {
+export default function ProjectPage({ projectUuid, board = null, paper = null, currentUser, onBack, backHref, onChanged, onLeft, onRead, onOpenBoard, onOpenPaper, onOpenCanvas }) {
   const [project, setProject] = useState(() => lastSeen(projectUuid));
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [readStatus, setReadStatus] = useState('');
+  const [markingAll, setMarkingAll] = useState(false);
+  const acknowledging = useRef(new Set());
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [chosenView, chooseView] = useView(projectUuid);
-  // A board's jacket opens under the tabs, in the Boards tab; another tab
-  // leaves it for the project's own address.
-  const view = board ? 'boards' : chosenView;
+  // A board's jacket opens in the Boards tab; another tab leaves it for
+  // the project's own address.
+  const view = board ? 'boards' : paper ? 'papers' : chosenView;
   const setView = (next) => {
     chooseView(next);
-    if (board) onOpenBoard(null, { replace: true });
+    if (board && next !== 'boards') onOpenBoard(null, { replace: true });
+    if (paper && next !== 'papers') onOpenPaper(null, { replace: true });
   };
   const [picked, pick] = usePicked(projectUuid);
-  const show = useCallback((next) => markArrivals(projectUuid, next), [projectUuid]);
+  const focusedPaper = paper
+    ? project?.papers?.find((candidate) => paperName(candidate.sha256) === paper)?.sha256 ?? paper
+    : picked;
+  const show = useCallback((next) => next, []);
 
   const load = useCallback(() => {
     let active = true;
@@ -113,11 +96,14 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   useEffect(() => {
     let active = true;
     const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
       getProject(projectUuid).then((next) => { if (active) setProject(show(next)); }).catch(() => {});
     };
+    const timer = window.setInterval(refresh, 60_000);
     window.addEventListener('focus', refresh);
     return () => {
       active = false;
+      window.clearInterval(timer);
       window.removeEventListener('focus', refresh);
     };
   }, [projectUuid, show]);
@@ -150,12 +136,31 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   // How a dig card or a brief tells the page it changed something.
   const reload = () => getProject(project.uuid).then((next) => setProject(show(next)));
   const talked = () => { reload().catch(() => {}); };
-  const openPaper = (sha256) => { pick(sha256); setView('papers'); };
+  const openPaper = (sha256) => {
+    pick(sha256);
+    chooseView('papers');
+    onOpenPaper?.(sha256);
+  };
   // Anything new in the project, a new paper or a dig someone else moved
   // on, is the one news dot on whatever it concerns.
-  const readDig = (uuid) => {
-    readDigs([uuid]);
-    setProject((p) => ({ ...p, digs: p.digs.map((x) => (x.uuid === uuid ? { ...x, unread: 0, is_new: false } : x)) }));
+  const readItem = async (kind, item, through) => {
+    const key = `${kind}:${item}:${through}`;
+    if (!through || acknowledging.current.has(key)) return;
+    acknowledging.current.add(key);
+    try {
+      await markProjectItemRead(project.uuid, kind, item, through);
+      setProject((p) => ({
+        ...p,
+        papers: kind === 'paper' ? p.papers.map((x) => (x.sha256 === item && x.news_through <= through ? { ...x, is_new: false } : x)) : p.papers,
+        boards: kind === 'board' ? p.boards.map((x) => (x.uuid === item && x.news_through <= through ? { ...x, is_new: false } : x)) : p.boards,
+        digs: kind === 'dig' ? p.digs.map((x) => (x.uuid === item && x.news_through <= through ? { ...x, unread: 0, is_new: false } : x)) : p.digs,
+      }));
+      onChanged?.();
+    } catch {
+      setNotice("Couldn’t mark project news as seen. Try again.");
+    } finally {
+      acknowledging.current.delete(key);
+    }
   };
   const hasNews = (about) => (project.digs ?? []).some((d) => d.is_new && about(d.subject));
   // Folded until asked for, even for a keeper alone in the project:
@@ -170,25 +175,67 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
   const boards = project.boards ?? [];
   const newPapers = project.papers.some((p) => p.is_new);
   const newTalk = talkedAbout.some((d) => d.is_new);
+  const fresh = {
+    papers: project.papers.some((p) => p.is_new),
+    boards: boards.some((b) => b.is_new),
+    digs: talkedAbout.some((d) => d.is_new),
+  };
+  const markAll = async () => {
+    const items = [
+      ...project.papers.filter((x) => x.is_new).map((x) => ({ kind: 'paper', item: x.sha256, through: x.news_through })),
+      ...boards.filter((x) => x.is_new).map((x) => ({ kind: 'board', item: x.uuid, through: x.news_through })),
+      ...talkedAbout.filter((x) => x.is_new).map((x) => ({ kind: 'dig', item: x.uuid, through: x.news_through })),
+    ];
+    setMarkingAll(true);
+    setNotice(null);
+    setReadStatus('');
+    try {
+      await markProjectRead(project.uuid, items);
+      const through = new Map(items.map((x) => [`${x.kind}:${x.item}`, x.through]));
+      setProject((current) => ({
+        ...current,
+        papers: current.papers.map((x) => x.news_through <= through.get(`paper:${x.sha256}`) ? { ...x, is_new: false } : x),
+        boards: current.boards.map((x) => x.news_through <= through.get(`board:${x.uuid}`) ? { ...x, is_new: false } : x),
+        digs: current.digs.map((x) => x.news_through <= through.get(`dig:${x.uuid}`) ? { ...x, unread: 0, is_new: false } : x),
+      }));
+      setReadStatus('All project news marked as seen.');
+      onChanged?.();
+      requestAnimationFrame(() => document.querySelector(`#project-tab-${view}`)?.focus());
+    } catch {
+      setNotice("Couldn’t mark project news as seen. Try again.");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
 
   const title = <ProjectTitle project={project} onRename={(name) => act(() => renameProject(project.uuid, name))} />;
   const about = project.is_member && (
     <ProjectDescription project={project} onDescribe={(text) => act(() => describeProject(project.uuid, text))} />
   );
   const tabs = project.is_member && (
-    <DeskTabs
-      view={view} onView={setView}
-      counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
-      fresh={{ papers: newPapers, boards: boards.some((b) => b.is_new), digs: newTalk }}
-    />
+    <div className="project-tabs-row">
+      <DeskTabs
+        view={view} onView={setView}
+        counts={{ papers: project.papers.length, boards: boards.length, digs: talkedAbout.length }}
+        fresh={fresh}
+      />
+      {newPapers || boards.some((b) => b.is_new) || newTalk ? (
+        <button type="button" className="project-quiet project-mark-all" disabled={markingAll} aria-busy={markingAll}
+          onClick={markAll}>{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</button>
+      ) : null}
+    </div>
   );
   const seats = project.is_member ? (
     <div className="project-seats">
       {open && <People project={project} showing={open} currentUser={currentUser} act={act} onLeft={onLeft} onClose={() => setPeopleOpen(false)} />}
       <div className="project-seat-row" aria-label={`${count}: ${people.map((u) => u.display_name).join(', ')}`}>
         {people.slice(0, 5).map((user) => (
-          <a className="project-seat" key={user.uuid} href={appPath(`/u/${user.uuid}`)} title={user.display_name}>
-            <Avatar user={user} className="mini-avatar" />
+          <a className="project-seat" key={user.uuid} href={appPath(`/u/${user.uuid}`)}
+            data-online={user.online || undefined}
+            title={`${user.display_name} · ${user.online ? 'Online' : 'Offline'}`}
+            aria-label={`${user.display_name}, ${user.online ? 'online' : 'offline'}`}
+          >
+            <PresenceAvatar user={user} />
             <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
           </a>
         ))}
@@ -251,6 +298,7 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
         </>
       )}
       {notice && <div className="error" role="alert">{notice}</div>}
+      {readStatus && <span className="visually-hidden" role="status">{readStatus}</span>}
 
       {!project.is_member ? (
         <p className="project-closed">By invitation. Kept by {keeperNames(project.members)}.</p>
@@ -262,26 +310,26 @@ export default function ProjectPage({ projectUuid, board = null, currentUser, on
                 project={project}
                 hasNews={hasNews}
                 currentUser={currentUser}
-                picked={picked}
-                onPick={pick}
+                picked={focusedPaper}
+                onPick={(sha256) => {
+                  pick(sha256);
+                  if (paper) onOpenPaper(sha256, { replace: true });
+                  const selectedPaper = project.papers.find((x) => x.sha256 === sha256);
+                  if (selectedPaper?.is_new) void readItem('paper', sha256, selectedPaper.news_through);
+                }}
                 onChanged={reload}
                 onRead={onRead}
               />
             )}
-            {view === 'boards' && (board ? (
-              <div className="project-board-open">
-                <BoardJacket
-                  key={board}
-                  boardUuid={board}
-                  onOpen={onOpenCanvas}
-                  hideBack
-                  held
-                  onChanged={talked}
-                  onDeleted={() => { talked(); onOpenBoard(null, { replace: true }); }}
-                />
-              </div>
-            ) : <ProjectBoards project={project} act={act} hasNews={hasNews} currentUser={currentUser} onOpenBoard={onOpenBoard} />)}
-            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked} onRead={readDig} onOpenPaper={openPaper} />}
+            {view === 'boards' && (
+              <ProjectBoards
+                project={project} board={board} act={act} hasNews={hasNews}
+                onOpenBoard={onOpenBoard} onOpenCanvas={onOpenCanvas} onChanged={talked}
+                onViewed={(b) => { if (b?.is_new) void readItem('board', b.uuid, b.news_through); }}
+              />
+            )}
+            {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked}
+              onRead={(d) => { if (d?.is_new) void readItem('dig', d.uuid, d.news_through); }} onOpenPaper={openPaper} />}
           </div>
         </>
       )}
@@ -319,10 +367,11 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
           const me = member.user.uuid === currentUser?.uuid;
           return (
             <li key={member.user.uuid} className="project-person">
-              <Face user={member.user} />
+              <PresenceAvatar user={member.user} />
               <a className="project-person-name" href={appPath(`/u/${member.user.uuid}`)}>
                 {member.user.display_name}
               </a>
+              {member.user.online && <span className="project-person-online">Online</span>}
               {(me || member.is_keeper) && (
                 <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
               )}
@@ -345,6 +394,15 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
         })}
       </ul>}
     </section>
+  );
+}
+
+function PresenceAvatar({ user }) {
+  return (
+    <span className="project-presence-avatar" aria-hidden="true">
+      <Avatar user={user} className="mini-avatar" />
+      {user.online && <span className="news-dot project-presence-dot" />}
+    </span>
   );
 }
 
@@ -485,15 +543,105 @@ function DeskTabs({ view, onView, counts, fresh }) {
         <button
           key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
           aria-selected={view === v} tabIndex={view === v ? 0 : -1}
+          aria-label={`${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total`}
           className={`project-tab${view === v ? ' is-on' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >
           {label}
-          {counts[v] > 0 && <span className="project-tab-count">{counts[v]}</span>}
+          {counts[v] > 0 && <span className="project-tab-count" aria-hidden="true">{counts[v]}</span>}
           {fresh[v] && <NewsDot />}
         </button>
       ))}
     </nav>
+  );
+}
+
+// A project's shared tags on one paper: each chip can be removed in place,
+// and a small picker adds an existing name or creates one. It closes when
+// the choice is made or focus leaves it, so editing has no separate mode to
+// finish. The mutation lives online with the project.
+function ProjectPaperTags({ project, paper, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const assigned = new Set((paper.tags ?? []).map((tag) => tag.uuid));
+  const query = draft.trim().toLocaleLowerCase('en');
+  const available = (project.tags ?? []).filter((tag) => !assigned.has(tag.uuid)
+    && (!query || tag.name.toLocaleLowerCase('en').includes(query)));
+  const exact = (project.tags ?? []).find((tag) => tag.name.toLocaleLowerCase('en') === query);
+  const closePicker = () => { setEditing(false); setDraft(''); };
+  const act = async (work, close = false) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      setDraft('');
+      if (close) setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const add = (tag) => act(() => addProjectPaperTag(project.uuid, paper.sha256, tag.uuid), true);
+  const create = () => act(async () => {
+    const tag = await createProjectTag(project.uuid, draft.trim());
+    await addProjectPaperTag(project.uuid, paper.sha256, tag.uuid);
+  }, true);
+  return (
+    <div className={`project-paper-tags${editing ? ' is-editing' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <span className="project-paper-tag-list">
+        {(paper.tags ?? []).map((tag) => (
+          <button
+            type="button" className="project-paper-tag is-removable" key={tag.uuid} disabled={busy}
+            aria-label={`Remove ${tag.name} from this paper`}
+            onClick={() => act(() => removeProjectPaperTag(project.uuid, paper.sha256, tag.uuid))}
+          ><span className="project-paper-tag-label">#{tag.name}</span><span className="project-paper-tag-remove" aria-hidden="true">×</span></button>
+        ))}
+      </span>
+      {!editing && (
+        <button type="button" className="project-tag-edit" onClick={() => setEditing(true)}>
+          + Tag
+        </button>
+      )}
+      {editing && (
+        <div
+          className="project-tag-picker"
+          onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closePicker(); }}
+        >
+            <input
+              autoFocus className="project-tag-input" value={draft} maxLength={appLimits.text.tag_name}
+              placeholder="Add a tag…" aria-label={`Add a project tag to ${paper.title}`}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') closePicker();
+                if (event.key !== 'Enter' || !query) return;
+                event.preventDefault();
+                if (exact && !assigned.has(exact.uuid)) add(exact);
+                else if (!exact) create();
+              }}
+            />
+            {(available.length > 0 || (query && !exact)) && (
+              <div className="project-tag-options">
+                {available.map((tag) => (
+                  <button type="button" key={tag.uuid} disabled={busy} onClick={() => add(tag)}>
+                    <span>#{tag.name}</span><span>Add</span>
+                  </button>
+                ))}
+                {query && !exact && (
+                  <button type="button" className="project-tag-create" disabled={busy} onClick={create}>
+                    <span>Create “{draft.trim()}”</span><span>New</span>
+                  </button>
+                )}
+              </div>
+            )}
+        </div>
+      )}
+      {error && <span className="project-tag-error" role="alert">{error}</span>}
+    </div>
   );
 }
 
@@ -505,12 +653,16 @@ function DeskTabs({ view, onView, counts, fresh }) {
 function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChanged, onRead }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
-  const papers = project.papers;
+  const [tag, setTag] = useState(null);
+  const usedTagUuids = new Set(project.papers.flatMap((paper) => (paper.tags ?? []).map((item) => item.uuid)));
+  const usedTags = (project.tags ?? []).filter((item) => usedTagUuids.has(item.uuid));
+  const selectedTag = usedTagUuids.has(tag) ? tag : null;
+  const papers = selectedTag ? project.papers.filter((paper) => paper.tags?.some((item) => item.uuid === selectedTag)) : project.papers;
   // Beside the list there is always a brief: the one picked, else the first
   // new paper, else the top one. Under a row it is only the one picked.
   const chosen = papers.find((p) => p.sha256 === picked)
     ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
-  if (!papers.length) return <section className="project-section" aria-label="Papers" />;
+  if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
   // What is new in each of the paper's digs, by dig.
   const unreadOn = (paper) => Object.fromEntries((project.digs ?? [])
     .filter((d) => d.subject.key === `paper:${paper.sha256}`)
@@ -519,6 +671,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
     <PaperBrief
       key={paper.sha256} project={project} paper={paper} currentUser={currentUser} underRow={!wide}
       unread={unreadOn(paper)} onChanged={onChanged} onRead={onRead}
+      tags={<ProjectPaperTags project={project} paper={paper} onChanged={onChanged} />}
     />
   );
   const move = (e) => {
@@ -532,7 +685,20 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   };
   return (
     <section className={`project-section project-papers-view${wide ? ' is-wide' : ''}`} aria-label="Papers">
-      <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
+      {usedTags.length > 0 && (
+        <div className="project-tag-filters" aria-label="Filter papers by project tag">
+          <button type="button" className={!selectedTag ? 'is-on' : ''} aria-pressed={!selectedTag} onClick={() => setTag(null)}>All</button>
+          {usedTags.map((item) => (
+            <button
+              type="button" key={item.uuid} className={selectedTag === item.uuid ? 'is-on' : ''} aria-pressed={selectedTag === item.uuid}
+              onClick={() => setTag(selectedTag === item.uuid ? null : item.uuid)}
+            >#{item.name}</button>
+          ))}
+        </div>
+      )}
+      <div className="project-papers-list">
+        {papers.length === 0 && <p className="project-tags-none">No papers have this tag.</p>}
+        <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {
           const where = [paper.journal, paper.year].filter(Boolean).join(' · ');
           const selected = chosen?.sha256 === paper.sha256;
@@ -556,6 +722,15 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
                     </button>
                   </h4>
                   <p className="project-card-authors">{formatAuthors(paper.authors)}</p>
+                  {(paper.tags ?? []).length > 0 && (
+                    <span className="project-paper-tag-list" aria-label="Project tags">
+                      {paper.tags.map((item) => (
+                        <span className="project-paper-tag" key={item.uuid}>
+                          <span className="project-paper-tag-label">#{item.name}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </div>
                 <span className="project-row-facts">
                   <span className="project-row-cite">{where}</span>
@@ -569,7 +744,8 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
             </React.Fragment>
           );
         })}
-      </ul>
+        </ul>
+      </div>
       {wide && chosen && <div className="project-papers-panel">{brief(chosen)}</div>}
     </section>
   );
@@ -605,14 +781,14 @@ function ProjectTalk({ project, currentUser, onTalked, onRead, onOpenPaper }) {
   // A dig opens right here, never on a page of its own. On a wide window
   // the list stays put and the dig opens beside it: on arrival the first
   // unread one, else the latest. Narrower, it opens under its row, and a
-  // second press folds it. Read when the selection moves on.
+  // second press folds it. It is seen as soon as its open pane is rendered.
   const [picked, setPicked] = useState(() => (wide ? (discussions.find((d) => d.is_new) ?? discussions[0])?.uuid ?? null : null));
   const shown = all.find((d) => d.uuid === picked) ?? (wide ? discussions[0] : null) ?? null;
   // A dig moved into a folded band keeps its band open.
   const shownPhase = shown && phaseOf(shown);
   useEffect(() => { if (shownPhase && folded[shownPhase]) fold(shownPhase, false); }, [shown?.uuid, shownPhase]);
   const pick = (uuid) => setPicked(wide || shown?.uuid !== uuid ? uuid : null);
-  useEffect(() => () => { if (shown) onRead(shown.uuid); }, [shown?.uuid]);
+  useEffect(() => { if (shown) onRead(shown); }, [shown?.uuid, shown?.news_through]);
   const move = (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     if (!step || !shown) return;
@@ -715,94 +891,126 @@ function useWide(query = '(min-width: 1000px)') {
   return wide;
 }
 
-// The project's boards, which every member arranges; a board is known by
-// its shape, so its map is the card. A board picked here opens its jacket
-// in its place, under the project's tabs, and so does one just made; the
-// canvas is the jacket's way in. The last tile is the one way to make one
-// more.
-function ProjectBoards({ project, act, hasNews, currentUser, onOpenBoard }) {
+// The project's boards, which every member arranges, as a list read like
+// the papers: each board by its name and description. A board picked here
+// opens its jacket beside the list on a wide window, under its row on a
+// narrow one, and has the address of its
+// own; the canvas is the jacket's way in. On a wide window there is always
+// a jacket beside the list: the one picked, else the first new board,
+// else the latest. The last row makes one more.
+function ProjectBoards({ project, board, act, hasNews, onOpenBoard, onOpenCanvas, onChanged, onViewed }) {
+  const wide = useWide();
+  const boards = project.boards ?? [];
+  const loaded = useRef(new Set());
+  const chosen = boards.find((b) => b.uuid === board)
+    ?? (wide ? boards.find((b) => b.is_new) ?? boards[0] : null);
+  useEffect(() => {
+    if (board && loaded.current.has(board) && chosen?.uuid === board) onViewed(chosen);
+  }, [board, chosen?.uuid, chosen?.news_through]);
+  // Moving from one board to the next replaces the address, so Back
+  // leaves the tab rather than walking through every board looked at.
+  const pick = (uuid) => onOpenBoard(uuid, board ? { replace: true } : undefined);
+  const jacket = (b) => (
+    <BoardJacket
+      key={b.uuid}
+      boardUuid={b.uuid}
+      onOpen={onOpenCanvas}
+      hideBack
+      held
+      onChanged={onChanged}
+      onLoaded={() => {
+        loaded.current.add(b.uuid);
+        if (board === b.uuid) onViewed(b);
+      }}
+      onDeleted={() => { onChanged(); onOpenBoard(null, { replace: true }); }}
+    />
+  );
+  const move = (e) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step || !chosen || e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+    e.preventDefault();
+    const at = boards.findIndex((b) => b.uuid === chosen.uuid);
+    const next = boards[Math.max(0, Math.min(boards.length - 1, at + step))];
+    pick(next.uuid);
+    e.currentTarget.querySelector(`[data-board="${next.uuid}"]`)?.focus();
+  };
+  return (
+    <section className={`project-section project-papers-view project-boards-view${wide ? ' is-wide' : ''}`} aria-label="Boards">
+      <ul className="project-papers project-boards project-rows" onKeyDown={wide ? move : undefined}>
+        {boards.map((b) => {
+          const selected = chosen?.uuid === b.uuid;
+          // A narrow window folds the jacket away again on a second press.
+          const choose = () => (selected && !wide ? onOpenBoard(null, { replace: true }) : pick(b.uuid));
+          return (
+            <React.Fragment key={b.uuid}>
+              <li
+                data-subject={`board:${b.uuid}`}
+                className={`project-row project-board${selected ? ' is-selected' : ''}`}
+                onClick={(e) => { if (!e.target.closest('a, button, input, textarea')) choose(); }}
+              >
+                <div className="project-row-text">
+                  <h4 className="project-card-title">
+                    <button
+                      type="button" className="project-row-open" data-board={b.uuid}
+                      aria-expanded={wide ? undefined : selected} aria-pressed={wide ? selected : undefined}
+                      onClick={choose}
+                    >
+                      {b.name}
+                    </button>
+                  </h4>
+                  {b.description && <p className="project-card-authors project-board-description">{b.description}</p>}
+                </div>
+                <span className="project-row-end">
+                  {(b.is_new || hasNews((subject) => subject.board_uuid === b.uuid)) && <NewsDot />}
+                </span>
+              </li>
+              {!wide && selected && <li className="project-board-open">{jacket(b)}</li>}
+            </React.Fragment>
+          );
+        })}
+        <NewBoard project={project} act={act} onMade={(uuid) => pick(uuid)} />
+      </ul>
+      {wide && chosen && <div className="project-papers-panel project-boards-panel">{jacket(chosen)}</div>}
+    </section>
+  );
+}
+
+// The last row of the Boards tab: pressed, it takes the new board's name
+// in place, and Enter makes it and opens it. Escape, or leaving it empty,
+// puts the row back.
+function NewBoard({ project, act, onMade }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const boards = project.boards ?? [];
   const stop = () => { setNaming(false); setName(''); };
   const create = async (e) => {
     e.preventDefault();
     const next = name.trim();
     if (!next || busy) return;
     setBusy(true);
-    const board = await act(() => createProjectBoard(project.uuid, next));
+    const made = await act(() => createProjectBoard(project.uuid, next));
     setBusy(false);
-    if (board) onOpenBoard(board.uuid);
+    if (made) { stop(); onMade(made.uuid); }
   };
   return (
-    <section className="project-section" aria-label="Boards">
-      <ul className="project-boards project-grid">
-        {boards.map((board) => {
-          const papers = project.papers.filter((p) => (p.board_uuids ?? []).includes(board.uuid)).length;
-          const href = appPath(`/project/${project.uuid}/board/${board.uuid}`);
-          const owner = board.owner?.display_name ? (board.owner.uuid === currentUser?.uuid ? 'You' : firstName(board.owner)) : null;
-          return (
-            <li key={board.uuid} data-subject={`board:${board.uuid}`} className="project-card project-board">
-              <a className="project-card-body project-board-link" href={href}>
-                <BoardMap boxes={board.boxes} />
-                <strong className="project-card-title">{board.name}</strong>
-              </a>
-              {(board.is_new || hasNews((subject) => subject.board_uuid === board.uuid)) && <NewsDot />}
-              <footer className="project-card-foot project-board-meta">
-                {[
-                  board.item_count ? plural(board.item_count, 'card', 'cards') : 'No cards',
-                  papers ? plural(papers, 'paper', 'papers') : null,
-                  owner,
-                  `edited ${when(board.updated_at)}`,
-                ].filter(Boolean).join(' · ')}
-              </footer>
-            </li>
-          );
-        })}
-        {naming ? (
-          <li className="project-card project-board is-naming">
-            <header className="project-card-head"><span className="project-card-kind">New board</span></header>
-            <form className="project-card-body" onSubmit={create}>
-              <input
-                className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
-              />
-              <span className="project-board-form-actions">
-                <button type="button" className="project-quiet" onClick={stop}>Cancel</button>
-                <button type="submit" className="primary" disabled={!name.trim() || busy}>{busy ? 'Making…' : 'Make board'}</button>
-              </span>
-            </form>
-          </li>
-        ) : (
-          <li className="project-board-tile">
-            <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
-              <ActionGlyph name="plus" />New board
-            </button>
-          </li>
-        )}
-      </ul>
-    </section>
-  );
-}
-
-// A board from a distance: its cards as plain boxes where they sit, fitted
-// to a fixed strip so the cards in a row line up.
-function BoardMap({ boxes = [] }) {
-  if (!boxes.length) return <svg className="project-board-map" aria-hidden="true" />;
-  const left = Math.min(...boxes.map((b) => b.x));
-  const top = Math.min(...boxes.map((b) => b.y));
-  const right = Math.max(...boxes.map((b) => b.x + b.w));
-  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
-  const margin = Math.max(24, 0.04 * Math.max(right - left, bottom - top));
-  return (
-    <svg
-      className="project-board-map" aria-hidden="true" preserveAspectRatio="xMidYMid meet"
-      viewBox={`${left - margin} ${top - margin} ${right - left + 2 * margin} ${bottom - top + 2 * margin}`}
-    >
-      {boxes.map((b, i) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx="10" className={`is-${b.kind}`} />)}
-    </svg>
+    <li className="project-row project-board-new">
+      {naming ? (
+        <form className="project-board-new-form" onSubmit={create}>
+          <ActionGlyph name="plus" />
+          <input
+            className="project-board-name" autoFocus value={name} maxLength={200} placeholder="Board name" aria-label="Board name"
+            disabled={busy}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => { if (!name.trim()) stop(); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') stop(); }}
+          />
+        </form>
+      ) : (
+        <button type="button" className="project-board-add" onClick={() => setNaming(true)}>
+          <ActionGlyph name="plus" />New board
+        </button>
+      )}
+    </li>
   );
 }
 
