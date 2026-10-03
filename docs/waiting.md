@@ -90,8 +90,10 @@ style.
 
 Every file reaches Papol through `storeFile` in `shared/api/files.js`,
 and its wait is measured end to end: the hash is taken in slices
-(`shared/fileHash.js`, `@noble/hashes`) and the bytes go up through
-`XMLHttpRequest`, whose `upload.onprogress` says how many have gone.
+(`shared/fileHash.js`, `@noble/hashes`). On the web the bytes go up through
+`XMLHttpRequest`, whose `upload.onprogress` says how many have gone. On the
+Mac they go through Tauri's native HTTP client, like every programmatic
+request; it reports the start and finish, not the intermediate byte count.
 `storeFile` takes `onProgress({ phase, loaded, total })` — `hashing`,
 `uploading`, then `stored` — and `uploadProgressView(progress)` turns the
 latest event into the `{ fraction, detail }` of one bar over both phases,
@@ -107,8 +109,8 @@ rest. A file the server already holds is full the moment it is hashed.
 | The desktop's own store (`blob_import`), which reports nothing | `Working` | Uploading… |
 
 The upload smoke (`frontend/scripts/upload-smoke.mjs`) plays the bucket
-through a fake `XMLHttpRequest` and asserts the bar reached 100% before
-"Extracting…" appeared.
+through a fake `XMLHttpRequest` on the web and native HTTP on the Mac, and
+asserts the web's bar reached 100% before "Extracting…" appeared.
 
 ## Testing
 

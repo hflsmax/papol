@@ -496,10 +496,21 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       }).filter(Boolean));
       scheduleCompact();
     };
-    const frame = requestAnimationFrame(measure);
-    const observer = new ResizeObserver(measure);
+    let frame = null;
+    const scheduleMeasure = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+    };
+    scheduleMeasure();
+    const observer = new ResizeObserver(scheduleMeasure);
     stageRef.current.querySelectorAll('.board-canvas-card').forEach((element) => observer.observe(element));
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); if (reflowTimer != null) clearTimeout(reflowTimer); };
+    return () => {
+      if (frame != null) cancelAnimationFrame(frame);
+      observer.disconnect();
+      if (reflowTimer != null) clearTimeout(reflowTimer);
+    };
   }, [bookletKey, imageUuids, board?.items]);
 
   const paintView = (next) => {
@@ -2114,8 +2125,8 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
         ? <DesktopNav desk={{ onClick: focusDesktopDeskWindow, label: 'Open Desk' }} />
         : <BackLink
             className="board-home"
-            href={homeHref()}
-            onBack={onHome}
+            href={homeHref(board)}
+            onBack={() => onHome(board)}
             aria-label="Papol home"
             title="Papol home"
           >

@@ -192,9 +192,9 @@ export async function discardPaperImport(extractedData) {
   await discardNativeBlob(sha256);
 }
 
-// Read a paper again. `printed` is its title block read afresh in the
-// browser (shared/printed.js), or a promise of it; the server asks the
-// indexes by the paper's DOI and fills the rest from it.
+// Enrich a paper after the browser has read its PDF. `printed` is the title
+// block already shown in the form (shared/printed.js), or a promise of it;
+// the server asks the indexes by the paper's DOI and fills the rest from it.
 export async function reextractPaperMetadata(paperSha256, printed = null) {
   const { titleBlock } = await printedFor(printed);
   return onServer(

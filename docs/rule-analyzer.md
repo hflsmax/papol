@@ -142,10 +142,13 @@ and sends them with the upload; the Worker takes them when the browser read
 no identifier, or one no index knows (`cloudflare/src/papers/extract.ts`).
 `header.ts` reads them:
 
-- the title is the first page's largest text in its top two thirds, with
-  the lines of that size under it and an ACM subtitle; not a banner, a
-  notice, a line of names or an Elsevier masthead; a scanned title is the
-  running head of the next pages;
+- the title is chosen from blocks before the abstract, scored by size
+  relative to the body, page position, title-like text, nearby authors,
+  subtitle shape, line breadth and agreement with plausible PDF metadata;
+  banners, notices, names, affiliations and Elsevier mastheads are excluded,
+  a title page may follow a cover leaf, and a low-confidence document falls
+  back to the running head of later pages or plausible PDF metadata rather
+  than inventing a title;
 - the authors are the names under it before the abstract, split at commas,
   "and", affiliation marks and wide gaps, an affiliation ending its line;
   TeX's detached accents are put back on their letters; an IOP cover
@@ -181,3 +184,11 @@ misses: a book's title page; an author the draft lists and the published
 paper does not; a name Crossref itself has garbled; an arXiv copy's year
 beside the published one's. The journal matters least: it is kept only
 when no index knows the paper.
+
+Re-measured on 2026-10-01 over the 63-paper production corpus after title
+blocks became scored hypotheses: title 63/63, authors 57/60, year 40/44,
+DOI 46/48 and journal 13/55. The preceding largest-font selector read
+61/63 titles and 53/60 author lists under the same comparison. Of the three
+remaining author differences, one PDF prints an author absent from its
+catalogue row, one catalogue row names an author absent from the PDF, and
+one scan exposes no author text to the parser.

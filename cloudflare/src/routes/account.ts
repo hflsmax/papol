@@ -24,15 +24,15 @@ async function saveAvatar(env: Env, user: User, avatarPath: string | null) {
 }
 
 export function accountRoutes(router: Router) {
-  // Display name, affiliation, whether the email shows on the user's
-  // nook, and what the viewer's nav bar marks. The email address itself is
-  // the login identifier and is fixed.
+  // The user's account details and what the viewer's nav bar marks. Email
+  // addresses are normalized the same way as at registration and sign-in.
   router.on("PUT", "/api/auth/profile", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Record<string, unknown>>(request);
     const check = validate.checking();
     const displayName = "display_name" in data ? check.string("display_name", data.display_name, { max: limits.text.display_name, optional: true }) : undefined;
     const affiliation = "affiliation" in data ? check.string("affiliation", data.affiliation, { max: limits.text.affiliation, optional: true }) : undefined;
+    const email = "email" in data ? check.string("email", data.email, { max: limits.text.email, pattern: validate.EMAIL }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
     // What the viewer's nav bar marks: a list of its kinds, in any order.
     const marks = data.nav_marks;
@@ -40,14 +40,20 @@ export function accountRoutes(router: Router) {
       check.fail(`nav_marks must be a list of ${navMarks.kinds.join(", ")}`);
     }
     check.done();
+    const normalizedEmail = email === undefined ? undefined : email!.trim().toLowerCase();
+    if (normalizedEmail !== undefined && normalizedEmail !== user.email &&
+        await one(env.DB, "SELECT 1 FROM users WHERE email = ? AND uuid != ?", normalizedEmail, user.uuid)) {
+      refuse(400, "Email already registered");
+    }
     if (displayName !== undefined) {
       if (!(displayName ?? "").trim()) refuse(400, "Display name cannot be empty");
       user.display_name = displayName!.trim();
     }
     if (affiliation !== undefined) user.affiliation = (affiliation ?? "").trim() || null;
+    if (normalizedEmail !== undefined) user.email = normalizedEmail;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
     if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
-    await statement(env.DB, "UPDATE users SET display_name = ?, affiliation = ?, email_public = ?, nav_marks = ? WHERE uuid = ?", user.display_name, user.affiliation, user.email_public, user.nav_marks, user.uuid).run();
+    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 

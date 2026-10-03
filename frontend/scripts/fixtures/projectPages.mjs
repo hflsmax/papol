@@ -24,8 +24,8 @@ const DIG_PAPER_MIA = 'e1b2c3d4-0000-4000-8000-000000000049';
 const DIG_PAPER_BEN = 'e1b2c3d4-0000-4000-8000-000000000045';
 
 const user = (uuid, display_name, affiliation) => ({ uuid, display_name, affiliation, avatar_path: null, email: null });
-const me = user(ME, 'Dana Okafor', 'Leiden Observatory');
-const ana = user(ANA, 'Ana Reyes', 'ESO');
+const me = { ...user(ME, 'Dana Okafor', 'Leiden Observatory'), online: true };
+const ana = { ...user(ANA, 'Ana Reyes', 'ESO'), online: true };
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 const mia = user(MIA, 'Mia Tanaka', 'Subaru Telescope');
 // People in Papol who are not in the project, for a keeper to add.
@@ -43,13 +43,16 @@ export const P_VIBES = digest(0xa5);
 
 const hoursAgo = (h) => new Date(Date.now() - h * 3600e3).toISOString();
 const daysAgo = (d) => hoursAgo(d * 24);
+const TAG_METHODS = { uuid: 'ab200000-0000-4000-8000-000000000001', name: 'methods' };
+const TAG_BENCH = { uuid: 'ab200000-0000-4000-8000-000000000002', name: 'bench' };
+const TAG_BACKGROUND = { uuid: 'ab200000-0000-4000-8000-000000000003', name: 'background' };
 
 const papers = [
   {
     sha256: P_LEARN, title: 'Learning wavefront control from few examples', authors: "[\"R. Gomez\", \"T. Lindqvist\", \"P. Ferreira\"]",
     journal: 'Nature Photonics', year: 2025, doi: null, added_by: ben, added_at: hoursAgo(5), is_new: true, in_my_nook: false,
     users: [{ user: ben, thought: 'Worth trying on the bench this month.', rating_reading: 3, rating_liking: 4 }],
-    board_uuids: [BOARD_PLAN],
+    board_uuids: [BOARD_PLAN], tags: [TAG_METHODS, TAG_BENCH],
   },
   {
     sha256: P_ERROR, title: 'Error dynamics in adaptive optics loops', authors: "[\"L. Chen\", \"M. Patel\"]",
@@ -59,42 +62,42 @@ const papers = [
       { user: me, thought: 'The clearest account of why the loop lags.', rating_reading: 4, rating_liking: 4 },
       { user: ben, thought: null, rating_reading: 2, rating_liking: null },
     ],
-    board_uuids: [BOARD_PLAN, BOARD_MAP],
+    board_uuids: [BOARD_PLAN, BOARD_MAP], tags: [TAG_METHODS],
   },
   {
     sha256: P_SURVEY, title: 'A survey of predictive control for telescopes', authors: "[\"S. Olsen\"]",
     journal: 'Annual Review of Astronomy and Astrophysics', year: 2023, doi: null, added_by: ana, added_at: daysAgo(6), is_new: false, in_my_nook: true,
     users: [{ user: ana, thought: 'Skim §4 and §7; the rest is history.', rating_reading: 5, rating_liking: 3 }, { user: me, thought: null, rating_reading: 1, rating_liking: null }],
-    board_uuids: [BOARD_MAP],
+    board_uuids: [BOARD_MAP], tags: [TAG_BACKGROUND],
   },
   {
     sha256: P_PYRAMID, title: 'Pyramid wavefront sensing under strong scintillation', authors: "[\"K. Nakamura\", \"J. Vidal\", \"A. Rossi\", \"H. Berger\"]",
     journal: 'Journal of Astronomical Telescopes, Instruments, and Systems', year: 2022, doi: null, added_by: ana, added_at: daysAgo(9), is_new: false, in_my_nook: false,
     users: [{ user: ana, thought: null, rating_reading: 3, rating_liking: null }],
-    board_uuids: [],
+    board_uuids: [], tags: [TAG_BENCH],
   },
   {
     sha256: P_VIBES, title: 'Vibration rejection with learned disturbance models', authors: "[\"F. Moreau\", \"D. Okafor\"]",
     journal: null, year: 2026, doi: null, added_by: mia, added_at: hoursAgo(26), is_new: true, in_my_nook: true,
     users: [{ user: mia, thought: 'Our own preprint, for the record.', rating_reading: 5, rating_liking: 4 }, { user: me, thought: null, rating_reading: 5, rating_liking: null }],
-    board_uuids: [],
+    board_uuids: [], tags: [],
   },
 ];
 
-// Each board as the project lists it, latest first: known by what its
-// newest card says and who put it there.
+// Each board as the project lists it, latest first: known by its
+// description and who last put something there.
 const latest = (text, kind, by, at) => ({ text, kind, added_by: by, added_at: at });
 const boards = [
   {
-    uuid: BOARD_MAP, name: 'Attention variants map', description: null, owner: ana, item_count: 5, created_at: daysAgo(6), updated_at: hoursAgo(1), is_new: true,
+    uuid: BOARD_MAP, name: 'Attention variants map', description: 'Compare the controller families worth taking to the bench.', owner: ana, item_count: 5, created_at: daysAgo(6), updated_at: hoursAgo(1), is_new: true,
     latest_card: latest('Linear attention loses the long-range term we need for tip-tilt; keep the sparse variant for now.', 'comment', ana, hoursAgo(1)),
   },
   {
-    uuid: BOARD_PLAN, name: 'Bench plan', description: null, owner: me, item_count: 12, created_at: daysAgo(9), updated_at: hoursAgo(2),
+    uuid: BOARD_PLAN, name: 'Bench plan', description: 'Turn the strongest candidates into a repeatable experiment.', owner: me, item_count: 12, created_at: daysAgo(9), updated_at: hoursAgo(2),
     latest_card: latest('Measure the loop delay before tuning the integrator gain', 'comment', me, hoursAgo(2)),
   },
   {
-    uuid: BOARD_BUDGET, name: 'Error budget', description: null, owner: ben, item_count: 7, created_at: daysAgo(12), updated_at: daysAgo(3),
+    uuid: BOARD_BUDGET, name: 'Error budget', description: 'Account for the limits that decide whether prediction helps.', owner: ben, item_count: 7, created_at: daysAgo(12), updated_at: daysAgo(3),
     latest_card: latest('The servo-lag term dominates above 40 Hz; fitting error is flat across every run we have.', 'excerpt', ben, daysAgo(3)),
   },
 ];
@@ -158,7 +161,7 @@ const project = {
     { user: mia, is_keeper: false, joined_at: daysAgo(2) },
   ],
   is_member: true, is_keeper: true, invite_code: 'Ab3dE5gH7j',
-  boards, digs, papers,
+  boards, digs, papers, tags: [TAG_BACKGROUND, TAG_BENCH, TAG_METHODS],
 };
 
 const summary = { uuid: PROJECT, name: project.name, created_at: project.created_at, members: project.members, is_member: true, is_keeper: true, new_count: 3 };

@@ -249,6 +249,17 @@ describe("what a PDF says about itself", () => {
     asked.length = 0;
     await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers });
     expect(asked).toEqual([`/works/${encodeURIComponent("10.0000/stale-doi")}`]);
+
+    // A PDF is still the source when its DOI is absent from the indexes.
+    // Re-reading it must not turn a successfully parsed title block into a
+    // misleading "Metadata was not found" response.
+    apis({
+      "api.crossref.org": () => new Response("", { status: 404 }),
+      "api.datacite.org": () => new Response("", { status: 404 }),
+    });
+    const printed = titleBlock({ title: "What the PDF Says", authors: ["Ada Author"], journal: "PDF Conf", year: 2024 });
+    const fallback = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: printed } });
+    expect(fallback).toEqual({ doi: null, title: "What the PDF Says", authors: JSON.stringify(["Ada Author"]), journal: "PDF Conf", year: 2024 });
   });
 });
 
@@ -515,6 +526,25 @@ describe("saving, opening and editing", () => {
     expect(await count("papers")).toBe(1);
     expect(await count("copies")).toBe(2);
     expect((await ok("GET", "/api/papers", { headers: ada.headers }))[0].title).toBe("Retitled by Grace");
+  });
+
+  it("revives the existing copy when a removed PDF is uploaded again", async () => {
+    const account = await register();
+    const digest = await stored("%PDF-1.4 uploaded, removed, and uploaded again");
+    const first = await ok("POST", "/api/papers", { headers: account.headers, json: {
+      title: "First reading", file_path: `${digest}.pdf`, summary: "Old summary",
+    } });
+    await ok("DELETE", `/api/papers/${digest.slice(0, 32)}`, { headers: account.headers });
+    const tag = await ok("POST", "/api/tags", { headers: account.headers, json: { name: "reread" } });
+
+    const again = await ok("POST", "/api/papers", { headers: account.headers, json: {
+      title: "Second reading", file_path: `${digest}.pdf`, summary: "New summary", tag_uuids: [tag.uuid],
+    } });
+
+    expect(again).toMatchObject({ copy_uuid: first.copy_uuid, title: "Second reading", summary: "New summary",
+      tags: [{ uuid: tag.uuid, name: "reread" }] });
+    expect(await count("copies", "paper_sha256 = ? AND user_uuid = ?", digest, account.uuid)).toBe(1);
+    expect(await row("SELECT deleted_at FROM copies WHERE uuid = ?", first.copy_uuid)).toEqual({ deleted_at: null });
   });
 
   it("offers the known version: taking it makes a copy of that paper and lets the upload go, keeping this one makes a paper of its own", async () => {

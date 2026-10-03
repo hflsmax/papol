@@ -185,17 +185,25 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
   useLayoutEffect(() => {
     if (!clip.floating) return undefined;
     const viewport = rootRef.current?.closest('.pages');
+    let frame = null;
     const update = () => {
       const box = viewport?.getBoundingClientRect();
       if (box) setFloatViewport({ left: box.left, top: box.top, width: box.width, height: box.height });
     };
+    const scheduleUpdate = () => {
+      if (frame == null) frame = requestAnimationFrame(() => {
+        frame = null;
+        update();
+      });
+    };
     update();
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(scheduleUpdate);
     if (viewport) observer.observe(viewport);
-    window.addEventListener('resize', update);
+    window.addEventListener('resize', scheduleUpdate);
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', update);
+      window.removeEventListener('resize', scheduleUpdate);
+      if (frame != null) cancelAnimationFrame(frame);
     };
   }, [clip.floating]);
 
@@ -254,6 +262,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
     const requestPaint = () => paint().catch(() => {});
     paintClipRef.current = requestPaint;
     requestPaint();
+    let observerFrame = null;
     const observer = new ResizeObserver(() => {
       // The existing bitmap scales cleanly while the handle is moving. A
       // fresh PDF.js render for every pointer sample only cancels the one
@@ -263,7 +272,10 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
         return;
       }
       resizeNeedsPaintRef.current = false;
-      requestPaint();
+      if (observerFrame == null) observerFrame = requestAnimationFrame(() => {
+        observerFrame = null;
+        requestPaint();
+      });
     });
     observer.observe(output);
     return () => {
@@ -278,6 +290,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
       }
       renderRef.current?.cancel();
       observer.disconnect();
+      if (observerFrame != null) cancelAnimationFrame(observerFrame);
     };
   }, [
     doc,

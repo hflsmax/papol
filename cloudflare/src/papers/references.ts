@@ -183,6 +183,11 @@ export async function lookUpPrinted(env: Env, paper: Paper, printed: PrintedRefe
     key: printed.key, index: printed.index, title: printed.title, authors: printed.authors.length ? JSON.stringify(printed.authors) : null,
     year: printed.year, journal: printed.journal, doi: printed.doi, arxiv_id: printed.arxiv_id,
   };
+  // Key/index locate the entry in this reading and can vary without changing
+  // its identity. Only improved bibliographic fields make an old resolution
+  // stale.
+  const readingChanged = reference && ["title", "authors", "year", "journal", "doi", "arxiv_id"]
+    .some((field) => (reference as Record<string, unknown>)[field] !== fields[field as keyof typeof fields]);
   if (!reference) {
     const count = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM paper_references WHERE paper_sha256 = ?", paper.sha256);
     if ((count?.n ?? 0) >= MOST_REFERENCES) refuse(429, "This paper has too many references to look up another");
@@ -193,12 +198,16 @@ export async function lookUpPrinted(env: Env, paper: Paper, printed: PrintedRefe
     await statement(env.DB,
       `INSERT INTO paper_references (uuid, paper_sha256, "key", "index", raw, title, authors, year, journal, doi, arxiv_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       reference.uuid, paper.sha256, fields.key, fields.index, printed.raw, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id).run();
-  } else if (reference.resolved_status === null || reference.resolved_status === undefined) {
-    // Not looked up yet: look it up by what the rules make of it now.
+  } else if (reference.resolved_status === null || reference.resolved_status === undefined || readingChanged) {
+    // Look it up by what the rules make of it now. A parser improvement can
+    // change the structured fields without changing the line as printed; in
+    // that case discard the old miss (or wrong thin card) and resolve again.
     Object.assign(reference, fields);
+    if (readingChanged) Object.assign(reference, { resolved_status: null, resolution: null, resolved_at: null });
     await statement(env.DB,
-      `UPDATE paper_references SET "key" = ?, "index" = ?, title = ?, authors = ?, year = ?, journal = ?, doi = ?, arxiv_id = ? WHERE uuid = ?`,
-      fields.key, fields.index, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id, reference.uuid).run();
+      `UPDATE paper_references SET "key" = ?, "index" = ?, title = ?, authors = ?, year = ?, journal = ?, doi = ?, arxiv_id = ?, resolved_status = ?, resolution = ?, resolved_at = ? WHERE uuid = ?`,
+      fields.key, fields.index, fields.title, fields.authors, fields.year, fields.journal, fields.doi, fields.arxiv_id,
+      reference.resolved_status, reference.resolution, reference.resolved_at, reference.uuid).run();
   }
   return openReference(env, reference);
 }

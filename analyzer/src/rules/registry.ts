@@ -429,8 +429,8 @@ export const SECTION_HEADING = rule({
   // closed by a point ("6.2. A program inverter") — not a unit's "A"
   // ("5 A current"), nor a run of letters ("2 A B C"); or a Greek letter
   // naming the paper's calculus ("4.1 λQC Kinding"), not a relation.
-  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
-  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material",
+  pattern: /^(?<number>(?:\d{1,2}|[A-Z](?=\.\d))(?:\.\d{1,2}){0,3})\.?\s+(?<title>(?:(?:[A-Z]\s+){3,}[A-Z]|[A-Z\u00C0-\u00DE][A-Za-z\u00C0-\u024F’'-]|A\s+[A-Z][A-Za-z]|(?<=\d\.\s+)A\s+[a-z]{2}|\d[A-Za-z]|[\u0391-\u03C9](?!\s*[=<>≤≥∈]))[^]*)$/,
+  matches: ["2.1 Novel Methods", "2 RELATED WORK", "3 X-BRIDGES METHOD", "3. B R O W N I A N C O M P U T E R S", "2.3 3D Printing Manipulation with FDM", "3.2. Results", "A.1 Proof of Lemma 3", "4.3.1 Loose. Using the same material",
     "2 A TOUR OF TWO-LEVEL TYPE THEORY", "6.2. A program inverter for a reversible language", "4.1 λQC Kinding System"],
   rejects: ["2.1 of the paper", "A Study of Things", "2021 was a year", "1153 1163", "0.05 N), and the stroke", "2 A B C", "5 A current", "2 α = 0.5"],
 });
@@ -752,8 +752,8 @@ export const CITE_LABEL = rule({
 
 export const HEADER_TITLE = rule({
   id: "header.title", stage: "header",
-  summary: "The title is the largest text in the top two thirds of the first page, larger than the body, with the lines set in that size directly under it.",
-  why: "Every publisher sets the title as the page's largest words; a CHORUS or arXiv cover line above it is set smaller.",
+  summary: "The title is the strongest block before the abstract, scored by type, position, text shape, nearby authors and agreement with document metadata.",
+  why: "Publishers emphasize titles, but logos, diagrams and drop caps can be larger; the surrounding title block distinguishes them.",
 });
 export const HEADER_NOT_TITLE = rule({
   id: "header.not-title", stage: "header",

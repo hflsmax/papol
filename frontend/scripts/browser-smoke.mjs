@@ -35,6 +35,7 @@ const pages = [
   { path: '/projects/join/Ab3dE5gH7j', page: 'invitation' },
   { path: '/learn', page: 'learn' },
   { path: '/signin', page: 'signin' },
+  { path: `/reset-password/${'ab'.repeat(32)}`, page: 'reset-password' },
 ];
 
 // The same bundle again, as Papol macOS runs it: a desktop environment and a
@@ -161,7 +162,7 @@ const desktopReadiness = {
       const row = document.querySelector('.desktop-browser .desktop-row');
       if (row && !row.classList.contains('selected')) row.click();
       const name = document.querySelector('.board-jacket h2');
-      if (name && name.textContent.trim() && document.querySelector('.board-jacket .board-preview svg')
+      if (name && name.textContent.trim()
           && document.querySelector('.board-jacket-papers a')?.textContent === 'The Smoke Paper') {
         fetch('/__papol_smoke_ready?page=desk-board', { method: 'POST' });
         return;

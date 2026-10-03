@@ -19,11 +19,11 @@ Papers are **keyed by the content hash of the PDF**: the same file in different 
 ## 1. Accounts
 
 - **US-1.1** As a visitor, I can register with my email, a display name, an affiliation (optional), and a password, so I get my own nook.
-- **US-1.7** As a user, I choose whether my email shows on my nook, with a tick box on my profile. It is on by default; turning it off keeps my address to myself, and it is never sent to other users while off. My email is always my login identifier and cannot be changed.
+- **US-1.7** As a user, I choose whether my email shows on my nook, with a tick box on my profile. It is on by default; turning it off keeps my address to myself, and it is never sent to other users while off. My email is my login identifier, and I can change it from my profile.
 - **US-1.2** As a user, I can log in with my email and password, and log out; my session persists across page reloads.
 - **US-1.3** As a visitor who is not logged in, I am not met by a login wall: I land on the home page, which says what Papol is, and the sign-in and register pages are one click away.
 - **US-1.4** As a visitor without an account, every page of the community requires signing in; a sharable someone sent me (§7c) reads without one. Signing out returns me to the home page.
-- **US-1.5** As a user, I can edit my profile (display name and affiliation) and change my password from a profile page reached by clicking my name in the navigation. My email is my login identifier and cannot be changed.
+- **US-1.5** As a user, I can edit my profile (email, display name and affiliation) and change my password from a profile page reached by clicking my name in the navigation. My changed email becomes my login identifier.
 - **US-1.6** As a user, I can upload a profile image (PNG/JPEG/WebP, up to 2 MB), replace or remove it; it appears wherever I do. Without one, my initial shows in its place.
 
 ## 2. Papers, ratings, and shelves
@@ -123,6 +123,10 @@ papers in, and I decide where they go.
 - **US-5c.2** On my profile page, **My activity**, under my account, shows that time by **Day** (when I was reading which paper, hour by hour, each paper in a colour of its own), **Week** (seven such days, each with its total) and **Month** (a calendar shaded by how much time each day held), with the period's total and each paper the time went to. A day in the week or month opens that day. A week or month can instead be shown **by paper**: a row to each paper, a column to each day on one shared scale, and each row's total.
 - **US-5c.3** On my own nook, each paper says, in small type on its author line, how long I have spent reading it, tinted by one of five effort levels — lightest under half an hour, darkest past ten hours — so I can see down the page which papers took the most. Pressing it opens that paper's time: the total and since when, its last twelve weeks as a small calendar, and my latest days with it. Nobody else sees my activity or my effort, on my nook or anywhere.
 - **US-5c.4** My activity is in my data export, and goes when I close my account.
+
+## 5d. Presence in a project
+
+- **US-5d.1** As a project member, I can see which other members are online from their user chips, so I know who may be available to work with now. Online members carry a green dot on the project's compact chips and an explicit **Online** label in its people panel; the chip's accessible name says the same thing. A visible Papol window renews presence, and silence for two minutes becomes offline without depending on a browser closing cleanly. Presence is shown only to members of the same project—never on a public project summary or a user's profile.
 
 ## 6. Feedback
 

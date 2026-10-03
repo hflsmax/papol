@@ -3,6 +3,7 @@ import { nativeDataActive } from '../../shared/nativeData.js';
 import { addSharedToNook, readSharable, sharedInNook } from '../../shared/api/sharables.js';
 import { anchorsIn } from './annotationKinds.js';
 import { appPath } from './base.js';
+import { projectPaperPath } from '../../shared/appUrls.js';
 import { paperName } from '../../shared/paperName.js';
 import { addToNook as addPaperToNook } from '../../shared/api/papers.js';
 import {
@@ -87,7 +88,9 @@ function apiSource(
     leanFallback: () => paperLinkSource(pdfHash),
     async load() {
       const loaded = await paper();
-      source.homeHref = appPath(`/paper/${paperName(loaded.sha256)}`);
+      source.homeHref = project
+        ? projectPaperPath(project, paperName(loaded.sha256))
+        : appPath(`/paper/${paperName(loaded.sha256)}`);
       return { doc: loaded, anchors: [] };
     },
     async loadAnchors() {

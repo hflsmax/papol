@@ -22,7 +22,7 @@ function day(iso) {
 // makes of it: its digs, one per member who wrote about it, each on its
 // own, with yours, or the line to write it, first. A stashed dig is out of
 // the way and shows only in the Digs tab.
-export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead }) {
+export default function PaperBrief({ project, paper, currentUser, unread = {}, underRow = false, onChanged, onRead, tags = null }) {
   const [notice, setNotice] = useState(null);
   const [digs, setDigs] = useState(null);
   const subject = `paper:${paper.sha256}`;
@@ -85,6 +85,7 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
             {where && <span>{where}</span>}
           </p>
         )}
+        {tags && <div className="paper-brief-tags">{tags}</div>}
         <div className="paper-brief-actions">
           <a className="button primary" href={viewer} data-document onClick={open(viewer)}>
             Read

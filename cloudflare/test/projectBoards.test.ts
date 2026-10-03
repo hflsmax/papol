@@ -77,7 +77,11 @@ describe("project boards", () => {
     expect(Object.fromEntries(seen.boards.map((b: { name: string; is_new: boolean }) => [b.name, b.is_new]))).toEqual({ Ideas: true, Plans: false });
     expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).boards.every((b: { is_new: boolean }) => !b.is_new)).toBe(true);
 
-    // Seen once opened; a card of the member's own is never news to them.
+    // A passive open leaves it new; viewing that board explicitly clears it.
+    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).boards.some((b: { is_new: boolean }) => b.is_new)).toBe(true);
+    const idea = seen.boards.find((b: { uuid: string }) => b.uuid === board.uuid);
+    await ok("POST", `/api/projects/${project.uuid}/reads`, { headers: dana.headers,
+      json: { kind: "board", item: board.uuid, through: idea.news_through } });
     expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).boards.some((b: { is_new: boolean }) => b.is_new)).toBe(false);
     await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "Mine" } });
     expect(await count(dana)).toBe(0);
@@ -256,5 +260,4 @@ describe("digs", () => {
     expect(await row("SELECT 1 FROM digs WHERE uuid = ?", dug.uuid)).toBeNull();
   });
 });
-
 
