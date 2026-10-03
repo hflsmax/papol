@@ -115,6 +115,21 @@ test("a paper that numbers none: the named headings, and the lines set as they a
   assert.deepEqual(headings.map((h) => h.title), ["Introduction", "Graphene growth on copper", "Discussion", "Methods"]);
 });
 
+test("a magazine that names only its references: the lines set as that heading is, one nearly the measure wide (section.unnumbered-style)", async () => {
+  const headings = await contentsOf([
+    [...text(10), ["Maxwell and Szilard", 11, true], ...text(10), ["Dancing with the demon", 11, true], ...text(10)],
+    [["From experiments to the applications of erasure in machines and cells", 11, true], ...text(10), ["References", 11, true], ...text(4)],
+  ]);
+  assert.deepEqual(headings.map((h) => h.title), ["Maxwell and Szilard", "Dancing with the demon", "From experiments to the applications of erasure in machines and cells", "References"]);
+});
+
+test("one named heading and one line in its style are not yet a style", async () => {
+  const headings = await contentsOf([
+    [...text(10), ["Maxwell and Szilard", 11, true], ...text(10), ["References", 11, true], ...text(4)],
+  ]);
+  assert.deepEqual(headings.map((h) => h.title), ["References"]);
+});
+
 test("a paper whose headings are not set apart from its text has none", async () => {
   const headings = await contentsOf([
     ["Introduction", ...text(10), "Some Further Words", ...text(10), "Discussion", ...text(10)],
