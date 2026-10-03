@@ -485,6 +485,7 @@ interface Setting {
   step?: Drawn | null; // the wider bar under it the conclusion leads into: a step, unless that bar has a label
   quantified?: boolean; // at the margin of a row opening with a quantifier: a lemma, unless among rules set so
   ended?: boolean; // on a line of its own under its formula's end: the rule's last line
+  tabled?: boolean; // ending its formula's row in a ruled table of axioms: the rule is that row alone
 }
 
 const tolerance = (a: { size: number }, b: { size: number }) => TOUCH * Math.min(a.size, b.size);
@@ -671,6 +672,12 @@ const worded = (l: Line) => l.text.trim().split(/\s+/).filter((w) => /^\p{Ll}{2,
 // A line drawn through a line of running text: a leader or a rule set
 // inline, not a bar.
 const prose = (l: Line, type: Type) => !l.furniture && l.text.length >= 40 && faceOf(l) === family(type.font);
+// A line at a paragraph's left edge hard under a line of its running text
+// that breaks off mid-sentence, a lowercase word ending it, goes on with
+// that sentence ("… the rule R4 is" over "extended to", "… can be derived
+// from" over "APPV:").
+const runsOn = (page: Page, line: Line, type: Type) => page.lines.some((l) => l !== line && prose(l, type) && l.bottom <= line.top + 1 && line.top - l.bottom <= 0.6 * type.leading
+  && Math.abs(l.x0 - line.x0) <= line.size && /\p{Ll}\s*$/u.test(l.text));
 function inProse(page: Page, d: Drawn, type: Type): boolean {
   return page.lines.some((l) => prose(l, type) && l.top + 0.3 * l.size < d.y && l.bottom - 0.3 * l.size > d.y && l.x0 < d.x + d.w && l.x1 > d.x);
 }
@@ -973,6 +980,12 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const lines = ruleLines(page, label);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
+  // A name closed by a colon on a line that runs on with a paragraph's
+  // sentence ends that sentence ("… the following rule can be derived
+  // from" over "APPV:", SEQ's premises under it): the text cites the
+  // rule. So does a name ending such a line ("can prove: (i) (Idem³ₜ) ⇒
+  // (Idemₜ) … ⇒ (Idem³ₜ)" under "… For example, we").
+  if (((token.side === "whole" && token.colon) || token.side === "tail") && runsOn(page, label, type)) return { category: "none", bar: null, row: [], side: "right" };
   const slack = BESIDE * label.size;
   const mid = (label.top + label.bottom) / 2;
   const centre = (label.x0 + label.x1) / 2;
@@ -1168,8 +1181,19 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // Q-CAST, whose axiom stands under it).
   const claimedElsewhere = (l: Line) => page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y >= l.bottom - 1 && d.y <= l.bottom + 0.8 * type.leading && d.x <= (l.x0 + l.x1) / 2 && d.x + d.w >= (l.x0 + l.x1) / 2
     && (d.x > label.x1 || d.x + d.w < label.x0) && !derivation(page, d, lines, type, slack) && !stepInto(page, d, lines, type, slack) && lines.some((o) => o !== label && tokenOf(o)?.side === "whole" && Math.abs((o.top + o.bottom) / 2 - d.y) <= LEVEL * o.size
-      && ((o.x1 <= d.x + slack && d.x - o.x1 <= 2 * o.size) || (o.x0 >= d.x + d.w - slack && o.x0 - d.x - d.w <= 2 * o.size))));
-  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !claimedElsewhere(l));
+      && ((o.x1 <= d.x + slack && d.x - o.x1 <= 2 * o.size) || (o.x0 >= d.x + d.w - slack && o.x0 - d.x - d.w <= 2 * o.size)))
+    // ... or a hyphenated name over that bar from its left end, alone on
+    // its line, hard over the premise centred over the bar (Mixtris's
+    // Wp-load over "ℓ ↦ 𝑣", level with Wp-alloc heading its axiom; "is_var"
+    // heads its row of a signature, a table's "k-depth" its row).
+    || lines.some((o) => o !== label && o.bottom <= l.top + 1 && l.top - o.bottom <= 0.8 * type.leading && Math.abs(o.x0 - d.x) <= 2 * o.size && Math.abs((l.x0 + l.x1) / 2 - d.x - d.w / 2) <= 2 * o.size && l.x0 >= o.x0 + 2 * o.size && !onRow(o, label) && ((t) => t?.side === "whole" && HYPHEN.test(fold(t.text)))(tokenOf(o))
+      && !lines.some((r) => r !== o && onRow(r, o) && r.x0 >= o.x1 - 1 && r.x0 - o.x1 <= 4 * o.size)));
+  // A star set level with a bar's right end, hard by it, marks that bar
+  // (Mixtris's Wp-load, Wp-store and Wp-free, each bar ending in "∗", on
+  // Wp-alloc's row): no term of a row.
+  const marking = (l: Line) => /^\s*[∗*]\s*$/u.test(l.text) && page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y >= l.top && d.y <= l.bottom + 1
+    && l.x0 >= d.x + d.w - 0.5 * l.size && l.x0 - d.x - d.w <= l.size);
+  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !claimedElsewhere(l) && !marking(l));
   // A stroke down a figure parting it in two halves, crossing the label's
   // row, parts the row: what lies past it is the other half's, where the
   // label's own half holds lines set with it (a C11 paper's Figure 5, its
@@ -1202,9 +1226,19 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     const starts = (l: Line) => l.x0 >= bar.x - 2 * label.size || (label.x0 >= bar.x + bar.w - slack && pieceAt(l, bar.x, label.size) !== null);
     return lines.some((l) => spans(l) && !CAPTION.test(l.text) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading && starts(l) && l.x1 <= bar.x + bar.w + 2 * label.size);
   };
+  // A bracketed hyphenated name ending its formula's row, a table's rule
+  // past it, ends an axiom in a table of axioms: the rule parts it from
+  // the next column, not from its formula, and the rules over and under
+  // its row part rows (Px86's Fig. 10, "(tso-po)" after "([𝑊 ∪ 𝑈 ∪ 𝑅];
+  // po; …) ⊆ tso", left of the column of figures checking it, "A1–C4");
+  // its row is what stands before the rule past it.
+  const ruledPast = token.side === "whole" && token.bracketed && HYPHEN.test(fold(token.text)) ? page.drawn.filter((d) => upright(d) && d.h >= label.size && d.y <= mid && d.y + d.h >= mid && !boxSide(page, d, label) && d.x >= label.x1 - 1 && d.x <= label.x1 + 3 * label.size) : [];
+  const before = ruledPast.length ? row.filter((l) => l.x1 <= Math.min(...ruledPast.map((d) => d.x)) + 1) : [];
+  const tabled = before.some((l) => l.x1 <= label.x0 && RELATION.test(relational(l).text)) && !walled(page, label, spanOf(label, token), before);
+  if (tabled) row = before;
   // A token between two rules of one span, the upper right over it, sits
   // in a table's header band (rule.cell).
-  const banded = page.drawn.some((top) => across(top) && top.y < label.top && top.y >= label.top - 0.8 * type.leading && top.x <= label.x0 + 1 && top.x + top.w >= label.x1 - 1 && !framed(page, top)
+  const banded = !tabled && page.drawn.some((top) => across(top) && top.y < label.top && top.y >= label.top - 0.8 * type.leading && top.x <= label.x0 + 1 && top.x + top.w >= label.x1 - 1 && !framed(page, top)
     && page.drawn.some((b) => b !== top && across(b) && b.y > label.bottom - 1 && b.y <= label.bottom + 2 * type.leading && Math.abs(b.x - top.x) <= 1 && Math.abs(b.w - top.w) <= 1 && top.w >= 4 * label.size));
   if (banded) return { category: "cell", bar: null, row, side: "over" };
   // Under the label's row, beside the label's own column, stand
@@ -1436,10 +1470,14 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       for (const o of fill) { if (o.x0 - at > 2 * label.size) return false; at = Math.max(at, o.x1); }
       return to - at <= 2 * label.size;
     };
+    // A piece hard under a bar clear of the label is that rule's
+    // conclusion (Wp-load's "wp !ℓ {…}" on the row of Wp-alloc's axiom).
+    const concludedBy = (l: Line) => page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && l.top - d.y <= 0.8 * type.leading && d.x < l.x1 && d.x + d.w > l.x0 && (d.x >= label.x1 || d.x + d.w <= label.x0) && !framed(page, d)
+      && lines.some((u) => u.bottom <= d.y + 1 && d.y - u.bottom <= 0.8 * type.leading && u.x0 >= d.x - label.size && u.x1 <= d.x + d.w + label.size));
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
-        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label))) continue;
+        if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label)) || concludedBy(l)) continue;
         if (under.some((u) => ((Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && (Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size || (Math.abs(u.baseline - l.baseline) <= 1 && bridged(u, l)))) || drawnRelation(page, [u, l]))) { under.push(l); grew = true; }
       }
     }
@@ -1488,6 +1526,11 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       // Ticks on the label's own row are a table's cells, no conclusion.
       const conclusion = lines.filter((l) => spans(l) && l.top >= bar.y - 1 && l.top <= bar.y + 2 * type.leading && !onRow(l, label));
       if (!conclusion.length || Math.min(...conclusion.map((l) => l.top)) >= label.top || label.top - Math.max(...conclusion.map((l) => l.bottom)) > type.leading) continue;
+      // Set smaller than the conclusion, hard under it and inside its
+      // span, it is a script of the conclusion's, no label: the index
+      // under its arrow (a liveness paper's "NOM" under "𝛿 ⇝ 𝛿′" in
+      // noms-exchanges-fuel's conclusion).
+      if (conclusion.some((l) => label.size <= 0.85 * l.size && label.top - l.bottom <= 0.3 * l.size && label.x0 >= l.x0 + 0.5 * label.size && label.x1 <= l.x1 - label.size)) continue;
       // A label nearer its own row under it than the conclusion over it
       // heads that row (SUM-BIGBMIX under HOARE-SUM's conclusion).
       const own = overRow();
@@ -1661,7 +1704,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
     })(lines.filter((l) => !row.includes(l) && l.top >= label.top && l.bottom <= d.y + 1 && l.x0 < d.x + d.w && l.x1 > d.x).sort((a, b) => a.top - b.top)))
     .sort((a, b) => a.y - b.y)[0];
   if (propped) return { category: "beside", bar: propped, row, side: "right", derived: derivation(page, propped, lines, type, slack), step: stepInto(page, propped, lines, type, slack) };
-  if (ruledAside(page, label, span, type) || walled(page, label, span, row)) return { category: "cell", bar: null, row, side: "right" };
+  if (!tabled && (ruledAside(page, label, span, type) || walled(page, label, span, row))) return { category: "cell", bar: null, row, side: "right" };
   const right = columnRight(page, label);
   const atMargin = right !== null && label.x1 >= right - label.size && row.every((l) => l.x1 < label.x0);
   // A formula of its own far left of the row the label ends, six sizes
@@ -1716,7 +1759,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   const namesListed = row.some((l) => { const t = tokenOf(l); return t?.side === "whole" && faceOf(l, t) === faceOf(label, token); });
   const sentence = namesListed && row.some((l) => faceOf(l) === family(type.font) && !RELATION.test(relational(l).text) && l.text.trim().split(/\s+/).filter((w) => /^\p{Ll}{2,}[,.;:]?$/u.test(w)).length >= 3);
   if (atMargin && sentence) return { category: "cell", bar: null, row, side: "right" };
-  if (atMargin) return { category: "margin", bar: null, row, side: "right" };
+  if (atMargin) return { category: "margin", bar: null, row, side: "right", ...(tabled ? { tabled } : {}) };
   // A row holding words in the text's face with no relation is a
   // table's ("MaxMigrate" beside a benchmark's name); another label set
   // as this one is (a rule beside, Wp-store beside Wp-load) is not.
@@ -1771,7 +1814,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
   // to its term states that axiom as a relation would ("V(ε)  (ora-unit-valid)"
   // closing MoSeL's Fig. 9).
   const predicate = token.bracketed && side === "right" && HYPHEN.test(fold(token.text)) && row.length === 1 && /^\s*\p{L}[\p{L}\d]{0,2}\s?\([^()]+\)\s*$/u.test(row[0].text);
-  return side && (RELATION.test(figured(text + " " + levelled)) || RELATION.test(figured(read)) || predicate) ? { category: "row", bar: null, row, side, ...(last ? { ended: true } : {}) } : { category: "none", bar: null, row, side: "right" };
+  return side && (RELATION.test(figured(text + " " + levelled)) || RELATION.test(figured(read)) || predicate) ? { category: "row", bar: null, row, side, ...(last ? { ended: true } : {}), ...(tabled ? { tabled } : {}) } : { category: "none", bar: null, row, side: "right" };
 }
 
 // ------------------------------------------------------------ pass 3: names
@@ -2128,6 +2171,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   const closed = Boolean(opening);
   const within = (l: Line) => l.bottom >= label.top - REACH * type.leading && l.top <= Math.max(label.bottom + REACH * type.leading, bar ? bar.y + type.leading : -Infinity)
     && !(setting.ended && l.top >= label.bottom - tolerance(l, label)) && !(closed && opening && l !== opening && l.bottom <= opening.top + tolerance(l, opening));
+  // A table's rule down the page between the row and a line parts them:
+  // the line is the next column's cell (Px86's "B7,C7,G2,G3,G7" past the
+  // rule closing (tso-fl-wufl)'s row).
+  const ruledOff = (l: Line) => !bar && page.drawn.some((d) => upright(d) && d.h >= l.size && d.y <= (l.top + l.bottom) / 2 && d.y + d.h >= (l.top + l.bottom) / 2 && !boxSide(page, d, label)
+    && ((d.x >= x1 - 1 && d.x <= l.x0 + 1) || (d.x <= x0 + 1 && d.x >= l.x1 - 1)));
   for (let grew = true; grew;) {
     grew = false;
     for (const line of lines) {
@@ -2135,7 +2183,10 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // conclusion's, set tight, whatever bar is under it (R3's last
       // where-line "𝒦′ = 𝒦₂[…]" over R4's premise).
       const tight = Boolean(bar) && [...taken].some((t) => t !== label && t.top > bar!.y - 1 && line.top < t.bottom - 1 && line.top > t.top && line.x0 < t.x1 && line.x1 > t.x0);
-      if (taken.has(line) || ((line.x0 > x1 + slack || line.x1 < x0 - slack) && !bridged(line)) || !within(line) || !sameColumn(page, line, label) || (beyond(line) && !tight) || fenced(line) || continued(line)) continue;
+      if (taken.has(line) || ((line.x0 > x1 + slack || line.x1 < x0 - slack) && !bridged(line)) || !within(line) || !sameColumn(page, line, label) || (beyond(line) && !tight) || fenced(line) || continued(line) || ruledOff(line)) continue;
+      // A table's rows are set hard on each other: one touching the
+      // label's row is the next row (Px86's header over (tso-mo)'s).
+      if (setting.tabled && !onRow(line, label)) continue;
       if (![...taken].some((t) => level(t, line))) continue;
       taken.add(line); grew = true;
       // Without a bar the row is as wide as its pieces, set a blank apart
@@ -2167,6 +2218,9 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
         // step-simple); with a relation between them they are one
         // ("idx(Q₁) ⊆ supp(t₁)").
         if (faceOf(line) === family(type.font) && !RELATION.test(line.text) && (line.runs.filter((r) => /\p{L}{2,}/u.test(r.text) && !ITALIC.test(r.font)).length >= 2 || worded(line))) continue;
+        // Nor does a paragraph's sentence running on over the premises
+        // ("extended to" over R4′'s).
+        if (runsOn(page, line, type)) continue;
         // Another bar over it or under it makes it another rule's.
         const barred = page.drawn.some((d) => d !== bar && across(d) && !overline(page, d, type) && d.x < line.x1 && d.x + d.w > line.x0
           && ((d.y >= line.top - 0.8 * type.leading && d.y <= line.top + 1) || (d.y >= line.bottom - 1 && d.y <= start + 1)));
@@ -2365,6 +2419,9 @@ const RULE_JUST_AFTER = /^(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)[^\s,(
 // into a capitalised word (MKSVar, MALam1), is no English word: a
 // camelCase name cites its rule wherever it is printed.
 const camel = (text: string) => /\p{Ll}\p{Lu}|\p{Lu}{2}\p{Ll}{2}/u.test(text);
+// A word indexed by a mathematical letter, raised maybe, names a family
+// of rules ("Idemₜ", "Idem³ₜ" read "Idem𝑡3"): no group's title is.
+const indexed = (text: string) => new RegExp(`^\\p{Lu}\\p{Ll}+[${MATH_LOWER}]\\d?$`, "u").test(text);
 // A Latin capital alone in brackets, set in the math face ("(𝐹 )" among
 // "(𝑅1)" … "(𝑅9)"), tags its row as a word does; an upright one letters a
 // displayed term as a numeral numbers an equation ("(A)" and "(B)"
@@ -2729,26 +2786,34 @@ function untabled(page: Page): Page {
   // Axioms set side by side under their labels can reach the layout as
   // one line (CISL's "[emp] 𝑥 := e [ok : emp]   [𝜏 ↦ 𝐻] lock𝜏 𝑙 …" under
   // RD-Assign, RD-Lock and RD-Unlock): the line is split at the blank
-  // nearest where each label after the first begins.
+  // nearest where each label after the first begins. So is an axiom
+  // under its label run into the next rule's conclusion, at the blank
+  // nearest where that rule's bar begins over it (Mixtris's Wp-alloc,
+  // "wp ref 𝑣 {ℓ. ℓ ↦ 𝑣}", and Wp-load's "wp !ℓ {…}" under its bar).
   const parted: Line[] = [];
   let cut = false;
   for (const line of page.lines) {
     const heads = page.lines.filter((o) => o !== line && !o.furniture && o.bottom <= line.top + 1 && line.top - o.bottom <= 0.8 * line.size && o.x0 >= line.x0 - line.size && o.x0 < line.x1
       && ((t) => t?.side === "whole" && HYPHEN.test(fold(t.text)))(tokenOf(o))).sort((a, b) => a.x0 - b.x0);
-    if (line.furniture || heads.length < 2 || !heads.every((h) => level(h, heads[0]))) { parted.push(line); continue; }
+    if (line.furniture || !heads.length || !heads.every((h) => level(h, heads[0]))) { parted.push(line); continue; }
+    const bars = page.drawn.filter((d) => across(d) && d.w >= 2 * line.size && d.y <= line.top + 1 && line.top - d.y <= 0.8 * line.size && d.x >= line.x0 + 2 * line.size && d.x < line.x1 - 2 * line.size
+      && !heads.some((h) => h.x0 < d.x + d.w && h.x1 > d.x));
+    const starts = [...heads.slice(1).map((h) => ({ x: h.x0, to: h.x0 + line.size })), ...bars.map((d) => ({ x: d.x, to: d.x + d.w / 2 }))].sort((a, b) => a.x - b.x)
+      .filter((s, i, all) => i === 0 || s.x - all[i - 1].x > 2 * line.size);
+    if (!starts.length) { parted.push(line); continue; }
     const at: number[] = [];
-    for (const h of heads.slice(1)) {
+    for (const h of starts) {
       let best = -1, off = Infinity;
       for (let i = 1; i < line.text.length; i += 1) {
         if (/\s/.test(line.text[i]) || line.chars[i]?.run < 0) continue;
         const gap = blankBefore(line, i), x = edgesOf(line, i)?.[0];
-        if (x === undefined || gap < 0.8 * line.size || x < h.x0 - 3 * line.size || x > h.x0 + line.size) continue;
-        if (Math.abs(x - h.x0) < off) { off = Math.abs(x - h.x0); best = i; }
+        if (x === undefined || gap < 0.8 * line.size || x < h.x - 3 * line.size || x > h.to) continue;
+        if (Math.abs(x - h.x) < off) { off = Math.abs(x - h.x); best = i; }
       }
       const k = line.chars[best]?.run ?? -1;
       if (best > 0 && k > 0 && line.chars.slice(0, best).every((c) => c.run < k) && line.chars.slice(best).every((c) => c.run < 0 || c.run >= k)) at.push(best);
     }
-    if (at.length !== heads.length - 1) { parted.push(line); continue; }
+    if (at.length !== starts.length) { parted.push(line); continue; }
     const bounds = [0, ...at, line.text.length];
     for (let p = 0; p + 1 < bounds.length; p += 1) {
       const [from, to] = [bounds[p], bounds[p + 1]];
@@ -3038,9 +3103,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   const titling = (c: Candidate) => entitled(c.shape, c.token, c.setting.category, c.setting.row);
   for (const c of candidates) if (!weak(c) && !titling(c)) hyphened.set(c.convention, (hyphened.get(c.convention) ?? 0) + 1);
   // A camelCase word the text cites names its rule all the same
-  // ("(RegRoot)" after its Hoare triple, cited as RegRoot): a group's
-  // title is a plain word. A row left open by a connective is a conjunct
-  // of a definition running on under it, no rule ("(lockedExcl)" after
+  // ("(RegRoot)" after its Hoare triple, cited as RegRoot), as does a
+  // word indexed by a mathematical letter ("(Idem³ₜ)" after its
+  // hyper-triple): a group's title is a plain word. A row left open by a
+  // connective is a conjunct of a definition running on under it, no rule ("(lockedExcl)" after
   // "□ (∀s₁, s₂. …) ∧"); a name another label sets at its bar is that
   // rule's, cited by a proof's step ("(HavocS)" after HavocS's rule).
   // Small capitals reach the text layer in capitals throughout, a
@@ -3065,7 +3131,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // its page, or anywhere in the paper at the margin as it is (COEN after
   // its principle, set as TARSKI is pages before and cited "(TARSKI)").
   const titled = (c: Candidate) => conjunct(c) || named(c)
-    || !(camel(c.token.text) ? cited(c) : !capitalised(c.token.text) ? called(c) : capital(c) && candidates.some((o) => (o.page === c.page || (o.setting.category === "margin" && o.convention === c.convention)) && (o.setting.category === "margin" || kind(o) !== o.convention) && kind(o) === kind(c) && capital(o) && cited(o)));
+    || !(camel(c.token.text) || indexed(c.token.text) ? cited(c) : !capitalised(c.token.text) ? called(c) : capital(c) && candidates.some((o) => (o.page === c.page || (o.setting.category === "margin" && o.convention === c.convention)) && (o.setting.category === "margin" || kind(o) !== o.convention) && kind(o) === kind(c) && capital(o) && cited(o)));
   // One set as a cited camelCase name next to it, within a few rows, is a
   // rule as that one is ("(TokSplit)" over the cited "(TokCombine)"); a
   // conjunct is none, whatever its neighbours ("(lockedLvl)" in a lock's
