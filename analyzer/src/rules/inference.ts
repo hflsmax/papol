@@ -106,7 +106,7 @@ const ACCENT = Object.keys(ACCENTS).join("");
 // (bdg-𝜕 in a POPL paper's text layer).
 const PARTIAL = "\\u{1D6DB}\\u{1D715}\\u{1D74F}\\u{1D789}\\u{1D7C3}";
 const MATH_LOWER = "\\u{1D44E}-\\u{1D467}";
-const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}])|[${MODAL}](?=[A-Z]{1,2}(?![\\p{L}\\d]))|\\|?[${CONNECTIVE}${MODAL}]{1,2}[${ACCENT}]? ?(?=-[\\p{L}${CONNECTIVE}${MODAL}↑↓])|[${OPENER}](?=[-−]\\p{L})|⟨\\p{Ll}{1,8}⟩(?=-\\p{L}))(?:[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${MODAL}${PARTIAL}${ACCENT}\u200D~*∗|/_\\-‐‑–−∞]|[•◦](?=\\p{L})|\\{\\}){0,47}(?:#\\d{1,2})?[+−±†‡♠♣♦★?!↓↑-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?)| \\[[A-Z]{1,2}\\])?`;
+const TOKEN = `(?:(?:[A-Z]{1,2}|[${GREEK}]) (?=[${CAP}])|(?<=[[(]\\s*)[${GREEK}${MATH_LOWER}]{1,2} (?=\\p{L}))?(?:[\\p{L}\\d]|[${CONNECTIVE}]{1,2}(?=[${CAP}\\d∞\\p{Ll}])|[${MODAL}](?=[A-Z]{1,2}(?![\\p{L}\\d]))|\\|?[${CONNECTIVE}${MODAL}]{1,2}[${ACCENT}]? ?(?=-[\\p{L}${CONNECTIVE}${MODAL}↑↓↕])|(?:−(?=∗))?[${OPENER}](?=[-−]\\p{L})|⟨\\p{Ll}{1,8}⟩(?=-\\p{L}))(?:[\\p{L}\\d\\p{Co}'′’${CONNECTIVE}${MODAL}${PARTIAL}${ACCENT}\u200D~*∗|/_\\-‐‑–−∞]|[•◦](?=\\p{L})|(?<=-)⟨\\p{Ll}{1,8}⟩(?=-)|\\{\\}){0,47}(?:#\\d{1,2})?[+−±†‡♠♣♦★?!↓↑↕-]{0,2}(?: ?\\([\\p{L}\\d]{1,4}\\)|\\. \\(\\p{L}{1,8}\\)| (?:[${CAP}]{1,2}|\\d{1,2}|[↓↑]\\d?)| \\[[A-Z]{1,2}\\])?`;
 const WHOLE = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>[:.])?(?:\\s*(?<close>[\\])]))?\\s*$`, "u");
 const HEAD = new RegExp(`^\\s*(?:(?<open>[\\[(])\\s*)?(?<token>${TOKEN})(?:\\s?•)?(?<colon>:)?(?:\\s*(?<close>[\\])]))?(?=\\s)`, "u");
 // A line of capitalised words, a name set in small capitals whose
@@ -301,12 +301,13 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
     // In brackets making up its line, a capitalised word of three letters
     // or more set in math italic is a name as its text face would be
     // ("(𝑀𝑒𝑡ℎ𝑜𝑑)", "(𝐶𝑙𝑎𝑠𝑠)" and "(𝑆𝑒𝑞)" beside an API-protocol paper's
-    // rules): a formula's variables are one letter each. In capitals it
-    // is a constant's or a goal's ("(𝐺𝑂𝐴𝐿)" tagging a verification goal).
+    // rules): a formula's variables are one letter each. In capitals
+    // too ("(𝐴𝑃𝐼)" over the others there), where findRules finds it at a
+    // bar among such words: elsewhere it tags a goal ("(𝐺𝑂𝐴𝐿)").
     // A modality before an italic capital is a formula (□P); before an
     // upright one, a rule's name (□I).
     if (new RegExp(`^[${MODAL}][A-Z]`, "u").test(token) && [...token].some((c, i) => /[A-Z]/.test(c) && ITALIC.test(font(start + i)))) return null;
-    const spelled = side === "whole" && Boolean(open) && /^[A-Z][a-z]{2,}$/.test(fold(token));
+    const spelled = side === "whole" && Boolean(open) && /^[A-Z](?:[a-z]{2,}|[A-Z]{2,})$/.test(fold(token));
     // An accent among mathematical letters is a formula's bar or dot over
     // a variable ("𝑃a¯𝐶 𝑄"), no name's.
     if (new RegExp(`[${ACCENT}]`, "u").test(token) && /[\u{1D400}-\u{1D7FF}]/u.test(token)) return null;
@@ -349,7 +350,14 @@ function tokenOf(line: Line, column = false, titles = false): Token | null {
   // In a column of bracketed labels heading rows, a long one may stand
   // closer to its row: "(perform)" as its row's text aligns with the rest.
   const apart = column && head?.bracketed ? 0.25 : APART;
-  if (head && headMatch && (head.colon || blankAfter(line, headMatch.index + headMatch[0].trimEnd().length) >= apart * line.size)) return head;
+  // A name a wide blank before a colon and a formula declares a law's
+  // type, the blank aligning its colon with the longer names' under it
+  // ("∗-swap   : ∀[ (𝑃 ∗ 𝑄) ⇒ (𝑄 ∗ 𝑃) ]" over "∗-assocᵣ : …"): it is no
+  // wider than the one after the colon where the listing spaces evenly.
+  const colonAt = headMatch ? headMatch.index + headMatch[0].length + text.slice(headMatch.index + headMatch[0].length).search(/\S/u) : -1;
+  const declared = Boolean(headMatch) && text[colonAt] === ":" && /\s/u.test(text[colonAt + 1] ?? "")
+    && blankAfter(line, headMatch!.index + headMatch![0].trimEnd().length) > 2 * blankAfter(line, colonAt + 1);
+  if (head && headMatch && !declared && (head.colon || blankAfter(line, headMatch.index + headMatch[0].trimEnd().length) >= apart * line.size)) return head;
   // A hyphenated name with a note on it in parentheses making up the rest
   // of the line, words set in the name's face, labels as the name alone
   // does ("HOARE-BIND (INADMISSIBLE IN PRESENCE OF CONTINUATIONS)" over its
@@ -1385,12 +1393,24 @@ function settingOf(page: Page, label: Line, token: Token, type: Type): Setting {
       && !others.some((o) => reach(l, o) < reach(l, label)));
     if (!under.length) return null;
     // The row runs on past the label in pieces a big operator apart, or a
-    // relation drawn as a picture (drawnRelation).
+    // relation drawn as a picture (drawnRelation), or past a stack of
+    // lines set level with it between big brackets (wp-if𝐼's "wp […] λ𝒃.
+    // wp" and "𝑄 ⊣⊢ wp […]" either side of the two cases its brackets
+    // stack): the blank between is filled, a bracket's piece among what
+    // fills it.
+    const bridged = (u: Line, l: Line) => {
+      const [from, to] = [Math.min(u.x1, l.x1), Math.max(u.x0, l.x0)];
+      const fill = lines.filter((o) => o !== u && o !== l && o.top < u.bottom && o.bottom > u.top && o.x1 > from && o.x0 < to).sort((a, b) => a.x0 - b.x0);
+      if (!fill.some((o) => STRETCHED.test(o.text))) return false;
+      let at = from;
+      for (const o of fill) { if (o.x0 - at > 2 * label.size) return false; at = Math.max(at, o.x1); }
+      return to - at <= 2 * label.size;
+    };
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
         if (under.includes(l) || !sameColumn(page, l, label) || others.some((o) => reach(l, o) < reach(l, label))) continue;
-        if (under.some((u) => ((Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size) || drawnRelation(page, [u, l]))) { under.push(l); grew = true; }
+        if (under.some((u) => ((Math.abs(u.baseline - l.baseline) <= 1 || (hangs(l) && l.baseline < u.baseline && u.top - l.bottom < 0)) && (Math.max(u.x0, l.x0) - Math.min(u.x1, l.x1) <= 2 * label.size || (Math.abs(u.baseline - l.baseline) <= 1 && bridged(u, l)))) || drawnRelation(page, [u, l]))) { under.push(l); grew = true; }
       }
     }
     const x0 = Math.min(...under.map((l) => l.x0)), x1 = Math.max(...under.map((l) => l.x1)), bottom = Math.max(...under.map((l) => l.bottom));
@@ -2350,6 +2370,40 @@ const textBars = (page: Page): Drawn[] => page.lines.flatMap((l) => {
   }
   return bars;
 });
+// A reduction's long arrow set as text under its redex, over its result,
+// is its rule's bar where a label heads it on its line ("Red-Do −−−→h",
+// Affect's head reductions, two to a line as "Red-Eff −−→h  Red-Cont −−→h"):
+// the line is split into its labels, each a line of its own, and its
+// arrows, each a bar. An arrow with no label so set is a formula's; one
+// with its action set small over it is a labelled transition, a step of
+// a derivation ("c −−−→" under "(?x[x1,x2]: ?cA∥l)" in a session calculus).
+const ARROW_BAR = /^[−–—-]{4,}(?:→|>)\p{L}{0,2}$/u;
+function arrowBars(page: Page): { page: Page; bars: Drawn[] } {
+  const out: Line[] = [], bars: Drawn[] = [];
+  for (const line of page.lines) {
+    const parts = line.furniture ? [] : [...line.text.matchAll(/\S+/g)];
+    const pairs = parts.length >= 2 && parts.length % 2 === 0 && parts.every((m, i) => ARROW_BAR.test(m[0]) === (i % 2 === 1));
+    const pieces = pairs ? parts.map((m) => {
+      const from = m.index!, to = from + m[0].length;
+      const k0 = Math.min(...line.chars.slice(from, to).map((c) => c.run)), k1 = Math.max(...line.chars.slice(from, to).map((c) => c.run)) + 1;
+      return { from, to, k0, k1 };
+    }) : [];
+    const clean = pieces.length > 0 && pieces.every((p, i) => p.k0 >= 0 && (i === 0 || p.k0 >= pieces[i - 1].k1));
+    if (!clean) { out.push(line); continue; }
+    const split = pieces.map((p) => {
+      const runs = line.runs.slice(p.k0, p.k1);
+      return { ...line, runs, text: line.text.slice(p.from, p.to), chars: line.chars.slice(p.from, p.to).map((c) => ({ run: c.run - p.k0, at: c.at })),
+        x0: runs[0].x, x1: Math.max(...runs.map((r) => r.x + r.width)) } as Line;
+    });
+    const acted = (a: Line) => page.lines.some((l) => l.size < line.size - 1 && l.x0 >= a.x0 - 1 && l.x1 <= a.x1 + 1 && l.top < line.top && l.bottom >= line.top - 0.5 * line.size);
+    if (split.some((a, i) => i % 2 === 1 && acted(a))) { out.push(line); continue; }
+    for (const [i, piece] of split.entries()) {
+      if (i % 2 === 0) { parents.set(piece, line); out.push(piece); continue; }
+      bars.push({ x: piece.x0, y: line.bottom - 0.4 * line.size, w: piece.x1 - piece.x0, h: 0, image: false });
+    }
+  }
+  return bars.length ? { page: { ...page, lines: out }, bars } : { page, bars };
+}
 
 // A paragraph wrapped round a figure can reach the layout with the
 // figure's label on its line, a blank apart past the paragraph's edge
@@ -2527,7 +2581,11 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of layout.pages) for (const l of page.lines) if (!l.furniture && l.text.length >= 60) sizes.set(Math.round(l.size * 2) / 2, (sizes.get(Math.round(l.size * 2) / 2) ?? 0) + 1);
   const proseSize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? layout.bodySize;
   const bodySize = Math.max(layout.bodySize, proseSize);
-  const pages = layout.pages.map((page) => { const bars = textBars(page); return untabled(relined(unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type))); });
+  const pages = layout.pages.map((original) => {
+    const { page, bars: arrows } = arrowBars(original);
+    const bars = [...textBars(page), ...arrows];
+    return untabled(relined(unwrapped(bars.length ? { ...page, drawn: [...page.drawn, ...bars] } : page, type)));
+  });
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
@@ -2542,6 +2600,12 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (token && setting && (!token.bracketed || mathCapital(token) || !/^[A-Za-z\d]$/.test(notation(line, token)) || (setting.category === "beside" && setting.bar))) seen.push({ page, line, token, setting });
     }
   }
+  // A word in math-italic capitals in brackets stands at a bar among
+  // words spelled so in brackets on its page ("(𝐴𝑃𝐼)" over "(𝑆𝑒𝑞)" and
+  // "(𝑀𝑒𝑡ℎ𝑜𝑑)"); elsewhere it tags a goal ("(𝐺𝑂𝐴𝐿)" among "(1)" and "(2)",
+  // or ending its row).
+  const spelled = (s: { token: Token }, re: RegExp) => s.token.bracketed && /^[\u{1D400}-\u{1D7FF}]+$/u.test(s.token.text) && re.test(fold(s.token.text));
+  seen.splice(0, seen.length, ...seen.filter((s) => !spelled(s, /^[A-Z]{3,}$/) || (s.setting.bar && seen.some((o) => o.page === s.page && spelled(o, /^[A-Z][a-z]{2,}$/)))));
   // A label in a column of labels heading or ending rows (two or more
   // set alike at its edge) may stand closer to its row than one alone:
   // "(perform)" as long as its row's indent, E_PreCheck at the end of a
@@ -2649,7 +2713,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // A hyphen before a numeral numbers a capitalised word's variants
       // (Continuous-1, Continuous-2), as it does a word in capitals or small
       // capitals (Foxtrot's err-1); after a lone letter it is a formula.
-      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓⇛∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥⊲⊳▷◁↑↓★□◇⊡*]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)
+      if (shape === "hyphen" && !/[-‐‑–−:/_][^-‐‑–−:/_]*[\p{L}→⇒⇓⇛∀∃⊢⊗⊕⊸∧∨¬<∂⊤⊥⊲⊳▷◁↑↓↕★□◇⊡*]/u.test(fold(token.text)) && !/\p{Lu}\p{Ll}{2,}[-‐‑–]\d{1,2}$/u.test(token.text)
         && !((/^\p{Lu}{3,}[-‐‑–]\d{1,2}$/u.test(token.text) || smallCapped(line, token)) && /^\p{L}{3,}[-‐‑–]\d{1,2}$/u.test(token.text))) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       // A name set wholly raised or lowered is a script of its line, no
       // label ("Wrh⟦ ⟧" over a bracket's end).
