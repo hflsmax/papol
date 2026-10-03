@@ -1,6 +1,7 @@
 // Boards: a user's canvases of cards, and the cards on them.
 //
-// Every write here goes through writeSynced, so a replica hears of it.
+// Every write here goes through writeSynced, so the replica holding the
+// board hears of it; a project's board is in none (boardReplica).
 // A board's `updated_at` is its
 // clock, moved by anything on it; only what a replica may write on the
 // board itself versions it.
@@ -15,7 +16,7 @@ import { videoPreview } from "../linkPreview";
 import { enqueue, wake } from "../jobs/queue";
 import { blobKey, boardFileKey, boardFileUrl, DIGEST, fileUrl, stored } from "../files";
 import { rowSnapshot } from "../sync/rows";
-import { writeSynced } from "../sync/write";
+import { boardReplica, writeSynced } from "../sync/write";
 import * as validate from "../validate";
 import { pinsOf } from "./digs";
 import { type Member } from "./projects";
@@ -204,7 +205,7 @@ function slot(count: number): { x: number; y: number } {
 }
 
 async function writeItem(env: Env, board: Board, item: Row, isNew: boolean, more: D1PreparedStatement[] = []) {
-  await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, isNew), touched(env, board), ...more]);
+  await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, await boardReplica(env.DB, board), isNew), touched(env, board), ...more]);
   return json(await itemOut(env, item));
 }
 
@@ -286,10 +287,11 @@ export function boardRoutes(router: Router) {
     }
     check.done();
     if (data.shelf_uuid !== undefined && data.shelf_uuid !== null && data.shelf_uuid !== board.shelf_uuid) {
-      if (board.user_uuid !== user.uuid) refuse(403, "Only the member who made this board can shelve it");
+      // A shelf is a place in a nook, and a project's board is in none.
+      if (await boardReplica(env.DB, board) === null) refuse(409, "A project's board is on no shelf");
       board.shelf_uuid = await ownShelf(env, data.shelf_uuid, user);
     }
-    await batch(env.DB, await writeSynced(env.DB, "boards", board, board.user_uuid, false));
+    await batch(env.DB, await writeSynced(env.DB, "boards", board, await boardReplica(env.DB, board), false));
     return json(await boardOut(env, board, { includeItems: true, canEdit: true, viewer: user }));
   });
 
@@ -303,14 +305,15 @@ export function boardRoutes(router: Router) {
     }
     const at = now();
     board.deleted_at = at;
-    const statements = await writeSynced(env.DB, "boards", board, board.user_uuid, false);
+    const replica = await boardReplica(env.DB, board);
+    const statements = await writeSynced(env.DB, "boards", board, replica, false);
     for (const group of await all<Group>(env.DB, "SELECT * FROM board_groups WHERE board_uuid = ?", board.uuid)) {
       group.deleted_at = at;
-      statements.push(...await writeSynced(env.DB, "board_groups", group, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_groups", group, replica, false));
     }
     for (const item of await all<Item>(env.DB, "SELECT * FROM board_items WHERE board_uuid = ?", board.uuid)) {
       item.deleted_at = at;
-      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, replica, false));
     }
     await batch(env.DB, statements);
     return new Response(null, { status: 204 });
@@ -449,7 +452,7 @@ export function boardRoutes(router: Router) {
     const hostname = new URL(url).hostname;
     const item = newItem(board, user, { kind: "webpage", content: hostname, source_url: url, x: coordinate("x", data.x)!, y: coordinate("y", data.y)! });
     const job = enqueue(env.DB, WEBPAGE, { item_uuid: item.uuid, url }, { userUuid: user.uuid });
-    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, true), touched(env, board), job.statement]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, await boardReplica(env.DB, board), true), touched(env, board), job.statement]);
     await wake(env, [job.uuid]);
     return json({ job: job.uuid, item: await itemOut(env, item) }, { status: 202 });
   });
@@ -458,7 +461,7 @@ export function boardRoutes(router: Router) {
     const user = await currentUser(request, env);
     const { board, ...item } = await ownedItem(env, params.uuid, user);
     item.deleted_at = now();
-    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, board.user_uuid, false), touched(env, board)]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_items", item, await boardReplica(env.DB, board), false), touched(env, board)]);
     return new Response(null, { status: 204 });
   });
 
@@ -536,12 +539,13 @@ export function boardRoutes(router: Router) {
       uuid: newUuid(), board_uuid: board.uuid, kind, title: title.trim(), header: header.trim() || null,
       auto_arrange: kind === "collection" && autoArrange ? 1 : 0, created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
-    const statements = await writeSynced(env.DB, "board_groups", group, board.user_uuid, true);
+    const replica = await boardReplica(env.DB, board);
+    const statements = await writeSynced(env.DB, "board_groups", group, replica, true);
     const anchorX = Math.min(...items.map((i) => i.x));
     for (const item of items) {
       item.group_uuid = group.uuid;
       if (kind === "booklet") item.x = anchorX;
-      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, replica, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return json(groupOut(group, itemUuids));
@@ -553,11 +557,12 @@ export function boardRoutes(router: Router) {
     const data = await readJson<Row>(request);
     const dx = coordinate("dx", data.dx)!, dy = coordinate("dy", data.dy)!;
     const items = await all<Item>(env.DB, "SELECT * FROM board_items WHERE group_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", group.uuid);
+    const replica = await boardReplica(env.DB, board);
     const statements: D1PreparedStatement[] = [];
     for (const item of items) {
       item.x += dx;
       item.y += dy;
-      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, replica, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return json(await Promise.all(items.map((i) => itemOut(env, i))));
@@ -575,7 +580,7 @@ export function boardRoutes(router: Router) {
       if (group.kind !== "collection") refuse(400, "Only collections can use auto-arrange");
       group.auto_arrange = data.auto_arrange ? 1 : 0;
     }
-    await batch(env.DB, [...await writeSynced(env.DB, "board_groups", group, board.user_uuid, false), touched(env, board)]);
+    await batch(env.DB, [...await writeSynced(env.DB, "board_groups", group, await boardReplica(env.DB, board), false), touched(env, board)]);
     const members = await all<{ uuid: string }>(env.DB, "SELECT uuid FROM board_items WHERE group_uuid = ? AND deleted_at IS NULL ORDER BY position, created_at, uuid", group.uuid);
     return json(groupOut(group, members.map((m) => m.uuid)));
   });
@@ -596,7 +601,8 @@ export function boardRoutes(router: Router) {
       if (known!.n !== targets.length) refuse(400, "A previous group no longer exists");
     }
     group.deleted_at = now();
-    const statements = await writeSynced(env.DB, "board_groups", group, board.user_uuid, false);
+    const replica = await boardReplica(env.DB, board);
+    const statements = await writeSynced(env.DB, "board_groups", group, replica, false);
     const byUuid = new Map(members.map((m) => [m.uuid, m]));
     for (const entry of entries) {
       const item = byUuid.get(String(entry.uuid))!;
@@ -606,7 +612,7 @@ export function boardRoutes(router: Router) {
       item.group_uuid = target?.uuid ?? null;
       item.x = coordinate("x", entry.x)!;
       item.y = coordinate("y", entry.y)!;
-      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, replica, false));
     }
     await batch(env.DB, [...statements, touched(env, board)]);
     return new Response(null, { status: 204 });
@@ -621,13 +627,14 @@ export function boardRoutes(router: Router) {
     const byUuid = new Map(members.map((m) => [m.uuid, m]));
     const named = new Set(entries.map((e) => String(e.uuid)));
     if (named.size !== byUuid.size || [...byUuid.keys()].some((u) => !named.has(u))) refuse(400, "Group membership changed");
+    const replica = await boardReplica(env.DB, board);
     const statements: D1PreparedStatement[] = [];
     const placed: Item[] = [];
     for (const entry of entries) {
       const item = byUuid.get(String(entry.uuid))!;
       item.x = coordinate("x", entry.x)!;
       item.y = coordinate("y", entry.y)!;
-      statements.push(...await writeSynced(env.DB, "board_items", item, board.user_uuid, false));
+      statements.push(...await writeSynced(env.DB, "board_items", item, replica, false));
       placed.push(item);
     }
     await batch(env.DB, [...statements, touched(env, board)]);

@@ -125,6 +125,7 @@ const desktopBootstrap = `<script>
           case 'paper_by_pdf': return ${JSON.stringify(desktopPaperRow)};
           case 'boards': return [${JSON.stringify(desktopBoardRow)}];
           case 'board': return ${JSON.stringify(desktopBoardDetail)};
+          case 'holds_board_row': return true;
           case 'shelves': return [{ uuid: '${DESKTOP_SHELF}', name: 'Reading', position: 1, is_default: 1, is_public: 0 }];
           case 'nook': return {
             shelves: [{ uuid: '${DESKTOP_SHELF}', name: 'Reading', position: 1, is_default: 1, is_public: 0 }],

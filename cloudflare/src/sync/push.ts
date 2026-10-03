@@ -160,17 +160,23 @@ class Working {
     return [...this.entries.values()].filter((entry): entry is Entry => entry !== null);
   }
 
-  // The row, if it is this user's to change. A paper is nobody's; a card
-  // or a group is its board's user's; everything else names its user.
+  // The row, if it is this user's to change. A paper is nobody's; a board,
+  // and a card or a group through its board, is theirs when their replica
+  // holds it; everything else names its user.
   async owned(table: string, uuid: string): Promise<Entry | null> {
     const entry = await this.load(table, uuid);
     if (!entry) return null;
     if (table === "papers") return entry;
-    if (ownedThroughBoard(table)) {
-      const board = await this.load("boards", entry.row.board_uuid as string);
-      return board?.row.user_uuid === this.user.uuid ? entry : null;
-    }
+    if (table === "boards") return await this.holds(entry) ? entry : null;
+    if (ownedThroughBoard(table)) return await this.holds(await this.load("boards", entry.row.board_uuid as string)) ? entry : null;
     return entry.row.user_uuid === this.user.uuid ? entry : null;
+  }
+
+  // Whether this user's replica holds a board: one of theirs, and not a
+  // project's, which no replica holds (boardReplica).
+  async holds(board: Entry | null): Promise<boolean> {
+    if (!board || board.row.user_uuid !== this.user.uuid) return false;
+    return board.isNew || !(await one(this.db, "SELECT 1 FROM project_boards WHERE board_uuid = ?", board.row.uuid));
   }
 }
 
@@ -191,8 +197,8 @@ async function ownedRow(work: Working, table: string, uuid: unknown, what: strin
 
 async function ownedBoard(work: Working, boardUuid: unknown): Promise<Entry> {
   const board = typeof boardUuid === "string" ? await work.load("boards", boardUuid) : null;
-  if (!board || board.row.user_uuid !== work.user.uuid || board.row.deleted_at) refuse(409, "Referenced board is unavailable");
-  return board;
+  if (!board || !(await work.holds(board)) || board.row.deleted_at) refuse(409, "Referenced board is unavailable");
+  return board!;
 }
 
 async function ownedGroup(work: Working, groupUuid: unknown, board: Entry): Promise<Entry | null> {

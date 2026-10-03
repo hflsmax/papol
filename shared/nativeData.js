@@ -213,6 +213,7 @@ export const nativeRepository = Object.freeze({
   board: (uuid) => nativeQuery('board', { uuid }),
   boardGroup: (uuid) => nativeQuery('board_group', { uuid }),
   boards: () => nativeQuery('boards'),
+  holdsBoardRow: (table, uuid) => nativeQuery('holds_board_row', { table, uuid }),
   // Every annotation on a paper, narrowed to one kind when the caller
   // wants less.
   annotations: (paperSha256, kind = null) => nativeQuery(

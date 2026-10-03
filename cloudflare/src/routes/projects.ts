@@ -633,8 +633,9 @@ export function projectRoutes(router: Router) {
   // --------------------------------------------------------------- papers
 
   // A member adds a paper they hold. Their copy stays where it is.
-  // A board for the project: made by a member, on their own default
-  // shelf as every board is, and edited by all the members.
+  // A board for the project: made by a member and edited by all the
+  // members. It is the project's, not its maker's: on no shelf and in no
+  // replica (boardReplica), so nobody's nook holds it.
   router.on("POST", "/api/projects/:uuid/boards", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const project = await liveProject(env, params.uuid);
@@ -643,16 +644,13 @@ export function projectRoutes(router: Router) {
     const check = validate.checking();
     const name = check.string("name", data.name, { min: 1, max: limits.text.board_name });
     check.done();
-    const shelf = await one<{ uuid: string }>(env.DB,
-      "SELECT uuid FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY is_default DESC, position LIMIT 1", me.uuid);
-    if (!shelf) refuse(400, "Make a shelf first");
     const at = now();
     const board: Row = {
-      uuid: newUuid(), user_uuid: me.uuid, shelf_uuid: shelf!.uuid, name: tidy(name!),
+      uuid: newUuid(), user_uuid: me.uuid, shelf_uuid: null, name: tidy(name!),
       description: null, created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
     await batch(env.DB, [
-      ...await writeSynced(env.DB, "boards", board, me.uuid, true),
+      ...await writeSynced(env.DB, "boards", board, null, true),
       insert(env.DB, "project_boards", { uuid: newUuid(), project_uuid: project.uuid, board_uuid: board.uuid, created_at: at }),
       touched(env, project),
     ]);
@@ -832,8 +830,7 @@ export async function projectsOfUser(env: Env, userUuid: string, me: User) {
 
 // A closing account's boards in projects that go on are handed to the
 // member who keeps the project longest (or, with no keeper, was there
-// first): the board moves onto their default shelf and into their change
-// log, so their replica takes it up as theirs.
+// first). The board stays the project's, in no replica.
 export async function handOnProjectBoards(env: Env, userUuid: string): Promise<number> {
   const boards = await all<Row>(env.DB,
     `SELECT b.*, pb.project_uuid FROM boards b JOIN project_boards pb ON pb.board_uuid = b.uuid
@@ -844,18 +841,9 @@ export async function handOnProjectBoards(env: Env, userUuid: string): Promise<n
       "SELECT user_uuid FROM project_members WHERE project_uuid = ? AND user_uuid != ? ORDER BY is_keeper DESC, joined_at, uuid LIMIT 1",
       board.project_uuid, userUuid);
     if (!heir) continue;
-    const shelf = await one<{ uuid: string }>(env.DB,
-      "SELECT uuid FROM shelves WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY is_default DESC, position LIMIT 1", heir.user_uuid);
     const { project_uuid: _, ...row } = board;
     row.user_uuid = heir.user_uuid;
-    row.shelf_uuid = shelf?.uuid ?? null;
-    const statements = await writeSynced(env.DB, "boards", row, heir.user_uuid, false);
-    for (const table of ["board_groups", "board_items"]) {
-      for (const child of await all<Row>(env.DB, `SELECT * FROM ${table} WHERE board_uuid = ?`, board.uuid)) {
-        statements.push(...await writeSynced(env.DB, table, child, heir.user_uuid, false));
-      }
-    }
-    await batch(env.DB, statements);
+    await batch(env.DB, await writeSynced(env.DB, "boards", row, null, false));
     handed++;
   }
   return handed;

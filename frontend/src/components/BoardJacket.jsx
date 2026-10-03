@@ -72,7 +72,9 @@ export default function BoardJacket({
         if (gone) return;
         setBoard(found);
         onLoaded?.(found);
-        if (found.can_edit) listShelves().then((list) => !gone && setShelves(list)).catch(() => {});
+        // A project's board is in no nook, so on no shelf.
+        if (found.can_edit && !found.project) listShelves().then((list) => !gone && setShelves(list)).catch(() => {});
+        else setShelves([]);
       })
       .catch((err) => !gone && setError(err?.message || String(err)));
     return () => { gone = true; };
