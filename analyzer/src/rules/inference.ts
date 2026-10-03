@@ -1258,16 +1258,6 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // "… = a · (b · c)  (ora-assoc)", two axioms to a row).
   const [spanStart, spanEnd] = spanOf(label, token);
   const past = (l: Line) => (token.side === "tail" && l.x0 >= spanEnd - tolerance(l, label)) || (token.side === "head" && l.x1 <= spanStart + tolerance(l, label));
-  // Nor is a paragraph's line across the middle of a page the layout
-  // reads in two columns, the words outnumbering any terms: the other
-  // column's text level with the label, where a figure across both
-  // columns makes the page one to sameColumn ("Repeated Read. The first
-  // transformation …" beside OW-adj; "code, the consolidated program is
-  // obtained as (R; C) ⊗ P." beside Com); a formula has few words
-  // ("∀ℓ. strictTotalOrder({𝑎 | writes(𝑎, ℓ, −)}, mo)" left of ConsistentMO2).
-  const plain = (l: Line) => l.text.split(/\s+/).filter((w) => /^[(“"]?[^\P{L}\u{1D400}-\u{1D7FF}]{3,}[)”",.;:]?$/u.test(w)).length;
-  const crossed = (l: Line) => page.twoColumn && ((l.x1 <= page.width / 2 && label.x0 >= page.width / 2) || (l.x0 >= page.width / 2 && label.x1 <= page.width / 2));
-  const acrossGutter = (l: Line) => crossed(l) && l.text.length >= 40 && (prose(l, type) || plainWords(l)) && plain(l) >= (RELATION.test(l.text) ? 5 : 3);
   // A premise hard over a bar another label stands beside, no step of a
   // derivation, is that rule's, on no row of this one's (R-CAST's "Γ ⊢ K.H(l): S; S ≤ T" level with
   // Q-CAST, whose axiom stands under it).
@@ -1285,7 +1275,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // Wp-alloc's row): no term of a row.
   const marking = (l: Line) => /^\s*[∗*]\s*$/u.test(l.text) && page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y >= l.top && d.y <= l.bottom + 1
     && l.x0 >= d.x + d.w - 0.5 * l.size && l.x0 - d.x - d.w <= l.size);
-  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !acrossGutter(l) && !claimedElsewhere(l) && !marking(l));
+  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !claimedElsewhere(l) && !marking(l));
   // A stroke down a figure parting it in two halves, crossing the label's
   // row, parts the row: what lies past it is the other half's, where the
   // label's own half holds lines set with it (a C11 paper's Figure 5, its
