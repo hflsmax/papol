@@ -3488,7 +3488,7 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
   // holds its edges (the invariant "ℓ | 𝓘" boxed at the end of
   // iRC11-CInv-New's axiom, Race-1's label framed).
   for (const l of taken) {
-    for (const d of page.drawn) {
+    for (const d of drawnAt(page.drawn, l.x0 - l.size, l.x1 + l.size, l.top - l.size, l.bottom + l.size)) {
       if (d.y < l.top - 0.3 * l.size || d.y + d.h > l.bottom + 0.3 * l.size || !(upright(d) || framed(page, d))) continue;
       const left = d.x, right = d.x + d.w;
       if (left < l.x0 - 0.5 * l.size || right > l.x1 + 0.5 * l.size || right <= l.x0 || left >= l.x1) continue;
