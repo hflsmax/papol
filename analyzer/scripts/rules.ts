@@ -9,9 +9,11 @@ const { analysis, trace } = await analyzeWithRules(new Uint8Array(fs.readFileSyn
 const rules = analysis.floats.filter((f) => f.kind === "rule");
 const byKey = new Map(rules.map((r) => [r.key, r]));
 const where = (b: { page: number; x: number; y: number; w: number; h: number }) => `p${b.page} ${(b.x * 100).toFixed(0)},${(b.y * 100).toFixed(0)} ${(b.w * 100).toFixed(0)}x${(b.h * 100).toFixed(0)}`;
+// A label reads math letters and newtx's triangles as printed (see printedName).
+const printed = (s: string) => s.normalize("NFKC").replace(/⊲/g, "▷").replace(/⊳/g, "◁");
 for (const rule of rules) {
   const mentions = analysis.links.filter((l) => l.float === rule.key);
-  const how = trace.items.find((t) => t.text === rule.label && t.rule.startsWith("rule.name"))?.rule ?? "?";
+  const how = trace.items.find((t) => printed(t.text) === printed(rule.label) && t.rule.startsWith("rule.name"))?.rule ?? "?";
   console.log(`${rule.label.padEnd(16)} ${how.padEnd(18)} ${where(rule).padEnd(22)} ${mentions.length} mentions: ${mentions.slice(0, 6).map((m) => `${m.label}@p${m.page}`).join(" ")}`);
 }
 console.log(`${rules.size ?? rules.length} rules, ${analysis.links.filter((l) => byKey.has(l.float)).length} mentions`);

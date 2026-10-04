@@ -244,6 +244,26 @@ function accented(line: Line, start: number, token: string): string {
   }
   return chars.filter((o) => !ACCENTS[o.c] && o.c !== JOIN).map((o) => o.c + (marks.get(o.at) ?? "")).join("").normalize("NFC");
 }
+// newtxmath's math italic names its right triangle uni22B2 and its left
+// one uni22B3, so a PDF reads the ▷ it prints as ⊲ and the ◁ as ⊳ (the
+// later modality's ▷-Intro and Impl-▷ in Scala Step-by-Step, ▷𝑉 and ◁𝑅
+// beside "▷ʷA | ◁ʷA" in a grammar).
+const SWAPPED = /NewTXMI|txmi/i;
+const TRIANGLES: Record<string, string> = { "⊲": "▷", "⊳": "◁" };
+// A rule's name as a reader reads it, for its label: each triangle as
+// printed, and each mathematical letter as the letter it is (𝐴𝑃𝐼 is API,
+// 𝑀𝑒𝑡ℎ𝑜𝑑 Method, its italic h the Planck constant ℎ, 𝛽-match β-match,
+// P-𝜇-I P-μ-I, T-∀-E𝑝 T-∀-Ep), which a label's face has.
+// The name itself stays as the text has it, which the paper's citations
+// of the rule share.
+function printedName(line: Line, token: Token): string {
+  const swapped = new Set<string>();
+  for (let i = token.start; i < token.end; i += 1) {
+    const ref = line.chars[i];
+    if (TRIANGLES[line.text[i]] && ref?.run >= 0 && SWAPPED.test(line.runs[ref.run].font)) swapped.add(line.text[i]);
+  }
+  return [...token.text].map((c) => (swapped.has(c) ? TRIANGLES[c] : /[\u{1D400}-\u{1D7FF}ℎ]/u.test(c) ? c.normalize("NFKC") : c)).join("");
+}
 // Two lowercase words or more in a stretch of a line: a sentence's, no
 // formula's ("such that 𝑣 ∈ 𝑀(𝑟ᵢ′) and … From" before "[T-UpRgn]").
 const sentence = (text: string) => (text.match(/(?:^|\s)\p{Ll}{3,}[,.;:]?(?=\s|$)/gu) ?? []).length >= 2;
@@ -4497,7 +4517,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       continue;
     }
     rules.set(again, {
-      key: `r${rules.size}`, kind: "rule", label: c.token.text, caption: c.line, page: c.page.number, ...box,
+      key: `r${rules.size}`, kind: "rule", label: printedName(c.line, c.token), caption: c.line, page: c.page.number, ...box,
       name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, category: c.setting.category, labels: [c.line, ...(parents.has(c.line) ? [parents.get(c.line)!] : [])],
     });
     if (c.setting.category === "over" && c.setting.bar && !labelled.has(c.setting.bar)) labelled.set(c.setting.bar, c.line.top);
@@ -4663,6 +4683,11 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
     const from = m.bracketed ? m.index : m.nameStart;
     const to = m.bracketed ? m.index + m.length : m.nameEnd;
     const boxes = boxesOf(flow, from, to, size);
+    // Inside the rule's own box, the name is its label, whatever line
+    // the text puts it on: no citation ("(T-∀-E𝑝)" by its rule, its
+    // subscript a line of its own).
+    const within = (b: (typeof boxes)[number]) => b.page === rule.page && b.x >= rule.x - 1e-3 && b.y >= rule.y - 1e-3 && b.x + b.w <= rule.x + rule.w + 1e-3 && b.y + b.h <= rule.y + rule.h + 1e-3;
+    if (boxes.length && boxes.every(within)) continue;
     for (const box of boxes) links.push({ float: rule.key, label: flow.text.slice(from, to), ...box });
     trace.add(RULE_MENTION.id, boxes[0]?.page ?? 0, m.printed, boxes);
   }
