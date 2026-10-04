@@ -1406,6 +1406,19 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 // How a token stands to notation: beside a bar, over it, at the end of a
 // row, at the margin (rule.setting); or as a cell, a group heading or a
 // comment (rule.cell, rule.heading).
+// A bracket alone, hard against a label's start or end, is the label's
+// own, set in the text's face round a name in small capitals ("(" and
+// ")" either side of RA-ASSOC in a higher-order ghost state paper's
+// Fig. 3): no term of its row, and the name is bracketed.
+function fenceOf(page: Page, label: Line): Line[] {
+  const hard = (l: Line) => l !== label && !l.furniture && onRow(l, label);
+  const open = page.lines.find((l) => hard(l) && /^\s*[([]\s*$/u.test(l.text) && l.x1 <= label.x0 + 1 && label.x0 - l.x1 <= 0.5 * label.size);
+  const close = page.lines.find((l) => hard(l) && /^\s*[)\]]\s*$/u.test(l.text) && l.x0 >= label.x1 - 1 && l.x0 - label.x1 <= 0.5 * label.size);
+  return open && close ? [open, close] : [];
+}
+const fenced = (page: Page, line: Line, token: Token | null): Token | null => (token && token.side === "whole" && !token.bracketed && fenceOf(page, line).length
+  ? { ...token, bracketed: true, square: fenceOf(page, line)[0].text.trim() === "[" } : token);
+
 function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed: Set<Line> = new Set()): Setting {
   const lines = ruleLines(page, label, type);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
@@ -1672,7 +1685,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // Wp-alloc's row): no term of a row.
   const marking = (l: Line) => /^\s*[∗*]\s*$/u.test(l.text) && page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y >= l.top && d.y <= l.bottom + 1
     && l.x0 >= d.x + d.w - 0.5 * l.size && l.x0 - d.x - d.w <= l.size);
-  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !claimedElsewhere(l) && !marking(l));
+  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !claimedElsewhere(l) && !marking(l) && !fenceOf(page, label).includes(l));
   // A stroke down a figure parting it in two halves, crossing the label's
   // row, parts the row: what lies past it is the other half's, where the
   // label's own half holds lines set with it (a C11 paper's Figure 5, its
@@ -3906,8 +3919,9 @@ function untabled(page: Page): Page {
   return cut ? { ...page, lines: parted } : page;
 }
 
-export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace, floats: Iterable<Found> = []): Map<string, Rule> {
+export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace, found: Iterable<Found> = []): Map<string, Rule> {
   const type = typeOf(layout);
+  const floats = [...found];
   let candidates: Candidate[] = [];
   const at = (page: Page, line: Line, box: Box) => [{ page: page.number, ...box }];
   const seen: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
@@ -3926,7 +3940,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const named = tokenOf(line, false, true) ?? shortOf(line, false, true);
+      const named = fenced(page, line, tokenOf(line, false, true) ?? shortOf(line, false, true));
       // A bracketed phrase stands only at a bar (rule.shape.phrase).
       const phrase = named ? null : phraseOf(line, true);
       const token = named ?? phrase;
@@ -3957,7 +3971,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line, true, true) ?? phraseOf(line) ?? shortOf(line, true);
+      const token = fenced(page, line, tokenOf(line, true, true) ?? phraseOf(line) ?? shortOf(line, true));
       if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       // A justified paragraph ends its lines at one edge: the last word of a
       // line of running text is no label in a column ("… and that
@@ -4229,7 +4243,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       const top = Math.min(...column.map((o) => o.line.top));
       const [x0, x1] = [Math.min(...column.flatMap((o) => [o.line.x0, ...o.setting.row.map((l) => l.x0)])), Math.max(...column.map((o) => o.line.x1))];
       const headed = c.page.lines.some((l) => !l.furniture && l.bold && l.bottom <= top && top - l.bottom <= 4 * type.leading && l.x0 >= x0 - 2 * l.size && l.x0 < x1 && l.text.trim().length <= 60 && RULE_WORDS.test(l.text));
-      if (headed) for (const o of column) found.add(o);
+      // So is a column of hyphenated names inside a figure, the figure
+      // setting the algebra's laws as a paper's rules ("(RA-ASSOC)" to
+      // "(RA-VALID-OP)" in a higher-order ghost state paper's Fig. 3
+      // "Resource algebras", COFE-EQUIV to COFE-NONEXP in its Fig. 6).
+      const inside = (o: Candidate) => floats.some((f) => f.kind === "figure" && f.page === o.page.number
+        && ((x, y) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h)((o.line.x0 + o.line.x1) / 2 / o.page.width, (o.line.top + o.line.bottom) / 2 / o.page.height));
+      const figured = column.every((o) => o.shape === "hyphen" && inside(o));
+      if (headed || figured) for (const o of column) found.add(o);
     }
     return found;
   })();
