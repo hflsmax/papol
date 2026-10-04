@@ -244,6 +244,26 @@ function accented(line: Line, start: number, token: string): string {
   }
   return chars.filter((o) => !ACCENTS[o.c] && o.c !== JOIN).map((o) => o.c + (marks.get(o.at) ?? "")).join("").normalize("NFC");
 }
+// newtxmath's math italic names its right triangle uni22B2 and its left
+// one uni22B3, so a PDF reads the ▷ it prints as ⊲ and the ◁ as ⊳ (the
+// later modality's ▷-Intro and Impl-▷ in Scala Step-by-Step, ▷𝑉 and ◁𝑅
+// beside "▷ʷA | ◁ʷA" in a grammar).
+const SWAPPED = /NewTXMI|txmi/i;
+const TRIANGLES: Record<string, string> = { "⊲": "▷", "⊳": "◁" };
+// A rule's name as a reader reads it, for its label: each triangle as
+// printed, and each mathematical letter as the letter it is (𝐴𝑃𝐼 is API,
+// 𝑀𝑒𝑡ℎ𝑜𝑑 Method, its italic h the Planck constant ℎ, 𝛽-match β-match,
+// P-𝜇-I P-μ-I, T-∀-E𝑝 T-∀-Ep), which a label's face has.
+// The name itself stays as the text has it, which the paper's citations
+// of the rule share.
+function printedName(line: Line, token: Token): string {
+  const swapped = new Set<string>();
+  for (let i = token.start; i < token.end; i += 1) {
+    const ref = line.chars[i];
+    if (TRIANGLES[line.text[i]] && ref?.run >= 0 && SWAPPED.test(line.runs[ref.run].font)) swapped.add(line.text[i]);
+  }
+  return [...token.text].map((c) => (swapped.has(c) ? TRIANGLES[c] : /[\u{1D400}-\u{1D7FF}ℎ]/u.test(c) ? c.normalize("NFKC") : c)).join("");
+}
 // Two lowercase words or more in a stretch of a line: a sentence's, no
 // formula's ("such that 𝑣 ∈ 𝑀(𝑟ᵢ′) and … From" before "[T-UpRgn]").
 const sentence = (text: string) => (text.match(/(?:^|\s)\p{Ll}{3,}[,.;:]?(?=\s|$)/gu) ?? []).length >= 2;
@@ -1386,6 +1406,19 @@ function walled(page: Page, label: Line, span: [number, number], row: Line[]): b
 // How a token stands to notation: beside a bar, over it, at the end of a
 // row, at the margin (rule.setting); or as a cell, a group heading or a
 // comment (rule.cell, rule.heading).
+// A bracket alone, hard against a label's start or end, is the label's
+// own, set in the text's face round a name in small capitals ("(" and
+// ")" either side of RA-ASSOC in a higher-order ghost state paper's
+// Fig. 3): no term of its row, and the name is bracketed.
+function fenceOf(page: Page, label: Line): Line[] {
+  const hard = (l: Line) => l !== label && !l.furniture && onRow(l, label);
+  const open = page.lines.find((l) => hard(l) && /^\s*[([]\s*$/u.test(l.text) && l.x1 <= label.x0 + 1 && label.x0 - l.x1 <= 0.5 * label.size);
+  const close = page.lines.find((l) => hard(l) && /^\s*[)\]]\s*$/u.test(l.text) && l.x0 >= label.x1 - 1 && l.x0 - label.x1 <= 0.5 * label.size);
+  return open && close ? [open, close] : [];
+}
+const fenced = (page: Page, line: Line, token: Token | null): Token | null => (token && token.side === "whole" && !token.bracketed && fenceOf(page, line).length
+  ? { ...token, bracketed: true, square: fenceOf(page, line)[0].text.trim() === "[" } : token);
+
 function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed: Set<Line> = new Set()): Setting {
   const lines = ruleLines(page, label, type);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
@@ -1652,7 +1685,7 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // Wp-alloc's row): no term of a row.
   const marking = (l: Line) => /^\s*[∗*]\s*$/u.test(l.text) && page.drawn.some((d) => across(d) && d.w >= 2 * label.size && d.y >= l.top && d.y <= l.bottom + 1
     && l.x0 >= d.x + d.w - 0.5 * l.size && l.x0 - d.x - d.w <= l.size);
-  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !claimedElsewhere(l) && !marking(l));
+  let row = lines.filter((l) => onRow(l, label) && sameColumn(page, l, label) && !lowered(l) && !past(l) && !claimedElsewhere(l) && !marking(l) && !fenceOf(page, label).includes(l));
   // A stroke down a figure parting it in two halves, crossing the label's
   // row, parts the row: what lies past it is the other half's, where the
   // label's own half holds lines set with it (a C11 paper's Figure 5, its
@@ -2019,8 +2052,18 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   };
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
+  // A conclusion set over two lines puts its bar two leadings over the
+  // label (LProp's "P runprop S C′[prop t v1…vn] −→L" over "P runprop S
+  // C′[runprop (S ∪ …)]" in ExoLua's Figure 4), past the bars level with it.
+  // Only for a name in brackets over such a conclusion, two rows between
+  // the bar and the label: not a heading a line under a rule's one-line
+  // conclusion ("Kind Checking" under a rule of the figure before), nor a
+  // table's row heading under its rule ("Well-staged?").
+  const twoRowed = (d: Drawn) => ((rows) => rows.length >= 2 && rows.every((l) => rows.some((o) => o !== l && !onRow(o, l))))(
+    lines.filter((l) => l.top >= d.y - 1 && l.bottom <= label.top + 1 && l.x0 < d.x + d.w && l.x1 > d.x));
+  const overConclusion = [...bars, ...near.filter((d) => !bars.includes(d) && d.y < label.top && label.top - d.y <= (NEAR_BAR + 1) * type.leading && token.bracketed && twoRowed(d)).sort((a, b) => b.y - a.y)];
   if (token.side === "whole") {
-    for (const bar of bars) {
+    for (const bar of overConclusion) {
       if (bar.y >= label.top || !concluded1(bar)) continue;
       const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
       // Ticks on the label's own row are a table's cells, no conclusion.
@@ -3886,8 +3929,9 @@ function untabled(page: Page): Page {
   return cut ? { ...page, lines: parted } : page;
 }
 
-export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace, floats: Iterable<Found> = []): Map<string, Rule> {
+export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace: Trace, found: Iterable<Found> = []): Map<string, Rule> {
   const type = typeOf(layout);
+  const floats = [...found];
   let candidates: Candidate[] = [];
   const at = (page: Page, line: Line, box: Box) => [{ page: page.number, ...box }];
   const seen: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
@@ -3906,7 +3950,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   for (const page of pages) {
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const named = tokenOf(line, false, true) ?? shortOf(line, false, true);
+      const named = fenced(page, line, tokenOf(line, false, true) ?? shortOf(line, false, true));
       // A bracketed phrase stands only at a bar (rule.shape.phrase).
       const phrase = named ? null : phraseOf(line, true);
       const token = named ?? phrase;
@@ -3937,7 +3981,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     const edge = (l: Line, side: Token["side"]) => (side === "head" ? l.x0 : l.x1);
     for (const line of page.lines) {
       if (line.furniture || skip.has(parents.get(line) ?? line) || seen.some((s) => s.line === line) || line.size > LABEL_SIZE * bodySize || line.size < LABEL_LEAST * bodySize) continue;
-      const token = tokenOf(line, true, true) ?? phraseOf(line) ?? shortOf(line, true);
+      const token = fenced(page, line, tokenOf(line, true, true) ?? phraseOf(line) ?? shortOf(line, true));
       if (!token || (token.side === "whole" && !PHRASE.test(token.text)) || (token.side === "head" && !token.bracketed)) continue;
       // A justified paragraph ends its lines at one edge: the last word of a
       // line of running text is no label in a column ("… and that
@@ -4093,6 +4137,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // specification set as a figure's rules are, heading or over its
   // triple (typed-prophet-resolve-spec, MaxAnySpec), is one of them.
   const tags = (setting: Setting) => !setting.bar && (setting.category === "margin" || setting.category === "row");
+  // Labels set aside as a definition's or a clause's, for a figure of
+  // laws to take back (axiomatic).
+  const defining: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
   {
     for (const { page, line, token, setting } of seen) {
       const box = boxAt(page, line, setting);
@@ -4103,10 +4150,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (token.closed && !setting.bar) continue;
       if (setting.category === "cell" || setting.category === "group") { trace.add(RULE_CELL.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
-      if (setting.category === "clause") { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
+      if (setting.category === "clause") { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); defining.push({ page, line, token, setting }); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      if (stated(page, line, token, setting) || (tags(setting) && (SELF_STATED.test(fold(token.text)) || (setting.side === "right" && /spec$/iu.test(fold(token.text)))))) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); continue; }
+      if (stated(page, line, token, setting) || (tags(setting) && (SELF_STATED.test(fold(token.text)) || (setting.side === "right" && /spec$/iu.test(fold(token.text)))))) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); defining.push({ page, line, token, setting }); continue; }
       // A name ending a line of running text is mentioned there, no label
       // ("We use the identity shot(n) = shot(n) · shot(n) with GHOST-OP").
       if (setting.category === "margin" && !token.bracketed && setting.row.length > 0 && setting.row.every((r) => worded(r) && sentence(r.text))) { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
@@ -4200,6 +4247,8 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // and however their names are cited ("(ConsistentMO1)" to
   // "(ConsistentAlloc)" closing consistentC11's definition under GPS's
   // "A.3.5 Axioms").
+  const figureOf = (o: { page: Page; line: Line }) => floats.find((f) => f.kind === "figure" && f.page === o.page.number
+    && ((x, y) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h)((o.line.x0 + o.line.x1) / 2 / o.page.width, (o.line.top + o.line.bottom) / 2 / o.page.height));
   const axiomatic = (() => {
     const found = new Set<Candidate>();
     for (const c of candidates) {
@@ -4209,10 +4258,31 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       const top = Math.min(...column.map((o) => o.line.top));
       const [x0, x1] = [Math.min(...column.flatMap((o) => [o.line.x0, ...o.setting.row.map((l) => l.x0)])), Math.max(...column.map((o) => o.line.x1))];
       const headed = c.page.lines.some((l) => !l.furniture && l.bold && l.bottom <= top && top - l.bottom <= 4 * type.leading && l.x0 >= x0 - 2 * l.size && l.x0 < x1 && l.text.trim().length <= 60 && RULE_WORDS.test(l.text));
-      if (headed) for (const o of column) found.add(o);
+      // So is a column of hyphenated names inside a figure, the figure
+      // setting the algebra's laws as a paper's rules ("(RA-ASSOC)" to
+      // "(RA-VALID-OP)" in a higher-order ghost state paper's Fig. 3
+      // "Resource algebras", COFE-EQUIV to COFE-NONEXP in its Fig. 6).
+      const figured = column.every((o) => o.shape === "hyphen" && figureOf(o) !== undefined);
+      if (headed || figured) for (const o of column) found.add(o);
     }
     return found;
   })();
+  // A label of a figure of laws, ending its row flush with three of them
+  // or more in that figure, names a law however its row reads: one that
+  // defines a relation or splits in clauses is the algebra's law too
+  // ("(RA-INCL)" after "a ≼ b ≜ ∃c ∈ M. b = a · c" under RA-VALID-OP,
+  // CMRA-INCL likewise).
+  for (const d of defining) {
+    const figure = figureOf(d);
+    const shape = shapeOf(fold(d.token.text), true) ?? (smallCapped(d.line, d.token) ? shapeOf(fold(d.token.text).toUpperCase(), true) : null);
+    if (!figure || !d.token.bracketed || shape !== "hyphen") continue;
+    const column = candidates.filter((o) => o.page === d.page && o.setting.category === "margin" && o.token.bracketed && o.shape === "hyphen" && figureOf(o) === figure
+      && Math.abs(o.line.x1 - d.line.x1) <= 1 && Math.abs(o.line.size - d.line.size) <= 0.5 && faceOf(o.line, o.token) === faceOf(d.line, d.token));
+    if (column.length < 3) continue;
+    const c: Candidate = { ...d, shape: "hyphen", setting: { ...d.setting, category: "margin", side: "right" } as Candidate["setting"], rule: RULE_NAME_MARGIN.id, convention: column[0].convention };
+    candidates.push(c);
+    axiomatic.add(c);
+  }
   const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !axiomatic.has(c) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
   for (const c of candidates) if (lemma(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !lemma(c));
@@ -4497,7 +4567,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       continue;
     }
     rules.set(again, {
-      key: `r${rules.size}`, kind: "rule", label: c.token.text, caption: c.line, page: c.page.number, ...box,
+      key: `r${rules.size}`, kind: "rule", label: printedName(c.line, c.token), caption: c.line, page: c.page.number, ...box,
       name: c.token.text, shape: c.shape, bracketed: c.token.bracketed, category: c.setting.category, labels: [c.line, ...(parents.has(c.line) ? [parents.get(c.line)!] : [])],
     });
     if (c.setting.category === "over" && c.setting.bar && !labelled.has(c.setting.bar)) labelled.set(c.setting.bar, c.line.top);
@@ -4663,6 +4733,11 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
     const from = m.bracketed ? m.index : m.nameStart;
     const to = m.bracketed ? m.index + m.length : m.nameEnd;
     const boxes = boxesOf(flow, from, to, size);
+    // Inside the rule's own box, the name is its label, whatever line
+    // the text puts it on: no citation ("(T-∀-E𝑝)" by its rule, its
+    // subscript a line of its own).
+    const within = (b: (typeof boxes)[number]) => b.page === rule.page && b.x >= rule.x - 1e-3 && b.y >= rule.y - 1e-3 && b.x + b.w <= rule.x + rule.w + 1e-3 && b.y + b.h <= rule.y + rule.h + 1e-3;
+    if (boxes.length && boxes.every(within)) continue;
     for (const box of boxes) links.push({ float: rule.key, label: flow.text.slice(from, to), ...box });
     trace.add(RULE_MENTION.id, boxes[0]?.page ?? 0, m.printed, boxes);
   }
