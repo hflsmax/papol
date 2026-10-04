@@ -1384,7 +1384,10 @@ export default function App() {
         });
       })
       .catch((e) => {
-        if (!cancelled) setError(`PDF search failed: ${e.message}`);
+        if (cancelled) return;
+        // Nothing is being indexed any more: say so, not "Indexing…".
+        setSearchIndexing(false);
+        setError(`PDF search failed: ${e.message}`);
       });
     return () => { cancelled = true; };
   }, [doc, searchOpen, searchFinder]);
@@ -1417,7 +1420,9 @@ export default function App() {
         setSearchIndexing(false);
       })
       .catch((e) => {
-        if (!cancelled) setError(`PDF search failed: ${e.message}`);
+        if (cancelled) return;
+        setSearchIndexing(false);
+        setError(`PDF search failed: ${e.message}`);
       });
     return () => { cancelled = true; };
   }, [doc, searchFinder, searchQuery]);

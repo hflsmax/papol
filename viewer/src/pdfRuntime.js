@@ -17,12 +17,16 @@ export const documentWorker = () => pdfWorker;
 
 // Pieces of the pdf.js viewer Papol uses (its find controller), loaded when
 // first wanted: the module is large and most readings never search. It
-// reads the core library from a global as it loads.
+// reads the core library from a global as it loads. A load that failed is
+// not kept, so the next search asks again.
 let viewerReady = null;
 export const pdfViewerReady = () => {
   viewerReady ??= pdfjsReady.then((pdfjs) => {
     globalThis.pdfjsLib ??= pdfjs;
     return import('pdfjs-dist/legacy/web/pdf_viewer.mjs');
+  }).catch((error) => {
+    viewerReady = null;
+    throw error;
   });
   return viewerReady;
 };

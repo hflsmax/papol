@@ -49,6 +49,8 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
+      // The deploy's own scripts are Node's, tested by Node (npm test).
+      include: ["test/**/*.test.ts"],
       setupFiles: ["./test/setup.ts"],
       // A stand-in for fetch, or an environment variable, set by one test
       // is gone before the next begins, whichever file set it.

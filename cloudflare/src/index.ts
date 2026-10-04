@@ -26,10 +26,20 @@ import { push } from "./sync/push";
 
 // What no route claims is the website: the main frontend's files and,
 // for any clean path, its document (History API routing). An unknown
-// API or upload path is an error, not a page.
-const router = new Router(({ request, env, url }) => {
+// API or upload path is an error, not a page, and so is a built file the
+// site does not have: a page asking for one is from a build whose files
+// are gone (scripts/keep-assets.mjs), and handed a document in place of a
+// script it would fail without saying why.
+const BUILT = /^\/(viewer\/|boards\/)?assets\//;
+const router = new Router(async ({ request, env, url }) => {
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) return json({ detail: "Not Found" }, { status: 404 });
-  return env.ASSETS.fetch(request);
+  const response = await env.ASSETS.fetch(request);
+  // No build puts a document among its hashed files: one answered from
+  // there is the site's document standing in for a missing file.
+  if (BUILT.test(url.pathname) && response.headers.get("content-type")?.includes("text/html")) {
+    return new Response("Not Found", { status: 404 });
+  }
+  return response;
 });
 
 // A board is its own full-screen app with its own build, served under
