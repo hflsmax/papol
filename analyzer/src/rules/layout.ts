@@ -575,7 +575,7 @@ export function flowOf(lines: Line[]): Flow {
 
 // How far into a run its character `at` begins: from the font's widths where
 // they were read, and evenly otherwise.
-const offsetIn = (run: Run, at: number) => run.offsets?.[at] ?? (run.width * at) / Math.max(run.text.length, 1);
+export const offsetIn = (run: Run, at: number) => run.offsets?.[at] ?? (run.width * at) / Math.max(run.text.length, 1);
 
 // The boxes a stretch of the flow was printed in, one per line it crosses,
 // as fractions of the page.

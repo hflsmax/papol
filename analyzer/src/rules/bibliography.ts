@@ -201,37 +201,70 @@ const cleanTitle = (title: string | null) => {
   return t.length >= 4 ? t : null;
 };
 
-// APS and several physics journals print compact references without article
-// titles: "A. Author and B. Author, Phys. Rev. E 102, 032105 (2020)."
-// The ordinary sentence parser cannot see through the initials' full stops
-// and consequently turns pieces of the venue into authors and a title. Read
-// the repeated initials-first names, but only accept the form when what
-// follows has the unmistakable venue-volume-page shape. That guard leaves
-// initials-first references which do print a title to the general parser.
-function compactJournalEntry(raw: string): { authors: string[]; journal: string } | null {
-  const name = /^((?:(?:\p{Lu}\.(?:-\p{Lu}\.)?)\s*)+(?:(?:de|del|van|von|da|di)\s+)?[\p{Lu}][\p{L}'’.-]*)/u;
+// APS, AIP and Physics Today print references initials first, with
+// article titles left out: "A. Author and B. Author, Phys. Rev. E 102,
+// 032105 (2020)." A book keeps its title, between the names and the
+// publisher: "C. E. Shannon, W. Weaver, The Mathematical Theory of
+// Communication, U. Illinois Press (1963)." The ordinary sentence parser
+// cannot see through the initials' full stops and turns pieces of the
+// venue into authors and a title ("Phys" of "S. Toyabe et al., Nat. Phys.
+// 6, 988 (2010)"). Read the repeated initials-first names (with "et al."
+// or "eds." after them), then accept only the venue-volume-page shape or a
+// title, a publisher and the year in brackets. That guard leaves
+// initials-first references in other styles to the general parser.
+const INITIALS_NAME = /^((?:(?:\p{Lu}\.(?:-\p{Lu}\.)?)\s*)+(?:(?:de|del|van|von|da|di|der|den|le|la)\s+)*[\p{Lu}][\p{L}'’.-]*)/u;
+const NAME_SEPARATOR = /^(?:,\s+(?:and\s+)?|\s+and\s+)/;
+function initialsFirstEntry(raw: string): { authors: string[]; journal: string | null; title: string | null } | null {
   const authors: string[] = [];
   let rest = raw;
   while (true) {
-    const found = name.exec(rest);
+    const found = INITIALS_NAME.exec(rest);
     if (!found) break;
     authors.push(found[1].replace(/\s+/g, " ").replace(/\.$/, "").trim());
     rest = rest.slice(found[0].length);
-    const separator = /^(?:,\s+(?:and\s+)?|\s+and\s+)/.exec(rest);
+    const more = /^\s+et\s+al\.?(?=,)/.exec(rest);
+    if (more) rest = rest.slice(more[0].length);
+    const separator = NAME_SEPARATOR.exec(rest);
     if (!separator) return null;
     rest = rest.slice(separator[0].length);
-    const next = name.exec(rest);
-    if (!next || !/^(?:,\s+(?:and\s+)?|\s+and\s+)/.test(rest.slice(next[0].length))) break;
+    if (more) break;
+    const next = INITIALS_NAME.exec(rest);
+    if (!next || !/^(?:,\s+(?:and\s+)?|\s+and\s+|\s+et\s+al\.?,)/.test(rest.slice(next[0].length))) break;
   }
   if (!authors.length) return null;
-  const venue = /^(.{2,120}?)\s+\d+(?:\s+\d+)?\s*,\s*[\dA-Za-z]/u.exec(rest);
-  if (!venue || /^in\s/i.test(venue[1])) return null;
-  const journal = venue[1].replace(/^[\s,.;:]+|[\s,.;:]+$/g, "").trim();
-  return journal ? { authors, journal } : null;
+  rest = rest.replace(/^eds?\.,\s+/, "");
+  const venue = /^(.{2,120}?)\s+\d+(?:\(\d+\))?(?:\s+\d+)?\s*,\s*[\dA-Za-z]/u.exec(rest);
+  if (venue && !/^in\s/i.test(venue[1]) && !/,/.test(venue[1])) {
+    const journal = venue[1].replace(/^[\s,.;:]+|[\s,.;:]+$/g, "").trim();
+    return journal ? { authors, journal, title: null } : null;
+  }
+  // A book: its title, perhaps a translator or editor ("W. R. Browne,
+  // trans."), then the publisher, before the year. Not where the names
+  // ran on past what was read ("S. Peyton Jones", "and K.J. Lang. 1989.")
+  // or into a sentence with a year in it: another style.
+  if (INITIALS_NAME.test(rest)) return null;
+  const book = /^(.+?)\s*\((?:1[89]|20)\d{2}\)/u.exec(rest);
+  if (!book) return null;
+  const parts = book[1].split(/,\s+/);
+  if (parts.length < 2) return null;
+  parts.pop();
+  const credited = parts.findIndex((part, i) => i > 0 && /^(?:trans|eds?)\.?$/.test(part));
+  if (credited > 0) parts.splice(credited - 1);
+  const title = parts.join(", ");
+  if (!/^[\p{Lu}\d]/u.test(title) || /\b(?:1[89]|20)\d{2}\b|\.\s+(?:\d|In\s)/.test(book[1])) return null;
+  return { authors, journal: null, title };
 }
 
-export function parseEntry(raw: string): Pick<Entry, "title" | "authors" | "surnames" | "year" | "yearSuffix" | "doi" | "arxiv_id" | "journal"> & { rules: string[] } {
+// Physics Today and other compact styles put several works in one entry,
+// each initials first, after a semicolon: the entry is read as its first.
+function firstWork(raw: string): string {
+  const next = /\(\d{4}\)(?:,\s+pp?\.\s+[\d–-]+)?;\s+(?=(?:\p{Lu}\.\s*)+[\p{Lu}])/u.exec(raw);
+  return next ? raw.slice(0, next.index + 6) + "." : raw;
+}
+
+export function parseEntry(printed: string): Pick<Entry, "title" | "authors" | "surnames" | "year" | "yearSuffix" | "doi" | "arxiv_id" | "journal"> & { rules: string[] } {
   const rules: string[] = [];
+  const raw = firstWork(printed);
   const doiMatch = FIELD_DOI.pattern!.exec(raw);
   const doi = doiMatch ? doiMatch.groups!.doi.replace(/[.,;:)\]}>]+$/, "").toLowerCase() : null;
   if (doi) rules.push(FIELD_DOI.id);
@@ -250,13 +283,14 @@ export function parseEntry(raw: string): Pick<Entry, "title" | "authors" | "surn
     if (m) { year = Number(m.groups!.year); suffix = m.groups!.suffix ?? ""; rules.push(FIELD_YEAR_ANY.id); }
   }
   let authors: string[] = [], title: string | null = null, journal: string | null = null;
-  const compact = compactJournalEntry(raw);
+  const compact = initialsFirstEntry(raw);
   const inverted = FIELD_AUTHORS_INVERTED.pattern!.exec(raw);
   const yearFirst = FIELD_AUTHORS_YEAR_FIRST.pattern!.exec(raw);
   const quoted = FIELD_TITLE_QUOTED.pattern!.exec(raw);
   if (compact) {
     authors = compact.authors;
     journal = compact.journal;
+    title = compact.title && cleanTitle(compact.title);
   } else if (inverted?.groups && inverted.groups.rest) {
     rules.push(FIELD_AUTHORS_INVERTED.id);
     authors = [...inverted.groups.authors.matchAll(/([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?),\s((?:[\p{Lu}]\.\s?-?)+)/gu)].map((m) => `${m[2].trim()} ${m[1]}`);
