@@ -2052,8 +2052,18 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   };
   // Under the conclusion, its edge at the bar's: the bar just over the
   // label with a conclusion between, nothing on the label's row over it.
+  // A conclusion set over two lines puts its bar two leadings over the
+  // label (LProp's "P runprop S C′[prop t v1…vn] −→L" over "P runprop S
+  // C′[runprop (S ∪ …)]" in ExoLua's Figure 4), past the bars level with it.
+  // Only for a name in brackets over such a conclusion, two rows between
+  // the bar and the label: not a heading a line under a rule's one-line
+  // conclusion ("Kind Checking" under a rule of the figure before), nor a
+  // table's row heading under its rule ("Well-staged?").
+  const twoRowed = (d: Drawn) => ((rows) => rows.length >= 2 && rows.every((l) => rows.some((o) => o !== l && !onRow(o, l))))(
+    lines.filter((l) => l.top >= d.y - 1 && l.bottom <= label.top + 1 && l.x0 < d.x + d.w && l.x1 > d.x));
+  const overConclusion = [...bars, ...near.filter((d) => !bars.includes(d) && d.y < label.top && label.top - d.y <= (NEAR_BAR + 1) * type.leading && token.bracketed && twoRowed(d)).sort((a, b) => b.y - a.y)];
   if (token.side === "whole") {
-    for (const bar of bars) {
+    for (const bar of overConclusion) {
       if (bar.y >= label.top || !concluded1(bar)) continue;
       const spans = (l: Line) => l.x0 < bar.x + bar.w && l.x1 > bar.x;
       // Ticks on the label's own row are a table's cells, no conclusion.
