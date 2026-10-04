@@ -1382,21 +1382,39 @@ const MONO = /mono|consol|courier|typewriter|cmtt|lmtt|sftt|ectt|menlo|firacode|
 // A stroke one of three or more drawn alike, each as wide from the same
 // left edge, evenly spaced down the page, is a plot's gridline
 // ("ArrayBlockingQueue" titling its plot over the top one), no bar.
-const grids = new WeakMap<Page, Set<Drawn>>();
+const grids = new WeakMap<Drawn[], Set<Drawn>>();
 function gridded(page: Page, d: Drawn): boolean {
-  if (!grids.has(page)) {
+  if (!grids.has(page.drawn)) {
     const lines = new Set<Drawn>();
     const strokes = page.drawn.filter((o) => across(o) && o.w > 1.5).sort((a, b) => a.y - b.y);
+    // Each stroke is asked only of those starting within a point of it
+    // (a plot of 40,000 dashes asked each of all the others), and strokes
+    // starting at one place, as wide, are asked once.
+    const columns = new Map<number, number[]>();
+    strokes.forEach((o, i) => { const at = Math.floor(o.x), column = columns.get(at); if (column) column.push(i); else columns.set(at, [i]); });
+    const asked = new Set<string>();
     for (const o of strokes) {
-      const alike = strokes.filter((p) => Math.abs(p.x - o.x) <= 1 && Math.abs(p.w - o.w) <= 1);
+      if (asked.has(`${o.x} ${o.w}`)) continue;
+      asked.add(`${o.x} ${o.w}`);
+      const at = Math.floor(o.x);
+      // The three columns' strokes, each column in the page's order down,
+      // merged.
+      const near = [...new Set([at - 1, at, at + 1])].map((x) => (columns.get(x) ?? []).filter((i) => Math.abs(strokes[i].x - o.x) <= 1 && Math.abs(strokes[i].w - o.w) <= 1));
+      const alike: Drawn[] = [];
+      for (const k = near.map(() => 0); ;) {
+        let next = -1;
+        near.forEach((column, c) => { if (k[c] < column.length && (next < 0 || column[k[c]] < near[next][k[next]])) next = c; });
+        if (next < 0) break;
+        alike.push(strokes[near[next][k[next]++]]);
+      }
       for (let i = 0; i + 2 < alike.length; i += 1) {
-        const [a, b, c] = alike.slice(i, i + 3);
+        const a = alike[i], b = alike[i + 1], c = alike[i + 2];
         if (b.y - a.y > 2 && Math.abs((b.y - a.y) - (c.y - b.y)) <= 1) { lines.add(a); lines.add(b); lines.add(c); }
       }
     }
-    grids.set(page, lines);
+    grids.set(page.drawn, lines);
   }
-  return grids.get(page)!.has(d);
+  return grids.get(page.drawn)!.has(d);
 }
 
 // An arrow's head: a small shape drawn (no bigger than most of a letter)
