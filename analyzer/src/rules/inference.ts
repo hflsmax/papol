@@ -3381,6 +3381,9 @@ function padded(page: Page, x0: number, x1: number, y0: number, y1: number): { x
 // ------------------------------------------------------------ pass 7: mentions
 
 const NEAR = 60;
+// A name calling what it labels definitions or a goal: "Aux-Defs",
+// "(Goal_op)".
+const SELF_STATED = /(?:^|[-‐‑–_\s])(?:defs|definitions?)$|^(?:goal|claim)(?:$|[-‐‑–_\s\p{Ll}\d])/iu;
 // "rule" (or a kin) within six words before or after the name: "the
 // sapp rule", "rule containTrans", "rules slam, sbind and sapp".
 const RULE_WORDS = /\b(?:rules?|laws?|axioms?)\b/i;
@@ -4082,6 +4085,14 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     // relates two programs, the "=" a let's.
     return setting.category === "margin" && single && !barred && !STEP.test(whole) && !/[⪯⪰≼≽⊑⊒≤≥≃≅≈≡∼]/u.test(whole) && /^\s*\p{L}[\p{L}\d.|′'_]*\s*=(?![=>⇒])/u.test(whole);
   };
+  // A label tagging a display (at the margin or heading its row) that
+  // calls it a definition, a goal or a specification tags that statement,
+  // no rule: "Aux-Defs" over Fig. 8's auxiliary definitions, "(Goal_op)"
+  // after the hyper-triple to prove, "(CallIncr-incorrect-spec)" and
+  // "(runAsync-spec)" ending a program's triple in the text. A
+  // specification set as a figure's rules are, heading or over its
+  // triple (typed-prophet-resolve-spec, MaxAnySpec), is one of them.
+  const tags = (setting: Setting) => !setting.bar && (setting.category === "margin" || setting.category === "row");
   {
     for (const { page, line, token, setting } of seen) {
       const box = boxAt(page, line, setting);
@@ -4095,7 +4106,13 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (setting.category === "clause") { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      if (stated(page, line, token, setting)) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); continue; }
+      if (stated(page, line, token, setting) || (tags(setting) && (SELF_STATED.test(fold(token.text)) || (setting.side === "right" && /spec$/iu.test(fold(token.text)))))) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); continue; }
+      // A name ending a line of running text is mentioned there, no label
+      // ("We use the identity shot(n) = shot(n) · shot(n) with GHOST-OP").
+      if (setting.category === "margin" && !token.bracketed && setting.row.length > 0 && setting.row.every((r) => worded(r) && sentence(r.text))) { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
+      // A bare name in math letters with no bar is a formula, a diagram's
+      // edge label ("α̂(S_H)" by a transition's arrow), no rule's name.
+      if (!token.bracketed && !setting.bar && /[\u{1D400}-\u{1D7FF}]/u.test(token.text) && !/[A-Za-z]/.test(token.text)) { trace.add(RULE_NAME_LETTERS.id, page.number, token.text, at(page, line, box)); continue; }
       const shape = shapeOf(fold(token.text), token.bracketed) ?? (smallCapped(line, token) ? shapeOf(fold(token.text).toUpperCase(), token.bracketed) : null) ?? (mathCapital(token) ? "word" : null) ?? shortShape(line, token, setting);
       if (!shape) continue;
       // A hyphen before a numeral numbers a capitalised word's variants
@@ -4196,10 +4213,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
     }
     return found;
   })();
-  // A specification's label names it however its row opens: a triple's
-  // binders open with ∀ ("∀𝑓, 𝑃, Φ. {𝑃} 𝑓 () {Φ} ⇒ … (runAsync-spec)").
-  const specified = (c: Candidate) => /spec$/iu.test(fold(c.token.text)) && /[{}]/u.test(c.setting.row.map((l) => l.text).join(" "));
-  const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !axiomatic.has(c) && !specified(c) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
+  const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !axiomatic.has(c) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
   for (const c of candidates) if (lemma(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !lemma(c));
   // A bare word over a bar with a hyphenated, spaced or symbol name
