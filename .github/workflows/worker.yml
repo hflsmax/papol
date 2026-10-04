@@ -71,6 +71,12 @@ jobs:
       - run: npm ci --legacy-peer-deps
         working-directory: cloudflare
       - run: cloudflare/scripts/assemble.sh
+      # A tab opened before this deploy still asks for its build's files by
+      # their hashed names: the live site's are served on for a week.
+      - name: Keep the files of earlier builds
+        run: |
+          if [ "$TARGET" = production ]; then base=https://papol.io; else base=https://dev.papol.io; fi
+          node cloudflare/scripts/keep-assets.mjs cloudflare/site "$base"
       - name: Apply migrations
         working-directory: cloudflare
         run: |

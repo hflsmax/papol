@@ -29,6 +29,14 @@ describe("the website", () => {
     expect(script.headers.get("content-type")).toContain("javascript");
   });
 
+  it("answers a built file it does not have with a 404, not a page", async () => {
+    // A tab opened on an earlier build asks for its own chunk names.
+    for (const path of ["/assets/index-GONE.js", "/viewer/assets/pdf_viewer-GONE.js", "/boards/assets/board-GONE.js"]) {
+      const response = await call("GET", path);
+      expect(response.status, path).toBe(404);
+    }
+  });
+
   it("does not turn an unknown API or upload path into a page", async () => {
     for (const path of ["/api/no-such-route", "/uploads/no-such-file.pdf"]) {
       const response = await call("GET", path);
