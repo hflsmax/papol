@@ -186,7 +186,8 @@ const surnameOf = (name: string) => {
 function sentenceEnd(text: string): number {
   // The first full stop, question or exclamation mark that ends a
   // sentence: not the one after an initial ("J.") or inside "et al.".
-  const re = /[.?!](?=\s|$)/g;
+  // A title in quotes ends at its stop inside them ("persistent.”).
+  const re = /[.?!](?=[”"’]?(?:\s|$))/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const before = text.slice(Math.max(0, m.index - 3), m.index);

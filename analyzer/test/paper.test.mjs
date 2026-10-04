@@ -223,6 +223,18 @@ describe("the paper", () => {
     ]);
   });
 
+  it("ends a quoted title at the stop inside its quotes", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Persistence was studied before [1], [2] and [3]."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] J. R. Driscoll, N. Sarnak, D. D. Sleator, and R. E. Tarjan. 1989. \u201cMaking data structures persistent.\u201d Journal of Computer and System Sciences, 38, 1, 86\u2013124."],
+      [60, 265, "[2] H. G. Baker. 1978. \u201cShallow binding in Lisp 1.5.\u201d Communications of the ACM, 21, 7, 565\u2013569."],
+      [60, 250, "[3] P. F. Dietz. 1989. \u201cFully persistent arrays.\u201d In: Algorithms and Data Structures, 67\u201374."],
+    ]);
+    const references = (await analyzeWithRules(pdf)).analysis.references;
+    assert.deepEqual(references.map((r) => r.title), ["Making data structures persistent", "Shallow binding in Lisp 1.5", "Fully persistent arrays"]);
+  });
+
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
   const WRAPPED = writtenPdf([
     [60, 740, "Mechanisms were studied before [1], and again [2]."],
