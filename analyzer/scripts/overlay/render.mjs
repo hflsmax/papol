@@ -22,7 +22,7 @@ const types = { ".html": "text/html", ".mjs": "text/javascript", ".json": "appli
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://x");
   let file = null;
-  if (url.pathname === "/overlay.html") file = path.join(here, "overlay.html");
+  if (url.pathname === "/overlay.html" || url.pathname === "/tabs.mjs") file = path.join(here, url.pathname.slice(1));
   else if (url.pathname.startsWith("/pdfjs/")) file = path.join(pdfjsDir, path.basename(url.pathname));
   else if (url.pathname.startsWith("/pdf/")) file = path.join(pdfDir, path.basename(url.pathname));
   else if (url.pathname.startsWith("/json/")) file = path.join(jsonDir, path.basename(url.pathname));
