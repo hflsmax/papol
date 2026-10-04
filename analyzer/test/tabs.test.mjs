@@ -17,8 +17,12 @@ test("tabs in a tight stack of rules cover no text and no box", () => {
     boxes.forEach((b, j) => { if (j !== i) assert.equal(area(t, b), 0, `tab ${i} covers box ${j}`); });
     tabs.forEach((o, j) => { if (j !== i) assert.equal(area(t, o), 0, `tab ${i} covers tab ${j}`); });
   });
-  // Each beside its own box's top, in the margin.
-  for (const [i, t] of tabs.entries()) assert.deepEqual([t[2], t[1]], [boxes[i][0], boxes[i][1]]);
+  // Each touches its own box and stands nearer it than any other.
+  const gap = (a, b) => Math.hypot(Math.max(0, a[0] - b[2], b[0] - a[2]), Math.max(0, a[1] - b[3], b[1] - a[3]));
+  tabs.forEach((t, i) => {
+    assert.equal(gap(t, boxes[i]), 0, `tab ${i} off its box`);
+    boxes.forEach((b, j) => { if (j !== i) assert.ok(gap(t, b) > 0, `tab ${i} touches box ${j}`); });
+  });
 });
 
 test("a tab with room over its box sits there, at the left end", () => {

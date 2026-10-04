@@ -3483,6 +3483,18 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x + d.w); strokes.push(d.x, d.x + d.w);
     }
   }
+  // A box drawn round a term at a line's end or start, within the line's
+  // height, is the term's: the rule's box holds its edges, a hair past the
+  // letters (the invariant "ℓ | 𝓘" boxed at the end of iRC11-CInv-New's
+  // axiom).
+  for (const l of taken) {
+    for (const d of page.drawn) {
+      if (d.y < l.top - 0.3 * l.size || d.y + d.h > l.bottom + 0.3 * l.size || !(upright(d) || framed(page, d))) continue;
+      const left = d.x, right = d.x + d.w;
+      if (right > l.x1 && right <= l.x1 + 0.5 * l.size && left < l.x1) { x1 = Math.max(x1, right); strokes.push(right); }
+      if (left < l.x0 && left >= l.x0 - 0.5 * l.size && right > l.x0) { x0 = Math.min(x0, left); strokes.push(left); }
+    }
+  }
   const all = [...taken];
   if (out) { out.lines = all; out.strokes = strokes; }
   const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => extentOf(page, l)[0])), Math.max(...all.map((l) => extentOf(page, l)[1])));
@@ -4842,4 +4854,5 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
   }
   return links;
 }
+
 

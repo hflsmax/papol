@@ -5,9 +5,9 @@
 // box, where a tab is looked for first; it then goes beside the box's top
 // in the blank to its left or right, inside it on a corner the rule
 // leaves blank (a rule's label stands at one end of its row, so the other
-// end's corner is often free), and under it last. A tab over or under
-// its box, hard by the next box, reads as that box's, so there it keeps a
-// hair clear of it; one that fits nowhere goes where it covers the least.
+// end's corner is often free), and under it last. A tab hard by another
+// box reads as that box's, so it keeps clear of every other box where it
+// can; one that fits nowhere goes where it covers the least.
 //
 // Everything is in one unit, top-left origin: boxes as [x0, y0, x1, y1],
 // text as the rects of the page's words, a tab's size as [w, h].
@@ -28,34 +28,33 @@ export function placeTabs(boxes, text, page, sizes) {
     // end, then its right; beside its top, left then right; inside on a
     // corner its rule leaves blank; under it last, where it would read as
     // the title of the box below.
-    // A tab beside the box or inside it is plainly its own; one over or
-    // under it, between it and the next box, may read as the next one's.
     const choices = [
-      [at(x0, y0 - h), 0, true], [at(x1 - w, y0 - h), 0, true], [at(x0 - w, y0), 0, false], [at(x1, y0), 0, false],
-      [at(x1 - w, y0), 1, false], [at(x0, y0), 1, false],
-      [at(x0, y1), 2, true], [at(x1 - w, y1), 2, true], [at(x0 - w, y1 - h), 2, false], [at(x1, y1 - h), 2, false],
-      [at(x1 - w, y1 - h), 3, false], [at(x0, y1 - h), 3, false],
+      [at(x0, y0 - h), 0], [at(x1 - w, y0 - h), 0], [at(x0 - w, y0), 0], [at(x1, y0), 0],
+      [at(x1 - w, y0), 1], [at(x0, y0), 1],
+      [at(x0, y1), 2], [at(x1 - w, y1), 2], [at(x0 - w, y1 - h), 2], [at(x1, y1 - h), 2],
+      [at(x1 - w, y1 - h), 3], [at(x0, y1 - h), 3],
     ].filter(([t]) => t[0] >= 0 && t[1] >= 0 && t[2] <= W && t[3] <= H);
-    // What a tab covers: printed text (its own rule's too) worst, then the
-    // blank ground of another box; and one between its box and another,
-    // hard by that one, reads as its. No tab covers another.
-    const near = (t) => [t[0] - 2, t[1] - 2, t[2] + 2, t[3] + 2];
-    const cost = (t, rank, between) => {
+    // What a tab covers: printed text (its own rule's too, a point round
+    // each word for its ink) worst, then the blank ground of another box;
+    // and a tab hard by another box reads as that one's. No tab covers
+    // another.
+    const grown = (t, by) => [t[0] - by, t[1] - by, t[2] + by, t[3] + by];
+    const cost = (t, rank) => {
       let c = rank;
-      const inked = text.reduce((n, r) => n + area(t, r), 0);
+      const inked = text.reduce((n, r) => n + area(t, grown(r, 1)), 0);
       if (inked > 0) c += 1e7 + inked;
       for (let j = 0; j < boxes.length; j += 1) {
         if (j === i) continue;
         if (area(t, boxes[j]) > 0) c += 1e6 + area(t, boxes[j]);
-        else if (between && area(near(t), boxes[j]) > 0) c += 1e4;
+        else if (area(grown(t, 4), boxes[j]) > 0) c += 1e4;
       }
-      for (const p of placed) if (area(near(t), p) > 0) c += 1e9;
+      for (const p of placed) if (area(grown(t, 2), p) > 0) c += 1e9;
       return c;
     };
     let best = choices[0]?.[0] ?? at(Math.max(0, x0), Math.max(0, y0));
     let bestCost = Infinity;
-    for (const [t, rank, between] of choices) {
-      const c = cost(t, rank, between);
+    for (const [t, rank] of choices) {
+      const c = cost(t, rank);
       if (c < bestCost) { best = t; bestCost = c; }
     }
     placed.push(best);
