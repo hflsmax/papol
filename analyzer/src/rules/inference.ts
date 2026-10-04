@@ -2073,8 +2073,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
     const concludedBy = (l: Line) => drawnAt(page.drawn, l.x0, l.x1, l.top - 0.8 * type.leading, l.top + 1).some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && l.top - d.y <= 0.8 * type.leading && d.x < l.x1 && d.x + d.w > l.x0 && (d.x >= label.x1 || d.x + d.w <= label.x0) && !framed(page, d)
       && lines.some((u) => u.bottom <= d.y + 1 && d.y - u.bottom <= 0.8 * type.leading && u.x0 >= d.x - label.size && u.x1 <= d.x + d.w + label.size));
     // A piece hard under a bar of its own spanning it is that rule's
-    // conclusion, set level beside the axiom (Wp-load's beside Wp-alloc's).
-    const barred = (l: Line) => drawnAt(page.drawn, -Infinity, Infinity, l.top - 0.5 * type.leading, l.top + 1).some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && l.top - d.y <= 0.5 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size);
+    // conclusion, set level beside the axiom (Wp-load's beside Wp-alloc's);
+    // a box drawn round a term has an edge over it, no bar (the invariant
+    // "ℓ | 𝓘" boxed at the end of iRC11-CInv-New's axiom).
+    const barred = (l: Line) => drawnAt(page.drawn, -Infinity, Infinity, l.top - 0.5 * type.leading, l.top + 1).some((d) => across(d) && d.w >= 2 * label.size && d.y <= l.top + 1 && l.top - d.y <= 0.5 * type.leading && d.x <= l.x0 + label.size && d.x + d.w >= l.x1 - label.size && !framed(page, d));
     for (let grew = true; grew;) {
       grew = false;
       for (const l of lines) {
@@ -3481,18 +3483,32 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x + d.w); strokes.push(d.x, d.x + d.w);
     }
   }
+  // A box drawn round a term of a line or round the line, within its
+  // height and a hair past its letters, is the term's: the rule's box
+  // holds its edges (the invariant "ℓ | 𝓘" boxed at the end of
+  // iRC11-CInv-New's axiom, Race-1's label framed).
+  for (const l of taken) {
+    for (const d of drawnAt(page.drawn, l.x0 - l.size, l.x1 + l.size, l.top - l.size, l.bottom + l.size)) {
+      if (d.y < l.top - 0.3 * l.size || d.y + d.h > l.bottom + 0.3 * l.size || !(upright(d) || framed(page, d))) continue;
+      const left = d.x, right = d.x + d.w;
+      if (left < l.x0 - 0.5 * l.size || right > l.x1 + 0.5 * l.size || right <= l.x0 || left >= l.x1) continue;
+      if (right > l.x1) { x1 = Math.max(x1, right); strokes.push(right); }
+      if (left < l.x0) { x0 = Math.min(x0, left); strokes.push(left); }
+    }
+  }
   const all = [...taken];
   if (out) { out.lines = all; out.strokes = strokes; }
   const b = padded(page, Math.min(x0, ...all.map((l) => leftOf(l, bar, label))), Math.max(x1, ...all.map((l) => l.x1)), Math.min(...all.map((l) => extentOf(page, l)[0])), Math.max(...all.map((l) => extentOf(page, l)[1])));
   return { x: b.x0 / page.width, y: b.y0 / page.height, w: (b.x1 - b.x0) / page.width, h: (b.y1 - b.y0) / page.height };
 }
 // A box padded round what it holds, the padding stopping at a caption
-// set hard over or under it ("Fig. 7." under Sample's indexed sum): the
-// box holds the rule, not the caption's letters.
+// set hard over or under it ("Fig. 7." under Sample's indexed sum), or at
+// the page's running head (loc-unknown's label a hair under "N. Patton,
+// K. Rahmani, …"): the box holds the rule, not their letters.
 function padded(page: Page, x0: number, x1: number, y0: number, y1: number): { x0: number; x1: number; y0: number; y1: number } {
   let top = y0 - PAD, bottom = y1 + PAD;
   for (const l of page.lines) {
-    if (l.furniture || !CAPTION.test(l.text) || l.x0 >= x1 || l.x1 <= x0) continue;
+    if ((!l.furniture && !CAPTION.test(l.text)) || l.x0 >= x1 || l.x1 <= x0) continue;
     if (l.top >= y1 - 1 && l.top < bottom) bottom = Math.max(y1, l.top);
     if (l.bottom <= y0 + 1 && l.bottom > top) top = Math.min(y0, l.bottom);
   }
@@ -4595,6 +4611,20 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (again.category === "over" && again.bar === c.setting.bar) o.setting = again as Candidate["setting"];
     }
   }
+  // A label over its own axiom, a formula apart from the end of a bar a
+  // label over the premises heads, stands beside that bar only as the
+  // page sets them side by side: it heads its axiom as the labels over
+  // their rules round it do, the bar left to the rule over it (INV-ALLOC
+  // over "𝐼 ⇛ [𝐼]^ι" left of INV's premises; OWN-OP over "a·b ⊣⊢ …" right
+  // of OWN-ALLOC's bar, its conclusion under that bar).
+  for (const c of candidates) {
+    const b = c.setting.bar;
+    if (c.setting.category !== "beside" || !b || hard(c, b) || aside(c)) continue;
+    const over = candidates.find((o) => o !== c && o.page === c.page && o.setting.category === "over" && o.setting.bar === b && o.line.x0 >= b.x - o.line.size && o.line.x1 <= b.x + b.w + o.line.size);
+    if (!over) continue;
+    const again = settingOf({ ...c.page, drawn: c.page.drawn.filter((d) => d !== b) }, c.line, c.token, type);
+    if (again.category === "over" && !again.bar) c.setting = again as Candidate["setting"];
+  }
   const overBars = new Set(candidates.filter((c) => c.setting.category === "over" && c.setting.bar).map((c) => c.setting.bar));
   for (const c of ordered) {
     if (c.setting.category === "beside" && c.setting.bar && aside(c) && overBars.has(c.setting.bar)) { trace.add(RULE_CELL.id, c.page.number, c.token.text, at(c.page, c.line, boxAt(c.page, c.line, c.setting))); continue; }
@@ -4825,3 +4855,5 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
   }
   return links;
 }
+
+
