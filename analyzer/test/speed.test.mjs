@@ -2,8 +2,10 @@
 // on keeps the paper unread: whatever a page draws, its reading ends in a
 // few seconds. The pages here are written to be the slow kinds the corpora
 // turned up: a plot drawn as hundreds of thousands of strokes beside
-// rules (2024-OOPSLA2-281's scatter took the rules over ten minutes), and
-// a grammar's long stack of alternatives (poplmark's, twenty seconds).
+// rules (2024-OOPSLA2-281's scatter took the rules over ten minutes), a
+// plot drawn as tens of thousands of short dashes beside a rule (each
+// dash once asked every other whether they are a grid's lines), and a
+// grammar's long stack of alternatives (poplmark's, twenty seconds).
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -41,6 +43,14 @@ function plotted() {
   return page(2, runs, drawn);
 }
 
+// A rule over a plot of 40,000 short dashes, its curves dashed.
+function dashed() {
+  const runs = [...prose(72, 200), run("Γ ⊢ e : τ", 150, 226), run("(T-Dash)", 330, 233, 9), run("Γ ⊢ λx. e : τ", 170, 244)];
+  const drawn = [bar(140, 230, 180)];
+  for (let i = 0; i < 40000; i += 1) drawn.push({ x: 72 + ((i * 7919) % 468000) / 1000, y: 300 + ((i * 104729) % 400000) / 1000, w: 3, h: 0.4, image: false });
+  return page(4, runs, drawn);
+}
+
 // A grammar of forty alternatives, each "|" under the last.
 function grammar() {
   const runs = [...prose(72, 300), run("e ::= x", 120, 320)];
@@ -48,9 +58,9 @@ function grammar() {
   return page(3, runs);
 }
 
-it("reads a page of rules over a plot of many strokes, and a long grammar, in a few seconds", () => {
+it("reads pages of rules over plots of many strokes, and a long grammar, in a few seconds", () => {
   const started = performance.now();
-  const { analysis } = analyzePages([page(1, prose(72, 720)), plotted(), grammar()]);
+  const { analysis } = analyzePages([page(1, prose(72, 720)), plotted(), grammar(), dashed()]);
   const ms = performance.now() - started;
   assert.ok(analysis.floats.some((f) => f.kind === "rule"), "the rules are found");
   assert.ok(ms < BUDGET_MS, `read in ${Math.round(ms)} ms, over ${BUDGET_MS}`);
