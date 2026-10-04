@@ -123,12 +123,65 @@ function opensColumn(runs: Placed[], from: number, left: number, right: number, 
   });
 }
 
+// The strokes a page draws by where they are, for the questions asked of
+// those near a point: a plot's page draws hundreds of thousands
+// (2024-OOPSLA2-281's scatter on p23), and asking each of them of every
+// other one does not end. The page is cut into CELL-point squares, each
+// listing the strokes reaching into it; a stroke spanning more than
+// SPAN squares (an axis, a box's side) is kept apart and always asked.
+// The strokes LONG points wide or more and thin, a bar's candidates, are
+// listed again on their own: a plot's marks are none of them.
+const CELL = 8, SPAN = 8, LONG = 4;
+type Strokes = { cells: Map<number, number[]>; big: number[]; extent: [number, number, number, number] };
+const strokeIndexes = new WeakMap<Drawn[], { all?: Strokes; long?: Strokes }>();
+const cellOf = (v: number) => Math.floor(v / CELL);
+const cellKey = (cx: number, cy: number) => (cx + 1024) * 4096 + cy + 1024;
+function strokes(drawn: Drawn[], long: boolean): Strokes {
+  let indexes = strokeIndexes.get(drawn);
+  if (!indexes) strokeIndexes.set(drawn, indexes = {});
+  let index = long ? indexes.long : indexes.all;
+  if (!index) {
+    const cells = new Map<number, number[]>(), big: number[] = [], extent: Strokes["extent"] = [Infinity, -Infinity, Infinity, -Infinity];
+    drawn.forEach((d, i) => {
+      if (long && !(d.h <= 1.5 && d.w >= LONG)) return;
+      const [cx0, cx1, cy0, cy1] = [cellOf(d.x), cellOf(d.x + d.w), cellOf(d.y), cellOf(d.y + d.h)];
+      if (!(cx1 - cx0 < SPAN && cy1 - cy0 < SPAN && cx0 > -1000 && cy0 > -1000 && cx1 < 3000 && cy1 < 3000)) { big.push(i); return; }
+      extent[0] = Math.min(extent[0], cx0); extent[1] = Math.max(extent[1], cx1); extent[2] = Math.min(extent[2], cy0); extent[3] = Math.max(extent[3], cy1);
+      for (let cx = cx0; cx <= cx1; cx += 1) for (let cy = cy0; cy <= cy1; cy += 1) {
+        const key = cellKey(cx, cy), cell = cells.get(key);
+        if (cell) cell.push(i); else cells.set(key, [i]);
+      }
+    });
+    index = { cells, big, extent };
+    if (long) indexes.long = index; else indexes.all = index;
+  }
+  return index;
+}
+// The strokes reaching into the box x0..x1 by y0..y1, in the page's
+// order: every stroke a question of strokes near it can be answered by
+// (the box a little larger than asked, for rounding). Asked only of
+// strokes `wide` points wide or more and no thicker than a bar (1.5),
+// it may leave out the rest.
+export function drawnAt(drawn: Drawn[], x0: number, x1: number, y0: number, y1: number, wide = 0): Drawn[] {
+  const { cells, big, extent } = strokes(drawn, wide >= LONG);
+  x0 -= 0.01; x1 += 0.01; y0 -= 0.01; y1 += 0.01;
+  const meets = (d: Drawn) => !(d.x > x1 || d.x + d.w < x0 || d.y > y1 || d.y + d.h < y0);
+  const hit: number[] = [];
+  const [cx0, cx1, cy0, cy1] = [Math.max(cellOf(x0), extent[0]), Math.min(cellOf(x1), extent[1]), Math.max(cellOf(y0), extent[2]), Math.min(cellOf(y1), extent[3])];
+  for (let cx = cx0; cx <= cx1; cx += 1) for (let cy = cy0; cy <= cy1; cy += 1) {
+    for (const i of cells.get(cellKey(cx, cy)) ?? []) if (meets(drawn[i])) hit.push(i);
+  }
+  for (const i of big) if (meets(drawn[i])) hit.push(i);
+  hit.sort((a, b) => a - b);
+  return hit.filter((i, k) => k === 0 || hit[k - 1] !== i).map((i) => drawn[i]);
+}
+
 // Whether blank space between two runs on one baseline parts two rules
 // set side by side: one rule's bar ends in it and the next one's starts
 // there, level, just under or over the baseline (T-Assert_I's premises
 // beside T-Assert_S's, a word space apart).
 function partsBars(drawn: Drawn[], left: number, right: number, baseline: number, size: number): boolean {
-  const bars = drawn.filter((d) => d.h <= 1 && d.w >= 3 * size && Math.abs(d.y - baseline) <= 2 * size);
+  const bars = drawnAt(drawn, -Infinity, Infinity, baseline - 2 * size, baseline + 2 * size).filter((d) => d.h <= 1 && d.w >= 3 * size && Math.abs(d.y - baseline) <= 2 * size);
   return bars.some((a) => a.x + a.w >= left - 0.5 * size && a.x + a.w <= right
     && bars.some((b) => b !== a && Math.abs(b.y - a.y) <= 0.5 && b.x >= left && b.x <= right + 0.5 * size && b.x >= a.x + a.w));
 }
@@ -323,7 +376,7 @@ function joinLabels(lines: Placed[][], runs: Placed[]): Placed[][] {
 // fonts draw rather than set (E_Beta in small capitals).
 function underscored(drawn: Drawn[], from: number, to: number, baseline: number, size: number): boolean {
   const mid = (from + to) / 2;
-  return to - from >= 0.1 * size && drawn.some((d) => d.h <= 1.5 && d.w >= 0.2 * size && d.w <= 0.8 * size && Math.abs(d.x + d.w / 2 - mid) <= 0.3 * size
+  return to - from >= 0.1 * size && drawnAt(drawn, mid - 0.3 * size, mid + 0.3 * size, baseline - 0.05 * size, baseline + 0.3 * size).some((d) => d.h <= 1.5 && d.w >= 0.2 * size && d.w <= 0.8 * size && Math.abs(d.x + d.w / 2 - mid) <= 0.3 * size
     && d.y >= baseline - 0.05 * size && d.y <= baseline + 0.3 * size);
 }
 

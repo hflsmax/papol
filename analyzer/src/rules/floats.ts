@@ -78,7 +78,15 @@ const hasCellGap = (l: Line) => {
 // at the text's size are set in; its leading, the usual step between lines
 // in that font; its measure, the usual width of those lines; and it is set
 // in two columns when that measure is well under the width of the text.
+// A layout's type is read once: every stage, and every page's flow,
+// asks for it.
+const types = new WeakMap<Layout, Type>();
 export function typeOf(layout: Layout): Type {
+  let type = types.get(layout);
+  if (!type) types.set(layout, type = typeIn(layout));
+  return type;
+}
+function typeIn(layout: Layout): Type {
   const bodySize = layout.bodySize;
   const chars = new Map<string, number>();
   for (const page of layout.pages) for (const l of page.lines) if (!l.furniture && sameSize(l.size, bodySize))
@@ -315,9 +323,25 @@ export function piecesOf(graphics: (Rect & { image: boolean })[], bounds: Rect[]
     while (parent[i] !== root) { const up = parent[i]; parent[i] = root; i = up; }
     return root;
   };
-  for (let i = 0; i < joinable.length; i += 1) {
-    for (let j = i + 1; j < joinable.length && joinable[j].x0 <= joinable[i].x1 + 0.5; j += 1) {
-      if (touching(joinable[i], joinable[j])) parent[find(i)] = find(j);
+  // Each stroke is asked only of those near it: the page is cut into
+  // CELL-point squares listing the strokes reaching into them (a plot of a
+  // hundred thousand marks has thousands in any band across it), and a
+  // stroke spanning more than SPAN squares is asked of every other.
+  const CELL = 8, SPAN = 16;
+  const cells = new Map<string, number[]>(), big: number[] = [];
+  const spanOf = (g: Rect) => [Math.floor((g.x0 - 0.5) / CELL), Math.floor((g.x1 + 0.5) / CELL), Math.floor((g.y0 - 0.5) / CELL), Math.floor((g.y1 + 0.5) / CELL)];
+  joinable.forEach((g, i) => {
+    const [cx0, cx1, cy0, cy1] = spanOf(g);
+    if (!(cx1 - cx0 <= SPAN && cy1 - cy0 <= SPAN)) { big.push(i); return; }
+    for (let cx = cx0; cx <= cx1; cx += 1) for (let cy = cy0; cy <= cy1; cy += 1) {
+      const cell = cells.get(`${cx} ${cy}`);
+      if (cell) cell.push(i); else cells.set(`${cx} ${cy}`, [i]);
+    }
+  });
+  for (const i of big) for (let j = 0; j < joinable.length; j += 1) if (j !== i && touching(joinable[i], joinable[j])) parent[find(i)] = find(j);
+  for (const cell of cells.values()) {
+    for (let a = 0; a < cell.length; a += 1) for (let b = a + 1; b < cell.length; b += 1) {
+      if (touching(joinable[cell[a]], joinable[cell[b]])) parent[find(cell[a])] = find(cell[b]);
     }
   }
   const groups = new Map<number, (Rect & { image: boolean })[]>();
