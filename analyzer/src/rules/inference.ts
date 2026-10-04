@@ -4137,6 +4137,9 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // specification set as a figure's rules are, heading or over its
   // triple (typed-prophet-resolve-spec, MaxAnySpec), is one of them.
   const tags = (setting: Setting) => !setting.bar && (setting.category === "margin" || setting.category === "row");
+  // Labels set aside as a definition's or a clause's, for a figure of
+  // laws to take back (axiomatic).
+  const defining: { page: Page; line: Line; token: Token; setting: Setting }[] = [];
   {
     for (const { page, line, token, setting } of seen) {
       const box = boxAt(page, line, setting);
@@ -4147,10 +4150,10 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       if (token.closed && !setting.bar) continue;
       if (setting.category === "cell" || setting.category === "group") { trace.add(RULE_CELL.id, page.number, token.text, at(page, line, box)); continue; }
       if (setting.category === "comment") { trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box)); continue; }
-      if (setting.category === "clause") { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
+      if (setting.category === "clause") { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); defining.push({ page, line, token, setting }); continue; }
       if (setting.bar) trace.add(RULE_BAR.id, page.number, token.text, [{ page: page.number, x: setting.bar.x, y: setting.bar.y, w: setting.bar.w, h: Math.max(setting.bar.h, 1) }]);
       trace.add(RULE_SETTING.id, page.number, `${token.text} ${setting.category}`, at(page, line, box));
-      if (stated(page, line, token, setting) || (tags(setting) && (SELF_STATED.test(fold(token.text)) || (setting.side === "right" && /spec$/iu.test(fold(token.text)))))) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); continue; }
+      if (stated(page, line, token, setting) || (tags(setting) && (SELF_STATED.test(fold(token.text)) || (setting.side === "right" && /spec$/iu.test(fold(token.text)))))) { trace.add(RULE_DEFINITION.id, page.number, token.text, at(page, line, box)); defining.push({ page, line, token, setting }); continue; }
       // A name ending a line of running text is mentioned there, no label
       // ("We use the identity shot(n) = shot(n) · shot(n) with GHOST-OP").
       if (setting.category === "margin" && !token.bracketed && setting.row.length > 0 && setting.row.every((r) => worded(r) && sentence(r.text))) { trace.add(RULE_CLAUSE.id, page.number, token.text, at(page, line, box)); continue; }
@@ -4244,6 +4247,8 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // and however their names are cited ("(ConsistentMO1)" to
   // "(ConsistentAlloc)" closing consistentC11's definition under GPS's
   // "A.3.5 Axioms").
+  const figureOf = (o: { page: Page; line: Line }) => floats.find((f) => f.kind === "figure" && f.page === o.page.number
+    && ((x, y) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h)((o.line.x0 + o.line.x1) / 2 / o.page.width, (o.line.top + o.line.bottom) / 2 / o.page.height));
   const axiomatic = (() => {
     const found = new Set<Candidate>();
     for (const c of candidates) {
@@ -4257,13 +4262,27 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // setting the algebra's laws as a paper's rules ("(RA-ASSOC)" to
       // "(RA-VALID-OP)" in a higher-order ghost state paper's Fig. 3
       // "Resource algebras", COFE-EQUIV to COFE-NONEXP in its Fig. 6).
-      const inside = (o: Candidate) => floats.some((f) => f.kind === "figure" && f.page === o.page.number
-        && ((x, y) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h)((o.line.x0 + o.line.x1) / 2 / o.page.width, (o.line.top + o.line.bottom) / 2 / o.page.height));
-      const figured = column.every((o) => o.shape === "hyphen" && inside(o));
+      const figured = column.every((o) => o.shape === "hyphen" && figureOf(o) !== undefined);
       if (headed || figured) for (const o of column) found.add(o);
     }
     return found;
   })();
+  // A label of a figure of laws, ending its row flush with three of them
+  // or more in that figure, names a law however its row reads: one that
+  // defines a relation or splits in clauses is the algebra's law too
+  // ("(RA-INCL)" after "a ≼ b ≜ ∃c ∈ M. b = a · c" under RA-VALID-OP,
+  // CMRA-INCL likewise).
+  for (const d of defining) {
+    const figure = figureOf(d);
+    const shape = shapeOf(fold(d.token.text), true) ?? (smallCapped(d.line, d.token) ? shapeOf(fold(d.token.text).toUpperCase(), true) : null);
+    if (!figure || !d.token.bracketed || shape !== "hyphen") continue;
+    const column = candidates.filter((o) => o.page === d.page && o.setting.category === "margin" && o.token.bracketed && o.shape === "hyphen" && figureOf(o) === figure
+      && Math.abs(o.line.x1 - d.line.x1) <= 1 && Math.abs(o.line.size - d.line.size) <= 0.5 && faceOf(o.line, o.token) === faceOf(d.line, d.token));
+    if (column.length < 3) continue;
+    const c: Candidate = { ...d, shape: "hyphen", setting: { ...d.setting, category: "margin", side: "right" } as Candidate["setting"], rule: RULE_NAME_MARGIN.id, convention: column[0].convention };
+    candidates.push(c);
+    axiomatic.add(c);
+  }
   const lemma = (c: Candidate) => Boolean(c.setting.quantified) && !axiomatic.has(c) && !candidates.some((o) => o.page === c.page && !o.setting.quantified && (!weak(o) || (camel(o.token.text) && !open(o))) && ending(o) === ending(c));
   for (const c of candidates) if (lemma(c)) trace.add(RULE_CONVENTION.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter((c) => !lemma(c));
