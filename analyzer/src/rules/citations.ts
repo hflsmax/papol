@@ -11,7 +11,7 @@
 import { least, most } from "./numbers";
 import type { Entry, Bibliography } from "./bibliography";
 import { normalizeName } from "./bibliography";
-import { boxesOf, type Box, type Flow, type Layout, type Line } from "./layout";
+import { boxesOf, offsetIn, type Box, type Flow, type Layout, type Line } from "./layout";
 import {
   CITE_AUTHOR_YEAR_GROUP, CITE_AUTHOR_YEAR_NARRATIVE, CITE_BRACKET, CITE_LABEL, CITE_PAREN, CITE_SUPERSCRIPT, NOT_A_NAME,
 } from "./registry";
@@ -132,7 +132,8 @@ function superscriptHits(layout: Layout, skip: Set<Line>, byNumber: Map<number, 
         if (/[)\]}|]\s*$/.test(prevText) && /[=+−×÷±√∑∫≤≥≈]/.test(line.text)) continue;
         const numbers = numbersOf(m.groups!.list);
         if (!numbers?.length || numbers.some((n) => !byNumber.has(n))) continue;
-        const x0 = least(runs.map((r) => r.x)), x1 = most(runs.map((r) => r.x + r.width));
+        // To the last figure: a run's width runs on over the blank after it.
+        const x0 = least(runs.map((r) => r.x)), x1 = most(runs.map((r) => r.x + offsetIn(r, r.text.trimEnd().length)));
         const top = least(runs.map((r) => r.baseline - r.size * 0.8)), bottom = most(runs.map((r) => r.baseline + r.size * 0.22));
         const box = { page: page.number, x: x0 / page.width, y: top / page.height, w: (x1 - x0) / page.width, h: (bottom - top) / page.height };
         hits.push({ rule: CITE_SUPERSCRIPT.id, entries: numbers.map((n) => byNumber.get(n)!), label: text, boxes: [box], page: page.number });

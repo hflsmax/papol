@@ -205,6 +205,36 @@ describe("the paper", () => {
     ]);
   });
 
+  it("reads Physics Today references: book titles, et al., and the first of several works", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Information was studied before [1], and again [2], [3] and [4]."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] C. E. Shannon, W. Weaver, The Mathematical Theory of Communication, U. Illinois Press (1963)."],
+      [60, 265, "[2] R. Clausius, The Mechanical Theory of Heat, W. R. Browne, trans., MacMillan (1879)."],
+      [60, 250, "[3] S. Toyabe et al., Nat. Phys. 6, 988 (2010)."],
+      [60, 235, "[4] C. H. Bennett, Int. J. Theor. Phys. 21, 905 (1982); O. Penrose, Foundations of Statistical Mechanics, Pergamon Press (1970)."],
+    ]);
+    const references = (await analyzeWithRules(pdf)).analysis.references;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, journal: r.journal, year: r.year })), [
+      { title: "The Mathematical Theory of Communication", authors: ["C. E. Shannon", "W. Weaver"], journal: null, year: 1963 },
+      { title: "The Mechanical Theory of Heat", authors: ["R. Clausius"], journal: null, year: 1879 },
+      { title: null, authors: ["S. Toyabe"], journal: "Nat. Phys", year: 2010 },
+      { title: null, authors: ["C. H. Bennett"], journal: "Int. J. Theor. Phys", year: 1982 },
+    ]);
+  });
+
+  it("ends a quoted title at the stop inside its quotes", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Persistence was studied before [1], [2] and [3]."],
+      [60, 300, "References", 12],
+      [60, 280, "[1] J. R. Driscoll, N. Sarnak, D. D. Sleator, and R. E. Tarjan. 1989. \u201cMaking data structures persistent.\u201d Journal of Computer and System Sciences, 38, 1, 86\u2013124."],
+      [60, 265, "[2] H. G. Baker. 1978. \u201cShallow binding in Lisp 1.5.\u201d Communications of the ACM, 21, 7, 565\u2013569."],
+      [60, 250, "[3] P. F. Dietz. 1989. \u201cFully persistent arrays.\u201d In: Algorithms and Data Structures, 67\u201374."],
+    ]);
+    const references = (await analyzeWithRules(pdf)).analysis.references;
+    assert.deepEqual(references.map((r) => r.title), ["Making data structures persistent", "Shallow binding in Lisp 1.5", "Fully persistent arrays"]);
+  });
+
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
   const WRAPPED = writtenPdf([
     [60, 740, "Mechanisms were studied before [1], and again [2]."],
