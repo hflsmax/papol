@@ -235,6 +235,23 @@ describe("the paper", () => {
     assert.deepEqual(references.map((r) => r.title), ["Making data structures persistent", "Shallow binding in Lisp 1.5", "Fully persistent arrays"]);
   });
 
+  it("reads an OCR'd author-year list: a letter-spaced heading, given names in full, the year before a quoted title", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "As quoted (von N e u m a n n , 1966), and shown by Fredkin and Toffoli (1982) and Bennett (1973)."],
+      [60, 300, "R E F E R E N C E S", 9],
+      [60, 280, "von Neumann, J. (1966). Theory of Self-Reproducing Automata. Univ. of Illinois Press."],
+      [60, 260, "Bennett, C. H. (1973). \"Logical Reversibility of Computation\", IBM J. Res., 17, 525."],
+      [60, 240, "Fredkin, Edward, and Toffoli, Tommaso, (1982). \"Conservative Logic,\" MIT Report."],
+    ]);
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, year: r.year })), [
+      { title: "Theory of Self-Reproducing Automata", authors: ["J. Neumann"], year: 1966 },
+      { title: "Logical Reversibility of Computation", authors: ["C. H. Bennett"], year: 1973 },
+      { title: "Conservative Logic", authors: ["Edward Fredkin", "Tommaso Toffoli"], year: 1982 },
+    ]);
+    assert.deepEqual(citations.map((c) => c.keys), [["b0"], ["b2"], ["b1"]]);
+  });
+
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
   const WRAPPED = writtenPdf([
     [60, 740, "Mechanisms were studied before [1], and again [2]."],

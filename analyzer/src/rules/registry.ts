@@ -564,8 +564,8 @@ export const STATEMENT_LEAD = rule({
 
 export const BIB_HEADING = rule({
   id: "bibliography.heading", stage: "bibliography",
-  summary: "A line that is only \"References\", \"Bibliography\", \"References and Notes\" or \"Literature Cited\" (numbered or not) heads a bibliography.",
-  why: "Nearly every paper names its bibliography with one of these words on a line of its own.",
+  summary: "A line that is only \"References\", \"Bibliography\", \"References and Notes\" or \"Literature Cited\" (numbered or not) heads a bibliography, letter-spaced too (\"R E F E R E N C E S\").",
+  why: "Nearly every paper names its bibliography with one of these words on a line of its own; OCR reads letter-spaced type back a letter at a time.",
   pattern: /^\s*(?:(?:\d+|[A-Z]|[IVX]+)\.?\s+)?(?:References|REFERENCES|Reference List|Bibliography|BIBLIOGRAPHY|References and Notes|REFERENCES AND NOTES|Literature Cited|LITERATURE CITED|Works Cited|Cited Literature)\s*:?\s*$/,
   matches: ["References", "REFERENCES", "7 References", "Bibliography", "References and Notes", "A. References"],
   rejects: ["References 45", "the references", "References are listed", "Main references cited", "Reference"],

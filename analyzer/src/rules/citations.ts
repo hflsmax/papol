@@ -10,7 +10,7 @@
 
 import { least, most } from "./numbers";
 import type { Entry, Bibliography } from "./bibliography";
-import { normalizeName } from "./bibliography";
+import { normalizeName, unspaced } from "./bibliography";
 import { boxesOf, offsetIn, type Box, type Flow, type Layout, type Line } from "./layout";
 import {
   CITE_AUTHOR_YEAR_GROUP, CITE_AUTHOR_YEAR_NARRATIVE, CITE_BRACKET, CITE_LABEL, CITE_PAREN, CITE_SUPERSCRIPT, NOT_A_NAME,
@@ -151,7 +151,7 @@ const YEAR_ITEM = /(?:1[5-9]\d\d|20\d\d)[a-z]?|\b[a-z]\b/g;
 // letter where the bibliography gives two works that year names the first;
 // a letter names the work lettered so, or else the n-th of that year.
 function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
-  const people = names.replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
+  const people = unspaced(names).replace(/\s+,/g, ",").replace(/,\s*$/, "").replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
   const firstWords = (people[0] ?? "").split(/\s+/).filter((w) => /^\p{Lu}/u.test(w) || /^(?:van|von|de|der|den|du|la|le|da|di)$/.test(w));
   const first = normalizeName(firstWords.join(" "));
   const second = people[1] ? normalizeName(people[1].split(/\s+/).pop() ?? "") : null;
