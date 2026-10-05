@@ -252,6 +252,29 @@ describe("the paper", () => {
     assert.deepEqual(citations.map((c) => c.keys), [["b0"], ["b2"], ["b1"]]);
   });
 
+  it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Bennett (1973; see also below), McCarthy's (1956) method, as Toffoli suggests (1981),"],
+      [60, 725, "of Landauer and Keyes (1970), and as F r e d k i n a n d T o f f o l i (1982) show."],
+      [60, 300, "References", 12],
+      [60, 280, "Bennett, C. H. (1973). \"Logical Reversibility of Computation\", IBM J. Res., 17, 525."],
+      [60, 260, "Fredkin, Edward, and Toffoli, Tommaso, (1982). \"Conservative Logic,\" MIT Report."],
+      [60, 240, "Keyes, R. W., and Landuer, R. (1970). IBM Journal of Research and Development, 14, 152."],
+      [60, 220, "McCarthy, John (1956). \"The Inversion of Functions,\" in Automata Studies."],
+      [60, 200, "Toffofi, Tommaso (1981). \"Bicontinuous Extensions,\" Math. Systems Theory, 14, 13-23."],
+    ]);
+    const { citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Bennett (1973; see also below)", ["b0"]],
+      ["McCarthy\u2019s (1956)", ["b3"]],
+      ["Toffoli suggests (1981)", ["b4"]],
+      ["Landauer and Keyes (1970)", ["b2"]],
+      ["F r e d k i n a n d T o f f o l i (1982)", ["b1"]],
+    ]);
+    // The word between is not boxed: the name, then the year.
+    assert.equal(citations[2].boxes.length, 2);
+  });
+
   // "Matsuda et al. | 2007", "[1, | 2]": a marker the line breaks inside.
   const WRAPPED = writtenPdf([
     [60, 740, "Mechanisms were studied before [1], and again [2]."],
