@@ -346,7 +346,20 @@ function joinLabels(lines: Placed[][], runs: Placed[]): Placed[][] {
     if (!LABEL.test(text)) return;
     const size = median(label.map((r) => r.size));
     const base = median(label.map((r) => r.baseline));
-    const x1 = most(label.map((r) => r.x + r.width));
+    const x0 = least(label.map((r) => r.x)), x1 = most(label.map((r) => r.x + r.width));
+    // A number flush with a column's right edge — a line of prose just
+    // above or below, ten sizes or more long and ending in a word where it
+    // ends — is an equation's "(7)" at that edge, not the label of the
+    // column beside it, which it would join across the gutter. (A table's
+    // cells and a listing's numbered lines end where a number below them
+    // ends too, in a number.)
+    if (lines.some((other, j) => {
+      if (j === i) return false;
+      const lift = Math.abs(median(other.map((r) => r.baseline)) - base);
+      return lift >= SAME_LINE * size && lift <= 3 * size
+        && Math.abs(most(other.map((r) => r.x + r.width)) - x1) <= 1 && least(other.map((r) => r.x)) < x0 - 10 * size
+        && /\p{L}\p{P}*\s*$/u.test(other.map((r) => r.text).join(""));
+    })) return;
     let best = -1, bestGap = Infinity;
     lines.forEach((other, j) => {
       if (j === i || gone.has(j)) return;
