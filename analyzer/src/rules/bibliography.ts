@@ -43,6 +43,13 @@ function isHeadingLike(line: Line, bodySize: number): boolean {
   return line.bold || line.size >= bodySize * 1.05 || (line.text === line.text.toUpperCase() && /[A-Z]{4}/.test(line.text));
 }
 
+// Letter-spaced type read back by OCR comes letter by letter: the heading
+// "R E F E R E N C E S", the name in "(von N e u m a n n , 1966)". Three or
+// more lone letters in a row, a space apart, read as one word.
+export function unspaced(text: string): string {
+  return text.replace(/(?<!\S)\p{L}(?: \p{L}(?!\S)){2,}/gu, (word) => word.replace(/ /g, ""));
+}
+
 // Each stretch of lines under a bibliography heading, down to a heading that
 // ends it. Nature papers have two (the article's and the Methods'), which
 // number on from each other.
@@ -51,21 +58,22 @@ function blocks(layout: Layout, trace: Trace): { lines: Line[]; heading: Line | 
   const out: { lines: Line[]; heading: Line | null }[] = [];
   let current: { lines: Line[]; heading: Line | null } | null = null;
   for (const line of lines) {
-    if (BIB_HEADING.pattern!.test(line.text) && line.text.length < 40) {
+    const text = unspaced(line.text);
+    if (BIB_HEADING.pattern!.test(text) && text.length < 40) {
       if (current) out.push(current);
       current = { lines: [], heading: line };
       trace.add(BIB_HEADING.id, line.page, line.text, []);
       continue;
     }
     if (!current) continue;
-    const ends = (BIB_STOP.pattern!.test(line.text) && isHeadingLike(line, layout.bodySize) && line.text.length < 80)
+    const ends = (BIB_STOP.pattern!.test(text) && isHeadingLike(line, layout.bodySize) && line.text.length < 80)
       // A section heading ends it too: set well above the list's size, or
       // bold and numbered ("A PROOFS", "B.1 Lemmas") at the text's size.
       || (line.bold && line.size >= layout.bodySize * 1.15 && line.text.length < 80)
       || (line.bold && line.size >= layout.bodySize * 0.95 && line.text.length < 80 && /^(?:[A-Z]|\d+)(?:\.\d+)*\.?\s+\p{Lu}/u.test(line.text))
       // or numbered and in capitals throughout, bold or not.
       || (line.text.length < 80 && /^(?:[A-Z]|\d+)(?:\.\d+)*\.?\s+[A-Z][A-Z-]+(?:\s+[A-Z-]+)+\s*$/.test(line.text));
-    const editorial = BIB_EDITORIAL.pattern!.test(line.text);
+    const editorial = BIB_EDITORIAL.pattern!.test(text);
     if (ends || editorial) {
       trace.add(editorial ? BIB_EDITORIAL.id : BIB_STOP.id, line.page, line.text, []);
       out.push(current);
@@ -202,6 +210,29 @@ const cleanTitle = (title: string | null) => {
   return t.length >= 4 ? t : null;
 };
 
+// The title that leads what follows the authors (and the year): in quotes
+// where it is quoted and its stop or comma comes at the quotes ("Logical
+// Reversibility of Computation", IBM …), else the first sentence. A year
+// the names were not read up to (the "(1973)." of "Bennett, C. H.
+// (1973).") comes first and is no title.
+function leadingTitle(rest: string): string | null {
+  const after = rest.replace(/^(?:\((?:1[5-9]\d\d|20\d\d)[a-z]?\)[.,:]?|(?:1[5-9]\d\d|20\d\d)[a-z]?[.,])\s+/, "");
+  const quoted = /^[“"]([^”"]{4,300}?)(?:[,.][”"]|[”"][,.])/.exec(after);
+  return cleanTitle(quoted ? quoted[1] : after.slice(0, sentenceEnd(after)));
+}
+
+// Names surname first with given names in full, as some author–year lists
+// print them: "Fredkin, Edward, and Toffoli, Tommaso", "Reif, John H".
+// Each name is a surname, a comma and given names; names part at "and" or
+// a comma. Null where the authors are not wholly of that shape.
+const SURNAME = String.raw`(?:(?:de|van|von|van der|de la|du|le|la)\s)?\p{Lu}[\p{L}'’-]+`;
+const GIVEN = String.raw`(?:\p{Lu}[\p{Ll}'’-]+|\p{Lu}\.)(?:\s?\p{Lu}\.?)*`;
+const INVERTED_GIVEN = new RegExp(String.raw`^(?:${SURNAME},\s${GIVEN}(?:,\s(?:and\s|&\s)?|\s(?:and|&)\s|$))+$`, "u");
+function invertedGivenNames(text: string): string[] | null {
+  if (!INVERTED_GIVEN.test(text)) return null;
+  return [...text.matchAll(new RegExp(String.raw`(${SURNAME}),\s(${GIVEN})`, "gu"))].map((m) => `${m[2]} ${m[1]}`);
+}
+
 // APS, AIP and Physics Today print references initials first, with
 // article titles left out: "A. Author and B. Author, Phys. Rev. E 102,
 // 032105 (2020)." A book keeps its title, between the names and the
@@ -295,13 +326,12 @@ export function parseEntry(printed: string): Pick<Entry, "title" | "authors" | "
   } else if (inverted?.groups && inverted.groups.rest) {
     rules.push(FIELD_AUTHORS_INVERTED.id);
     authors = [...inverted.groups.authors.matchAll(/([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?),\s((?:[\p{Lu}]\.\s?-?)+)/gu)].map((m) => `${m[2].trim()} ${m[1]}`);
-    const rest = inverted.groups.rest;
-    title = cleanTitle(rest.slice(0, sentenceEnd(rest)));
+    title = leadingTitle(inverted.groups.rest);
   } else if (yearFirst?.groups && yearFirst.groups.authors.length < 400 && yearFirst.groups.authors.length < 0.6 * raw.length) {
     rules.push(FIELD_AUTHORS_YEAR_FIRST.id);
-    authors = yearFirst.groups.authors.split(/,\s(?:and\s)?|\sand\s|\s&\s/).map((a) => a.trim()).filter((a) => a && !/^et al\.?$/.test(a));
-    const rest = yearFirst.groups.rest;
-    title = cleanTitle(rest.slice(0, sentenceEnd(rest)));
+    authors = invertedGivenNames(yearFirst.groups.authors.trim())
+      ?? yearFirst.groups.authors.split(/,\s(?:and\s)?|\sand\s|\s&\s/).map((a) => a.trim()).filter((a) => a && !/^et al\.?$/.test(a));
+    title = leadingTitle(yearFirst.groups.rest);
   } else if (quoted?.groups) {
     rules.push(FIELD_TITLE_QUOTED.id);
     title = cleanTitle(quoted.groups.title);
