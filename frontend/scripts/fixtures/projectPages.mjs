@@ -287,6 +287,12 @@ function answer(method, path, search, sent = {}) {
   if (path === '/admin/message-recipients') return [];
   if (path === '/admin/tables') return { tables: [] };
   if (path === '/admin/emails') return { configured: true, sends: [] };
+  // A board started from the rail lands on the default shelf, newest first.
+  if (path === '/boards' && method === 'POST') {
+    const made = { ...nookBoard(3, sent.name, 0, SHELF, new Date().toISOString()) };
+    NOOK_BOARDS.unshift(made);
+    return made;
+  }
   // A project started from the rail opens as the fixture's own.
   if (path === '/projects' && method === 'POST') return project;
   if (path === '/projects') return [summary, other, closed];

@@ -17,13 +17,22 @@ test('the rail always has a Projects head with New, projects or not', () => {
 });
 
 test('a new project asks only its name and opens at once', () => {
-  const form = desk.slice(desk.indexOf('function ProjectCreate'), desk.indexOf('const youFirst'));
-  assert.match(form, /createProject\(name\.trim\(\)\)/);
-  assert.match(form, /placeholder="Project name"/);
+  const form = desk.slice(desk.indexOf('function DeskNew'), desk.indexOf('const youFirst'));
+  assert.match(form, /onCreated\(await create\(name\.trim\(\)\)\)/);
   assert.equal((form.match(/<input/g) || []).length, 1);
   assert.doesNotMatch(form, /<button/);
+  assert.match(projects, /<DeskNew\s+label="Project name"[^>]*create=\{createProject\}/);
   assert.match(projects, /onChanged\?\.\(\); onOpenProject\?\.\(p\.uuid\)/);
   assert.match(app, /onOpenProject=\{\(uuid\) => \{\s*setProjectsRevision\(\(r\) => r \+ 1\);\s*navigate\(`\/project\/\$\{uuid\}`\);/);
+});
+
+// The rail is a narrow column: a board starts there the way a project does,
+// by its name alone, on the default shelf, and opens at once.
+test('a new board in the rail asks only its name and opens at once', () => {
+  const boards = desk.slice(desk.indexOf('aria-labelledby="desk-boards"'));
+  assert.match(boards, /<DeskNew\s+label="Board name"[^>]*create=\{\(name\) => createBoard\(\{ name \}\)\}/);
+  assert.match(boards, /onChanged\?\.\(\); onSelectBoard\(b\.uuid\)/);
+  assert.doesNotMatch(desk, /BoardCreateForm/);
 });
 
 test('the Bazaar lists projects without starting one', () => {
