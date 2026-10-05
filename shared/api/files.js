@@ -36,7 +36,7 @@ export async function putWithProgress(url, { headers = {}, body, signal, onProgr
     onProgress({ loaded: 0, total });
     const response = await runtimeFetch(url, { method: 'PUT', headers, body, signal });
     onProgress({ loaded: total, total });
-    return { status: response.status, ok: response.ok };
+    return { status: response.status, ok: response.ok, reason: response.ok ? null : bucketReason(await response.text()) };
   }
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -48,7 +48,8 @@ export async function putWithProgress(url, { headers = {}, body, signal, onProgr
     };
     xhr.onload = () => {
       onProgress({ loaded: total, total });
-      resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300 });
+      const ok = xhr.status >= 200 && xhr.status < 300;
+      resolve({ status: xhr.status, ok, reason: ok ? null : bucketReason(xhr.responseText) });
     };
     xhr.onerror = () => reject(new Error('The file could not reach the bucket'));
     xhr.onabort = () => reject(signal?.reason ?? new DOMException('The upload was aborted', 'AbortError'));
@@ -59,6 +60,28 @@ export async function putWithProgress(url, { headers = {}, body, signal, onProgr
     xhr.send(body);
   });
 }
+
+// What the bucket said when it refused: an S3 error names a code and a
+// message (`<Error><Code>InternalError</Code><Message>…</Message></Error>`),
+// and those are the reason, not the status alone. Null when it said nothing.
+export function bucketReason(text) {
+  const field = (name) => (String(text ?? '').match(new RegExp(`<${name}>([^<]*)</${name}>`)) || [])[1]?.trim();
+  const code = field('Code');
+  const message = field('Message');
+  return [code, message].filter(Boolean).join(': ') || null;
+}
+
+// S3's own word on which refusals to send again: an internal error or a
+// slow-down is the bucket's state, not the request's, and the bytes are
+// named by their digest, so a second PUT writes the same object. Three
+// tries, a second and then two apart.
+const PUT_TRIES = 3;
+const retryable = (status) => status >= 500;
+const pause = (ms, signal) => new Promise((resolve, reject) => {
+  const timer = setTimeout(resolve, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+});
+export const putRetry = { delayMs: (attempt) => 1000 * attempt };
 
 // Put the bytes where the server says, unless it holds them already.
 // `kind` is 'paper' or 'board_file'. Answers `{ sha256, file_path }`:
@@ -77,12 +100,19 @@ export async function storeFile(kind, blob, { name, mime = blob.type || null, si
   });
   if (!address.stored) {
     const url = /^https?:/.test(address.url) ? address.url : backendPath(address.url);
-    const put = await putWithProgress(url, {
-      headers: address.headers, body: blob, signal,
-      onProgress: ({ loaded, total }) => onProgress({ phase: 'uploading', loaded, total }),
-    });
+    let put;
+    for (let attempt = 1; ; attempt += 1) {
+      put = await putWithProgress(url, {
+        headers: address.headers, body: blob, signal,
+        onProgress: ({ loaded, total }) => onProgress({ phase: 'uploading', loaded, total }),
+      });
+      if (put.ok || !retryable(put.status) || attempt === PUT_TRIES) break;
+      await pause(putRetry.delayMs(attempt), signal);
+    }
     if (!put.ok) {
-      const failure = new Error(`The file could not be stored (the bucket answered ${put.status})`);
+      const said = put.reason ? ` ${put.reason}` : '';
+      const failure = new Error(`The file could not be stored (the bucket answered ${put.status}${said})`);
+      failure.reason = put.reason;
       failure.status = put.status;
       throw failure;
     }

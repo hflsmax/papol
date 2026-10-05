@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 
-import { putWithProgress, storeFile, uploadProgressView } from '../../shared/api/files.js';
+import { bucketReason, putRetry, putWithProgress, storeFile, uploadProgressView } from '../../shared/api/files.js';
 
 const MB = 1024 * 1024;
 
@@ -19,7 +19,9 @@ class FakeXhr {
     setTimeout(() => {
       for (const step of FakeXhr.answer.steps) this.upload.onprogress?.({ loaded: Math.round(body.size * step), total: body.size, lengthComputable: true });
       if (FakeXhr.answer.fail) { this.onerror?.(); return; }
-      this.status = FakeXhr.answer.status;
+      const answer = Array.isArray(FakeXhr.answer.statuses) ? FakeXhr.answer.statuses.shift() : FakeXhr.answer.status;
+      this.status = answer;
+      this.responseText = FakeXhr.answer.text ?? '';
       this.onload?.();
     }, 0);
   }
@@ -34,14 +36,14 @@ test('putWithProgress sends the headers it is given and reports the bytes as the
   const answer = await putWithProgress('https://bucket.test/k', {
     headers: { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' }, body, onProgress: (p) => seen.push(p),
   });
-  assert.deepEqual(answer, { status: 200, ok: true });
+  assert.deepEqual(answer, { status: 200, ok: true, reason: null });
   assert.deepEqual(FakeXhr.sent, [{ method: 'PUT', url: 'https://bucket.test/k', headers: { 'content-type': 'application/pdf', 'x-amz-checksum-sha256': 'c2ln' }, size: 1000 }]);
   assert.deepEqual(seen, [{ loaded: 0, total: 1000 }, { loaded: 500, total: 1000 }, { loaded: 1000, total: 1000 }, { loaded: 1000, total: 1000 }]);
 });
 
 test('putWithProgress answers a refusal as a status and a network failure as a rejection', async () => {
-  FakeXhr.answer = { status: 403, steps: [] };
-  assert.deepEqual(await putWithProgress('https://bucket.test/k', { body: new Blob(['x']) }), { status: 403, ok: false });
+  FakeXhr.answer = { status: 403, steps: [], text: '<?xml version="1.0"?><Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match</Message></Error>' };
+  assert.deepEqual(await putWithProgress('https://bucket.test/k', { body: new Blob(['x']) }), { status: 403, ok: false, reason: 'SignatureDoesNotMatch: The request signature we calculated does not match' });
   FakeXhr.answer = { fail: true, steps: [] };
   await assert.rejects(putWithProgress('https://bucket.test/k', { body: new Blob(['x']) }), /could not reach the bucket/);
 });
@@ -91,4 +93,39 @@ test('uploadProgressView is one bar over both phases, the hash a sliver of it', 
   assert.equal(done.fraction, 1);
   assert.equal(halfway.detail, '15 MB of 30 MB');
   assert.deepEqual(uploadProgressView({ phase: 'stored', loaded: 30 * MB, total: 30 * MB }), { fraction: 1, detail: '30 MB of 30 MB' });
+});
+
+test('bucketReason reads the code and message of an S3 error, and nothing from silence', () => {
+  assert.equal(bucketReason('<Error><Code>InternalError</Code><Message>We encountered an internal error. Please try again.</Message></Error>'), 'InternalError: We encountered an internal error. Please try again.');
+  assert.equal(bucketReason('<Error><Code>AccessDenied</Code></Error>'), 'AccessDenied');
+  assert.equal(bucketReason(''), null);
+  assert.equal(bucketReason(undefined), null);
+});
+
+function bucketAddress() {
+  globalThis.window = { localStorage: { getItem: () => null }, location: { origin: 'https://papol.test' }, dispatchEvent() {}, addEventListener() {} };
+  globalThis.localStorage = window.localStorage;
+  globalThis.fetch = async () => new Response(JSON.stringify({ stored: false, url: 'https://bucket.test/uploads/x.pdf', file_path: 'x.pdf', headers: {} }), { status: 200 });
+}
+
+test('storeFile sends the bytes again when the bucket fails on its side, and stops once they are in', async () => {
+  bucketAddress();
+  putRetry.delayMs = () => 0;
+  FakeXhr.answer = { statuses: [500, 503, 200], steps: [] };
+  const stored = await storeFile('paper', new Blob([new Uint8Array(10)]), { name: 'x.pdf' });
+  assert.equal(stored.file_path, 'x.pdf');
+  assert.equal(FakeXhr.sent.length, 3);
+});
+
+test('storeFile names what the bucket said after the last try, and never retries a refusal of the request', async () => {
+  bucketAddress();
+  putRetry.delayMs = () => 0;
+  FakeXhr.answer = { status: 500, steps: [], text: '<Error><Code>InternalError</Code><Message>We encountered an internal error. Please try again.</Message></Error>' };
+  await assert.rejects(storeFile('paper', new Blob([new Uint8Array(10)]), { name: 'x.pdf' }),
+    { message: 'The file could not be stored (the bucket answered 500 InternalError: We encountered an internal error. Please try again.)', status: 500 });
+  assert.equal(FakeXhr.sent.length, 3);
+  FakeXhr.sent = [];
+  FakeXhr.answer = { status: 400, steps: [], text: '<Error><Code>BadDigest</Code></Error>' };
+  await assert.rejects(storeFile('paper', new Blob([new Uint8Array(10)]), { name: 'x.pdf' }), /answered 400 BadDigest\)/);
+  assert.equal(FakeXhr.sent.length, 1);
 });
