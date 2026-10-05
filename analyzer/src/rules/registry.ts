@@ -738,10 +738,10 @@ export const CITE_AUTHOR_YEAR_GROUP = rule({
 });
 export const CITE_AUTHOR_YEAR_NARRATIVE = rule({
   id: "citation.author-year-narrative", stage: "citation",
-  summary: "A name followed by years in brackets or parentheses, Sweet et al. [2023] or Smith (2019a, b), cites that author's entries of those years.",
+  summary: "A name followed by years in brackets or parentheses, Sweet et al. [2023] or Smith (2019a, b), cites that author's entries of those years; so do a possessive and one word between (McCarthy's (1956), Toffoli suggests (1981)) and a remark after the years (Bennett (1973; see also below)).",
   why: "The narrative form of every author–year style.",
-  pattern: /(?<names>\b[\p{Lu}][\p{L}'’-]+(?:\s(?:et\sal\.|and\s[\p{Lu}][\p{L}'’-]+|&\s[\p{Lu}][\p{L}'’-]+))?)\s[[(](?<years>(?:1[5-9]\d\d|20\d\d)[a-z]?(?:\s*[,;]\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)[\])]/u,
-  matches: ["Sweet et al. [2023]", "Smith (2019a, b)", "Hirsch and Garg [2022]"],
+  pattern: /(?<names>\b[\p{Lu}][\p{L}'’-]+(?:\s(?:et\sal\.|and\s[\p{Lu}][\p{L}'’-]+|&\s[\p{Lu}][\p{L}'’-]+))?)(?<between>\s\p{Ll}+)?\s[[(](?<years>(?:1[5-9]\d\d|20\d\d)[a-z]?(?:\s*[,;]\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)(?:;\s[^()[\]]{1,40})?[\])]/u,
+  matches: ["Sweet et al. [2023]", "Smith (2019a, b)", "Hirsch and Garg [2022]", "McCarthy's (1956)", "Toffoli suggests (1981)", "Bennett (1973; see also below)", "Bennett's procedure (1973; Figure 11B]"],
   rejects: ["in (2019)", "and [2023]"],
 });
 

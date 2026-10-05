@@ -145,13 +145,14 @@ function superscriptHits(layout: Layout, skip: Set<Line>, byNumber: Map<number, 
 
 // --------------------------------------------------------- author–year way
 
+const YEARS = String.raw`(?:1[5-9]\d\d|20\d\d)[a-z]?(?:\s*[,;]\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*`;
 const YEAR_ITEM = /(?:1[5-9]\d\d|20\d\d)[a-z]?|\b[a-z]\b/g;
 
 // The entries a first author and a list of years name. A year without its
 // letter where the bibliography gives two works that year names the first;
 // a letter names the work lettered so, or else the n-th of that year.
 function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
-  const people = unspaced(names).replace(/\s+,/g, ",").replace(/,\s*$/, "").replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
+  const people = unspaced(names).replace(/['’]s\b/gu, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
   const firstWords = (people[0] ?? "").split(/\s+/).filter((w) => /^\p{Lu}/u.test(w) || /^(?:van|von|de|der|den|du|la|le|da|di)$/.test(w));
   const first = normalizeName(firstWords.join(" "));
   const second = people[1] ? normalizeName(people[1].split(/\s+/).pop() ?? "") : null;
@@ -160,6 +161,14 @@ function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
   // the other counts.
   const same = (a: string, b: string) => a === b || (Math.min(a.length, b.length) >= 3 && (a.endsWith(b) || b.endsWith(a)));
   const byAuthor = entries.filter((e) => e.surnames[0] && same(e.surnames[0], first));
+  // Where none of those is of the year, a scan's misread letter ("Toffofi",
+  // "Landuer") or two authors cited in the other order ("Landauer and
+  // Keyes" for "Keyes, R. W., and Landuer, R."): every name cited is one of
+  // the entry's, a letter apart at most, and the entry has no others.
+  const cited = [first, ...people.slice(1).map((p) => normalizeName(p.split(/\s+/).pop() ?? ""))].filter(Boolean);
+  const near = (a: string, b: string) => same(a, b) || (Math.min(a.length, b.length) >= 5 && oneEditApart(a, b));
+  const byNames = entries.filter((e) => e.surnames.length === cited.length
+    && cited.every((c) => e.surnames.some((s) => near(s, c))) && e.surnames.every((s) => cited.some((c) => near(s, c))));
   const out: Entry[] = [];
   let lastYear: number | null = null;
   for (const item of years) {
@@ -169,6 +178,7 @@ function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
     if (!year) continue;
     lastYear = year;
     let candidates = byAuthor.filter((e) => e.year === year);
+    if (!candidates.length) candidates = byNames.filter((e) => e.year === year);
     if (second && candidates.length > 1) {
       const withSecond = candidates.filter((e) => e.surnames[1] && same(e.surnames[1], second));
       if (withSecond.length) candidates = withSecond;
@@ -178,6 +188,14 @@ function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
     if (lettered) out.push(lettered);
   }
   return out;
+}
+
+function oneEditApart(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i += 1;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1);
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
 }
 
 function authorYearHits(flows: Flow[], entries: Entry[], size: (p: number) => [number, number]): Hit[] {
@@ -213,9 +231,31 @@ function authorYearHits(flows: Flow[], entries: Entry[], size: (p: number) => [n
       if (claimed.some(([a, b]) => from < b && to > a)) continue;
       const found = lookup(entries, m.groups!.names, m.groups!.years.match(YEAR_ITEM) ?? []);
       if (!found.length) continue;
-      const boxes = boxesOf(flow, from, to, size);
+      // A word between the name and its years ("Toffoli suggests (1981)")
+      // is not the citation's: the name and the years are boxed apart.
+      const between = m.groups!.between;
+      const boxes = between
+        ? [...boxesOf(flow, from, from + m.groups!.names.length, size), ...boxesOf(flow, from + m.groups!.names.length + between.length + 1, to, size)]
+        : boxesOf(flow, from, to, size);
       if (!boxes.length) continue;
       hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: m[0], boxes, page: boxes[0].page });
+    }
+    // Letter-spaced, as OCR reads it back: "F r e d k i n a n d T o f f o l i
+    // (1982) a n d T o f f o l i (1981)". The spaces between words are lost
+    // with the rest, so a name is where a capital starts, and an "and"
+    // before a capital joins two.
+    const spelled = new RegExp(String.raw`(?<!\S)((?:\p{L} ){2,}\p{L}) [[(](?<years>${YEARS})[\])]`, "gu");
+    while ((m = spelled.exec(flow.text))) {
+      const letters = m[1].replace(/ /g, "");
+      const start = letters.search(/\p{Lu}/u);
+      if (start < 0) continue;
+      const names = letters.slice(start).replace(/and(?=\p{Lu})/gu, " and ");
+      const found = lookup(entries, names, m.groups!.years.match(YEAR_ITEM) ?? []);
+      if (!found.length) continue;
+      const from = m.index + start * 2, to = m.index + m[0].length;
+      const boxes = boxesOf(flow, from, to, size);
+      if (!boxes.length) continue;
+      hits.push({ rule: CITE_AUTHOR_YEAR_NARRATIVE.id, entries: found, label: flow.text.slice(from, to), boxes, page: boxes[0].page });
     }
   }
   return hits;
