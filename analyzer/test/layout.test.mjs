@@ -12,10 +12,10 @@ import * as esbuild from "esbuild";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(os.tmpdir(), `papol-rules-layout-${process.pid}.mjs`);
 await esbuild.build({
-  stdin: { contents: 'export { boxesOf } from "./layout"; export { offsetsOf, offsetsAlong, ligatureSpelling } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
+  stdin: { contents: 'export { boxesOf, layout } from "./layout"; export { offsetsOf, offsetsAlong, ligatureSpelling } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
   outfile: out, bundle: true, platform: "node", format: "esm", logLevel: "error",
 });
-const { boxesOf, offsetsOf, offsetsAlong, ligatureSpelling } = await import(pathToFileURL(out).href);
+const { boxesOf, layout, offsetsOf, offsetsAlong, ligatureSpelling } = await import(pathToFileURL(out).href);
 
 // Times Roman's widths, as the page draws them, for what the line below uses.
 const times = new Map(Object.entries({
@@ -121,4 +121,29 @@ test("a figure mention late in a line is boxed where it is printed (2b73920556, 
   const [placed] = boxesOf(flowOf({ ...run, offsets: offsetsOf(text, width, times) }), start, end, page);
   assert.ok(Math.abs(placed.x * 612 - printedAt) < 0.01);
   assert.ok(Math.abs((placed.x + placed.w) * 612 - printedTo) < 0.01);
+});
+
+test("an equation's number at a column's right edge is no list label of the column beside it", () => {
+  // Nature Physics' two columns, 12 points apart: "(7)" closes the left
+  // column's formula, flush with that column's edge, on the baseline of a
+  // line of the right column. Taken for a list's label, it joined that line
+  // across the gutter, the page read as one column, and a heading lower in
+  // the left column ("The physical nature of information") had the right
+  // column's line beside it, so was no heading.
+  const run = (text, x, baseline, width, bold = false) => ({ text, x, baseline, width, size: 9.3, font: bold ? "MinionPro-Bold" : "MinionPro-Regular", bold, italic: false });
+  const runs = [];
+  for (let i = 0; i < 40; i += 1) {
+    const baseline = 80 + 10.4 * i;
+    if (i === 10) runs.push(run("(7)", 277.2, baseline, 10.8));
+    else if (i === 25) runs.push(run("The physical nature of information", 40, baseline, 145, true));
+    else runs.push(run("the left column's text, set justified to its edge", 40, baseline, 248));
+    runs.push(run("the right column's text, set justified to its edge", 300, baseline + 0.1, 248));
+  }
+  const page = { number: 1, width: 595, height: 782, runs, drawn: [], text: "" };
+  const laid = layout({ pages: [page], info: { title: "", author: "" } });
+  const lines = laid.pages[0].lines;
+  assert.ok(lines.some((l) => l.text.trim() === "(7)"), "the number stays a line of its own");
+  const heading = lines.find((l) => l.text.startsWith("The physical"));
+  const right = lines.find((l) => l.text.startsWith("the right") && Math.abs(l.baseline - heading.baseline) < 1);
+  assert.notEqual(heading.column, right.column, "the two columns are read apart");
 });

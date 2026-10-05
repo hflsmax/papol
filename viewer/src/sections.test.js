@@ -351,7 +351,7 @@ test('the notices are the ones the shelf\'s own outlines carry', () => {
     'Acknowledgements', 'Acknowledgments', '7 Acknowledgments', 'Author contributions',
     'Competing interests', 'Additional information', 'FURTHER INFORMATION',
     '9 Data Availability Statement', 'Data availability', "Publisher's note",
-    'Online content', 'ONLINE CONTENT',
+    'Online content', 'ONLINE CONTENT', 'Competing financial interests',
   ]) assert.equal(isEndMatter(title), true, title);
   // Plausible end matter that no paper here prints stays out until one does,
   // and a section whose title merely opens with such a word is never one.

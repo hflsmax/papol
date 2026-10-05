@@ -62,14 +62,15 @@ export const isFloatLabel = (title) => FLOAT_LABEL.test(collapseSpace(title));
 // publishers' end matter (Funding, Conflict of interest, Ethics
 // declarations, Reporting summary…) is left out until a paper here is seen
 // to carry it. Nature's "Online content" — a stock paragraph pointing at
-// the website — joined the list when a paper here was seen to print it.
+// the website — joined the list when a paper here was seen to print it,
+// and so did its older "Competing financial interests".
 // Whole titles only, so "Funding models for open science" would still be
 // a section. References are not here: a bibliography is
 // somewhere people go.
 const END_MATTER = new Set([
   'acknowledgment', 'acknowledgments', 'acknowledgement', 'acknowledgements',
   'author contributions',
-  'competing interests',
+  'competing interests', 'competing financial interests',
   'additional information', 'further information',
   'data availability', 'data availability statement',
   'publishers note',
