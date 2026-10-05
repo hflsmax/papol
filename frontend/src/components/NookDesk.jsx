@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { paperName } from '../../../shared/paperName.js';
 import Avatar from './Avatar';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
-import BoardCreateForm from './BoardCreateForm';
 import BoardJacket from './BoardJacket';
 import { createProject } from '../../../shared/api/projects.js';
+import { createBoard } from '../../../shared/api/boards.js';
 import appLimits from '../../../shared/appLimits.js';
 import Effort from './EffortPop';
 import { RatingDots } from './Rating';
@@ -35,9 +35,11 @@ function Faces({ users, max }) {
   );
 }
 
-// A project begins with only its name, and opens at once: members, papers
-// and boards come afterwards, from inside it.
-function ProjectCreate({ onCreated, onCancel }) {
+// A project or a board begins with only its name, typed in place in the
+// rail, and opens at once: a project's members, papers and boards come
+// afterwards from inside it; a board lands on the default shelf and moves
+// from its jacket.
+function DeskNew({ label, maxLength, create, onCreated, onCancel }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -48,7 +50,7 @@ function ProjectCreate({ onCreated, onCancel }) {
     setBusy(true);
     setError(null);
     try {
-      onCreated(await createProject(name.trim()));
+      onCreated(await create(name.trim()));
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -60,9 +62,9 @@ function ProjectCreate({ onCreated, onCancel }) {
       <input
         autoFocus
         value={name}
-        maxLength={appLimits.text.project_name}
-        placeholder="Project name"
-        aria-label="Project name"
+        maxLength={maxLength}
+        placeholder={label}
+        aria-label={label}
         disabled={busy}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
@@ -162,7 +164,15 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               <h3 id="desk-projects">Projects</h3>
               {!naming && <button type="button" className="desk-quiet" onClick={() => setNaming(true)}>New</button>}
             </div>
-            {naming && <ProjectCreate onCreated={(p) => { setNaming(false); onChanged?.(); onOpenProject?.(p.uuid); }} onCancel={() => setNaming(false)} />}
+            {naming && (
+              <DeskNew
+                label="Project name"
+                maxLength={appLimits.text.project_name}
+                create={createProject}
+                onCreated={(p) => { setNaming(false); onChanged?.(); onOpenProject?.(p.uuid); }}
+                onCancel={() => setNaming(false)}
+              />
+            )}
             {nook.projects?.length > 0 && (
               <ul className="desk-rail-list">
                 {nook.projects.map((p) => (
@@ -221,10 +231,11 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               {!creatingBoard && <button type="button" className="desk-quiet" onClick={() => setCreatingBoard(true)}>New</button>}
             </div>
             {creatingBoard && (
-              <BoardCreateForm
-                className="nook-inline-board-create"
-                shelves={nook.shelves}
-                onCreated={(board) => { setCreatingBoard(false); onSelectBoard(board.uuid); }}
+              <DeskNew
+                label="Board name"
+                maxLength={appLimits.text.board_name}
+                create={(name) => createBoard({ name })}
+                onCreated={(b) => { setCreatingBoard(false); onChanged?.(); onSelectBoard(b.uuid); }}
                 onCancel={() => setCreatingBoard(false)}
               />
             )}
