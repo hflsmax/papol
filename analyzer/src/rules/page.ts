@@ -85,12 +85,29 @@ export function ligatureSpelling(name: string | undefined): string | undefined {
   if (!parts || parts.length < 2) return undefined;
   let spelled = "";
   for (const part of parts) {
-    const base = part.split(".")[0];
-    if (/^[A-Za-z]$/.test(base)) spelled += base;
-    else if (/^(?:uni|u)[0-9A-F]{4,6}$/.test(base)) spelled += String.fromCodePoint(parseInt(base.replace(/^uni|^u/, ""), 16));
-    else return undefined;
+    const letter = partSpelling(part);
+    if (letter === undefined) return undefined;
+    spelled += letter;
   }
   return spelled;
+}
+
+// What one part of a glyph name spells: a letter's name with any suffix
+// after a period ("q.sc"), or a code point ("uni0071", "u1D45B").
+function partSpelling(part: string): string | undefined {
+  const base = part.split(".")[0];
+  if (/^[A-Za-z]$/.test(base)) return base;
+  if (/^(?:uni|u)[0-9A-F]{4,6}$/.test(base)) return String.fromCodePoint(parseInt(base.replace(/^uni|^u/, ""), 16));
+  return undefined;
+}
+
+// The letters a glyph's name spells, ligature or single: "h.sc" is h,
+// "uni0041" A, "f_i" and "fi" fi. Undefined for a name that spells none.
+const STANDARD_LIGATURES: Record<string, string> = { ff: "ff", fi: "fi", fl: "fl", ffi: "ffi", ffl: "ffl" };
+export function letterSpelling(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const spelled = ligatureSpelling(name) ?? STANDARD_LIGATURES[name] ?? partSpelling(name);
+  return spelled && /^\p{L}+$/u.test(spelled) ? spelled : undefined;
 }
 
 type Matrix = [number, number, number, number, number, number];
@@ -188,10 +205,19 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
       for (const glyph of args[0] as (Glyph | number)[]) {
         if (typeof glyph !== "object" || !glyph?.unicode || !Number.isFinite(glyph.width)) continue;
         const name = named && glyph.originalCharCode !== undefined ? named(glyph.originalCharCode) : undefined;
-        const spelled = ligatureSpelling(name);
+        const ligature = ligatureSpelling(name);
+        const letters = letterSpelling(name);
+        // A font whose ToUnicode was written for another encoding reads the
+        // code itself where the encoding names a letter: code 33, "h.sc",
+        // read as "!", and "f_i" as "!" too. The name is believed then
+        // (layout.glyph-name), and only then: a symbol font names its
+        // glyphs after the letters they replace ("j" for "|").
+        const echoed = glyph.originalCharCode !== undefined && glyph.unicode === String.fromCharCode(glyph.originalCharCode);
+        const spelled = ligature && ligature !== glyph.unicode && ligature.startsWith(glyph.unicode) ? ligature
+          : letters && echoed && /^[^\p{L}\p{N}\s]+$/u.test(glyph.unicode) ? letters : undefined;
         const small = Boolean(name && SMALL_CAPITAL_GLYPH.test(name));
-        const kept = (spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode)) || small || thousandths !== 1
-          ? { ...glyph, width: glyph.width! * thousandths, ...(spelled && spelled !== glyph.unicode && spelled.startsWith(glyph.unicode) ? { spelled } : {}), ...(small ? { small } : {}) }
+        const kept = spelled || small || thousandths !== 1
+          ? { ...glyph, width: glyph.width! * thousandths, ...(spelled ? { spelled } : {}), ...(small ? { small } : {}) }
           : glyph;
         drawn.push(kept);
         all.push(kept);

@@ -7,7 +7,7 @@ import { captionTitle } from "./title";
 import { citedAway } from "./cited";
 import { boxesOf, type Flow, type Layout, type Line } from "./layout";
 import {
-  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_CITED, MENTION_FLOAT,
+  CAPTION_ALONE, CAPTION_LABEL, CAPTION_NOT_WRAPPED, CAPTION_STYLED, FLOAT_CAPTION_OVERLEAF, FLOAT_CAPTION_PARAGRAPH, FLOAT_FIGURE_EXTENT, FLOAT_FRAME, FLOAT_FRONT_MATTER, FLOAT_RULED, FLOAT_RULED_ABOVE, FLOAT_SIDE, FLOAT_TABLE_EXTENT, MENTION_CITED, MENTION_FLOAT,
 } from "./registry";
 import type { Drawn } from "./page";
 import type { Trace } from "./trace";
@@ -468,11 +468,20 @@ function frameAround(caption: Rect, ground: Ground, kind: string): Rect | null {
 // A float set between rules (float.ruled) — an algorithm, or a table in
 // booktabs: rules as wide as its first under the caption, and the float
 // runs down to the last of them before a bound.
-function ruledUnder(caption: Rect, own: Line[], ground: Ground, claimed: Rect[]): Rect | null {
+function ruledUnder(caption: Rect, own: Line[], ground: Ground, claimed: Rect[]): { rect: Rect; rule: string } | null {
   const { type } = ground;
   const x = acrossOf(caption, own, ground);
   const rules = ground.graphics.filter((g) => !g.image && g.y1 - g.y0 < 1.5 && g.y0 >= caption.y1 - 1
     && g.x0 >= x.x0 - type.bodySize && g.x1 <= x.x1 + type.bodySize && g.x1 - g.x0 >= 0.5 * (x.x1 - x.x0)).sort((a, b) => a.y0 - b.y0);
+  const over = ground.graphics.find((g) => !g.image && g.y1 - g.y0 < 1.5 && g.y1 <= caption.y0 + 1 && caption.y0 - g.y1 <= type.leading && gapBetween(g, caption).xs > 0
+    && g.x0 >= x.x0 - type.bodySize && g.x1 <= x.x1 + type.bodySize);
+  // A caption set under its float, nothing ruled right under it: the
+  // rules further down are the next float's, and this one is the pair
+  // closing on the rule over the caption (float.ruled-above).
+  if (over && !(rules.length && rules[0].y0 - caption.y1 <= type.leading)) {
+    const above = ruledAbove(caption, over, own, ground, claimed);
+    if (above) return { rect: above, rule: FLOAT_RULED_ABOVE.id };
+  }
   if (!rules.length) return null;
   const width = (r: Rect) => r.x1 - r.x0;
   // One rule each height: a rule is often painted twice over itself.
@@ -491,9 +500,24 @@ function ruledUnder(caption: Rect, own: Line[], ground: Ground, claimed: Rect[])
   const within = [...ground.graphics, ...ground.lines.filter((l) => !own.includes(l)).map(rectOf)]
     .filter((r) => r.y0 >= caption.y1 - 1 && r.y1 <= last.y1 + 1 && gapBetween(r, span).xs > 0.5 * (r.x1 - r.x0));
   explain?.(`  ruled: caption ${show(caption)}, across ${Math.round(x.x0)}-${Math.round(x.x1)}, ${same.length} rules, last ${show(last)}, ${within.length} within ${within.length ? show(union(within)) : ""}`);
-  const over = ground.graphics.find((g) => !g.image && g.y1 - g.y0 < 1.5 && g.y1 <= caption.y0 + 1 && caption.y0 - g.y1 <= type.leading && gapBetween(g, caption).xs > 0
-    && g.x0 >= x.x0 - type.bodySize && g.x1 <= x.x1 + type.bodySize);
-  return union([span, ...within, ...(over ? [over] : [])]);
+  return { rect: union([span, ...within, ...(over ? [over] : [])]), rule: FLOAT_RULED.id };
+}
+
+// The ruled float over a caption: from the rule over the caption up to the
+// nearest rule as wide as it, with no prose, heading, caption or other
+// float between them (float.ruled-above).
+function ruledAbove(caption: Rect, over: Rect, own: Line[], ground: Ground, claimed: Rect[]): Rect | null {
+  const { type } = ground;
+  const top = ground.graphics.filter((g) => !g.image && g.y1 - g.y0 < 1.5 && g.y1 < over.y0 - type.leading
+    && Math.abs(g.x0 - over.x0) <= 2 && Math.abs(g.x1 - over.x1) <= 2).sort((a, b) => b.y0 - a.y0)[0];
+  if (!top) return null;
+  const span: Rect = { x0: Math.min(caption.x0, over.x0), y0: top.y0, x1: Math.max(caption.x1, over.x1), y1: caption.y1 };
+  const inside = (r: Rect) => r.y0 >= top.y1 - 1 && r.y1 <= over.y0 + 1 && gapBetween(r, span).xs > 0.5 * (r.x1 - r.x0);
+  if (ground.bounds.some((l) => !own.includes(l) && inside(rectOf(l)))) return null;
+  if (claimed.some((b) => gapBetween(b, span).xs > 0 && gapBetween(b, { ...span, y1: over.y0 }).ys > 0)) return null;
+  const within = [...ground.graphics, ...ground.lines.filter((l) => !own.includes(l)).map(rectOf)].filter(inside);
+  explain?.(`  ruled above: caption ${show(caption)}, rules ${show(top)} to ${show(over)}, ${within.length} within`);
+  return union([span, ...within]);
 }
 
 // How much of the page a float is: its caption, and what the caption is
@@ -525,7 +549,7 @@ function extentOf(kind: string, paragraph: Line[], ground: Ground, claimed: Rect
   }
   if (kind === "algorithm" || kind === "listing") {
     const ruled = ruledUnder(caption, paragraph, ground, claimed);
-    if (ruled) return { rect: ruled, rule: FLOAT_RULED.id, fixed: true };
+    if (ruled) return { ...ruled, fixed: true };
   }
   const { rect, pieces } = band(caption, paragraph, ground, kind === "figure" ? "above" : "below", claimed, taken, kind !== "figure");
   pieces.forEach((p) => taken.add(p));

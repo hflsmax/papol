@@ -25,12 +25,18 @@ const TEXT = "The quick brown fox jumps over the lazy dog while the committee re
 // of text; [text, size, bold] a line in Helvetica, bold in Helvetica-Bold
 // ([text, size, bold, true] set straight below the line before, as a
 // heading's wrapped title is);
-// { at: x, text } is set on the line before, further right.
+// { at: x, text } is set on the line before, further right; { rule: true } is
+// a rule across the text's width.
 function writtenPdf(pages) {
   const contents = pages.map((lines) => {
     let y = 760;
     const ops = [];
     for (const line of lines) {
+      if (line?.rule) {
+        ops.push(`60 ${y + 6} 380 0.5 re f`);
+        y -= 4;
+        continue;
+      }
       if (line && typeof line === "object" && !Array.isArray(line)) {
         ops.push(`BT /F1 10 Tf ${line.at} ${y + 14} Td (${line.text}) Tj ET`);
         continue;
@@ -107,6 +113,22 @@ test("a heading too long for its column carries its title onto the next line (se
       ["3 Results.", 12, true], ["Not part of the title", 12, true, true], ...text(6)],
   ]);
   assert.deepEqual(headings.map((h) => h.title), ["Introduction", "Go Concurrency and Call Graph Enrichment", "Results."]);
+});
+
+test("a heading between two listings captioned under their code is not inside either (float.ruled-above)", async () => {
+  const code = ["for (const x of xs) {", "  if (!x) return;", "  total += x;", "}"];
+  const listing = (n) => [{ rule: true }, ...code, { rule: true }, `Listing ${n}. What the loop keeps.`];
+  const headings = await contentsOf([
+    [["1 Introduction", 12, true], ...text(6), ...listing(1), ["1.1 Loops", 10, true], ...text(6), ...listing(2), ["2 Results", 12, true], ...text(6)],
+  ]);
+  assert.deepEqual(headings.map((h) => h.number), ["1", "1.1", "2"]);
+});
+
+test("a run-in heading set bold up to its stop is titled by its bold words (section.run-in-face)", async () => {
+  const headings = await contentsOf([
+    [["1 Introduction", 12, true], ...text(8), ["1.1 Error Conversion.", 10, true], { at: 175, text: "Listing 10 checks and returns" }, ...text(6), ["2 Results", 12, true], ...text(6)],
+  ]);
+  assert.deepEqual(headings.map((h) => [h.number, h.title]), [["1", "Introduction"], ["1.1", "Error Conversion"], ["2", "Results"]]);
 });
 
 test("one numbered line is no numbering: an affiliation is not a section", async () => {

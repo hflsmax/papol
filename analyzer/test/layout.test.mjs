@@ -12,10 +12,10 @@ import * as esbuild from "esbuild";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(os.tmpdir(), `papol-rules-layout-${process.pid}.mjs`);
 await esbuild.build({
-  stdin: { contents: 'export { boxesOf, layout } from "./layout"; export { offsetsOf, offsetsAlong, ligatureSpelling } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
+  stdin: { contents: 'export { boxesOf, layout } from "./layout"; export { offsetsOf, offsetsAlong, ligatureSpelling, letterSpelling, readPage } from "./page";', resolveDir: path.join(here, "../src/rules"), loader: "ts" },
   outfile: out, bundle: true, platform: "node", format: "esm", logLevel: "error",
 });
-const { boxesOf, layout, offsetsOf, offsetsAlong, ligatureSpelling } = await import(pathToFileURL(out).href);
+const { boxesOf, layout, offsetsOf, offsetsAlong, ligatureSpelling, letterSpelling, readPage } = await import(pathToFileURL(out).href);
 
 // Times Roman's widths, as the page draws them, for what the line below uses.
 const times = new Map(Object.entries({
@@ -74,6 +74,34 @@ test("a ligature's glyph spells the letters its name joins (Verified Lock-Free S
   assert.equal(along.offsets[6], 30.67);
   // Where the text layer already spells the ligature, it is kept as it is.
   assert.equal(offsetsAlong("unique", 30.67, [...drawn.slice(0, 4), glyph("u", 1), glyph("e", 477)], 0).text, "unique");
+});
+
+test("a glyph its name calls a letter is that letter where the ToUnicode says punctuation (layout.glyph-name, ACM 3830418.3843878 page 5)", async () => {
+  // The fonts' ToUnicode was written for the T1 encoding, while their
+  // encodings put h.sc, i.sc, e.sc, l.sc, d.sc and f_i at codes 33 on:
+  // "RPCShield" came out "RPCS!\"#$%", "first" "!rst".
+  assert.equal(letterSpelling("h.sc"), "h");
+  assert.equal(letterSpelling("f_i"), "fi");
+  assert.equal(letterSpelling("fi"), "fi");
+  assert.equal(letterSpelling("uni0041"), "A");
+  assert.equal(letterSpelling("arrowright"), undefined);
+  assert.equal(letterSpelling("exclam"), undefined);
+  const OPS = { setFont: 1, showText: 2 };
+  const names = { 82: "R", 80: "P", 67: "C", 83: "S", 33: "h.sc", 34: "i.sc", 35: "e.sc", 36: "l.sc", 37: "d.sc" };
+  const codes = [82, 80, 67, 83, 33, 34, 35, 36, 37];
+  const shown = { 33: "!", 34: "\"", 35: "#", 36: "$", 37: "%" };
+  const page = {
+    view: [0, 0, 600, 800],
+    commonObjs: { get: () => ({ name: "AAAAAB+LinLibertineTB", differences: Object.assign([], names) }) },
+    getTextContent: async () => ({ items: [{ str: 'RPCS!"#$%', transform: [10, 0, 0, 10, 50, 700], width: 60, height: 10, fontName: "F1" }] }),
+    getOperatorList: async () => ({
+      fnArray: [OPS.setFont, OPS.showText],
+      argsArray: [["F1", 10], [codes.map((code) => ({ unicode: shown[code] ?? String.fromCharCode(code), width: code > 40 ? 700 : 520, originalCharCode: code }))]],
+    }),
+  };
+  const [run] = (await readPage(page, 5, OPS)).runs;
+  assert.equal(run.text, "RPCShield");
+  assert.deepEqual(run.smallCaps, [false, false, false, false, true, true, true, true, true]);
 });
 
 test("glyphs keep their widths at the size drawn and the blanks take the slack (Concurrent Incorrectness Separation Logic, page 15)", () => {
