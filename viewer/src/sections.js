@@ -405,8 +405,14 @@ const machineTitle = (title) => !/\s/.test(title) && /[\d_]|\.pdf$/i.test(title)
  */
 export function looksLikeContents(sections) {
   if (!sections || sections.length < 2) return false;
-  const machine = sections.filter((section) => machineTitle(section.title)).length;
-  if (machine * 2 > sections.length) return false;
+  // Filenames are counted over the whole outline and again over the level
+  // the bar draws. PDFs merged into one keep each file's name as a
+  // bookmark with the file's own outline beneath it; counted whole, the
+  // headings underneath outvote the names, and the bar draws
+  // "sosp26-final538.pdf" and "rpcshield-appendices.pdf" as the sections.
+  const mostlyMachine = (list) => list.filter((section) => machineTitle(section.title)).length * 2 > list.length;
+  const top = topLevel(sections);
+  if (mostlyMachine(sections) || mostlyMachine(sections.filter((section) => (section.level ?? 0) === top))) return false;
   // Judged by page, never by height on the page: in two columns the next
   // heading is often at the top of the right-hand column, *above* the one
   // before it, and a paper is not doubling back by being typeset.

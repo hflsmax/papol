@@ -14,7 +14,7 @@ import { findFloats, typeOf, type Found } from "./floats";
 import { layout as layOut, type Layout, type Line } from "./layout";
 import { readPages, type Page as PdfText, type PdfDocument, type ReadOptions } from "./page";
 import { findSections } from "./sections";
-import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
+import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_TITLE_WRAPS, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
 import { Trace } from "./trace";
 
 export interface Heading {
@@ -87,6 +87,7 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
     heads: (line, title) => !runsOn(title),
     columns: true,
   }).values()], trace);
+  const headingLines = new Set(numbered.map((s) => s.caption as Line));
   const out: (Heading & { line?: Line })[] = [];
   for (const s of numbered) {
     const line = s.caption as Line;
@@ -95,6 +96,7 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
     // A run-in heading's title ends at its stop; the paragraph runs on.
     const lead = /^(.{2,80}?[^\s.])[.:]\s+\p{Lu}/u.exec(title);
     if (lead && title.split(/\s+/).length > 8) title = lead[1];
+    else title = [title, ...wrapped(layout.pages[s.page - 1], line, headingLines, trace)].join(" ");
     out.push({ number: s.label, title, level: levelOf(s.label), page: s.page, top: s.y, line });
   }
   const numberedSections = out.filter((h) => h.level === 0).length;
@@ -162,6 +164,37 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
   return out
     .sort((a, b) => a.page - b.page || columnOrder(a, b))
     .map(({ line: _, ...heading }) => heading);
+}
+
+// The lines a numbered heading's title wraps onto: each straight below the
+// last, in its column, in the face and size the title is set in, starting
+// where the title starts (a hanging indent past the number) or where the
+// heading does; never another heading, and never past a heading that ends
+// at a stop (section.title-wraps).
+function wrapped(page: Page, heading: Line, headings: Set<Line>, trace: Trace): string[] {
+  const start = /^\s*\S+\s*(?:[.)]\s*)?/.exec(heading.text)?.[0].length ?? 0;
+  const at = heading.chars[start];
+  const run = at && at.run >= 0 ? heading.runs[at.run] : undefined;
+  if (!run) return [];
+  const titleX = run.x + (run.offsets?.[at.at] ?? 0);
+  const more: string[] = [];
+  let last = heading;
+  while (more.length < 2 && !/[.:;]\s*$/.test(last.text)) {
+    const next = page.lines
+      .filter((l) => l !== last && !l.furniture && l.column === heading.column && l.baseline > last.baseline + 1)
+      .sort((a, b) => a.baseline - b.baseline)[0];
+    if (!next || headings.has(next) || next.baseline - last.baseline > 1.5 * heading.size) break;
+    // Every word of it in the title's face: a bold run-in lead on the
+    // paragraph below ("Methodology. To assess …") is not.
+    const worded = next.runs.filter((r) => /\p{L}/u.test(r.text));
+    if (!worded.length || worded.some((r) => r.font !== run.font || r.bold !== run.bold || r.italic !== run.italic)) break;
+    if (Math.abs(next.size - heading.size) > 0.3 || /[.:]\s+\p{L}/u.test(next.text)) break;
+    if (Math.abs(next.x0 - titleX) > 2 && Math.abs(next.x0 - heading.x0) > 2) break;
+    more.push(clean(next.text));
+    last = next;
+  }
+  if (more.length) trace.add(SECTION_TITLE_WRAPS.id, page.number, clean(heading.text).slice(0, 80), []);
+  return more;
 }
 
 // The numbered headings that keep the paper's count: in reading order, a

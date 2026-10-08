@@ -22,7 +22,9 @@ const { OPS } = await getResolvedPDFJS();
 const TEXT = "The quick brown fox jumps over the lazy dog while the committee reads its report aloud";
 
 // Pages written here, each a list of lines from the top: a string is a line
-// of text; [text, size, bold] a line in Helvetica, bold in Helvetica-Bold;
+// of text; [text, size, bold] a line in Helvetica, bold in Helvetica-Bold
+// ([text, size, bold, true] set straight below the line before, as a
+// heading's wrapped title is);
 // { at: x, text } is set on the line before, further right.
 function writtenPdf(pages) {
   const contents = pages.map((lines) => {
@@ -33,8 +35,8 @@ function writtenPdf(pages) {
         ops.push(`BT /F1 10 Tf ${line.at} ${y + 14} Td (${line.text}) Tj ET`);
         continue;
       }
-      const [text, size = 10, bold = false] = typeof line === "string" ? [line] : line;
-      if (size > 10 || bold) y -= 6;
+      const [text, size = 10, bold = false, wrapped = false] = typeof line === "string" ? [line] : line;
+      if ((size > 10 || bold) && !wrapped) y -= 6;
       ops.push(`BT /${bold ? "F2" : "F1"} ${size} Tf 60 ${y} Td (${text.replace(/[()\\]/g, "\\$&")}) Tj ET`);
       y -= size + 4;
     }
@@ -97,6 +99,14 @@ test("a bold numbered line out of the paper's count is a list item, not a sectio
     [["1 Introduction", 12, true], ...text(8), ["2 Method", 12, true], ...text(6), ["7 Things we noticed on the way", 10, true], ...text(3), ["3 Results", 12, true], ...text(6)],
   ]);
   assert.deepEqual(headings.map((h) => h.number), ["1", "2", "3"]);
+});
+
+test("a heading too long for its column carries its title onto the next line (section.title-wraps)", async () => {
+  const headings = await contentsOf([
+    [["1 Introduction", 12, true], ...text(8), ["2 Go", 12, true], ["Concurrency and Call Graph Enrichment", 12, true, true], ...text(6),
+      ["3 Results.", 12, true], ["Not part of the title", 12, true, true], ...text(6)],
+  ]);
+  assert.deepEqual(headings.map((h) => h.title), ["Introduction", "Go Concurrency and Call Graph Enrichment", "Results."]);
 });
 
 test("one numbered line is no numbering: an affiliation is not a section", async () => {
