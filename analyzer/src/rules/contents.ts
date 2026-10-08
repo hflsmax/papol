@@ -14,7 +14,7 @@ import { findFloats, typeOf, type Found } from "./floats";
 import { layout as layOut, type Layout, type Line } from "./layout";
 import { readPages, type Page as PdfText, type PdfDocument, type ReadOptions } from "./page";
 import { findSections } from "./sections";
-import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_TITLE_WRAPS, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
+import { SECTION_CONTENTS_PAGE, SECTION_IN_SEQUENCE, SECTION_RUN_IN_FACE, SECTION_TITLE_WRAPS, SECTION_UNNUMBERED_NAME, SECTION_UNNUMBERED_STYLE } from "./registry";
 import { Trace } from "./trace";
 
 export interface Heading {
@@ -93,9 +93,13 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
     const line = s.caption as Line;
     const text = clean(line.text);
     let title = text.replace(/^\S+\s*/, "").replace(/^[.)]\s*/, "");
-    // A run-in heading's title ends at its stop; the paragraph runs on.
+    // A run-in heading's title ends at its stop; the paragraph runs on:
+    // where the face changes, set bold up to a stop and plain after it
+    // (section.run-in-face), or else past eight words.
+    const runIn = boldLead(line);
     const lead = /^(.{2,80}?[^\s.])[.:]\s+\p{Lu}/u.exec(title);
-    if (lead && title.split(/\s+/).length > 8) title = lead[1];
+    if (runIn) { title = runIn; trace.add(SECTION_RUN_IN_FACE.id, s.page, text.slice(0, 80), []); }
+    else if (lead && title.split(/\s+/).length > 8) title = lead[1];
     else title = [title, ...wrapped(layout.pages[s.page - 1], line, headingLines, trace)].join(" ");
     out.push({ number: s.label, title, level: levelOf(s.label), page: s.page, top: s.y, line });
   }
@@ -164,6 +168,22 @@ export function findContents(layout: Layout, skip: Set<Line>, floats: Iterable<F
   return out
     .sort((a, b) => a.page - b.page || columnOrder(a, b))
     .map(({ line: _, ...heading }) => heading);
+}
+
+// A heading's title set bold up to a stop with the paragraph running on
+// plain after it ("B.1.2 Error Conversion. Listing 10 checks"): the bold
+// words after the number, without the stop. Undefined for a line that
+// is not set so.
+function boldLead(line: Line): string | undefined {
+  const plain = line.runs.findIndex((r) => /\p{L}/u.test(r.text) && !r.bold);
+  if (plain <= 0 || !line.runs.slice(0, plain).some((r) => r.bold && /\p{L}/u.test(r.text))) return undefined;
+  const at = line.chars.findIndex((c) => c.run === plain);
+  const lead = clean(line.text.slice(0, at < 0 ? undefined : at));
+  // (A paragraph runs on in words; "The Source Language: λ⟨⟨op⟩⟩" names
+  // its language in the plain face and is all title.)
+  if (!/[^\s.][.:]$/.test(lead) || clean(line.text.slice(at)).split(" ").length < 2) return undefined;
+  const title = lead.replace(/^\S+\s*/, "").replace(/^[.)]\s*/, "").replace(/[.:]$/, "");
+  return title || undefined;
 }
 
 // The lines a numbered heading's title wraps onto: each straight below the

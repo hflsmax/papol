@@ -111,6 +111,11 @@ export const LAYOUT_SMALL_CAPS = rule({
   why: "Small capitals faked from a text font set \"LT-V\" at 8pt and \"AR\" at 6.4pt on a row that opens with 9pt mathematics; the name is one word.",
 });
 
+export const LAYOUT_GLYPH_NAME = rule({
+  id: "layout.glyph-name", stage: "layout",
+  summary: "A glyph the font names as a letter or letters (h.sc, f_i, fi, uni0041) that the text layer reads as punctuation or a symbol is read as what its name spells.",
+  why: "A ToUnicode written for another encoding mapped Libertine's small capitals and ligatures at codes 33 on to \"!\\\"#$%\": the bar read \"RPCS!\\\"#$% Design\" and \"Insu!cient\".",
+});
 export const LAYOUT_LIGATURE = rule({
   id: "layout.ligature", stage: "layout",
   summary: "A glyph the font names as a ligature of letters (its parts joined by \"_\", each a letter's name with any suffix: q.sc_u.sc, f_f_i) spells all of them, where the text layer maps it to fewer.",
@@ -246,6 +251,11 @@ export const FLOAT_RULED = rule({
   id: "float.ruled", stage: "float",
   summary: "An algorithm or listing with rules under its caption, as wide as each other, runs down to the last of them before a bound — whatever is set between.",
   why: "Algorithms are set in the text's own font and size, so they read as running text; the rules around them are what bounds them.",
+});
+export const FLOAT_RULED_ABOVE = rule({
+  id: "float.ruled-above", stage: "float",
+  summary: "An algorithm or listing whose caption sits right under a rule, with no rule right under the caption, is the pair of rules over its caption: from that rule up to the nearest rule as wide, with no prose, heading, caption or other float between.",
+  why: "ACM listings set the caption under the code, between rules above it; float.ruled took the next listing's rules, so each box held the prose between and swallowed six headings in one paper (B.2 among them).",
 });
 
 // ------------------------------------------------------------------ rules
@@ -503,6 +513,11 @@ export const SECTION_IN_SEQUENCE = rule({
   id: "section.in-sequence", stage: "section",
   summary: "For the contents, numbered sections are kept only where there are two or more; each when, in reading order, it is the next number or the one after; a subsection when its section is kept. A numbered line running on past a stop into more than eight words is a numbered paragraph, and leaves its number to a later line.",
   why: "A numbered list item or a figure's panel set in bold passes section.heading; in a contents it put \"15\" and \"21\" among sections 1 to 5.",
+});
+export const SECTION_RUN_IN_FACE = rule({
+  id: "section.run-in-face", stage: "section",
+  summary: "For the contents, a numbered heading set bold up to a stop, with its paragraph running on in the text's face on the same line, is titled by the bold words alone, without the stop.",
+  why: "Run-in subsections of eight words or fewer kept the paragraph's first words: \"B.1.2 Error Conversion. Listing 10 checks and returns\".",
 });
 export const SECTION_TITLE_WRAPS = rule({
   id: "section.title-wraps", stage: "section",
