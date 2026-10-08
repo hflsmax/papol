@@ -504,6 +504,11 @@ export const SECTION_IN_SEQUENCE = rule({
   summary: "For the contents, numbered sections are kept only where there are two or more; each when, in reading order, it is the next number or the one after; a subsection when its section is kept. A numbered line running on past a stop into more than eight words is a numbered paragraph, and leaves its number to a later line.",
   why: "A numbered list item or a figure's panel set in bold passes section.heading; in a contents it put \"15\" and \"21\" among sections 1 to 5.",
 });
+export const SECTION_TITLE_WRAPS = rule({
+  id: "section.title-wraps", stage: "section",
+  summary: "For the contents, a numbered heading's title carries on into the line straight below it when that line is in the heading's column, set in its font and size, starts where the title starts or where the heading does, and the heading itself does not end at a stop.",
+  why: "A heading too long for its column wraps; its title was read off its first line alone, and the bar showed \"D Go\" for \"D Go Concurrency and Call Graph Enrichment\".",
+});
 // What opens a line set like a heading and is not one, in any case.
 const anyCase = (word: string) => word.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
 const NOT_A_HEADING = ["fig", "figure", "table", "tab", "eq", "equation", "theorem", "lemma", "proof", "definition", "corollary", "proposition", "remark", "example",

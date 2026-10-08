@@ -315,6 +315,14 @@ test('an outline of production filenames is not a table of contents', () => {
   const forms = ['63: 281432c8-5add', 'AUMACA002E-800598-20170701', 'ARINCA200E-801534-20190701',
     'AUCEON001E-800690-20240101'].map((title, index) => ({ title, page: index + 1, y: 1 }));
   assert.equal(looksLikeContents(forms), false);
+  // Two PDFs merged into one: each file's name a bookmark over the file's
+  // own headings, which outnumber the names. The bar would draw the names.
+  const headings = ['Abstract', '1 Introduction', '2 Background', '3 Design', '4 Evaluation', 'References'];
+  const merged = ['sosp26-final538.pdf', 'rpcshield-appendices.pdf'].flatMap((file, part) => [
+    { title: file, level: 0, page: part * 16 + 1, y: 1 },
+    ...headings.map((title, index) => ({ title, level: 1, page: part * 16 + index + 1, y: 0.5 })),
+  ]);
+  assert.equal(looksLikeContents(merged), false);
 });
 
 test('an outline that keeps doubling back is not describing this paper', () => {
