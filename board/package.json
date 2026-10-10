@@ -17,7 +17,7 @@
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-http": "^2.6.1",
+    "@tauri-apps/plugin-http": "^2.8.1",
     "katex": "^0.18.9",
     "linkpeek": "^2.1.5",
     "react": "^19.3.0",
