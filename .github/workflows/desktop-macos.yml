@@ -113,7 +113,7 @@ jobs:
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-lint
       # The version comes from rust-toolchain.toml; see its head for why.
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
           components: clippy, rustfmt
@@ -182,7 +182,7 @@ jobs:
             ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
       - if: steps.rustup.outputs.cache-hit != 'true'
@@ -244,7 +244,7 @@ jobs:
             ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
       - if: steps.rustup.outputs.cache-hit != 'true'
@@ -308,7 +308,7 @@ jobs:
             ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
       - if: steps.rustup.outputs.cache-hit != 'true'
@@ -442,7 +442,7 @@ jobs:
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
       # The release is compiled by the Rust the gate tested with.
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
           targets: aarch64-apple-darwin
