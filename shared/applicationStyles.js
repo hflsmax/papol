@@ -3611,12 +3611,49 @@ a.button:hover {
 .landing-place-section { scroll-margin-top: 16px; }
 .landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 
-/* Something to try, until it has been: a soft ring that breathes. */
-.beckon { animation: beckon 2.2s var(--ease-out) infinite; }
-@keyframes beckon {
-  0% { box-shadow: 0 0 0 0 rgba(43, 74, 111, 0.45); }
-  70%, 100% { box-shadow: 0 0 0 8px rgba(43, 74, 111, 0); }
+/* Something to try, until it has been: outlined in the accent, a ring that
+   breathes, and a tag over it naming the gesture. */
+.beckon {
+  position: relative;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  animation: beckon 1.8s var(--ease-out) infinite;
 }
+@keyframes beckon {
+  0% { box-shadow: 0 0 0 0 rgba(43, 74, 111, 0.55); }
+  70%, 100% { box-shadow: 0 0 0 12px rgba(43, 74, 111, 0); }
+}
+.beckon[data-hint]::before {
+  content: attr(data-hint);
+  position: absolute;
+  z-index: 3;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink-inverse);
+  font: 600 var(--fs-xs)/1.3 var(--font-ui);
+  font-style: normal;
+  letter-spacing: 0;
+  white-space: nowrap;
+  vertical-align: baseline;
+  pointer-events: none;
+  translate: -50% 0;
+  animation: beckon-hint 1.8s ease-in-out infinite;
+}
+@keyframes beckon-hint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.landing .beckon { background: var(--accent-soft); }
+/* The window clips above the toolbar, so a tool's tag hangs below it. */
+.specimen-tool.beckon[data-hint]::before { top: calc(100% + 8px); bottom: auto; }
+/* A card's tag sits on its top edge, clear of the card above. */
+.board-mock-card.beckon[data-hint]::before { bottom: calc(100% - 10px); left: auto; right: 10px; translate: none; }
+/* On a phone a card is picked up by holding it. */
+@media (pointer: coarse) { .board-mock-card.beckon[data-hint]::before { content: 'Hold, then drag'; } }
 
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }
@@ -3909,7 +3946,7 @@ a.button:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .beckon, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
+  .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
   .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own, .specimen-landed { animation: none; }
   .board-mock-card[data-returning] { transition: none; }
 }
