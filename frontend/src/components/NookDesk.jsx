@@ -7,7 +7,6 @@ import { createProject } from '../../../shared/api/projects.js';
 import { createBoard } from '../../../shared/api/boards.js';
 import appLimits from '../../../shared/appLimits.js';
 import Effort from './EffortPop';
-import { RatingDots } from './Rating';
 import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -134,8 +133,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   }, [nook.papers, shelf, tag, search]);
 
   const chosen = shelfOf(shelf);
-  const rated = (key) => nook.papers.some((p) => p[key]);
-  const showMerit = rated('rating_liking');
 
   // Inside a project the rail folds to a strip of the member's projects, one
   // letter each, and opens over the project while the pointer or focus is
@@ -305,12 +302,10 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           <div className="desk-actions">{adding}</div>
         </div>
         {papers.length > 0 && (
-          <table className={showMerit ? 'desk-table' : 'desk-table no-merit'}>
+          <table className="desk-table">
             <thead>
               <tr>
                 <th scope="col" className="desk-col-title">Title</th>
-                <th scope="col" className="desk-col-dots">Depth</th>
-                {showMerit && <th scope="col" className="desk-col-dots">Merit</th>}
                 <th scope="col" className="desk-col-effort">Effort</th>
                 <th scope="col" className="desk-col-date">Added</th>
               </tr>
@@ -337,8 +332,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       </span>
                     )}
                   </td>
-                  <td className="desk-col-dots">{paper.rating_reading ? <RatingDots value={paper.rating_reading} /> : null}</td>
-                  {showMerit && <td className="desk-col-dots">{paper.rating_liking ? <RatingDots value={paper.rating_liking} /> : null}</td>}
                   <td className="desk-col-effort"><Effort effort={paper.effort} subject={paper.sha256} compact /></td>
                   <td className="desk-col-date">{added(paper.created_at)}</td>
                 </tr>
