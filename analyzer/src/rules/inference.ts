@@ -3728,10 +3728,26 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
 // rest of the line is in the text's face, or the line is the name alone
 // set as its label is (a proof case headed "T CONTRACT"); a name in a
 // listing's face is code ("[Response]" is a list type, not the law).
+// The text's italic, at its size, is running text too: a lemma's statement
+// is set in it ("only by (commute) and (app) reductions" in Relax!'s
+// Lemma 4.8). Its words make it so: math's italic is letters alone ("a,
+// b, c ∈ TyVar ::=" is a grammar).
 function inText(at: { line: Line; char: number }, length: number, labelFace: string, type: Type): boolean {
   const rest = faceOf(at.line, { start: at.char, end: at.char + length, but: true });
-  if (rest === family(type.font)) return true;
+  if (rest === family(type.font) || slantedText(at, length, rest, type)) return true;
   return rest === "" && faceOf(at.line) === labelFace;
+}
+function slantedText(at: { line: Line; char: number }, length: number, face: string, type: Type): boolean {
+  const { line } = at;
+  const runs = line.runs.filter((r) => family(r.font) === face);
+  if (face === "" || !runs.length || !runs.every((r) => (r.italic || /ital|obli/i.test(r.font)) && Math.abs(r.size - type.bodySize) <= 0.03 * type.bodySize)) return false;
+  let words = "";
+  for (let i = 0; i < line.text.length; i += 1) {
+    const ref = line.chars[i];
+    const ours = (i < at.char || i >= at.char + length) && ref && ref.run >= 0 && family(line.runs[ref.run].font) === face;
+    words += ours ? line.text[i] : " ";
+  }
+  return /\p{L}{3}/u.test(words);
 }
 
 // ... and only so: the rest of its line in the text's face.
