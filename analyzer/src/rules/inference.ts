@@ -2810,6 +2810,7 @@ function plainWords(l: Line): boolean {
 }
 // What a box holds: its lines, and the ends of a bar it found for itself.
 interface Held { lines: Line[]; strokes: number[] }
+const SIDE_CONDITION = /^\s*(?:where|when|provided|unless)\s/iu;
 function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: Held): Box {
   const bars = others.bars.filter((d) => d !== setting.bar);
   // A line nearer this rule's own bar, over or under it within its span,
@@ -3114,6 +3115,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // A table's rows are set hard on each other: one touching the
       // label's row is the next row (Px86's header over (tso-mo)'s).
       if (setting.tabled && !onRow(line, label)) continue;
+      // A side condition sets under its rule's row: one over a bar-less
+      // label's row is the row's over it, whatever reaches up to it from
+      // this one ("where p̄ = pn(𝑉)" under (let), over (if)'s "↦" with its
+      // process raised over the arrow).
+      if (!bar && SIDE_CONDITION.test(line.text) && line.bottom <= label.top + 1 && !setting.row.includes(line)) continue;
       if (![...taken].some((t) => (tall.includes(t) || tall.includes(line) ? levelBy(t, line, label.size) : level(t, line))) || [...taken].some((t) => apart(t, line))) continue;
       // A bar is about as wide as its rule's widest line: one running far
       // past an end of the rule is another rule's, touching a premise
@@ -3547,12 +3553,14 @@ const RULE_WORDS = /\b(?:rules?|laws?|axioms?)\b/i;
 const RULE_BEFORE = /\b(?:rules?|laws?|axioms?)(?![.!?]\s)\s*[[(]?\s*(?:(?:[^\s,()[\]]*[^\s,()[\].!?]|\.{3}|…),?\s+(?:and\s+|or\s+)?){0,6}$/iu;
 const RULE_AFTER = /^\s*(?:[\])]\s*)?(?:,?\s*(?:and\s+|or\s+)?[^\s,()[\]]+){0,6}\s+(?:rules?|laws?|axioms?)\b/iu;
 // ... and for a short name, "rule" hard by it, or a list of names in
-// between: "rule !", "rules ⊗, ⅋, 1 and ⊥", "the c and w rules"; not
-// "rules displayed in Figure 1".
-const RULE_JUST_BEFORE = /\b(?:rules?|laws?|axioms?)\s+(?:[^\s,()[\]]+(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+))*$/iu;
+// between, bare or each in its brackets: "rule !", "rules ⊗, ⅋, 1 and ⊥",
+// "the c and w rules", "rules (com), (select), (app)", "The (if) and (def)
+// rules"; not "rules displayed in Figure 1".
+const LISTED = String.raw`(?:[^\s,()[\]]+|\([^\s,()[\]]+\)|\[[^\s,()[\]]+\])`;
+export const RULE_JUST_BEFORE = new RegExp(String.raw`\b(?:rules?|laws?|axioms?)\s+(?:${LISTED}(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+))*$`, "iu");
 // Only a rule has premises: "the premise of tarski" calls it one.
 const PREMISE_OF = /\b(?:premises?|conclusion) of\s*$/iu;
-const RULE_JUST_AFTER = /^(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)[^\s,()[\]]+)*\s+(?:rules?|laws?|axioms?)\b/iu;
+export const RULE_JUST_AFTER = new RegExp(String.raw`^(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)${LISTED})*\s+(?:rules?|laws?|axioms?)\b`, "iu");
 // A word with a capital after a lowercase letter, or capitals running
 // into a capitalised word (MKSVar, MALam1), is no English word: a
 // camelCase name cites its rule wherever it is printed.
