@@ -2810,6 +2810,7 @@ function plainWords(l: Line): boolean {
 }
 // What a box holds: its lines, and the ends of a bar it found for itself.
 interface Held { lines: Line[]; strokes: number[] }
+const SIDE_CONDITION = /^\s*(?:where|when|provided|unless)\s/iu;
 function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Others = { lines: new Set(), bars: [] }, out?: Held): Box {
   const bars = others.bars.filter((d) => d !== setting.bar);
   // A line nearer this rule's own bar, over or under it within its span,
@@ -3114,6 +3115,11 @@ function boxOf(page: Page, label: Line, setting: Setting, type: Type, others: Ot
       // A table's rows are set hard on each other: one touching the
       // label's row is the next row (Px86's header over (tso-mo)'s).
       if (setting.tabled && !onRow(line, label)) continue;
+      // A side condition sets under its rule's row: one over a bar-less
+      // label's row is the row's over it, whatever reaches up to it from
+      // this one ("where p̄ = pn(𝑉)" under (let), over (if)'s "↦" with its
+      // process raised over the arrow).
+      if (!bar && SIDE_CONDITION.test(line.text) && line.bottom <= label.top + 1 && !setting.row.includes(line)) continue;
       if (![...taken].some((t) => (tall.includes(t) || tall.includes(line) ? levelBy(t, line, label.size) : level(t, line))) || [...taken].some((t) => apart(t, line))) continue;
       // A bar is about as wide as its rule's widest line: one running far
       // past an end of the rule is another rule's, touching a premise
