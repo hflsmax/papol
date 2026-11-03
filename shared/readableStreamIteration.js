@@ -1,8 +1,10 @@
 // pdf.js reads a page's text with `for await (const chunk of stream)` over a
-// ReadableStream. WebKit before Safari 26 (and so Papol macOS's macOS
-// webview) has no async iterator on ReadableStream, so getTextContent threw,
-// no text layer was built, and the PDF could be seen but not selected or
-// searched. This supplies the iterator where the browser does not.
+// ReadableStream. WebKit has no async iterator on ReadableStream (Safari
+// 26.6 still, and so the Mac app's webview), so getTextContent throws there:
+// the viewer built no text layer, and the upload form's reading of a PDF's
+// title block and DOI (printed.js) came back empty, leaving the form the
+// file's name. This supplies the iterator where the browser does not;
+// printed.js and the viewer's entry import it.
 
 export async function* iterateReadableStream({ preventCancel = false } = {}) {
   const reader = this.getReader();
