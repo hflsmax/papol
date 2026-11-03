@@ -2071,6 +2071,21 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
    bigger than the rule is printed. */
 .paper-clip.telescope { z-index: 20; min-width: 0; min-height: 0; cursor: pointer; }
 .paper-clip.telescope:active { cursor: pointer; }
+/* Where more than one rule goes by the name, each is tagged with its page,
+   on a tab over its top edge. */
+.telescope-tag {
+  position: absolute;
+  bottom: 100%;
+  left: -1px;
+  padding: 2px 7px 1px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  font: 12px/1.2 var(--font-ui);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
 .paper-clip.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);
