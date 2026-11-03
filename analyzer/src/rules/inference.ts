@@ -4367,13 +4367,19 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // under unw-inter-zone, all flush right). The column's strong name may
   // head its row beside its rule's bar instead, an axiom's word over a
   // rule's in one figure (app and if over c-norm and return-early,
-  // Choreographing Effects' Figure 5). Alone it is a grammar's
+  // Choreographing Effects' Figure 5), or two bare words beside their
+  // bars. Alone it is a grammar's
   // category or a judgment's form (rule.name.row).
   const headed = (c: Candidate) => c.setting.category === "row" && c.setting.side === "left" && !c.token.bracketed;
   const inColumn = (o: Candidate) => headed(o) || (o.setting.category === "beside" && o.setting.side === "left" && !o.token.bracketed);
   const setAs = (c: Candidate) => c.convention.slice(c.convention.indexOf("|"));
-  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && inColumn(o) && !weak(o)
-    && setAs(o) === setAs(c) && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
+  const aligned = (o: Candidate, c: Candidate) => o !== c && o.page === c.page && inColumn(o) && setAs(o) === setAs(c) && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1);
+  // Two bare words beside their bars in the column, set as this one is,
+  // make it a column of rules' labels as well, where the paper names its
+  // rules by words alone (NTConst under NTSend and NTChoice, Bottom2
+  // under Compute and Commute2, Choreographing Effects' Figures 10, 14).
+  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => aligned(o, c) && !weak(o))
+    || candidates.filter((o) => aligned(o, c) && o.setting.category === "beside" && o.setting.bar).length >= 2;
   // A bare word second on its row, a blank past a rule headed by a word
   // in such a column and set as it is, heads the row's second rule
   // (select right of com, let right of app).
