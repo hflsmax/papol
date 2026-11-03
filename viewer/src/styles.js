@@ -1565,7 +1565,11 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    just that measured slower, because text beside the view still repaints.
    Selection and search highlights come back once the view is still. */
 .pages.zooming .text-host { visibility: hidden; }
-.textLayer ::selection { background: rgba(43, 74, 111, 0.3); }
+/* The selection is shown by the band App paints under it (selectionInk.js),
+   from the first movement of a drag to after the browser's selection is let
+   go. The browser's own paint on top made two shades while dragging, and a
+   math face's span shaded lines above and below its own. */
+.textLayer ::selection { background: transparent; }
 .provenance-box {
   position: absolute;
   z-index: 3;

@@ -1,5 +1,43 @@
 import { STRIP_RATIO } from './ink.js';
 
+// A text box cut to the height of the span that holds it. pdf.js gives each
+// span exactly the height of its font, but the box a browser reports for the
+// text inside is as tall as the face's ascent and descent, and a math face
+// (STIX Two Math, Latin Modern Math) declares room for its tallest operator:
+// a selected "𝑀" measured five lines tall, and the band painted for its
+// line covered the paragraph. The span says where its line is; its text
+// only says how far along.
+export function withinSpan(rect, spanRect) {
+  if (!spanRect || !(spanRect.height > 0)) return rect;
+  const top = Math.max(rect.top, spanRect.top);
+  const bottom = Math.min(rect.bottom, spanRect.bottom);
+  if (bottom <= top) return rect;
+  return { left: rect.left, right: rect.right, top, bottom, width: rect.width, height: bottom - top };
+}
+
+// The boxes of a selection's text, each kept to the line it is on (see
+// withinSpan). Only text is measured: the boxes of the spans themselves,
+// which a Range also reports, say nothing that their text does not.
+export function selectionRects(range) {
+  let root = range.commonAncestorContainer;
+  if (root.nodeType === Node.TEXT_NODE) root = root.parentNode;
+  const rects = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!range.intersectsNode(node)) continue;
+    const piece = document.createRange();
+    piece.selectNodeContents(node);
+    if (node === range.startContainer) piece.setStart(node, range.startOffset);
+    if (node === range.endContainer) piece.setEnd(node, range.endOffset);
+    if (piece.collapsed) continue;
+    const span = node.parentElement;
+    const spanRect = span?.closest('.textLayer') ? span.getBoundingClientRect() : null;
+    for (const rect of piece.getClientRects()) rects.push(withinSpan(rect, spanRect));
+    piece.detach();
+  }
+  return rects.length ? rects : [...range.getClientRects()];
+}
+
 // Turn a browser text selection into one band per visual line fragment.
 // Client rectangles are intentionally kept separate across lines and pages;
 // only neighbouring pieces on the same line are joined.

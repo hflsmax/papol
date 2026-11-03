@@ -56,7 +56,7 @@ import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
 import { STRIP_RATIO } from './ink';
-import { selectionStrokes } from './selectionInk';
+import { selectionRects, selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { createPdfFinder } from './pdfSearch';
 import { cleanExcerptText } from './excerptText';
@@ -2466,7 +2466,7 @@ export default function App() {
       const focusNode = elementFor(selection.focusNode);
       if (!anchor?.closest('.textLayer') || !focusNode?.closest('.textLayer')) return false;
       const range = selection.getRangeAt(0);
-      const rects = [...range.getClientRects()];
+      const rects = selectionRects(range);
       const usable = rects.filter((rect) => rect.width > 0.5 && rect.height > 1);
       if (!usable.length) return false;
       const pageBoxes = [...scroller.querySelectorAll('.pdf-page')].map((page) => ({

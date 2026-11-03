@@ -1,5 +1,5 @@
 import { STRIP_RATIO } from './ink.js';
-import { selectionStrokes } from './selectionInk.js';
+import { selectionStrokes, withinSpan } from './selectionInk.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
 
 // The text under an ink stroke.
@@ -142,16 +142,18 @@ export function pageCharacters(pageEl, within) {
   spans.forEach((span, spanIndex) => {
     const node = span.firstChild;
     if (!node || node.nodeType !== Node.TEXT_NODE) return;
-    const spanBox = toPage(span.getBoundingClientRect());
+    const spanClient = span.getBoundingClientRect();
+    const spanBox = toPage(spanClient);
     if (spanBox.right < within.left || spanBox.left > within.right
       || spanBox.bottom < within.top || spanBox.top > within.bottom) return;
     for (let offset = 0; offset < node.length; offset += 1) {
       const range = document.createRange();
       range.setStart(node, offset);
       range.setEnd(node, offset + 1);
-      const client = range.getBoundingClientRect();
+      const glyph = range.getBoundingClientRect();
       range.detach();
-      if (!client.width && !client.height) continue;
+      if (!glyph.width && !glyph.height) continue;
+      const client = withinSpan(glyph, spanClient);
       const box = toPage(client);
       characters.push({
         page,
