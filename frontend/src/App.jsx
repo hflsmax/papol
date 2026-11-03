@@ -8,7 +8,7 @@ import { getNotifications, getPendingAdminMessages } from '../../shared/api/noti
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
-import Nook from './components/Nook';
+import Nook, { GOING_HOME } from './components/Nook';
 import { forgetLastMember, lastMember, rememberLastMember } from './lastMember';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
@@ -713,6 +713,10 @@ export default function App({ startupUser = null, startupError = null }) {
     // goes there, as it would from any page.
     if (OTHER_APPLICATIONS.some((prefix) => routePath.startsWith(prefix))) return;
     event.preventDefault();
+    // Papol's mark, or any other way home, pressed: whatever stands over
+    // the nook (an upload's form) is put away, even when the address is
+    // the nook's already and the move itself would change nothing.
+    if (routePath === '/' && !destination.search) window.dispatchEvent(new Event(GOING_HOME));
     navigate(`${routePath}${destination.search}`);
   };
 

@@ -23,6 +23,10 @@ const storedSection = (userUuid) => {
   catch { return 'papers'; }
 };
 
+// Said on the window when a member presses a way home (App.jsx): an
+// upload's form open over their nook is put away, as Cancel would.
+export const GOING_HOME = 'papol:going-home';
+
 // A nook seen before shows at once while it is fetched again (lastMember.js).
 const lastSeen = (userUuid) => kept(`nook:${userUuid}`);
 
@@ -34,6 +38,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
+  // Turned to start the upload afresh: the one put away lets go of its PDF.
+  const [uploadTurn, setUploadTurn] = useState(0);
   // A folder, or several PDFs, being brought in (FolderImport) in place
   // of the upload box: `{}` when only opened, else what was handed over.
   const [folderRequest, setFolderRequest] = useState(null);
@@ -96,6 +102,18 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   }, [incomingPaperFolder]);
 
   useEffect(() => {
+    if (!reviewingUpload) return undefined;
+    const home = () => {
+      setFolderRequest(null);
+      setReviewingUpload(false);
+      setUploadTurn((turn) => turn + 1);
+      loadNook();
+    };
+    window.addEventListener(GOING_HOME, home);
+    return () => window.removeEventListener(GOING_HOME, home);
+  }, [reviewingUpload, loadNook]);
+
+  useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
     keep(`nook:${userUuid}`, nook);
   }, [nook, userUuid]);
@@ -118,6 +136,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
       />
     ) : (
       <PaperUpload
+        key={uploadTurn}
         onReportableError={onReportableError}
         compact
         onAddFolder={(incoming) => {

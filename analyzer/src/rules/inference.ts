@@ -1506,6 +1506,18 @@ function fenceOf(page: Page, label: Line): Line[] {
 const fenced = (page: Page, line: Line, token: Token | null): Token | null => (token && token.side === "whole" && !token.bracketed && fenceOf(page, line).length
   ? { ...token, bracketed: true, square: fenceOf(page, line)[0].text.trim() === "[" } : token);
 
+// A label standing second on its row: on its left, lines of a formula
+// and, first, a label set as this one is (in its face and size, bracketed
+// alike) heading the row at the column's left edge.
+function secondOnRow(page: Page, label: Line, token: Token, lines: Line[], colLeft: number, slack: number): boolean {
+  const left = lines.filter((l) => l !== label && onRow(l, label) && sameColumn(page, l, label) && l.x1 <= label.x0 + tolerance(l, label));
+  if (left.length < 2) return false;
+  const first = left.reduce((a, b) => (b.x0 < a.x0 ? b : a));
+  const t = tokenOf(first);
+  return Boolean(t) && t!.side === "whole" && t!.bracketed === token.bracketed && Math.abs(first.size - label.size) <= 0.5 && faceOf(first, t!) === faceOf(label, token)
+    && Math.abs(first.x0 - colLeft) <= slack && left.some((l) => l !== first && tokenOf(l)?.side !== "whole");
+}
+
 function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed: Set<Line> = new Set()): Setting {
   const lines = ruleLines(page, label, type);
   if (CAPTION.test(label.text)) return { category: "none", bar: null, row: [], side: "right" };
@@ -1672,7 +1684,12 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
   // ... unless that bar has a label of its own level past its end (Env
   // between its bar and Const's, Const after it).
   const ends = (d: Drawn) => lines.some((l) => l !== label && Math.abs((l.top + l.bottom) / 2 - d.y) <= LEVEL * label.size && l.x0 >= d.x + d.w - slack && l.x0 - d.x - d.w <= FAR * label.size && tokenOf(l)?.side === "whole");
-  const heading = (d: Drawn) => (leftmost || (between && !ends(d))) && d.x >= label.x1 - slack && !overrun(d)
+  // Two rules to a row, each headed by its label: what stands to the
+  // label's left is the first rule's, its own label heading the row at
+  // the column's edge, set as this one is (def right of if's axiom,
+  // Choreographing Effects' Figure 5).
+  const second = token.side === "whole" && !leftmost && secondOnRow(page, label, token, lines, colLeft, slack);
+  const heading = (d: Drawn) => (leftmost || second || (between && !ends(d))) && d.x >= label.x1 - slack && !overrun(d)
     && (gapTo(d) <= FAR * label.size || ((label.x0 - colLeft <= INDENT * label.size || listed) && d.x + d.w <= colRight + slack));
   // Or, unless something stands between, a column of labels flush at
   // their left, each left of its rule ("(If 3)" an inch left of its bar,
@@ -2476,6 +2493,10 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
         && named(tokenOf(l)));
       const flushRight = column.filter((l) => Math.abs(l.x1 - label.x1) <= 1).length, flushLeft = column.filter((l) => Math.abs(l.x0 - label.x0) <= 1).length;
       if (flushRight >= 2 && flushLeft === 0) { row = toLeft; side = "right"; } else if (flushLeft >= 2 && flushRight === 0) { row = toRight; side = "left"; }
+      // A label heading the row at the column's edge, set as this one is,
+      // heads the first of two rules on it: this one heads the second
+      // (select right of com's axiom).
+      else if (token.side === "whole" && secondOnRow(page, label, token, toLeft, colLeft, slack)) { row = toRight; side = "left"; }
       else if (gapRight * 2 <= gapLeft) { row = toRight; side = "left"; } else if (gapLeft * 2 <= gapRight) { row = toLeft; side = "right"; }
     }
   }
@@ -4343,13 +4364,31 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // A bare word heading a row stands in a column of labels with a
   // hyphenated or spaced name heading a row on its page, set in its face
   // and size and aligned with it at either end (app, beta and invoke
-  // under unw-inter-zone, all flush right); alone it is a grammar's
+  // under unw-inter-zone, all flush right). The column's strong name may
+  // head its row beside its rule's bar instead, an axiom's word over a
+  // rule's in one figure (app and if over c-norm and return-early,
+  // Choreographing Effects' Figure 5), or two bare words beside their
+  // bars. Alone it is a grammar's
   // category or a judgment's form (rule.name.row).
   const headed = (c: Candidate) => c.setting.category === "row" && c.setting.side === "left" && !c.token.bracketed;
-  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && headed(o) && !weak(o)
-    && o.convention === c.convention && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
-  for (const c of candidates) if (!columnHead(c)) trace.add(RULE_NAME_ROW.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
-  candidates = candidates.filter(columnHead);
+  const inColumn = (o: Candidate) => headed(o) || (o.setting.category === "beside" && o.setting.side === "left" && !o.token.bracketed);
+  const setAs = (c: Candidate) => c.convention.slice(c.convention.indexOf("|"));
+  const aligned = (o: Candidate, c: Candidate) => o !== c && o.page === c.page && inColumn(o) && setAs(o) === setAs(c) && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1);
+  // Two bare words beside their bars in the column, set as this one is,
+  // make it a column of rules' labels as well, where the paper names its
+  // rules by words alone (NTConst under NTSend and NTChoice, Bottom2
+  // under Compute and Commute2, Choreographing Effects' Figures 10, 14).
+  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => aligned(o, c) && !weak(o))
+    || candidates.filter((o) => aligned(o, c) && o.setting.category === "beside" && o.setting.bar).length >= 2;
+  // A bare word second on its row, a blank past a rule headed by a word
+  // in such a column and set as it is, heads the row's second rule
+  // (select right of com, let right of app).
+  const heads = new Set(candidates.filter(columnHead));
+  const seconded = (c: Candidate) => headed(c) && c.shape === "word" && [...heads].some((o) => o !== c && o.page === c.page && headed(o) && setAs(o) === setAs(c)
+    && onRow(o.line, c.line) && o.line.x1 < c.line.x0);
+  for (const c of candidates) if (!heads.has(c) && seconded(c)) heads.add(c);
+  for (const c of candidates) if (!heads.has(c)) trace.add(RULE_NAME_ROW.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
+  candidates = candidates.filter((c) => heads.has(c));
   // Conventions: how many labels the paper sets each way, and whether the
   // text cites any weak name set that way (rule.convention): a table's
   // headers and a plot's legend are set alike too, but never cited.
