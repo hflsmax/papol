@@ -61,6 +61,16 @@ async function settledItem(token, boardUuid, url, { timeout = 60_000 } = {}) {
   }
 }
 
+// Whether YouTube, asked from here, puts the video's title in its page.
+async function youtubeNamesTheVideo() {
+  try {
+    const response = await fetch(YOUTUBE, { signal: AbortSignal.timeout(15_000) });
+    return VIDEO_TITLE.test(await response.text());
+  } catch {
+    return false;
+  }
+}
+
 // The card on the canvas for a board item, by its uuid.
 const cardSelector = (uuid) => `article.board-canvas-card[data-item-uuid="${uuid}"]`;
 
@@ -110,7 +120,21 @@ try {
   check('a placeholder stands where the card will be', videoLoading);
   const video = await settledItem(me.token, board.uuid, YOUTUBE);
   check('the card is made', !!video);
-  if (video) {
+  // YouTube, not Papol, decides whether a datacenter address gets the
+  // video's page or a consent or bot check without its title; it has
+  // refused GitHub's runners in three runs of the last hundred or so. When the Worker's
+  // card came back as the bare link, ask YouTube from this same machine:
+  // if it will not name the video here either, there was nothing for the
+  // Worker to read, and the title and picture checks say so instead of
+  // failing. The fallback itself — a YouTube card holding the link — is
+  // still checked.
+  const youtubeRefused = video && video.content === YOUTUBE && !video.sha256
+    && !(await youtubeNamesTheVideo());
+  if (video && youtubeRefused) {
+    check('as a YouTube card holding the link, since YouTube gave no title', video.kind === 'youtube',
+      JSON.stringify({ kind: video.kind, content: video.content }));
+    console.log('  [skip] the title and thumbnail: YouTube did not name the video to this machine either');
+  } else if (video) {
     check('as a YouTube card with the title and a thumbnail', video.kind === 'youtube' && VIDEO_TITLE.test(video.content) && !!video.sha256,
       JSON.stringify({ kind: video.kind, content: video.content, sha256: video.sha256 }));
     const shown = await browser.waitFor(
