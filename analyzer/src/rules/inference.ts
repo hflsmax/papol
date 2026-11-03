@@ -1875,6 +1875,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
         return { category: "cell", bar, row, side: "over" };
       }
       const right = bar.x + bar.w <= label.x0 + slack;
+      // Second on a row of rules headed by their labels, with a formula
+      // past it, the label heads that formula: the bar on its left is the
+      // rule before it's (BOTTOM right of P-DEF's bar, over "⊥ ⊥ ↦ ⊥",
+      // Choreographing Effects' Figure 9).
+      // The formula may run on in the label's own line ("bottom ⊥ ⊥ ↦ ⊥").
+      const past = token.side === "head" || lines.some((l) => l !== label && onRow(l, label) && sameColumn(page, l, label) && l.x0 >= label.x1 - tolerance(l, label) && tokenOf(l)?.side !== "whole");
+      if (right && past && (second || (token.side === "head" && secondOnRow(page, label, token, lines, colLeft, slack)))) continue;
       // Wholly under the bar, the bar reaching over it, the label stands
       // among what the bar concludes, not beside it ("pgn", first of a
       // plot's tick labels under its axis).
@@ -4347,7 +4354,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // A row opening with "where" goes on from the line over it
       // ("where π′ = …" under spawn's reduction).
       const over = (r: Line) => page.lines.filter((l) => !l.furniture && l.bottom <= r.top + 1 && r.top - l.bottom <= 0.5 * type.leading && l.x0 < r.x1 && l.x1 > r.x0);
-      const rule = allowed(shape, token, setting.category, setting.row.flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])), setting.side);
+      const rule = allowed(shape, token, setting.category, (token.side === "head" && setting.category === "row" && setting.side === "left" ? [{ ...line, text: line.text.slice(token.end) }, ...setting.row] : setting.row).flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])), setting.side);
       if (!rule) {
         if (setting.category === "margin") trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box));
         continue;
