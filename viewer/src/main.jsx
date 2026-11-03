@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './configurePlatform.js';
 import '../../shared/desktopShell';
 import { startFeedbackTrail } from '../../shared/feedbackTrail.js';
-import './readableStreamIteration';
+import '../../shared/readableStreamIteration.js';
 import App, { preloadPdfPage } from './App';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
