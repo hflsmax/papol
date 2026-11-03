@@ -13,6 +13,7 @@ import { markViewerPerformance, measureViewerPerformance } from './performance.j
 import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
+import { withinSpan } from './selectionInk.js';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { memberInk } from './project.js';
 import ThingBar from './ThingBar.jsx';
@@ -1153,12 +1154,15 @@ function PdfPage({
     let activeHighlight = null;
     for (const match of searchMatches) {
       for (const part of match.parts) {
-        const textNode = spans[part.spanIndex]?.firstChild;
+        const span = spans[part.spanIndex];
+        const textNode = span?.firstChild;
         if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+        const spanBox = span.getBoundingClientRect();
         const range = document.createRange();
         range.setStart(textNode, Math.min(part.start, textNode.length));
         range.setEnd(textNode, Math.min(part.end, textNode.length));
-        for (const box of range.getClientRects()) {
+        for (const glyphs of range.getClientRects()) {
+          const box = withinSpan(glyphs, spanBox);
           const highlight = document.createElement('span');
           const active = match.id === activeSearchId;
           highlight.className = `search-highlight${active ? ' search-highlight-active' : ''}`;
