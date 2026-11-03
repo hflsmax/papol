@@ -2090,6 +2090,18 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   color: var(--ink-soft);
   white-space: nowrap;
 }
+.telescope-tag::after {
+  /* The inner corner where the tab's side turns into the rule's top edge,
+     rounded as the outer ones are: the edge drawn as a quarter circle,
+     the card filled in under it. */
+  content: '';
+  position: absolute;
+  left: calc(100% - 1px);
+  bottom: 0;
+  width: 6px;
+  height: 7px;
+  background: radial-gradient(circle at 100% 0, transparent 4.5px, var(--line-strong) 5px, var(--line-strong) 5.5px, var(--card) 6px);
+}
 .paper-clip.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);
