@@ -127,7 +127,7 @@ jobs:
 
       # Saved from main only: every PR branch writing its own target/
       # would push the repository past GitHub's 10 GB and evict the rest.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -195,7 +195,7 @@ jobs:
       # One target/ for the three jobs: `cargo run` here and `tauri build
       # --debug` there compile the same dependencies. Saved from main
       # only, and by the app job alone, so none of them races for the key.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
@@ -254,7 +254,7 @@ jobs:
             ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
@@ -318,7 +318,7 @@ jobs:
             ~/.rustup/toolchains/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
             ~/.rustup/update-hashes/${{ steps.rust.outputs.channel }}-aarch64-apple-darwin
           key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.channel }}-minimal
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           shared-key: end-to-end
