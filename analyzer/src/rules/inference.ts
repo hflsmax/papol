@@ -4343,11 +4343,16 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
   // A bare word heading a row stands in a column of labels with a
   // hyphenated or spaced name heading a row on its page, set in its face
   // and size and aligned with it at either end (app, beta and invoke
-  // under unw-inter-zone, all flush right); alone it is a grammar's
+  // under unw-inter-zone, all flush right). The column's strong name may
+  // head its row beside its rule's bar instead, an axiom's word over a
+  // rule's in one figure (app and if over c-norm and return-early,
+  // Choreographing Effects' Figure 5). Alone it is a grammar's
   // category or a judgment's form (rule.name.row).
   const headed = (c: Candidate) => c.setting.category === "row" && c.setting.side === "left" && !c.token.bracketed;
-  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && headed(o) && !weak(o)
-    && o.convention === c.convention && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
+  const inColumn = (o: Candidate) => headed(o) || (o.setting.category === "beside" && o.setting.side === "left" && !o.token.bracketed);
+  const setAs = (c: Candidate) => c.convention.slice(c.convention.indexOf("|"));
+  const columnHead = (c: Candidate) => !(headed(c) && c.shape === "word") || candidates.some((o) => o !== c && o.page === c.page && inColumn(o) && !weak(o)
+    && setAs(o) === setAs(c) && (Math.abs(o.line.x1 - c.line.x1) <= 1 || Math.abs(o.line.x0 - c.line.x0) <= 1));
   for (const c of candidates) if (!columnHead(c)) trace.add(RULE_NAME_ROW.id, c.page.number, `${c.token.text} alone`, at(c.page, c.line, boxAt(c.page, c.line, c.setting)));
   candidates = candidates.filter(columnHead);
   // Conventions: how many labels the paper sets each way, and whether the

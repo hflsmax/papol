@@ -374,7 +374,7 @@ export const RULE_NAME_OVER = rule({
 });
 export const RULE_NAME_ROW = rule({
   id: "rule.name.row", stage: "rule",
-  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word; at the head of a row that reduces (an arrow between its sides), a bare word too, standing as the convention allows (rule.convention). A bare word heading an entailment (⊢, ⊨) stands as one heading a reduction does; a word in capitals throughout ending its formula's own line, set apart there by its face (rule.candidate), names that row.",
+  summary: "At the end of a row, a name is hyphenated, spaced, or a bracketed word; at the head of a row that reduces (an arrow between its sides), a bare word too, standing as the convention allows (rule.convention). A bare word heading an entailment (⊢, ⊨) stands as one heading a reduction does; a word in capitals throughout ending its formula's own line, set apart there by its face (rule.candidate), names that row. A bare word heading its row names it only in a column of labels with a hyphenated, spaced or symbol name in its face and size, heading a row or set beside a bar at the same edge (an axiom's app over c-norm in one figure).",
   why: "(BIND), (lamr), T FUNC; app, beta and invoke in small capitals heading reductions among unw-inter-zone and unw-intra-zone; a bare word ending a row is the grammar's category (\"program\", \"Syntax\") or a heading (\"INTRODUCTION\"), and one heading a judgment's row names its form (\"Typing\" before Γ ⊢ 𝑒 : 𝜏). Blaze heads \"traversable(…) … ⊢ …\" with bind among standard-bind and unsound-bind; CaReSL ends its triples with RET and SFORK.",
 });
 export const RULE_NAME_MARGIN = rule({
