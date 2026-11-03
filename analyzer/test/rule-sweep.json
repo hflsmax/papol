@@ -605,7 +605,7 @@
   },
   "kokke-popl19": {
     "rules": 100,
-    "mentions": 82,
+    "mentions": 83,
     "names": [
       ":!",
       ":?",
@@ -711,7 +711,7 @@
   },
   "let-arguments": {
     "rules": 55,
-    "mentions": 61,
+    "mentions": 63,
     "names": [
       "Abs-Chk",
       "APP",
@@ -1194,7 +1194,7 @@
   },
   "typewhich": {
     "rules": 10,
-    "mentions": 8,
+    "mentions": 9,
     "names": [
       "Add",
       "App",

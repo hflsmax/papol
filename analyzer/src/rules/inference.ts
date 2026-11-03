@@ -1875,6 +1875,13 @@ function settingOf(page: Page, label: Line, token: Token, type: Type, unclaimed:
         return { category: "cell", bar, row, side: "over" };
       }
       const right = bar.x + bar.w <= label.x0 + slack;
+      // Second on a row of rules headed by their labels, with a formula
+      // past it, the label heads that formula: the bar on its left is the
+      // rule before it's (BOTTOM right of P-DEF's bar, over "⊥ ⊥ ↦ ⊥",
+      // Choreographing Effects' Figure 9).
+      // The formula may run on in the label's own line ("bottom ⊥ ⊥ ↦ ⊥").
+      const past = token.side === "head" || lines.some((l) => l !== label && onRow(l, label) && sameColumn(page, l, label) && l.x0 >= label.x1 - tolerance(l, label) && tokenOf(l)?.side !== "whole");
+      if (right && past && (second || (token.side === "head" && secondOnRow(page, label, token, lines, colLeft, slack)))) continue;
       // Wholly under the bar, the bar reaching over it, the label stands
       // among what the bar concludes, not beside it ("pgn", first of a
       // plot's tick labels under its axis).
@@ -3691,7 +3698,28 @@ function caseAsLabel(at: Flow["at"], start: number, end: number, rule: Named): b
   return true;
 }
 
-function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{ index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number }> {
+// A word whose label is set in small capitals is cited where the text
+// sets it in them too, as the label is, though no "rule" stands by it:
+// prose sets no word so but a name ("via Compute", "via Commute2,
+// Bottom2, or HandleRet" in Choreographing Effects). Only the letters
+// past the first are held to it.
+function smallCapsAsLabel(at: Flow["at"], start: number, end: number, rule: Named): boolean {
+  if (!rule.set || rule.shape !== "word" || rule.bracketed) return false;
+  const from = rule.set.text.indexOf(rule.name);
+  if (from < 0) return false;
+  // Most of them: a font that names no glyphs shows a small capital only
+  // where its page draws the letter both ways (page.ts).
+  const most = (flags: boolean[]) => flags.length > 0 && flags.filter(Boolean).length * 2 > flags.length;
+  const label = [...rule.name].map((c, k) => from + k).filter((k, n) => n > 0 && /\p{Ll}/u.test(rule.set!.text[k]));
+  const mention: boolean[] = [];
+  for (let i = start + 1; i < end; i += 1) {
+    const there = at[i];
+    if (there && /\p{Ll}/u.test(there.line.text[there.char] ?? "")) mention.push(smallCapital(there.line, there.char));
+  }
+  return most(label.map((k) => smallCapital(rule.set!, k))) && most(mention);
+}
+
+function* mentionsIn(text: string, rules: Named[], at?: Flow["at"], linking = false): Generator<{ index: number; length: number; nameStart: number; nameEnd: number; bracketed: boolean; printed: string; rule: number }> {
   if (!rules.length) return;
   const order = rules.map((r, i) => i).sort((a, b) => rules[b].name.length - rules[a].name.length);
   // A hyphen may break the name over a line ("(Sec-" / "Chs)").
@@ -3728,7 +3756,10 @@ function* mentionsIn(text: string, rules: Named[], at?: Flow["at"]): Generator<{
     const hard = RULE_JUST_BEFORE.test(before) || PREMISE_OF.test(before) || RULE_JUST_AFTER.test(after);
     const asLabel = (i: number) => !at || (setAsLabel(at, nameStart, rules[i]) && (hard || caseAsLabel(at, nameStart, nameStart + groups.name.length, rules[i])));
     const fits = order.filter((i) => sameName(groups.name.replace(MATH_GAP, "").replace(/\s+/g, " "), rules[i].name) && asLabel(i));
-    const rule = order.find((i) => cites(rules[i], groups.name, bracketed, before, after) && asLabel(i));
+    // A hyphen broken over the line leaves the name a part of a longer one
+    // ("Order3-" / "Fun", a benchmark named in small capitals).
+    const marked = (i: number) => linking && Boolean(at) && !bracketed && !/[\p{L}\d][-‐‑]\s*$/u.test(before) && groups.name === rules[i].name && smallCapsAsLabel(at!, nameStart, nameStart + groups.name.length, rules[i]);
+    const rule = order.find((i) => (cites(rules[i], groups.name, bracketed, before, after) || marked(i)) && asLabel(i));
     const m = { index: match.index, length: match[0].length, nameStart, nameEnd: nameStart + groups.name.length, bracketed, printed: groups.name, rule: rule ?? -1 };
     if (rule !== undefined) found.push(m);
     else if (!bracketed && fits.some(listable)) listed.push({ ...m, fits: fits.filter(listable) });
@@ -4347,7 +4378,7 @@ export function findRules(layout: Layout, skip: Set<Line>, flows: Flow[], trace:
       // A row opening with "where" goes on from the line over it
       // ("where π′ = …" under spawn's reduction).
       const over = (r: Line) => page.lines.filter((l) => !l.furniture && l.bottom <= r.top + 1 && r.top - l.bottom <= 0.5 * type.leading && l.x0 < r.x1 && l.x1 > r.x0);
-      const rule = allowed(shape, token, setting.category, setting.row.flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])), setting.side);
+      const rule = allowed(shape, token, setting.category, (token.side === "head" && setting.category === "row" && setting.side === "left" ? [{ ...line, text: line.text.slice(token.end) }, ...setting.row] : setting.row).flatMap((r) => (/^\s*where\s/.test(r.text) ? [r, ...over(r)] : [r])), setting.side);
       if (!rule) {
         if (setting.category === "margin") trace.add(RULE_HEADING.id, page.number, token.text, at(page, line, box));
         continue;
@@ -4911,7 +4942,7 @@ export function findRuleMentions(flow: Flow, rules: Map<string, Rule>, layout: L
   const byName = new Map<string, Rule[]>();
   for (const r of all) byName.set(keyOf(fold(r.name)), [...byName.get(keyOf(fold(r.name))) ?? [], r]);
   for (const named of byName.values()) named.sort((a, b) => place(a.caption.page, a.caption.top) - place(b.caption.page, b.caption.top));
-  for (const m of mentionsIn(flow.text, all.map((r) => ({ ...r, set: r.labels[0] })), flow.at)) {
+  for (const m of mentionsIn(flow.text, all.map((r) => ({ ...r, set: r.labels[0] })), flow.at, true)) {
     const at = flow.at[m.nameStart];
     if (!at || labels.has(at.line)) continue;
     // A name defined more than once names the last definition before it,
