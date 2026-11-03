@@ -59,7 +59,7 @@ import { STRIP_RATIO } from './ink';
 import { selectionRects, selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
 import { createPdfFinder } from './pdfSearch';
-import { cleanExcerptText } from './excerptText';
+import { cleanExcerptText, wordsIn } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
 import { anchorKeyAction, isEditingTarget } from './anchorKeys';
@@ -266,6 +266,21 @@ function useWidth(ref) {
 }
 
 // A dig's words as one plain line, as the Worker gives them.
+// The words the paper's laid-out pages spell, for unwrapping an excerpt the
+// way the paper spells them. Each text-layer run is read on its own, so a
+// word cut at a line's end ("represen-") is never taken for a compound.
+function paperWords(scroller) {
+  const words = new Set();
+  for (const span of scroller?.querySelectorAll('.textLayer > span') || []) wordsIn(span.textContent, words);
+  return words;
+}
+
+// Selected or painted text as a reader means it: PDF line wrapping undone,
+// hyphenated line breaks rejoined, paragraphs kept.
+function excerptFromPaper(text, scroller) {
+  return cleanExcerptText(text, { knownWords: paperWords(scroller) });
+}
+
 function plainExcerpt(text = '') {
   const flat = String(text).replace(/\[([^\]]*)\]\([^)\s]*\)/g, '$1').replace(/(\*\*|__|`|^\s*>\s?)/gm, '').replace(/\s+/g, ' ').trim();
   return flat.length > 180 ? `${flat.slice(0, 177).trimEnd()}…` : flat;
@@ -658,7 +673,7 @@ export default function App() {
   useEffect(() => {
     if (!selectionPaint?.text) return undefined;
     const copy = (event) => {
-      copySelectionSnapshot(event, selectionPaint.text, window.getSelection());
+      copySelectionSnapshot(event, excerptFromPaper(selectionPaint.text, scrollerRef.current), window.getSelection());
     };
     document.addEventListener('copy', copy);
     return () => document.removeEventListener('copy', copy);
@@ -2665,7 +2680,7 @@ export default function App() {
         characters.push(...pageCharacters(el, within));
       });
       const { text, bands } = textUnderStrokes(characters, selectedStrokes, pages);
-      setInkActions((current) => current && { ...current, text: cleanExcerptText(text), bands });
+      setInkActions((current) => current && { ...current, text: excerptFromPaper(text, scrollerRef.current), bands });
     };
     readText();
     return () => {
@@ -2743,7 +2758,7 @@ export default function App() {
   const openSendText = async (text, strokes) => {
     const first = strokes[0];
     setSendSelection({
-      text: cleanExcerptText(text),
+      text: excerptFromPaper(text, scrollerRef.current),
       comment: '',
       page: first.page,
       y: first.points[0]?.y ?? 0.5,

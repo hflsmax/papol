@@ -94,21 +94,63 @@ export function strokeBounds(stroke, page) {
 
 // Pieces of text in reading order, each with the box it came from, joined as
 // a user would copy them: a space between separate words on a line, a line
-// break where the next piece starts lower, a blank line at a paragraph gap
-// or the start of another page. Selected text is joined the same way.
+// break where the next piece starts on another line, a blank line at a
+// paragraph's end or the start of another page. Selected text is joined the
+// same way.
+//
+// Most papers mark a paragraph without a gap: its first line is indented, or
+// the line before it ends a sentence short of the column's edge. Those are
+// paragraph ends too, so the excerpt unwrapping its lines keeps them.
 export function joinTextPieces(pieces) {
-  return pieces.map((piece, index) => {
-    if (index === 0) return piece.text;
+  const lines = [];
+  pieces.forEach((piece, index) => {
     const previous = pieces[index - 1];
-    const newPage = piece.page !== previous.page;
-    const newLine = piece.box.top > previous.box.top + previous.box.height * 0.55;
-    const paragraphBreak = newPage || piece.box.top - previous.box.bottom >
-      Math.max(piece.box.height, previous.box.height) * 0.8;
-    const separated = piece.box.left - previous.box.right > 1;
-    const needsSpace = !/\s$/.test(previous.text) && !/^\s/.test(piece.text);
-    const separator = paragraphBreak ? '\n\n' : newLine ? '\n' : separated ? ' ' : '';
-    return `${needsSpace ? separator : ''}${piece.text}`;
-  }).join('');
+    const below = previous && piece.box.top > previous.box.top + previous.box.height * 0.55;
+    // Back up the page: the top of the next column.
+    const above = previous && piece.box.bottom < previous.box.top;
+    if (!previous || piece.page !== previous.page || below || above) {
+      lines.push({ pieces: [piece], page: piece.page, left: piece.box.left, right: piece.box.right });
+    } else {
+      const line = lines[lines.length - 1];
+      line.pieces.push(piece);
+      line.left = Math.min(line.left, piece.box.left);
+      line.right = Math.max(line.right, piece.box.right);
+    }
+  });
+
+  const columnRight = (line) => Math.max(...lines
+    .filter((other) => other.page === line.page && other.left < line.right && other.right > line.left)
+    .map((other) => other.right));
+  const endsSentence = (line) => /[.!?:]["'\u201d\u2019)\]]*\s*$/.test(line.pieces.map((piece) => piece.text).join(''));
+
+  const separatorBefore = (line, index) => {
+    const previousLine = lines[index - 1];
+    const previous = previousLine.pieces[previousLine.pieces.length - 1];
+    const first = line.pieces[0];
+    if (first.page !== previous.page) return '\n\n';
+    if (first.box.top - previous.box.bottom > Math.max(first.box.height, previous.box.height) * 0.8) return '\n\n';
+    const em = Math.max(first.box.height, previous.box.height);
+    // Down the same column; the top of the next one is only a line break.
+    if (first.box.top > previous.box.top && endsSentence(previousLine)) {
+      // The selection's first line may start mid-line, so its left edge is
+      // no measure of the column's.
+      const indented = index > 1 && line.left - previousLine.left > em * 0.8;
+      const short = columnRight(previousLine) - previousLine.right > em * 2;
+      if (indented || short) return '\n\n';
+    }
+    return '\n';
+  };
+
+  return lines.map((line, lineIndex) => {
+    const text = line.pieces.map((piece, index) => {
+      if (index === 0) return piece.text;
+      const previous = line.pieces[index - 1];
+      const separated = piece.box.left - previous.box.right > 1;
+      const needsSpace = separated && !/\s$/.test(previous.text) && !/^\s/.test(piece.text);
+      return `${needsSpace ? ' ' : ''}${piece.text}`;
+    }).join('');
+    return lineIndex === 0 ? text : `${separatorBefore(line, lineIndex)}${text.replace(/^[ \t]+/, '')}`;
+  }).join('').replace(/[ \t]+(?=\n)/g, '');
 }
 
 // The characters of one page's text layer that could lie inside `within`
