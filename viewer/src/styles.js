@@ -2071,6 +2071,37 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
    bigger than the rule is printed. */
 .paper-clip.telescope { z-index: 20; min-width: 0; min-height: 0; cursor: pointer; }
 .paper-clip.telescope:active { cursor: pointer; }
+/* Where more than one rule goes by the name, each is tagged with its page,
+   on a tab over its top edge. */
+/* The tab and its rule are one piece: the tab stands on the rule's square
+   top-left corner, over the stretch of its top edge it covers. */
+.paper-clip.telescope.tagged { border-top-left-radius: 0; }
+.telescope-tag {
+  position: absolute;
+  z-index: 1;
+  bottom: calc(100% - 1px);
+  left: -1px;
+  padding: 2px 7px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  font: 12px/1.2 var(--font-ui);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.telescope-tag::after {
+  /* The inner corner where the tab's side turns into the rule's top edge,
+     rounded as the outer ones are: the edge drawn as a quarter circle,
+     the card filled in under it. */
+  content: '';
+  position: absolute;
+  left: calc(100% - 1px);
+  bottom: 0;
+  width: 6px;
+  height: 7px;
+  background: radial-gradient(circle at 100% 0, transparent 4.5px, var(--line-strong) 5px, var(--line-strong) 5.5px, var(--card) 6px);
+}
 .paper-clip.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);

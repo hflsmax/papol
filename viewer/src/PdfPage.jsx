@@ -489,7 +489,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}${telescope?.tag ? ' tagged' : ''}`}
       style={positionStyle}
       aria-label={telescope ? telescope.title : 'Clipped paper content'}
       // Someone else's clip is a view they cut and placed. It is theirs to
@@ -508,6 +508,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
         draggedRef.current = false;
       }}
     >
+      {telescope?.tag && <span className="telescope-tag">{telescope.tag}</span>}
       <canvas ref={canvasRef} className="clip-canvas" />
       {bar}
       {selected && !readOnly && (
@@ -2506,17 +2507,17 @@ function PdfPage({
           onSend={(blob) => onSendClip(clip, blob)}
         />
       ))}
-      {telescope && (
+      {telescope?.clips.map(({ clip, spot, tag }) => (
         <ClipBox
-          key="telescope"
-          clip={telescope.clip}
+          key={clip.uuid}
+          clip={clip}
           doc={doc}
           readOnly
-          telescope={{ ...telescope, hold: holdTelescope }}
+          telescope={{ ...telescope, tag, hold: holdTelescope }}
           selected={false}
-          onSelect={() => onFollowLink(telescope.spot)}
+          onSelect={() => onFollowLink(spot)}
         />
-      )}
+      ))}
       <span className="page-number">{pageNumber}</span>
     </div>
   );

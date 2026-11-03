@@ -18,7 +18,7 @@
   },
   "bounded-refinement": {
     "rules": 11,
-    "mentions": 3,
+    "mentions": 4,
     "names": [
       "APP",
       "CABS",

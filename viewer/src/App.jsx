@@ -2018,25 +2018,42 @@ export default function App() {
   // clip under the mention's line. Pressed, the clip leads to the rule; the
   // pointer gone, a press anywhere else, or Escape lets it go. Cmd-click on
   // the name keeps that clip: a clip on this page cut from the rule's.
+  // A name more than one rule goes by shows them all, in reading order, one
+  // under another, each tagged with its page over it (sameNamedRules.js).
+  const TELESCOPE_TAG_PX = 26;
   const telescopeOf = (link, page) => {
     const scroller = scrollerRef.current;
+    const pageEl = (number) => scroller?.querySelector(`[data-page="${number}"]`);
     const sizeOf = (number) => {
-      const el = scroller?.querySelector(`[data-page="${number}"]`);
+      const el = pageEl(number);
       return el ? { width: Number(el.dataset.pageWidth), height: Number(el.dataset.pageHeight) } : null;
     };
-    const { box, page: rulePage } = link.spot;
-    return {
-      source: { page: rulePage, x: box.x, y: box.y, w: box.w, h: box.h },
-      frame: telescopeFrame(link, box, { mention: sizeOf(page), rule: sizeOf(rulePage) }),
-    };
+    const spots = link.named ?? [link.spot];
+    const tagged = spots.length > 1;
+    // Room for a tag over each rule, as a fraction of the mention's page.
+    const tag = tagged ? TELESCOPE_TAG_PX / (pageEl(page)?.getBoundingClientRect().height || 1000) : 0;
+    let under = { ...link, h: link.h + tag };
+    const shown = spots.map((spot) => {
+      const { box, page: rulePage } = spot;
+      const frame = telescopeFrame(under, box, { mention: sizeOf(page), rule: sizeOf(rulePage) });
+      under = { ...under, y: frame.y, h: frame.h + tag };
+      return { spot, tag: tagged ? `p. ${rulePage}` : null, source: { page: rulePage, x: box.x, y: box.y, w: box.w, h: box.h }, frame };
+    });
+    // One under another, they share a left edge: the widest one's.
+    const x = Math.min(...shown.map((s) => s.frame.x));
+    for (const s of shown) s.frame.x = x;
+    return shown;
   };
   const showTelescope = (link, page, title) => {
-    setTelescope((shown) => (shown?.spot === link.spot && shown.page === page ? shown : { page, title, spot: link.spot, clip: { uuid: 'telescope', page, ...telescopeOf(link, page), floating: false } }));
+    setTelescope((shown) => (shown?.spot === link.spot && shown.page === page ? shown : {
+      page, title, spot: link.spot,
+      clips: telescopeOf(link, page).map(({ spot, tag, source, frame }, i) => ({ spot, tag, clip: { uuid: `telescope-${i}`, page, source, frame, floating: false } })),
+    }));
   };
   const letGoTelescope = () => setTelescope(null);
   const keepTelescope = (link, page) => {
     setTelescope(null);
-    createClip({ page, ...telescopeOf(link, page), floating: false });
+    for (const { source, frame } of telescopeOf(link, page)) createClip({ page, source, frame, floating: false });
   };
   useEffect(() => {
     if (!telescope) return undefined;
