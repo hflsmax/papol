@@ -489,7 +489,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}${telescope?.tag ? ' tagged' : ''}`}
       style={positionStyle}
       aria-label={telescope ? telescope.title : 'Clipped paper content'}
       // Someone else's clip is a view they cut and placed. It is theirs to

@@ -2073,15 +2073,19 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 .paper-clip.telescope:active { cursor: pointer; }
 /* Where more than one rule goes by the name, each is tagged with its page,
    on a tab over its top edge. */
+/* The tab and its rule are one piece: the tab stands on the rule's square
+   top-left corner, over the stretch of its top edge it covers. */
+.paper-clip.telescope.tagged { border-top-left-radius: 0; }
 .telescope-tag {
   position: absolute;
-  bottom: 100%;
+  z-index: 1;
+  bottom: calc(100% - 1px);
   left: -1px;
-  padding: 2px 7px 1px;
+  padding: 2px 7px;
   background: var(--card);
   border: 1px solid var(--line-strong);
   border-bottom: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: 5px 5px 0 0;
   font: 12px/1.2 var(--font-ui);
   color: var(--ink-soft);
   white-space: nowrap;
