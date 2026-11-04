@@ -179,6 +179,10 @@ ${fileDropStyles}
   position: sticky;
   top: 0;
   flex: none;
+  /* Half the shared bar's 10px above and below: the navigator is already
+     the bar's tallest control and leaves its own room over the strip. Papol
+     macOS keeps its own title-bar padding. */
+  padding-block: 5px;
 }
 
 /* In Papol macOS the bar is the window's title bar: the same height as
