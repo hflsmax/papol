@@ -219,11 +219,9 @@ ${fileDropStyles}
   /* Three lanes at one scale, and all the room the desktop title bar has
      to give (40px): the subsections' ticks over the strip, the strip, and
      the anchors under it. Strip to lower lane is six parts to
-     five. The upper lane is kept even when
-     it is empty, because it is also what sets the strip a little below
-     centre: the strip is a solid band and the marks under it are specks on
-     the bar's white, so a pair centred by the ruler reads as sitting
-     high. */
+     five. An empty upper lane takes no room (below): kept, it was a
+     blank band over the strip that made the bar tall at the top and left
+     the home button and the paper's buttons looking low beside it. */
   --nav-top: 10px;
   --nav-strip: 16px;
   --nav-lane: 14px;
@@ -241,10 +239,10 @@ ${fileDropStyles}
 }
 
 /* What is centred in the bar is what can be seen. A lane with nothing in it
-   is not seen, so it takes no room: no marks, no lower lane; and with
-   neither marks nor ticks the box is only the strip, centred exactly. */
+   is not seen, so it takes no room: no ticks, no upper lane; no marks, no
+   lower lane; and with neither the box is only the strip, centred exactly. */
 .navigator-frame.unmarked { --nav-lane: 0px; }
-.navigator-frame.unmarked.unticked { --nav-top: 0px; }
+.navigator-frame.unticked { --nav-top: 0px; }
 .navigator-frame.unmarked .navigator-lane { display: none; }
 
 /* A groove, so the strip reads as one object on the bar's white ground and
