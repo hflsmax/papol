@@ -50,6 +50,34 @@ export function matchParts(layout, start, length, normalize = (s) => s) {
   return parts;
 }
 
+// How far down the page each span's top sits, from 0 at the top edge to 1
+// at the bottom, indexed as itemLayout counts spans. PDF space runs upward
+// from the bottom of `view`, and an item's transform places its baseline.
+export function itemTops(items, view = [0, 0, 1, 1]) {
+  const [, bottom, , top] = view;
+  const height = top - bottom || 1;
+  const tops = [];
+  for (const item of items) {
+    if (typeof item?.str !== 'string' || !item.str) continue;
+    const baseline = item.transform?.[5] ?? bottom;
+    const y = (top - baseline - (item.height || 0)) / height;
+    tops.push(Math.min(1, Math.max(0, y)));
+  }
+  return tops;
+}
+
+// Where a search begins: the first result at or after `from` — a page and a
+// height on it, the middle of the reader's view when they started typing —
+// so the reader is not sent back to the first page. Past the last result it
+// comes round to the first, as moving through results does.
+export function firstResultFrom(results, from) {
+  if (!from) return 0;
+  const at = results.findIndex((result) => (
+    result.page > from.page || (result.page === from.page && result.y >= from.y)
+  ));
+  return at < 0 ? 0 : at;
+}
+
 // A finder for one document. `find` resolves to each page's matches, as
 // arrays of { parts }, or to null when a newer search overtook it. The
 // first search reads every page's text, as the controller does; later ones
@@ -82,13 +110,19 @@ export function createPdfFinder(doc, { EventBus, PDFFindController, normalizeUni
   });
 
   // The raw items behind a page's matches, read again only for a page that
-  // has any: the controller keeps its text to itself.
+  // has any: the controller keeps its text to itself. Each span's height on
+  // the page is kept too, so a search can begin where the reader is.
   const layouts = new Map();
   const layoutOf = (pageIndex) => {
     if (!layouts.has(pageIndex)) {
       layouts.set(pageIndex, doc.getPage(pageIndex + 1)
-        .then((page) => page.getTextContent({ disableNormalization: true }))
-        .then((content) => itemLayout(content.items)));
+        .then(async (page) => {
+          const content = await page.getTextContent({ disableNormalization: true });
+          return {
+            layout: itemLayout(content.items),
+            tops: itemTops(content.items, page.view),
+          };
+        }));
     }
     return layouts.get(pageIndex);
   };
@@ -116,10 +150,11 @@ export function createPdfFinder(doc, { EventBus, PDFFindController, normalizeUni
       const lengths = controller.pageMatchesLength.map((page) => page?.slice() || []);
       return Promise.all(starts.map(async (pageStarts, pageIndex) => {
         if (!pageStarts.length) return [];
-        const layout = await layoutOf(pageIndex);
-        return pageStarts.map((start, i) => ({
-          parts: matchParts(layout, start, lengths[pageIndex][i], normalizeUnicode),
-        }));
+        const { layout, tops } = await layoutOf(pageIndex);
+        return pageStarts.map((start, i) => {
+          const parts = matchParts(layout, start, lengths[pageIndex][i], normalizeUnicode);
+          return { parts, y: tops[parts[0]?.spanIndex] ?? 0 };
+        });
       }));
     },
     destroy() {

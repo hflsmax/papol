@@ -58,7 +58,7 @@ import { citationAt, superscriptCitationIndexes } from './citationText.js';
 import { STRIP_RATIO } from './ink';
 import { selectionRects, selectionStrokes } from './selectionInk';
 import { createPlacedAnimal, randomViewportPlacements } from './animalPlacement';
-import { createPdfFinder } from './pdfSearch';
+import { createPdfFinder, firstResultFrom } from './pdfSearch';
 import { cleanExcerptText, wordsIn } from './excerptText';
 import { joinTextPieces, strokeBounds, pageCharacters, textUnderStrokes } from './paintText';
 import { linkHistoryDirection } from './linkHistoryShortcut';
@@ -628,6 +628,9 @@ export default function App() {
   }, []);
   const searchWrapId = useRef(0);
   const searchInputRef = useRef(null);
+  // Where the current search began: { page, y }, set when its first letter
+  // is typed.
+  const searchOriginRef = useRef(null);
   const paperMenuRef = useRef(null);
   const learnLinkTipRef = useRef(null);
   // How much of the PDF has arrived, while it has not: null until the
@@ -1414,8 +1417,19 @@ export default function App() {
     const finder = searchFinder?.doc === doc ? searchFinder.finder : null;
     if (!query) {
       setSearchResults(NO_RESULTS);
+      setActiveSearchResult(0);
       setSearchIndexing(false);
+      searchOriginRef.current = null;
       return undefined;
+    }
+    // The search begins at the middle of the view as the reader starts
+    // typing, and stays anchored there while they refine the phrase: a
+    // longer phrase does not throw them back to the first page.
+    if (!searchOriginRef.current) {
+      const focusAt = captureFocus();
+      searchOriginRef.current = focusAt
+        ? { page: Number(focusAt.page), y: focusAt.fy }
+        : null;
     }
     // Only the first query waits on reading the text; after that an answer
     // is a few milliseconds away, and the count is left standing meanwhile.
@@ -1425,13 +1439,15 @@ export default function App() {
     finder.find(query)
       .then((pages) => {
         if (cancelled || !pages) return;
-        setSearchResults(pages.flatMap((matches, page) => (
+        const results = pages.flatMap((matches, page) => (
           matches.map((match, occurrence) => ({
             ...match,
             page: page + 1,
             id: `${page + 1}-${occurrence}`,
           }))
-        )));
+        ));
+        setSearchResults(results);
+        setActiveSearchResult(firstResultFrom(results, searchOriginRef.current));
         setSearchIndexing(false);
       })
       .catch((e) => {
@@ -1451,8 +1467,10 @@ export default function App() {
     return byPage;
   }, [searchResults]);
 
+  // The current result is chosen when a query's results come in, not here:
+  // setting it to the first while the last query's results still stand
+  // would scroll the reader to the top of the paper.
   useEffect(() => {
-    setActiveSearchResult(0);
     setSearchWrap(null);
   }, [searchQuery]);
 
@@ -1473,11 +1491,16 @@ export default function App() {
   useEffect(() => {
     const result = searchResults[activeSearchResult];
     if (!result) return;
-    scrollerRef.current
-      ?.querySelector(`.pdf-page[data-page="${result.page}"]`)
-      // Bring a lazy page close enough to render, but do not center it: the
-      // text layer will make the smaller, exact adjustment to the match.
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const scroller = scrollerRef.current;
+    const pageEl = scroller?.querySelector(`.pdf-page[data-page="${result.page}"]`);
+    if (!pageEl) return;
+    // A page already in view stays where it is: its text layer moves the
+    // view only if the match itself is out of sight. A page out of view is
+    // brought close enough to render, but not centered.
+    const view = scroller.getBoundingClientRect();
+    const box = pageEl.getBoundingClientRect();
+    if (box.bottom > view.top && box.top < view.bottom) return;
+    pageEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [searchResults, activeSearchResult]);
 
   useEffect(() => {
