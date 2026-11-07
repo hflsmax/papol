@@ -28,8 +28,8 @@
     "katex": "^0.18.9",
     "linkpeek": "^2.1.5",
     "pdfjs-dist": "^6.3.289",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
