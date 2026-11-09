@@ -52,6 +52,7 @@ import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import DeskFileDropFeedback from '../../shared/ui/FileDropFeedback.jsx';
+import { dropTarget } from './dropTarget.js';
 import { handOverDroppedPdfs, takeDroppedPdfs } from '../../shared/droppedPapers.js';
 import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
 import { droppedFolder, severalPdfs } from './agentFolder.js';
@@ -1003,6 +1004,7 @@ export default function App({ startupUser = null, startupError = null }) {
           state={deskFileDrag}
           message={deskDropNotice}
           opensViewer={mode === 'guest'}
+          into={mode === 'signed-in' ? dropTarget() : null}
         />
         <CompatibilityGate />
         <SyncAttention onSignedOut={askToSignIn} onDetails={() => navigate('/profile')} />
@@ -1080,7 +1082,7 @@ export default function App({ startupUser = null, startupError = null }) {
   return (
     <>
       <style>{applicationStyles}</style>
-      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} />
+      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} into={mode === 'signed-in' ? dropTarget() : null} />
       {adminMessageDialog}
       {macosDownloadBanner}
       {!onLanding && (

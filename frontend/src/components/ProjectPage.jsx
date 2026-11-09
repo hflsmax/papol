@@ -26,6 +26,13 @@ import { paperName } from '../../../shared/paperName.js';
 import PaperBrief from './PaperBrief';
 import BoardJacket from './BoardJacket';
 import { keep, kept } from '../lastMember';
+import ProjectAddPapers, { ArrivingPapers } from './ProjectAddPapers';
+import { addPaperToProject } from '../../../shared/api/projects.js';
+import { getNook } from '../../../shared/api/people.js';
+import { carriesFiles, isPdfFile } from '../../../shared/fileDrop.js';
+import { droppedFolder } from '../agentFolder.js';
+import { addPdfToProject } from '../projectDrop.js';
+import { setDropTarget } from '../dropTarget.js';
 
 // Kept for the projects-list cache boundary. Read state now lives on the
 // server, per item, rather than in one module-global visit snapshot.
@@ -122,6 +129,61 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
       return null;
     }
   };
+
+  // PDFs dropped on the page, or chosen in Add papers, one line each while
+  // they go to the nook and into the project; an added one leaves its line
+  // after a moment, a failed one stays until dismissed.
+  const [arriving, setArriving] = useState([]);
+  const takeFiles = useRef(null);
+  takeFiles.current = async (files) => {
+    chooseView('papers');
+    const rows = files.map((file) => ({ key: globalThis.crypto.randomUUID(), name: file.name, state: 'waiting' }));
+    setArriving((current) => [...current, ...rows]);
+    let nookShas = new Set();
+    try {
+      nookShas = new Set(((await getNook(currentUser.uuid)).papers ?? []).map((p) => p.sha256));
+    } catch { /* each PDF is sent, and the server says if it is already there */ }
+    for (const [i, file] of files.entries()) {
+      const { key } = rows[i];
+      const set = (patch) => setArriving((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+      try {
+        const { project: next, sha256 } = await addPdfToProject(projectUuid, file, { nookShas, onState: (state) => set({ state }) });
+        if (next?.uuid === projectUuid) setProject(show(next));
+        set({ state: 'added', title: next?.papers?.find((p) => p.sha256 === sha256)?.title });
+        pick(sha256);
+        window.setTimeout(() => setArriving((current) => current.filter((row) => row.key !== key)), 6000);
+        onChanged?.();
+      } catch (err) {
+        set({ state: 'failed', error: err?.message || String(err) });
+      }
+    }
+  };
+  // A PDF dropped anywhere on a project a member is in goes into it. The
+  // window's own handler (App) sees the drop already taken and leaves it;
+  // a folder is left to it, for the nook's folder review.
+  const member = Boolean(project?.is_member);
+  useEffect(() => {
+    if (!member) return undefined;
+    setDropTarget('project');
+    const drop = (event) => {
+      if (!carriesFiles(event.dataTransfer) || event.defaultPrevented) return;
+      if (droppedFolder(event.dataTransfer)) return;
+      event.preventDefault();
+      const all = Array.from(event.dataTransfer.files || []);
+      const pdfs = all.filter(isPdfFile);
+      if (!pdfs.length) {
+        setNotice('Only PDF files can be added to a project.');
+        return;
+      }
+      setNotice(pdfs.length < all.length ? 'Only the PDFs were added.' : null);
+      void takeFiles.current(pdfs);
+    };
+    document.addEventListener('drop', drop);
+    return () => {
+      document.removeEventListener('drop', drop);
+      setDropTarget(null);
+    };
+  }, [member, projectUuid]);
 
   if (error) {
     return (
@@ -319,6 +381,16 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
                 }}
                 onChanged={reload}
                 onRead={onRead}
+                adder={(
+                  <>
+                    <ProjectAddPapers
+                      project={project} currentUser={currentUser}
+                      onAdd={async (sha256) => Boolean(await act(() => addPaperToProject(project.uuid, sha256)))}
+                      onFiles={(files) => { void takeFiles.current(files); }}
+                    />
+                    <ArrivingPapers rows={arriving} onDismiss={(key) => setArriving((current) => current.filter((row) => row.key !== key))} />
+                  </>
+                )}
               />
             )}
             {view === 'boards' && (
@@ -650,7 +722,7 @@ function ProjectPaperTags({ project, paper, onChanged }) {
 // what is unread about it. Picking a row shows the paper's brief: beside
 // the list on a wide window, as the Digs tab shows a dig, and under the
 // row on a narrow one.
-function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChanged, onRead }) {
+function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChanged, onRead, adder }) {
   const isMe = (user) => user.uuid === currentUser?.uuid;
   const wide = useWide();
   const [tag, setTag] = useState(null);
@@ -662,7 +734,17 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
   // new paper, else the top one. Under a row it is only the one picked.
   const chosen = papers.find((p) => p.sha256 === picked)
     ?? (wide ? papers.find((p) => p.is_new) ?? papers[0] : null);
-  if (!project.papers.length) return <section className="project-section" aria-label="Papers" />;
+  // With no papers yet, the way to add them, and what it will hold.
+  if (!project.papers.length) {
+    return (
+      <section className="project-section project-papers-empty" aria-label="Papers">
+        <div className="project-papers-list">
+          {adder}
+          <p className="project-tags-none">No papers yet. Add one from your nook, or drop PDFs on this page; everyone in the project reads them here.</p>
+        </div>
+      </section>
+    );
+  }
   // What is new in each of the paper's digs, by dig.
   const unreadOn = (paper) => Object.fromEntries((project.digs ?? [])
     .filter((d) => d.subject.key === `paper:${paper.sha256}`)
@@ -697,6 +779,7 @@ function ProjectPapers({ project, currentUser, hasNews, picked, onPick, onChange
         </div>
       )}
       <div className="project-papers-list">
+        {adder}
         {papers.length === 0 && <p className="project-tags-none">No papers have this tag.</p>}
         <ul className="project-papers project-rows" onKeyDown={wide ? move : undefined}>
         {papers.map((paper) => {

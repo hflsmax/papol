@@ -24,10 +24,13 @@ const desk = (tab, settled, then = null, search = '') => ({
 });
 // A board's jacket opened in the Boards tab, beside its row or under it.
 const boardOpen = "document.querySelector('.project-page .project-boards-view .board-jacket-heading') && location.pathname.includes('/board/')";
+// Add papers opened, and words typed in its search.
+const ADD_OPEN = "const open = () => { const b = document.querySelector('.project-paper-add'); if (b) b.click(); else setTimeout(open, 100); }; open(); ";
+const ADD_TYPE = (text) => `const type = () => { const f = document.querySelector('.project-paper-search'); if (!f) { setTimeout(type, 100); return; } Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, ${JSON.stringify(text)}); f.dispatchEvent(new Event('input', { bubbles: true })); f.setAttribute('value', ${JSON.stringify(text)}); }; type(); `;
 // Words for a dig written in the pictures.
 const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunning with 1.3 frames before we tune anything.';
 // A PDF dropped on the window, as the browser hands one over.
-const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, cancelable: true })); return true; });";
+const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: data, cancelable: true })); return true; });";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -151,10 +154,22 @@ const SHOTS = {
   // it is fetched again.
   'nook-return': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: [`/users/${ME}/nook`], then: "document.querySelector('.way-aside a').click(); return new Promise((done) => setTimeout(() => { document.querySelector('.way-mark').click(); done(true); }, 1000));", settled: "document.querySelector('.nook .desk-title')", size: wide },
   'nook-loading': { path: '/?shell=web', hold: [`/users/${ME}/nook`], ready: "document.querySelector('.nook, .loading')", size: wide },
-  // A PDF dropped on the window from inside a project: the nook's upload
-  // takes it, its bar while it goes up, then the form.
-  'drop-uploading': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
-  'drop-form': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
+  // Add papers in a project's Papers tab: opened on a search of the nook,
+  // narrowed by a word, and a paper added from it, the search still open.
+  'desk-add-papers': { ...desk('papers', '.project-paper-found-row', ADD_OPEN + 'return true;'), size: wide },
+  'desk-add-papers-search': { ...desk('papers', '.project-paper-search[value="kalman"]', ADD_OPEN + ADD_TYPE('kalman') + 'return true;'), size: wide },
+  'desk-add-papers-added': { ...desk('papers', '.project-paper-found-state.is-held', ADD_OPEN + ADD_TYPE('kalman') + "const press = () => { const b = document.querySelector('.project-paper-found-row:not(:disabled)'); if (b) b.click(); else setTimeout(press, 100); }; setTimeout(press, 300); return true;"), size: wide },
+  'mac-add-papers': { ...desk('papers', '.project-paper-found-row', ADD_OPEN + 'return true;', '?shell=desktop'), size: wide },
+  'phone-add-papers': { ...desk('papers', '.project-paper-found-row', ADD_OPEN + 'return true;', '?shell=web'), size: phone },
+  // A PDF held over a project, and dropped on it: it goes to the nook and
+  // into the project in place, with no form.
+  'desk-drop-over': { ...desk('papers', '.desk-file-drop-overlay', "const data = new DataTransfer(); data.items.add(new File(['%PDF'], 'attention.pdf', { type: 'application/pdf' })); document.body.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: data })); return true;"), size: wide },
+  'desk-drop-adding': { ...desk('papers', '.project-paper-arriving li', null), holdThen: ['/files/upload-address'], then: "document.getElementById('project-tab-papers').click(); " + DROP, settled: "document.querySelector('.project-paper-arriving li')", size: wide },
+  'desk-drop-added': { ...desk('papers', '.project-paper-arriving .is-added', null), then: "document.getElementById('project-tab-papers').click(); " + DROP, settled: "document.querySelector('.project-paper-arriving .is-added')", size: wide },
+  // A PDF dropped on the nook: its upload takes it, its bar while it goes
+  // up, then the form.
+  'drop-uploading': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
+  'drop-form': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
   // Papol's mark pressed while a dropped PDF's form is open: the nook comes
   // back without the form.
   'drop-form-home': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", pointer: [['click', '.way-mark']], size: wide },

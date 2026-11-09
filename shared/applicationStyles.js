@@ -5235,6 +5235,35 @@ button.project-paper-tag.is-removable:hover:not(:disabled), button.project-paper
 .project-board-new-form .action-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .project-board-name { flex: 1 1 auto; min-width: 0; min-height: 36px; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); font: 600 var(--fs-base) var(--font-serif); transition: border-color var(--motion-fast) var(--ease-out); }
 .project-board-name:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: 0; }
+/* Add papers, the first row of the Papers tab: quiet until pressed, when
+   it opens in place on a search of the member's nook. Each paper there is
+   one press; PDFs from disk come in under it, one line each. */
+.project-paper-add { margin-bottom: var(--space-1); }
+.project-paper-adder { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-3); border-radius: var(--radius-lg); background: var(--card); }
+.project-paper-adder-head { display: flex; align-items: center; gap: var(--space-2); }
+.project-paper-search { font: var(--fs-base) var(--font-ui); }
+.project-paper-adder-note, .project-paper-adder-foot { margin: 0; color: var(--ink-soft); font: var(--fs-sm) var(--font-ui); }
+.project-paper-adder-note { padding: 0 var(--space-1); }
+.project-paper-adder-foot { padding: var(--space-2) var(--space-1) 0; border-top: 1px solid var(--line); }
+button.project-paper-choose { display: inline; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+button.project-paper-choose:hover:not(:disabled) { border: 0; background: none; color: var(--accent-strong); }
+.project-paper-found { display: grid; gap: 1px; max-height: 360px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+button.project-paper-found-row { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 0; padding: var(--space-2); border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink); text-align: left; }
+button.project-paper-found-row:hover:not(:disabled), button.project-paper-found-row:focus-visible { border: 0; background: var(--accent-soft); }
+button.project-paper-found-row:disabled { opacity: 1; cursor: default; }
+.project-paper-found-text { display: grid; flex: 1 1 auto; min-width: 0; }
+.project-paper-found-text strong { overflow: hidden; font: 600 var(--fs-sm) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-paper-found-text small { overflow: hidden; color: var(--ink-soft); font: italic var(--fs-xs) var(--font-serif); text-overflow: ellipsis; white-space: nowrap; }
+.project-paper-found-state { flex: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); }
+.project-paper-found-state.is-held { color: var(--ink-faint); }
+.project-paper-arriving { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.project-paper-arriving li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius); background: var(--card); font: var(--fs-sm) var(--font-ui); }
+.project-paper-arriving-name { flex: 1 1 auto; min-width: 0; overflow: hidden; font-family: var(--font-serif); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-paper-arriving-state { flex: none; color: var(--ink-soft); }
+.project-paper-arriving .is-added .project-paper-arriving-state { color: var(--accent); }
+.project-paper-arriving .is-failed .project-paper-arriving-state { color: var(--red); white-space: normal; }
+.project-paper-arriving li > button { padding: 0 var(--space-2); }
+.project-papers-empty .project-papers-list { max-width: 440px; }
 
 /* Digs as rows, the soft tiles of the Papers tab; a dig opens beside its
    row on a wide window, under it on a narrow one. */
