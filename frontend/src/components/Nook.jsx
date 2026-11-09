@@ -144,8 +144,10 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           setReviewingUpload(true);
         }}
         onPaperCreated={(paper) => {
+          // The nook stays mounted under the new paper's page, so its
+          // list and counts are brought up to date now, not on a reload.
+          loadNook();
           if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
-          else loadNook();
         }}
         onReviewChange={setReviewingUpload}
         incomingFile={incomingPaperFile}
