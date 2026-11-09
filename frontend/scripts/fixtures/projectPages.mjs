@@ -84,6 +84,16 @@ const papers = [
   },
 ];
 
+// Papers in the member's nook that the project does not hold yet, for
+// Add papers to offer; and the PDF a picture drops on the page.
+const NOOK_ONLY = [
+  { sha256: digest(0xc1), title: 'Wavefront reconstruction with neural networks on Shack-Hartmann data', authors: '["Y. Zhang", "R. Gomez"]', journal: 'Optics Express', year: 2024, added_at: daysAgo(14) },
+  { sha256: digest(0xc2), title: 'Kalman filtering for tip-tilt control at the VLT', authors: '["C. Petit", "J.-M. Conan", "C. Kulcsár"]', journal: 'JOSA A', year: 2021, added_at: daysAgo(25) },
+  { sha256: digest(0xc3), title: 'Reinforcement learning for adaptive optics control', authors: '["J. Nousiainen", "C. Rajani", "M. Kasper"]', journal: 'Optics Express', year: 2022, added_at: daysAgo(31) },
+  { sha256: digest(0xc4), title: 'Telescope vibrations: sources, measurement and mitigation', authors: '["M. Kasper"]', journal: 'SPIE', year: 2019, added_at: daysAgo(48) },
+].map((p) => ({ ...p, doi: null, users: [{ user: me, thought: null, rating_reading: null, rating_liking: null }] }));
+const DROPPED = { sha256: 'f'.repeat(64), title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017, doi: '10.48550/arXiv.1706.03762', users: [] };
+
 // Each board as the project lists it, latest first: known by its
 // description and who last put something there.
 const latest = (text, kind, by, at) => ({ text, kind, added_by: by, added_at: at });
@@ -297,6 +307,14 @@ function answer(method, path, search, sent = {}) {
   if (path === '/projects' && method === 'POST') return project;
   if (path === '/projects') return [summary, other, closed];
   if (path === `/projects/${PROJECT}`) return project;
+  // A paper added from the nook or dropped on the page: the project with it
+  // first, as the server answers. Nothing is kept, so each picture starts
+  // from the same project.
+  if (path === `/projects/${PROJECT}/papers` && method === 'POST') {
+    const found = [...NOOK_ONLY, DROPPED].find((p) => p.sha256 === sent.paper_sha256);
+    if (!found || papers.some((p) => p.sha256 === found.sha256)) return project;
+    return { ...project, papers: [{ ...found, added_by: me, added_at: new Date().toISOString(), is_new: false, in_my_nook: true, board_uuids: [], tags: [] }, ...papers] };
+  }
   if (path === `/projects/${PROJECT}/people`) {
     const asked = (search?.get('q') ?? '').toLowerCase();
     return asked ? outsiders.filter((u) => u.display_name.toLowerCase().includes(asked)) : [];
@@ -345,7 +363,7 @@ function answer(method, path, search, sent = {}) {
       papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({
         ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [],
         effort: EFFORT[i] ? { seconds: EFFORT[i], last_at: hoursAgo(3 + i * 20) } : null,
-      })),
+      })).concat(NOOK_ONLY.map((p) => listed(p, true))),
       boards: NOOK_BOARDS,
       projects: [summary, other],
     };
