@@ -252,6 +252,58 @@ describe("the paper", () => {
     assert.deepEqual(citations.map((c) => c.keys), [["b0"], ["b2"], ["b1"]]);
   });
 
+  it("reads AAAI's references, parted only by a little more space than the leading, with names parted by semicolons", async () => {
+    // No numbers, no hanging indent: lines 11pt apart within an entry, 12.8
+    // between two, as AAAI sets them.
+    const pdf = writtenPdf([
+      [60, 740, "Games were played before (Pell 1992; Browne and Maire 2010),"],
+      [60, 725, "as in (Genesereth, Love, and Pell 2005), after Pitrat (1968)."],
+      [60, 300, "References", 12],
+      [60, 280, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [60, 269, "IEEE Transactions on Computational Intelligence and AI in"],
+      [60, 258, "Games, 2(1): 1-16."],
+      [60, 245.2, "Genesereth, M.; Love, N.; and Pell, B. 2005. General Game"],
+      [60, 234.2, "Playing: Overview of the AAAI Competition. AI Magazine,"],
+      [60, 223.2, "26: 62-72."],
+      [60, 210.4, "Pell, B. 1992. METAGAME in Symmetric Chess-Like"],
+      [60, 199.4, "Games. In Heuristic Programming in Artificial Intelligence."],
+      [60, 186.6, "Pitrat, J. 1968. Realization of a general game-playing pro-"],
+      [60, 175.6, "gram. In IFIP Congress, 1570-1574."],
+    ]);
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, year: r.year })), [
+      { title: "Evolutionary game design", authors: ["C. Browne", "F. Maire"], year: 2010 },
+      { title: "General Game Playing: Overview of the AAAI Competition", authors: ["M. Genesereth", "N. Love", "B. Pell"], year: 2005 },
+      { title: "METAGAME in Symmetric Chess-Like Games", authors: ["B. Pell"], year: 1992 },
+      { title: "Realization of a general game-playing program", authors: ["J. Pitrat"], year: 1968 },
+    ]);
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b2"]], ["Browne and Maire 2010", ["b0"]], ["Genesereth, Love, and Pell 2005", ["b1"]], ["Pitrat (1968)", ["b3"]],
+    ]);
+  });
+
+  it("reads a citation on across a column's foot, past the small notice set there", async () => {
+    // AAAI's copyright notice closes the first column of page 1, in the
+    // middle of a sentence that runs on at the top of the second.
+    const left = ["Games were described before in the", "first general language for them, as", "the competition required it to be", "(Pell 1992), and then again in the", "language of the competition (Gene-"];
+    const right = ["sereth and Love 2005; Love et al. 2006),", "which many systems took up, though", "they found it slow to reason in (Pell", "1992; Browne and Maire 2010) for", "the larger games they wanted to play."];
+    const pdf = writtenPdf([
+      ...left.map((text, i) => [60, 740 - 12 * i, text]),
+      [60, 670, "Copyright 2026, Association for the Advancement", 8],
+      [60, 661, "of Artificial Intelligence. All rights reserved.", 8],
+      ...right.map((text, i) => [320, 740 - 12 * i, text]),
+      [320, 620, "References", 12],
+      [320, 600, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [320, 580, "Genesereth, M.; and Love, N. 2005. General Game Playing."],
+      [320, 560, "Love, N.; and Hinrichs, T. 2006. Game Description Language."],
+      [320, 540, "Pell, B. 1992. METAGAME in Symmetric Chess-Like Games."],
+    ]);
+    const { citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b3"]], ["Genesereth and Love 2005", ["b1"]], ["Love et al. 2006", ["b2"]], ["Pell 1992", ["b3"]], ["Browne and Maire 2010", ["b0"]],
+    ]);
+  });
+
   it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
     const pdf = writtenPdf([
       [60, 740, "Bennett (1973; see also below), McCarthy's (1956) method, as Toffoli suggests (1981),"],
