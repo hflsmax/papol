@@ -282,6 +282,28 @@ describe("the paper", () => {
     ]);
   });
 
+  it("reads a citation on across a column's foot, past the small notice set there", async () => {
+    // AAAI's copyright notice closes the first column of page 1, in the
+    // middle of a sentence that runs on at the top of the second.
+    const left = ["Games were described before in the", "first general language for them, as", "the competition required it to be", "(Pell 1992), and then again in the", "language of the competition (Gene-"];
+    const right = ["sereth and Love 2005; Love et al. 2006),", "which many systems took up, though", "they found it slow to reason in (Pell", "1992; Browne and Maire 2010) for", "the larger games they wanted to play."];
+    const pdf = writtenPdf([
+      ...left.map((text, i) => [60, 740 - 12 * i, text]),
+      [60, 670, "Copyright 2026, Association for the Advancement", 8],
+      [60, 661, "of Artificial Intelligence. All rights reserved.", 8],
+      ...right.map((text, i) => [320, 740 - 12 * i, text]),
+      [320, 620, "References", 12],
+      [320, 600, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [320, 580, "Genesereth, M.; and Love, N. 2005. General Game Playing."],
+      [320, 560, "Love, N.; and Hinrichs, T. 2006. Game Description Language."],
+      [320, 540, "Pell, B. 1992. METAGAME in Symmetric Chess-Like Games."],
+    ]);
+    const { citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b3"]], ["Genesereth and Love 2005", ["b1"]], ["Love et al. 2006", ["b2"]], ["Pell 1992", ["b3"]], ["Browne and Maire 2010", ["b0"]],
+    ]);
+  });
+
   it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
     const pdf = writtenPdf([
       [60, 740, "Bennett (1973; see also below), McCarthy's (1956) method, as Toffoli suggests (1981),"],
