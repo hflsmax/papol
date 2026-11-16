@@ -252,6 +252,36 @@ describe("the paper", () => {
     assert.deepEqual(citations.map((c) => c.keys), [["b0"], ["b2"], ["b1"]]);
   });
 
+  it("reads AAAI's references, parted only by a little more space than the leading, with names parted by semicolons", async () => {
+    // No numbers, no hanging indent: lines 11pt apart within an entry, 12.8
+    // between two, as AAAI sets them.
+    const pdf = writtenPdf([
+      [60, 740, "Games were played before (Pell 1992; Browne and Maire 2010),"],
+      [60, 725, "as in (Genesereth, Love, and Pell 2005), after Pitrat (1968)."],
+      [60, 300, "References", 12],
+      [60, 280, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [60, 269, "IEEE Transactions on Computational Intelligence and AI in"],
+      [60, 258, "Games, 2(1): 1-16."],
+      [60, 245.2, "Genesereth, M.; Love, N.; and Pell, B. 2005. General Game"],
+      [60, 234.2, "Playing: Overview of the AAAI Competition. AI Magazine,"],
+      [60, 223.2, "26: 62-72."],
+      [60, 210.4, "Pell, B. 1992. METAGAME in Symmetric Chess-Like"],
+      [60, 199.4, "Games. In Heuristic Programming in Artificial Intelligence."],
+      [60, 186.6, "Pitrat, J. 1968. Realization of a general game-playing pro-"],
+      [60, 175.6, "gram. In IFIP Congress, 1570-1574."],
+    ]);
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, year: r.year })), [
+      { title: "Evolutionary game design", authors: ["C. Browne", "F. Maire"], year: 2010 },
+      { title: "General Game Playing: Overview of the AAAI Competition", authors: ["M. Genesereth", "N. Love", "B. Pell"], year: 2005 },
+      { title: "METAGAME in Symmetric Chess-Like Games", authors: ["B. Pell"], year: 1992 },
+      { title: "Realization of a general game-playing program", authors: ["J. Pitrat"], year: 1968 },
+    ]);
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b2"]], ["Browne and Maire 2010", ["b0"]], ["Genesereth, Love, and Pell 2005", ["b1"]], ["Pitrat (1968)", ["b3"]],
+    ]);
+  });
+
   it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
     const pdf = writtenPdf([
       [60, 740, "Bennett (1973; see also below), McCarthy's (1956) method, as Toffoli suggests (1981),"],

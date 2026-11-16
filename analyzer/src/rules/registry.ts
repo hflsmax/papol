@@ -698,10 +698,10 @@ export const FIELD_YEAR_ANY = rule({
 });
 export const FIELD_AUTHORS_INVERTED = rule({
   id: "field.authors-inverted", stage: "field",
-  summary: "Authors given surname first, \"Liu, K., Tachi, T. & Paulino, G. H.\", end at the last initials; the title follows.",
-  why: "Nature, Science and many journals list authors surname first with initials.",
-  pattern: /^(?<authors>(?:(?:de |van |von |van der |de la )?[\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?,\s(?:[\p{Lu}]\.\s?-?)+(?:,\sand\s|,\s&\s|\sand\s|\s&\s|,\s)?)+(?:\s?et al\.)?)\s*(?<rest>.*)$/u,
-  matches: ["Kresling, B. Origami-structures in nature", "Liu, K., Tachi, T. & Paulino, G. H. Invariant and smooth", "Zheng, J. P. et al. Focusing micromechanical", "Maler, E., and Yergeau, F. Extensible Markup"],
+  summary: "Authors given surname first, \"Liu, K., Tachi, T. & Paulino, G. H.\" or AAAI's \"Browne, C.; and Maire, F.\", end at the last initials; the title follows.",
+  why: "Nature, Science and many journals list authors surname first with initials; AAAI parts them with semicolons.",
+  pattern: /^(?<authors>(?:(?:de |van |von |van der |van den |von der |de la )?[\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?,\s(?:[\p{Lu}]\.\s?-?)+(?:,\sand\s|,\s&\s|;\sand\s|\sand\s|\s&\s|,\s|;\s)?)+(?:\s?et al\.)?)\s*(?<rest>.*)$/u,
+  matches: ["Kresling, B. Origami-structures in nature", "Liu, K., Tachi, T. & Paulino, G. H. Invariant and smooth", "Zheng, J. P. et al. Focusing micromechanical", "Maler, E., and Yergeau, F. Extensible Markup", "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
   rejects: ["Mako Bates, Shun Kashiwa. 2025. Efficient", "A. Author, B. Author, Title"],
 });
 export const FIELD_AUTHORS_YEAR_FIRST = rule({

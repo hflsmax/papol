@@ -159,6 +159,7 @@ function layoutStarts(lines: Line[]): Start[] {
   }
   const indentedCount = lines.filter((l) => [...edges].some((e) => near(l.x0, e + indent))).length;
   const hanging = indent > 0 && edges.size > 0 && indentedCount >= 0.15 * lines.length;
+  const spread = hanging ? null : spreadEntries(lines, size);
   const starts: Start[] = [];
   lines.forEach((line, at) => {
     if (hanging) {
@@ -170,12 +171,47 @@ function layoutStarts(lines: Line[]): Start[] {
     const sameColumn = prev && prev.page === line.page && prev.column === line.column;
     const gap = sameColumn ? line.top - prev.bottom : 0;
     const spacing = line.size * 0.35;
-    if (at === 0 || (sameColumn && gap > spacing + line.size * 0.3)
+    if (at === 0 || (sameColumn && gap > spacing + line.size * 0.3) || spread?.has(at)
       || (!sameColumn && /[.)]\s*$/.test(prev.text) && /^\p{Lu}/u.test(line.text))) {
       starts.push({ at, number: null, label: null, prefix: 0, rule: ENTRY_GAP });
     }
   });
   return starts;
+}
+
+// Some styles (AAAI's, for one) part entries by a space only a little more
+// than the leading: printed lines 11pt apart within an entry, 12.8pt
+// between two. Too little for the fixed gap above, so the leading is learned
+// from the list: the step most often seen from one printed line's foot to
+// the next one's, in the same column. A line set clearly further below the
+// one before begins an entry, where enough of the list is set that way to
+// be its pattern and not the odd tall line. A printed line pdf.js gives in
+// pieces (justified words, a raised accent) shares its foot with the line
+// it is part of, so it is no step at all. Returns the lines that begin an
+// entry, by their place in the list.
+function spreadEntries(lines: Line[], size: number): Set<number> | null {
+  const steps: { at: number; step: number }[] = [];
+  let row: Line | null = null;
+  lines.forEach((line, at) => {
+    if (!row || row.page !== line.page || row.column !== line.column) { row = line; return; }
+    const step = line.bottom - row.bottom;
+    if (Math.abs(step) < 0.3 * size) return;
+    if (step > 0) steps.push({ at, step });
+    row = line;
+  });
+  const counts = new Map<number, number>();
+  for (const { step } of steps) {
+    const key = Math.round(step * 4) / 4;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let leading = 0, most = 0;
+  for (const [step, count] of counts) if (count > most) { leading = step; most = count; }
+  if (!leading) return null;
+  const wider = steps.filter(({ step }) => step > leading + 0.12 * size && step < leading + size);
+  // The wider steps are the list's own pattern: several of them, and one at
+  // least every eight printed lines.
+  if (wider.length < 3 || wider.length * 8 < steps.length) return null;
+  return new Set(wider.map(({ at }) => at));
 }
 
 // ------------------------------------------------------------- the fields
@@ -294,9 +330,24 @@ function firstWork(raw: string): string {
   return next ? raw.slice(0, next.index + 6) + "." : raw;
 }
 
+// TeX sets an accent as a character of its own beside its letter, and the
+// PDF gives it back so: "Bj¨ornsson", "Piette, ´E.", "Kram´ar". Read as
+// printed, the name parts there ("Piette, ´E." is no surname and initials).
+// Each goes onto the letter it touches, a vowel first; one that touches
+// none (pdf.js put the raised accent of "´E" after the line) is dropped.
+const SPACING_ACCENTS: Record<string, string> = { "´": "\u0301", "`": "\u0300", "ˆ": "\u0302", "˜": "\u0303", "¨": "\u0308", "˘": "\u0306", "ˇ": "\u030C", "˚": "\u030A", "˝": "\u030B" };
+export function foldEntryAccents(text: string): string {
+  return text.replace(/(\p{L})?([´`ˆ˜¨˘ˇ˚˝])(\p{L})?/gu, (_, before: string | undefined, accent: string, after: string | undefined) => {
+    const mark = SPACING_ACCENTS[accent];
+    if (after && (/[aeiouyAEIOUY]/.test(after) || !before)) return `${before ?? ""}${after}${mark}`;
+    if (before) return `${before}${mark}${after ?? ""}`;
+    return "";
+  }).normalize("NFC");
+}
+
 export function parseEntry(printed: string): Pick<Entry, "title" | "authors" | "surnames" | "year" | "yearSuffix" | "doi" | "arxiv_id" | "journal"> & { rules: string[] } {
   const rules: string[] = [];
-  const raw = firstWork(printed);
+  const raw = firstWork(foldEntryAccents(printed));
   const doiMatch = FIELD_DOI.pattern!.exec(raw);
   const doi = doiMatch ? doiMatch.groups!.doi.replace(/[.,;:)\]}>]+$/, "").toLowerCase() : null;
   if (doi) rules.push(FIELD_DOI.id);
