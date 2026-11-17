@@ -69,6 +69,12 @@ jobs:
         working-directory: analyzer
         run: npm ci && npm run typecheck && npm test
 
+      # Papol for Safari's rules: which pages open in Papol, and what the
+      # viewer may ask it to fetch. Plain Node, no dependencies.
+      - name: The Safari extension's suite
+        if: ${{ !cancelled() }}
+        run: node --test safari/policy.test.mjs
+
   # Each page's unit tests, build and browser smokes, one page to a
   # runner: side by side on one, two Chromes starving each other made the
   # frontend smoke time out.

@@ -10,6 +10,6 @@
 // thing that says the paper is there.
 export function showInNookTarget(source, nookCopy) {
   if (!nookCopy) return null;
-  if (source?.openedFile) return nookCopy.sha256 || null;
+  if (source?.openedFile && !source.fetchedFrom) return nookCopy.sha256 || null;
   return source?.nookHref?.(nookCopy) || null;
 }

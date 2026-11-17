@@ -10,7 +10,8 @@ import {
 } from '../../shared/nativeData.js';
 import { currentCredential } from '../../shared/credentials.js';
 import { paperName } from '../../shared/paperName.js';
-import { awaitPaperReading, uploadPaper } from '../../shared/api/papers.js';
+import { awaitPaperReading, createPaper, listShelves, uploadPaper } from '../../shared/api/papers.js';
+import { fetchedPdfBytes } from './fetchedPdf.js';
 import { storeFile } from '../../shared/api/files.js';
 import appLimits from '../../shared/appLimits.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
@@ -219,6 +220,48 @@ async function importOpenedFileToNook({ sha256, name, identifier, anchors, ink, 
   return paperSha256;
 }
 
+// A PDF fetched from elsewhere on the web, added to the signed-in reader's
+// nook on the web as a dropped PDF is (frontend/src/projectDrop.js): sent
+// as an upload, read, and kept on the default shelf with what the reading
+// found, or under its file name when the reading takes too long. A paper
+// the reader keeps already is only found, not sent again; one Papol holds
+// another version of is kept as that version, as the upload form's
+// default does. Answers the paper as the service has it.
+export async function addFetchedPdfToNook({ sha256, name, identifier = null, onProgress }) {
+  try {
+    const kept = await request(`/viewer/${sha256}`);
+    if (kept?.sha256) return kept;
+  } catch { /* not kept: add it */ }
+  const file = new File([fetchedPdfBytes(sha256)], name, { type: 'application/pdf' });
+  const uploaded = await uploadPaper(file, { name, identifier, onProgress });
+  if (uploaded.sha256 !== sha256) throw new Error('The PDF changed while it was open.');
+  const read = await awaitPaperReading(uploaded, { timeoutMs: NOOK_ADD_READING_TIMEOUT_MS });
+  const known = read?.existing?.sha256 && read.existing.sha256 !== sha256 ? read.existing : null;
+  const shelves = await listShelves();
+  const shelf = shelves.find((row) => row.is_default) ?? shelves[0];
+  const year = parseInt(read?.year, 10);
+  let authors = [];
+  try {
+    authors = Array.isArray(read?.authors) ? read.authors : JSON.parse(read?.authors || '[]');
+  } catch { authors = []; }
+  try {
+    return await createPaper({
+      title: read?.title || name.replace(/\.pdf$/i, ''),
+      authors: JSON.stringify(authors),
+      journal: read?.journal || null,
+      year: Number.isFinite(year) ? year : null,
+      doi: read?.doi || null,
+      ...(known
+        ? { file_path: known.file_path || `${known.sha256}.pdf`, discard_file_path: uploaded.file_path }
+        : { file_path: uploaded.file_path }),
+      shelf_uuid: shelf?.uuid,
+    });
+  } catch (failure) {
+    if (!/already in your nook/i.test(failure?.message || '')) throw failure;
+    return { sha256: known?.sha256 ?? sha256 };
+  }
+}
+
 // A PDF someone shared is theirs, not this machine's: its bytes come from
 // the service even when a local replica is open in the same app.
 const sharedReading = (paper) => Boolean(paper?.shared_by);
@@ -227,6 +270,11 @@ const sharedReading = (paper) => Boolean(paper?.shared_by);
 // Tauri-created blob: URLs with status 0, which PDF.js rejects even though the
 // bytes are present. Native viewers therefore hand PDF.js the bytes directly.
 export async function pdfLoadInput(paper, { onSyncProgress } = {}) {
+  // A PDF fetched from elsewhere on the web (fetchedPdf.js): the bytes are
+  // already in this page.
+  if (paper?.fetched_from && !paper.copy_uuid) {
+    return { data: fetchedPdfBytes(paper.sha256) };
+  }
   if (paper?.opened_file && !paper.copy_uuid) {
     return { data: await openedFileBytes(paper.sha256) };
   }

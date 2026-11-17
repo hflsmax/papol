@@ -135,6 +135,8 @@ ${fileDropStyles}
 .viewer-notice { padding: 28px 28px 24px; }
 .viewer-notice h1 { margin: 0; font-size: var(--fs-xl); line-height: 1.3; }
 .viewer-notice p { margin: var(--space-2) 0 0; color: var(--ink-soft); }
+.viewer-notice .fetched-from { overflow-wrap: anywhere; font-size: var(--fs-sm); }
+.viewer-notice .fetched-from a { color: inherit; }
 .viewer-notice .error-actions { margin-top: var(--space-4); }
 /* Something failed while reading: said plainly, without taking the page
    away. */

@@ -822,7 +822,7 @@ export default function App() {
   // Asked over a file opened from disk while another app is the system's PDF
   // viewer, until answered here or in the Desk window this launch.
   useEffect(() => {
-    if (!source?.openedFile || !firstPageReady) return undefined;
+    if (!source?.openedFile || source.fetchedFrom || !firstPageReady) return undefined;
     let cancelled = false;
     pdfViewerStatus()
       .then((status) => {
@@ -1098,7 +1098,9 @@ export default function App() {
       else setError('Sign in to see this paper.');
       return undefined;
     }
-    const loaded = source.load();
+    // A PDF fetched from elsewhere arrives as the load does, and says how
+    // far along it is as a hosted PDF's download does.
+    const loaded = source.load({ onProgress: (progress) => { if (!cancelled) setPdfProgress(progress); } });
     const loadedAnchors = source.loadAnchors?.();
     // Not this user's paper, or not a user at all: the URL still names the
     // PDF, which anyone may read.
@@ -1280,7 +1282,7 @@ export default function App() {
   }, [pdfPaper]);
 
   useEffect(() => {
-    if (doc || source?.openedFile) {
+    if (doc || (source?.openedFile && !source.fetchedFrom)) {
       setShowPdfLoading(false);
       return undefined;
     }
@@ -4010,20 +4012,40 @@ export default function App() {
   const showInNook = () => {
     // The desktop keeps the library in its own window, so showing a paper
     // means raising that window rather than leaving this one.
-    if (source?.openedFile) {
+    if (source?.openedFile && !source.fetchedFrom) {
       focusDesktopDeskWindow(showInNookHref);
       return;
     }
     window.location.assign(showInNookHref);
   };
+  // Where signing in on the web brings the reader back to. A PDF fetched
+  // from elsewhere comes back asking to be added, because adding it is
+  // what the reader set out to do when they were asked to sign in.
+  const backAfterSignIn = () => {
+    const back = new URL(window.location.href);
+    if (source?.fetchedFrom) back.searchParams.set('nook', 'add');
+    return `${stripAppBase(back.pathname)}${back.search}`;
+  };
+  // Back from signing in with an add asked for: the add goes on once the
+  // PDF is open, and the request leaves the address so a reload does not
+  // add it again.
+  const resumedAdd = useRef(false);
+  useEffect(() => {
+    if (!source?.fetchedFrom || !doc || !paper?.sha256 || resumedAdd.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('nook') !== 'add') return;
+    resumedAdd.current = true;
+    params.delete('nook');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}${window.location.hash}`);
+    if (signedInHere()) addToNookOnceSignedIn();
+  }, [source, doc, paper?.sha256, addToNookOnceSignedIn]);
   const askToSignIn = () => {
     // On the desktop the Desk window does the signing in and this one
     // waits for it. On the web there is no other window: the visitor goes
     // to the sign-in page and is brought back to the link they were
     // reading, where the paper is still theirs to add.
     if (!IS_DESKTOP) {
-      const back = `${stripAppBase(window.location.pathname)}${window.location.search}`;
-      window.location.assign(appPath(`/signin?next=${encodeURIComponent(back)}`));
+      window.location.assign(appPath(`/signin?next=${encodeURIComponent(backAfterSignIn())}`));
       return;
     }
     setNookStep('waiting');
@@ -4144,7 +4166,19 @@ export default function App() {
             {linkTakenBack && (
               <p>Whoever sent you this link has stopped sharing it. Ask them for a new one.</p>
             )}
-            {(needsSignIn || !DOCUMENT_WINDOW) && (
+            {source?.fetchedFrom && (
+              <p className="fetched-from">
+                From <a href={source.fetchedFrom}>{source.fetchedFrom}</a>
+              </p>
+            )}
+            {source?.fetchedFrom && (
+              <div className="error-actions">
+                <button type="button" className="primary" onClick={() => window.location.assign(source.fetchedFrom)}>
+                  Open the original
+                </button>
+              </div>
+            )}
+            {!source?.fetchedFrom && (needsSignIn || !DOCUMENT_WINDOW) && (
               <div className="error-actions">
                 {needsSignIn && (
                   <button type="button" className="primary" onClick={signInForPaper}>
@@ -4672,6 +4706,14 @@ export default function App() {
                   {nookStep === 'adding' ? 'Adding to nook…' : 'Add to nook'}
                 </button>
               )
+            )}
+            {/* A PDF fetched from elsewhere can always go back to where it
+                came from, in the browser's own viewer: the extension lets
+                a PDF opened from Papol's viewer of it through. */}
+            {source?.fetchedFrom && (
+              <a className="bar-link original-link" href={source.fetchedFrom} title={source.fetchedFrom}>
+                Original
+              </a>
             )}
             {/* Whose annotations the pages carry: the reader's own, or a
                 project's. Only where the reader has a project holding this
