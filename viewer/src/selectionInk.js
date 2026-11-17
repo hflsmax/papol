@@ -38,6 +38,28 @@ export function selectionRects(range) {
   return rects.length ? rects : [...range.getClientRects()];
 }
 
+// The top and bottom of a line's band, from the pieces of text on it. pdf.js
+// places each span from its own font's ascent, and fonts disagree: a bullet
+// or a bracket set in a math face sits a third of a line above or below the
+// prose beside it. The band goes where most of the line's text is, measured
+// by width, among the pieces as tall as the line's tallest, so neither a
+// bullet that opens the line nor a raised citation narrower than the
+// words around it can move it.
+function lineBand(pieces) {
+  const tallest = Math.max(...pieces.map((p) => p.bottom - p.top));
+  const groups = [];
+  for (const piece of pieces) {
+    const height = piece.bottom - piece.top;
+    if (height < tallest * 0.9) continue;
+    const near = Math.max(1, height * 0.05);
+    const group = groups.find((g) => Math.abs(g.top - piece.top) <= near && Math.abs(g.bottom - piece.bottom) <= near);
+    if (group) group.width += piece.right - piece.left;
+    else groups.push({ top: piece.top, bottom: piece.bottom, width: piece.right - piece.left });
+  }
+  const { top, bottom } = groups.reduce((best, g) => (g.width > best.width ? g : best));
+  return { top, bottom };
+}
+
 // Turn a browser text selection into one band per visual line fragment.
 // Client rectangles are intentionally kept separate across lines and pages;
 // only neighbouring pieces on the same line are joined.
@@ -86,17 +108,13 @@ export function selectionStrokes(clientRects, pageBoxes) {
     if (sameLine) {
       previous.right = Math.max(previous.right, fragment.right);
       previous.left = Math.min(previous.left, fragment.left);
-      // Keep the body fragment's band rather than making the painted line
-      // jump upward and thinner around a superscript citation.
-      if (height > previousHeight) {
-        previous.top = fragment.top;
-        previous.bottom = fragment.bottom;
-      }
+      previous.pieces.push(fragment);
+      // Later pieces on the line are compared with where its band is now.
+      Object.assign(previous, lineBand(previous.pieces));
     } else {
-      lines.push({ ...fragment });
+      lines.push({ ...fragment, pieces: [fragment] });
     }
   }
-
   return lines.map(({ page, pageBox, left, right, top, bottom }) => {
     const width = Math.min(0.1, Math.max(0.001, (bottom - top) / pageBox.width));
     const nibInset = width / (2 * STRIP_RATIO);
