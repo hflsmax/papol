@@ -21,7 +21,7 @@ import { NAV_SHOWN } from './navMarks';
 import { identifierWithin } from '../../shared/identifiers.js';
 import { printedInDocument } from '../../shared/printed.js';
 import { anchorsIn, annotationKinds, clipsIn, inkIn } from './annotationKinds.js';
-import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
+import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations, whoMarked, withPrivateDigs, withProject } from './project.js';
 import { listProjects } from '../../shared/api/projects.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
@@ -1767,10 +1767,14 @@ export default function App() {
     return () => { cancelled = true; };
   }, [paper?.sha256, source]);
 
-  // With no project on, the digs on the paper are the reader's own
-  // (personal digs), and they are read, pinned and kept in the margin the
-  // same way a project's are. Only for a paper the reader can write on.
+  // The reader's own private digs on the paper (personal digs). With no
+  // project on they are the margin, read, pinned and kept the same way a
+  // project's are. With one on they stand in it too, beside the project's,
+  // marked private: the reader's notes are theirs wherever they open the
+  // paper, and nobody else ever sees them. Only for a paper the reader can
+  // write on.
   const [personalView, setPersonalView] = useState(null);
+  const [personalRead, setPersonalRead] = useState(0);
   useEffect(() => {
     if (!paper?.sha256 || !source?.loadPersonalDigs || readOnly) return undefined;
     let cancelled = false;
@@ -1781,7 +1785,7 @@ export default function App() {
       })
       .catch(() => { if (!cancelled) setPersonalView(null); });
     return () => { cancelled = true; };
-  }, [paper?.sha256, source, readOnly]);
+  }, [paper?.sha256, source, readOnly, personalRead]);
   // Everything about digs reads this: the project's when one is on, else
   // the reader's own. `projectView` still says whether a project is on.
   const digView = projectView ?? personalView;
@@ -2375,11 +2379,16 @@ export default function App() {
   // little narrower.
   const viewWidth = useWidth(scrollerRef);
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
+  // With a project on, the reader's private digs join the project's.
+  const marginDigs = useMemo(
+    () => (projectView ? withPrivateDigs(projectView, personalView) : digView),
+    [projectView, personalView, digView],
+  );
   const marginLines = useMemo(
-    () => (digView && paper ? marginLinesOf({
-      paper, paperDigs: digView.paperDigs, digs: digView.digs, anchors: shownAnchors, ink: shownInk, clips: shownClips, writing: marginWriting,
+    () => (marginDigs && paper ? marginLinesOf({
+      paper, paperDigs: marginDigs.paperDigs, digs: marginDigs.digs, anchors: shownAnchors, ink: shownInk, clips: shownClips, writing: marginWriting,
     }) : []),
-    [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
+    [marginDigs, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
   const withMargin = Boolean(digView) && viewWidth > PHONE_WIDTH && marginLines.length > 0;
   useLayoutEffect(() => { refit.current?.(); }, [withMargin]);
@@ -5004,6 +5013,7 @@ export default function App() {
               scrollerRef={scrollerRef} lines={marginLines} layoutKey={scale}
               open={marginOpen} picked={marginPicked} onOpen={(line, dig) => openInMargin(line, dig)} onClose={() => closeMargin()}
               project={digView} onChanged={marginDigChanged}
+              onPrivateChanged={() => setPersonalRead((n) => n + 1)}
             />
           )}
           {openCite && (

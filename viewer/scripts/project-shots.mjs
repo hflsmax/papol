@@ -94,6 +94,10 @@ const SHOTS = {
   // The same paper, before the fix had a project to read it in: the paper
   // alone. Ready once page one is drawn.
   'not-kept-alone': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas')`, size: wide },
+  // With the project on, the reader's own private digs stand in the margin
+  // too, ringed dashed; one pressed opens as the personal dig it is.
+  'project-private': { path: on, ready: `${painted} && document.querySelector('.dig-margin-face.is-private')`, size: wide },
+  'project-private-open': { path: on, ready: `${painted} && document.querySelector('.dig-margin-face.is-private')`, then: "document.querySelectorAll('.dig-margin-face.is-private')[1].click(); return true;", settled: '.dig-margin-card .talk-post, .dig-margin-card .md-field', size: wide },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 

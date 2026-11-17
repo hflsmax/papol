@@ -39,7 +39,7 @@ export function facesOf(pin) {
 // give way downward and never upward, so nothing sits above the place it
 // is about.
 export default function DigMargin({
-  scrollerRef, lines, layoutKey, open, picked, onOpen, onClose, project, onChanged,
+  scrollerRef, lines, layoutKey, open, picked, onOpen, onClose, project, onChanged, onPrivateChanged,
 }) {
   // Each page by number, once laid; how far each thing's faces give way
   // below their place (px); and which side of its faces the open dig
@@ -116,6 +116,9 @@ export default function DigMargin({
   // Which face the open dig is: the one asked for, else the reader's own,
   // else the one the thing opens on.
   const openDig = openLine && (open.dig && open.dig !== 'mine' ? open.dig : (openLine.pin.mine || (open.dig === 'mine' ? null : openLine.pin.uuid)));
+  // With a project on, one of the reader's own private digs may stand
+  // among the project's: it opens as what it is, a personal dig.
+  const openPrivate = Boolean(openLine && openDig && facesOf(openLine.pin).some((face) => face.private && face.uuid === openDig));
 
   // Where a thing's faces stand in its page: level with its place, and
   // as far below as they gave way.
@@ -146,14 +149,17 @@ export default function DigMargin({
             {shown.map((face) => {
               const isOpen = openLine?.key === line.key && (face.uuid ?? null) === (openDig ?? null);
               const fresh = face.is_new && !seen.has(face.uuid);
-              // With a project on, each face is ringed in its member's colour.
-              const worn = Boolean(project.uuid && face.owner);
-              const who = face.owner?.uuid && face.owner.uuid === project.me?.uuid ? 'You' : face.owner?.display_name;
+              // With a project on, each face is ringed in its member's colour;
+              // the reader's private digs among them are ringed dashed, as
+              // theirs alone.
+              const worn = Boolean(project.uuid && face.owner && !face.private);
+              const mine = face.owner?.uuid && face.owner.uuid === project.me?.uuid;
+              const who = face.private ? 'You, private' : mine ? 'You' : face.owner?.display_name;
               return (
                 <button
                   key={face.uuid ?? 'new'}
                   type="button"
-                  className={`dig-margin-face${isOpen ? ' is-open' : ''}${worn ? ' worn' : ''}`}
+                  className={`dig-margin-face${isOpen ? ' is-open' : ''}${worn ? ' worn' : ''}${face.private ? ' is-private' : ''}`}
                   style={worn ? { '--who': memberInk(face.owner) } : undefined}
                   aria-expanded={isOpen}
                   aria-label={`${who ?? 'A dig'}: ${line.label}${fresh ? ', new' : ''}`}
@@ -188,9 +194,9 @@ export default function DigMargin({
         >
           <DigThread
             key={`${openLine.key}|${openDig ?? 'mine'}`}
-            focus tucked={!open.writing} projectUuid={project.uuid} subject={openLine.subject} label={openLine.label}
+            focus tucked={!open.writing} projectUuid={openPrivate ? null : project.uuid} subject={openLine.subject} label={openLine.label}
             dig={openDig ?? 'mine'} currentUser={project.me} askBeforeRemoving={false}
-            onChanged={(discussion, total) => onChanged(openLine.subject, discussion, total)}
+            onChanged={(discussion, total) => (openPrivate ? onPrivateChanged?.() : onChanged(openLine.subject, discussion, total))}
           />
         </div>,
         pages[openLine.page],
