@@ -179,12 +179,23 @@ function answer(method, path, search) {
     const kind = search.get('kind');
     return mine.filter((a) => !kind || a.kind === kind);
   }
+  if (path === '/shelves') return [
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000001', name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 12, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000002', name: 'Personal', color: '#2b4a6f', is_public: false, is_default: false, position: 1, paper_count: 4, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000003', name: 'Drafts to review', color: '#b5683a', is_public: false, is_default: false, position: 2, paper_count: 2, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000004', name: 'Reading group', color: '#8a5cb5', is_public: true, is_default: false, position: 3, paper_count: 7, board_count: 0 },
+  ];
   if (path === '/projects') return projects;
   if (path === `/projects/${PROJECT}/papers/${PAPER}/annotations`) {
     return {
       project: { uuid: PROJECT, name: 'Adaptive optics control', members },
       me: ME,
-      annotations: NOT_KEPT ? theirs : [...mine, ...theirs],
+      // As the service answers since digs follow the shelf: of the others'
+      // marks only ink is drawn; an anchor or clip with a dig on it comes as
+      // a place alone.
+      annotations: [...(NOT_KEPT ? [] : mine), ...theirs.filter((a) => a.kind === 'ink')],
+      places: theirs.filter((a) => a.kind !== 'ink' && [id(7), id(8)].includes(a.uuid)),
+      my_shelf: NOT_KEPT ? null : (process.env.PAPOL_FIXTURE_SHELF || 'public'),
       digs: {
         [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
         [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },

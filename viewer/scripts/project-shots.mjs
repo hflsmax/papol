@@ -56,13 +56,11 @@ const SHOTS = {
   // With no room past the margin, the dig being written stands over the
   // page under its face.
   'yours-place-narrow': { path: alone, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: drop(0.62, 0.2), settled: '.dig-margin-card .talk-dig-new .md-field', size: { width: 1100, height: 800 } },
-  'project-on': { path: on, ready: `${painted} && document.querySelector('.project-pill.on') && document.querySelector('.pin.theirs')`, size: wide },
+  'project-on': { path: on, ready: `${painted} && document.querySelector('.project-pill.on') && document.querySelector('.dig-margin-face')`, size: wide },
   // No project on: each thing picked out, with the way to dig it.
   'yours-anchor': { path: alone, ready: `${painted} && document.querySelector('.pin')`, then: pick('.pin'), settled: '.thing-bar', size: wide },
   'yours-ink': { path: alone, ready: `${painted} && document.querySelector('[data-ink] .ink-grab')`, then: pick(`[data-ink="d1b2c3d4-0000-4000-8000-000000000002"] .ink-grab`), settled: '.ink-actions', size: wide },
   'yours-clip': { path: alone, ready: `${painted} && document.querySelector('.paper-clip canvas')`, then: pick('.paper-clip'), settled: '.clip-bar', size: wide },
-  // Pressing another member's anchor opens its options: their face.
-  'project-anchor': { path: on, ready: `${painted} && document.querySelector('.pin.theirs')`, then: pick('.pin.theirs'), settled: '.thing-bar .thing-face', size: wide },
   // Their face in the margin opens their dig, and only that.
   'project-dig': { path: on, ready: `${painted} && document.querySelector('.dig-margin-face')`, then: "document.querySelectorAll('.dig-margin-face')[2].click(); return true;", settled: '.dig-margin-card .talk-post', size: wide },
   // With no room past the margin, their dig opens over the page under its
@@ -94,6 +92,21 @@ const SHOTS = {
   // The same paper, before the fix had a project to read it in: the paper
   // alone. Ready once page one is drawn.
   'not-kept-alone': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas')`, size: wide },
+  // The tip under the project pill, its move pressed: the paper goes to
+  // the other kind of shelf and the tip says so.
+  // Its move pressed: the reader's shelves of the other kind to choose from.
+  'project-tip-choose': {
+    path: on, ready: `${painted} && document.querySelector('.project-visibility-tip button')`,
+    then: "document.querySelector('.project-visibility-tip button').click(); return true;",
+    settled: '.shelf-choices button', size: wide,
+  },
+  // A shelf chosen: the paper goes there and the tip says so.
+  'project-tip-moved': {
+    path: on, ready: `${painted} && document.querySelector('.project-visibility-tip button')`,
+    then: `document.querySelector('.project-visibility-tip button').click();
+      return new Promise((done) => { const t = setInterval(() => { const b = document.querySelector('.shelf-choices button'); if (b) { clearInterval(t); b.click(); done(true); } }, 50); });`,
+    settled: `.project-visibility-tip:not([data-choosing])[data-shelf=${process.env.PAPOL_FIXTURE_SHELF === 'private' ? 'public' : 'private'}]`, size: wide,
+  },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 

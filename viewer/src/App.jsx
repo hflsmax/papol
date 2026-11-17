@@ -23,6 +23,7 @@ import { printedInDocument } from '../../shared/printed.js';
 import { anchorsIn, annotationKinds, clipsIn, inkIn } from './annotationKinds.js';
 import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
 import { listProjects } from '../../shared/api/projects.js';
+import { listShelves, updatePaper } from '../../shared/api/papers.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
 import { selectionBarPlace } from './selectionBar.js';
@@ -78,7 +79,7 @@ import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
-  LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+  LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
 import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
@@ -755,6 +756,46 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
+  // Who sees what you write with a project on, told beside the project pill
+  // the first time a paper opens that way, until the reader dismisses it.
+  const [projectVisibilityTipDismissed, setProjectVisibilityTipDismissed] = useState(
+    () => isFeatureStateSet(PROJECT_VISIBILITY_TIP));
+  const dismissProjectVisibilityTip = () => {
+    setFeatureState(PROJECT_VISIBILITY_TIP, true);
+    setProjectVisibilityTipDismissed(true);
+  };
+  const [movingShelf, setMovingShelf] = useState(false);
+  // The shelves of the other kind, offered once the reader asks to move:
+  // null while not choosing.
+  const [shelfChoices, setShelfChoices] = useState(null);
+  const chooseOtherShelf = async () => {
+    if (!projectView?.myShelf) return;
+    const wantPublic = projectView.myShelf === 'private';
+    setMovingShelf(true);
+    try {
+      const shelves = await listShelves();
+      setShelfChoices(shelves.filter((shelf) => Boolean(shelf.is_public) === wantPublic));
+    } catch (failure) {
+      setError(messageOf(failure));
+    } finally {
+      setMovingShelf(false);
+    }
+  };
+  // Moves the reader's copy to the shelf chosen, whose kind decides
+  // whether the project sees their digs and ink.
+  const moveToShelf = async (shelf) => {
+    if (!paper?.sha256) return;
+    setMovingShelf(true);
+    try {
+      await updatePaper(paper.sha256, { shelf_uuid: shelf.uuid });
+      setProjectView((view) => (view ? { ...view, myShelf: shelf.is_public ? 'public' : 'private' } : view));
+      setShelfChoices(null);
+    } catch (failure) {
+      setError(messageOf(failure));
+    } finally {
+      setMovingShelf(false);
+    }
+  };
   // A PDF opened from disk: adding it to a nook is the one step that needs
   // an account. idle | ask (sign in first?) | waiting (for the library
   // window's sign-in) | adding.
@@ -1757,6 +1798,11 @@ export default function App() {
           digs: read.digs ?? {},
           paperDigs: read.paper_digs ?? null,
           anchors: anchorsIn(theirs), ink: inkIn(theirs), clips: clipsIn(theirs),
+          // Others' anchors and clips are never drawn: one that carries a
+          // dig the reader can see comes as a place, for its margin line.
+          places: read.places ?? [],
+          // 'public', 'private', or null while the reader doesn't keep it.
+          myShelf: read.my_shelf ?? null,
         });
       })
       .catch(() => {
@@ -2377,9 +2423,10 @@ export default function App() {
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
     () => (digView && paper ? marginLinesOf({
-      paper, paperDigs: digView.paperDigs, digs: digView.digs, anchors: shownAnchors, ink: shownInk, clips: shownClips, writing: marginWriting,
+      paper, paperDigs: digView.paperDigs, digs: digView.digs, writing: marginWriting,
+      anchors: [...shownAnchors, ...anchorsIn(projectView?.places ?? [])], ink: shownInk, clips: [...shownClips, ...clipsIn(projectView?.places ?? [])],
     }) : []),
-    [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
+    [digView, projectView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
   const withMargin = Boolean(digView) && viewWidth > PHONE_WIDTH && marginLines.length > 0;
   useLayoutEffect(() => { refit.current?.(); }, [withMargin]);
@@ -4658,6 +4705,48 @@ export default function App() {
                     </span>
                   )}
                 </button>
+                {projectView?.myShelf && !projectVisibilityTipDismissed && !projectMenuOpen && (
+                  <span className="learn-papol project-visibility-tip" data-shelf={projectView.myShelf} data-choosing={shelfChoices ? 'true' : undefined} role="dialog" aria-label="Who sees your digs">
+                    {shelfChoices ? (
+                      <>
+                        <span>
+                          {projectView.myShelf === 'public' ? 'Move this paper to which private shelf?' : 'Move this paper to which public shelf?'}
+                        </span>
+                        {shelfChoices.length > 0 ? (
+                          <span className="shelf-choices" role="list">
+                            {shelfChoices.map((shelf) => (
+                              <button key={shelf.uuid} type="button" role="listitem" onClick={() => moveToShelf(shelf)} disabled={movingShelf}>
+                                <span className="shelf-dot" style={{ background: shelf.color }} aria-hidden="true" />
+                                {shelf.name}
+                              </button>
+                            ))}
+                          </span>
+                        ) : (
+                          <span>{projectView.myShelf === 'public' ? 'You have no private shelf yet. Make one in your nook.' : 'You have no public shelf yet. Make one in your nook.'}</span>
+                        )}
+                        <span className="pdf-viewer-tip-actions">
+                          <button type="button" onClick={() => setShelfChoices(null)}>Back</button>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {projectView.myShelf === 'public'
+                            ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'
+                            : 'Only you see your digs and ink because this paper is on your private shelf.'}
+                        </span>
+                        <span className="pdf-viewer-tip-actions">
+                          <button type="button" onClick={chooseOtherShelf} disabled={movingShelf}>
+                            {projectView.myShelf === 'public' ? 'Move to a private shelf' : 'Move to a public shelf'}
+                          </button>
+                          <button type="button" className="learn-papol-close" onClick={dismissProjectVisibilityTip}>
+                            Dismiss
+                          </button>
+                        </span>
+                      </>
+                    )}
+                  </span>
+                )}
                 {projectMenuOpen && (
                   <div className="paper-info-pop project-menu" role="menu" data-tauri-drag-region="false">
                     <a role="menuitemradio" aria-checked={!projectView} href={withProject(window.location.href, null)}>Yours</a>
