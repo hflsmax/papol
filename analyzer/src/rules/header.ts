@@ -14,7 +14,7 @@ import { extractArxivId, extractDoi } from "../../../cloudflare/src/papers/ident
 import { layout, type Line } from "./layout";
 import { readDoc, type Doc, type PdfDocument } from "./page";
 import {
-  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_ISSUE, HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
+  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_ISSUE, HEADER_JOURNAL_LINE, HEADER_JOURNAL_NUMBER, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
   HEADER_SUBTITLE, HEADER_TITLE, HEADER_YEAR, HEADER_YEAR_LATE,
 } from "./registry";
 import { Trace } from "./trace";
@@ -84,9 +84,17 @@ export function headerOf(doc: Doc): HeaderResult {
     trace.add(HEADER_TITLE.id, titlePage.number, title, []);
     const next = titleSource.find((l) => l.top > after.top);
     if (next && isSubtitle(next, after, laid.bodySize)) {
-      title = `${title.replace(/[:.]$/, "")}: ${clean(next)}`;
-      trace.add(HEADER_SUBTITLE.id, 1, clean(next), []);
+      let subtitle = clean(next);
       after = next;
+      // A subtitle can wrap ("Overview of the" / "AAAI Competition"): the
+      // lines under it in its size and weight, a line apart, continue it.
+      for (const line of titleSource.filter((l) => l.top > next.top)) {
+        if (!continuesSubtitle(line, after)) break;
+        subtitle = joinLine(subtitle, clean(line));
+        after = line;
+      }
+      title = `${title.replace(/[:.]$/, "")}: ${subtitle}`;
+      trace.add(HEADER_SUBTITLE.id, 1, subtitle, []);
     }
   } else {
     title = runningTitle(laid.pages.slice(1), trace) ?? (plausibleInfoTitle(doc.info.title) ? doc.info.title : null);
@@ -105,7 +113,7 @@ export function headerOf(doc: Doc): HeaderResult {
   const pageOne = first.lines.map((l) => l.text).join("\n");
   let lineYear: number | null = null;
   for (const line of laid.pages.flatMap((p) => p.lines)) {
-    const rule = [HEADER_JOURNAL_LINE, HEADER_JOURNAL_VOLUME].find((r) => r.pattern!.test(line.text));
+    const rule = [HEADER_JOURNAL_LINE, HEADER_JOURNAL_NUMBER, HEADER_JOURNAL_VOLUME].find((r) => r.pattern!.test(line.text));
     if (!rule) continue;
     const found = rule.pattern!.exec(line.text)!;
     const name = found.groups!.journal.trim();
@@ -304,7 +312,20 @@ function isSubtitle(line: Line, title: Line, body: number): boolean {
   return line.top - title.top <= 3 * title.size && line.size < title.size * 0.95 && line.size >= body * 0.95
     && letters(line.text) >= 8 && !/^\p{Ll}/u.test(words[0])
     && (words.length >= 6 || ((line.bold || line.size >= 1.5 * body) && words.length >= 3) || words.some((w) => /^\p{Ll}/u.test(w)))
-    && !mostlyNames(line) && !HEADER_AFFILIATION.pattern!.test(line.text)
+    && !mostlyNames(line) && !letterSpaced(line) && !HEADER_AFFILIATION.pattern!.test(line.text)
+    && !HEADER_NOT_TITLE.pattern!.test(line.text) && !HEADER_ABSTRACT.pattern!.test(line.text) && !isProse(line);
+}
+
+// Capitals set a space apart ("M I C H A E L G R E E N B E R G"): JFP's
+// author names, never a subtitle.
+const letterSpaced = (line: Line) => /(?:^|\s)(?:\p{Lu}\s){4,}\p{Lu}(?:\s|,|$)/u.test(line.text);
+
+// The next line of a subtitle: set as the line before it, at most a line
+// and a half under it, and neither names, an address, a heading nor prose.
+function continuesSubtitle(line: Line, prev: Line): boolean {
+  return Math.abs(line.size - prev.size) <= 0.05 * prev.size && line.bold === prev.bold
+    && line.top - prev.top <= 1.8 * prev.size && letters(line.text) >= 3
+    && !mostlyNames(line) && !letterSpaced(line) && !HEADER_AFFILIATION.pattern!.test(line.text)
     && !HEADER_NOT_TITLE.pattern!.test(line.text) && !HEADER_ABSTRACT.pattern!.test(line.text) && !isProse(line);
 }
 

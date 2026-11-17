@@ -863,6 +863,14 @@ export const HEADER_JOURNAL_VOLUME = rule({
   matches: ["PHYSICAL REVIEW E 100, 063001 (2019)", "PHYSICAL REVIEW LETTERS 122, 155501 (2019)"],
   rejects: ["Phys. Rev. Lett. 122, 155501 — Published 19 April 2019"],
 });
+export const HEADER_JOURNAL_NUMBER = rule({
+  id: "header.journal-number", stage: "header",
+  summary: "A line that gives a journal's name, its volume and number, then the year in parentheses — \"AI Magazine Volume 26 Number 2 (2005)\" — names the journal and its year.",
+  why: "AAAI's archive stamps every AI Magazine article's first page with the issue it appeared in; the article's own pages print only \"AI MAGAZINE\" and the season.",
+  pattern: /^\s*(?<journal>[A-Z][A-Za-z&.' -]{2,60}?),?\s+Vol(?:ume|\.)\s*\d+\s*,?\s*(?:Number|No\.|Issue)\s*\d+\s*,?\s*\((?:[A-Z][a-z]+\.?\s+)?(?<year>(?:19|20)\d\d)\)/,
+  matches: ["AI Magazine Volume 26 Number 2 (2005) (© AAAI)", "AI Magazine Volume 26 Number 2 (Summer 2005)", "Journal of Artificial Intelligence Research, Vol. 12, No. 3 (2000)"],
+  rejects: ["Proc. ACM Program. Lang., Vol. 3, No. POPL, Article 62. Publication date: January 2019.", "ACM Trans. Graph., Vol. 38, No. 4, Article 62.", "Nature | Vol 598 | 7 October 2021"],
+});
 export const HEADER_PROCEEDINGS = rule({
   id: "header.proceedings", stage: "header",
   summary: "The conference an ACM reference paragraph on the first page names — \"In Proceedings of the … (CHI '23)\" — by its short name in parentheses is the paper's venue.",
