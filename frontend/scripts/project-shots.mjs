@@ -68,6 +68,8 @@ const SHOTS = {
   'mac-desk-manage-delete': { ...desk('manage', '.papol-confirm', "const go = () => { const b = document.querySelector('.project-manage-delete'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=desktop'), size: wide },
   // Delete project confirmed: the project is gone and the nook is back.
   'mac-desk-manage-deleted': { ...desk('manage', '.project-manage-danger', "const go = () => { const b = document.querySelector('.project-manage-delete'); if (b) b.click(); else setTimeout(go, 100); }; go(); const ok = () => { const b = document.querySelector('.papol-confirm .ok'); if (b) b.click(); else setTimeout(ok, 100); }; ok(); return true;", '?shell=desktop'), settled: "!document.querySelector('.project-page') && !location.pathname.startsWith('/project/')", size: wide },
+  // Make keeper pressed for Ana: a project has one keeper, so it is handed on.
+  'mac-desk-manage-keeper': { ...desk('manage', '.papol-confirm', "const go = () => { const b = [...document.querySelectorAll('.project-manage .project-person-actions button')].find((x) => x.textContent.trim() === 'Make keeper'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", '?shell=desktop'), size: wide },
   'phone-desk-manage': { ...desk('manage', '.project-manage-danger', null, '?shell=web'), size: phone },
   // A face on the tabs row, and where it leads: that member's nook.
   'seat-nook': { ...desk('papers', '.project-paper', "document.querySelector('.project-seat[href$=\"0002\"]').click(); return true;"), settled: "document.body.innerText.includes('Ana Reyes') && !document.querySelector('.project-page')", size: wide },

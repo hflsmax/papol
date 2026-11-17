@@ -31,3 +31,12 @@ test('Manage holds the name, description, members, invitation and leaving', () =
     assert.ok(manage.includes(piece), piece);
   }
 });
+
+test('a project has one keeper: Make keeper hands it on, asked first, and there is no Not keeper', () => {
+  const list = page.slice(page.indexOf('export function MemberList'), page.indexOf('// The keeper of a project others are in'));
+  assert.doesNotMatch(page, /Not keeper/);
+  assert.match(list, /confirmAction\([\s\S]*A project has one keeper[\s\S]*confirmLabel: 'Make keeper'/);
+  assert.match(list, /if \(ok\) await act\(\(\) => setKeeper\(project\.uuid, user\.uuid, true\)\)/);
+  assert.match(page, /function keeperStays\(project\) \{\s*return Boolean\(project\.is_keeper\) && project\.members\.length > 1;/);
+  assert.match(list, /disabled=\{stuck\}/);
+});

@@ -444,8 +444,18 @@ function People({ project, showing, currentUser, act, onLeft, onClose }) {
 }
 
 // Who is in the project, each with what can be done about them: you can
-// leave, and a keeper makes others keepers or removes them. In Manage.
+// leave, and the keeper hands keeping to someone else or removes them. A
+// project has one keeper, so making someone keeper is handing it on,
+// asked first. In Manage.
 export function MemberList({ project, currentUser, act, onLeave }) {
+  const stuck = keeperStays(project);
+  const handOn = async (user) => {
+    const ok = await confirmAction(
+      `Make ${user.display_name} the keeper of ${project.name}?\n\nA project has one keeper. You stay a member, and only ${firstName(user)} can rename it, invite people or delete it.`,
+      { confirmLabel: 'Make keeper' },
+    );
+    if (ok) await act(() => setKeeper(project.uuid, user.uuid, true));
+  };
   return (
     <ul className="project-people-list">
       {project.members.map((member) => {
@@ -462,12 +472,13 @@ export function MemberList({ project, currentUser, act, onLeave }) {
             )}
             {me ? (
               <span className="project-person-actions">
-                <button type="button" className="project-quiet project-danger" onClick={onLeave}>Leave</button>
+                <button type="button" className="project-quiet project-danger" onClick={onLeave}
+                  disabled={stuck} title={stuck ? 'Make another member keeper first' : undefined}>Leave</button>
               </span>
             ) : project.is_keeper && (
               <span className="project-person-actions">
-                <button type="button" className="project-quiet" onClick={() => act(() => setKeeper(project.uuid, member.user.uuid, !member.is_keeper))}>
-                  {member.is_keeper ? 'Not keeper' : 'Make keeper'}
+                <button type="button" className="project-quiet" onClick={() => handOn(member.user)}>
+                  Make keeper
                 </button>
                 <button type="button" className="project-quiet project-danger" onClick={() => act(async () => { await removeMember(project.uuid, member.user.uuid); return getProject(project.uuid); })}>
                   Remove
@@ -479,6 +490,11 @@ export function MemberList({ project, currentUser, act, onLeave }) {
       })}
     </ul>
   );
+}
+
+// The keeper of a project others are in leaves only after handing it on.
+function keeperStays(project) {
+  return Boolean(project.is_keeper) && project.members.length > 1;
 }
 
 // Leaving, asked first. The last member to leave ends the project.
@@ -615,7 +631,7 @@ function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft
           maxLength={appLimits.text.project_description} placeholder="What the project is about"
           onKeep={onDescribe}
         />
-        {!keeper && <p className="project-manage-note">Only a keeper ({keeperNames(project.members)}) can change these.</p>}
+        {!keeper && <p className="project-manage-note">Only the keeper, {keeperNames(project.members)}, can change these.</p>}
       </section>
       <section className="project-manage-section" aria-labelledby="project-manage-members">
         <h3 id="project-manage-members">Members <span className="project-manage-count">{project.members.length}</span></h3>
@@ -634,9 +650,9 @@ function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft
         <div className="project-manage-row">
           <div>
             <strong>Leave this project</strong>
-            <p>{project.members.length === 1 ? 'You are its last member, so leaving ends it.' : 'What you added stays for the others.'}</p>
+            <p>{project.members.length === 1 ? 'You are its last member, so leaving ends it.' : keeper ? 'Make another member keeper first. What you added stays.' : 'What you added stays for the others.'}</p>
           </div>
-          <button type="button" onClick={() => leaveProject({ project, currentUser, act, onLeft })}>Leave</button>
+          <button type="button" disabled={keeperStays(project)} onClick={() => leaveProject({ project, currentUser, act, onLeft })}>Leave</button>
         </div>
         {keeper && (
           <div className="project-manage-row">

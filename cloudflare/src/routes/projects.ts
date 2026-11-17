@@ -1,6 +1,6 @@
 // Projects: where work on a question happens, by one person or several.
 //
-// A project holds papers, not copies, and its members, some of whom keep
+// A project holds papers, not copies, and its members, one of whom keeps
 // it. Every signed-in user can see that a project exists, what it is
 // called and who is in it, keepers marked, so they know whom to ask; only
 // members can open it, and joining is by invitation alone. Joining is
@@ -409,7 +409,7 @@ async function leaving(env: Env, project: Project, member: Member): Promise<D1Pr
     project.uuid, member.user_uuid));
   const out = statement(env.DB, "DELETE FROM project_members WHERE uuid = ?", member.uuid);
   if (!others.length) return [out, statement(env.DB, "UPDATE projects SET deleted_at = ?, invite_code = NULL, updated_at = ? WHERE uuid = ?", now(), now(), project.uuid)];
-  if (member.is_keeper && !others.some((m) => m.is_keeper)) refuse(400, "Make another member a keeper first");
+  if (member.is_keeper) refuse(400, "Make another member keeper first");
   return [out, touched(env, project)];
 }
 
@@ -609,12 +609,16 @@ export function projectRoutes(router: Router) {
     check.done();
     const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, params.user);
     if (!member) refuse(404, "Not a member of this project");
-    if (!isKeeper && member.is_keeper) {
-      const keepers = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM project_members WHERE project_uuid = ? AND is_keeper = 1", project.uuid);
-      if (keepers!.n <= 1) refuse(400, "A project needs a keeper");
-    }
-    await batch(env.DB, [statement(env.DB, "UPDATE project_members SET is_keeper = ? WHERE uuid = ?", isKeeper ? 1 : 0, member.uuid), touched(env, project)]);
-    return json(await projectOut(env, project, me, member.uuid === mine.uuid ? { ...mine, is_keeper: isKeeper ? 1 : 0 } : mine));
+    // A project has one keeper. Making someone keeper hands it to them;
+    // the keeper stops being one only by handing it on.
+    if (!isKeeper) refuse(400, member.is_keeper ? "A project has one keeper: make another member keeper to hand it on" : "Not the keeper");
+    if (member.is_keeper) return json(await projectOut(env, project, me, mine));
+    await batch(env.DB, [
+      statement(env.DB, "UPDATE project_members SET is_keeper = 0 WHERE project_uuid = ? AND is_keeper = 1", project.uuid),
+      statement(env.DB, "UPDATE project_members SET is_keeper = 1 WHERE uuid = ?", member.uuid),
+      touched(env, project),
+    ]);
+    return json(await projectOut(env, project, me, { ...mine, is_keeper: 0 }));
   });
 
   // Leaving, or a keeper removing someone. What they added stays.
@@ -853,7 +857,9 @@ export async function handOnProjectBoards(env: Env, userUuid: string): Promise<n
 // that a project must not be stuck without a keeper: the earliest to have
 // joined of those left is given it.
 export async function leaveAllProjects(env: Env, userUuid: string): Promise<D1PreparedStatement[]> {
-  const statements: D1PreparedStatement[] = [];
+  // Their memberships go first, so the one keeper a project may have is
+  // never two for a moment.
+  const statements: D1PreparedStatement[] = [statement(env.DB, "DELETE FROM project_members WHERE user_uuid = ?", userUuid)];
   for (const member of await all<Member>(env.DB, "SELECT * FROM project_members WHERE user_uuid = ?", userUuid)) {
     const others = await all<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid != ? ORDER BY joined_at, uuid",
       member.project_uuid, userUuid);
@@ -863,6 +869,5 @@ export async function leaveAllProjects(env: Env, userUuid: string): Promise<D1Pr
       statements.push(statement(env.DB, "UPDATE project_members SET is_keeper = 1 WHERE uuid = ?", others[0].uuid));
     }
   }
-  statements.push(statement(env.DB, "DELETE FROM project_members WHERE user_uuid = ?", userUuid));
   return statements;
 }
