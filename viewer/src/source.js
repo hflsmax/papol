@@ -117,10 +117,9 @@ function apiSource(
     // who wrote them.
     project,
     loadProject: project ? () => listProjectAnnotations(project, pdfHash) : null,
-    // The reader's own private digs on these pages (personal digs). With
-    // no project on they are the margin; with one on they stand in it
-    // beside the project's, for the reader alone.
-    loadPersonalDigs: async () => {
+    // With no project on, the digs on these pages are the reader's own
+    // (personal digs): the same pins and margin, nobody else's.
+    loadPersonalDigs: project ? null : async () => {
       const [read, me] = await Promise.all([personalDigsOn(pdfHash), getReader()]);
       return { ...read, me };
     },

@@ -97,25 +97,3 @@ export function marginLinesOf({ paper, paperDigs, digs, anchors = [], ink = [], 
   }
   return lines.sort((x, y) => x.page - y.page || x.down - y.down);
 }
-
-// The project's pins with the reader's own private digs added to them:
-// each private dig is one more face on its thing, after the project's,
-// marked `private`. A thing only the reader has dug privately gets a pin
-// of its own that leads nowhere in the project (no `uuid`, no `mine`), so
-// digging it from the project still starts a project dig.
-export function withPrivateDigs(project, personal) {
-  if (!personal) return project;
-  const privately = (pin) => (pin ? (pin.digs?.length ? pin.digs : [{ uuid: pin.uuid, owner: pin.lead?.owner ?? null, is_new: false }])
-    .filter((face) => face.uuid)
-    .map((face) => ({ ...face, is_new: false, private: true })) : []);
-  const join = (pin, own) => {
-    const faces = privately(own);
-    if (!faces.length) return pin ?? null;
-    if (!pin) return { uuid: null, mine: null, dig_count: 0, post_count: 0, unread: 0, is_new: false, voices: [], lead: null, digs: faces };
-    const theirs = pin.digs?.length ? pin.digs : pin.uuid ? [{ uuid: pin.uuid, owner: pin.lead?.owner ?? null, is_new: Boolean(pin.is_new) }] : [];
-    return { ...pin, digs: [...theirs, ...faces] };
-  };
-  const digs = { ...project.digs };
-  for (const [uuid, own] of Object.entries(personal.digs ?? {})) digs[uuid] = join(project.digs?.[uuid], own);
-  return { ...project, digs, paperDigs: join(project.paperDigs, personal.paperDigs) };
-}

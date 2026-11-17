@@ -1457,8 +1457,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* With a project on, a face is ringed in its member's colour, as their
    marks are. */
 .dig-margin-face.worn .mini-avatar { box-shadow: 0 0 0 2px var(--who); }
-/* The reader's own private dig among a project's: ringed dashed, theirs alone. */
-.dig-margin-face.is-private .mini-avatar { outline: 1.5px dashed var(--ink-soft); outline-offset: 2px; }
 .dig-margin-face:hover, .dig-margin-face:focus-visible, .dig-margin-face.is-open { background: color-mix(in srgb, var(--ink) 9%, transparent); outline: none; }
 /* The thing picked on the page: its faces stand out, ringed in their
    member's colour on a white ground, and every other line falls back. */

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  MEMBER_INKS, annotationDown, inMemberInk, marginLinesOf, memberInk, projectParam, sortAnnotations, whoMarked, withPrivateDigs, withProject,
+  MEMBER_INKS, annotationDown, inMemberInk, marginLinesOf, memberInk, projectParam, sortAnnotations, whoMarked, withProject,
 } from './project.js';
 import { annotationViewerPath } from '../../shared/api/projects.js';
 
@@ -95,29 +95,4 @@ describe('the dig margin', () => {
     const lines = marginLinesOf({ paper: { sha256: 'f1' }, paperDigs: null, digs: {}, anchors: [{ uuid: 'n', page: 2, anchor: { x: 0, y: 0.75 } }], writing: 'n' });
     assert.deepEqual(lines.map((l) => [l.key, l.page, l.down, l.pin]), [['n', 2, 0.25, {}]]);
   });
-});
-
-it('the reader’s private digs join the project’s pins, marked private, after the project’s faces', () => {
-  const me = { uuid: 'me' };
-  const ana = { uuid: 'ana' };
-  const project = {
-    uuid: 'p',
-    digs: { a1: { uuid: 'd1', mine: null, digs: [{ uuid: 'd1', owner: ana, is_new: true }] } },
-    paperDigs: null,
-  };
-  const personal = {
-    digs: { a1: { uuid: 'x1', digs: [{ uuid: 'x1', owner: me, is_new: false }] }, a2: { uuid: 'x2', digs: [{ uuid: 'x2', owner: me }] } },
-    paperDigs: { uuid: 'x3', lead: { owner: me } },
-  };
-  const joined = withPrivateDigs(project, personal);
-  assert.deepEqual(joined.digs.a1.digs.map((f) => [f.uuid, Boolean(f.private)]), [['d1', false], ['x1', true]]);
-  // The project pin still leads where it did.
-  assert.equal(joined.digs.a1.uuid, 'd1');
-  // A thing only dug privately leads nowhere in the project.
-  assert.equal(joined.digs.a2.uuid, null);
-  assert.equal(joined.digs.a2.mine, null);
-  assert.deepEqual(joined.digs.a2.digs.map((f) => f.uuid), ['x2']);
-  assert.deepEqual(joined.paperDigs.digs.map((f) => [f.uuid, f.private]), [['x3', true]]);
-  // Nothing private, nothing changed.
-  assert.equal(withPrivateDigs(project, null), project);
 });
