@@ -818,6 +818,11 @@ export function projectRoutes(router: Router) {
     const shown = rows.filter(drawn);
     const places = rows.filter((a) => !drawn(a) && `annotation:${a.uuid}` in annotationPins);
     const out = (a: Row) => { const { shared: _shared, ...rest } = a; return { ...annotationOut(rest), user: people.get(String(a.user_uuid)) ?? null }; };
+    // Which shelf the reader keeps the paper on decides whether the project
+    // sees their digs and ink; none while they don't keep it.
+    const shelf = await one<Row>(env.DB,
+      `SELECT s.is_public FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid AND s.deleted_at IS NULL
+       WHERE c.user_uuid = ? AND c.paper_sha256 = ? AND c.deleted_at IS NULL LIMIT 1`, me.uuid, digest);
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map((projectMember) => memberOut(projectMember)) },
       me: me.uuid,
@@ -826,6 +831,7 @@ export function projectRoutes(router: Router) {
       digs: Object.fromEntries(Object.entries(annotationPins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
       // The digs on the paper itself, which head the viewer's margin.
       paper_digs: paperPin ?? null,
+      my_shelf: shelf ? (Number(shelf.is_public) ? "public" : "private") : null,
     });
   });
 

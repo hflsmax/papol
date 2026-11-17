@@ -189,6 +189,7 @@ function answer(method, path, search) {
       // a place alone.
       annotations: [...(NOT_KEPT ? [] : mine), ...theirs.filter((a) => a.kind === 'ink')],
       places: theirs.filter((a) => a.kind !== 'ink' && [id(7), id(8)].includes(a.uuid)),
+      my_shelf: NOT_KEPT ? null : (process.env.PAPOL_FIXTURE_SHELF || 'public'),
       digs: {
         [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
         [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },

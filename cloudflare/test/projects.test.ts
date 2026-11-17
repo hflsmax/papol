@@ -427,10 +427,13 @@ describe("a paper with the project on", () => {
     expect(Object.keys(view.digs)).toEqual([clip.uuid]);
     expect(await listed()).toEqual([onPaper.uuid, onClip.uuid].sort());
     await ok("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: dana.headers, json: { body: "Agreed." } });
+    const herShelf = async () => (await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers })).my_shelf;
+    expect(await herShelf()).toBe("public");
 
     // Moved to a private shelf, all of it goes from the project at once.
     const shelf = await ok("POST", "/api/shelves", { headers: ana.headers, json: { name: "Mine", color: "#123456", is_public: false } });
     await ok("PUT", `/api/papers/${name}`, { headers: ana.headers, json: { shelf_uuid: shelf.uuid } });
+    expect(await herShelf()).toBe("private");
     view = await seen();
     expect(view.annotations).toEqual([]);
     expect(view.places).toEqual([]);
@@ -442,7 +445,9 @@ describe("a paper with the project on", () => {
     expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ana.headers })).posts.map((p: any) => p.body)).toEqual(["Agreed."]);
 
     // Back on a public shelf, everything is back.
-    await ok("PUT", `/api/papers/${name}`, { headers: ana.headers, json: { shelf_uuid: await defaultShelf(ana) } });
+    // The viewer's tip moves it by saying which kind of shelf.
+    await ok("PUT", `/api/papers/${name}`, { headers: ana.headers, json: { is_public: true } });
+    expect(await herShelf()).toBe("public");
     expect(await listed()).toEqual([onPaper.uuid, onClip.uuid].sort());
   });
 
