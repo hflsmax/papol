@@ -4713,7 +4713,7 @@ export default function App() {
                     {shelfChoices ? (
                       <>
                         <span>
-                          {projectView.myShelf === 'public' ? 'Move this paper to which private shelf?' : 'Move this paper to which public shelf?'}
+                          {projectView.myShelf === 'public' ? 'Pick a private shelf.' : 'Pick a public shelf.'}
                         </span>
                         {shelfChoices.length > 0 ? (
                           <span className="shelf-choices" role="list">
@@ -4725,7 +4725,7 @@ export default function App() {
                             ))}
                           </span>
                         ) : (
-                          <span>{projectView.myShelf === 'public' ? 'You have no private shelf yet. Make one in your nook.' : 'You have no public shelf yet. Make one in your nook.'}</span>
+                          <span>{projectView.myShelf === 'public' ? 'You have no private shelf yet.' : 'You have no public shelf yet.'}</span>
                         )}
                         <span className="pdf-viewer-tip-actions">
                           <button type="button" onClick={() => setShelfChoices(null)}>Back</button>
@@ -4735,8 +4735,8 @@ export default function App() {
                       <>
                         <span>
                           {projectView.myShelf === 'public'
-                            ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'
-                            : 'Only you see your digs and ink because this paper is on your private shelf.'}
+                            ? 'Your project can see your digs and ink. This paper is on a public shelf.'
+                            : 'Only you can see your digs and ink. This paper is on a private shelf.'}
                         </span>
                         <label className="storage-notice-opt-out">
                           <input
