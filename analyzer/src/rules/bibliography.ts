@@ -345,9 +345,16 @@ export function foldEntryAccents(text: string): string {
   }).normalize("NFC");
 }
 
+// IJCAI (named.bst) heads each entry with how the text cites it, in
+// brackets: "[Genesereth et al., 2005] Michael Genesereth, Nathaniel Love,
+// and Barney Pell. General game playing: …". Read as the first author, the
+// label made "al" the entry's first surname, so no "Genesereth et al." in
+// the text found it. The names are read after it.
+const CITED_AS = /^\[\s*[\p{L}][^\[\]]{0,120}?,\s*(?:1[5-9]\d\d|20\d\d)[a-z]?\]\s*(?=\p{L})/u;
+
 export function parseEntry(printed: string): Pick<Entry, "title" | "authors" | "surnames" | "year" | "yearSuffix" | "doi" | "arxiv_id" | "journal"> & { rules: string[] } {
   const rules: string[] = [];
-  const raw = firstWork(foldEntryAccents(printed));
+  const raw = firstWork(foldEntryAccents(printed).replace(CITED_AS, ""));
   const doiMatch = FIELD_DOI.pattern!.exec(raw);
   const doi = doiMatch ? doiMatch.groups!.doi.replace(/[.,;:)\]}>]+$/, "").toLowerCase() : null;
   if (doi) rules.push(FIELD_DOI.id);
