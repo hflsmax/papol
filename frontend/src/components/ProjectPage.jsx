@@ -283,7 +283,11 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
       />
       {newPapers || boards.some((b) => b.is_new) || newTalk ? (
         <button type="button" className="project-quiet project-mark-all" disabled={markingAll} aria-busy={markingAll}
-          onClick={markAll}>{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</button>
+          title="Clear every news dot in this project" aria-label={markingAll ? 'Marking all as seen' : 'Mark all as seen'}
+          onClick={markAll}>
+          <ActionGlyph name="seen" />
+          <span className="project-mark-all-label">{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</span>
+        </button>
       ) : null}
     </div>
   );

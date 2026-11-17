@@ -5194,7 +5194,19 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
 /* The desk's three views: quiet words, the one shown on a soft pill. */
 .project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); }
 .project-tabs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.project-tabs-row > .project-mark-all { margin-top: var(--space-2); margin-left: auto; }
+/* Mark all as seen ends the tabs' line at the right, apart from the tabs:
+   a quiet check and its words, the words dropped on a phone. */
+.project-head > .project-tabs-row { flex-basis: 100%; }
+.project-tabs-row { flex-wrap: nowrap; }
+.project-tabs-row > .project-mark-all { display: inline-flex; align-items: center; gap: 6px; flex: none; margin-top: var(--space-2); margin-left: auto; padding: 4px var(--space-2); border-radius: 999px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
+.project-mark-all .action-glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 640px) {
+  .project-tabs-row > .project-mark-all { padding: 6px; margin-right: calc(-1 * 6px); }
+  .project-tabs-row { gap: var(--space-1); }
+  .project-tabs { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .project-tabs .project-tab { flex: none; gap: 4px; padding: 5px 7px; }
+  .project-mark-all-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
