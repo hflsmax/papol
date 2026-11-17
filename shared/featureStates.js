@@ -46,7 +46,7 @@ export const PROJECT_VISIBILITY_TIP = {
   key: 'papol_learn_project_visibility',
   value: 'seen',
   name: 'Project visibility tip',
-  description: 'The Learn Papol card that says who in a project sees your digs and ink, shown the first time a user opens a paper with a project on, until they dismiss it.',
+  description: 'The Learn Papol card that says who in a project sees your digs and ink, shown when a user opens a paper with a project on, until they dismiss it with “Do not show again” ticked.',
   setLabel: 'Dismissed',
   unsetLabel: 'Not dismissed',
 };

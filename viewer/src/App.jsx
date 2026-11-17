@@ -760,8 +760,11 @@ export default function App() {
   // the first time a paper opens that way, until the reader dismisses it.
   const [projectVisibilityTipDismissed, setProjectVisibilityTipDismissed] = useState(
     () => isFeatureStateSet(PROJECT_VISIBILITY_TIP));
+  // Dismiss hides it for this paper; with "Do not show again" ticked it
+  // stays hidden on every paper after.
+  const [projectVisibilityTipNever, setProjectVisibilityTipNever] = useState(false);
   const dismissProjectVisibilityTip = () => {
-    setFeatureState(PROJECT_VISIBILITY_TIP, true);
+    if (projectVisibilityTipNever) setFeatureState(PROJECT_VISIBILITY_TIP, true);
     setProjectVisibilityTipDismissed(true);
   };
   const [movingShelf, setMovingShelf] = useState(false);
@@ -4735,6 +4738,14 @@ export default function App() {
                             ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'
                             : 'Only you see your digs and ink because this paper is on your private shelf.'}
                         </span>
+                        <label className="storage-notice-opt-out">
+                          <input
+                            type="checkbox"
+                            checked={projectVisibilityTipNever}
+                            onChange={(event) => setProjectVisibilityTipNever(event.target.checked)}
+                          />
+                          Do not show again
+                        </label>
                         <span className="pdf-viewer-tip-actions">
                           <button type="button" onClick={chooseOtherShelf} disabled={movingShelf}>
                             {projectView.myShelf === 'public' ? 'Move to a private shelf' : 'Move to a public shelf'}
