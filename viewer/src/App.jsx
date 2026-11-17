@@ -4690,7 +4690,7 @@ export default function App() {
                   )}
                 </button>
                 {projectView?.myShelf && !projectVisibilityTipDismissed && !projectMenuOpen && (
-                  <span className="learn-papol project-visibility-tip" role="dialog" aria-label="Who sees your digs">
+                  <span className="learn-papol project-visibility-tip" data-shelf={projectView.myShelf} role="dialog" aria-label="Who sees your digs">
                     <span>
                       {projectView.myShelf === 'public'
                         ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'

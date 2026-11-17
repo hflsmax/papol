@@ -92,6 +92,13 @@ const SHOTS = {
   // The same paper, before the fix had a project to read it in: the paper
   // alone. Ready once page one is drawn.
   'not-kept-alone': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas')`, size: wide },
+  // The tip under the project pill, its move pressed: the paper goes to
+  // the other kind of shelf and the tip says so.
+  'project-tip-moved': {
+    path: on, ready: `${painted} && document.querySelector('.project-visibility-tip button')`,
+    then: "document.querySelector('.project-visibility-tip button').click(); return true;",
+    settled: '.project-visibility-tip[data-shelf=\"private\"]', size: wide,
+  },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 
