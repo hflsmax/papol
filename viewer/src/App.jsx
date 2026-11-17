@@ -23,7 +23,7 @@ import { printedInDocument } from '../../shared/printed.js';
 import { anchorsIn, annotationKinds, clipsIn, inkIn } from './annotationKinds.js';
 import { annotationDown, inMemberInk, marginLinesOf, memberInk, sortAnnotations, whoMarked, withProject } from './project.js';
 import { listProjects } from '../../shared/api/projects.js';
-import { updatePaper } from '../../shared/api/papers.js';
+import { listShelves, updatePaper } from '../../shared/api/papers.js';
 import Avatar from '../../shared/ui/Avatar.jsx';
 import ThingBar from './ThingBar.jsx';
 import { selectionBarPlace } from './selectionBar.js';
@@ -765,15 +765,31 @@ export default function App() {
     setProjectVisibilityTipDismissed(true);
   };
   const [movingShelf, setMovingShelf] = useState(false);
-  // Moves the reader's copy to their first shelf of the other kind, which
-  // is what decides whether the project sees their digs and ink.
-  const moveToOtherShelf = async () => {
-    if (!projectView?.myShelf || !paper?.sha256) return;
-    const toPublic = projectView.myShelf === 'private';
+  // The shelves of the other kind, offered once the reader asks to move:
+  // null while not choosing.
+  const [shelfChoices, setShelfChoices] = useState(null);
+  const chooseOtherShelf = async () => {
+    if (!projectView?.myShelf) return;
+    const wantPublic = projectView.myShelf === 'private';
     setMovingShelf(true);
     try {
-      await updatePaper(paper.sha256, { is_public: toPublic });
-      setProjectView((view) => (view ? { ...view, myShelf: toPublic ? 'public' : 'private' } : view));
+      const shelves = await listShelves();
+      setShelfChoices(shelves.filter((shelf) => Boolean(shelf.is_public) === wantPublic));
+    } catch (failure) {
+      setError(messageOf(failure));
+    } finally {
+      setMovingShelf(false);
+    }
+  };
+  // Moves the reader's copy to the shelf chosen, whose kind decides
+  // whether the project sees their digs and ink.
+  const moveToShelf = async (shelf) => {
+    if (!paper?.sha256) return;
+    setMovingShelf(true);
+    try {
+      await updatePaper(paper.sha256, { shelf_uuid: shelf.uuid });
+      setProjectView((view) => (view ? { ...view, myShelf: shelf.is_public ? 'public' : 'private' } : view));
+      setShelfChoices(null);
     } catch (failure) {
       setError(messageOf(failure));
     } finally {
@@ -4690,20 +4706,45 @@ export default function App() {
                   )}
                 </button>
                 {projectView?.myShelf && !projectVisibilityTipDismissed && !projectMenuOpen && (
-                  <span className="learn-papol project-visibility-tip" data-shelf={projectView.myShelf} role="dialog" aria-label="Who sees your digs">
-                    <span>
-                      {projectView.myShelf === 'public'
-                        ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'
-                        : 'Only you see your digs and ink because this paper is on your private shelf.'}
-                    </span>
-                    <span className="pdf-viewer-tip-actions">
-                      <button type="button" onClick={moveToOtherShelf} disabled={movingShelf}>
-                        {projectView.myShelf === 'public' ? 'Move to a private shelf' : 'Move to a public shelf'}
-                      </button>
-                      <button type="button" className="learn-papol-close" onClick={dismissProjectVisibilityTip}>
-                        Dismiss
-                      </button>
-                    </span>
+                  <span className="learn-papol project-visibility-tip" data-shelf={projectView.myShelf} data-choosing={shelfChoices ? 'true' : undefined} role="dialog" aria-label="Who sees your digs">
+                    {shelfChoices ? (
+                      <>
+                        <span>
+                          {projectView.myShelf === 'public' ? 'Move this paper to which private shelf?' : 'Move this paper to which public shelf?'}
+                        </span>
+                        {shelfChoices.length > 0 ? (
+                          <span className="shelf-choices" role="list">
+                            {shelfChoices.map((shelf) => (
+                              <button key={shelf.uuid} type="button" role="listitem" onClick={() => moveToShelf(shelf)} disabled={movingShelf}>
+                                <span className="shelf-dot" style={{ background: shelf.color }} aria-hidden="true" />
+                                {shelf.name}
+                              </button>
+                            ))}
+                          </span>
+                        ) : (
+                          <span>{projectView.myShelf === 'public' ? 'You have no private shelf yet. Make one in your nook.' : 'You have no public shelf yet. Make one in your nook.'}</span>
+                        )}
+                        <span className="pdf-viewer-tip-actions">
+                          <button type="button" onClick={() => setShelfChoices(null)}>Cancel</button>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {projectView.myShelf === 'public'
+                            ? 'People in the same project as you see your digs and ink because this paper is on your public shelf.'
+                            : 'Only you see your digs and ink because this paper is on your private shelf.'}
+                        </span>
+                        <span className="pdf-viewer-tip-actions">
+                          <button type="button" onClick={chooseOtherShelf} disabled={movingShelf}>
+                            {projectView.myShelf === 'public' ? 'Move to a private shelf' : 'Move to a public shelf'}
+                          </button>
+                          <button type="button" className="learn-papol-close" onClick={dismissProjectVisibilityTip}>
+                            Dismiss
+                          </button>
+                        </span>
+                      </>
+                    )}
                   </span>
                 )}
                 {projectMenuOpen && (

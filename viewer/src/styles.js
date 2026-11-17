@@ -887,6 +887,11 @@ ${fileDropStyles}
 /* The project pill is last in the bar, so its card hangs leftward from it. */
 .learn-papol.project-visibility-tip { left: auto; right: 0; }
 .learn-papol.project-visibility-tip::before { left: auto; right: 14px; }
+/* The reader's shelves of the other kind, one row each, coloured as in the nook. */
+.project-visibility-tip .shelf-choices { display: flex; flex-direction: column; align-self: stretch; gap: 4px; }
+.learn-papol .shelf-choices button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px 4px; border-color: var(--line); box-shadow: none; font-size: var(--fs-sm); line-height: 1; text-align: left; }
+.learn-papol .shelf-choices button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.shelf-choices .shelf-dot { flex: none; width: 10px; height: 10px; margin-top: -3px; border-radius: 3px; }
 .learn-papol.pdf-viewer-tip::before { left: auto; right: 22px; }
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
 /* Text in these small buttons sits by its line box, which puts the caps a
