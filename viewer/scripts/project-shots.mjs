@@ -86,6 +86,14 @@ const SHOTS = {
   'project-narrow': { path: on, ready: `${painted} && document.querySelector('.pin')`, size: { width: 1180, height: 820 } },
   // A PDF held over the page while reading: it will go to the nook's upload.
   'drop-pdf': { path: alone, ready: painted, then: "const data = new DataTransfer(); data.items.add(new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })); window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: data, cancelable: true })); return true;", settled: '.desk-file-drop-overlay', size: wide },
+  // A project paper another member added, not in the reader's nook (run
+  // with PAPOL_FIXTURE_NOT_KEPT=1): the project still on, its digs in the margin.
+  'project-not-kept': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas') && document.querySelector('.dig-margin-face')`, size: wide },
+  // …and a face pressed there opens that member's dig beside the page.
+  'project-not-kept-open': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas') && document.querySelector('.dig-margin-face')`, then: "document.querySelectorAll('.dig-margin-face')[0].click(); return true;", settled: '.dig-margin-card', size: wide },
+  // The same paper, before the fix had a project to read it in: the paper
+  // alone. Ready once page one is drawn.
+  'not-kept-alone': { path: on, ready: `document.querySelector('.pdf-page[data-page="1"] canvas')`, size: wide },
   'project-switch': { path: on, ready: `${painted} && document.querySelector('.project-pill.on')`, then: "document.querySelector('.project-pill').click(); return true;", settled: '.project-menu', size: wide },
 };
 

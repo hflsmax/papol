@@ -136,8 +136,19 @@ const projects = [
 
 // What the pretend server says to each request the viewer makes.
 let saved = 0;
+// PAPOL_FIXTURE_NOT_KEPT=1: the paper is in the project but not in the
+// reader's nook, as it is when another member added it: the nook's viewer
+// route refuses it, and the reader has left nothing on it.
+const NOT_KEPT = process.env.PAPOL_FIXTURE_NOT_KEPT === '1';
+const REFUSED = Symbol('refused');
+
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
+  if (NOT_KEPT && path === `/viewer/${PAPER}`) return REFUSED;
+  if (path === `/viewer/${PAPER}/lean`) {
+    return { uuid: null, kind: 'lean', created_at: null, user: null, paper: { ...paper, file_url: paper.file_url ?? `/uploads/${PAPER}.pdf` }, annotations: [] };
+  }
+  if (NOT_KEPT && path === `/papers/${PAPER.slice(0, 32)}/annotations` && method === 'GET') return [];
   if (path === `/viewer/${PAPER}`) return { ...paper, anchors: mine.filter((a) => a.kind === 'anchor') };
   if (path === `/viewer/${PAPER}/info`) return { paper: { ...paper }, references_status: 'done' };
   // An anchor the reader drops is saved under a name of its own; each
@@ -173,7 +184,7 @@ function answer(method, path, search) {
     return {
       project: { uuid: PROJECT, name: 'Adaptive optics control', members },
       me: ME,
-      annotations: [...mine, ...theirs],
+      annotations: NOT_KEPT ? theirs : [...mine, ...theirs],
       digs: {
         [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
         [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },
@@ -210,6 +221,11 @@ function viewerFixture(server) {
     const url = new URL(req.url, 'http://localhost');
     const body = answer(req.method, url.pathname, url.searchParams);
     res.setHeader('Content-Type', 'application/json');
+    if (body === REFUSED) {
+      res.statusCode = 403;
+      res.end(JSON.stringify({ error: 'Add this paper to your nook first' }));
+      return;
+    }
     res.statusCode = body === null ? 404 : 200;
     res.end(JSON.stringify(body ?? { error: 'Not found' }));
   });
