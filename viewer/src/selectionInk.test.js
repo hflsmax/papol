@@ -74,3 +74,32 @@ test('a tall math glyph on a line does not make its band cover the paragraph', (
   assert.equal(rest.length, 0);
   assert.ok(stroke.width * 1000 <= 24);
 });
+
+test('a bullet set lower than the prose after it does not pull the line’s band down', () => {
+  // asp-popl, page 3: pdf.js places the "•" span 7.5px below the words
+  // beside it, and the band followed the line's first piece.
+  const pageBoxes = [{ page: 3, box: { left: 0, right: 1000, top: 0, bottom: 1400, width: 1000, height: 1400 } }];
+  const rects = [
+    { left: 100, right: 110, top: 464.2, bottom: 486.7, width: 10, height: 22.5 },
+    { left: 116, right: 900, top: 456.7, bottom: 479.2, width: 784, height: 22.5 },
+    { left: 116, right: 900, top: 483.7, bottom: 506.3, width: 784, height: 22.6 },
+  ];
+  const [first, second] = selectionStrokes(rects, pageBoxes);
+  const centre = (stroke) => (1 - stroke.points[0].y) * 1400;
+  assert.ok(Math.abs(centre(first) - (456.7 + 479.2) / 2) < 0.01);
+  assert.ok(Math.abs(centre(second) - (483.7 + 506.3) / 2) < 0.01);
+  assert.ok(first.points[0].x < 0.11);
+});
+
+test('a bracket in a math face that opens a line keeps the band on the prose', () => {
+  const pageBoxes = [{ page: 2, box: { left: 0, right: 1000, top: 0, bottom: 1400, width: 1000, height: 1400 } }];
+  const rects = [
+    { left: 100, right: 106, top: 466.1, bottom: 484.5, width: 6, height: 18.4 },
+    { left: 106, right: 130, top: 460.5, bottom: 478.9, width: 24, height: 18.4 },
+    { left: 132, right: 150, top: 466.1, bottom: 484.5, width: 18, height: 18.4 },
+    { left: 152, right: 900, top: 460.5, bottom: 478.9, width: 748, height: 18.4 },
+  ];
+  const [stroke, ...rest] = selectionStrokes(rects, pageBoxes);
+  assert.equal(rest.length, 0);
+  assert.ok(Math.abs((1 - stroke.points[0].y) * 1400 - (460.5 + 478.9) / 2) < 0.01);
+});
