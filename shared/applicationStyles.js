@@ -5152,6 +5152,44 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .is-desk .project-people { max-width: 36rem; margin: 0 0 var(--space-6); padding: var(--space-2) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); }
 
 .project-desk { min-width: 0; margin-top: var(--space-4); }
+.project-tab.project-tab-manage { margin-left: var(--space-2); }
+
+/* Manage: the project's own settings, one column of plain sections, each a
+   serif heading over its rows; the last one holds what cannot be undone. */
+.project-manage { max-width: 40rem; padding-bottom: var(--space-7); font: var(--fs-sm) var(--font-ui); }
+.project-manage-section { padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
+.project-manage-section + .project-manage-section { margin-top: var(--space-4); }
+.project-manage-section h3 { margin: 0 0 var(--space-3); color: var(--ink); font: 600 var(--fs-md) var(--font-serif); }
+.project-manage-section h4 { margin: var(--space-4) 0 var(--space-2); color: var(--ink-soft); font: 500 var(--fs-xs) var(--font-ui); }
+.project-manage-count { margin-left: 4px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
+.project-manage-field { display: grid; grid-template-columns: 7rem minmax(0, 1fr) 3.5rem; align-items: center; gap: var(--space-2); min-height: 36px; }
+.project-manage-field + .project-manage-field { margin-top: var(--space-2); }
+.project-manage-label { color: var(--ink-soft); }
+.project-manage-input { width: 100%; box-sizing: border-box; padding: var(--space-1) var(--space-2); }
+.project-manage-value { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.project-manage-none, .project-manage-note { color: var(--ink-faint); }
+.project-manage-note { margin: var(--space-3) 0 0; font-size: var(--fs-xs); }
+.project-manage-kept { color: var(--green-ink); font-size: var(--fs-xs); }
+.project-manage .project-person-actions { opacity: 1; }
+.project-manage-invite .project-add { margin-bottom: 0; }
+.project-manage-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; }
+.project-manage-row + .project-manage-row { border-top: 1px solid var(--line); }
+.project-manage-row strong { color: var(--ink); font-weight: 500; }
+.project-manage-row p { margin: 2px 0 0; color: var(--ink-soft); font-size: var(--fs-xs); }
+.project-manage-row button { flex: none; padding: var(--space-1) var(--space-3); }
+.project-manage-danger { border-color: color-mix(in srgb, var(--red) 30%, var(--line)); }
+button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) { border-color: var(--red); background: var(--red); color: var(--ink-inverse); }
+@media (max-width: 640px) {
+  .project-manage-section { padding: var(--space-3) var(--space-4); }
+  .project-manage-field { grid-template-columns: minmax(0, 1fr) auto; }
+  .project-manage-field > .project-manage-label { grid-column: 1 / -1; }
+  .project-manage-row { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+  .project-tab.project-tab-manage { margin-left: 0; }
+  .project-tabs { gap: 0; }
+  .project-tab { padding: 5px var(--space-2); }
+  .project-manage .project-person { flex-wrap: wrap; column-gap: var(--space-2); row-gap: 0; padding: var(--space-1) 0; }
+  .project-manage .project-person-name, .project-manage .project-person-actions button { white-space: nowrap; }
+}
 [data-shell='desktop'] .project-desk { margin-top: 0; }
 /* The desk's three views: quiet words, the one shown on a soft pill. */
 .project-tabs { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); }
