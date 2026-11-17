@@ -138,10 +138,11 @@ export default function ProjectAddPapers({ project, currentUser, onAdd, onFiles,
 }
 
 const STATE_WORDS = {
-  waiting: 'Waiting…', uploading: 'Uploading…', reading: 'Reading…', saving: 'Saving to your nook…', adding: 'Adding…', added: 'Added',
+  waiting: 'Waiting…', uploading: 'Uploading…', reading: 'Reading…', saving: 'Saving to your nook…', adding: 'Adding…',
 };
 
-// PDFs on their way in from a drop or Choose PDFs, one line each.
+// PDFs on their way in from a drop or Choose PDFs, one line each, until
+// each is in the project's list or has failed.
 export function ArrivingPapers({ rows, onDismiss }) {
   if (!rows.length) return null;
   return (
@@ -152,7 +153,7 @@ export function ArrivingPapers({ rows, onDismiss }) {
           <span className="project-paper-arriving-state">
             {row.state === 'failed' ? row.error || 'Could not be added' : STATE_WORDS[row.state]}
           </span>
-          {(row.state === 'failed' || row.state === 'added') && (
+          {row.state === 'failed' && (
             <button type="button" className="project-quiet" aria-label={`Dismiss ${row.name}`} onClick={() => onDismiss(row.key)}>×</button>
           )}
         </li>
