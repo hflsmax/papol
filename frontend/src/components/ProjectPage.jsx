@@ -131,8 +131,9 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
   };
 
   // PDFs dropped on the page, or chosen in Add papers, one line each while
-  // they go to the nook and into the project; an added one leaves its line
-  // after a moment, a failed one stays until dismissed.
+  // they go to the nook and into the project. An added one's line goes as
+  // its card lands in the list, picked, so the paper is not shown twice; a
+  // failed one stays until dismissed.
   const [arriving, setArriving] = useState([]);
   const takeFiles = useRef(null);
   takeFiles.current = async (files) => {
@@ -149,9 +150,8 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
       try {
         const { project: next, sha256 } = await addPdfToProject(projectUuid, file, { nookShas, onState: (state) => set({ state }) });
         if (next?.uuid === projectUuid) setProject(show(next));
-        set({ state: 'added', title: next?.papers?.find((p) => p.sha256 === sha256)?.title });
+        setArriving((current) => current.filter((row) => row.key !== key));
         pick(sha256);
-        window.setTimeout(() => setArriving((current) => current.filter((row) => row.key !== key)), 6000);
         onChanged?.();
       } catch (err) {
         set({ state: 'failed', error: err?.message || String(err) });

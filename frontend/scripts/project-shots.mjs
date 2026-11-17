@@ -171,7 +171,12 @@ const SHOTS = {
   // into the project in place, with no form.
   'desk-drop-over': { ...desk('papers', '.desk-file-drop-overlay', "const data = new DataTransfer(); data.items.add(new File(['%PDF'], 'attention.pdf', { type: 'application/pdf' })); document.body.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: data })); return true;"), size: wide },
   'desk-drop-adding': { ...desk('papers', '.project-paper-arriving li', null), holdThen: ['/files/upload-address'], then: "document.getElementById('project-tab-papers').click(); " + DROP, settled: "document.querySelector('.project-paper-arriving li')", size: wide },
-  'desk-drop-added': { ...desk('papers', '.project-paper-arriving .is-added', null), then: "document.getElementById('project-tab-papers').click(); " + DROP, settled: "document.querySelector('.project-paper-arriving .is-added')", size: wide },
+  // A PDF with a long file name on its way in: its line stays in the list's
+  // column, the name cut short, and does not run under the brief.
+  'desk-drop-adding-long': { ...desk('papers', '.project-paper-arriving li', null), holdThen: ['/files/upload-address'], then: "document.getElementById('project-tab-papers').click(); " + DROP.replace("'attention.pdf'", "'people-use-fast-and-flat-simulation-to-reason-about-new-games-collins-2026.pdf'"), settled: "document.querySelector('.project-paper-arriving li')", size: wide },
+  // The dropped paper landed: its card is picked and its brief open, and
+  // the line that carried it in has gone.
+  'desk-drop-landed': { ...desk('papers', '.project-paper', null), then: "document.getElementById('project-tab-papers').click(); " + DROP, settled: "document.querySelector('.project-paper.is-selected [data-paper^=ffff]') && !document.querySelector('.project-paper-arriving li')", size: wide },
   // A PDF dropped on the nook: its upload takes it, its bar while it goes
   // up, then the form.
   'drop-uploading': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
