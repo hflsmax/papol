@@ -304,6 +304,33 @@ describe("the paper", () => {
     ]);
   });
 
+  it("reads IJCAI's references, each headed by how the text cites it, and links the et al. citations to them", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Games are played without human help [Genesereth et"],
+      [60, 728, "al., 2005], and the rules are written [Genesereth and Thielscher, 2014]."],
+      [60, 716, "Love et al. [2006] give the language; see also [Chang, 2015]."],
+      [60, 300, "References", 12],
+      [60, 280, "[Chang, 2015] Kenneth Chang. A math problem from Singapore goes viral."],
+      [60, 268, "The New York Times, 14 Apr 2015."],
+      [60, 256, "[Genesereth and Thielscher, 2014] Michael Genesereth and"],
+      [60, 244, "Michael Thielscher. General Game Playing. Morgan & Claypool, 2014."],
+      [60, 232, "[Genesereth et al., 2005] Michael Genesereth, Nathaniel"],
+      [60, 220, "Love, and Barney Pell. General game playing: Overview of"],
+      [60, 208, "the AAAI competition. AI Magazine, 26(2):62-72, 2005."],
+      [60, 196, "[Love et al., 2006] Nathaniel Love, Timothy Hinrichs, and"],
+      [60, 184, "Michael Genesereth. General Game Playing: Game Description"],
+      [60, 172, "Language Specification. Technical Report, Stanford, 2006."],
+    ].map(([x, y, text]) => [text.startsWith("[") && y < 300 ? x : x + (y < 300 ? 10 : 0), y, text]));
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => r.authors), [
+      ["Kenneth Chang"], ["Michael Genesereth", "Michael Thielscher"],
+      ["Michael Genesereth", "Nathaniel Love", "Barney Pell"], ["Nathaniel Love", "Timothy Hinrichs", "Michael Genesereth"],
+    ]);
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Genesereth et al., 2005", ["b2"]], ["Genesereth and Thielscher, 2014", ["b1"]], ["Chang, 2015", ["b0"]], ["Love et al. [2006]", ["b3"]],
+    ]);
+  });
+
   it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
     const pdf = writtenPdf([
       [60, 740, "Bennett (1973; see also below), McCarthy's (1956) method, as Toffoli suggests (1981),"],
