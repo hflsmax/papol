@@ -78,7 +78,7 @@ import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
-  LINK_NAVIGATION_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+  LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates';
 import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
@@ -755,6 +755,14 @@ export default function App() {
   const [paperInfo, setPaperInfo] = useState(null);
   const [paperInfoError, setPaperInfoError] = useState(null);
   const [learnLinkNavigation, setLearnLinkNavigation] = useState(false);
+  // Who sees what you write with a project on, told beside the project pill
+  // the first time a paper opens that way, until the reader dismisses it.
+  const [projectVisibilityTipDismissed, setProjectVisibilityTipDismissed] = useState(
+    () => isFeatureStateSet(PROJECT_VISIBILITY_TIP));
+  const dismissProjectVisibilityTip = () => {
+    setFeatureState(PROJECT_VISIBILITY_TIP, true);
+    setProjectVisibilityTipDismissed(true);
+  };
   // A PDF opened from disk: adding it to a nook is the one step that needs
   // an account. idle | ask (sign in first?) | waiting (for the library
   // window's sign-in) | adding.
@@ -4662,6 +4670,25 @@ export default function App() {
                     </span>
                   )}
                 </button>
+                {projectView && !projectVisibilityTipDismissed && !projectMenuOpen && (
+                  <span className="learn-papol project-visibility-tip" role="dialog" aria-labelledby="project-visibility-tip-title">
+                    <span className="kicker">Learn Papol</span>
+                    <strong id="project-visibility-tip-title">Who sees your digs here</strong>
+                    <span>
+                      People in {projectView.name} see your digs and ink on this paper while
+                      it sits on a public shelf in your nook. On a private shelf, only you see them.
+                    </span>
+                    <span>Anchors and clips always stay yours.</span>
+                    <button
+                      type="button"
+                      className="learn-papol-close"
+                      onClick={dismissProjectVisibilityTip}
+                      aria-label="Dismiss this tip"
+                    >
+                      Got it
+                    </button>
+                  </span>
+                )}
                 {projectMenuOpen && (
                   <div className="paper-info-pop project-menu" role="menu" data-tauri-drag-region="false">
                     <a role="menuitemradio" aria-checked={!projectView} href={withProject(window.location.href, null)}>Yours</a>

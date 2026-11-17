@@ -884,6 +884,9 @@ ${fileDropStyles}
 /* The wait under the button while the paper is added (docs/waiting.md). */
 .nook-adding { padding: 12px 14px; }
 .learn-papol.pdf-viewer-tip { left: auto; right: 0; }
+/* The project pill is last in the bar, so its card hangs leftward from it. */
+.learn-papol.project-visibility-tip { left: auto; right: 0; }
+.learn-papol.project-visibility-tip::before { left: auto; right: 14px; }
 .learn-papol.pdf-viewer-tip::before { left: auto; right: 22px; }
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
 .pdf-viewer-tip-actions button { padding: 4px 9px; }

@@ -42,6 +42,15 @@ export const VISIBILITY_TIP = {
   unsetLabel: 'Not shown',
 };
 
+export const PROJECT_VISIBILITY_TIP = {
+  key: 'papol_learn_project_visibility',
+  value: 'seen',
+  name: 'Project visibility tip',
+  description: 'The Learn Papol card that says who in a project sees your digs and ink, shown the first time a user opens a paper with a project on, until they dismiss it.',
+  setLabel: 'Dismissed',
+  unsetLabel: 'Not dismissed',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -81,6 +90,7 @@ export const MACOS_DOWNLOAD_BANNER_DISMISSED = {
 export const FEATURE_STATES = [
   LINK_NAVIGATION_TIP,
   VISIBILITY_TIP,
+  PROJECT_VISIBILITY_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,
