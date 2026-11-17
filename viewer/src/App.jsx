@@ -1757,6 +1757,9 @@ export default function App() {
           digs: read.digs ?? {},
           paperDigs: read.paper_digs ?? null,
           anchors: anchorsIn(theirs), ink: inkIn(theirs), clips: clipsIn(theirs),
+          // Others' anchors and clips are never drawn: one that carries a
+          // dig the reader can see comes as a place, for its margin line.
+          places: read.places ?? [],
         });
       })
       .catch(() => {
@@ -2377,9 +2380,10 @@ export default function App() {
   const marginWriting = marginOpen?.writing ? marginOpen.key : null;
   const marginLines = useMemo(
     () => (digView && paper ? marginLinesOf({
-      paper, paperDigs: digView.paperDigs, digs: digView.digs, anchors: shownAnchors, ink: shownInk, clips: shownClips, writing: marginWriting,
+      paper, paperDigs: digView.paperDigs, digs: digView.digs, writing: marginWriting,
+      anchors: [...shownAnchors, ...anchorsIn(projectView?.places ?? [])], ink: shownInk, clips: [...shownClips, ...clipsIn(projectView?.places ?? [])],
     }) : []),
-    [digView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
+    [digView, projectView, paper?.sha256, paper?.title, shownAnchors, shownInk, shownClips, marginWriting],
   );
   const withMargin = Boolean(digView) && viewWidth > PHONE_WIDTH && marginLines.length > 0;
   useLayoutEffect(() => { refit.current?.(); }, [withMargin]);

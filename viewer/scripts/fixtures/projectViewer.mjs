@@ -184,7 +184,11 @@ function answer(method, path, search) {
     return {
       project: { uuid: PROJECT, name: 'Adaptive optics control', members },
       me: ME,
-      annotations: NOT_KEPT ? theirs : [...mine, ...theirs],
+      // As the service answers since digs follow the shelf: of the others'
+      // marks only ink is drawn; an anchor or clip with a dig on it comes as
+      // a place alone.
+      annotations: [...(NOT_KEPT ? [] : mine), ...theirs.filter((a) => a.kind === 'ink')],
+      places: theirs.filter((a) => a.kind !== 'ink' && [id(7), id(8)].includes(a.uuid)),
       digs: {
         [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
         [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },
