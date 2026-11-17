@@ -301,12 +301,11 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
             <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
           </a>
         ))}
-        <button
-          type="button" className="project-seat-more" aria-label="Members" aria-expanded={open === 'people'} aria-controls="project-people"
-          onClick={() => setPeopleOpen(open === 'people' ? false : 'people')}
-        >
-          {people.length > 5 ? `+${people.length - 5}` : <ActionGlyph name="more" />}
-        </button>
+        {people.length > 5 && (
+          <button type="button" className="project-seat-more" aria-label={`All ${count}, in Manage`} onClick={() => setView('manage')}>
+            +{people.length - 5}
+          </button>
+        )}
       </div>
       {project.is_keeper && (
         <button
@@ -418,32 +417,30 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
   );
 }
 
-// A card under the seats, so the desk stays where the eye was: who is in
-// it and leaving (the faces), or the one invitation link (a keeper's Invite).
+// A card under the seats, so the desk stays where the eye was: a keeper's
+// Invite, to add someone or hand out the link. Who is in the project, and
+// leaving it, are in Manage.
 function People({ project, showing, currentUser, act, onLeft, onClose }) {
   const self = useRef(null);
   useEffect(() => {
-    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-seat-more, .project-invite-open')) onClose(); };
+    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-invite-open')) onClose(); };
     const escape = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
   }, [onClose]);
-  const leave = () => leaveProject({ project, currentUser, act, onLeft });
   return (
     <section id="project-people" className="project-people" aria-label={showing === 'invite' ? 'Invite' : 'Members'} ref={self}>
       {showing === 'invite' && project.is_keeper && <>
         <AddPerson project={project} act={act} />
         <Invitation project={project} act={act} />
       </>}
-      {showing === 'people' && <MemberList project={project} currentUser={currentUser} act={act} onLeave={leave} />}
     </section>
   );
 }
 
 // Who is in the project, each with what can be done about them: you can
-// leave, and a keeper makes others keepers or removes them. Shown in the
-// card under the seats and in Manage.
+// leave, and a keeper makes others keepers or removes them. In Manage.
 export function MemberList({ project, currentUser, act, onLeave }) {
   return (
     <ul className="project-people-list">
