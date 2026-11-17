@@ -210,6 +210,10 @@ sidebar, toolbar and document windows.
   Neither a paper's brief nor a dig is a page: a brief opens beside the
   list in the project's Papers tab, a dig in its Digs tab (under its row on
   a narrow window).
+- **A project's settings are its Manage tab,** last after Papers, Boards
+  and Digs: name and description, members and the invitation, leaving, and
+  (a keeper only) Delete project, asked first. Deleting takes the project's
+  boards and digs; its papers are each member's own and stay in their nooks.
 
 ## Digs
 

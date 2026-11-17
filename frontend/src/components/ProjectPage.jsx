@@ -7,7 +7,7 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
   addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
-  findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
+  deleteProject, findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
   describeProject, markProjectItemRead, markProjectRead, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -283,7 +283,11 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
       />
       {newPapers || boards.some((b) => b.is_new) || newTalk ? (
         <button type="button" className="project-quiet project-mark-all" disabled={markingAll} aria-busy={markingAll}
-          onClick={markAll}>{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</button>
+          title="Clear every news dot in this project" aria-label={markingAll ? 'Marking all as seen' : 'Mark all as seen'}
+          onClick={markAll}>
+          <ActionGlyph name="seen" />
+          <span className="project-mark-all-label">{markingAll ? 'Marking as seen…' : 'Mark all as seen'}</span>
+        </button>
       ) : null}
     </div>
   );
@@ -301,12 +305,11 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
             <small>{user.uuid === currentUser?.uuid ? 'You' : firstName(user)}</small>
           </a>
         ))}
-        <button
-          type="button" className="project-seat-more" aria-label="Members" aria-expanded={open === 'people'} aria-controls="project-people"
-          onClick={() => setPeopleOpen(open === 'people' ? false : 'people')}
-        >
-          {people.length > 5 ? `+${people.length - 5}` : <ActionGlyph name="more" />}
-        </button>
+        {people.length > 5 && (
+          <button type="button" className="project-seat-more" aria-label={`All ${count}, in Manage`} onClick={() => setView('manage')}>
+            +{people.length - 5}
+          </button>
+        )}
       </div>
       {project.is_keeper && (
         <button
@@ -400,6 +403,15 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
                 onViewed={(b) => { if (b?.is_new) void readItem('board', b.uuid, b.news_through); }}
               />
             )}
+            {view === 'manage' && (
+              <ProjectManage
+                project={project} currentUser={currentUser} act={act}
+                onRename={(name) => act(() => renameProject(project.uuid, name))}
+                onDescribe={(text) => act(() => describeProject(project.uuid, text))}
+                onLeft={onLeft}
+                onDeleted={() => { onChanged?.(); onLeft?.(); }}
+              />
+            )}
             {view === 'digs' && <ProjectTalk project={project} currentUser={currentUser} onTalked={talked}
               onRead={(d) => { if (d?.is_new) void readItem('dig', d.uuid, d.news_through); }} onOpenPaper={openPaper} />}
           </div>
@@ -409,64 +421,90 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
   );
 }
 
-// A card under the seats, so the desk stays where the eye was: who is in
-// it and leaving (the faces), or the one invitation link (a keeper's Invite).
+// A card under the seats, so the desk stays where the eye was: a keeper's
+// Invite, to add someone or hand out the link. Who is in the project, and
+// leaving it, are in Manage.
 function People({ project, showing, currentUser, act, onLeft, onClose }) {
-  const alone = project.members.length === 1;
   const self = useRef(null);
   useEffect(() => {
-    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-seat-more, .project-invite-open')) onClose(); };
+    const away = (e) => { if (!self.current?.contains(e.target) && !e.target.closest('.project-invite-open')) onClose(); };
     const escape = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape); };
   }, [onClose]);
-  const leave = async () => {
-    const ok = await confirmAction(
-      alone ? `Leave ${project.name}? It ends when its last member leaves.` : `Leave ${project.name}?`,
-      { confirmLabel: 'Leave', destructive: true },
-    );
-    if (ok && await act(() => removeMember(project.uuid, currentUser.uuid))) onLeft?.();
-  };
   return (
     <section id="project-people" className="project-people" aria-label={showing === 'invite' ? 'Invite' : 'Members'} ref={self}>
       {showing === 'invite' && project.is_keeper && <>
         <AddPerson project={project} act={act} />
         <Invitation project={project} act={act} />
       </>}
-      {showing === 'people' && <ul className="project-people-list">
-        {project.members.map((member) => {
-          const me = member.user.uuid === currentUser?.uuid;
-          return (
-            <li key={member.user.uuid} className="project-person">
-              <PresenceAvatar user={member.user} />
-              <a className="project-person-name" href={appPath(`/u/${member.user.uuid}`)}>
-                {member.user.display_name}
-              </a>
-              {member.user.online && <span className="project-person-online">Online</span>}
-              {(me || member.is_keeper) && (
-                <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
-              )}
-              {me ? (
-                <span className="project-person-actions">
-                  <button type="button" className="project-quiet project-danger" onClick={leave}>Leave</button>
-                </span>
-              ) : project.is_keeper && (
-                <span className="project-person-actions">
-                  <button type="button" className="project-quiet" onClick={() => act(() => setKeeper(project.uuid, member.user.uuid, !member.is_keeper))}>
-                    {member.is_keeper ? 'Not keeper' : 'Make keeper'}
-                  </button>
-                  <button type="button" className="project-quiet project-danger" onClick={() => act(async () => { await removeMember(project.uuid, member.user.uuid); return getProject(project.uuid); })}>
-                    Remove
-                  </button>
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>}
     </section>
   );
+}
+
+// Who is in the project, each with what can be done about them: you can
+// leave, and the keeper hands keeping to someone else or removes them. A
+// project has one keeper, so making someone keeper is handing it on,
+// asked first. In Manage.
+export function MemberList({ project, currentUser, act, onLeave }) {
+  const stuck = keeperStays(project);
+  const handOn = async (user) => {
+    const ok = await confirmAction(
+      `Make ${user.display_name} the keeper of ${project.name}?\n\nA project has one keeper. You stay a member, and only ${firstName(user)} can rename it, invite people or delete it.`,
+      { confirmLabel: 'Make keeper' },
+    );
+    if (ok) await act(() => setKeeper(project.uuid, user.uuid, true));
+  };
+  return (
+    <ul className="project-people-list">
+      {project.members.map((member) => {
+        const me = member.user.uuid === currentUser?.uuid;
+        return (
+          <li key={member.user.uuid} className="project-person">
+            <PresenceAvatar user={member.user} />
+            <a className="project-person-name" href={appPath(`/u/${member.user.uuid}`)}>
+              {member.user.display_name}
+            </a>
+            {member.user.online && <span className="project-person-online">Online</span>}
+            {(me || member.is_keeper) && (
+              <span className="project-person-role">{[me && 'you', member.is_keeper && 'Keeper'].filter(Boolean).join(' · ')}</span>
+            )}
+            {me ? (
+              <span className="project-person-actions">
+                <button type="button" className="project-quiet project-danger" onClick={onLeave}
+                  disabled={stuck} title={stuck ? 'Make another member keeper first' : undefined}>Leave</button>
+              </span>
+            ) : project.is_keeper && (
+              <span className="project-person-actions">
+                <button type="button" className="project-quiet" onClick={() => handOn(member.user)}>
+                  Make keeper
+                </button>
+                <button type="button" className="project-quiet project-danger" onClick={() => act(async () => { await removeMember(project.uuid, member.user.uuid); return getProject(project.uuid); })}>
+                  Remove
+                </button>
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// The keeper of a project others are in leaves only after handing it on.
+function keeperStays(project) {
+  return Boolean(project.is_keeper) && project.members.length > 1;
+}
+
+// Leaving, asked first. The last member to leave ends the project.
+export async function leaveProject({ project, currentUser, act, onLeft }) {
+  const alone = project.members.length === 1;
+  const ok = await confirmAction(
+    alone ? `Leave ${project.name}? It ends when its last member leaves.` : `Leave ${project.name}?`,
+    { confirmLabel: 'Leave', destructive: true },
+  );
+  if (ok && await act(() => removeMember(project.uuid, currentUser.uuid))) onLeft?.();
 }
 
 function PresenceAvatar({ user }) {
@@ -480,11 +518,11 @@ function PresenceAvatar({ user }) {
 
 // Someone already in Papol, found by name or by their whole address, is a
 // member the moment a keeper picks them.
-function AddPerson({ project, act }) {
+function AddPerson({ project, act, focus = true }) {
   const [query, setQuery] = useState('');
   const [found, setFound] = useState([]);
   const input = useRef(null);
-  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => { if (focus) input.current?.focus(); }, []);
   useEffect(() => {
     const asked = query.trim();
     if (!asked) { setFound([]); return undefined; }
@@ -563,7 +601,113 @@ function Invitation({ project, act }) {
   );
 }
 
-const VIEWS = [['papers', 'Papers'], ['boards', 'Boards'], ['digs', 'Digs']];
+// Everything about the project itself in one place: its name and what it
+// is about, who is in it and how others get in, and leaving or deleting
+// it. A member who is not a keeper sees the same page, with only Leave to
+// press. Deleting a project takes away its boards and digs with it; the
+// papers in it are each member's own and stay in their nooks.
+function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft, onDeleted }) {
+  const keeper = project.is_keeper;
+  const remove = async () => {
+    const others = project.members.length - 1;
+    const ok = await confirmAction(
+      `Delete ${project.name}?\n\nIts boards and digs go with it${others > 0 ? `, for all ${plural(project.members.length, 'member', 'members')}` : ''}. `
+        + 'The papers in it stay in each member\u2019s nook.',
+      { confirmLabel: 'Delete project', destructive: true },
+    );
+    if (!ok) return;
+    if (await act(async () => { await deleteProject(project.uuid); return { deleted: true }; })) onDeleted?.();
+  };
+  return (
+    <div className="project-manage">
+      <section className="project-manage-section" aria-labelledby="project-manage-about">
+        <h3 id="project-manage-about">About</h3>
+        <ManageField
+          label="Name" value={project.name} editable={keeper} required maxLength={80}
+          onKeep={onRename}
+        />
+        <ManageField
+          label="Description" value={project.description ?? ''} editable={keeper}
+          maxLength={appLimits.text.project_description} placeholder="What the project is about"
+          onKeep={onDescribe}
+        />
+        {!keeper && <p className="project-manage-note">Only the keeper, {keeperNames(project.members)}, can change these.</p>}
+      </section>
+      <section className="project-manage-section" aria-labelledby="project-manage-members">
+        <h3 id="project-manage-members">Members <span className="project-manage-count">{project.members.length}</span></h3>
+        <MemberList project={project} currentUser={currentUser} act={act} onLeave={() => leaveProject({ project, currentUser, act, onLeft })} />
+        {keeper && (
+          <div className="project-manage-invite">
+            <h4>Add someone</h4>
+            <AddPerson project={project} act={act} focus={false} />
+            <h4>Invitation link</h4>
+            <Invitation project={project} act={act} />
+          </div>
+        )}
+      </section>
+      <section className="project-manage-section project-manage-danger" aria-labelledby="project-manage-end">
+        <h3 id="project-manage-end">Leave or delete</h3>
+        <div className="project-manage-row">
+          <div>
+            <strong>Leave this project</strong>
+            <p>{project.members.length === 1 ? 'You are its last member, so leaving ends it.' : keeper ? 'Make another member keeper first. What you added stays.' : 'What you added stays for the others.'}</p>
+          </div>
+          <button type="button" disabled={keeperStays(project)} onClick={() => leaveProject({ project, currentUser, act, onLeft })}>Leave</button>
+        </div>
+        {keeper && (
+          <div className="project-manage-row">
+            <div>
+              <strong>Delete this project</strong>
+              <p>For everyone in it, with its boards and digs. The papers stay in each member&rsquo;s nook.</p>
+            </div>
+            <button type="button" className="project-manage-delete" onClick={remove}>Delete project</button>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// One of the project's own words in Manage: kept when left, taken back with
+// Escape, as the name and description in the bar are.
+function ManageField({ label, value, editable, required = false, maxLength, placeholder, onKeep }) {
+  const [text, setText] = useState(value);
+  const [kept, setKept] = useState(false);
+  const reverting = useRef(false);
+  useEffect(() => setText(value), [value]);
+  const id = `project-manage-${label.toLowerCase()}`;
+  if (!editable) {
+    return (
+      <div className="project-manage-field">
+        <span className="project-manage-label">{label}</span>
+        <p className="project-manage-value">{value || <span className="project-manage-none">None</span>}</p>
+      </div>
+    );
+  }
+  const keep = async () => {
+    if (reverting.current) { reverting.current = false; return; }
+    const next = text.trim();
+    if (next === value || (required && !next)) { setText(value); return; }
+    if (await onKeep(next)) { setKept(true); window.setTimeout(() => setKept(false), 2000); } else setText(value);
+  };
+  return (
+    <div className="project-manage-field">
+      <label className="project-manage-label" htmlFor={id}>{label}</label>
+      <input
+        id={id} className="project-manage-input" value={text} maxLength={maxLength} placeholder={placeholder}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={keep}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') { reverting.current = true; setText(value); e.currentTarget.blur(); }
+        }}
+      />
+      <span className="project-manage-kept" role="status">{kept ? 'Saved' : ''}</span>
+    </div>
+  );
+}
+
+const VIEWS = [['papers', 'Papers'], ['boards', 'Boards'], ['digs', 'Digs'], ['manage', 'Manage']];
 
 // The desk shows one of its three things at a time. The view is kept for
 // the visit, so coming back from the viewer or a board lands where you were.
@@ -599,7 +743,7 @@ function usePicked(projectUuid) {
 }
 
 // Papers, Boards, Digs: each with its count, and the news dot when
-// something in it is new since the last visit.
+// something in it is new since the last visit. Manage, last, has neither.
 function DeskTabs({ view, onView, counts, fresh }) {
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -615,8 +759,8 @@ function DeskTabs({ view, onView, counts, fresh }) {
         <button
           key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
           aria-selected={view === v} tabIndex={view === v ? 0 : -1}
-          aria-label={`${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total`}
-          className={`project-tab${view === v ? ' is-on' : ''}`}
+          aria-label={v in counts ? `${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total` : label}
+          className={`project-tab${view === v ? ' is-on' : ''}${v === 'manage' ? ' project-tab-manage' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >
           {label}

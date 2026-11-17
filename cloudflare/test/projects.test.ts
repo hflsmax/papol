@@ -309,6 +309,21 @@ describe("people going", () => {
     expect((await call("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).status).toBe(404);
   });
 
+  it("has one keeper: making someone keeper hands it on, and a keeper cannot just stop", async () => {
+    const dana = await register(), ana = await register(), ben = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana, ben);
+    expect((await call("PUT", `/api/projects/${project.uuid}/members/${dana.uuid}`, { headers: dana.headers, json: { is_keeper: false } })).status).toBe(400);
+    const handed = await ok("PUT", `/api/projects/${project.uuid}/members/${ana.uuid}`, { headers: dana.headers, json: { is_keeper: true } });
+    expect(handed.is_keeper).toBe(false);
+    expect(handed.members.filter((m: any) => m.is_keeper).map((m: any) => m.user.uuid)).toEqual([ana.uuid]);
+    // The old keeper is a member now, and cannot hand it on again.
+    expect((await call("PUT", `/api/projects/${project.uuid}/members/${ben.uuid}`, { headers: dana.headers, json: { is_keeper: true } })).status).toBe(403);
+    expect(await row("SELECT count(*) AS n FROM project_members WHERE project_uuid = ? AND is_keeper = 1", project.uuid)).toEqual({ n: 1 });
+    // The database holds it too.
+    await expect(env.DB.prepare("UPDATE project_members SET is_keeper = 1 WHERE project_uuid = ? AND user_uuid = ?").bind(project.uuid, ben.uuid).run()).rejects.toThrow();
+  });
+
   it("leaves the papers someone added, and only the adder or a keeper takes one out", async () => {
     const dana = await register(), ana = await register(), ben = await register();
     const project = await start(dana);

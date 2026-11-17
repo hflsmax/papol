@@ -166,7 +166,7 @@ const project = {
   description: 'How a closed loop can learn the turbulence it corrects, and where learned control beats a tuned integrator on a real bench.',
   members: [
     { user: me, is_keeper: true, joined_at: daysAgo(20) },
-    { user: ana, is_keeper: true, joined_at: daysAgo(19) },
+    { user: ana, is_keeper: false, joined_at: daysAgo(19) },
     { user: ben, is_keeper: false, joined_at: daysAgo(12) },
     { user: mia, is_keeper: false, joined_at: daysAgo(2) },
   ],
@@ -270,8 +270,12 @@ const REPORT = (() => {
   };
 })();
 
+let deleted = false;
+
 // What the pretend server says to each request the pages make.
 function answer(method, path, search, sent = {}) {
+  // Each picture loads the app afresh: the project is back.
+  if (path === '/auth/me') deleted = false;
   if (path === '/auth/me') return { ...me, is_admin: process.env.PAPOL_ADMIN === '1', email: 'dana@example.org' };
   if (path === '/notifications') {
     const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
@@ -305,7 +309,10 @@ function answer(method, path, search, sent = {}) {
   }
   // A project started from the rail opens as the fixture's own.
   if (path === '/projects' && method === 'POST') return project;
-  if (path === '/projects') return [summary, other, closed];
+  if (path === '/projects') return deleted ? [other, closed] : [summary, other, closed];
+  // A keeper deleting the project: gone from the lists for the rest of
+  // the visit, as the server has it.
+  if (path === `/projects/${PROJECT}` && method === 'DELETE') { deleted = true; return { message: 'Project deleted' }; }
   if (path === `/projects/${PROJECT}`) return project;
   // A paper added from the nook or dropped on the page: the project with it
   // first, as the server answers. Nothing is kept, so each picture starts

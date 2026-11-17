@@ -15,6 +15,7 @@ export default function ActionGlyph({ name }) {
     add: <><path d="M12 4v10M7 9h10" /><path d="M4 14v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></>,
     'take-out': <><circle cx="12" cy="12" r="8" /><path d="M8.5 12h7" /></>,
     discuss: <path d="M7.5 3.5h9a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5H12l-4.2 3.3c-.4.3-1 .03-1-.5v-2.9A5 5 0 0 1 2.5 11.5v-3a5 5 0 0 1 5-5Z" />,
+    seen: <><path d="M2.5 12.5l4 4 8-9" /><path d="M10.5 15.5l1 1 8-9" /></>,
     edit: <><path d="M5 19h4L19 9l-4-4L5 15Z" /><path d="M13 7l4 4" /></>,
   };
 
