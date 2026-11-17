@@ -4725,7 +4725,7 @@ export default function App() {
                           <span>{projectView.myShelf === 'public' ? 'You have no private shelf yet. Make one in your nook.' : 'You have no public shelf yet. Make one in your nook.'}</span>
                         )}
                         <span className="pdf-viewer-tip-actions">
-                          <button type="button" onClick={() => setShelfChoices(null)}>Cancel</button>
+                          <button type="button" onClick={() => setShelfChoices(null)}>Back</button>
                         </span>
                       </>
                     ) : (
