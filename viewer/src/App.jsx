@@ -4735,8 +4735,8 @@ export default function App() {
                       <>
                         <span>
                           {projectView.myShelf === 'public'
-                            ? 'Your project can see your digs and ink. This paper is on a public shelf.'
-                            : 'Only you can see your digs and ink. This paper is on a private shelf.'}
+                            ? 'Members of this project can see your digs and ink because this paper is on a public shelf.'
+                            : 'Only you can see your digs and ink because this paper is on a private shelf.'}
                         </span>
                         <label className="storage-notice-opt-out">
                           <input
