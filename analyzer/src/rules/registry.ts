@@ -606,6 +606,14 @@ export const BIB_EDITORIAL = rule({
   matches: ["Received 2025-03-26; accepted 2025-08-12", "Received 17 October 2012; revised", "Received March 3, 2020"],
   rejects: ["Received wisdom holds that", "Mako Bates. 2025. Received types"],
 });
+export const BIB_BIOS = rule({
+  id: "bibliography.bios", stage: "bibliography",
+  summary: "An author's name set bold and running on into a sentence about them (\"Michael Genesereth is an associate professor …\") begins the authors' biographies, which end the bibliography.",
+  why: "AI Magazine prints its authors' biographies straight after the last reference, in the same face and size, so they were read as entries and the list's spacing was lost under them.",
+  pattern: /^\s*(?:(?:Dr|Prof)\.?\s)?\p{Lu}[\p{L}'’.-]*(?:\s\p{Lu}[\p{L}'’.-]*){1,3}(?:,\s(?:Ph\.\s?D|Jr|Sr|M\.\s?D)\.?)?\s(?:is|was|holds|received|earned|has|serves|joined|works|leads|teaches)\s/u,
+  matches: ["Michael Genesereth is an associ-", "Nathaniel Love is a Ph.D. candi-", "Barney Pell, Ph.D. holds a B.S. de-", "Manuela M. Veloso is a professor"],
+  rejects: ["Knoblock, C. A. 1991. Search Reduction", "McCarthy, J. 1959. Programs with Common Sense. In", "Proceedings of the Teddington Conference is"],
+});
 export const BIB_QUALITY = rule({
   id: "bibliography.quality", stage: "bibliography",
   summary: "A stretch under a bibliography heading is kept only if it reads as a bibliography: at least three entries, most of them with a year.",

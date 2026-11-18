@@ -4,7 +4,7 @@
 import { extractArxivId } from "../../../cloudflare/src/papers/identifiers";
 import { flowOf, type Layout, type Line } from "./layout";
 import {
-  BIB_EDITORIAL, BIB_HEADING, BIB_QUALITY, BIB_STOP, BIB_TRAILING_LIST, ENTRY_BRACKET, ENTRY_GAP, ENTRY_HANGING, ENTRY_LABEL, ENTRY_NUMBER, ENTRY_NUMBER_BARE,
+  BIB_BIOS, BIB_EDITORIAL, BIB_HEADING, BIB_QUALITY, BIB_STOP, BIB_TRAILING_LIST, ENTRY_BRACKET, ENTRY_GAP, ENTRY_HANGING, ENTRY_LABEL, ENTRY_NUMBER, ENTRY_NUMBER_BARE,
   FIELD_AUTHORS_INVERTED, FIELD_AUTHORS_YEAR_FIRST, FIELD_DOI, FIELD_TITLE_QUOTED, FIELD_YEAR_AFTER_AUTHORS,
   FIELD_YEAR_ANY, FIELD_YEAR_PAREN, type Rule,
 } from "./registry";
@@ -74,8 +74,11 @@ function blocks(layout: Layout, trace: Trace): { lines: Line[]; heading: Line | 
       // or numbered and in capitals throughout, bold or not.
       || (line.text.length < 80 && /^(?:[A-Z]|\d+)(?:\.\d+)*\.?\s+[A-Z][A-Z-]+(?:\s+[A-Z-]+)+\s*$/.test(line.text));
     const editorial = BIB_EDITORIAL.pattern!.test(text);
-    if (ends || editorial) {
-      trace.add(editorial ? BIB_EDITORIAL.id : BIB_STOP.id, line.page, line.text, []);
+    // The authors' biographies, each led by its author's name in bold.
+    const lead = line.runs.find((r) => /\p{L}/u.test(r.text));
+    const bios = !ends && !editorial && !!lead?.bold && !line.bold && current.lines.length > 0 && BIB_BIOS.pattern!.test(text);
+    if (ends || editorial || bios) {
+      trace.add(editorial ? BIB_EDITORIAL.id : bios ? BIB_BIOS.id : BIB_STOP.id, line.page, line.text, []);
       out.push(current);
       current = null;
       continue;
