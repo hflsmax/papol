@@ -662,6 +662,30 @@ describe("the paper", () => {
     }
   });
 
+  it("bounds a table captioned under itself, over a paragraph's last line carried into the column (AAAI10a page 2)", async () => {
+    // The table heads the column and its caption is under it; past a gap,
+    // the column's text opens with the last line of a paragraph from the
+    // column before. That line is running text, not the table under its
+    // caption: the table is the rows over the caption.
+    const rows = [["role(R)", "R is a player"], ["init(F)", "F holds in the initial position"], ["true(F)", "F holds in the current position"],
+      ["next(F)", "F holds in the next position"], ["random", "the random player"]];
+    const prose = "of the moves the players make and what each of them sees of the others, in turn";
+    const pdf = writtenPdf([
+      ...rows.flatMap(([a, b], i) => [[70, 760 - 12 * i, a], [160, 760 - 12 * i, b]]),
+      [60, 690, "Table 1: The keywords: the first four are the standard ones while the last is"],
+      [60, 678, "added in view of elements of chance in the games it describes."],
+      [60, 650, "player's knowledge."],
+      [70, 638, "The rest of the paper is organised as follows. In the next section we show the"],
+      ...Array.from({ length: 8 }, (_, i) => [60, 626 - 12 * i, prose]),
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const table = body.floats.find((f) => f.kind === "table" && f.label === "1");
+      // The first row is 800 − 760 = 40 from the top; the carried line at 150.
+      assert.ok(table && table.y < 45 / 800 && table.y + table.h < 140 / 800, `Table 1 is its rows and its caption, not the line under it: ${JSON.stringify(table)}`);
+    }
+  });
+
   it("keeps a caption whole past a legend's swatch drawn in its text", async () => {
     // A short line drawn between the caption's lines ("(red line)") is a
     // swatch, not the rule under an algorithm's caption.

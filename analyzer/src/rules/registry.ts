@@ -181,7 +181,7 @@ export const FLOAT_TYPE = rule({
 });
 export const FLOAT_PROSE = rule({
   id: "float.prose", stage: "float",
-  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure (within an indent of it), justified with that line (both edges shared, at least half the measure wide, and not by having as many characters, as monospaced code does), or the short last or indented first line of a paragraph that is; and any paragraph of three lines or more, at least half the measure wide, sharing both edges, in whatever font.",
+  summary: "Running text: a line in the paper's text font at its size, with no gap wider than an em and a half between words, one leading from another such line above or below, and either set to the full measure (within an indent of it), justified with that line (both edges shared, at least half the measure wide, and not by having as many characters, as monospaced code does), or the short last or indented first line of a paragraph that is, or the last line of one carried over to open a column (under nothing in the column, or under a float that heads it, more than two leadings up, with the paragraph after it a leading under); and any paragraph of three lines or more, at least half the measure wide, sharing both edges, in whatever font.",
   why: "A figure can be text — code, a grammar, rules of inference, a label in the text font — and a table's rows are words; what a float is not is the paper's own paragraphs.",
 });
 export const FLOAT_FRONT_MATTER = rule({
