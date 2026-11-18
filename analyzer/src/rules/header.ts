@@ -14,8 +14,8 @@ import { extractArxivId, extractDoi } from "../../../cloudflare/src/papers/ident
 import { layout, type Line } from "./layout";
 import { readDoc, type Doc, type PdfDocument } from "./page";
 import {
-  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_ISSUE, HEADER_JOURNAL_LINE, HEADER_JOURNAL_NUMBER, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_RUNNING_TITLE,
-  HEADER_SUBTITLE, HEADER_TITLE, HEADER_YEAR, HEADER_YEAR_LATE,
+  HEADER_ABSTRACT, HEADER_AFFILIATION, HEADER_AUTHORS, HEADER_CITE_THIS, HEADER_JOURNAL_ABBREVIATION, HEADER_JOURNAL_ISSUE, HEADER_JOURNAL_LINE, HEADER_JOURNAL_NUMBER, HEADER_JOURNAL_VOLUME, HEADER_MASTHEAD, HEADER_PROCEEDINGS, HEADER_NOT_TITLE, HEADER_ORGANIZATION, HEADER_RUNNING_TITLE,
+  HEADER_SUBTITLE, HEADER_TITLE, HEADER_YEAR, HEADER_YEAR_DATELINE, HEADER_YEAR_LATE,
 } from "./registry";
 import { Trace } from "./trace";
 
@@ -134,7 +134,10 @@ export function headerOf(doc: Doc): HeaderResult {
     const issue = journal ? HEADER_JOURNAL_ISSUE.pattern!.exec(pageOne.replace(/\s+/g, " ")) : null;
     if (issue) { journal = `${journal} (${issue.groups!.issue})`; trace.add(HEADER_JOURNAL_ISSUE.id, 1, issue[0], []); }
   }
-  const year = cited ? Number(cited.groups!.year) : yearOf(pageOne, lineYear, arxiv, trace);
+  // A date alone in the page's head, above the title: a report's date.
+  const titleTop = titlePage === first && titleLines.length ? titleLines[0].top : Infinity;
+  const dateline = first.lines.find((l) => l.top < titleTop && l.top < 0.25 * first.height && HEADER_YEAR_DATELINE.pattern!.test(clean(l)));
+  const year = cited ? Number(cited.groups!.year) : yearOf(pageOne, lineYear, dateline ? clean(dateline) : null, arxiv, trace);
 
   return { header: { title: normalizeTitle(title), authors, journal, year, doi, arxiv_id: arxiv }, trace };
 }
@@ -265,8 +268,10 @@ function titleScore(block: Line[], lines: Line[], context: TitleContext): number
   const similarity = infoTitle ? titleAgreement(text, infoTitle) : 0;
   const agreement = similarity >= 0.7 ? 3 : similarity >= 0.4 ? 1 : 0;
   // A wide line is mild supporting evidence only: short one-word titles
-  // and narrow title columns are both legitimate.
-  const breadth = (start.x1 - start.x0) / width >= 0.35 ? 0.5 : 0;
+  // and narrow title columns are both legitimate. The block's widest line
+  // counts, so a short first line ("General Game Playing:") does not lose
+  // to the wider line under it alone.
+  const breadth = Math.max(...block.map((line) => line.x1 - line.x0)) / width >= 0.35 ? 0.5 : 0;
 
   return size + position + language + isolatedCaps + authorBlock + affiliation
     + beforeAbstract + leadsSubtitle + agreement + breadth;
@@ -354,7 +359,7 @@ const PARTICLES = new Set(["van", "von", "der", "den", "de", "del", "della", "di
 function nameOf(part: string): string | null {
   const cleaned = part.replace(/[*∗†‡§¶✉✝#]+/gu, " ").replace(/\s*\([\p{L}'’.-]+\)\s*/gu, " ")
     .replace(/\s+/g, " ").trim().replace(/^(?:and|&)\s+/i, "");
-  if (!cleaned || HEADER_AFFILIATION.pattern!.test(cleaned) || /\d/.test(cleaned)) return null;
+  if (!cleaned || HEADER_AFFILIATION.pattern!.test(cleaned) || HEADER_ORGANIZATION.pattern!.test(cleaned) || /\d/.test(cleaned)) return null;
   const words = cleaned.split(" ");
   if (words.length < 2 || words.length > 5) return null;
   // An acronym beside ordinary words is an institution: "TU Wien".
@@ -444,13 +449,16 @@ function authorsOf(lines: Line[], trace?: Trace): string[] {
   return names;
 }
 
-// The first page's date of publication, the journal line's year, a
-// "YYYY, Vol." line or the acceptance, and last an arXiv number's year.
-function yearOf(text: string, lineYear: number | null, arxiv: string | null, trace: Trace): number | null {
+// The first page's date of publication, the journal line's year, a date
+// alone above the title, a "YYYY, Vol." line or the acceptance, and last an
+// arXiv number's year.
+function yearOf(text: string, lineYear: number | null, dateline: string | null, arxiv: string | null, trace: Trace): number | null {
   const plausible = (y: number | null) => y !== null && y >= 1900 && y <= LATEST_YEAR;
   const published = HEADER_YEAR.pattern!.exec(text);
   if (published && plausible(Number(published.groups!.year))) { trace.add(HEADER_YEAR.id, 1, published[0], []); return Number(published.groups!.year); }
   if (plausible(lineYear)) return lineYear;
+  const dated = dateline ? Number(HEADER_YEAR_DATELINE.pattern!.exec(dateline)!.groups!.year) : null;
+  if (plausible(dated)) { trace.add(HEADER_YEAR_DATELINE.id, 1, dateline!, []); return dated; }
   const late = HEADER_YEAR_LATE.pattern!.exec(text);
   const lateYear = late ? Number(late.groups!.vol ?? late.groups!.accepted) : null;
   if (plausible(lateYear)) { trace.add(HEADER_YEAR_LATE.id, 1, late![0], []); return lateYear; }
