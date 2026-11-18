@@ -847,6 +847,14 @@ export const HEADER_AFFILIATION = rule({
   matches: ["Yale University", "USA", "Department of Mechanical Engineering", "Max Planck Institute for Software Systems", "SRI International", "Carnegie Mellon University", "MIT CSAIL"],
   rejects: ["Yuting Wang", "Hiromi Yasuda", "Philip R. Buskohl", "Marshall Pease"],
 });
+export const HEADER_ORGANIZATION = rule({
+  id: "header.organization", stage: "header",
+  summary: "Capitalized words that end in Group, Team, Committee, Society, Association, Foundation or Council name a body of people, not a person.",
+  why: "Stanford's technical reports set the group's name (\"Stanford Logic Group\") over the department and address, in the authors' size, where it read as a sixth author of the Game Description Language specification.",
+  pattern: /\b(?:group|team|committee|society|association|foundation|council)$/i,
+  matches: ["Stanford Logic Group", "Programming Languages Team", "The R Foundation"],
+  rejects: ["Michael Genesereth", "Eric Schkufza", "Teamus Groupman"],
+});
 export const HEADER_ABSTRACT = rule({
   id: "header.abstract", stage: "header",
   summary: "The author block ends at the abstract: its heading, or a line of running prose.",
@@ -915,6 +923,14 @@ export const HEADER_YEAR_LATE = rule({
   pattern: /(?:^|\n)\s*(?<vol>(?:19|20)\d\d),\s*Vol\.|accepted\W{0,3}(?:\d{1,2}\s+)?(?:[A-Z][a-z]+\.?\s+)?(?:\d{1,2},?\s+)?(?<accepted>(?:19|20)\d\d)\b/i,
   matches: ["2025, Vol. 36(18-19) 1266–1268", "Accepted: 16 March 2026", "Accepted 8 April 2024"],
   rejects: ["Received: 9 July 2023"],
+});
+export const HEADER_YEAR_DATELINE = rule({
+  id: "header.year-dateline", stage: "header",
+  summary: "Where no date of publication is printed, a line above the title that is only a date — \"March 4, 2008\" — gives the year.",
+  why: "Technical reports and drafts date their first page in its head, beside the report's number (\"LG-2006-01   March 4, 2008\"), and print no other date.",
+  pattern: /^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\.?\s+(?:\d{1,2},?\s+)?|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+)(?<year>(?:19|20)\d\d)\s*$/,
+  matches: ["March 4, 2008", "4 March 2008", "November 2019"],
+  rejects: ["LG-2006-01", "Received: 9 July 2023", "Draft of March 4, 2008, do not distribute", "May 2008 be the year"],
 });
 export const HEADER_YEAR = rule({
   id: "header.year", stage: "header",

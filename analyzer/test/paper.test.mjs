@@ -163,6 +163,25 @@ describe("the title block", () => {
     assert.equal(header.year, 2005);
   });
 
+  it("reads a Stanford technical report: the title's short first line, no group among the authors, and the dated head (946f7dd3)", async () => {
+    const pdf = writtenPdf([
+      [72, 693, "LG-2006-01"],
+      [478, 693, "March 4, 2008"],
+      [226, 593, "General Game Playing:", 17],
+      [162, 567, "Game Description Language Specification", 17],
+      [70, 510, "Nathaniel Love, Timothy Hinrichs, David Haley, Eric Schkufza, Michael Genesereth", 12],
+      [250, 259, "Stanford Logic Group", 12],
+      [227, 243, "Computer Science Department", 12],
+      [256, 226, "Stanford University", 12],
+      [268, 209, "353 Serra Mall", 12],
+      [255, 193, "Stanford, CA 94305", 12],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "General Game Playing: Game Description Language Specification");
+    assert.deepEqual(header.authors, ["Nathaniel Love", "Timothy Hinrichs", "David Haley", "Eric Schkufza", "Michael Genesereth"]);
+    assert.equal(header.year, 2008);
+  });
+
 });
 
 // PACMPL's first page, as acmart sets it: the venue is only in the
