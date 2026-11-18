@@ -378,16 +378,42 @@ export default function App({ startupUser = null, startupError = null }) {
   }, [mode]);
 
   // PDFs dropped in the viewer, handed over on the way here: the nook's
-  // upload takes them as if they had been dropped on it.
+  // upload takes them as if they had been dropped on it. On the web they
+  // come with the page load; in the Mac app the viewer window raises this
+  // one, so they are looked for each time it comes forward, and with no
+  // account the one PDF opens in a viewer of its own, as a drop here does.
   useEffect(() => {
-    if (DESKTOP || mode !== 'signed-in') return;
-    void takeDroppedPdfs().then((files) => {
+    if (!DESKTOP && mode !== 'signed-in') return undefined;
+    let taking = false;
+    const take = async () => {
+      if (taking) return;
+      taking = true;
+      const files = await takeDroppedPdfs();
+      taking = false;
       if (!files.length) return;
+      if (DESKTOP && mode !== 'signed-in') {
+        if (files.length === 1) {
+          try {
+            await openDroppedPdf(files[0]);
+          } catch {
+            // The viewer that was dropped on is still open; nothing is lost.
+          }
+        } else {
+          setDeskDropNotice('Sign in to add several papers at once.');
+          window.clearTimeout(deskDropNoticeTimer.current);
+          deskDropNoticeTimer.current = window.setTimeout(() => setDeskDropNotice(null), 4000);
+        }
+        return;
+      }
       const uuid = globalThis.crypto.randomUUID();
       if (files.length > 1) setIncomingPaperFolder({ uuid, files });
       else setIncomingPaperFile({ uuid, file: files[0] });
-      navigate('/', { replace: true });
-    });
+      navigate(DROP_PLACE, { replace: !DESKTOP });
+    };
+    void take();
+    if (!DESKTOP) return undefined;
+    window.addEventListener('focus', take);
+    return () => window.removeEventListener('focus', take);
   }, [mode]);
 
   // Back and Forward return a page scrolled where it was left; a move
