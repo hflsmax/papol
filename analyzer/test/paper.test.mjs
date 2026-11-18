@@ -136,6 +136,33 @@ describe("the title block", () => {
     assert.deepEqual(header.authors, ["Xiaoyu Zheng", "Michael Kirkedal Thomsen"]);
   });
 
+  it("reads an AI Magazine article: the subtitle over two lines, and the issue stamped on its opening page (d3959dcd)", async () => {
+    const pdf = writtenPdfPages([
+      [
+        [200, 775, "AI Magazine Volume 26 Number 2 (2005)", 9],
+        [90, 150, "A general game playing system is one that can accept a formal description of a game and play it.", 8],
+        [100, 140, "In order to promote work in this area, the AAAI is sponsoring an open competition this summer.", 8],
+        [42, 50, "62 AI MAGAZINE", 9],
+      ],
+      [
+        [130, 740, "General Game", 36],
+        [180, 704, "Playing:", 36],
+        [175, 655, "Overview of the", 20],
+        [165, 625, "AAAI Competition", 20],
+        [115, 570, "Michael Genesereth, Nathaniel Love, and Barney Pell", 12],
+        [50, 500, "Games of strategy, such as chess, couple intellectual activity with competition, and we can"],
+        [50, 488, "exercise and improve our intellectual skills by playing such games against one another."],
+        [50, 476, "The competition adds excitement and allows us to compare our skills to those of others."],
+        [50, 464, "The same motivation accounts for interest in computer game playing as a testbed for AI."],
+      ],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "General Game Playing: Overview of the AAAI Competition");
+    assert.deepEqual(header.authors, ["Michael Genesereth", "Nathaniel Love", "Barney Pell"]);
+    assert.equal(header.journal, "AI Magazine");
+    assert.equal(header.year, 2005);
+  });
+
 });
 
 // PACMPL's first page, as acmart sets it: the venue is only in the
