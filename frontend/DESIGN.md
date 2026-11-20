@@ -68,11 +68,11 @@ how much: the time a day held on the month's calendar, and a paper's
 5 carry `--ink-inverse` text. None
 is ever used for a state.
 
-**Read-age greys** (`--read-age-1`…`5`) shade a paper's row on the
-member's own desk by how long ago they last read it (`readAge.js`):
-within a day it keeps `--card`; then a week, a month, three months,
-longer; `5` is never read. Neutral grey, so it never reads as effort's
-blue. From step 2 the row's `--ink-faint` becomes `--ink-soft`, which
+**Read-age greys** (`--read-age-1`, `--read-age-2`) shade a paper's row
+on the member's own desk by how long ago they last read it
+(`readAge.js`): within two weeks it keeps `--card`; `1` is longer ago,
+`2` is never read. Neutral grey, so it never reads as
+effort's blue. On a shaded row `--ink-faint` becomes `--ink-soft`, which
 stays AA on the darkest step. A nook that does not know the reading time
 (the Mac's replica) shades nothing.
 

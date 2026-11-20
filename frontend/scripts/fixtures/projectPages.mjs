@@ -374,7 +374,7 @@ function answer(method, path, search, sent = {}) {
         ...listed(p, true),
         // Read at a spread of ages, so the desk shows each step of how long
         // ago a paper was last read.
-        effort: [{ seconds: 2400, last_at: daysAgo(5) }, { seconds: 900, last_at: daysAgo(18) }, { seconds: 3600, last_at: daysAgo(60) }, { seconds: 600, last_at: daysAgo(120) }][i] ?? null,
+        effort: [{ seconds: 2400, last_at: daysAgo(5) }, { seconds: 900, last_at: daysAgo(18) }, { seconds: 3600, last_at: daysAgo(60) }, { seconds: 600, last_at: daysAgo(200) }][i] ?? null,
       }))),
       boards: NOOK_BOARDS,
       projects: [summary, other],

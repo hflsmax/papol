@@ -5621,13 +5621,11 @@ ${talkStyles}
 .desk-table tbody tr { background: var(--read-ground, transparent); }
 .desk-table tbody tr:hover td { background: color-mix(in srgb, var(--read-ground, var(--card)) 94%, var(--ink)); }
 /* A row is shaded by how long ago its paper was last read (readAge.js):
-   read today keeps the card, never read is darkest. From the second step
-   the faint text takes --ink-soft, which stays AA on the darkest. */
+   read within two weeks keeps the card, never read is darkest. On every
+   shade the faint text takes --ink-soft, which stays AA on the darkest. */
 .desk-table tr.read-age-1 { --read-ground: var(--read-age-1); }
-.desk-table tr.read-age-2 { --read-ground: var(--read-age-2); --ink-faint: var(--ink-soft); }
-.desk-table tr.read-age-3 { --read-ground: var(--read-age-3); --ink-faint: var(--ink-soft); }
-.desk-table tr.read-age-4 { --read-ground: var(--read-age-4); --ink-faint: var(--ink-soft); }
-.desk-table tr.read-age-5 { --read-ground: var(--read-age-5); --ink-faint: var(--ink-soft); }
+.desk-table tr.read-age-2 { --read-ground: var(--read-age-2); }
+.desk-table tr[class*="read-age-"] { --ink-faint: var(--ink-soft); }
 /* The member's place in the bar before they are known: held, not drawn. */
 .way-self.is-unknown { visibility: hidden; }
 .way-self.is-unknown > .nav-avatar { display: inline-block; }

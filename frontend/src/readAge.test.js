@@ -5,17 +5,13 @@ import { readAge, readAgeLabel, READ_AGE_NEVER } from './readAge.js';
 const NOW = Date.parse('2026-11-20T12:00:00Z');
 const read = (days) => ({ seconds: 60, last_at: new Date(NOW - days * 86400e3).toISOString() });
 
-test('a paper read lately is light, and darker the longer since', () => {
+test('a paper read in the last two weeks is white, and one shade darker after that', () => {
   assert.equal(readAge(read(0.1), NOW), 0);
-  assert.equal(readAge(read(0.99), NOW), 0);
-  assert.equal(readAge(read(1), NOW), 1);
-  assert.equal(readAge(read(6.9), NOW), 1);
-  assert.equal(readAge(read(7), NOW), 2);
-  assert.equal(readAge(read(29), NOW), 2);
-  assert.equal(readAge(read(30), NOW), 3);
-  assert.equal(readAge(read(89), NOW), 3);
-  assert.equal(readAge(read(90), NOW), 4);
-  assert.equal(readAge(read(800), NOW), 4);
+  assert.equal(readAge(read(7), NOW), 0);
+  assert.equal(readAge(read(13.9), NOW), 0);
+  assert.equal(readAge(read(14), NOW), 1);
+  assert.equal(readAge(read(30), NOW), 1);
+  assert.equal(readAge(read(800), NOW), 1);
 });
 
 test('a paper never read is darkest; one whose reading is unknown is not shaded', () => {

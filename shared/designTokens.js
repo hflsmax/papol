@@ -65,15 +65,11 @@ export const designTokens = `
   --activity-heat-3: #88a9cf;
   --activity-heat-4: #5580b3;
   --activity-heat-5: #2b4a6f;
-  /* How long ago a paper on the desk was last read, light to dark: a week,
-     a month, three months, longer, never. Neutral, so it never reads as
-     effort's blue; dark enough to see, light enough that --ink and
-     --ink-soft stay AA on every step. */
-  --read-age-1: #f3f5f7;
-  --read-age-2: #e9edf1;
-  --read-age-3: #dfe4ea;
-  --read-age-4: #d3d9e1;
-  --read-age-5: #c6ced8;
+  /* How long ago a paper on the desk was last read: over two weeks, then
+     never. Neutral, so it never reads as effort's blue; --ink and
+     --ink-soft stay AA on both. */
+  --read-age-1: #e2e7ec;
+  --read-age-2: #c6ced8;
 
   /* Typography */
   --font-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
