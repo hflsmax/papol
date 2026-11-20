@@ -12,6 +12,7 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { InWay } from './Way';
+import { readAge, readAgeLabel } from '../readAge';
 
 const added = (at) => {
   const day = new Date(at);
@@ -303,7 +304,12 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             </thead>
             <tbody>
               {papers.map((paper) => (
-                <tr key={paper.sha256} style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}>
+                <tr
+                  key={paper.sha256}
+                  className={readAge(paper.effort) ? `read-age-${readAge(paper.effort)}` : undefined}
+                  title={readAgeLabel(paper.effort)}
+                  style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}
+                >
                   <td className="desk-col-title">
                     <a
                       className="desk-title"

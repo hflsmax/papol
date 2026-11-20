@@ -5618,7 +5618,16 @@ ${talkStyles}
 .desk-table th { position: sticky; top: calc(var(--desk-filter-h, 1px) - 1px); z-index: 1; height: 32px; padding: 0 var(--space-3); background: var(--card); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .desk-table td { height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; vertical-align: middle; }
 .desk-table tbody tr:last-child td { border-bottom: 0; }
-.desk-table tbody tr:hover td { background: var(--paper-sunken); }
+.desk-table tbody tr { background: var(--read-ground, transparent); }
+.desk-table tbody tr:hover td { background: color-mix(in srgb, var(--read-ground, var(--card)) 94%, var(--ink)); }
+/* A row is shaded by how long ago its paper was last read (readAge.js):
+   read today keeps the card, never read is darkest. From the second step
+   the faint text takes --ink-soft, which stays AA on the darkest. */
+.desk-table tr.read-age-1 { --read-ground: var(--read-age-1); }
+.desk-table tr.read-age-2 { --read-ground: var(--read-age-2); --ink-faint: var(--ink-soft); }
+.desk-table tr.read-age-3 { --read-ground: var(--read-age-3); --ink-faint: var(--ink-soft); }
+.desk-table tr.read-age-4 { --read-ground: var(--read-age-4); --ink-faint: var(--ink-soft); }
+.desk-table tr.read-age-5 { --read-ground: var(--read-age-5); --ink-faint: var(--ink-soft); }
 /* The member's place in the bar before they are known: held, not drawn. */
 .way-self.is-unknown { visibility: hidden; }
 .way-self.is-unknown > .nav-avatar { display: inline-block; }

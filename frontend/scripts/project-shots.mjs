@@ -126,6 +126,9 @@ const SHOTS = {
   // The clock's pop while its time is still being read: nothing yet.
   'nook-effort-waiting': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", holdThen: ['/activity/paper/*'], then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop')", size: wide },
   'nook-effort': { path: '/?shell=web', ready: "document.querySelector('.desk-col-effort .nook-effort')", then: "document.querySelector('.desk-col-effort .nook-effort').click(); return true;", settled: "document.querySelector('.effort-pop-total')", size: wide },
+  // The desk's rows shaded by how long ago each paper was last read.
+  'nook-read-age': { path: '/?shell=web', ready: "document.querySelectorAll('.nook .desk-title').length > 6", size: wide },
+  'phone-nook-read-age': { path: '/?shell=web', ready: "document.querySelectorAll('.nook .desk-title').length > 6", then: "document.querySelector('.desk-table').scrollIntoView({ block: 'start' }); return true;", size: phone },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket') && document.querySelector('.board-jacket-heading')", size: wide },
