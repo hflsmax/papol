@@ -1,10 +1,10 @@
 // How long ago a paper on the member's own desk was last read, as a step
-// its row is shaded by (frontend/DESIGN.md, Color): 0 is read within a day
-// and keeps the plain card; 1 to 4 are a week, a month, three months and
-// longer; 5 is never read. Reading is the viewer's recorded time on the
-// paper (shared/activity.js), so a paper opened is a paper read.
+// its row is shaded by (frontend/DESIGN.md, Color): 0 is read within two
+// weeks and keeps the plain card; 1 is longer ago; 2 is never read.
+// Reading is the viewer's recorded time on the paper (shared/activity.js),
+// so a paper opened is a paper read.
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STEPS = [1, 7, 30, 90].map((days) => days * DAY_MS);
+const STEPS = [14].map((days) => days * DAY_MS);
 export const READ_AGE_NEVER = STEPS.length + 1;
 
 // `effort` is the paper's { seconds, last_at } from the nook, null when it
