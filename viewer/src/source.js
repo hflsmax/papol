@@ -10,8 +10,10 @@ import {
   getPaperByPdf, getPaperLink, getPaperAnchors, getNookPaperByPdf, addOpenedFileToNook,
   lookUpViewerReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation, restoreAnnotation,
-  getToken, getReader,
+  getToken, getReader, addFetchedPdfToNook,
 } from './api.js';
+import { fetchPdfFrom, fromParam, pdfNameFromUrl, rememberFetchedPdf } from './fetchedPdf.js';
+import { sha256Hex } from '../../shared/api/files.js';
 import { listProjectAnnotations, personalDigsOn } from '../../shared/api/projects.js';
 import { projectParam } from './project.js';
 
@@ -25,6 +27,8 @@ import { projectParam } from './project.js';
  *                          member's annotations on the pages (project.js)
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
  *   ?share=<code>          someone's reading of a PDF, handed over by link
+ *   ?from=<url>            a PDF elsewhere on the web, fetched by this page
+ *                          (fetchedPdf.js): what the Safari extension opens
  *
  * A nook source exposes the annotation interfaces, and knows the lean source
  * to fall back to when the paper turns out not to be this user's. A file source
@@ -39,6 +43,9 @@ export function resolveSource() {
   // A link is the whole permission, so it is answered before anything else
   // and without a hash: the sharable says which PDF it opens.
   if (/^[0-9A-Za-z]{10}$/.test(share)) return sharedSource(share);
+  // The Mac app opens files from disk instead, and has no use for this.
+  const from = IS_DESKTOP ? null : fromParam(window.location.search);
+  if (from) return fetchedSource(from);
   const pdf = (params.get('pdf') || '').toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pdf)) return null;
   if (IS_DESKTOP && params.get('file') === '1') return openedFileSource(pdf, params.get('name'));
@@ -48,11 +55,15 @@ export function resolveSource() {
   return signedIn() ? apiSource(pdf, undefined, undefined, projectParam()) : paperLinkSource(pdf);
 }
 
-export function nookViewerHref(href = window.location.href) {
+// The ordinary nook URL for the PDF this window has open: what an opened
+// or fetched PDF becomes once it is in the nook. A fetched PDF's address
+// names it by where it came from, so its digest is given.
+export function nookViewerHref(href = window.location.href, sha256 = null) {
   const nookUrl = new URL(href);
   for (const key of [
-    'file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms',
+    'file', 'name', 'opened_at_ms', 'native_read_ms', 'native_hash_ms', 'from', 'nook',
   ]) nookUrl.searchParams.delete(key);
+  if (sha256) nookUrl.searchParams.set('pdf', sha256);
   return nookUrl.href;
 }
 
@@ -62,7 +73,7 @@ export function handoffOpenedFileToNookViewer(
   replace = (nextHref) => window.location.replace(nextHref),
 ) {
   if (!nookPaper) return false;
-  replace(nookViewerHref(href));
+  replace(nookViewerHref(href, nookPaper.sha256));
   return true;
 }
 
@@ -298,6 +309,70 @@ function openedFileSource(pdfHash, name) {
     },
   };
   return source;
+}
+
+// A PDF elsewhere on the web, opened by its address. It is an opened file
+// in every way that matters to the viewer: nothing on it is the reader's
+// until they add it, adding needs an account, and if the reader keeps
+// these exact bytes already the window moves to their copy. The difference
+// is where the bytes come from, and that they arrive over the network, so
+// the opening shows its progress (`load`'s `onProgress`).
+export function fetchedSource(url, {
+  fetchPdf = fetchPdfFrom, hash = (bytes) => sha256Hex(new Blob([bytes])),
+  lookUpKept = (sha256) => getPaperByPdf(sha256), add = addFetchedPdfToNook,
+  isSignedIn = signedIn,
+} = {}) {
+  const name = pdfNameFromUrl(url);
+  let arriving = null;
+  const arrived = (onProgress) => {
+    if (!arriving) {
+      arriving = fetchPdf(url, { onProgress }).then(async (bytes) => {
+        const sha256 = await hash(bytes);
+        rememberFetchedPdf(sha256, bytes);
+        return { sha256 };
+      });
+      // A failed fetch may be tried again (after signing in to the host).
+      arriving.catch(() => { arriving = null; });
+    }
+    return arriving;
+  };
+  return {
+    homeHref: appPath('/'),
+    requiresSignIn: false,
+    openedFile: true,
+    fetchedFrom: url,
+    readOnly: true,
+    annotationsRequireNook: true,
+    initialPaper: null,
+    openingTimings: {},
+    async load({ onProgress } = {}) {
+      const { sha256 } = await arrived(onProgress);
+      return {
+        doc: { title: name, sha256, opened_file: true, fetched_from: url },
+        anchors: [],
+      };
+    },
+    // Only someone signed in keeps anything; for them, whether they keep
+    // these bytes, asked of the service by their digest.
+    async loadNookPaper() {
+      if (!isSignedIn()) return null;
+      const { sha256 } = await arrived();
+      try {
+        const kept = await lookUpKept(sha256);
+        return kept?.sha256 ? kept : null;
+      } catch {
+        return null;
+      }
+    },
+    // Nothing about the paper is asked of Papol before it is added: the
+    // reader may be reading something they never meant to send anywhere.
+    info: () => Promise.resolve({}),
+    nookHref: (paper) => (paper?.sha256 ? appPath(`/viewer/?pdf=${paper.sha256}`) : null),
+    async addToNook({ onProgress, identifier } = {}) {
+      const { sha256 } = await arrived();
+      return add({ sha256, name, identifier, onProgress });
+    },
+  };
 }
 
 export { getToken };

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Papol</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon-48.png" alt="" width="24" height="24">
+    <strong>Papol</strong>
+  </header>
+  <label class="switch">
+    <input type="checkbox" id="enabled">
+    <span>Open PDFs in Papol</span>
+  </label>
+  <p class="hint" id="hint">Every PDF you open in Safari opens in Papol’s viewer. “Original” there shows it in Safari’s own viewer.</p>
+  <button type="button" id="open-here">Open this PDF in Papol</button>
+  <p class="status" id="status" role="status"></p>
+  <details>
+    <summary>Papol address</summary>
+    <select id="origin" aria-label="Papol address"></select>
+  </details>
+  <script src="policy.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
