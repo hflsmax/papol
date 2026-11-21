@@ -135,9 +135,26 @@ const SHOTS = {
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
   'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
   'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
-  // Everyone's projects in the Bazaar, one the member is not in.
+  // Every project, one the member is not in and can ask to join.
   'bazaar-projects': { path: '/projects?shell=web', ready: "document.querySelector('.projects-row.closed')", size: wide },
-  library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
+  // The Common room, where the Bazaar was: my friends' news a paper to a
+  // row; everyone's; what most of them keep; a dig opened in its row; the
+  // Library, asked; on a phone and in the Mac app.
+  library: { path: '/bazaar?shell=web', ready: "document.querySelector('.room-row')", size: wide },
+  'common-room': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", size: { width: 1440, height: 1500 } },
+  'common-room-everyone': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "[...document.querySelectorAll('.room-views button')].find((b) => b.textContent.trim() === 'Everyone').click(); return true;", settled: "document.body.innerText.includes('Marta Lindqvist added it')", size: wide },
+  'common-room-most': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "[...document.querySelectorAll('.room-orders button')].find((b) => b.textContent.trim() === 'Most read').click(); return true;", settled: "document.body.innerText.includes('keeps it')", size: wide },
+  'common-room-dig': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "const press = (group, label) => [...document.querySelectorAll(group + ' button')].find((b) => b.textContent.trim() === label).click(); press('.room-views', 'Friends'); press('.room-orders', 'Latest'); const go = () => { const d = document.querySelectorAll('.room-dig-open')[1]; if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.room-said .talk-post')", size: wide },
+  'common-room-search': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "const f = document.getElementById('library-search'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, 'wavefront'); f.dispatchEvent(new Event('input', { bubbles: true })); return true;", settled: "document.querySelector('.room-results .paper-title-link')", size: wide },
+  'common-room-people': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "const f = document.getElementById('library-search'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, 'a'); f.dispatchEvent(new Event('input', { bubbles: true })); return true;", settled: "document.querySelector('.room-results .room-person-row')", size: wide },
+  'phone-common-room': { path: '/common-room?shell=web', ready: "document.querySelector('.room-row')", then: "[...document.querySelectorAll('.room-orders button')].find((b) => b.textContent.trim() === 'Latest').click(); [...document.querySelectorAll('.room-views button')].find((b) => b.textContent.trim() === 'Friends').click(); return true;", settled: "document.querySelector('.room-dig-open')", size: phone },
+  'mac-common-room': { path: '/common-room?shell=desktop', ready: "document.querySelector('.room-row')", then: "[...document.querySelectorAll('.room-orders button')].find((b) => b.textContent.trim() === 'Latest').click(); [...document.querySelectorAll('.room-views button')].find((b) => b.textContent.trim() === 'Friends').click(); return true;", settled: "document.querySelector('.room-dig-open')", size: wide },
+  // Friends: my list and my link, a request answered in the Inbox, and
+  // where a friend link lands.
+  'you-friends': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-friends').click(); return true;", settled: "document.querySelector('.friends-panel .friends-row')", size: wide },
+  'phone-you-friends': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-friends').click(); return true;", settled: "document.querySelector('.friends-panel .friends-row')", size: phone },
+  'friend-link': { path: '/friends/join/Fr13ndL1nk?shell=web', ready: "document.querySelector('.friend-link-page .project-invitation-card')", size: wide },
+  'paper-friend-digs': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-friend-digs .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-friend-digs').scrollIntoView({ block: 'center' }); return true;", size: wide },
   paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
   // A paper's jacket down to the reader's own dig on it: written on the
   // survey, still to be written on the other.
@@ -190,7 +207,7 @@ const SHOTS = {
   // A PDF dropped in the viewer, arriving in the nook's upload after the
   // page load that brings the reader here.
   'drop-from-viewer': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => import('/@fs' + " + JSON.stringify(new URL('../../shared/droppedPapers.js', import.meta.url).pathname) + ").then((kept) => kept.handOverDroppedPdfs([new File([bytes], 'attention.pdf', { type: 'application/pdf' })]))).then(() => { location.reload(); return true; });", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
-  // An admin's bar, with Admin beside the Bazaar (run with PAPOL_ADMIN=1).
+  // An admin's bar, with Admin beside the Common room (run with PAPOL_ADMIN=1).
   'admin-bar': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
   'admin-bar-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-paper') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
   // A report on the admin page, with where its writer was and the steps

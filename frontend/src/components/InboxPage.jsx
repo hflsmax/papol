@@ -7,6 +7,8 @@ import {
 } from '../../../shared/api/notifications.js';
 import { keep, kept } from '../lastMember';
 import { inboxWhen, inboxWhenFull } from '../inboxWhen';
+import { appPath } from '../base';
+import { friendActs, relationTo, useFriends } from '../friendsStore';
 
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
@@ -21,6 +23,19 @@ export default function InboxPage({ onUnread }) {
   // Read here while the list was being asked for again: an answer that
   // left before the click must not bring the dot back.
   const readHere = useRef(new Set());
+  // A friend request is answered where it is read; whether it still
+  // waits is what the member's friends say now, not what the list said.
+  const friends = useFriends();
+  const [answering, setAnswering] = useState(null);
+  const answer = async (n, act) => {
+    if (answering) return;
+    setAnswering(n.uuid);
+    setError(null);
+    try {
+      await act(n.actor.uuid);
+      if (!n.read) { markNotificationRead(n.uuid).catch(() => {}); applyRead([n.uuid]); }
+    } catch (e) { setError(e.message); } finally { setAnswering(null); }
+  };
 
   useEffect(() => {
     if (data) keep('inbox', data);
@@ -91,6 +106,19 @@ export default function InboxPage({ onUnread }) {
                 {inboxWhen(n.created_at)}
               </time>
             </button>
+            {/* What the line leads to, beside it: an answer to give, or
+                the place it is about. */}
+            {n.kind === 'friend_request' && n.actor && (friends ? relationTo(friends, n.actor.uuid) === 'asked' : n.waiting) ? (
+              <span className="notification-acts">
+                <button type="button" className="primary" disabled={answering === n.uuid} onClick={() => answer(n, friendActs.accept)}>Accept</button>
+                <button type="button" disabled={answering === n.uuid} onClick={() => answer(n, friendActs.decline)}>Not now</button>
+                <a className="notification-link" href={appPath(n.link)}>Their nook</a>
+              </span>
+            ) : n.link && expanded[n.uuid] ? (
+              <span className="notification-acts">
+                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' ? 'Open the paper' : n.kind === 'project_ask' ? 'Open the project' : 'Open their nook'}</a>
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

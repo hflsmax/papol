@@ -21,8 +21,10 @@ import { useDismiss } from '../useDismiss.js';
 // if you have one. The same pin and card serve a paper, a card on a board
 // and an annotation; never the project, a board as a whole, or another
 // dig. (In code the pin and card keep their first name, Talk.)
-// With no project (`projectUuid` null) the dig is personal: the reader's
-// own alone, which nobody else sees, so it has no posts and no phase.
+// With no project (`projectUuid` null) the dig is personal: its writer's
+// own, with no phase. Their friends read it and post in it while the
+// paper is on a public shelf, and once one has, its writer can answer
+// (`can_post`); until then it has no posts.
 
 const POST_LIMIT = appLimits.text.dig_post;
 
@@ -334,7 +336,7 @@ export function DigThread(props) {
 
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, askBeforeRemoving = true, focus = false, unread = 0, seekUnread = () => true,
-  single = false, conversation = false, tucked = false,
+  single = false, conversation = false, tucked = false, only = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
@@ -359,7 +361,9 @@ export function TalkCard({
     // nobody has dug opens on the reader's own, to be written. A dig asked
     // for by name is read alongside the list.
     const named = topic.dig && topic.dig !== 'mine' ? topic.dig : null;
-    Promise.all([findDigs(projectUuid, topic.subject), named ? getDig(named) : null])
+    // A friend's dig (`only`) is read by its name alone: the thing it is on
+    // is not the reader's to list the digs of.
+    Promise.all([only ? { digs: [] } : findDigs(projectUuid, topic.subject), named ? getDig(named) : null])
       .then(([found, fetched]) => {
         if (active) setDigs(found.digs ?? []);
         if (named) return fetched;
@@ -663,7 +667,7 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {discussion && !personal && (
+      {discussion && (!personal || discussion.can_post) && (
         <form className={`talk-compose${tucked ? ' is-tucked' : ''}`} onSubmit={send}>
           {currentUser && !tucked && <Face user={currentUser} />}
           <MarkdownField

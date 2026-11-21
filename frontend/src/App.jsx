@@ -14,7 +14,8 @@ import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
-import PapersPage from './components/PapersPage';
+import CommonRoom from './components/CommonRoom';
+import FriendLinkPage from './components/FriendLinkPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
@@ -25,7 +26,9 @@ import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects, markPresent } from '../../shared/api/projects.js';
-import { BAZAAR, WayBar, WayFoot, WayShown } from './components/Way';
+import { COMMON_ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
+import { getRoomNews } from '../../shared/api/friends.js';
+import { forgetFriends } from './friendsStore.js';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
@@ -71,8 +74,8 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 export const PROJECT_PAGES = new Set(['project']);
 
 const SIGN_IN_PAGES = new Set([
-  'nook', 'shelf', 'papers', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation',
+  'nook', 'shelf', 'papers', 'room', 'inbox', 'admin', 'profile',
+  'projects', 'project', 'invitation', 'friend-link',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -185,6 +188,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser || returning) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [roomNews, setRoomNews] = useState(false);
   const [projectsRevision, setProjectsRevision] = useState(0);
   const [myProjects, setMyProjects] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
@@ -513,6 +517,20 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
   }, [user, route]);
 
+  // Whether the Common room has anything I have not seen, asked as I move
+  // about. Opening the room answers it: the room says so itself.
+  useEffect(() => {
+    if (!user) {
+      setRoomNews(false);
+      forgetFriends();
+      return;
+    }
+    if (route.page === 'room') return;
+    getRoomNews()
+      .then((d) => setRoomNews(Boolean(d.news || d.requests)))
+      .catch(() => {});
+  }, [user?.uuid, route]);
+
   // The projects I am in, for the Mac app's sidebar.
   useEffect(() => {
     if (!user) {
@@ -608,7 +626,7 @@ export default function App({ startupUser = null, startupError = null }) {
     lastShown: lastShownListing(),
   });
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing,
+    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing, roomNews,
   });
   useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
 
@@ -620,7 +638,7 @@ export default function App({ startupUser = null, startupError = null }) {
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
     // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/boards/', '/viewer/']
+    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/projects/join/', '/friends/join/', '/u/', '/boards/', '/viewer/']
       .some((start) => candidate.startsWith(start))
       ? candidate
       : '/';
@@ -908,22 +926,17 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {(route.page === 'papers' || (hasWay && route.page === 'projects')) && (
-        <PapersPage
-          projects={hasWay && (
-            <ProjectsPage
-              section
-              currentUser={user}
-              onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
-              onChanged={() => setProjectsRevision((r) => r + 1)}
-            />
-          )}
+      {(route.page === 'room' || (route.page === 'papers' && !DESKTOP)) && (
+        <CommonRoom
           currentUser={user}
-          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
           onSelectBoard={openBoard}
+          onSeen={() => setRoomNews(false)}
         />
       )}
-      {!hasWay && route.page === 'projects' && (
+      {route.page === 'friend-link' && (
+        <FriendLinkPage code={route.code} currentUser={user} />
+      )}
+      {route.page === 'projects' && (
         <ProjectsPage
           currentUser={user}
           onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
@@ -1101,9 +1114,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // says so itself: a jacket to the place it was opened from, a nook of
   // someone else's to the Library their papers are found in.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: '/bazaar', label: BAZAAR } : jacketBack]
+    ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: COMMON_ROOM } : jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: '/bazaar', label: BAZAAR }]
+      ? [{ path: ROOM_PATH, label: COMMON_ROOM }]
       : [];
   return (
     <>
@@ -1132,6 +1145,7 @@ export default function App({ startupUser = null, startupError = null }) {
             route={route}
             trail={wayTrail}
             unreadCount={unreadCount}
+            roomNews={roomNews}
           />
         )}
         {!hasWay && <header className="topnav">
@@ -1140,8 +1154,8 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
               Home
             </a>
-            <a href={appPath('/bazaar')} className={route.page === 'papers' ? 'active' : ''}>
-              Bazaar
+            <a href={appPath(ROOM_PATH)} className={route.page === 'room' || route.page === 'papers' ? 'active' : ''}>
+              {COMMON_ROOM}
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

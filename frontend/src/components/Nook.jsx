@@ -16,6 +16,7 @@ import { paperName } from '../../../shared/paperName.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import { keep, kept } from '../lastMember';
+import FriendButton from './FriendButton';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
@@ -233,6 +234,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             {/* Only there when they chose to show it. */}
             {owner.email && <p className="their-line"><a href={`mailto:${owner.email}`}>{owner.email}</a></p>}
           </div>
+          <FriendButton user={owner} currentUser={currentUser} className="their-friend" />
         </header>
         {nook.papers.length > 0 && (
           <ul className="their-list" aria-label="Papers">
@@ -300,6 +302,11 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
               </p>
             )}
           </div>
+          {!isOwn && (
+            <div className="nook-header-actions">
+              <FriendButton user={nook.user} currentUser={currentUser} />
+            </div>
+          )}
           {isOwn && (
             <div className="nook-header-actions">
               <button className="new-board-button" type="button" onClick={() => setCreatingBoard(true)}>

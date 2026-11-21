@@ -176,7 +176,7 @@ const project = {
 
 const summary = { uuid: PROJECT, name: project.name, created_at: project.created_at, members: project.members, is_member: true, is_keeper: true, new_count: 3 };
 const other = { uuid: 'b1b2c3d4-0000-4000-8000-000000000011', name: 'Reading group', created_at: daysAgo(60), members: [{ user: me, is_keeper: false, joined_at: daysAgo(60) }, { user: mia, is_keeper: true, joined_at: daysAgo(60) }], is_member: true, is_keeper: false, new_count: 0 };
-// A project the member is not in, as the Bazaar lists it.
+// A project the member is not in, as the Projects page lists it.
 const closed = { uuid: 'b1b2c3d4-0000-4000-8000-000000000012', name: 'Wavefront sensing', created_at: daysAgo(40), members: [{ user: mia, is_keeper: true, joined_at: daysAgo(40) }], is_member: false, is_keeper: false, new_count: 0 };
 
 const digOf = (uuid) => {
@@ -273,20 +273,114 @@ const REPORT = (() => {
 let deleted = false;
 
 // What the pretend server says to each request the pages make.
+// Friends, and the Common room made from them. Ana and Ben are the
+// member's friends; Mia has asked; Marta is someone Papol suggests, and the
+// owner of the friend link the fixture answers for.
+const FRIEND_DIG = 'e1b2c3d4-0000-4000-8000-000000000060';
+const friendDig = {
+  uuid: FRIEND_DIG, created_at: hoursAgo(7), updated_at: hoursAgo(2), edited_at: null, project: null, subject: subject.paperSurvey, owner: ana, is_mine: false,
+  text: 'Section 4 undersells the pyramid sensor: the gain they quote is for a point source. I think the comparison flips for our extended guide star.',
+  phase: 'digging', can_moderate: false, can_post: true,
+  posts: [post('f1000000-0000-4000-8000-000000000060', ben, 'It does flip. Table 3 in the Nakamura paper has the extended case.', hoursAgo(2), false)],
+};
+const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: friendDig.created_at, updated_at: friendDig.updated_at, owner: ana, is_mine: false, text: friendDig.text, excerpt: friendDig.text, phase: 'digging', subject: subject.paperSurvey, post_count: 1, unread: 0, is_new: false, voices: [ana, ben], last_post: { user: ben, excerpt: friendDig.posts[0].body, created_at: hoursAgo(2) } };
+const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
+const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], link: 'Fr13ndL1nk', shares_reading: false });
+let friendsNow = friendState();
+const BATCH = [
+  ['Deformable mirror fitting error at high actuator count', '["P. Madec"]', 2021, 'Applied Optics'],
+  ['Kalman filtering for tip-tilt in extremely large telescopes', '["C. Kulcsar", "H.-F. Raynaud"]', 2020, 'JOSA A'],
+  ['Reinforcement learning for adaptive optics: a first on-sky test', '["J. Nousiainen"]', 2024, 'Astronomy & Astrophysics'],
+  ['Open-loop tomography with laser guide stars', '["E. Gendron"]', 2019, 'Astronomy & Astrophysics'],
+  ['Frozen flow, measured: wind profiles from telemetry', '["L. Poyneer"]', 2018, 'JOSA A'],
+  ['Predictive control on the Keck bench', '["S. Cetre"]', 2023, 'Proc. SPIE'],
+  ['A data-driven integrator gain schedule', '["B. Neichel"]', 2022, 'MNRAS'],
+].map(([title, authors, year, journal], i) => ({ sha256: digest(0xc0 + i), title, authors, year, journal }));
+const roomRows = (view) => {
+  const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
+  const rows = [
+    { kind: 'paper', key: `paper:${P_SURVEY}`, paper: paperOut(papers[2]), in_my_nook: true, at: hoursAgo(2), is_new: true, lines: [
+      line(ben, 'posted', hoursAgo(2), { words: friendDig.posts[0].body, dig: { uuid: FRIEND_DIG, page: null, on: 'paper', owner: ana, post_count: 1 } }),
+      line(ana, 'dug', hoursAgo(7), { words: friendDig.text, dig: { uuid: FRIEND_DIG, page: null, on: 'paper', owner: ana, post_count: 1 } }),
+    ] },
+    { kind: 'paper', key: `paper:${P_LEARN}`, paper: paperOut(papers[0]), in_my_nook: false, at: hoursAgo(5), is_new: true, lines: [
+      line(ben, 'thought', hoursAgo(5), { words: 'Worth trying on the bench this month.' }),
+      line(ben, 'rated', hoursAgo(5), { ratings: { expertise: null, reading: 3, liking: 4 } }),
+      line(ana, 'added', hoursAgo(30)),
+      ...(view === 'everyone' ? [line(mia, 'added', daysAgo(2))] : []),
+    ] },
+    { kind: 'friend', key: `friend:${BEN}`, user: ben, at: daysAgo(1), is_new: false },
+    { kind: 'batch', key: `batch:${ANA}`, user: ana, papers: BATCH, at: daysAgo(3), is_new: false },
+    { kind: 'board', key: 'board:1', user: ana, board: { uuid: BOARD_MAP, name: 'Wavefront sensors compared', description: null, item_count: 7 }, at: daysAgo(4), is_new: false },
+    { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [
+      line(ana, 'reading', daysAgo(1)),
+      line(ana, 'rated', daysAgo(9), { ratings: { expertise: null, reading: 3, liking: null } }),
+    ] },
+    { kind: 'project', key: `project:${closed.uuid}`, project: { uuid: closed.uuid, name: closed.name, description: 'Which sensor for which seeing.', member_count: 3, is_member: false, asked: false }, at: daysAgo(11), is_new: false, lines: [{ user: ana, did: 'joined', at: daysAgo(11) }] },
+  ];
+  return view === 'everyone' ? [
+    { kind: 'paper', key: `paper:${P_VIBES}`, paper: paperOut(papers[4]), in_my_nook: false, at: hoursAgo(1), is_new: true, lines: [line(outsiders[0], 'added', hoursAgo(1)), line(mia, 'thought', hoursAgo(1.5), { words: 'The disturbance model is the part to steal.' })] },
+    ...rows.map((row) => (row.kind === 'paper' ? { ...row, lines: row.lines.map((l) => (l.dig ? { ...l, did: 'added', words: null, dig: null } : l)).filter((l, i, all) => all.findIndex((o) => o.user === l.user && o.did === l.did) === i) } : row)).filter((row) => row.kind !== 'friend'),
+  ] : rows;
+};
+const mostRead = (view) => [
+  { kind: 'paper', key: `paper:${P_LEARN}`, paper: paperOut(papers[0]), in_my_nook: false, at: hoursAgo(5), is_new: false, lines: [ben, ana, ...(view === 'everyone' ? [mia, outsiders[0]] : [])].map((user) => ({ user, did: 'added', at: daysAgo(2), words: null, ratings: null, dig: null })) },
+  { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [ana, ...(view === 'everyone' ? [mia] : [])].map((user) => ({ user, did: 'added', at: daysAgo(9), words: null, ratings: null, dig: null })) },
+  { kind: 'paper', key: `paper:${P_VIBES}`, paper: paperOut(papers[4]), in_my_nook: false, at: daysAgo(3), is_new: false, lines: [view === 'everyone' ? outsiders[0] : ben].map((user) => ({ user, did: 'added', at: daysAgo(3), words: null, ratings: null, dig: null })) },
+];
+
 function answer(method, path, search, sent = {}) {
   // Each picture loads the app afresh: the project is back.
-  if (path === '/auth/me') deleted = false;
+  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); }
+  // Friends: what the member's friends say now, changed by each answer.
+  if (path === '/friends' || path === '/friends/settings' || path === '/friends/link') {
+    if (path === '/friends/settings') friendsNow.shares_reading = Boolean(sent.shares_reading);
+    if (path === '/friends/link') friendsNow.link = method === 'DELETE' ? null : 'N3wFr13nd0';
+    return friendsNow;
+  }
+  const friendAct = path.match(/^\/friends\/([0-9a-f-]{36})(\/accept|\/decline)?$/);
+  if (friendAct) {
+    const who = [ana, ben, mia, ...outsiders].find((u) => u.uuid === friendAct[1]);
+    const asked = friendsNow.requests.find((r) => r.user.uuid === friendAct[1]);
+    if (friendAct[2] === '/accept' && asked) friendsNow.friends.push({ user: asked.user, since: hoursAgo(0) });
+    if (friendAct[2]) friendsNow.requests = friendsNow.requests.filter((r) => r !== asked);
+    else if (method === 'POST' && who) friendsNow.sent.push(who.uuid);
+    else if (method === 'DELETE') {
+      friendsNow.sent = friendsNow.sent.filter((uuid) => uuid !== friendAct[1]);
+      friendsNow.friends = friendsNow.friends.filter((f) => f.user.uuid !== friendAct[1]);
+    }
+    return friendsNow;
+  }
+  if (path.startsWith('/friend-links/')) return { user: outsiders[0], is_me: false, is_friend: method === 'POST' };
+  if (path === '/room/news') return { news: true, requests: friendsNow.requests.length };
+  if (path === '/room') {
+    const view = search.get('view') === 'everyone' ? 'everyone' : 'friends';
+    const order = search.get('order') === 'most' ? 'most' : 'latest';
+    return {
+      view, order, friend_count: friendsNow.friends.length, seen_at: daysAgo(1), requests: friendsNow.requests, since: daysAgo(28),
+      suggestions: [{ user: outsiders[0], reason: 'Reads 3 papers you read' }],
+      rows: order === 'most' ? mostRead(view) : roomRows(view),
+    };
+  }
+  if (/^\/papers\/[0-9a-f]+\/friend-digs$/.test(path)) return { digs: P_SURVEY.startsWith(path.split('/')[2]) ? [friendDigListed] : [] };
+  if (path === `/digs/${FRIEND_DIG}`) return friendDig;
+  if (path === `/digs/${FRIEND_DIG}/posts` && method === 'POST') {
+    friendDig.posts.push(post(`f1000000-0000-4000-8000-0000000000${60 + friendDig.posts.length}`, me, sent.body, hoursAgo(0), true));
+    return friendDig;
+  }
   if (path === '/auth/me') return { ...me, is_admin: process.env.PAPOL_ADMIN === '1', email: 'dana@example.org' };
   if (path === '/notifications') {
-    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
+    const note = (n, content, h, read, more = {}) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, kind: null, link: null, actor: null, ...more });
     return {
       notifications: [
+        note(5, 'Mia Tanaka asks to be friends.', 4, false, { kind: 'friend_request', link: `/u/${MIA}`, actor: mia, waiting: true }),
+        note(6, 'Ben Hall posted in your dig on “A survey of predictive control for telescopes”.', 2, false, { kind: 'dig_post', link: `/paper/${P_SURVEY.slice(0, 32)}`, actor: ben }),
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
         note(2, 'Mia Tanaka joined Adaptive optics control.', 26, false),
         note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
         note(4, 'Welcome to Papol, Dana Okafor—your paper-reading companion. Your nook is where you document your reading: upload the papers you read, rate them, and keep what you think of each.', 24 * 40, true),
       ],
-      unread_count: 2,
+      unread_count: 4,
     };
   }
   if (path === '/admin-messages/pending') return [];

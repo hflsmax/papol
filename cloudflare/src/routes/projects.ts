@@ -443,11 +443,14 @@ export function projectRoutes(router: Router) {
     const holding = paper && DIGEST.test(paper)
       ? new Set((await all<{ project_uuid: string }>(env.DB, "SELECT project_uuid FROM project_papers WHERE paper_sha256 = ?", paper)).map((r) => r.project_uuid))
       : null;
+    // The projects I have asked to join: asking is once, so the button says so.
+    const asked = new Set((await all<{ project_uuid: string }>(env.DB, "SELECT project_uuid FROM project_asks WHERE user_uuid = ?", me.uuid)).map((r) => r.project_uuid));
     const out = projects.map((project) => {
       const summary = summaryOut(project, members.filter((m) => m.project_uuid === project.uuid), me);
       return {
         ...summary,
         new_count: summary.is_member ? counts.get(project.uuid) ?? 0 : 0,
+        ...(summary.is_member ? {} : { asked: asked.has(project.uuid) }),
         ...(holding && summary.is_member ? { has_paper: holding.has(project.uuid) } : {}),
       };
     });

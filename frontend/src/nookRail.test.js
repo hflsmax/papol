@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 // A project starts from the nook's rail by its name alone, and opens at
-// once; the Bazaar only lists projects, and a paper's project menu starts
-// one with that paper in it when there is none.
+// once; the Projects page lists them all and can start one too, and a
+// paper's project menu starts one with that paper in it when there is none.
 const desk = readFileSync(new URL('./components/NookDesk.jsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('./App.jsx', import.meta.url), 'utf8');
-const bazaar = readFileSync(new URL('./components/ProjectsPage.jsx', import.meta.url), 'utf8');
+const all = readFileSync(new URL('./components/ProjectsPage.jsx', import.meta.url), 'utf8');
 const picker = readFileSync(new URL('./components/ProjectPicker.jsx', import.meta.url), 'utf8');
 const projects = desk.slice(desk.indexOf('aria-labelledby="desk-projects"'), desk.indexOf('aria-labelledby="desk-shelves"'));
 
@@ -35,8 +35,10 @@ test('a new board in the rail asks only its name and opens at once', () => {
   assert.doesNotMatch(desk, /BoardCreateForm/);
 });
 
-test('the Bazaar lists projects without starting one', () => {
-  assert.match(bazaar, /projects && !naming && !section && \(\s*<button type="button" onClick=\{\(\) => setNaming\(true\)\}>New project<\/button>/);
+test('the Projects page starts one, and asks the keepers of the others', () => {
+  assert.match(all, /projects && !naming && \(\s*<button type="button" onClick=\{\(\) => setNaming\(true\)\}>New project<\/button>/);
+  assert.doesNotMatch(all, /Ask for an invitation/);
+  assert.match(all, /onClick=\{\(\) => ask\(project\)\}>Ask to join<\/button>/);
 });
 
 test('with no project, the paper menu starts one with this paper in it', () => {

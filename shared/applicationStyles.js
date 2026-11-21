@@ -105,7 +105,7 @@ ${commonStyles}
 
 /* ---------- The way bar ----------
    A signed-in member's one bar on the web: Papol, the page's own title (or
-   the trail back), then the Bazaar and the member. One row with no rule
+   the trail back), then the Common room and the member. One row with no rule
    under it. */
 
 .way-bar {
@@ -141,8 +141,8 @@ ${commonStyles}
 .way a.way-mark { display: inline-flex; align-self: center; }
 .way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
-/* Beside the trail home: everyone else's papers, boards and projects, and
-   the inbox, as quiet as the trail. */
+/* Beside the trail home: the Common room, as quiet as the trail, with the
+   gold dot when a friend has news. */
 .way-aside {
   display: flex;
   align-items: center;
@@ -161,6 +161,8 @@ ${commonStyles}
 }
 .way-trail:empty,
 #way-slot:not(:empty) + .way-default { display: none; }
+/* The bar's own guess stands level with Papol's mark, as a page's title does. */
+.way > .way-default { align-self: center; }
 .way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .way-default a::before, #way-slot > a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
 
@@ -4929,13 +4931,9 @@ ${desktopStyles}
 .projects-kicker { margin: var(--space-5) 0 var(--space-2); }
 .projects-head + .projects-kicker { margin-top: 0; }
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }
-/* In the Bazaar, the projects are a section above everyone's papers. */
-.projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
-/* Papers come in through the nook; the Bazaar shows no drop box. A PDF
-   dropped anywhere on the window still lands here for its review. */
-.projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
-.projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
-.projects-page.is-section .projects-row { padding-block: var(--space-3); }
+/* Asking a project's keepers to be let in: quiet beside the faces. */
+.projects-ask { position: relative; z-index: 1; flex: none; padding: 3px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
+.projects-row.closed .projects-row-note { flex: none; flex-basis: auto; }
 .projects-list { list-style: none; margin: 0; padding: 0; }
 
 .projects-row {
@@ -5678,6 +5676,147 @@ ${talkStyles}
   .desk-table td.desk-col-title { grid-row: span 2; }
   .desk-meta { white-space: normal; }
   .desk-table.no-merit td.desk-col-dots, .desk-table td.desk-col-dots:nth-child(3) { display: none; }
+}
+
+/* ---------- Friends ---------- */
+/* What stands between me and someone: one quiet pill that says it, and is
+   the press that changes it. */
+.friend-button { display: inline-flex; flex: none; align-items: center; gap: var(--space-2); }
+.friend-button button { padding: 4px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
+.friend-button .friend-requested { color: var(--ink-faint); border-style: dashed; }
+.friend-button .friend-is { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
+.friend-button .friend-is:hover:not(:disabled) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--ink); }
+.friend-button .friend-not-now { border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); }
+.friend-error { color: var(--accent); font: 400 var(--fs-xs) var(--font-ui); }
+.their-head .their-friend { margin-left: auto; }
+.friend-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  font: 400 var(--fs-2xs) var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+.visibility-badge.friends { color: var(--gold-ink); border-color: var(--gold-line); background: var(--gold-soft); }
+
+/* A person in a line: face, name, affiliation, and what there is to say
+   or do about them at the row's end. */
+.friends-list, .room-people { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.friends-row, .room-person-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.friends-row:last-child, .room-person-row:last-child { border-bottom: 0; }
+.friends-who { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex: 1 1 14rem; min-width: 0; color: var(--ink); text-decoration: none; }
+.friends-who:hover .friends-name { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.friends-face { flex: none; width: 32px; height: 32px; font-size: var(--fs-sm); }
+.friends-name { font: 600 var(--fs-md)/1.3 var(--font-serif); overflow-wrap: anywhere; }
+.friends-aff { min-width: 0; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
+.friends-since, .room-person-note { color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
+.room-person-note { flex: 1 1 12rem; min-width: 0; }
+.friends-panel { display: grid; gap: var(--space-6); max-width: 46rem; }
+.friends-block > .kicker { margin: 0 0 var(--space-1); }
+.friends-empty, .friends-note { margin: var(--space-2) 0 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
+.friends-link { margin-top: var(--space-2); }
+.friends-block .checkbox-row { margin-top: var(--space-2); font: 400 var(--fs-base) var(--font-ui); }
+.way-aside a.way-room { gap: 6px; }
+.friend-link-who { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3); }
+.friend-link-who h2 { margin: 0; }
+.friend-link-who p { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
+
+/* A message in the Inbox that has an answer or a place: said under it. */
+.notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }
+.notification-acts button { padding: 3px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
+.notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
+.notification-link:hover { color: var(--accent); }
+
+/* ---------- The Common room ---------- */
+/* What my friends are reading and what they make of it: a paper to a row,
+   and under its title a line for each friend. One column, as wide as a
+   line of reading; the only gold is what is new. */
+.app:has(.room) { max-width: 860px; }
+.room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+.room-search input { width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 var(--space-4); border-radius: 999px; font: 400 var(--fs-md) var(--font-ui); }
+.room-block { padding: var(--space-3) var(--space-4) var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
+.room-block > .kicker { margin: 0; }
+.room-put-away { flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); font-size: var(--fs-lg); line-height: 1; }
+.room-put-away:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.room-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.room-head .room-views { margin-top: 0; }
+.room-orders { display: inline-flex; align-items: center; gap: var(--space-1); }
+.room-orders button { padding: 3px var(--space-2); border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
+.room-orders button:hover:not(:disabled) { background: none; color: var(--ink); }
+.room-orders button.is-on { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.room-note, .room-empty, .room-end { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
+.room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
+.room-empty { padding: var(--space-6) 0; text-align: center; }
+.room-end { padding: var(--space-2) 0 var(--space-4); color: var(--ink-faint); text-align: center; }
+.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.room-row { padding: var(--space-4) 0; border-bottom: 1px solid var(--line); }
+.room-row:first-child { padding-top: 0; }
+.room-row:last-child { border-bottom: 0; }
+.room-row-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.room-row-text { flex: 1; min-width: 0; }
+.room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
+.room-title { color: var(--ink); font: 600 var(--fs-lg)/1.3 var(--font-serif); text-decoration: none; overflow-wrap: anywhere; }
+a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.room-title.is-inline { display: block; margin-top: 2px; font-size: var(--fs-md); }
+.room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
+.room-meta { display: block; margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.room-keep, .room-kept { flex: none; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
+.room-keep { padding: 3px var(--space-3); border-radius: 999px; }
+.room-kept { padding: 4px 0; color: var(--ink-faint); }
+.room-lines { display: grid; gap: var(--space-2); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.room-line { display: flex; align-items: flex-start; gap: var(--space-2); }
+.room-line .mini-avatar { flex: none; width: 24px; height: 24px; font-size: var(--fs-2xs); }
+.room-said { flex: 1; min-width: 0; padding-top: 2px; color: var(--ink-soft); font: 400 var(--fs-sm)/1.45 var(--font-ui); }
+.room-said b { color: var(--ink); font-weight: 600; }
+.room-said time { margin-left: var(--space-2); color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; }
+.room-person { color: var(--ink); font-weight: 600; text-decoration: none; }
+.room-person:hover { color: var(--accent); text-decoration: underline; }
+.room-words { display: block; margin-top: 2px; color: var(--ink); font: italic 400 var(--fs-md)/1.45 var(--font-serif); overflow-wrap: anywhere; }
+.room-ratings { display: block; margin-top: 2px; }
+/* A dig's words are its door: pressed, the dig opens under them. */
+.room-dig-open { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.room-dig-open:hover:not(:disabled) { background: none; }
+.room-dig-open:hover .room-words, .room-dig-open:focus-visible .room-words { color: var(--accent); }
+.room-posts { display: inline-block; margin-top: 2px; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
+.room-dig-open[aria-expanded='true'] .room-words, .room-dig-open[aria-expanded='true'] .room-posts { display: none; }
+.room-said .talk-card.is-inline { margin-top: var(--space-2); border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.room-said .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+.room-said .talk-posts { padding: 0; }
+.room-said .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
+.room-batch-open { padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
+.room-batch-open:hover:not(:disabled) { background: none; color: var(--accent); }
+.room-batch-open:hover b { color: var(--accent); }
+.room-batch-some { display: block; margin-top: 2px; color: var(--ink-faint); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.room-batch { display: grid; gap: var(--space-2); margin: var(--space-3) 0 0 calc(24px + var(--space-2)); padding: 0; list-style: none; }
+.room-batch-title { color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
+.room-batch-title:hover { color: var(--accent); text-decoration: underline; }
+.room-results { display: grid; gap: var(--space-5); }
+.room-results .kicker { margin: 0 0 var(--space-1); }
+.room-results .grouped-papers { margin: 0; padding: 0; list-style: none; }
+
+/* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
+.paper-friend-digs { margin-top: var(--space-5); }
+.paper-friend-digs > h4 { margin-bottom: var(--space-2); }
+.friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.friend-dig-who { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); font: 400 var(--fs-sm) var(--font-ui); }
+.friend-dig-who a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink); text-decoration: none; }
+.friend-dig-who a:hover b { color: var(--accent); }
+.friend-dig-who .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
+.friend-dig-place { color: var(--ink-faint); }
+@media (max-width: 640px) {
+  .room { gap: var(--space-4); }
+  .room-row-head { flex-wrap: wrap; }
+  .room-keep, .room-kept { margin-left: auto; }
+  .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
+  .friends-aff { white-space: normal; }
+  .room-person-note { flex: 1 1 100%; }
+  .room-block { padding-inline: var(--space-3); }
+  .room-search input { font-size: var(--fs-base); }
+  .their-head { flex-wrap: wrap; }
 }
 
 /* Product-wide motion preference. Component media rules can remove layout

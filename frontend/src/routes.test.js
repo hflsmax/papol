@@ -48,13 +48,20 @@ test('every standing page is reachable by its path', () => {
     '/learn': 'learn',
     '/signin': 'signin',
     '/library': 'papers',
-    '/bazaar': 'papers',
+    '/common-room': 'room',
+    '/bazaar': 'room',
     '/inbox': 'inbox',
     '/admin': 'admin',
   };
   for (const [path, page] of Object.entries(pages)) {
     assert.equal(parseRoute(path).page, page, `${path} should open ${page}`);
   }
+});
+
+// A friend link's code is read as written, like an invitation's.
+test('a friend link carries its code', () => {
+  assert.deepEqual(parseRoute('/friends/join/Ab3dE5gH7j'), { page: 'friend-link', code: 'Ab3dE5gH7j' });
+  assert.equal(parseRoute('/friends/join/short').page, 'unknown');
 });
 
 test('a password reset link carries its opaque credential', () => {

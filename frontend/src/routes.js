@@ -34,6 +34,9 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   // An invitation's code is case-sensitive, so it is read as written.
   const invitation = path.match(/^\/projects\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
   if (invitation) return { page: 'invitation', code: invitation };
+  // A friend link's code is case-sensitive too.
+  const friendLink = path.match(/^\/friends\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
+  if (friendLink) return { page: 'friend-link', code: friendLink };
   if (path === '/projects') return { page: 'projects' };
   if (path === '/profile') return { page: 'profile' };
   if (path === '/join') return { page: 'join' };
@@ -42,7 +45,11 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/signin') return { page: 'signin' };
   const resetToken = path.match(/^\/reset-password\/([0-9a-f]{64})\/?$/i)?.[1];
   if (resetToken) return { page: 'reset-password', token: resetToken.toLowerCase() };
-  if (path === '/bazaar' || path === '/library') return { page: 'papers' };
+  // The Common room took the Bazaar's place, and the Bazaar's address still
+  // leads there. The Library is what the room's search box searches; on the
+  // web its address opens the room, and in the Mac app it is the Desk.
+  if (path === '/common-room' || path === '/bazaar') return { page: 'room' };
+  if (path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
   // The page file itself is where the Mac app's window opens.
