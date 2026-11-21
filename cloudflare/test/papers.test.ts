@@ -137,6 +137,86 @@ describe("what a PDF says about itself", () => {
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
   });
 
+  // An author's copy of a published paper, as ceptre-tog.pdf is: typeset
+  // in IEEE Transactions style, it prints its title, its authors and
+  // nothing of where it appeared — no DOI, venue line, copyright or year.
+  const ceptre = titleBlock({ title: "Modeling Game Mechanics with Ceptre", authors: ["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"] });
+  const people = (...names: string[]) => names.map((name) => ({ given: name.split(" ")[0], family: name.split(" ").slice(1).join(" ") }));
+  const ceptreArticle = { DOI: "10.1109/TG.2099.0000001", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"], "container-title": ["IEEE Transactions on Games"],
+    issued: { "date-parts": [[2024]] }, author: people("Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri") };
+
+  it("finds the published version of a paper that prints no identifier, by its title and its authors", async () => {
+    const account = await register();
+    const asked: string[] = [];
+    apis({
+      "api.crossref.org": (url) => {
+        asked.push(url.searchParams.get("query.bibliographic") ?? url.pathname);
+        return Response.json({ message: { items: [
+          // A preprint server's copy is not the published version.
+          { ...ceptreArticle, DOI: "10.36227/techrxiv.0000001", type: "posted-content", "container-title": [] },
+          // The same people's earlier paper, whose title is not this one.
+          { DOI: "10.1007/978-3-319-00000-0_1", type: "proceedings-article", title: ["Ceptre: A Language for Modeling Generative Interactive Systems"],
+            "container-title": ["AIIDE"], issued: { "date-parts": [[2015]] }, author: people("Chris Martens") },
+          ceptreArticle,
+        ] } });
+      },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [] }); },
+    });
+    const ticket = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 an author's copy", ceptre)).json<any>();
+    await woken(ticket.job);
+    expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result).toMatchObject({
+      doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre",
+      authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]), journal: "IEEE Transactions on Games", year: 2024,
+    });
+    // One free search, by the names and the title; the metered one is not spent.
+    expect(asked).toEqual(["Chris Martens, Alexander Card, Henry Crain, Asha Khatri. Modeling Game Mechanics with Ceptre"]);
+
+    // Papol holding the published paper already, the author's copy is offered as a version of it.
+    await exec("INSERT INTO papers (sha256, doi, title, file_path, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, 1)",
+      "9".repeat(64), "10.1109/TG.2099.0000001", "Modeling Game Mechanics With Ceptre", `${"9".repeat(64)}.pdf`, new Date().toISOString(), new Date().toISOString());
+    const again = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 another author's copy", ceptre)).json<any>();
+    await woken(again.job);
+    expect((await ok("GET", `/api/jobs/${again.job}`, { headers: account.headers })).result.existing).toMatchObject({ sha256: "9".repeat(64) });
+  });
+
+  it("takes no search result for the published version unless the title and the names agree, and keeps the title block then", async () => {
+    const account = await register();
+    const asked: string[] = [];
+    const answer = (items: unknown[], openalex: unknown[] = []) => apis({
+      "api.crossref.org": () => { asked.push("crossref"); return Response.json({ message: { items } }); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: openalex }); },
+    });
+    const read = async (block: TitleBlock) => {
+      const ticket = await (await upload(account, "copy.pdf", `%PDF-1.4 ${Math.random()}`, block)).json<any>();
+      await woken(ticket.job);
+      return (await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result;
+    };
+    // The same title by other people is another paper.
+    answer([{ ...ceptreArticle, author: people("Ada Lovelace", "Alan Turing") }]);
+    expect(await read(ceptre)).toMatchObject({ doi: null, title: "Modeling Game Mechanics with Ceptre", journal: null, year: null });
+    // A longer title that contains this one is another paper too.
+    answer([{ ...ceptreArticle, title: ["Modeling Game Mechanics with Ceptre and Linear Logic Programming for Interactive Narrative"] }]);
+    expect((await read(ceptre)).doi).toBeNull();
+    // Crossref convinced of nothing, OpenAlex is asked, and its find taken
+    // with the venue the publisher registered.
+    asked.length = 0;
+    apis({
+      "api.crossref.org": (url) => { asked.push("crossref"); return url.pathname.startsWith("/works/") ? Response.json({ message: ceptreArticle }) : Response.json({ message: { items: [] } }); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [{ display_name: "Modeling Game Mechanics with Ceptre", publication_year: 2024,
+        doi: "https://doi.org/10.1109/tg.2099.0000001", authorships: [{ author: { display_name: "Chris Martens" } }, { author: { display_name: "Alexander Card" } }],
+        primary_location: { source: { display_name: "IEEE Transactions on Games", type: "journal" } } }] }); },
+    });
+    expect(await read(ceptre)).toMatchObject({ doi: "10.1109/TG.2099.0000001", journal: "IEEE Transactions on Games", year: 2024 });
+    expect(asked).toEqual(["crossref", "openalex", "crossref"]);
+    // No names read, nothing to tell one paper of that title from another: not asked.
+    asked.length = 0;
+    expect(await read(titleBlock({ title: "Modeling Game Mechanics with Ceptre" }))).toMatchObject({ doi: null });
+    expect(asked).toEqual([]);
+    // Neither index answering is no answer, and no failure: the title block as read.
+    apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
+    expect(await read(titleBlock({ ...ceptre, journal: "A Venue", year: 2023 }))).toMatchObject({ doi: null, title: "Modeling Game Mechanics with Ceptre", journal: "A Venue", year: 2023 });
+  });
+
   it("asks the registry that holds a DOI, and OpenAlex only when CrossRef itself cannot answer", async () => {
     // Who was asked, in order, for one lookup.
     const route = (answers: Record<string, () => Response>) => {
@@ -260,6 +340,15 @@ describe("what a PDF says about itself", () => {
     const printed = titleBlock({ title: "What the PDF Says", authors: ["Ada Author"], journal: "PDF Conf", year: 2024 });
     const fallback = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: printed } });
     expect(fallback).toEqual({ doi: null, title: "What the PDF Says", authors: JSON.stringify(["Ada Author"]), journal: "PDF Conf", year: 2024 });
+
+    // A paper with no DOI whose file prints none: its published version, by its title and names.
+    await exec("UPDATE papers SET doi = NULL WHERE sha256 = ?", digest);
+    apis({ "api.crossref.org": () => Response.json({ message: { items: [{ DOI: "10.1109/TG.2099.0000001", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"],
+      "container-title": ["IEEE Transactions on Games"], issued: { "date-parts": [[2024]] }, author: [{ given: "Chris", family: "Martens" }, { given: "Asha", family: "Khatri" }] }] } }) });
+    const published = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers,
+      json: { title_block: titleBlock({ title: "Modeling Game Mechanics with Ceptre", authors: ["Chris Martens", "Asha Khatri"] }) } });
+    expect(published).toEqual({ doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre", authors: JSON.stringify(["Chris Martens", "Asha Khatri"]),
+      journal: "IEEE Transactions on Games", year: 2024 });
   });
 });
 
