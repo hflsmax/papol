@@ -27,6 +27,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { copyOf, keepPaper, paperOr404 } from "../papers/detail";
+import { areFriends, friendSees, notice, userLiteral } from "./friends";
 import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, onPublicShelf, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
@@ -155,8 +156,11 @@ async function subjectRow(env: Env, projectUuid: string | null, subject: Subject
 
 // A dig and where it is read. A dig on a card is read in its project. A
 // dig on a paper or a mark is its writer's, read in a project of the
-// reader's that sees it (inProject), or, by its writer alone, outside any.
-async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member }> {
+// reader's that sees it (inProject), by a friend of its writer while the
+// writer keeps the paper on a public shelf (friendSees), or, by its
+// writer, outside any. `open` says a dig outside a project can be posted
+// in: by a friend who sees it, and by its writer once somebody has.
+async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member; open: boolean }> {
   const dig = await one<Dig>(env.DB, "SELECT * FROM digs WHERE uuid = ?", uuid);
   if (!dig) return refuse(404, "Dig not found");
   if (dig.project_uuid === null) {
@@ -165,20 +169,23 @@ async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; pr
        WHERE d.uuid = ? AND m.user_uuid = ? AND ${inProject("m.project_uuid")} ORDER BY m.joined_at, m.uuid LIMIT 1`, dig.uuid, me.uuid);
     if (seen) {
       const project = await liveProject(env, seen.project_uuid);
-      return { dig, project, member: await membership(env, project, me) };
+      return { dig, project, member: await membership(env, project, me), open: true };
     }
-    if (dig.user_uuid !== me.uuid) refuse(404, "Dig not found");
-    return { dig, project: null, member: OWN };
+    if (dig.user_uuid === me.uuid) {
+      return { dig, project: null, member: OWN, open: Boolean(await one(env.DB, "SELECT 1 FROM dig_posts WHERE dig_uuid = ? LIMIT 1", dig.uuid)) };
+    }
+    if (!(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(me.uuid))}`, dig.uuid))) refuse(404, "Dig not found");
+    return { dig, project: null, member: OWN, open: true };
   }
   const project = await liveProject(env, dig!.project_uuid);
   const member = await membership(env, project, me);
-  return { dig: dig!, project, member };
+  return { dig: dig!, project, member, open: true };
 }
 
 const PERSON = "u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public";
 
 // A dig as its card reads it: its owner's text, then every post in order.
-async function digOut(env: Env, dig: Dig, project: Project | null, me: User, member: Member) {
+async function digOut(env: Env, dig: Dig, project: Project | null, me: User, member: Member, open = Boolean(project)) {
   const posts = await all<Row>(env.DB,
     `SELECT dp.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
      WHERE dp.dig_uuid = ? ORDER BY dp.created_at, dp.uuid`, dig.uuid);
@@ -194,6 +201,9 @@ async function digOut(env: Env, dig: Dig, project: Project | null, me: User, mem
     subject: subjectOut(await subjectRow(env, dig.project_uuid, dig)),
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
     text: dig.text, phase: dig.phase, edited_at: dig.edited_at,
+    // Whether the reader may post here: always in a project; outside one,
+    // a friend may, and its writer once somebody has.
+    can_post: open || posts.length > 0,
     posts: posts.map(postOut),
   };
 }
@@ -331,21 +341,36 @@ export function digRoutes(router: Router) {
     return json({ digs, paper_digs: pins[paperKey] ?? null });
   });
 
+  // What the reader's friends dug on a paper and on their marks on it,
+  // each while its writer keeps the paper on a public shelf: the paper's
+  // own first, then by place.
+  router.on("GET", "/api/papers/:name/friend-digs", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const paper = await paperOr404(env.DB, params.name);
+    const { results } = await statement(env.DB,
+      `SELECT d.*, ${SUBJECT_COLUMNS},
+              (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count, 0 AS unread,
+              (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+       FROM digs d ${SUBJECT_JOINS} WHERE d.paper_sha256 = ? AND ${friendSees(userLiteral(me.uuid))}
+       ORDER BY d.annotation_uuid IS NOT NULL, an.page, d.created_at, d.uuid`, paper.sha256).all<Row>();
+    return json({ digs: await digsFrom(env, results, me) });
+  });
+
   router.on("GET", "/api/digs/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { dig, project, member } = await openDig(env, params.uuid, me);
-    return json(await digOut(env, dig, project, me, member));
+    const { dig, project, member, open } = await openDig(env, params.uuid, me);
+    return json(await digOut(env, dig, project, me, member, open));
   });
 
   // Its owner rewords a dig.
   router.on("PUT", "/api/digs/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { dig, project, member } = await openDig(env, params.uuid, me);
+    const { dig, project, member, open } = await openDig(env, params.uuid, me);
     if (dig.user_uuid !== me.uuid) refuse(403, "Only its owner can change a dig");
     const text = postBody((await readJson<Row>(request)).text, "text");
     const at = now();
     await batch(env.DB, [update(env.DB, "digs", "uuid", dig.uuid, { text, edited_at: at })]);
-    return json(await digOut(env, { ...dig, text, edited_at: at }, project, me, member));
+    return json(await digOut(env, { ...dig, text, edited_at: at }, project, me, member, open));
   });
 
   // Anyone in the project moves a dig from one phase to another.
@@ -371,36 +396,54 @@ export function digRoutes(router: Router) {
     return new Response(null, { status: 204 });
   });
 
-  // Anyone who can see a dig posts in it.
+  // Anyone who can see a dig posts in it. Outside a project that is a
+  // friend of its writer, and its writer once somebody has; what is
+  // posted there reaches the others in it through their inboxes, since no
+  // project is there to show it as news.
   router.on("POST", "/api/digs/:uuid/posts", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { dig, project, member } = await openDig(env, params.uuid, me);
-    if (!project) refuse(403, "Nobody posts in a dig of your own");
+    const { dig, project, member, open } = await openDig(env, params.uuid, me);
+    if (!open) refuse(403, "Nobody posts in a dig of your own");
     const body = postBody((await readJson<Row>(request)).body);
     const at = now();
+    const told: D1PreparedStatement[] = [];
+    if (!project && dig.paper_sha256) {
+      const paper = await one<{ title: string }>(env.DB, "SELECT title FROM papers WHERE sha256 = ?", dig.paper_sha256);
+      const owner = await one<{ display_name: string }>(env.DB, "SELECT display_name FROM users WHERE uuid = ?", dig.user_uuid);
+      const others = await all<{ user_uuid: string }>(env.DB, "SELECT DISTINCT user_uuid FROM dig_posts WHERE dig_uuid = ?", dig.uuid);
+      const link = `/paper/${dig.paper_sha256.slice(0, 32)}`;
+      for (const uuid of new Set([dig.user_uuid, ...others.map((o) => o.user_uuid)])) {
+        if (uuid === me.uuid) continue;
+        // A friend no longer one is not told of what they can no longer read.
+        if (uuid !== dig.user_uuid && !(await areFriends(env, uuid, dig.user_uuid))) continue;
+        const whose = uuid === dig.user_uuid ? "your" : dig.user_uuid === me.uuid ? "their" : `${owner?.display_name ?? "a friend"}'s`;
+        told.push(notice(env, uuid, `${me.display_name} posted in ${whose} dig on ${paper?.title ?? "a paper"}.`, "dig_post", me, link, at));
+      }
+    }
     await batch(env.DB, [
       insert(env.DB, "dig_posts", newPost(dig, me, body, at)),
       update(env.DB, "digs", "uuid", dig.uuid, { updated_at: at }),
+      ...told,
     ]);
-    return json(await digOut(env, { ...dig, updated_at: at }, project, me, member));
+    return json(await digOut(env, { ...dig, updated_at: at }, project, me, member, true));
   });
 
   // Only its writer changes a post.
   router.on("PUT", "/api/dig-posts/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { post, dig, project, member } = await postIn(env, params.uuid, me);
+    const { post, dig, project, member, open } = await postIn(env, params.uuid, me);
     if (post.user_uuid !== me.uuid) refuse(403, "Only its writer can change a post");
     const body = postBody((await readJson<Row>(request)).body);
     await batch(env.DB, [update(env.DB, "dig_posts", "uuid", post.uuid as string, { body, edited_at: now() })]);
-    return json(await digOut(env, dig, project, me, member));
+    return json(await digOut(env, dig, project, me, member, open));
   });
 
   // Only its writer takes a post back. The dig stays.
   router.on("DELETE", "/api/dig-posts/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const { post, dig, project, member } = await postIn(env, params.uuid, me);
+    const { post, dig, project, member, open } = await postIn(env, params.uuid, me);
     if (post.user_uuid !== me.uuid) refuse(403, "Only its writer can take a post back");
     await batch(env.DB, [statement(env.DB, "DELETE FROM dig_posts WHERE uuid = ?", post.uuid)]);
-    return json(await digOut(env, dig, project, me, member));
+    return json(await digOut(env, dig, project, me, member, open));
   });
 }

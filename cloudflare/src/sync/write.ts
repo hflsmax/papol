@@ -2,7 +2,7 @@
 // replicas — the one way a row of a registered table changes, whether a
 // route or the push is changing it.
 
-import { columns, insert, now, one, update, type Row } from "../db";
+import { columns, insert, now, one, statement, update, type Row } from "../db";
 import { logChange } from "./log";
 import { keyColumn } from "./registry";
 import { rowSnapshot } from "./rows";
@@ -22,8 +22,28 @@ export async function writeSynced(
   for (const name of names) full[name] = row[name] ?? null;
   const key = keyColumn(table);
   const write = isNew ? insert(db, table, full) : update(db, table, key, row[key], omit(full, key));
-  if (replica === null) return [write];
-  return [write, logChange(db, replica, table, String(row[key]), await rowSnapshot(db, table, row))];
+  const news = table === "copies" && !isNew ? await copyNews(db, full) : [];
+  if (replica === null) return [write, ...news];
+  return [write, ...news, logChange(db, replica, table, String(row[key]), await rowSnapshot(db, table, row))];
+}
+
+const RATINGS = ["rating_expertise", "rating_reading", "rating_liking"] as const;
+
+// When a copy's thought or ratings change, the Common room is told when
+// (copy_news): a copy keeps one time for every change to it, and moving
+// it to another shelf is not news. Here because every write of a copy,
+// a route's or a replica's, comes through this function.
+async function copyNews(db: D1Database, copy: Row): Promise<D1PreparedStatement[]> {
+  const before = await one<Row>(db, "SELECT thought, rating_expertise, rating_reading, rating_liking FROM copies WHERE uuid = ?", copy.uuid);
+  if (!before) return [];
+  const thought = (copy.thought ?? null) !== (before.thought ?? null) && Boolean(copy.thought);
+  const rated = RATINGS.some((r) => (copy[r] ?? null) !== (before[r] ?? null) && copy[r] != null);
+  if (!thought && !rated) return [];
+  const at = copy.updated_at;
+  return [statement(db,
+    `INSERT INTO copy_news (copy_uuid, thought_at, rated_at) VALUES (?, ?, ?)
+     ON CONFLICT (copy_uuid) DO UPDATE SET thought_at = coalesce(excluded.thought_at, thought_at), rated_at = coalesce(excluded.rated_at, rated_at)`,
+    copy.uuid, thought ? at : null, rated ? at : null)];
 }
 
 // Whose replica holds a board, and so its groups and cards: its maker's,
