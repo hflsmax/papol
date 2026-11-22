@@ -5745,9 +5745,14 @@ ${talkStyles}
 .room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
-.room-picks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: calc(-1 * var(--space-2)); }
-.room-pick select { max-width: 12rem; padding: 5px 28px 5px 8px; font-size: var(--fs-xs); }
-.room-picks-clear { font: 400 var(--fs-xs) var(--font-ui); }
+/* The Lounge's dropdowns are the nook's tag chips with a caret: a pill
+   at rest, the accent's tint once it narrows. */
+.room-picks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-bottom: calc(-1 * var(--space-2)); }
+.room-pick { display: inline-flex; }
+.room-pick select { appearance: none; max-width: 12rem; padding: 4px 26px 4px 11px; border: 1px solid var(--line); border-radius: var(--radius-pill); background-color: var(--card); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-position: right 7px center; background-repeat: no-repeat; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); cursor: pointer; text-overflow: ellipsis; }
+.room-pick select:hover { border-color: var(--line-strong); color: var(--ink); }
+.room-pick.is-on select { border-color: var(--accent-line); background-color: var(--accent-soft); color: var(--accent); }
+.room-picks-clear { color: var(--ink-faint); }
 /* The Lounge's rows are the nook's rows: the same card, the same title and
    authors line (.desk-title, .desk-meta), the same rule and resting tint.
    What is the Lounge's own sits at the right: faces, and what to press. */

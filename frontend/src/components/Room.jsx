@@ -203,7 +203,7 @@ function narrowed(rows, pick) {
 
 function Pick({ label, value, onChange, children }) {
   return (
-    <label className="sort-control room-pick">
+    <label className={value ? 'room-pick is-on' : 'room-pick'}>
       <span className="visually-hidden">{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>{children}</select>
     </label>
@@ -288,7 +288,7 @@ export default function Room({ currentUser, onSeen }) {
                     <option value="7">This week</option>
                     <option value="1">Today</option>
                   </Pick>
-                  {narrowing && <button type="button" className="link-button room-picks-clear" onClick={() => setPick(NONE)}>Clear</button>}
+                  {narrowing && <button type="button" className="desk-tag room-picks-clear" onClick={() => setPick(NONE)}>Clear</button>}
                 </div>
                 {shown.length === 0 ? (
                   <p className="room-empty">Nothing in the Lounge matches.</p>
