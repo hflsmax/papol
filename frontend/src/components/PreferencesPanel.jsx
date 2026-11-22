@@ -3,7 +3,7 @@ import { updateProfile } from '../../../shared/api/account.js';
 
 // Every choice a member makes about how Papol behaves for them, in one
 // place: who sees and finds them. Each is
-// kept the moment it is changed; there is nothing to save.
+// kept the moment it is chosen; there is nothing to save.
 export default function PreferencesPanel({ user, onUserUpdated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -14,11 +14,15 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
     setError(null);
     try { onUserUpdated(await updateProfile(change)); } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  // A chip that is on or off, as a tag chip is when it narrows a list.
-  const chip = (label, on, change) => (
-    <button type="button" className={`tag-chip preferences-chip${on ? ' selected' : ''}`} aria-pressed={on} disabled={busy} onClick={() => keep(change(!on))}>
-      {label}
-    </button>
+  // A choice and its dropdown, as "On this Mac" sets its own.
+  const choice = (id, label, on, yes, no, change) => (
+    <div className="local-setting-row preferences-row">
+      <label htmlFor={id}><strong>{label}</strong></label>
+      <select id={id} value={on ? 'on' : 'off'} disabled={busy} onChange={(e) => keep(change(e.target.value === 'on'))}>
+        <option value="on">{yes}</option>
+        <option value="off">{no}</option>
+      </select>
+    </div>
   );
 
   return (
@@ -26,10 +30,8 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       {error && <div className="error" role="alert">{error}</div>}
       <section className="panel preferences-block" aria-labelledby="preferences-privacy">
         <h2 className="panel-title" id="preferences-privacy">Privacy</h2>
-        <div className="preferences-chips">
-          {chip('Show my email on my nook', Boolean(user.email_public), (on) => ({ email_public: on }))}
-          {chip('Let people find me when they look for friends', user.findable ?? true, (on) => ({ findable: on }))}
-        </div>
+        {choice('preference-email', 'My email on my nook', Boolean(user.email_public), 'Shown', 'Hidden', (on) => ({ email_public: on }))}
+        {choice('preference-findable', 'People looking for friends', user.findable ?? true, 'Can find me', 'Cannot find me', (on) => ({ findable: on }))}
       </section>
     </div>
   );

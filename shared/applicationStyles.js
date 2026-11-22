@@ -226,7 +226,8 @@ ${commonStyles}
 .you-avatar { width: 56px; height: 56px; font-size: var(--fs-xl); }
 .you-name { margin: 0; font: 600 var(--fs-2xl) var(--font-serif); }
 .you-affiliation { margin: 2px 0 0; color: var(--ink-soft); font-style: italic; }
-.you-tabs { margin-bottom: var(--space-4); }
+/* Five tabs are wider than a phone: they wrap to a second line. */
+.you-tabs { flex-wrap: wrap; margin-bottom: var(--space-4); }
 .you-who { flex: 1; min-width: 0; }
 .way-self .nav-avatar { margin: 0; vertical-align: 0; }
 .way-self[aria-current] .nav-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
@@ -5747,8 +5748,9 @@ ${talkStyles}
 .preferences-panel { display: grid; gap: var(--space-4); }
 .preferences-block { display: grid; gap: var(--space-2); margin: 0; }
 .preferences-block .panel-title, .preferences-block .panel-note { margin: 0; }
-.preferences-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.preferences-chip { border-radius: 999px; box-shadow: none; font: 400 var(--fs-sm) var(--font-ui); }
+.preferences-row label strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.preferences-row label { line-height: 1.4; }
+.preferences-row select { width: 11rem; font-family: var(--font-ui); }
 
 /* ---------- The Lounge ---------- */
 /* What my friends are reading and what they make of it: a paper to a row,
