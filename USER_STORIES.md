@@ -229,7 +229,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
 - **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it. A row carries no buttons: a project I am in opens from its row, and one I am not in leads to the Projects page, where **Ask to join** sends its keepers a request in their Inbox, once.
 - **US-10.8** The Lounge holds news and nothing else: friend requests are answered in the Inbox and on the Friends tab, not here.
-- **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot, then one line saying so. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
+- **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot. Dropdowns above it narrow the rows by kind, friend, activity and time. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends only**
 

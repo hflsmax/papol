@@ -5694,7 +5694,7 @@ ${talkStyles}
 .friend-button { display: inline-flex; flex: none; align-items: center; gap: var(--space-2); }
 .friend-button button { padding: 4px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
 .friend-button .friend-requested { color: var(--ink-faint); border-style: dashed; }
-.friend-button .friend-is { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
+.friend-button .friend-is { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); box-shadow: none; }
 .friend-button .friend-is:hover:not(:disabled) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--ink); }
 .friend-button .friend-not-now { border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); }
 .friend-error { color: var(--accent); font: 400 var(--fs-xs) var(--font-ui); }
@@ -5742,10 +5742,12 @@ ${talkStyles}
    line of reading; the only gold is what is new. */
 .app:has(.room) { max-width: 860px; }
 .room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
-.room-note, .room-empty, .room-end { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
+.room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
-.room-end { padding: var(--space-2) 0 var(--space-4); color: var(--ink-faint); text-align: center; }
+.room-picks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: calc(-1 * var(--space-2)); }
+.room-pick select { max-width: 12rem; padding: 5px 28px 5px 8px; font-size: var(--fs-xs); }
+.room-picks-clear { font: 400 var(--fs-xs) var(--font-ui); }
 /* The Lounge's rows are the nook's rows: the same card, the same title and
    authors line (.desk-title, .desk-meta), the same rule and resting tint.
    What is the Lounge's own sits at the right: faces, and what to press. */
