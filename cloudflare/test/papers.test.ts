@@ -91,6 +91,9 @@ describe("what a PDF says about itself", () => {
     expect(extractDoi("supporting info at 10.1073/pnas. and then doi: 10.1073/pnas.2423301122.")).toBe("10.1073/pnas.2423301122");
     expect(extractDoi("see https://doi.org/10.1145/2984511.2984540, cited")).toBe("10.1145/2984511.2984540");
     expect(extractDoi("nothing here")).toBeNull();
+    expect(extractDoi("https://doi.org/10.1145/nnnnnnn.nnnnnnn")).toBeNull();
+    expect(extractDoi("doi 10.1145/XXXXXXX.XXXXXXX then https://doi.org/10.1145/3408990")).toBe("10.1145/3408990");
+    expect(extractDoi("a Springer suffix 10.1007/s00453-011-9554-x")).toBe("10.1007/s00453-011-9554-x");
     expect(extractArxivId("arXiv:1607.06450v2 [cs.LG]")).toBe("1607.06450v2");
     expect(extractArxivId("at arxiv.org/abs/hep-th/9901001")).toBe("hep-th/9901001");
     expect(titleFromFilename("2016UIST-Metamaterial_AuthorsCopy.pdf")).toBe("2016uist Metamaterial Authorscopy");
