@@ -300,7 +300,7 @@ export default function Room({ currentUser, onSeen }) {
             <section className="desk-rail-part" aria-labelledby="room-friends">
               <div className="desk-rail-head">
                 <h3 id="room-friends">Friends</h3>
-                <button type="button" className="desk-quiet room-add" aria-expanded={finding} onClick={() => setFinding(!finding)}>{finding ? 'Done' : 'Add'}</button>
+                <button type="button" className="desk-quiet room-add" aria-expanded={finding} onClick={() => setFinding(!finding)}>{finding ? 'Done' : 'Find'}</button>
               </div>
               {finding && <Finder currentUser={currentUser} onDone={() => setFinding(false)} />}
               <ul className="desk-rail-list">
@@ -346,7 +346,7 @@ export default function Room({ currentUser, onSeen }) {
           {room && room.friend_count === 0 && (
             <p className="room-note">
               The Lounge is your friends’ news: what they add, think and dig, and their digs to read and post in.
-              Press Add beside Friends to find someone.
+              Press Find beside Friends to ask someone.
             </p>
           )}
           {room && room.friend_count > 0 && rows.length === 0 && (

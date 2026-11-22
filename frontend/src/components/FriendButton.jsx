@@ -3,7 +3,7 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { friendActs, relationTo, useFriends } from '../friendsStore';
 
 // What stands between the member and someone else, and the one press that
-// changes it: Add friend, Requested (pressed again, taken back), Accept or
+// changes it: Ask to be friends, Requested (pressed again, taken back), Accept or
 // Not now for someone who asked, and Friend. Nothing for oneself.
 export default function FriendButton({ user, currentUser, className = '' }) {
   const friends = useFriends(Boolean(currentUser));
@@ -30,7 +30,7 @@ export default function FriendButton({ user, currentUser, className = '' }) {
   return (
     <span className={`friend-button ${className}`.trim()} data-relation={relation ?? 'none'}>
       {relation === null && (
-        <button type="button" className="friend-add" disabled={busy} onClick={run(() => friendActs.ask(user.uuid))}>Add friend</button>
+        <button type="button" className="friend-add" disabled={busy} onClick={run(() => friendActs.ask(user.uuid))}>Ask to be friends</button>
       )}
       {relation === 'requested' && (
         <button type="button" className="friend-requested" disabled={busy} title="Take the request back" onClick={run(() => friendActs.end(user.uuid))}>Requested</button>

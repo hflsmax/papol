@@ -196,16 +196,16 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Becoming friends**
 
-- **US-9.1** As a user, I can ask another user to be friends from their nook. One button, **Add friend**; once pressed it reads **Requested** and pressing it again takes the request back.
+- **US-9.1** As a user, I can ask another user to be friends from their nook. One button, **Ask to be friends**; once pressed it reads **Requested** and pressing it again takes the request back.
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
-- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Add** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
+- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Find** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
 
 **Having friends**
 
 - **US-9.7** As a user, my profile lists **My friends**: face, name, affiliation, since when. Nobody else sees the list or its length, on my nook or anywhere. There is no count of friends shown to anyone.
-- **US-9.8** A friend's nook says **Friend** to me, quietly, where Add friend would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
+- **US-9.8** A friend's nook says **Friend** to me, quietly, where Ask to be friends would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
 - **US-9.9** As a user, I can **end a friendship** from their nook or my list. It asks once, takes effect at once, and tells them nothing. What each of us posted in the other's digs stays, under our names; what friendship opened closes again.
 - **US-9.10** Closing my account ends my friendships. My friends are in my data export.
 
@@ -233,7 +233,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and points at Add in its rail.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and points at Find in its rail.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**
