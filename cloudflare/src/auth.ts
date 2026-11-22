@@ -34,7 +34,6 @@ export interface User extends Row {
   avatar_path: string | null;
   email_public: number;
   findable: number;
-  lounge_days: number | null;
   is_admin: number;
   nav_marks: string | null;
   password_hash: string;
@@ -150,7 +149,6 @@ export function userPrivate(user: User) {
     avatar_path: user.avatar_path,
     email_public: Boolean(user.email_public),
     findable: Boolean(user.findable ?? 1),
-    lounge_days: user.lounge_days ?? null,
     is_admin: Boolean(user.is_admin),
     nav_marks: navMarksOf(user),
   };

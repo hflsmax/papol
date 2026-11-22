@@ -249,19 +249,17 @@ describe("the Lounge", () => {
     await paperWithCopy(grace, digest("a"), "Long kept", { shelfUuid: await defaultShelf(grace) });
     await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
     const papers = async () => (await room(ada)).rows.filter((r: any) => r.kind === "paper");
-    // However long ago it was added, it is in the room.
-    const did = async () => (await papers()).map((r: any) => r.lines.map((l: any) => l.did));
-    expect(await did()).toEqual([["added"]]);
+    expect(await papers()).toEqual([]);
 
     // A move between shelves is not news.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { is_author: true } });
-    expect(await did()).toEqual([["added"]]);
+    expect(await papers()).toEqual([]);
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { thought: "Better on a second reading", rating_liking: 5 } });
     const [changed] = await papers();
-    expect(changed.lines.map((l: any) => [l.did, l.words ?? null, l.ratings?.liking ?? null]).sort()).toEqual([["added", null, null], ["rated", null, 5], ["thought", "Better on a second reading", null]]);
+    expect(changed.lines.map((l: any) => [l.did, l.words ?? null, l.ratings?.liking ?? null]).sort()).toEqual([["rated", null, 5], ["thought", "Better on a second reading", null]]);
     // Ratings kept private say nothing.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { ratings_public: false } });
-    expect((await papers())[0].lines.map((l: any) => l.did).sort()).toEqual(["added", "thought"]);
+    expect((await papers())[0].lines.map((l: any) => l.did)).toEqual(["thought"]);
   });
 
   it("gives a thought written days after the adding its own line and its own dot", async () => {
@@ -292,24 +290,15 @@ describe("the Lounge", () => {
     expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title).sort()).toEqual(["Paper 1", "Paper 2", "Paper 3", "Paper 4", "Paper 5", "Paper 6", "Paper 7"]);
   });
 
-  it("shows a friend's doings as far back as that friend chose, and forever to begin with", async () => {
+  it("holds one month of what friends did", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
-    await paperWithCopy(grace, digest("a"), "Two months old", { shelfUuid: await defaultShelf(grace) });
-    await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
-    await paperWithCopy(grace, digest("b"), "Today", { shelfUuid: await defaultShelf(grace) });
-    const titles = async () => (await room(ada)).rows.map((r: any) => r.paper.title);
-    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).lounge_days).toBe(null);
-    expect(await titles()).toEqual(["Today", "Two months old"]);
-    // It is Grace's choice about her own doings; Ada's own choice changes nothing she sees.
-    await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { lounge_days: 14 } });
-    expect(await titles()).toEqual(["Today", "Two months old"]);
-    expect((await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { lounge_days: 30 } })).lounge_days).toBe(30);
-    expect(await titles()).toEqual(["Today"]);
-    expect((await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { lounge_days: 90 } })).lounge_days).toBe(90);
-    expect(await titles()).toEqual(["Today", "Two months old"]);
-    expect((await call("PUT", "/api/auth/profile", { headers: grace.headers, json: { lounge_days: 7 } })).status).toBe(422);
-    expect((await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { lounge_days: null } })).lounge_days).toBe(null);
+    const shelf = await defaultShelf(grace);
+    for (const [letter, title, days] of [["a", "Two months old", 60], ["b", "Three weeks old", 21], ["c", "Today", 0]] as const) {
+      await paperWithCopy(grace, digest(letter), title, { shelfUuid: shelf });
+      await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - days * 24 * 3_600_000 - 1000).toISOString(), digest(letter));
+    }
+    expect((await room(ada)).rows.map((r: any) => r.paper.title)).toEqual(["Today", "Three weeks old"]);
   });
 
   it("never shows what a friend is reading", async () => {
@@ -319,8 +308,7 @@ describe("the Lounge", () => {
     await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
     const at = new Date(Date.now() - 3_600_000).toISOString();
     await exec("INSERT INTO activity (uuid, user_uuid, kind, subject, started_at, ended_at, seconds) VALUES (?, ?, 'reading', ?, ?, ?, 1200)", uuid(), grace.uuid, digest("a"), at, at);
-    // The paper is there as an adding from long ago, and nothing says it was read.
-    expect((await room(ada)).rows.map((r: any) => [r.at.slice(0, 10), r.lines.map((l: any) => l.did)])).toEqual([[new Date(Date.now() - 60 * 24 * 3_600_000).toISOString().slice(0, 10), ["added"]]]);
+    expect((await room(ada)).rows).toEqual([]);
     expect(await friends(grace)).not.toHaveProperty("shares_reading");
   });
 

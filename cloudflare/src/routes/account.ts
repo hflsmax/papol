@@ -12,8 +12,6 @@ import { UPLOADS } from "../files";
 import * as validate from "../validate";
 
 const AVATAR_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
-// How far back a member's friends may see what they did, in days (Preferences).
-const LOUNGE_DAYS = [14, 30, 90, 365];
 const AVATAR_LIMIT = limits.files.avatar_mb * 1024 * 1024;
 
 async function saveAvatar(env: Env, user: User, avatarPath: string | null) {
@@ -37,9 +35,6 @@ export function accountRoutes(router: Router) {
     const email = "email" in data ? check.string("email", data.email, { max: limits.text.email, pattern: validate.EMAIL }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
     const findable = check.boolean("findable", data.findable, { optional: true });
-    // How far back friends see what I did, in days; null is everything.
-    const days = data.lounge_days;
-    if (days !== undefined && days !== null && !LOUNGE_DAYS.includes(days as number)) check.fail(`lounge_days must be null or one of ${LOUNGE_DAYS.join(", ")}`);
     // What the viewer's nav bar marks: a list of its kinds, in any order.
     const marks = data.nav_marks;
     if (marks !== undefined && !(Array.isArray(marks) && marks.every((kind) => navMarks.kinds.includes(kind)))) {
@@ -59,9 +54,8 @@ export function accountRoutes(router: Router) {
     if (normalizedEmail !== undefined) user.email = normalizedEmail;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
     if (findable !== null) user.findable = findable ? 1 : 0;
-    if (days !== undefined) user.lounge_days = days as number | null;
     if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
-    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, lounge_days = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.lounge_days ?? null, user.nav_marks, user.uuid).run();
+    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 
