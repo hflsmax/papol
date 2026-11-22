@@ -179,6 +179,30 @@ describe("what a PDF says about itself", () => {
     expect((await ok("GET", `/api/jobs/${again.job}`, { headers: account.headers })).result.existing).toMatchObject({ sha256: "9".repeat(64) });
   });
 
+  // Crossref's live answer to this search, asked 2026-11-22 (all five
+  // items, in its order, with the fields the search selects).
+  const crossrefLive = { message: { items: [
+    { DOI: "10.1109/tg.2023.3292982", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"], "container-title": ["IEEE Transactions on Games"], issue: "2",
+      issued: { "date-parts": [[2024, 6]] }, author: people("Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"), score: 71.68 },
+    { DOI: "10.1109/vlhcc.2019.8818687", type: "proceedings-article", title: ["The Ceptre Editor: A Structure Editor for Rule-Based System Simulation"],
+      "container-title": ["2019 IEEE Symposium on Visual Languages and Human-Centric Computing (VL/HCC)"], issued: { "date-parts": [[2019, 10]] }, author: people("Alexander Card", "Chris Martens"), score: 33.09 },
+    { DOI: "10.1609/aiide.v11i1.12784", type: "journal-article", title: ["Ceptre: A Language for Modeling Generative Interactive Systems"],
+      "container-title": ["Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment"], issue: "1", issued: { "date-parts": [[2015, 11, 19]] }, author: people("Chris Martens"), score: 28.65 },
+    { DOI: "10.32920/21908451.v1", type: "posted-content", title: ["Game Design II - Game Mechanics (Course Intro)"], issued: { "date-parts": [[2023, 1, 17]] }, author: people("Kristopher Alexander"), score: 28.19 },
+    { DOI: "10.32920/21908451", type: "posted-content", title: ["Game Design II - Game Mechanics (Course Intro)"], issued: { "date-parts": [[2023, 1, 17]] }, author: people("Kristopher Alexander"), score: 28.16 },
+  ] } };
+
+  it("takes the IEEE Transactions on Games article from Crossref's live answer for ceptre-tog.pdf", async () => {
+    const account = await register();
+    apis({ "api.crossref.org": () => Response.json(crossrefLive), "api.openalex.org": () => { throw new Error("OpenAlex should not be asked"); } });
+    const ticket = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 ceptre, live", ceptre)).json<any>();
+    await woken(ticket.job);
+    expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result).toMatchObject({
+      doi: "10.1109/tg.2023.3292982", title: "Modeling Game Mechanics With Ceptre", journal: "IEEE Transactions on Games", year: 2024,
+      authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]),
+    });
+  });
+
   it("takes no search result for the published version unless the title and the names agree, and keeps the title block then", async () => {
     const account = await register();
     const asked: string[] = [];
