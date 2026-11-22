@@ -45,7 +45,7 @@ import {
 import NookManager from './components/NookManager';
 import SyncAttention from './components/SyncAttention';
 import { appPath, stripAppBase } from './base';
-import { parseRoute } from './routes';
+import { parseRoute, returnAfterSignIn, SIGN_IN_PAGES } from './routes';
 import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
 } from './jacketOrigin';
@@ -72,10 +72,6 @@ import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 // Where a member works inside one project.
 export const PROJECT_PAGES = new Set(['project']);
 
-const SIGN_IN_PAGES = new Set([
-  'nook', 'shelf', 'papers', 'room', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation',
-]);
 
 // The macOS application is signed, notarized, and attached to this project's
 // GitHub releases by .github/workflows/desktop-macos.yml.
@@ -636,11 +632,9 @@ export default function App({ startupUser = null, startupError = null }) {
     // Only our own pages, and only ones worth being returned to. A
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
-    // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/projects/join/', '/u/', '/boards/', '/viewer/']
-      .some((start) => candidate.startsWith(start))
-      ? candidate
-      : '/';
+    // still theirs to add; one who followed an email to their Inbox lands
+    // in it.
+    const returnTo = returnAfterSignIn(candidate);
     // login/register already persisted the credential for this account.
     setUser(user);
     // Surfaces of their own, built and served separately from this one:

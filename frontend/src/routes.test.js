@@ -129,3 +129,18 @@ test('a paper picked from a shelf or a board is that paper, the place kept', () 
   assert.deepEqual(parseRoute(`/board/${UUID}/paper/${NAME}/`), { page: 'paper', uuid: NAME, board: UUID });
   assert.equal(parseRoute(`/shelf/${UUID}/paper/${DIGEST}`).page, 'unknown');
 });
+
+// An email's link is followed signed out as often as signed in. Signing in
+// on the way is a step toward the page the link named, never a detour Home.
+test('signing in returns to the page the link named', async () => {
+  const { returnAfterSignIn } = await import('./routes.js');
+  for (const path of ['/inbox', '/admin', '/profile', '/lounge', '/projects',
+    `/u/${UUID}`, `/paper/${NAME}`, `/project/${UUID}`, `/shelf/${UUID}`,
+    `/board/${UUID}`, '/projects/join/AbC123xYz9', `/boards/${UUID}`, '/viewer/x', '/inbox?shell=web']) {
+    assert.equal(returnAfterSignIn(path), path, path);
+  }
+  for (const path of ['/signin', '/join', `/reset-password/${'a'.repeat(64)}`, '/',
+    '/nowhere', '//evil.example/inbox', 'https://evil.example/inbox', '', null]) {
+    assert.equal(returnAfterSignIn(path), '/', String(path));
+  }
+});
