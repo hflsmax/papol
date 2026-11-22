@@ -155,9 +155,9 @@ function PaperRow({ row, currentUser }) {
     <li className={`room-row is-paper${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
         <div className="room-row-text">
-          <a className="room-title" href={appPath(`/paper/${paperName(row.paper.sha256)}`)}><PaperTitle title={row.paper.title} /></a>
+          <a className="desk-title room-title" href={appPath(`/paper/${paperName(row.paper.sha256)}`)}><PaperTitle title={row.paper.title} /></a>
           {row.is_new && <NewsDot />}
-          <span className="room-meta">{metaOf(row.paper)}</span>
+          <span className="desk-meta room-meta">{metaOf(row.paper)}</span>
         </div>
         <span className="room-faces">
           {byPerson(row.lines).map(({ user, lines }) => (
@@ -177,11 +177,11 @@ function BatchRow({ row }) {
     <li className={`room-row is-batch${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
         <div className="room-row-text">
-          <button type="button" className="room-title room-batch-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+          <button type="button" className="desk-title room-title room-batch-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
             {row.papers.length} papers
           </button>
           {row.is_new && <NewsDot />}
-          {!open && <span className="room-meta">{someTitles(row.papers)}</span>}
+          {!open && <span className="desk-meta room-meta">{someTitles(row.papers)}</span>}
         </div>
         <span className="room-faces">
           <Who user={row.user}>
@@ -193,8 +193,8 @@ function BatchRow({ row }) {
         <ul className="room-batch">
           {row.papers.map((paper) => (
             <li key={paper.sha256}>
-              <a className="room-batch-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
-              <span className="room-meta">{metaOf(paper)}</span>
+              <a className="desk-title room-batch-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
+              <span className="desk-meta room-meta">{metaOf(paper)}</span>
             </li>
           ))}
         </ul>
@@ -209,9 +209,9 @@ function BoardRow({ row }) {
       <div className="room-row-head">
         <div className="room-row-text">
           <span className="room-kind">Board</span>
-          <a className="room-title" href={appPath(`/board/${row.board.uuid}`)}>{row.board.name}</a>
+          <a className="desk-title room-title" href={appPath(`/board/${row.board.uuid}`)}>{row.board.name}</a>
           {row.is_new && <NewsDot />}
-          <span className="room-meta">{row.board.item_count} {row.board.item_count === 1 ? 'card' : 'cards'}{row.board.description ? ` · ${row.board.description}` : ''}</span>
+          <span className="desk-meta room-meta">{row.board.item_count} {row.board.item_count === 1 ? 'card' : 'cards'}{row.board.description ? ` · ${row.board.description}` : ''}</span>
         </div>
         <span className="room-faces">
           <Who user={row.user}>
@@ -232,10 +232,10 @@ function ProjectRow({ row }) {
         <div className="room-row-text">
           <span className="room-kind">Project</span>
           {row.project.is_member
-            ? <a className="room-title" href={appPath(`/project/${row.project.uuid}`)}>{row.project.name}</a>
-            : <span className="room-title">{row.project.name}</span>}
+            ? <a className="desk-title room-title" href={appPath(`/project/${row.project.uuid}`)}>{row.project.name}</a>
+            : <span className="desk-title room-title">{row.project.name}</span>}
           {row.is_new && <NewsDot />}
-          <span className="room-meta">
+          <span className="desk-meta room-meta">
             {row.project.member_count} {row.project.member_count === 1 ? 'member' : 'members'}
             {row.project.description ? ` · ${row.project.description}` : ''}
           </span>
@@ -268,7 +268,7 @@ function FriendRow({ row }) {
       <div className="room-row-head">
         <div className="room-row-text">
           <span className="room-kind">Friend</span>
-          <a className="room-title" href={appPath(`/u/${row.user.uuid}`)}>{row.user.display_name}</a>
+          <a className="desk-title room-title" href={appPath(`/u/${row.user.uuid}`)}>{row.user.display_name}</a>
           {row.is_new && <NewsDot />}
         </div>
         <span className="room-faces">

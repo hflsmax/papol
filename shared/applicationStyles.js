@@ -5747,11 +5747,16 @@ ${talkStyles}
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
 .room-end { padding: var(--space-2) 0 var(--space-4); color: var(--ink-faint); text-align: center; }
-.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
-.room-row { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
-.room-row:first-child { padding-top: 0; }
+/* The Lounge's rows are the nook's rows: the same card, the same title and
+   authors line (.desk-title, .desk-meta), the same rule and resting tint.
+   What is the Lounge's own sits at the right: faces, and what to press. */
+.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-row { display: grid; align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
+.room-row:hover { background: color-mix(in srgb, var(--card) 94%, var(--ink)); }
+.room-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.room-row:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 .room-row:last-child { border-bottom: 0; }
-.room-row-head { position: relative; display: flex; align-items: flex-start; gap: var(--space-3); }
+.room-row-head { position: relative; display: flex; align-items: center; gap: var(--space-3); }
 /* Who did something with the row: faces only, and what each did comes
    out under the row when a face is rested on, pressed or tabbed to. */
 .room-faces { display: flex; flex: none; align-items: center; gap: 4px; }
@@ -5765,12 +5770,11 @@ ${talkStyles}
 .room-who:hover .room-pop { z-index: 21; }
 .room-pop .room-lines { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .room-pop { transition: none; } }
-.room-row-text { flex: 1; min-width: 0; line-height: 1.35; }
+.room-row-text { flex: 1; min-width: 0; }
 .room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
-.room-title { color: var(--ink); font: 600 var(--fs-md)/1.3 var(--font-serif); text-decoration: none; overflow-wrap: anywhere; }
-a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.room-title { overflow-wrap: anywhere; }
+span.room-title:hover { color: var(--ink); text-decoration: none; }
 .room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.room-meta { display: block; margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .room-keep, .room-kept { flex: none; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
 .room-keep { padding: 1px var(--space-3); border-radius: 999px; }
 .room-kept { padding: 2px 0; color: var(--ink-faint); }
@@ -5797,8 +5801,6 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
 .room-batch-open { padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; }
 .room-batch-open:hover:not(:disabled) { background: none; color: var(--accent); }
 .room-batch { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0 var(--space-4); padding: 0; list-style: none; }
-.room-batch-title { color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
-.room-batch-title:hover { color: var(--accent); text-decoration: underline; }
 
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
