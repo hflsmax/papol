@@ -141,7 +141,8 @@ ${commonStyles}
 .way a.way-mark { display: inline-flex; align-self: center; }
 .way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
-/* Beside the trail home: the Lounge. */
+/* Beside the trail home: the Lounge, with the gold dot when a friend
+   has news. */
 .way-aside {
   display: flex;
   align-items: center;
@@ -5730,9 +5731,8 @@ ${talkStyles}
 /* A person in a line: face, name, affiliation, and what there is to say
    or do about them at the row's end. */
 /* The Lounge is the one other place the bar leads, so it is said plainly:
-   in ink, bold and large, on every page. It wears no dot; what is new is
-   marked on the rows inside. */
-.way-aside a.way-room { color: var(--ink); font-weight: 600; font-size: var(--fs-xl); }
+   in ink, bold and large, on every page. */
+.way-aside a.way-room { gap: 6px; color: var(--ink); font-weight: 600; font-size: var(--fs-xl); }
 .way-aside a.way-room:hover { color: var(--accent); }
 
 /* A message in the Inbox that has an answer or a place: said under it. */

@@ -1140,6 +1140,7 @@ export default function App({ startupUser = null, startupError = null }) {
             route={route}
             trail={wayTrail}
             unreadCount={unreadCount}
+            roomNews={roomNews}
           />
         )}
         {!hasWay && <header className="topnav">
