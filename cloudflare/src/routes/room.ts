@@ -9,7 +9,7 @@
 // same shelf and the same field that shows it anywhere else.
 //
 // The room is made from the reader's friends and nobody else. What a
-// friend reads, and for how long, is never in it. It holds four weeks.
+// friend reads, and for how long, is never in it. It holds one month; the page shows it a part at a time.
 
 import { currentUser, type User } from "../auth";
 import { all, statement, type Row } from "../db";
@@ -20,11 +20,8 @@ import { friendsOf, friendSees, PERSON, userLiteral } from "./friends";
 import { excerpt, onPublicShelf } from "./projects";
 
 const DAY = 24 * 60 * 60 * 1000;
-const WEEKS = 4;
-// How many papers one user adds in a day before they are a folder brought
-// in, which is not news paper by paper.
-const BATCH = 6;
-const ROWS = 150;
+// How far back the room goes: a month.
+const DAYS = 30;
 
 interface Line {
   user: unknown;
@@ -56,7 +53,7 @@ async function latest(env: Env, me: User) {
   const mine = userLiteral(me.uuid);
   const friends = friendsOf(mine);
   const people = friends;
-  const since = new Date(Date.now() - WEEKS * 7 * DAY).toISOString();
+  const since = new Date(Date.now() - DAYS * DAY).toISOString();
   const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 
@@ -160,25 +157,8 @@ async function latest(env: Env, me: User) {
   type Out = { kind: string; key: string; at: string; is_new: boolean } & Row;
   const rows: Out[] = [];
 
-  // A user who brings in a folder does not fill the room with it: the
-  // papers they added in a day that nobody has said anything else about
-  // stay out until someone thinks, rates or digs.
-  const lone = new Map<string, { user: unknown; papers: string[]; at: string }>();
   for (const [digest, said] of lines) {
-    if (said.length !== 1 || said[0].did !== "added" || said[0].words || said[0].ratings) continue;
-    const key = `${(said[0].user as { uuid: string }).uuid}:${said[0].at.slice(0, 10)}`;
-    const batch = lone.get(key) ?? { user: said[0].user, papers: [], at: said[0].at };
-    batch.papers.push(digest);
-    if (said[0].at > batch.at) batch.at = said[0].at;
-    lone.set(key, batch);
-  }
-  const folded = new Set<string>();
-  for (const batch of lone.values()) {
-    if (batch.papers.length < BATCH) continue;
-    for (const digest of batch.papers) folded.add(digest);
-  }
-  for (const [digest, said] of lines) {
-    if (folded.has(digest) || !paperOf.has(digest)) continue;
+    if (!paperOf.has(digest)) continue;
     said.sort((a, b) => b.at.localeCompare(a.at));
     rows.push({ kind: "paper", key: digest, at: said[0].at, is_new: said[0].at > seen, paper: paperOf.get(digest), in_my_nook: inNook.has(digest), lines: said });
   }
@@ -205,7 +185,7 @@ async function latest(env: Env, me: User) {
   rows.push(...projects.values());
 
   rows.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
-  return { rows: rows.slice(0, ROWS), since };
+  return { rows, since };
 }
 
 async function ownersOf(env: Env, uuids: string[]): Promise<Map<string, unknown>> {

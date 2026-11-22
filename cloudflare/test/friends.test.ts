@@ -278,7 +278,7 @@ describe("the Lounge", () => {
     expect((await ok("GET", "/api/room/news", { headers: ada.headers })).news).toBe(true);
   });
 
-  it("keeps a folder brought in at once out of the room", async () => {
+  it("gives each paper of a folder brought in at once its own row", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
     const shelf = await defaultShelf(grace);
@@ -286,8 +286,19 @@ describe("the Lounge", () => {
     await ok("PUT", `/api/papers/${name("7")}`, { headers: grace.headers, json: { thought: "The one to start with" } });
     const got = await room(ada);
     expect(got.rows.some((r: any) => r.kind === "batch")).toBe(false);
-    // Only the one she said something about has a row.
-    expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title)).toEqual(["Paper 7"]);
+    // Each has a row of its own, said something about or not.
+    expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title).sort()).toEqual(["Paper 1", "Paper 2", "Paper 3", "Paper 4", "Paper 5", "Paper 6", "Paper 7"]);
+  });
+
+  it("holds one month of what friends did", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    const shelf = await defaultShelf(grace);
+    for (const [letter, title, days] of [["a", "Two months old", 60], ["b", "Three weeks old", 21], ["c", "Today", 0]] as const) {
+      await paperWithCopy(grace, digest(letter), title, { shelfUuid: shelf });
+      await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - days * 24 * 3_600_000 - 1000).toISOString(), digest(letter));
+    }
+    expect((await room(ada)).rows.map((r: any) => r.paper.title)).toEqual(["Today", "Three weeks old"]);
   });
 
   it("never shows what a friend is reading", async () => {

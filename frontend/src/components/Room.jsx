@@ -64,12 +64,25 @@ function Line({ line, title, currentUser, onOpen }) {
   );
 }
 
+// A face in a row leads to its person's nook, and resting on it brings up
+// what they did. Where nothing can rest, the first press brings that up
+// and the next one leads.
 function Who({ user, held = false, children }) {
+  const shown = useRef(false);
+  const press = (event) => {
+    if (shown.current || !window.matchMedia?.('(hover: none)').matches) return;
+    event.preventDefault();
+    shown.current = true;
+    event.currentTarget.focus();
+  };
   return (
     <span className={`room-who${held ? ' is-held' : ''}`}>
-      <span className="room-who-face" tabIndex={0} role="button" aria-label={`What ${user.display_name} did`}>
+      <a
+        className="room-who-face" href={appPath(`/u/${user.uuid}`)} aria-label={`${user.display_name}’s nook`}
+        onClick={press} onBlur={() => { shown.current = false; }}
+      >
         <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
-      </span>
+      </a>
       <div className="room-pop">
         <div className="room-pop-who">
           <Face user={user} />
@@ -219,7 +232,7 @@ function Finder({ currentUser, onDone }) {
         <ul className="room-found">
           {people.map((user) => (
             <li key={user.uuid}>
-              <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+              <Face user={user} />
               <span className="room-found-who">
                 <a className="room-found-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
                 {user.affiliation && <span className="room-found-where">{user.affiliation}</span>}
@@ -239,6 +252,8 @@ const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 const linesOf = (row) => row.lines ?? [{ user: row.user, did: 'made', at: row.at }];
 const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
 const NONE = { kind: '', who: '' };
+// How many rows the room shows before Show more.
+const PAGE = 50;
 
 // The Lounge narrowed, as the nook is by a shelf: by whose news it is and
 // what a row is.
@@ -258,7 +273,9 @@ export default function Room({ currentUser, onSeen }) {
   const titled = useContext(WayShown);
   const [pick, setPick] = useState(NONE);
   const [finding, setFinding] = useState(false);
-  const set = (name, value) => setPick((was) => ({ ...was, [name]: value }));
+  // The room is shown a part at a time; narrowing starts it from the top.
+  const [upTo, setUpTo] = useState(PAGE);
+  const set = (name, value) => { setUpTo(PAGE); setPick((was) => ({ ...was, [name]: value })); };
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
   const marked = useRef(false);
@@ -311,9 +328,11 @@ export default function Room({ currentUser, onSeen }) {
                   </button>
                 </li>
                 {mine.map(({ user }) => (
-                  <li key={user.uuid}>
+                  <li key={user.uuid} className="room-friend-item">
+                    {/* The face leads to their nook; the name narrows the news to them. */}
+                    <Face user={user} />
                     <button type="button" className={who === user.uuid ? 'desk-row room-friend is-on' : 'desk-row room-friend'} aria-pressed={who === user.uuid} onClick={() => set('who', who === user.uuid ? '' : user.uuid)}>
-                      <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+                      <span className="room-friend-gap" aria-hidden="true" />
                       <span className="desk-row-name">{user.display_name}</span>
                     </button>
                   </li>
@@ -343,7 +362,7 @@ export default function Room({ currentUser, onSeen }) {
           {error && <div className="error" role="alert">{error}</div>}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (
-            <p className="room-empty">Your friends have been quiet these four weeks.</p>
+            <p className="room-empty">Your friends have been quiet this month.</p>
           )}
           {rows.length > 0 && (
             <>
@@ -353,11 +372,16 @@ export default function Room({ currentUser, onSeen }) {
                 <div className="room-card">
                   <div className="room-head" aria-hidden="true"><span>Title</span><span>Friends</span><span>Latest</span></div>
                   <ul className="room-rows">
-                    {shown.map((row) => {
+                    {shown.slice(0, upTo).map((row) => {
                       const Row = ROWS[row.kind];
                       return Row ? <Row key={row.key} row={row} currentUser={currentUser} /> : null;
                     })}
                   </ul>
+                  {shown.length > upTo && (
+                    <button type="button" className="room-more" onClick={() => setUpTo(upTo + PAGE)}>
+                      Show more <span className="room-more-left">{shown.length - upTo} older</span>
+                    </button>
+                  )}
                 </div>
               )}
             </>
