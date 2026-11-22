@@ -164,13 +164,17 @@ describe("what a friend sees", () => {
     await ok("PUT", `/api/papers/${name("a")}`, { headers: ada.headers, json: { shelf_uuid: await privateShelf(ada) } });
     expect((await ok("GET", `/api/papers/${name("a")}/friend-digs`, { headers: grace.headers })).digs).toEqual([]);
     expect((await call("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).status).toBe(404);
+    // While it is hers alone, what she posts in it tells nobody who cannot read it.
+    const told = (await inbox(grace)).length;
+    await ok("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: ada.headers, json: { body: "A note to myself" } });
+    expect((await inbox(grace)).length).toBe(told);
     await ok("PUT", `/api/papers/${name("a")}`, { headers: ada.headers, json: { shelf_uuid: await defaultShelf(ada) } });
-    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).posts.length).toBe(2);
+    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).posts.length).toBe(3);
 
     // Ending the friendship closes it again; what was posted stays.
     await ok("DELETE", `/api/friends/${ada.uuid}`, { headers: grace.headers });
     expect((await call("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).status).toBe(404);
-    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ada.headers })).posts.map((p: any) => p.body)).toEqual(["Tight for d = 2 though", "Fair"]);
+    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ada.headers })).posts.map((p: any) => p.body)).toEqual(["Tight for d = 2 though", "Fair", "A note to myself"]);
   });
 });
 
@@ -251,6 +255,22 @@ describe("the Lounge", () => {
     expect((await papers())[0].lines.map((l: any) => l.did)).toEqual(["thought"]);
   });
 
+  it("gives a thought written days after the adding its own line and its own dot", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    await paperWithCopy(grace, digest("a"), "Added last week", { shelfUuid: await defaultShelf(grace) });
+    await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 7 * 24 * 3_600_000).toISOString(), digest("a"));
+    await exec("UPDATE users SET room_seen_at = ? WHERE uuid = ?", new Date(Date.now() - 60_000).toISOString(), ada.uuid);
+    expect((await ok("GET", "/api/room/news", { headers: ada.headers })).news).toBe(false);
+
+    await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { thought: "Worth it after all" } });
+    const [row] = (await room(ada)).rows.filter((r: any) => r.kind === "paper");
+    expect(row.is_new).toBe(true);
+    expect(row.lines.map((l: any) => [l.did, l.words ?? null])).toEqual([["thought", "Worth it after all"], ["added", null]]);
+    // The bar's dot is lit by the same rows.
+    expect((await ok("GET", "/api/room/news", { headers: ada.headers })).news).toBe(true);
+  });
+
   it("keeps a folder brought in at once out of the room", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
@@ -288,5 +308,11 @@ describe("the Lounge", () => {
     expect((await inbox(grace)).filter((n: any) => n.kind === "project_ask")).toMatchObject([{ content: "Ada asks to join Effects.", link: `/project/${project.uuid}`, actor: { uuid: ada.uuid } }]);
     expect((await room(ada)).rows.find((r: any) => r.kind === "project").project.asked).toBe(true);
     expect((await call("POST", `/api/projects/${project.uuid}/ask`, { headers: grace.headers })).status).toBe(400);
+
+    // Let in, the ask is spent: having left, she may ask again and the keeper hears of it.
+    await ok("POST", `/api/projects/${project.uuid}/members`, { headers: grace.headers, json: { user_uuid: ada.uuid } });
+    await ok("DELETE", `/api/projects/${project.uuid}/members/${ada.uuid}`, { headers: ada.headers });
+    await ok("POST", `/api/projects/${project.uuid}/ask`, { headers: ada.headers });
+    expect((await inbox(grace)).filter((n: any) => n.kind === "project_ask").length).toBe(2);
   });
 });

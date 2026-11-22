@@ -27,7 +27,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { copyOf, keepPaper, paperOr404 } from "../papers/detail";
-import { areFriends, friendSees, notice, userLiteral } from "./friends";
+import { friendSees, notice, userLiteral } from "./friends";
 import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, onPublicShelf, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
@@ -414,8 +414,9 @@ export function digRoutes(router: Router) {
       const link = `/paper/${dig.paper_sha256.slice(0, 32)}`;
       for (const uuid of new Set([dig.user_uuid, ...others.map((o) => o.user_uuid)])) {
         if (uuid === me.uuid) continue;
-        // A friend no longer one is not told of what they can no longer read.
-        if (uuid !== dig.user_uuid && !(await areFriends(env, uuid, dig.user_uuid))) continue;
+        // Someone who can no longer read the dig is not told of it: a friend
+        // no longer one, or anyone once the paper left the public shelf.
+        if (uuid !== dig.user_uuid && !(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(uuid))}`, dig.uuid))) continue;
         const whose = uuid === dig.user_uuid ? "your" : dig.user_uuid === me.uuid ? "their" : `${owner?.display_name ?? "a friend"}'s`;
         told.push(notice(env, uuid, `${me.display_name} posted in ${whose} dig on ${paper?.title ?? "a paper"}.`, "dig_post", me, link, at));
       }

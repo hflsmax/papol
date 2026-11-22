@@ -569,7 +569,7 @@ export function projectRoutes(router: Router) {
       // Joining late is seeing the whole history, none of it as news.
       const at = now();
       member = { uuid: newUuid(), project_uuid: project.uuid, user_uuid: me.uuid, is_keeper: 0, joined_at: at, seen_at: at };
-      await batch(env.DB, [insert(env.DB, "project_members", member), touched(env, project)]);
+      await batch(env.DB, [insert(env.DB, "project_members", member), statement(env.DB, "DELETE FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, me.uuid), touched(env, project)]);
     }
     return json(await projectOut(env, project, me, member));
   });
@@ -613,6 +613,8 @@ export function projectRoutes(router: Router) {
       const at = now();
       await batch(env.DB, [
         insert(env.DB, "project_members", { uuid: newUuid(), project_uuid: project.uuid, user_uuid: user.uuid, is_keeper: 0, joined_at: at, seen_at: at }),
+        // An ask that was answered is spent: having left, they may ask again.
+        statement(env.DB, "DELETE FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, user.uuid),
         insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: `${me.display_name} added you to ${project.name}.`, read: 0, created_at: at }),
         touched(env, project),
       ]);

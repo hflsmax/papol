@@ -46,16 +46,10 @@ function ratingsOf(shown: ReturnType<typeof shownFields>) {
 // did since they last opened it. Someone asking to be friends is the
 // Inbox's to say, not the room's.
 async function hasNews(env: Env, me: User): Promise<{ news: boolean }> {
-  const mine = userLiteral(me.uuid);
-  const seen = me.room_seen_at as string | null ?? "9999";
-  const row = await statement(env.DB,
-    `SELECT
-       EXISTS (SELECT 1 FROM copies c ${PUBLIC_SHELF} WHERE c.deleted_at IS NULL AND c.created_at > ?1 AND c.user_uuid IN ${friendsOf(mine)}) AS kept,
-       EXISTS (SELECT 1 FROM digs d WHERE d.created_at > ?1 AND ${friendSees(mine)}) AS dug,
-       EXISTS (SELECT 1 FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid
-         WHERE dp.created_at > ?1 AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})) AS posted`,
-    seen).first<{ kept: number; dug: number; posted: number }>();
-  return { news: Boolean(row && (row.kept || row.dug || row.posted)) };
+  // Asked of the rows themselves, so the dot is lit exactly when a row
+  // in the room wears one. Before the first visit nothing is new.
+  if (!me.room_seen_at) return { news: false };
+  return { news: (await latest(env, me)).rows.some((row) => row.is_new) };
 }
 
 async function latest(env: Env, me: User) {
@@ -71,10 +65,10 @@ async function latest(env: Env, me: User) {
     statement(env.DB,
       `SELECT c.*, ${PERSON} FROM copies c ${PUBLIC_SHELF} JOIN users u ON u.uuid = c.user_uuid
        WHERE c.deleted_at IS NULL AND c.created_at > ? AND c.user_uuid IN ${people}`, since),
-    // A thought written or ratings given on a copy kept from before.
+    // A thought written or ratings given after the copy was added.
     statement(env.DB,
       `SELECT c.*, n.thought_at, n.rated_at, ${PERSON} FROM copy_news n JOIN copies c ON c.uuid = n.copy_uuid ${PUBLIC_SHELF} JOIN users u ON u.uuid = c.user_uuid
-       WHERE c.deleted_at IS NULL AND c.created_at <= ?1 AND (n.thought_at > ?1 OR n.rated_at > ?1) AND c.user_uuid IN ${people}`, since),
+       WHERE c.deleted_at IS NULL AND (n.thought_at > ?1 OR n.rated_at > ?1) AND c.user_uuid IN ${people}`, since),
     // A friend's dig.
     statement(env.DB,
       `SELECT ${digOn}, (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count, ${PERSON}
@@ -105,11 +99,29 @@ async function latest(env: Env, me: User) {
   const lines = new Map<string, Line[]>();
   const say = (digest: unknown, line: Line) => lines.set(String(digest), [...(lines.get(String(digest)) ?? []), line]);
   const who = (row: Row) => userPublic(row);
+  // What was said within a day of the adding is part of it, and the line
+  // takes the later time. What was said after that is its own line, so
+  // the adding does not say it a second time under an older date.
+  const SOON = DAY;
+  const soon = (c: Row, at: unknown) => typeof at === "string" && Date.parse(at) - Date.parse(c.created_at as string) <= SOON;
+  const later = new Map(changed.map((c) => [`${c.user_uuid}:${c.paper_sha256}`, c]));
+  const merged = new Set<string>();
   for (const c of added) {
     const shown = shownFields(c);
-    say(c.paper_sha256, { user: userPublic({ ...c, uuid: c.user_uuid }), did: "added", at: c.created_at as string, words: shown.thought, ratings: ratingsOf(shown) });
+    const key = `${c.user_uuid}:${c.paper_sha256}`;
+    const after = later.get(key);
+    const thoughtLater = after?.thought_at && !soon(c, after.thought_at);
+    const ratedLater = after?.rated_at && !soon(c, after.rated_at);
+    let at = c.created_at as string;
+    for (const t of [after?.thought_at, after?.rated_at]) if (soon(c, t) && (t as string) > at) at = t as string;
+    if (after && !thoughtLater && !ratedLater) merged.add(key);
+    say(c.paper_sha256, {
+      user: userPublic({ ...c, uuid: c.user_uuid }), did: "added", at,
+      words: thoughtLater ? null : shown.thought, ratings: ratedLater ? null : ratingsOf(shown),
+    });
   }
   for (const c of changed) {
+    if (merged.has(`${c.user_uuid}:${c.paper_sha256}`)) continue;
     const shown = shownFields(c);
     const user = userPublic({ ...c, uuid: c.user_uuid });
     if (c.thought_at && (c.thought_at as string) > since && shown.thought) say(c.paper_sha256, { user, did: "thought", at: c.thought_at as string, words: shown.thought });

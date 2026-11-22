@@ -9,7 +9,7 @@ import { TalkCard, when } from '../../../shared/ui/Talk.jsx';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
-import { useFriends } from '../friendsStore';
+import { loadFriends, useFriends } from '../friendsStore';
 import { RatingSummary } from './Rating';
 import { InWay, WayShown } from './Way';
 import FriendButton from './FriendButton';
@@ -262,6 +262,8 @@ export default function Room({ currentUser, onSeen }) {
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
   const marked = useRef(false);
+  // Read again each visit: a friend may have accepted since.
+  useEffect(() => { loadFriends().catch(() => {}); }, []);
 
   useEffect(() => {
     let active = true;

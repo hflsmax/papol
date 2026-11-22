@@ -108,8 +108,8 @@ export async function requestsFor(env: Env, me: User) {
 }
 
 // Everything a user's own pages need to know of their friends: who they
-// are, who waits for an answer, whom they asked, and their link. Theirs alone: nobody else is shown
-// the list or its length.
+// are, who waits for an answer, and whom they asked. Theirs alone: nobody else is shown the list or
+// its length.
 async function friendsOut(env: Env, me: User) {
   const [friends, sent, requests] = await Promise.all([
     all<Row>(env.DB,
