@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { shareReading } from '../../../shared/api/friends.js';
 import { appPath } from '../base';
 import { friendActs, useFriends } from '../friendsStore';
 import Avatar from './Avatar';
@@ -9,8 +8,7 @@ import FriendButton from './FriendButton';
 const since = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '');
 
 // My friends, on my own page: who asked and waits for an answer, who my
-// friends are, the link that makes whoever opens it my friend, and whether
-// my friends see what I am reading. Mine alone: nobody else is shown the
+// friends are, and who my friends are. Mine alone: nobody else is shown the
 // list or how long it is.
 export default function FriendsPanel({ user }) {
   const friends = useFriends();
@@ -51,7 +49,7 @@ export default function FriendsPanel({ user }) {
         {friends.friends.length === 0 ? (
           <p className="friends-empty">
             No friends yet. Add someone from their nook.
-            Friends see each other’s reading in the Lounge, and read and post in each other’s digs on papers kept on a public shelf.
+            Friends see what each other adds, thinks and digs in the Lounge, and read and post in each other’s digs on papers kept on a public shelf.
           </p>
         ) : (
           <ul className="friends-list">
@@ -71,17 +69,6 @@ export default function FriendsPanel({ user }) {
         <p className="friends-note">Only you see this list.</p>
       </section>
 
-      <section className="friends-block" aria-labelledby="friends-reading">
-        <h3 className="kicker" id="friends-reading">What my friends see</h3>
-        <label className="checkbox-row">
-          <input type="checkbox" checked={friends.shares_reading} disabled={busy} onChange={(e) => run(() => shareReading(e.target.checked))} />
-          <span>Friends see what I’m reading</span>
-        </label>
-        <p className="friends-note">
-          On, a friend sees that you read a paper this week, for papers on your public shelves only.
-          Never how long, on which days, or your effort: your activity stays yours alone.
-        </p>
-      </section>
     </div>
   );
 }

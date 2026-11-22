@@ -1,12 +1,11 @@
-import { jsonRequest, request } from '../httpClient.js';
+import { request } from '../httpClient.js';
 
 // ---------- Friends and the Lounge ----------
 
 // Friends are shared, online-only state, as projects are: Papol macOS asks
 // the server for them rather than keeping them in its private replica.
 
-// Who my friends are, who waits for my answer, whom I asked, my friend
-// link and whether my friends see what I am reading. Every call below
+// Who my friends are, who waits for my answer, and whom I asked. Every call below
 // that changes any of it answers with the same shape.
 export function getFriends() {
   return request('/friends');
@@ -35,9 +34,6 @@ export function findPeople(query) {
   return request(`/friends/people?q=${encodeURIComponent(query)}`);
 }
 
-export function shareReading(sharesReading) {
-  return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
-}
 
 // The Lounge: my friends' news.
 export function getRoom() {

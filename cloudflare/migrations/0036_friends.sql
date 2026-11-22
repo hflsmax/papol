@@ -51,10 +51,8 @@ CREATE TABLE copy_news (
 	PRIMARY KEY (copy_uuid)
 );
 
--- Whether a user's friends see what they are reading this week (off until
--- they turn it on), and when they last opened the Lounge: what friends did
--- after that is new to them.
-ALTER TABLE users ADD COLUMN shares_reading BOOLEAN DEFAULT '0' NOT NULL;
+-- When a user last opened the Lounge: what friends did after that is new
+-- to them.
 ALTER TABLE users ADD COLUMN room_seen_at DATETIME;
 
 -- What a notification is, when it is more than its words: who it is from,

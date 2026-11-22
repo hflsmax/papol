@@ -1,5 +1,5 @@
-// The Lounge: what the people a user chose are reading, and what
-// they make of it, a paper to a row.
+// The Lounge: what a user's friends keep and what they make of it, a
+// paper to a row.
 //
 // Nothing is kept for it. The room is read off what is already there: a
 // copy put on a public shelf, its thought and ratings (and when they last
@@ -8,9 +8,8 @@
 // something private again takes its line out: every line is asked of the
 // same shelf and the same field that shows it anywhere else.
 //
-// Two views. Friends is the reader's friends. Everyone is every user, of
-// whom only what anyone signed in may see; a friend's digs and reading
-// stay a friend's in either view. The room holds four weeks and ends.
+// The room is made from the reader's friends and nobody else. What a
+// friend reads, and for how long, is never in it. It holds four weeks.
 
 import { currentUser, type User } from "../auth";
 import { all, statement, type Row } from "../db";
@@ -29,7 +28,7 @@ const ROWS = 150;
 
 interface Line {
   user: unknown;
-  did: "added" | "thought" | "rated" | "dug" | "posted" | "reading";
+  did: "added" | "thought" | "rated" | "dug" | "posted";
   at: string;
   words?: string | null;
   ratings?: { expertise: number | null; reading: number | null; liking: number | null } | null;
@@ -64,11 +63,10 @@ async function latest(env: Env, me: User) {
   const friends = friendsOf(mine);
   const people = friends;
   const since = new Date(Date.now() - WEEKS * 7 * DAY).toISOString();
-  const week = new Date(Date.now() - 7 * DAY).toISOString();
   const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 
-  const [added, changed, dug, posted, reading, boards, joined] = (await env.DB.batch<Row>([
+  const [added, changed, dug, posted, boards, joined] = (await env.DB.batch<Row>([
     // A paper put on a public shelf.
     statement(env.DB,
       `SELECT c.*, ${PERSON} FROM copies c ${PUBLIC_SHELF} JOIN users u ON u.uuid = c.user_uuid
@@ -88,12 +86,6 @@ async function latest(env: Env, me: User) {
        FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid LEFT JOIN annotations an ON an.uuid = d.annotation_uuid JOIN users u ON u.uuid = dp.user_uuid
        WHERE dp.created_at > ? AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND d.paper_sha256 IS NOT NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})
        ORDER BY dp.created_at`, since),
-    // What a friend who lets it be seen read this week, on a public shelf.
-    // Only that they did: the day, never the hours.
-    statement(env.DB,
-      `SELECT a.subject AS paper_sha256, max(a.ended_at) AS last_at, ${PERSON} FROM activity a JOIN users u ON u.uuid = a.user_uuid AND u.shares_reading = 1 AND u.deleted_at IS NULL
-       WHERE a.kind = 'reading' AND a.ended_at > ? AND a.user_uuid IN ${friends} AND ${onPublicShelf("a.user_uuid", "a.subject")}
-       GROUP BY a.user_uuid, a.subject`, week),
     // A board put on a public shelf.
     statement(env.DB,
       `SELECT b.uuid AS board_uuid, b.name, b.description, b.created_at AS made_at, b.updated_at AS edited_at,
@@ -143,7 +135,6 @@ async function latest(env: Env, me: User) {
       dig: { uuid: String(p.dig_uuid), page: p.on_page as number | null, on: p.on_kind as string | null, owner: owners.get(String(p.owner_uuid)) ?? null },
     });
   }
-  for (const r of reading) say(r.paper_sha256, { user: who(r), did: "reading", at: `${String(r.last_at).slice(0, 10)}T00:00:00.000Z` });
 
   const digests = [...lines.keys()];
   const marks = digests.map(() => "?").join(",");

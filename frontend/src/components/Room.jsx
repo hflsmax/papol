@@ -37,8 +37,7 @@ function Line({ line, title, currentUser, onOpen }) {
       : line.did === 'thought' ? 'thought'
         : line.did === 'rated' ? 'rated it'
           : line.did === 'dug' ? `dug${place}`
-            : line.did === 'posted' ? `posted in ${whose} dig${place}`
-              : 'reading it this week';
+            : `posted in ${whose} dig${place}`;
   const words = line.words && (
     <span className="room-words">“{line.words}”</span>
   );
@@ -46,8 +45,7 @@ function Line({ line, title, currentUser, onOpen }) {
     <li className={`room-line is-${line.did}`}>
       <span className="room-said">
         <span className="room-did">{did[0].toUpperCase() + did.slice(1)}</span>
-        {/* A reading line says only that it happened this week. */}
-        {line.did !== 'reading' && <time dateTime={line.at} title={when(line.at, { time: true })}>{when(line.at)}</time>}
+        <time dateTime={line.at} title={when(line.at, { time: true })}>{when(line.at)}</time>
         {line.dig ? (
           <button type="button" className="room-dig-open" aria-expanded={open} onClick={() => { onOpen?.(!open); setOpen(!open); }}>
             {words}

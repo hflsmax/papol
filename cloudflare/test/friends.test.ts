@@ -263,25 +263,15 @@ describe("the Lounge", () => {
     expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title)).toEqual(["Paper 7"]);
   });
 
-  it("shows a friend's reading only once they turn it on, and never the hours", async () => {
+  it("never shows what a friend is reading", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
     await paperWithCopy(grace, digest("a"), "Being read", { shelfUuid: await defaultShelf(grace) });
     await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
     const at = new Date(Date.now() - 3_600_000).toISOString();
     await exec("INSERT INTO activity (uuid, user_uuid, kind, subject, started_at, ended_at, seconds) VALUES (?, ?, 'reading', ?, ?, ?, 1200)", uuid(), grace.uuid, digest("a"), at, at);
-    const lines = async () => (await room(ada)).rows.filter((r: any) => r.kind === "paper").flatMap((r: any) => r.lines);
-    expect(await lines()).toEqual([]);
-    expect((await friends(grace)).shares_reading).toBe(false);
-
-    expect((await ok("PUT", "/api/friends/settings", { headers: grace.headers, json: { shares_reading: true } })).shares_reading).toBe(true);
-    const [reading] = await lines();
-    expect(reading).toMatchObject({ did: "reading", user: { uuid: grace.uuid } });
-    expect(reading.at).toBe(`${at.slice(0, 10)}T00:00:00.000Z`);
-    expect(JSON.stringify(reading)).not.toContain("1200");
-    // On a private shelf it is hers alone, shared or not.
-    await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { shelf_uuid: await privateShelf(grace) } });
-    expect(await lines()).toEqual([]);
+    expect((await room(ada)).rows).toEqual([]);
+    expect(await friends(grace)).not.toHaveProperty("shares_reading");
   });
 
   it("shows a project someone started, and lets the reader ask its keeper once to be let in", async () => {

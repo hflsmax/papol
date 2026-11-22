@@ -78,8 +78,8 @@ export async function gather(db: D1Database, user: User) {
 
   const paperOf = (row: Row) => row.sha256 ? paperRef(row) : null;
   return {
-    // My friends, and whether they see what I am reading this week.
-    friends: { friends_see_what_i_read: Boolean(user.shares_reading), friends: friends.map((f) => ({ name: f.display_name, affiliation: f.affiliation ?? null, since: f.answered_at })) },
+    // My friends.
+    friends: { friends: friends.map((f) => ({ name: f.display_name, affiliation: f.affiliation ?? null, since: f.answered_at })) },
     profile: { uuid: user.uuid, email: user.email, display_name: user.display_name, affiliation: user.affiliation, email_public: Boolean(user.email_public), is_admin: Boolean(user.is_admin), joined: user.created_at },
     nook: copies.map((c) => ({
       paper: paperRef(c), summary: c.summary, thought: c.thought, on_display: Boolean(c.shelf_public), shelf: c.shelf_name ?? null, i_am_an_author: Boolean(c.is_author),
@@ -162,7 +162,7 @@ Everything Papol holds about you, as of {date}.
   boards.json         Your private boards and the position of every item.
   activity.json       When you were reading which paper: each stretch of time,
                       and how much of it counted.
-  friends.json        Your friends, and whether they see what you are reading.
+  friends.json        Your friends.
   files.json          Every file that belongs with this export, with the name
                       it takes here and the URL on Papol it is fetched from.
   board-files/        Files and images attached to your boards.

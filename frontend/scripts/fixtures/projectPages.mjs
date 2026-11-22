@@ -284,7 +284,7 @@ const friendDig = {
 };
 const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: friendDig.created_at, updated_at: friendDig.updated_at, owner: ana, is_mine: false, text: friendDig.text, excerpt: friendDig.text, phase: 'digging', subject: subject.paperSurvey, post_count: 1, unread: 0, is_new: false, voices: [ana, ben], last_post: { user: ben, excerpt: friendDig.posts[0].body, created_at: hoursAgo(2) } };
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
-const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], shares_reading: false });
+const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [] });
 let friendsNow = friendState();
 const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
@@ -300,7 +300,6 @@ const roomRows = () => {
     ] },
     { kind: 'board', key: 'board:1', user: ana, board: { uuid: BOARD_MAP, name: 'Wavefront sensors compared', description: null, item_count: 7 }, at: daysAgo(4), is_new: false },
     { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [
-      line(ana, 'reading', daysAgo(1)),
       line(ana, 'rated', daysAgo(9), { ratings: { expertise: null, reading: 3, liking: null } }),
     ] },
     { kind: 'project', key: `project:${closed.uuid}`, project: { uuid: closed.uuid, name: closed.name, description: 'Which sensor for which seeing.', member_count: 3, is_member: false, asked: false }, at: daysAgo(11), is_new: false, lines: [{ user: ana, did: 'joined', at: daysAgo(11) }] },
@@ -313,7 +312,6 @@ function answer(method, path, search, sent = {}) {
   if (path === '/auth/me') { deleted = false; friendsNow = friendState(); }
   // Friends: what the member's friends say now, changed by each answer.
   if (path === '/friends' || path === '/friends/settings') {
-    if (path === '/friends/settings') friendsNow.shares_reading = Boolean(sent.shares_reading);
     return friendsNow;
   }
   if (path === '/friends/people') {

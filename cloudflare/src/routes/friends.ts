@@ -2,9 +2,9 @@
 // asked for. It is the third audience for what a user does, between
 // everyone signed in and the members of a project: beyond what a public
 // shelf already shows, a friend reads and posts in the user's digs on the
-// papers they keep on a public shelf (friendSees), and, only if the user
-// turned it on, sees what they are reading this week. A private shelf
-// hides a copy from friends as from everyone.
+// papers they keep on a public shelf (friendSees). Nobody, friend or not,
+// sees what a user reads or for how long. A private shelf hides a copy
+// from friends as from everyone.
 //
 // A request is answered Accept or Not now. Not now is quiet: the asker is
 // never told and cannot ask again, though the asked can change their mind.
@@ -108,8 +108,7 @@ export async function requestsFor(env: Env, me: User) {
 }
 
 // Everything a user's own pages need to know of their friends: who they
-// are, who waits for an answer, whom they asked, their link and whether
-// friends see what they are reading. Theirs alone: nobody else is shown
+// are, who waits for an answer, whom they asked, and their link. Theirs alone: nobody else is shown
 // the list or its length.
 async function friendsOut(env: Env, me: User) {
   const [friends, sent, requests] = await Promise.all([
@@ -121,12 +120,10 @@ async function friendsOut(env: Env, me: User) {
     all<{ asked_uuid: string }>(env.DB, "SELECT asked_uuid FROM friendships WHERE asker_uuid = ? AND state IN ('asked', 'declined')", me.uuid),
     requestsFor(env, me),
   ]);
-  const fresh = await one<{ shares_reading: number }>(env.DB, "SELECT shares_reading FROM users WHERE uuid = ?", me.uuid);
   return {
     friends: friends.map((f) => ({ user: userPublic(f), since: f.since })),
     requests,
     sent: sent.map((s) => s.asked_uuid),
-    shares_reading: Boolean(fresh?.shares_reading),
   };
 }
 
@@ -152,17 +149,6 @@ export function friendRoutes(router: Router) {
     return json(people.map(userPublic));
   });
 
-  // Whether friends see what this user is reading this week.
-  router.on("PUT", "/api/friends/settings", async ({ request, env }) => {
-    const me = await currentUser(request, env);
-    const data = await readJson<Row>(request);
-    const check = validate.checking();
-    const shares = check.boolean("shares_reading", data.shares_reading);
-    check.done();
-    await statement(env.DB, "UPDATE users SET shares_reading = ? WHERE uuid = ?", shares ? 1 : 0, me.uuid).run();
-    return json(await friendsOut(env, me));
-  });
-
   // Asking someone to be friends. Asking someone who already asked is
   // accepting them.
   router.on("POST", "/api/friends/:uuid", async ({ request, env, params }) => {
@@ -185,7 +171,7 @@ export function friendRoutes(router: Router) {
       const site = (await siteUrl(env)).replace(/\/$/, "");
       const mail = queueEmail(env.DB, them.email, `${me.display_name} asks to be friends on Papol`,
         [`${me.display_name}${me.affiliation ? ` (${me.affiliation})` : ""} asks to be friends on Papol.`, "",
-          "Friends see each other's reading news in the Lounge, and can read and post in each other's digs on papers kept on a public shelf.", "",
+          "Friends see what each other adds, thinks and digs in the Lounge, and can read and post in each other's digs on papers kept on a public shelf.", "",
           `Answer in your inbox: ${site}/inbox`, "", "— Papol"].join("\n"));
       await batch(env.DB, [
         ...(existing ? [statement(env.DB, "DELETE FROM friendships WHERE uuid = ?", existing.uuid)] : []),
