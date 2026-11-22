@@ -5753,9 +5753,6 @@ ${talkStyles}
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
 .room button.desk-row { cursor: pointer; }
-/* What tells the Lounge from the nook is its colour and nothing else: the
-   gold that news and friends already wear, where the nook wears the accent. */
-.room .desk-row.is-on { background: var(--gold-soft); }
 .room-friend .mini-avatar { flex: none; width: 20px; height: 20px; margin-left: -6px; font-size: var(--fs-2xs); }
 .room-finder { padding: 0 0 var(--space-2); }
 .room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
