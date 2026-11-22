@@ -5692,10 +5692,16 @@ ${talkStyles}
 /* What stands between me and someone: one quiet pill that says it, and is
    the press that changes it. */
 .friend-button { display: inline-flex; flex: none; align-items: center; gap: var(--space-2); }
-.friend-button button { padding: 4px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
-.friend-button .friend-requested { color: var(--ink-faint); border-style: dashed; }
-.friend-button .friend-is { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); box-shadow: none; }
-.friend-button .friend-is:hover:not(:disabled) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--ink); }
+.friend-button button { padding: 2px 10px; border-radius: 999px; box-shadow: none; font: 400 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+/* Asking, waiting and being friends are each a glyph in a small round
+   button; only an answer still owed is put in words. */
+.friend-button .friend-add, .friend-button .friend-requested, .friend-button .friend-is { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border-color: transparent; background: transparent; color: var(--ink-soft); }
+.friend-glyph { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.friend-button .friend-add:hover:not(:disabled) { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.friend-button .friend-requested { color: var(--ink-faint); }
+.friend-button .friend-requested:hover:not(:disabled) { border-color: var(--line); background: var(--paper-sunken); color: var(--ink-soft); }
+.friend-button .friend-is { color: var(--gold-ink); }
+.friend-button .friend-is:hover:not(:disabled) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
 .friend-button .friend-not-now { border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); }
 .friend-error { color: var(--accent); font: 400 var(--fs-xs) var(--font-ui); }
 .their-head .their-friend { margin-left: auto; }
@@ -5754,14 +5760,12 @@ ${talkStyles}
 .room-finder { padding: 0 0 var(--space-2); }
 .room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 .room-found { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0 var(--space-2); list-style: none; }
-.room-found li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px var(--space-2); }
+.room-found li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
 .room-found .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
 .room-found-who { display: grid; min-width: 0; }
 .room-found-name { overflow: hidden; color: var(--ink); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .room-found-name:hover { color: var(--accent); }
 .room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.room-found .friend-button { grid-column: 2; }
-.room-found .friend-button button { padding: 2px var(--space-2); font-size: var(--fs-xs); box-shadow: none; }
 .room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
 .room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
 /* The card and its head are the nook's table and its column names. */

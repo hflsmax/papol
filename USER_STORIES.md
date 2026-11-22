@@ -196,7 +196,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Becoming friends**
 
-- **US-9.1** As a user, I can ask another user to be friends from their nook. One button, **Ask to be friends**; once pressed it reads **Requested** and pressing it again takes the request back.
+- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out.
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
@@ -205,7 +205,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Having friends**
 
 - **US-9.7** As a user, my profile lists **My friends**: face, name, affiliation, since when. Nobody else sees the list or its length, on my nook or anywhere. There is no count of friends shown to anyone.
-- **US-9.8** A friend's nook says **Friend** to me, quietly, where Ask to be friends would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
+- **US-9.8** A friend's nook shows a person with a tick, in gold, where the asking glyph would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
 - **US-9.9** As a user, I can **end a friendship** from their nook or my list. It asks once, takes effect at once, and tells them nothing. What each of us posted in the other's digs stays, under our names; what friendship opened closes again.
 - **US-9.10** Closing my account ends my friendships. My friends are in my data export.
 
