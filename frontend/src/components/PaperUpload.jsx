@@ -348,10 +348,10 @@ export default function PaperUpload({
         {published && (
           <div className="metadata-reading published-version" role="status">
             <span>
-              Found an identical paper,{' '}
+              This paper was published in{' '}
               <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
             </span>
-            <button type="button" className="published-fill" onClick={fillPublished}>Fill in its details</button>
+            <button type="button" className="published-fill" onClick={fillPublished}>Use published details</button>
           </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
