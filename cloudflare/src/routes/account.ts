@@ -12,7 +12,7 @@ import { UPLOADS } from "../files";
 import * as validate from "../validate";
 
 const AVATAR_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
-// How far back a member's Lounge may go, in days (Preferences).
+// How far back a member's friends may see what they did, in days (Preferences).
 const LOUNGE_DAYS = [14, 30, 90, 365];
 const AVATAR_LIMIT = limits.files.avatar_mb * 1024 * 1024;
 
@@ -37,7 +37,7 @@ export function accountRoutes(router: Router) {
     const email = "email" in data ? check.string("email", data.email, { max: limits.text.email, pattern: validate.EMAIL }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
     const findable = check.boolean("findable", data.findable, { optional: true });
-    // How far back the Lounge shows, in days; null is everything.
+    // How far back friends see what I did, in days; null is everything.
     const days = data.lounge_days;
     if (days !== undefined && days !== null && !LOUNGE_DAYS.includes(days as number)) check.fail(`lounge_days must be null or one of ${LOUNGE_DAYS.join(", ")}`);
     // What the viewer's nav bar marks: a list of its kinds, in any order.

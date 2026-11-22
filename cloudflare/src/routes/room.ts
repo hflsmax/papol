@@ -9,8 +9,8 @@
 // same shelf and the same field that shows it anywhere else.
 //
 // The room is made from the reader's friends and nobody else. What a
-// friend reads, and for how long, is never in it. It holds everything, however old, unless the member
-// chose a shorter time; the page shows it a part at a time.
+// friend reads, and for how long, is never in it. It holds everything, however old, except what a
+// friend chose to stop showing after a time (their Preferences); the page shows it a part at a time.
 
 import { currentUser, type User } from "../auth";
 import { all, statement, type Row } from "../db";
@@ -52,9 +52,8 @@ async function latest(env: Env, me: User) {
   const mine = userLiteral(me.uuid);
   const friends = friendsOf(mine);
   const people = friends;
-  // The member says how far back the room goes (Preferences). Left alone,
-  // nothing is too old for it: every time is after the empty one.
-  const since = me.lounge_days ? new Date(Date.now() - me.lounge_days * DAY).toISOString() : "";
+  // Nothing is too old for the room: every time is after the empty one.
+  const since = "";
   const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 
@@ -95,7 +94,13 @@ async function latest(env: Env, me: User) {
   ])).map((r) => r.results);
 
   const lines = new Map<string, Line[]>();
-  const say = (digest: unknown, line: Line) => lines.set(String(digest), [...(lines.get(String(digest)) ?? []), line]);
+  // Each person says how far back their friends see what they did
+  // (Preferences); left alone, all of it. Past that, a thing they did is
+  // not in anyone's room.
+  const spans = new Map((await all<Row>(env.DB, `SELECT uuid, lounge_days FROM users WHERE lounge_days IS NOT NULL AND uuid IN ${people}`))
+    .map((u) => [String(u.uuid), new Date(Date.now() - Number(u.lounge_days) * DAY).toISOString()]));
+  const shows = (user: unknown, at: string) => at > (spans.get(String((user as { uuid: unknown }).uuid)) ?? "");
+  const say = (digest: unknown, line: Line) => { if (shows(line.user, line.at)) lines.set(String(digest), [...(lines.get(String(digest)) ?? []), line]); };
   const who = (row: Row) => userPublic(row);
   // What was said within a day of the adding is part of it, and the line
   // takes the later time. What was said after that is its own line, so
@@ -164,6 +169,7 @@ async function latest(env: Env, me: User) {
     rows.push({ kind: "paper", key: digest, at: said[0].at, is_new: said[0].at > seen, paper: paperOf.get(digest), in_my_nook: inNook.has(digest), lines: said });
   }
   for (const b of boards) {
+    if (!shows(who(b), b.made_at as string)) continue;
     rows.push({
       kind: "board", key: `board:${b.board_uuid}`, at: b.made_at as string, is_new: (b.made_at as string) > seen,
       board: { uuid: b.board_uuid, name: b.name, description: b.description, item_count: b.item_count, updated_at: b.edited_at }, user: who(b),
@@ -172,6 +178,7 @@ async function latest(env: Env, me: User) {
   // A project is one row however many of the people in view joined it.
   const projects = new Map<string, Out>();
   for (const j of joined) {
+    if (!shows(who(j), j.joined_at as string)) continue;
     const row = projects.get(String(j.project_uuid)) ?? {
       kind: "project", key: `project:${j.project_uuid}`, at: j.joined_at as string, is_new: false,
       project: { uuid: j.project_uuid, name: j.name, description: j.description, member_count: j.member_count, is_member: Boolean(j.is_member), asked: Boolean(j.asked) },
