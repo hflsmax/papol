@@ -306,7 +306,6 @@ export default function Room({ currentUser, onSeen }) {
               <ul className="desk-rail-list">
                 <li>
                   <button type="button" className={who ? 'desk-row' : 'desk-row is-on'} aria-pressed={!who} onClick={() => set('who', '')}>
-                    <span className="desk-dot" aria-hidden="true" />
                     <span className="desk-row-name">All friends</span>
                     <span className="desk-count">{mine.length}</span>
                   </button>

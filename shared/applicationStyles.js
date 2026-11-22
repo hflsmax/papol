@@ -5769,7 +5769,7 @@ ${talkStyles}
 .room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
 .room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
 /* The card and its head are the nook's table and its column names. */
-.room-card { border: 1px solid var(--line); border-top: 2px solid var(--gold-line); border-radius: var(--radius); background: var(--card); }
+.room-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .room-head { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 4.5rem; align-items: center; gap: var(--space-3); height: 32px; padding: 0 var(--space-3); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .room-head span:nth-child(n+2) { text-align: right; }
 /* The Lounge's rows are the nook's rows: the same card, the same title and
