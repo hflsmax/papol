@@ -252,6 +252,8 @@ const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 const linesOf = (row) => row.lines ?? [{ user: row.user, did: 'made', at: row.at }];
 const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
 const NONE = { kind: '', who: '' };
+// How many rows the room shows before Show more.
+const PAGE = 50;
 
 // The Lounge narrowed, as the nook is by a shelf: by whose news it is and
 // what a row is.
@@ -271,7 +273,9 @@ export default function Room({ currentUser, onSeen }) {
   const titled = useContext(WayShown);
   const [pick, setPick] = useState(NONE);
   const [finding, setFinding] = useState(false);
-  const set = (name, value) => setPick((was) => ({ ...was, [name]: value }));
+  // The room is shown a part at a time; narrowing starts it from the top.
+  const [upTo, setUpTo] = useState(PAGE);
+  const set = (name, value) => { setUpTo(PAGE); setPick((was) => ({ ...was, [name]: value })); };
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
   const marked = useRef(false);
@@ -368,11 +372,16 @@ export default function Room({ currentUser, onSeen }) {
                 <div className="room-card">
                   <div className="room-head" aria-hidden="true"><span>Title</span><span>Friends</span><span>Latest</span></div>
                   <ul className="room-rows">
-                    {shown.map((row) => {
+                    {shown.slice(0, upTo).map((row) => {
                       const Row = ROWS[row.kind];
                       return Row ? <Row key={row.key} row={row} currentUser={currentUser} /> : null;
                     })}
                   </ul>
+                  {shown.length > upTo && (
+                    <button type="button" className="room-more" onClick={() => setUpTo(upTo + PAGE)}>
+                      Show more <span className="room-more-left">{shown.length - upTo} older</span>
+                    </button>
+                  )}
                 </div>
               )}
             </>

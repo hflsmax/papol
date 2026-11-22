@@ -5749,6 +5749,9 @@ ${talkStyles}
 .room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
+.room-more { display: block; width: 100%; padding: var(--space-3); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); cursor: pointer; }
+.room-more:hover, .room-more:focus-visible { background: var(--paper-sunken); }
+.room-more-left { margin-left: var(--space-2); color: var(--ink-faint); font-weight: 400; }
 .room button.desk-row { cursor: pointer; }
 .room-friend-item { position: relative; }
 .room-friend-item > .face-link { position: absolute; z-index: 1; top: 50%; left: calc(var(--space-2) - 6px); transform: translateY(-50%); }

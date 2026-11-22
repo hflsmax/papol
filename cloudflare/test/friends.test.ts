@@ -280,7 +280,7 @@ describe("the Lounge", () => {
     expect((await ok("GET", "/api/room/news", { headers: ada.headers })).news).toBe(true);
   });
 
-  it("keeps a folder brought in at once out of the room", async () => {
+  it("gives each paper of a folder brought in at once its own row", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
     const shelf = await defaultShelf(grace);
@@ -288,8 +288,25 @@ describe("the Lounge", () => {
     await ok("PUT", `/api/papers/${name("7")}`, { headers: grace.headers, json: { thought: "The one to start with" } });
     const got = await room(ada);
     expect(got.rows.some((r: any) => r.kind === "batch")).toBe(false);
-    // Only the one she said something about has a row.
-    expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title)).toEqual(["Paper 7"]);
+    // Each has a row of its own, said something about or not.
+    expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title).sort()).toEqual(["Paper 1", "Paper 2", "Paper 3", "Paper 4", "Paper 5", "Paper 6", "Paper 7"]);
+  });
+
+  it("goes back as far as the member chose, and forever to begin with", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    await paperWithCopy(grace, digest("a"), "Two months old", { shelfUuid: await defaultShelf(grace) });
+    await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
+    await paperWithCopy(grace, digest("b"), "Today", { shelfUuid: await defaultShelf(grace) });
+    const titles = async () => (await room(ada)).rows.map((r: any) => r.paper.title);
+    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).lounge_days).toBe(null);
+    expect(await titles()).toEqual(["Today", "Two months old"]);
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { lounge_days: 30 } })).lounge_days).toBe(30);
+    expect(await titles()).toEqual(["Today"]);
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { lounge_days: 90 } })).lounge_days).toBe(90);
+    expect(await titles()).toEqual(["Today", "Two months old"]);
+    expect((await call("PUT", "/api/auth/profile", { headers: ada.headers, json: { lounge_days: 7 } })).status).toBe(422);
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { lounge_days: null } })).lounge_days).toBe(null);
   });
 
   it("never shows what a friend is reading", async () => {
