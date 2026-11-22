@@ -5770,8 +5770,7 @@ ${talkStyles}
 .room-title { color: var(--ink); font: 600 var(--fs-md)/1.3 var(--font-serif); text-decoration: none; overflow-wrap: anywhere; }
 a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.room-meta { display: inline; margin: 0 0 0 var(--space-2); color: var(--ink-faint); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
-.room-batch .room-meta { display: block; margin: 0; }
+.room-meta { display: block; margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .room-keep, .room-kept { flex: none; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
 .room-keep { padding: 1px var(--space-3); border-radius: 999px; }
 .room-kept { padding: 2px 0; color: var(--ink-faint); }
@@ -5812,7 +5811,8 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
 .friend-dig-place { color: var(--ink-faint); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
-  .room-row-head { flex-wrap: wrap; }
+  .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+  .room-row-text { flex-basis: 100%; }
   .room-keep, .room-kept { margin-left: auto; }
   .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
   .friends-aff { white-space: normal; }
