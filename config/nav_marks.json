@@ -1,4 +1,14 @@
 {
   "kinds": ["subsection", "figure", "table", "algorithm", "definition", "theorem", "lemma", "proof"],
-  "shown": ["figure", "table", "algorithm", "definition", "theorem"]
+  "shown": ["figure", "table", "algorithm", "definition", "theorem"],
+  "names": {
+    "subsection": "Subsections",
+    "figure": "Figures",
+    "table": "Tables",
+    "algorithm": "Algorithms and code",
+    "definition": "Definitions",
+    "theorem": "Theorems",
+    "lemma": "Lemmas",
+    "proof": "Proofs"
+  }
 }

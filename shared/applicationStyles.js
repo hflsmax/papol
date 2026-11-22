@@ -5742,6 +5742,15 @@ ${talkStyles}
 .notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link:hover { color: var(--accent); }
 
+/* Preferences: every choice in one place, a card to a subject, each
+   kept as it is ticked. */
+.preferences-panel { display: grid; gap: var(--space-4); }
+.preferences-block { display: grid; gap: var(--space-2); margin: 0; }
+.preferences-block .panel-title, .preferences-block .panel-note { margin: 0; }
+.preferences-block .checkbox-row { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.preferences-note { display: block; color: var(--ink-soft); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
+.preferences-marks { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-2) var(--space-4); }
+
 /* ---------- The Lounge ---------- */
 /* What my friends are reading and what they make of it: a paper to a row,
    and under its title a line for each friend. One column, as wide as a
