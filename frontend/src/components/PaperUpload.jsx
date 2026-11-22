@@ -46,9 +46,8 @@ export default function PaperUpload({
   const [useKnown, setUseKnown] = useState(true);
   // The reading, when it matched the PDF to its published version. The
   // form opens on what the PDF prints (`as_printed`); a button fills it
-  // with the published paper's details, and another takes them back.
+  // with the published paper's details.
   const [published, setPublished] = useState(null);
-  const [usePublished, setUsePublished] = useState(false);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -145,7 +144,6 @@ export default function PaperUpload({
     setKnown(null);
     setUseKnown(true);
     setPublished(null);
-    setUsePublished(false);
     setIsLoading(true);
     setUploadProgress(null);
     setError(null);
@@ -236,11 +234,9 @@ export default function PaperUpload({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // The published details, or what the PDF prints, into every field the
-  // user has not typed in.
-  const choosePublished = (use) => {
-    setUsePublished(use);
-    setFormData((current) => refillUnedited(current, editedFields.current, use ? published : published.as_printed));
+  // The published paper's details into every field the user has not typed in.
+  const fillPublished = () => {
+    setFormData((current) => refillUnedited(current, editedFields.current, published));
   };
 
   const handleRatingChange = (key, value) => {
@@ -352,14 +348,10 @@ export default function PaperUpload({
         {published && (
           <div className="metadata-reading published-version" role="status">
             <span>
-              {usePublished ? 'Filled in from the identical paper,' : 'Found an identical paper,'}{' '}
+              Found an identical paper,{' '}
               <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
             </span>
-            {usePublished ? (
-              <button type="button" className="link-button" onClick={() => choosePublished(false)}>Undo</button>
-            ) : (
-              <button type="button" className="published-fill" onClick={() => choosePublished(true)}>Fill in its details</button>
-            )}
+            <button type="button" className="published-fill" onClick={fillPublished}>Fill in its details</button>
           </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
