@@ -287,15 +287,6 @@ const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: frie
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
 const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], link: 'Fr13ndL1nk', shares_reading: false });
 let friendsNow = friendState();
-const BATCH = [
-  ['Deformable mirror fitting error at high actuator count', '["P. Madec"]', 2021, 'Applied Optics'],
-  ['Kalman filtering for tip-tilt in extremely large telescopes', '["C. Kulcsar", "H.-F. Raynaud"]', 2020, 'JOSA A'],
-  ['Reinforcement learning for adaptive optics: a first on-sky test', '["J. Nousiainen"]', 2024, 'Astronomy & Astrophysics'],
-  ['Open-loop tomography with laser guide stars', '["E. Gendron"]', 2019, 'Astronomy & Astrophysics'],
-  ['Frozen flow, measured: wind profiles from telemetry', '["L. Poyneer"]', 2018, 'JOSA A'],
-  ['Predictive control on the Keck bench', '["S. Cetre"]', 2023, 'Proc. SPIE'],
-  ['A data-driven integrator gain schedule', '["B. Neichel"]', 2022, 'MNRAS'],
-].map(([title, authors, year, journal], i) => ({ sha256: digest(0xc0 + i), title, authors, year, journal }));
 const roomRows = (view) => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
   const rows = [
@@ -309,8 +300,6 @@ const roomRows = (view) => {
       line(ana, 'added', hoursAgo(30)),
       ...(view === 'everyone' ? [line(mia, 'added', daysAgo(2))] : []),
     ] },
-    { kind: 'friend', key: `friend:${BEN}`, user: ben, at: daysAgo(1), is_new: false },
-    { kind: 'batch', key: `batch:${ANA}`, user: ana, papers: BATCH, at: daysAgo(3), is_new: false },
     { kind: 'board', key: 'board:1', user: ana, board: { uuid: BOARD_MAP, name: 'Wavefront sensors compared', description: null, item_count: 7 }, at: daysAgo(4), is_new: false },
     { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [
       line(ana, 'reading', daysAgo(1)),

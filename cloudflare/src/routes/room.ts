@@ -22,7 +22,8 @@ import { excerpt, onPublicShelf } from "./projects";
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEKS = 4;
-// How many papers one user adds in a day before they are one line.
+// How many papers one user adds in a day before they are a folder brought
+// in, which is not news paper by paper.
 const BATCH = 6;
 const ROWS = 150;
 
@@ -66,7 +67,7 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
   const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 
-  const [added, changed, dug, posted, reading, boards, joined, befriended] = (await env.DB.batch<Row>([
+  const [added, changed, dug, posted, reading, boards, joined] = (await env.DB.batch<Row>([
     // A paper put on a public shelf.
     statement(env.DB,
       `SELECT c.*, ${PERSON} FROM copies c ${PUBLIC_SHELF} JOIN users u ON u.uuid = c.user_uuid
@@ -106,11 +107,6 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
               (SELECT count(*) FROM project_members x WHERE x.project_uuid = pr.uuid) AS member_count, ${PERSON}
        FROM project_members m JOIN projects pr ON pr.uuid = m.project_uuid AND pr.deleted_at IS NULL JOIN users u ON u.uuid = m.user_uuid
        WHERE m.joined_at > ? AND m.user_uuid IN ${people} ORDER BY m.joined_at`, since),
-    // A friend made.
-    statement(env.DB,
-      `SELECT f.answered_at, ${PERSON} FROM friendships f
-       JOIN users u ON u.uuid = CASE WHEN f.asker_uuid = ${mine} THEN f.asked_uuid ELSE f.asker_uuid END AND u.deleted_at IS NULL
-       WHERE f.state = 'friends' AND f.answered_at > ? AND (f.asker_uuid = ${mine} OR f.asked_uuid = ${mine})`, since),
   ])).map((r) => r.results);
 
   const lines = new Map<string, Line[]>();
@@ -160,8 +156,9 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
   type Out = { kind: string; key: string; at: string; is_new: boolean } & Row;
   const rows: Out[] = [];
 
-  // A user who brings in a folder is one line, not a row per paper: the
-  // papers they added in a day that nobody has said anything else about.
+  // A user who brings in a folder does not fill the room with it: the
+  // papers they added in a day that nobody has said anything else about
+  // stay out until someone thinks, rates or digs.
   const lone = new Map<string, { user: unknown; papers: string[]; at: string }>();
   for (const [digest, said] of lines) {
     if (said.length !== 1 || said[0].did !== "added" || said[0].words || said[0].ratings) continue;
@@ -172,13 +169,9 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
     lone.set(key, batch);
   }
   const folded = new Set<string>();
-  for (const [key, batch] of lone) {
+  for (const batch of lone.values()) {
     if (batch.papers.length < BATCH) continue;
     for (const digest of batch.papers) folded.add(digest);
-    rows.push({
-      kind: "batch", key: `batch:${key}`, at: batch.at, is_new: batch.at > seen, user: batch.user,
-      papers: batch.papers.filter((d) => paperOf.has(d)).map((d) => ({ ...paperOf.get(d), in_my_nook: inNook.has(d) })),
-    });
   }
   for (const [digest, said] of lines) {
     if (folded.has(digest) || !paperOf.has(digest)) continue;
@@ -207,7 +200,6 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
   }
   // In Everyone, a project the reader is in is not news to them.
   rows.push(...[...projects.values()].filter((p) => !everyone || !(p.project as { is_member: boolean }).is_member));
-  for (const f of befriended) rows.push({ kind: "friend", key: `friend:${f.uuid}`, at: f.answered_at as string, is_new: (f.answered_at as string) > seen, user: who(f) });
 
   rows.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
   return { rows: rows.slice(0, ROWS), since };

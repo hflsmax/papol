@@ -5773,19 +5773,13 @@ ${talkStyles}
 .room-row-text { flex: 1; min-width: 0; }
 .room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
 .room-title { overflow-wrap: anywhere; }
-span.room-title:hover { color: var(--ink); text-decoration: none; }
 .room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.room-keep, .room-kept { flex: none; font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; }
-.room-keep { padding: 1px var(--space-3); border-radius: 999px; }
-.room-kept { padding: 2px 0; color: var(--ink-faint); }
 .room-lines { display: grid; gap: 2px; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
 .room-line { display: flex; align-items: flex-start; gap: var(--space-2); }
 .room-line .mini-avatar { flex: none; width: 18px; height: 18px; font-size: 9px; }
 .room-said { flex: 1; min-width: 0; padding-top: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.45 var(--font-ui); }
 .room-said b { color: var(--ink); font-weight: 600; }
 .room-said time { margin-left: var(--space-2); color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; }
-.room-person { color: var(--ink); font-weight: 600; text-decoration: none; }
-.room-person:hover { color: var(--accent); text-decoration: underline; }
 .room-words { margin-left: var(--space-2); color: var(--ink); font: italic 400 var(--fs-sm)/1.45 var(--font-serif); overflow-wrap: anywhere; }
 .room-ratings { display: inline-block; margin-left: var(--space-2); line-height: 1; vertical-align: baseline; }
 /* A dig's words are its door: pressed, the dig opens under them. */
@@ -5798,9 +5792,6 @@ span.room-title:hover { color: var(--ink); text-decoration: none; }
 .room-said .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 .room-said .talk-posts { padding: 0; }
 .room-said .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
-.room-batch-open { padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; }
-.room-batch-open:hover:not(:disabled) { background: none; color: var(--accent); }
-.room-batch { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0 var(--space-4); padding: 0; list-style: none; }
 
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
@@ -5815,7 +5806,6 @@ span.room-title:hover { color: var(--ink); text-decoration: none; }
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
   .room-row-text { flex-basis: 100%; }
-  .room-keep, .room-kept { margin-left: auto; }
   .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
   .friends-aff { white-space: normal; }
     .their-head { flex-wrap: wrap; }

@@ -201,7 +201,8 @@ describe("the Lounge", () => {
     expect(papers(mine).map((r: any) => r.paper.title)).toEqual(["Grace's paper"]);
     expect(papers(mine)[0].lines.map((l: any) => [l.did, l.words])).toEqual(expect.arrayContaining([["added", "A classic"], ["dug", "Section 2 is the heart of it"]]));
     expect(papers(mine)[0].lines.find((l: any) => l.did === "dug").dig).toMatchObject({ uuid: dig.uuid, page: null, post_count: 0 });
-    expect(mine.rows.find((r: any) => r.kind === "friend")).toMatchObject({ user: { uuid: grace.uuid } });
+    // The room is papers, boards and projects: a friendship is not a row.
+    expect(mine.rows.every((r: any) => ["paper", "board", "project"].includes(r.kind))).toBe(true);
     // Everyone still shows a friend's dig, and no stranger's.
     expect(papers(await room(ada, "?view=everyone")).find((r: any) => r.key === digest("a")).lines.some((l: any) => l.did === "dug")).toBe(true);
     expect(papers(await room(alan)).flatMap((r: any) => r.lines).some((l: any) => l.did === "dug")).toBe(false);
@@ -255,17 +256,15 @@ describe("the Lounge", () => {
     expect((await papers())[0].lines.map((l: any) => l.did)).toEqual(["thought"]);
   });
 
-  it("folds a folder brought in at once into one line", async () => {
+  it("keeps a folder brought in at once out of the room", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);
     const shelf = await defaultShelf(grace);
     for (const letter of ["1", "2", "3", "4", "5", "6", "7"]) await paperWithCopy(grace, digest(letter), `Paper ${letter}`, { shelfUuid: shelf });
     await ok("PUT", `/api/papers/${name("7")}`, { headers: grace.headers, json: { thought: "The one to start with" } });
     const got = await room(ada);
-    const batch = got.rows.find((r: any) => r.kind === "batch");
-    expect(batch.user.uuid).toBe(grace.uuid);
-    expect(batch.papers.map((p: any) => p.title).sort()).toEqual(["Paper 1", "Paper 2", "Paper 3", "Paper 4", "Paper 5", "Paper 6"]);
-    // The one she said something about keeps a row of its own.
+    expect(got.rows.some((r: any) => r.kind === "batch")).toBe(false);
+    // Only the one she said something about has a row.
     expect(got.rows.filter((r: any) => r.kind === "paper").map((r: any) => r.paper.title)).toEqual(["Paper 7"]);
   });
 

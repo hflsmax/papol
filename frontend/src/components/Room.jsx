@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import {
-  askToJoinProject, getRoom, markRoomSeen,
-} from '../../../shared/api/friends.js';
-import { addToNook } from '../../../shared/api/papers.js';
+import { getRoom, markRoomSeen } from '../../../shared/api/friends.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -25,13 +22,6 @@ const store = (key, value) => {
 
 const first = (user) => user?.display_name?.split(' ')[0] ?? 'Someone';
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
-
-// "Ana, Ben and 3 more": a few names, then how many are left.
-function someTitles(papers, shown = 2) {
-  const titles = papers.slice(0, shown).map((p) => p.title);
-  const rest = papers.length - titles.length;
-  return rest > 0 ? `${titles.join(', ')} and ${rest} more` : titles.join(' and ');
-}
 
 // Ratings as the dots, only those given.
 function Ratings({ ratings }) {
@@ -84,25 +74,6 @@ function Line({ line, title, currentUser, onOpen }) {
   );
 }
 
-function Keep({ paper, onKept }) {
-  const [state, setState] = useState('idle');
-  if (state === 'kept') return <span className="room-kept">In my nook</span>;
-  return (
-    <button
-      type="button" className="room-keep" disabled={state === 'busy'}
-      onClick={async () => {
-        setState('busy');
-        try { await addToNook(paper.sha256); setState('kept'); onKept?.(); } catch { setState('idle'); }
-      }}
-    >
-      Add to my nook
-    </button>
-  );
-}
-
-// A face in a row, and under it what that person did. The row itself
-// says nothing of it: resting on the face (or pressing it, where there is
-// nothing to rest with) brings it out, and an opened dig holds it there.
 function Who({ user, held = false, children }) {
   return (
     <span className={`room-who${held ? ' is-held' : ''}`}>
@@ -164,41 +135,7 @@ function PaperRow({ row, currentUser }) {
             <PaperWho key={user.uuid} user={user} lines={lines} title={row.paper.title} currentUser={currentUser} />
           ))}
         </span>
-        {!row.in_my_nook && <Keep paper={row.paper} />}
       </div>
-    </li>
-  );
-}
-
-// A folder brought in at once: one row, which unfolds to its papers.
-function BatchRow({ row }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <li className={`room-row is-batch${row.is_new ? ' is-new' : ''}`}>
-      <div className="room-row-head">
-        <div className="room-row-text">
-          <button type="button" className="desk-title room-title room-batch-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
-            {row.papers.length} papers
-          </button>
-          {row.is_new && <NewsDot />}
-          {!open && <span className="desk-meta room-meta">{someTitles(row.papers)}</span>}
-        </div>
-        <span className="room-faces">
-          <Who user={row.user}>
-            <Said user={row.user} at={row.at}><b>{row.user.display_name}</b> added {row.papers.length} papers</Said>
-          </Who>
-        </span>
-      </div>
-      {open && (
-        <ul className="room-batch">
-          {row.papers.map((paper) => (
-            <li key={paper.sha256}>
-              <a className="desk-title room-batch-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
-              <span className="desk-meta room-meta">{metaOf(paper)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </li>
   );
 }
@@ -223,17 +160,15 @@ function BoardRow({ row }) {
   );
 }
 
+// A project I am in opens; one I am not in leads to the Projects page,
+// where asking to join is.
 function ProjectRow({ row }) {
-  const [asked, setAsked] = useState(row.project.asked);
-  const [busy, setBusy] = useState(false);
   return (
     <li className={`room-row is-project${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
         <div className="room-row-text">
           <span className="room-kind">Project</span>
-          {row.project.is_member
-            ? <a className="desk-title room-title" href={appPath(`/project/${row.project.uuid}`)}>{row.project.name}</a>
-            : <span className="desk-title room-title">{row.project.name}</span>}
+          <a className="desk-title room-title" href={appPath(row.project.is_member ? `/project/${row.project.uuid}` : '/projects')}>{row.project.name}</a>
           {row.is_new && <NewsDot />}
           <span className="desk-meta room-meta">
             {row.project.member_count} {row.project.member_count === 1 ? 'member' : 'members'}
@@ -249,39 +184,12 @@ function ProjectRow({ row }) {
             </Who>
           ))}
         </span>
-        {!row.project.is_member && (asked ? <span className="room-kept">Asked to join</span> : (
-          <button
-            type="button" className="room-keep" disabled={busy}
-            onClick={async () => { setBusy(true); try { await askToJoinProject(row.project.uuid); setAsked(true); } catch { /* still there to press */ } finally { setBusy(false); } }}
-          >
-            Ask to join
-          </button>
-        ))}
       </div>
     </li>
   );
 }
 
-function FriendRow({ row }) {
-  return (
-    <li className={`room-row is-friend${row.is_new ? ' is-new' : ''}`}>
-      <div className="room-row-head">
-        <div className="room-row-text">
-          <span className="room-kind">Friend</span>
-          <a className="desk-title room-title" href={appPath(`/u/${row.user.uuid}`)}>{row.user.display_name}</a>
-          {row.is_new && <NewsDot />}
-        </div>
-        <span className="room-faces">
-          <Who user={row.user}>
-            <Said user={row.user} at={row.at}>You and <b>{row.user.display_name}</b> are friends</Said>
-          </Who>
-        </span>
-      </div>
-    </li>
-  );
-}
-
-const ROWS = { paper: PaperRow, batch: BatchRow, board: BoardRow, project: ProjectRow, friend: FriendRow };
+const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
 // The Lounge: what the member's friends are reading and what they
 // make of it, a paper to a row, newest first; Everyone is the same room
