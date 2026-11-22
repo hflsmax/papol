@@ -240,17 +240,13 @@ const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 // What a row holds, as lines: who did what, and when.
 const linesOf = (row) => row.lines ?? [{ user: row.user, did: 'made', at: row.at }];
 const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
-const DID = [['thought', 'Thoughts', ['thought']], ['rated', 'Ratings', ['rated']], ['dug', 'Digs', ['dug', 'posted']], ['reading', 'Reading', ['reading']]];
-const NONE = { kind: '', who: '', did: '' };
+const NONE = { kind: '', who: '' };
 
-// The Lounge narrowed, as the nook is by a shelf and a tag: by whose news
-// it is, what a row is and what was done. A row stays when one of its
-// lines answers to all of them.
+// The Lounge narrowed, as the nook is by a shelf: by whose news it is and
+// what a row is.
 function narrowed(rows, pick) {
-  const acts = DID.find(([key]) => key === pick.did)?.[2];
-  return rows.filter((row) => (!pick.kind || row.kind === pick.kind) && linesOf(row).some((line) => (
-    (!pick.who || line.user.uuid === pick.who) && (!acts || acts.includes(line.did))
-  )));
+  return rows.filter((row) => (!pick.kind || row.kind === pick.kind)
+    && (!pick.who || linesOf(row).some((line) => line.user.uuid === pick.who)));
 }
 
 // The Lounge: what the member's friends are reading and what they make of
@@ -343,7 +339,7 @@ export default function Room({ currentUser, onSeen }) {
 
         <section className="desk-main" aria-label="The Lounge">
           {titled && (
-            <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}<span className="desk-count">{shown.length}</span></h2></InWay>
+            <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
@@ -358,16 +354,6 @@ export default function Room({ currentUser, onSeen }) {
           )}
           {rows.length > 0 && (
             <>
-              <div className="desk-filter room-filter">
-                <div className="desk-chips">
-                  <div className="desk-tags" role="group" aria-label="What they did">
-                    {DID.map(([key, name]) => (
-                      <button key={key} type="button" className={pick.did === key ? 'desk-tag is-on' : 'desk-tag'} aria-pressed={pick.did === key} onClick={() => set('did', pick.did === key ? '' : key)}>{name}</button>
-                    ))}
-                  </div>
-                </div>
-                {chosen && <a className="desk-quiet room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}
-              </div>
               {shown.length === 0 ? (
                 <p className="room-empty">Nothing here yet.</p>
               ) : (

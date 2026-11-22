@@ -5747,6 +5747,9 @@ ${talkStyles}
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
 .room button.desk-row { cursor: pointer; }
+/* What tells the Lounge from the nook is its colour and nothing else: the
+   gold that news and friends already wear, where the nook wears the accent. */
+.room .desk-row.is-on { background: var(--gold-soft); }
 .room-friend .mini-avatar { flex: none; width: 20px; height: 20px; margin-left: -6px; font-size: var(--fs-2xs); }
 .room-finder { padding: 0 0 var(--space-2); }
 .room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
@@ -5759,10 +5762,10 @@ ${talkStyles}
 .room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .room-found .friend-button { grid-column: 2; }
 .room-found .friend-button button { padding: 2px var(--space-2); font-size: var(--fs-xs); box-shadow: none; }
-.room-filter { min-height: 32px; }
-.room-nook-link { margin-left: auto; text-decoration: none; }
+.room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
+.room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
 /* The card and its head are the nook's table and its column names. */
-.room-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-card { border: 1px solid var(--line); border-top: 2px solid var(--gold-line); border-radius: var(--radius); background: var(--card); }
 .room-head { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 4.5rem; align-items: center; gap: var(--space-3); height: 32px; padding: 0 var(--space-3); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .room-head span:nth-child(n+2) { text-align: right; }
 /* The Lounge's rows are the nook's rows: the same card, the same title and

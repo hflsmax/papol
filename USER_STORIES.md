@@ -228,8 +228,8 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.5** From a row I can open the paper's jacket, and **Add to my nook** is there on the jacket, not on the row; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
 - **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it. A row carries no buttons: a project I am in opens from its row, and one I am not in leads to the Projects page, where **Ask to join** sends its keepers a request in their Inbox, once.
-- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, a line of chips, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the Friends tab, not here.
-- **US-10.9** **The room ends, and narrows as the nook does.** It holds the last four weeks, oldest at the foot. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count; the chips keep thoughts, ratings, digs or reading. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
+- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the Friends tab, not here.
+- **US-10.9** **The room ends, and narrows as the nook does.** It holds the last four weeks, oldest at the foot. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends only**
 
@@ -244,7 +244,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Elsewhere**
 
 - **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing in the Lounge sends email.
-- **US-10.17** On a phone the room is one column: my friends, the chips and the rows, then Show. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
+- **US-10.17** On a phone the room is one column: my friends, the rows, then Show. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
 
 **Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
 
