@@ -287,7 +287,7 @@ const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: frie
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
 const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], link: 'Fr13ndL1nk', shares_reading: false });
 let friendsNow = friendState();
-const roomRows = (view) => {
+const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
   const rows = [
     { kind: 'paper', key: `paper:${P_SURVEY}`, paper: paperOut(papers[2]), in_my_nook: true, at: hoursAgo(2), is_new: true, lines: [
@@ -298,7 +298,6 @@ const roomRows = (view) => {
       line(ben, 'thought', hoursAgo(5), { words: 'Worth trying on the bench this month.' }),
       line(ben, 'rated', hoursAgo(5), { ratings: { expertise: null, reading: 3, liking: 4 } }),
       line(ana, 'added', hoursAgo(30)),
-      ...(view === 'everyone' ? [line(mia, 'added', daysAgo(2))] : []),
     ] },
     { kind: 'board', key: 'board:1', user: ana, board: { uuid: BOARD_MAP, name: 'Wavefront sensors compared', description: null, item_count: 7 }, at: daysAgo(4), is_new: false },
     { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [
@@ -307,10 +306,7 @@ const roomRows = (view) => {
     ] },
     { kind: 'project', key: `project:${closed.uuid}`, project: { uuid: closed.uuid, name: closed.name, description: 'Which sensor for which seeing.', member_count: 3, is_member: false, asked: false }, at: daysAgo(11), is_new: false, lines: [{ user: ana, did: 'joined', at: daysAgo(11) }] },
   ];
-  return view === 'everyone' ? [
-    { kind: 'paper', key: `paper:${P_VIBES}`, paper: paperOut(papers[4]), in_my_nook: false, at: hoursAgo(1), is_new: true, lines: [line(outsiders[0], 'added', hoursAgo(1)), line(mia, 'thought', hoursAgo(1.5), { words: 'The disturbance model is the part to steal.' })] },
-    ...rows.map((row) => (row.kind === 'paper' ? { ...row, lines: row.lines.map((l) => (l.dig ? { ...l, did: 'added', words: null, dig: null } : l)).filter((l, i, all) => all.findIndex((o) => o.user === l.user && o.did === l.did) === i) } : row)).filter((row) => row.kind !== 'friend'),
-  ] : rows;
+  return rows;
 };
 
 function answer(method, path, search, sent = {}) {
@@ -338,10 +334,9 @@ function answer(method, path, search, sent = {}) {
   if (path.startsWith('/friend-links/')) return { user: outsiders[0], is_me: false, is_friend: method === 'POST' };
   if (path === '/room/news') return { news: true };
   if (path === '/room') {
-    const view = search.get('view') === 'everyone' ? 'everyone' : 'friends';
     return {
-      view, friend_count: friendsNow.friends.length, seen_at: daysAgo(1), since: daysAgo(28),
-      rows: roomRows(view),
+      friend_count: friendsNow.friends.length, seen_at: daysAgo(1), since: daysAgo(28),
+      rows: roomRows(),
     };
   }
   if (/^\/papers\/[0-9a-f]+\/friend-digs$/.test(path)) return { digs: P_SURVEY.startsWith(path.split('/')[2]) ? [friendDigListed] : [] };

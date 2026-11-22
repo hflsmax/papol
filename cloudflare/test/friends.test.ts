@@ -177,7 +177,7 @@ describe("what a friend sees", () => {
 });
 
 describe("the Lounge", () => {
-  it("is everyone's public news until there is a friend, then the friends' own, a paper to a row", async () => {
+  it("is empty until there is a friend, then the friends' own news, a paper to a row", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     await paperWithCopy(grace, digest("a"), "Grace's paper", { shelfUuid: await defaultShelf(grace) });
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { thought: "A classic" } });
@@ -186,26 +186,23 @@ describe("the Lounge", () => {
     await paperWithCopy(alan, digest("c"), "Alan's secret", { shelfUuid: await privateShelf(alan) });
     const dig = await ok("POST", "/api/digs", { headers: grace.headers, json: { subject: `paper:${digest("a")}`, text: "Section 2 is the heart of it" } });
 
-    // No friends yet: Everyone, whatever was asked for, and nothing a friend alone would see.
-    const everyone = await room(ada, "?view=friends");
-    expect(everyone).toMatchObject({ view: "everyone", friend_count: 0 });
+    // No friends yet: nothing, whatever is asked for. A stranger's public news is not the room's.
+    expect(await room(ada)).toMatchObject({ friend_count: 0, rows: [] });
+    expect((await room(ada, "?view=everyone")).rows).toEqual([]);
     const papers = (rs: any) => rs.rows.filter((r: any) => r.kind === "paper");
-    expect(papers(everyone).map((r: any) => r.paper.title).sort()).toEqual(["Alan's paper", "Grace's paper"]);
-    const shared = papers(everyone).find((r: any) => r.key === digest("a"));
-    expect(shared.lines.map((l: any) => [l.user.display_name, l.did, l.words ?? null]).sort()).toEqual([["Alan", "added", null], ["Grace", "added", "A classic"]]);
-    expect(shared.in_my_nook).toBe(false);
 
     await befriend(ada, grace);
     const mine = await room(ada);
-    expect(mine).toMatchObject({ view: "friends", friend_count: 1 });
+    expect(mine).toMatchObject({ friend_count: 1 });
+    expect(mine).not.toHaveProperty("view");
+    expect(papers(mine)[0].in_my_nook).toBe(false);
     expect(papers(mine).map((r: any) => r.paper.title)).toEqual(["Grace's paper"]);
     expect(papers(mine)[0].lines.map((l: any) => [l.did, l.words])).toEqual(expect.arrayContaining([["added", "A classic"], ["dug", "Section 2 is the heart of it"]]));
     expect(papers(mine)[0].lines.find((l: any) => l.did === "dug").dig).toMatchObject({ uuid: dig.uuid, page: null, post_count: 0 });
     // The room is papers, boards and projects: a friendship is not a row.
     expect(mine.rows.every((r: any) => ["paper", "board", "project"].includes(r.kind))).toBe(true);
-    // Everyone still shows a friend's dig, and no stranger's.
-    expect(papers(await room(ada, "?view=everyone")).find((r: any) => r.key === digest("a")).lines.some((l: any) => l.did === "dug")).toBe(true);
-    expect(papers(await room(alan)).flatMap((r: any) => r.lines).some((l: any) => l.did === "dug")).toBe(false);
+    // Alan, who is nobody's friend, sees nothing of it.
+    expect((await room(alan)).rows).toEqual([]);
 
     // A thought kept private says nothing; a paper moved to a private shelf leaves the room.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { thought_public: false } });
@@ -291,6 +288,7 @@ describe("the Lounge", () => {
 
   it("shows a project someone started, and lets the reader ask its keeper once to be let in", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
     const project = await ok("POST", "/api/projects", { headers: grace.headers, json: { name: "Effects" } });
     const shown = (await room(ada)).rows.find((r: any) => r.kind === "project");
     expect(shown).toMatchObject({ project: { uuid: project.uuid, name: "Effects", is_member: false, asked: false }, lines: [{ did: "started", user: { uuid: grace.uuid } }] });

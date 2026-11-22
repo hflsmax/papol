@@ -59,9 +59,10 @@ async function hasNews(env: Env, me: User): Promise<{ news: boolean }> {
   return { news: Boolean(row && (row.kept || row.dug || row.posted)) };
 }
 
-async function latest(env: Env, me: User, people: string, everyone: boolean) {
+async function latest(env: Env, me: User) {
   const mine = userLiteral(me.uuid);
   const friends = friendsOf(mine);
+  const people = friends;
   const since = new Date(Date.now() - WEEKS * 7 * DAY).toISOString();
   const week = new Date(Date.now() - 7 * DAY).toISOString();
   const seen = me.room_seen_at as string | null ?? "9999";
@@ -198,8 +199,7 @@ async function latest(env: Env, me: User, people: string, everyone: boolean) {
     row.is_new = row.at > seen;
     projects.set(String(j.project_uuid), row);
   }
-  // In Everyone, a project the reader is in is not news to them.
-  rows.push(...[...projects.values()].filter((p) => !everyone || !(p.project as { is_member: boolean }).is_member));
+  rows.push(...projects.values());
 
   rows.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
   return { rows: rows.slice(0, ROWS), since };
@@ -213,16 +213,14 @@ async function ownersOf(env: Env, uuids: string[]): Promise<Map<string, unknown>
 
 export function roomRoutes(router: Router) {
   // The room: its rows, newest first.
-  // `view` is friends or everyone; with no friends yet it is everyone,
-  // whatever was asked.
-  router.on("GET", "/api/room", async ({ request, env, url }) => {
+  // It is made from the user's friends and nobody else: with no friends
+  // yet it is empty.
+  router.on("GET", "/api/room", async ({ request, env }) => {
     const me = await currentUser(request, env);
     const mine = userLiteral(me.uuid);
     const friendCount = (await statement(env.DB, `SELECT count(*) AS n FROM ${friendsOf(mine)}`).first<{ n: number }>())?.n ?? 0;
-    const view = url.searchParams.get("view") === "everyone" || !friendCount ? "everyone" : "friends";
-    const people = view === "friends" ? friendsOf(mine) : `(SELECT lu.uuid FROM users lu WHERE lu.deleted_at IS NULL AND lu.uuid != ${mine})`;
-    const feed = await latest(env, me, people, view === "everyone");
-    return json({ view, friend_count: friendCount, seen_at: me.room_seen_at ?? null, ...feed });
+    const feed = await latest(env, me);
+    return json({ friend_count: friendCount, seen_at: me.room_seen_at ?? null, ...feed });
   });
 
   // The room was opened: what is in it now is no longer new.

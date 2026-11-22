@@ -223,7 +223,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **The room**
 
 - **US-10.1** As a user, the bar's one link beside my face reads **Lounge** (at `/lounge`; the old `/bazaar` still leads there) and opens the news of my friends: what they added, thought, rated and dug, newest first.
-- **US-10.2** **A paper to a row, not an event to a row.** Everything my friends lately did with one paper is one row: the title, its authors and venue, and the faces of the friends who did something with it. The row does not spell out what they did. Resting on a face (pressing it on a phone, or tabbing to it) brings out that friend's lines under the row: what they did, their words if they wrote any, when. Three friends keeping the same paper is one row with three faces, which is the most useful thing the room can tell me.
+- **US-10.2** **A paper to a row, not an event to a row.** Everything my friends lately did with one paper is one row: the title, its authors and venue, and the faces of the friends who did something with it. The row does not spell out what they did. Resting on a face (pressing it on a phone, or tabbing to it) brings out a small box under the face, headed by the friend's face and name (which lead to their nook), with their lines in it: what they did, their words if they wrote any, when. Three friends keeping the same paper is one row with three faces, which is the most useful thing the room can tell me.
 - **US-10.3** What makes news: a friend put a paper on a public shelf; wrote or changed a thought; rated; wrote a dig or posted in one I can see; put a board on a public shelf; started or joined a project. The room's rows are papers, boards and projects and nothing else: a new friendship is not a row. With US-9.14 on, also *reading this week*. Nothing private makes news, and taking something private again takes its line out.
 - **US-10.4** **A folder brought in does not fill the room.** A friend who adds six papers or more in a day, with no thought or rating on them, adds no rows. Each of those papers gets its row when someone thinks, rates or digs.
 - **US-10.5** From a row I can open the paper's jacket, and **Add to my nook** is there on the jacket, not on the row; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
@@ -232,10 +232,9 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.8** The Lounge holds news and nothing else: friend requests are answered in the Inbox and on the Friends tab, not here.
 - **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot, then one line saying so. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
-**Friends and everyone**
+**Friends only**
 
-- **US-10.10** Two views, side by side at the head: **Friends** and **Everyone**. Everyone is the same room made from all of Papol's public news, ordered by what happened. With no friends yet I land on Everyone, with a line saying what friends would add; with one friend or more I land on Friends.
-- **US-10.11** In Everyone, a row's faces are a way to meet people: what a face brings out leads to that person's nook, where Add friend is (US-9.1).
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and says how to add one: from someone's nook, or by sending my friend link.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**

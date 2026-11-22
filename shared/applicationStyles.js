@@ -5743,8 +5743,6 @@ ${talkStyles}
    line of reading; the only gold is what is new. */
 .app:has(.room) { max-width: 860px; }
 .room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
-.room-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
-.room-head .room-views { margin-top: 0; }
 .room-note, .room-empty, .room-end { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
@@ -5762,15 +5760,23 @@ ${talkStyles}
 /* Who did something with the row: faces only, and what each did comes
    out under the row when a face is rested on, pressed or tabbed to. */
 .room-faces { display: flex; flex: none; align-items: center; gap: 4px; }
-.room-who { display: inline-flex; }
+.room-who { position: relative; display: inline-flex; }
 .room-who-face { display: inline-flex; border-radius: 50%; cursor: default; }
 .room-who-face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .room-who-face .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
-.room-pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); visibility: hidden; opacity: 0; transition: opacity 0.12s 0.2s, visibility 0s 0.32s; }
-.room-pop::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 8px; }
+.room-pop { position: absolute; z-index: 20; top: calc(100% + 6px); right: -8px; width: 22rem; max-width: 80vw; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); visibility: hidden; opacity: 0; transition: opacity 0.12s 0.2s, visibility 0s 0.32s; }
+.room-who.is-held .room-pop { width: 30rem; }
+.room-pop-who { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.room-pop-who .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
+.room-person { color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); text-decoration: none; }
+.room-person:hover, .room-person:focus-visible { color: var(--accent); text-decoration: underline; }
+.room-pop .room-lines { gap: var(--space-2); margin: 0; }
+.room-pop .room-did { color: var(--ink-soft); font-weight: 500; }
+.room-pop .room-words, .room-pop .room-ratings, .room-pop .room-dig-open { display: block; margin: 2px 0 0; }
+.room-pop .room-posts { display: block; margin: 2px 0 0; }
+.room-pop::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 10px; }
 .room-who:hover .room-pop, .room-who:focus-within .room-pop, .room-who.is-held .room-pop { visibility: visible; opacity: 1; transition-delay: 0s; }
 .room-who:hover .room-pop { z-index: 21; }
-.room-pop .room-lines { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .room-pop { transition: none; } }
 .room-row-text { flex: 1; min-width: 0; }
 .room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
@@ -5808,6 +5814,8 @@ ${talkStyles}
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
   .room-row-text { flex-basis: 100%; }
+  .room-who { position: static; }
+  .room-pop, .room-who.is-held .room-pop { left: 0; right: 0; width: auto; max-width: none; }
   .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
   .friends-aff { white-space: normal; }
     .their-head { flex-wrap: wrap; }

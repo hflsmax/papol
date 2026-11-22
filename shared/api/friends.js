@@ -50,9 +50,9 @@ export function shareReading(sharesReading) {
   return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
 }
 
-// The Lounge: `view` is friends or everyone.
-export function getRoom({ view = 'friends' } = {}) {
-  return request(`/room?view=${view}`);
+// The Lounge: my friends' news.
+export function getRoom() {
+  return request('/room');
 }
 
 export function markRoomSeen() {

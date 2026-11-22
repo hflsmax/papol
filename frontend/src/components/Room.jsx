@@ -12,14 +12,6 @@ import { keep, kept } from '../lastMember';
 import { useFriends } from '../friendsStore';
 import { RatingSummary } from './Rating';
 
-const VIEW_KEY = 'papol.roomView';
-const stored = (key, fallback) => {
-  try { return window.sessionStorage.getItem(key) || fallback; } catch { return fallback; }
-};
-const store = (key, value) => {
-  try { window.sessionStorage.setItem(key, value); } catch { /* session storage may be off */ }
-};
-
 const first = (user) => user?.display_name?.split(' ')[0] ?? 'Someone';
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
 
@@ -37,7 +29,6 @@ function Ratings({ ratings }) {
 // right there, to read and to post in.
 function Line({ line, title, currentUser, onOpen }) {
   const [open, setOpen] = useState(false);
-  const me = line.user.uuid === currentUser.uuid;
   const whose = line.dig?.owner?.uuid === currentUser.uuid ? 'your' : line.dig?.owner?.uuid === line.user.uuid ? 'their' : `${first(line.dig?.owner)}’s`;
   const place = line.dig?.page ? ` on page ${line.dig.page}` : '';
   const did = line.did === 'added' ? 'added it'
@@ -45,15 +36,14 @@ function Line({ line, title, currentUser, onOpen }) {
         : line.did === 'rated' ? 'rated it'
           : line.did === 'dug' ? `dug${place}`
             : line.did === 'posted' ? `posted in ${whose} dig${place}`
-              : 'is reading it this week';
+              : 'reading it this week';
   const words = line.words && (
     <span className="room-words">“{line.words}”</span>
   );
   return (
     <li className={`room-line is-${line.did}`}>
-      <Face user={line.user} />
       <span className="room-said">
-        <b>{me ? 'You' : line.user.display_name}</b> <span className="room-did">{did}</span>
+        <span className="room-did">{did[0].toUpperCase() + did.slice(1)}</span>
         {/* A reading line says only that it happened this week. */}
         {line.did !== 'reading' && <time dateTime={line.at} title={when(line.at, { time: true })}>{when(line.at)}</time>}
         {line.dig ? (
@@ -80,18 +70,23 @@ function Who({ user, held = false, children }) {
       <span className="room-who-face" tabIndex={0} role="button" aria-label={`What ${user.display_name} did`}>
         <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
       </span>
-      <div className="room-pop">{children}</div>
+      <div className="room-pop">
+        <div className="room-pop-who">
+          <Face user={user} />
+          <a className="room-person" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
+        </div>
+        {children}
+      </div>
     </span>
   );
 }
 
 // One plain line of what someone did, for a row that is not a paper.
-function Said({ user, at, children }) {
+function Said({ at, children }) {
   return (
     <div className="room-line">
-      <Face user={user} />
       <span className="room-said">
-        {children}
+        <span className="room-did">{children}</span>
         <time dateTime={at} title={when(at, { time: true })}>{when(at)}</time>
       </span>
     </div>
@@ -152,7 +147,7 @@ function BoardRow({ row }) {
         </div>
         <span className="room-faces">
           <Who user={row.user}>
-            <Said user={row.user} at={row.at}><b>{row.user.display_name}</b> put a board on a public shelf</Said>
+            <Said at={row.at}>Put a board on a public shelf</Said>
           </Who>
         </span>
       </div>
@@ -178,9 +173,7 @@ function ProjectRow({ row }) {
         <span className="room-faces">
           {row.lines.map((l) => (
             <Who key={`${l.user.uuid}:${l.did}`} user={l.user}>
-              <Said user={l.user} at={l.at}>
-                <b>{l.user.display_name}</b> {l.did === 'started' ? 'started it' : l.did === 'keeps' ? 'keeps it' : 'joined'}
-              </Said>
+              <Said at={l.at}>{l.did === 'started' ? 'Started the project' : l.did === 'keeps' ? 'Keeps the project' : 'Joined the project'}</Said>
             </Who>
           ))}
         </span>
@@ -192,11 +185,10 @@ function ProjectRow({ row }) {
 const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
 // The Lounge: what the member's friends are reading and what they
-// make of it, a paper to a row, newest first; Everyone is the same room
-// made from all of Papol's public news. The room holds four weeks, and ends.
+// make of it, a paper to a row, newest first, and nobody else's. The room
+// holds four weeks, and ends.
 export default function Room({ currentUser, onSeen }) {
-  const [view, setView] = useState(() => stored(VIEW_KEY, 'friends'));
-  const [room, setRoom] = useState(() => kept(`room:${stored(VIEW_KEY, 'friends')}`));
+  const [room, setRoom] = useState(() => kept('room'));
   const [error, setError] = useState(null);
   const friends = useFriends();
   // The room is marked seen once per visit: what was new when it opened
@@ -206,11 +198,11 @@ export default function Room({ currentUser, onSeen }) {
   useEffect(() => {
     let active = true;
     setError(null);
-    setRoom(kept(`room:${view}`));
-    getRoom({ view })
+    setRoom(kept('room'));
+    getRoom()
       .then((next) => {
         if (!active) return;
-        keep(`room:${view}`, next);
+        keep('room', next);
         setRoom(next);
         if (!marked.current) {
           marked.current = true;
@@ -220,42 +212,24 @@ export default function Room({ currentUser, onSeen }) {
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
     // Friends made or ended here change who the room is made from.
-  }, [view, friends?.friends.length]);
+  }, [friends?.friends.length]);
 
-  const choose = (next) => { setView(next); store(VIEW_KEY, next); };
-  // With no friends yet the room is everyone's, whatever was chosen.
-  const shown = room?.view ?? view;
 
   return (
     <FacesLead.Provider value>
       <div className="room">
-        <div className="room-head">
-          <nav className="project-tabs room-views" role="tablist" aria-label="Whose news">
-            {[['friends', 'Friends'], ['everyone', 'Everyone']].map(([key, label]) => (
-              <button
-                key={key} type="button" role="tab" aria-selected={shown === key}
-                className={`project-tab${shown === key ? ' is-on' : ''}`} onClick={() => choose(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
         {error && <div className="error" role="alert">{error}</div>}
         {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
         {room && (
           <>
-            {room.friend_count === 0 && (
+            {room.friend_count === 0 ? (
               <p className="room-note">
-                This is everyone’s public news. Add a friend from their nook and the room becomes theirs:
-                what they add, think and dig, and their digs to read and post in.
+                The Lounge is your friends’ news: what they add, think and dig, and their digs to read and post in.
+                Add a friend from their nook, or send someone your friend link from the{' '}
+                <a href={appPath('/profile')}>Friends tab</a>.
               </p>
-            )}
-            {room.rows.length === 0 ? (
-              <p className="room-empty">
-                {shown === 'friends' ? 'Your friends have been quiet these four weeks.' : 'Nothing has happened in four weeks.'}
-              </p>
+            ) : room.rows.length === 0 ? (
+              <p className="room-empty">Your friends have been quiet these four weeks.</p>
             ) : (
               <ul className="room-rows">
                 {room.rows.map((row) => {
