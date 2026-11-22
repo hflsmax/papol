@@ -14,11 +14,17 @@
 // Worker has plenty. Without one, or when no index knows it, the form gets
 // the title block as the browser read it, and with no title block, the
 // filename. The Worker never reads the PDF.
+//
+// A paper that prints no identifier at all is often an author's own copy
+// of a published paper: its title and authors are searched for the
+// published version (published.ts), whose DOI, venue and year the form
+// then has.
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { byDoi, Unavailable, type Summary } from "./bibliography";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
+import { publishedVersion } from "./published";
 import type { HeaderMetadata } from "./reading";
 
 export { arxivDoi, extractArxivId, extractDoi };
@@ -53,6 +59,17 @@ export interface Extracted {
   journal: string | null;
   year: number | null;
   file_path: string;
+  // Set when the fields are the published version's, found by the title
+  // and authors (published.ts): what the PDF itself printed, for the form
+  // to offer back should the match be wrong.
+  as_printed?: AsPrinted;
+}
+
+// The form's fields as the title block read them, before any index.
+export type AsPrinted = Pick<Extracted, "doi" | "title" | "authors" | "journal" | "year">;
+
+function asPrinted(header: HeaderMetadata, title: string): AsPrinted {
+  return { doi: null, title: header.title ?? title, authors: header.authors.length ? JSON.stringify(header.authors) : null, journal: paperVenue(header.journal), year: header.year };
 }
 
 export interface Upload {
@@ -81,6 +98,12 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
   // Known to no index: the form shows the identifier as the browser read
   // it off the page, before what it read in the title block.
   metadata.doi = given ?? printed;
+  // Nothing printed to ask about: the published version, found by the
+  // title and authors the paper prints.
+  if (!known && !metadata.doi) {
+    const published = await publishedVersion(env, header);
+    if (published) return { ...metadata, ...knownFields(published, published.doi!, metadata.title, header), as_printed: asPrinted(header!, metadata.title) };
+  }
   if (known) {
     Object.assign(metadata, knownFields(known, printed!, metadata.title, upload.titleBlock));
   } else if (header) {
@@ -176,15 +199,18 @@ export interface Reextracted {
   authors: string | null;
   journal: string | null;
   year: number | null;
+  as_printed?: AsPrinted;
 }
 
 // The edit form's re-read: prefer the identifier the file carries, as the
 // browser read it off the title block, over possibly stale or wrongly
-// entered paper data. Null when nothing resolved; Unavailable when the
-// APIs could not answer.
+// entered paper data; with no identifier at all, the published version
+// found by its title and authors. Null when nothing resolved; Unavailable
+// when the APIs could not answer.
 export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata | null, paperDoi: string | null): Promise<Reextracted | null> {
   const printed = lookupDoi(titleBlock) ?? paperDoi;
-  const known = printed ? await byDoi(env, printed) : null;
+  const known = printed ? await byDoi(env, printed) : await publishedVersion(env, titleBlock);
+  const found = !printed && known ? { as_printed: asPrinted(titleBlock!, titleBlock!.title ?? "") } : {};
   // The button promises to read the PDF, not only to look its DOI up. An
   // unregistered DOI (or a paper with no DOI) still has useful metadata in
   // the title block the browser just extracted from its pages.
@@ -195,5 +221,5 @@ export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata |
     journal: paperVenue(titleBlock.journal),
     year: titleBlock.year,
   } : null;
-  return { ...knownFields(known, printed!, known.title ?? "", titleBlock), title: known.title };
+  return { ...knownFields(known, printed ?? known.doi!, known.title ?? "", titleBlock), title: known.title, ...found };
 }

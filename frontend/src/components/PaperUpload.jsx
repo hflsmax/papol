@@ -14,7 +14,9 @@ import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { droppedFolder, severalPdfs } from '../agentFolder.js';
-import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
+import {
+  READ_FIELDS, fillUnedited, knownVersionLine, publishedVersion, refillUnedited, reviewFields, savedFile, titleFromFilename,
+} from '../uploadReview';
 
 // The upload is a bar in the drop zone (docs/waiting.md), over the hash
 // and the bytes going up. The form opens the moment the upload has
@@ -42,6 +44,10 @@ export default function PaperUpload({
   // one, and whether the save takes it (the default) or keeps this PDF.
   const [known, setKnown] = useState(null);
   const [useKnown, setUseKnown] = useState(true);
+  // The reading, when it matched the PDF to its published version. The
+  // form opens on what the PDF prints (`as_printed`); a button fills it
+  // with the published paper's details.
+  const [published, setPublished] = useState(null);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -137,6 +143,7 @@ export default function PaperUpload({
     setReading(null);
     setKnown(null);
     setUseKnown(true);
+    setPublished(null);
     setIsLoading(true);
     setUploadProgress(null);
     setError(null);
@@ -185,8 +192,10 @@ export default function PaperUpload({
         return;
       }
       const settle = (read) => {
-        if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        const matched = publishedVersion(read) ? read : null;
+        if (read) setFormData((current) => fillUnedited(current, editedFields.current, matched ? matched.as_printed : read));
         setKnown(read?.existing?.sha256 ? read.existing : null);
+        setPublished(matched);
         setReading(read ? null : 'unread');
       };
       // The indexes knew the paper while it went up: the form opens filled.
@@ -223,6 +232,11 @@ export default function PaperUpload({
     const { name, value } = e.target;
     if (READ_FIELDS.includes(name)) editedFields.current.add(name);
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // The published paper's details into every field the user has not typed in.
+  const fillPublished = () => {
+    setFormData((current) => refillUnedited(current, editedFields.current, published));
   };
 
   const handleRatingChange = (key, value) => {
@@ -266,6 +280,7 @@ export default function PaperUpload({
       if (known && useKnown) await discardPaperImport(extractedData).catch(() => {});
       setExtractedData(null);
       setKnown(null);
+      setPublished(null);
       setFormData({});
       setSelectedTags([]);
       onReviewChange(false);
@@ -283,6 +298,7 @@ export default function PaperUpload({
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
     setKnown(null);
+    setPublished(null);
     setFormData({});
     setSelectedTags([]);
     setError(null);
@@ -327,6 +343,15 @@ export default function PaperUpload({
               <input type="radio" name="known_version" checked={!useKnown} onChange={() => setUseKnown(false)} />
               <span>Keep this version</span>
             </label>
+          </div>
+        )}
+        {published && (
+          <div className="metadata-reading published-version" role="status">
+            <span>
+              This paper was published in{' '}
+              <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
+            </span>
+            <button type="button" className="published-fill" onClick={fillPublished}>Use published details</button>
           </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
