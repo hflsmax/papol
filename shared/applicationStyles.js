@@ -141,8 +141,8 @@ ${commonStyles}
 .way a.way-mark { display: inline-flex; align-self: center; }
 .way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
-/* Beside the trail home: the Lounge, as quiet as the trail, with the
-   gold dot when a friend has news. */
+/* Beside the trail home: the Lounge, with the gold dot when a friend
+   has news. */
 .way-aside {
   display: flex;
   align-items: center;
@@ -5190,7 +5190,7 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
   .project-manage-row { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
   .project-tab.project-tab-manage { margin-left: 0; }
   .project-tabs { gap: 0; }
-  .project-tab { padding: 7px var(--space-2) 3px; }
+  .project-tab { padding: 5px var(--space-2); }
   .project-manage .project-person { flex-wrap: wrap; column-gap: var(--space-2); row-gap: 0; padding: var(--space-1) 0; }
   .project-manage .project-person-name, .project-manage .project-person-actions button { white-space: nowrap; }
 }
@@ -5208,17 +5208,25 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
   .project-tabs-row > .project-mark-all { padding: 6px; margin-right: calc(-1 * 6px); }
   .project-tabs-row { gap: var(--space-1); }
   .project-tabs { min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .project-tabs .project-tab { flex: none; gap: 4px; padding: 7px 7px 3px; }
+  .project-tabs .project-tab { flex: none; gap: 4px; padding: 5px 7px; }
   .project-mark-all-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-/* The label's line box centres its ascent and descent, which leaves the
-   letters two pixels high in the pill; the padding sets them back. */
-.project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px var(--space-3) 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
+/* A pill's words are centred by their capitals, not by the font's own
+   line box, which differs from one system font to the next: where the
+   browser can trim a line to its capitals the pill has a height and the
+   trimmed label sits in its middle; elsewhere the padding is even. */
+.project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.project-tab-label { display: block; }
+@supports (text-box: trim-both cap alphabetic) {
+  .project-tab, .project-tabs .project-tab { min-height: 28px; padding-top: 0; padding-bottom: 0; }
+  .project-tab-label { text-box: trim-both cap alphabetic; }
+  .project-tab .project-tab-count { top: 0; }
+}
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
 /* The inbox tab on the You page counts unread notifications. */
-.project-tab-new { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 18px; min-width: 18px; margin-top: -2px; padding: 1px 5px 0; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
+.project-tab-new { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry.
    No rules between them: each row is a soft tile that shows only on hover,
@@ -5722,7 +5730,10 @@ ${talkStyles}
 
 /* A person in a line: face, name, affiliation, and what there is to say
    or do about them at the row's end. */
-.way-aside a.way-room { gap: 6px; }
+/* The Lounge is the one other place the bar leads, so it is said plainly:
+   in ink, bold and large, on every page. */
+.way-aside a.way-room { gap: 6px; color: var(--ink); font-weight: 600; font-size: var(--fs-xl); }
+.way-aside a.way-room:hover { color: var(--accent); }
 
 /* A message in the Inbox that has an answer or a place: said under it. */
 .notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }

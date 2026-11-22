@@ -39,9 +39,9 @@ export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, on
             className={`project-tab${view === v ? ' is-on' : ''}`}
             onClick={() => setView(v)} onKeyDown={move}
           >
-            {label}
+            <span className="project-tab-label">{label}</span>
             {v === 'inbox' && unreadCount > 0 && (
-              <span className="project-tab-new" aria-label={`${unreadCount} unread`}>{unreadCount}</span>
+              <span className="project-tab-new" aria-label={`${unreadCount} unread`}><span className="project-tab-label">{unreadCount}</span></span>
             )}
           </button>
         ))}

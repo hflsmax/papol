@@ -31,7 +31,7 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       <section className="panel preferences-block" aria-labelledby="preferences-privacy">
         <h2 className="panel-title" id="preferences-privacy">Privacy</h2>
         {choice('preference-email', 'My email on my nook', Boolean(user.email_public), 'Shown', 'Hidden', (on) => ({ email_public: on }))}
-        {choice('preference-findable', 'People looking for friends', user.findable ?? true, 'Can find me', 'Cannot find me', (on) => ({ findable: on }))}
+        {choice('preference-findable', 'People searching my name', user.findable ?? true, 'Can find me', 'Cannot find me', (on) => ({ findable: on }))}
       </section>
     </div>
   );
