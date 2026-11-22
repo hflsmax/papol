@@ -64,12 +64,25 @@ function Line({ line, title, currentUser, onOpen }) {
   );
 }
 
+// A face in a row leads to its person's nook, and resting on it brings up
+// what they did. Where nothing can rest, the first press brings that up
+// and the next one leads.
 function Who({ user, held = false, children }) {
+  const shown = useRef(false);
+  const press = (event) => {
+    if (shown.current || !window.matchMedia?.('(hover: none)').matches) return;
+    event.preventDefault();
+    shown.current = true;
+    event.currentTarget.focus();
+  };
   return (
     <span className={`room-who${held ? ' is-held' : ''}`}>
-      <span className="room-who-face" tabIndex={0} role="button" aria-label={`What ${user.display_name} did`}>
+      <a
+        className="room-who-face" href={appPath(`/u/${user.uuid}`)} aria-label={`${user.display_name}’s nook`}
+        onClick={press} onBlur={() => { shown.current = false; }}
+      >
         <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
-      </span>
+      </a>
       <div className="room-pop">
         <div className="room-pop-who">
           <Face user={user} />
@@ -219,7 +232,7 @@ function Finder({ currentUser, onDone }) {
         <ul className="room-found">
           {people.map((user) => (
             <li key={user.uuid}>
-              <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+              <Face user={user} />
               <span className="room-found-who">
                 <a className="room-found-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
                 {user.affiliation && <span className="room-found-where">{user.affiliation}</span>}
@@ -311,9 +324,11 @@ export default function Room({ currentUser, onSeen }) {
                   </button>
                 </li>
                 {mine.map(({ user }) => (
-                  <li key={user.uuid}>
+                  <li key={user.uuid} className="room-friend-item">
+                    {/* The face leads to their nook; the name narrows the news to them. */}
+                    <Face user={user} />
                     <button type="button" className={who === user.uuid ? 'desk-row room-friend is-on' : 'desk-row room-friend'} aria-pressed={who === user.uuid} onClick={() => set('who', who === user.uuid ? '' : user.uuid)}>
-                      <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+                      <span className="room-friend-gap" aria-hidden="true" />
                       <span className="desk-row-name">{user.display_name}</span>
                     </button>
                   </li>

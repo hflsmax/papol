@@ -5750,7 +5750,10 @@ ${talkStyles}
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
 .room button.desk-row { cursor: pointer; }
-.room-friend .mini-avatar { flex: none; width: 20px; height: 20px; margin-left: -6px; font-size: var(--fs-2xs); }
+.room-friend-item { position: relative; }
+.room-friend-item > .face-link { position: absolute; z-index: 1; top: 50%; left: calc(var(--space-2) - 6px); transform: translateY(-50%); }
+.room-friend-item .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
+.room-friend-gap { flex: none; width: 20px; height: 20px; margin-left: -6px; }
 .room-finder { padding: 0 0 var(--space-2); }
 .room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 .room-found { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0 var(--space-2); list-style: none; }
@@ -5780,7 +5783,7 @@ ${talkStyles}
 .room-faces { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 4px; width: 6rem; }
 .room-when { flex: none; width: 4.5rem; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .room-who { position: relative; display: inline-flex; }
-.room-who-face { display: inline-flex; border-radius: 50%; cursor: default; }
+.room-who-face { display: inline-flex; border-radius: 50%; cursor: pointer; text-decoration: none; }
 .room-who-face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .room-who-face .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
 .room-pop { position: absolute; z-index: 20; top: calc(100% + 6px); right: -8px; width: 22rem; max-width: 80vw; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); visibility: hidden; opacity: 0; transition: opacity 0.12s 0.2s, visibility 0s 0.32s; }
