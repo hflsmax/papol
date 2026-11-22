@@ -167,6 +167,8 @@ describe("what a PDF says about itself", () => {
     expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result).toMatchObject({
       doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre",
       authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]), journal: "IEEE Transactions on Games", year: 2024,
+      // What the PDF printed, for the form to offer back.
+      as_printed: { doi: null, title: "Modeling Game Mechanics with Ceptre", authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]), journal: null, year: null },
     });
     // One free search, by the names and the title; the metered one is not spent.
     expect(asked).toEqual(["Chris Martens, Alexander Card, Henry Crain, Asha Khatri. Modeling Game Mechanics with Ceptre"]);
@@ -372,7 +374,8 @@ describe("what a PDF says about itself", () => {
     const published = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers,
       json: { title_block: titleBlock({ title: "Modeling Game Mechanics with Ceptre", authors: ["Chris Martens", "Asha Khatri"] }) } });
     expect(published).toEqual({ doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre", authors: JSON.stringify(["Chris Martens", "Asha Khatri"]),
-      journal: "IEEE Transactions on Games", year: 2024 });
+      journal: "IEEE Transactions on Games", year: 2024,
+      as_printed: { doi: null, title: "Modeling Game Mechanics with Ceptre", authors: JSON.stringify(["Chris Martens", "Asha Khatri"]), journal: null, year: null } });
   });
 });
 

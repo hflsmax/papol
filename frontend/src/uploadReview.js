@@ -42,6 +42,31 @@ export function knownVersionLine(read) {
   return `Papol already has a version of this paper: ${known.title || 'untitled'}`;
 }
 
+// A paper that prints no identifier of its own (an author's copy) may be
+// matched to its published version by its title and authors; the reading
+// then says what the PDF itself printed (`as_printed`), and the form
+// offers it back, the match being a judgment the user can overrule. The
+// line names where the match was published, for the user to check it:
+// `{ where, href }`, or null when the fields are the PDF's own.
+export function publishedVersion(read) {
+  if (!read?.as_printed || !read.doi) return null;
+  const where = [read.journal, read.year].filter(Boolean).join(', ');
+  return { where: where || read.doi, href: `https://doi.org/${read.doi}` };
+}
+
+// The form with one reading's fields in place of another's: a field the
+// user typed in keeps what they typed; every other takes this reading's
+// value, an empty one too — the published venue goes when the PDF prints
+// none.
+export function refillUnedited(form, edited, read) {
+  const filled = reviewFields(read);
+  const next = { ...form };
+  for (const field of READ_FIELDS) {
+    if (!edited.has(field) || String(form[field] ?? '').trim() === '') next[field] = filled[field];
+  }
+  return next;
+}
+
 // The file a save names. Taking the known version: that paper's file,
 // and the upload to let go of. Keeping this one: the upload, as ever.
 export function savedFile(uploaded, known, useKnown) {

@@ -14,7 +14,9 @@ import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import { isReportableUploadError } from '../../../shared/uploadError.js';
 import { readIdentifier } from '../pdfIdentifier.js';
 import { droppedFolder, severalPdfs } from '../agentFolder.js';
-import { READ_FIELDS, fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from '../uploadReview';
+import {
+  READ_FIELDS, fillUnedited, knownVersionLine, publishedVersion, refillUnedited, reviewFields, savedFile, titleFromFilename,
+} from '../uploadReview';
 
 // The upload is a bar in the drop zone (docs/waiting.md), over the hash
 // and the bytes going up. The form opens the moment the upload has
@@ -42,6 +44,11 @@ export default function PaperUpload({
   // one, and whether the save takes it (the default) or keeps this PDF.
   const [known, setKnown] = useState(null);
   const [useKnown, setUseKnown] = useState(true);
+  // The reading, when it matched the PDF to its published version: the
+  // form holds the published details or, at the user's word, what the PDF
+  // prints (`as_printed`).
+  const [published, setPublished] = useState(null);
+  const [usePublished, setUsePublished] = useState(true);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -137,6 +144,8 @@ export default function PaperUpload({
     setReading(null);
     setKnown(null);
     setUseKnown(true);
+    setPublished(null);
+    setUsePublished(true);
     setIsLoading(true);
     setUploadProgress(null);
     setError(null);
@@ -187,6 +196,7 @@ export default function PaperUpload({
       const settle = (read) => {
         if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
         setKnown(read?.existing?.sha256 ? read.existing : null);
+        setPublished(publishedVersion(read) ? read : null);
         setReading(read ? null : 'unread');
       };
       // The indexes knew the paper while it went up: the form opens filled.
@@ -223,6 +233,13 @@ export default function PaperUpload({
     const { name, value } = e.target;
     if (READ_FIELDS.includes(name)) editedFields.current.add(name);
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // The published details, or what the PDF prints, into every field the
+  // user has not typed in.
+  const choosePublished = (use) => {
+    setUsePublished(use);
+    setFormData((current) => refillUnedited(current, editedFields.current, use ? published : published.as_printed));
   };
 
   const handleRatingChange = (key, value) => {
@@ -266,6 +283,7 @@ export default function PaperUpload({
       if (known && useKnown) await discardPaperImport(extractedData).catch(() => {});
       setExtractedData(null);
       setKnown(null);
+      setPublished(null);
       setFormData({});
       setSelectedTags([]);
       onReviewChange(false);
@@ -283,6 +301,7 @@ export default function PaperUpload({
     await discardPaperImport(extractedData).catch(() => {});
     setExtractedData(null);
     setKnown(null);
+    setPublished(null);
     setFormData({});
     setSelectedTags([]);
     setError(null);
@@ -326,6 +345,22 @@ export default function PaperUpload({
             <label className="checkbox-row inline">
               <input type="radio" name="known_version" checked={!useKnown} onChange={() => setUseKnown(false)} />
               <span>Keep this version</span>
+            </label>
+          </div>
+        )}
+        {published && (
+          <div className="metadata-reading known-version published-version" role="status">
+            <span>
+              Matched to its published version,{' '}
+              <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
+            </span>
+            <label className="checkbox-row inline">
+              <input type="radio" name="published_version" value="published" checked={usePublished} onChange={() => choosePublished(true)} />
+              <span>Use its details</span>
+            </label>
+            <label className="checkbox-row inline">
+              <input type="radio" name="published_version" value="printed" checked={!usePublished} onChange={() => choosePublished(false)} />
+              <span>Use what the PDF prints</span>
             </label>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer, uploadReads } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
@@ -184,6 +184,12 @@ const SHOTS = {
   // up, then the form.
   'drop-uploading': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
   'drop-form': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
+  // An author's copy of a published paper dropped on the nook: its form,
+  // filled from the published version; and with what the PDF prints taken
+  // back instead.
+  'drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", size: wide },
+  'drop-form-as-printed': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP + " ", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", pointer: [['click', '.published-version input[value=printed]']], size: wide },
+  'phone-drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", size: phone },
   // Papol's mark pressed while a dropped PDF's form is open: the nook comes
   // back without the form.
   'drop-form-home': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", pointer: [['click', '.way-mark']], size: wide },
@@ -229,6 +235,7 @@ try {
   for (const name of names) {
     const shot = SHOTS[name];
     held.clear();
+    uploadReads.as = shot.reads ?? 'known';
     for (const path of shot.hold ?? []) held.add(path);
     await browser.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor: 2, mobile: false, ...shot.size });
     // The Mac shell is remembered per tab, so a web shot says so.
