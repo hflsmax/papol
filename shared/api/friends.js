@@ -50,9 +50,9 @@ export function shareReading(sharesReading) {
   return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
 }
 
-// The Lounge: `view` is friends or everyone, `order` latest or most.
-export function getRoom({ view = 'friends', order = 'latest' } = {}) {
-  return request(`/room?view=${view}&order=${order}`);
+// The Lounge: `view` is friends or everyone.
+export function getRoom({ view = 'friends' } = {}) {
+  return request(`/room?view=${view}`);
 }
 
 export function markRoomSeen() {

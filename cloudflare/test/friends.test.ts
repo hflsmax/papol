@@ -188,7 +188,7 @@ describe("the Lounge", () => {
 
     // No friends yet: Everyone, whatever was asked for, and nothing a friend alone would see.
     const everyone = await room(ada, "?view=friends");
-    expect(everyone).toMatchObject({ view: "everyone", order: "latest", friend_count: 0 });
+    expect(everyone).toMatchObject({ view: "everyone", friend_count: 0 });
     const papers = (rs: any) => rs.rows.filter((r: any) => r.kind === "paper");
     expect(papers(everyone).map((r: any) => r.paper.title).sort()).toEqual(["Alan's paper", "Grace's paper"]);
     const shared = papers(everyone).find((r: any) => r.key === digest("a"));
@@ -215,10 +215,11 @@ describe("the Lounge", () => {
 
   it("marks what came since it was last opened, and tells the bar", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    expect(await ok("GET", "/api/room/news", { headers: ada.headers })).toEqual({ news: false, requests: 0 });
+    expect(await ok("GET", "/api/room/news", { headers: ada.headers })).toEqual({ news: false });
+    // Someone asking is the Inbox's to say: the room has no news of it.
     await ok("POST", `/api/friends/${ada.uuid}`, { headers: grace.headers });
-    expect(await ok("GET", "/api/room/news", { headers: ada.headers })).toEqual({ news: true, requests: 1 });
-    expect((await room(ada)).requests).toMatchObject([{ user: { uuid: grace.uuid } }]);
+    expect(await ok("GET", "/api/room/news", { headers: ada.headers })).toEqual({ news: false });
+    expect(await room(ada)).not.toHaveProperty("requests");
     await ok("POST", `/api/friends/${grace.uuid}/accept`, { headers: ada.headers });
 
     await exec("UPDATE users SET room_seen_at = ? WHERE uuid = ?", new Date(Date.now() - 60_000).toISOString(), ada.uuid);
@@ -287,18 +288,6 @@ describe("the Lounge", () => {
     // On a private shelf it is hers alone, shared or not.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { shelf_uuid: await privateShelf(grace) } });
     expect(await lines()).toEqual([]);
-  });
-
-  it("lists what the people in view keep most, leaving out what the reader keeps", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
-    await paperWithCopy(grace, digest("a"), "Kept by two", { shelfUuid: await defaultShelf(grace) });
-    await ok("POST", `/api/papers/${name("a")}/add-to-nook`, { headers: alan.headers, json: {} });
-    await paperWithCopy(alan, digest("b"), "Kept by one", { shelfUuid: await defaultShelf(alan) });
-    await paperWithCopy(grace, digest("c"), "Ada has it", { shelfUuid: await defaultShelf(grace) });
-    await ok("POST", `/api/papers/${name("c")}/add-to-nook`, { headers: ada.headers, json: {} });
-    const most = await room(ada, "?order=most");
-    expect(most.order).toBe("most");
-    expect(most.rows.map((r: any) => [r.paper.title, r.lines.length])).toEqual([["Kept by two", 2], ["Kept by one", 1]]);
   });
 
   it("shows a project someone started, and lets the reader ask its keeper once to be let in", async () => {

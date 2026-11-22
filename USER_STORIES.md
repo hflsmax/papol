@@ -197,7 +197,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Becoming friends**
 
 - **US-9.1** As a user, I can ask another user to be friends from their nook. One button, **Add friend**; once pressed it reads **Requested** and pressing it again takes the request back.
-- **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also sits at the head of their Lounge until answered.
+- **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
 - **US-9.5** As a user, I have **my friend link**, one per account, on my profile. Whoever opens it signed in sees who it is from and one button, **Be friends**, and that makes us friends without a second step from me: handing someone the link was my half. A visitor is asked to register first and comes back to the same page. I can turn the link off, and asking again mints a new one, as with a project's invitation.
@@ -229,14 +229,14 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.5** From a row I can open the paper's jacket, **Add to my nook**, open a friend's dig and post in it, or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
 - **US-10.7** A board's row shows its miniature, name and whose it is. A project's row shows its name and members, and for a project I am not in, **Ask to join**, which sends its keepers a request in their Inbox, once. The Projects page offers the same button.
-- **US-10.8** **Requests come first, and only when there are any**: friend requests to answer stand at the head of the room. Answered, the section is gone.
+- **US-10.8** The Lounge holds news and nothing else: friend requests are answered in the Inbox and on the Friends tab, not here.
 - **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot, then one line saying so. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends and everyone**
 
 - **US-10.10** Two views, side by side at the head: **Friends** and **Everyone**. Everyone is the same room made from all of Papol's public news, ordered by what happened. With no friends yet I land on Everyone, with a line saying what friends would add; with one friend or more I land on Friends.
 - **US-10.11** In Everyone, a row's faces are a way to meet people: each leads to that person's nook, where Add friend is (US-9.1).
-- **US-10.12** A second order for either view, **Most read**: papers by how many of the people in view keep them, papers already in my nook left out. This answers "what should I read next" where the first order answers "what happened".
+- **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**
 
@@ -246,7 +246,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Elsewhere**
 
 - **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing in the Lounge sends email.
-- **US-10.17** On a phone the room is one column: requests, the two views, rows. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
+- **US-10.17** On a phone the room is one column: the two views, then the rows. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
 
 **Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
 

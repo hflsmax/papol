@@ -323,11 +323,6 @@ const roomRows = (view) => {
     ...rows.map((row) => (row.kind === 'paper' ? { ...row, lines: row.lines.map((l) => (l.dig ? { ...l, did: 'added', words: null, dig: null } : l)).filter((l, i, all) => all.findIndex((o) => o.user === l.user && o.did === l.did) === i) } : row)).filter((row) => row.kind !== 'friend'),
   ] : rows;
 };
-const mostRead = (view) => [
-  { kind: 'paper', key: `paper:${P_LEARN}`, paper: paperOut(papers[0]), in_my_nook: false, at: hoursAgo(5), is_new: false, lines: [ben, ana, ...(view === 'everyone' ? [mia, outsiders[0]] : [])].map((user) => ({ user, did: 'added', at: daysAgo(2), words: null, ratings: null, dig: null })) },
-  { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [ana, ...(view === 'everyone' ? [mia] : [])].map((user) => ({ user, did: 'added', at: daysAgo(9), words: null, ratings: null, dig: null })) },
-  { kind: 'paper', key: `paper:${P_VIBES}`, paper: paperOut(papers[4]), in_my_nook: false, at: daysAgo(3), is_new: false, lines: [view === 'everyone' ? outsiders[0] : ben].map((user) => ({ user, did: 'added', at: daysAgo(3), words: null, ratings: null, dig: null })) },
-];
 
 function answer(method, path, search, sent = {}) {
   // Each picture loads the app afresh: the project is back.
@@ -352,13 +347,12 @@ function answer(method, path, search, sent = {}) {
     return friendsNow;
   }
   if (path.startsWith('/friend-links/')) return { user: outsiders[0], is_me: false, is_friend: method === 'POST' };
-  if (path === '/room/news') return { news: true, requests: friendsNow.requests.length };
+  if (path === '/room/news') return { news: true };
   if (path === '/room') {
     const view = search.get('view') === 'everyone' ? 'everyone' : 'friends';
-    const order = search.get('order') === 'most' ? 'most' : 'latest';
     return {
-      view, order, friend_count: friendsNow.friends.length, seen_at: daysAgo(1), requests: friendsNow.requests, since: daysAgo(28),
-      rows: order === 'most' ? mostRead(view) : roomRows(view),
+      view, friend_count: friendsNow.friends.length, seen_at: daysAgo(1), since: daysAgo(28),
+      rows: roomRows(view),
     };
   }
   if (/^\/papers\/[0-9a-f]+\/friend-digs$/.test(path)) return { digs: P_SURVEY.startsWith(path.split('/')[2]) ? [friendDigListed] : [] };

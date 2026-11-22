@@ -527,7 +527,7 @@ export default function App({ startupUser = null, startupError = null }) {
     }
     if (route.page === 'room') return;
     getRoomNews()
-      .then((d) => setRoomNews(Boolean(d.news || d.requests)))
+      .then((d) => setRoomNews(Boolean(d.news)))
       .catch(() => {});
   }, [user?.uuid, route]);
 

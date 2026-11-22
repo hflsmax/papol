@@ -17,7 +17,7 @@ import { all, statement, type Row } from "../db";
 import { json, type Router } from "../http";
 import { shownFields } from "../papers/visibility";
 import { userPublic } from "./boards";
-import { friendsOf, friendSees, PERSON, requestsFor, userLiteral } from "./friends";
+import { friendsOf, friendSees, PERSON, userLiteral } from "./friends";
 import { excerpt, onPublicShelf } from "./projects";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -42,48 +42,20 @@ function ratingsOf(shown: ReturnType<typeof shownFields>) {
   return { expertise: shown.rating_expertise, reading: shown.rating_reading, liking: shown.rating_liking };
 }
 
-// Whether anything in the room is new to this user: someone waiting for
-// an answer, or something a friend did since they last opened it.
-async function hasNews(env: Env, me: User): Promise<{ news: boolean; requests: number }> {
+// Whether anything in the room is new to this user: something a friend
+// did since they last opened it. Someone asking to be friends is the
+// Inbox's to say, not the room's.
+async function hasNews(env: Env, me: User): Promise<{ news: boolean }> {
   const mine = userLiteral(me.uuid);
   const seen = me.room_seen_at as string | null ?? "9999";
   const row = await statement(env.DB,
     `SELECT
-       (SELECT count(*) FROM friendships f JOIN users u ON u.uuid = f.asker_uuid AND u.deleted_at IS NULL WHERE f.asked_uuid = ${mine} AND f.state = 'asked') AS requests,
        EXISTS (SELECT 1 FROM copies c ${PUBLIC_SHELF} WHERE c.deleted_at IS NULL AND c.created_at > ?1 AND c.user_uuid IN ${friendsOf(mine)}) AS kept,
        EXISTS (SELECT 1 FROM digs d WHERE d.created_at > ?1 AND ${friendSees(mine)}) AS dug,
        EXISTS (SELECT 1 FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid
          WHERE dp.created_at > ?1 AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})) AS posted`,
-    seen).first<{ requests: number; kept: number; dug: number; posted: number }>();
-  return { news: Boolean(row && (row.requests || row.kept || row.dug || row.posted)), requests: row?.requests ?? 0 };
-}
-
-// The papers the people in view keep most, the reader's own left out:
-// what to read next, where the room's first order says what happened.
-async function mostRead(env: Env, me: User, people: string) {
-  const mine = userLiteral(me.uuid);
-  const top = await all<{ paper_sha256: string }>(env.DB,
-    `SELECT c.paper_sha256 FROM copies c ${PUBLIC_SHELF}
-     WHERE c.deleted_at IS NULL AND c.user_uuid IN ${people}
-       AND NOT EXISTS (SELECT 1 FROM copies mc WHERE mc.user_uuid = ${mine} AND mc.paper_sha256 = c.paper_sha256 AND mc.deleted_at IS NULL)
-     GROUP BY c.paper_sha256 ORDER BY count(*) DESC, max(c.created_at) DESC, c.paper_sha256 LIMIT 40`);
-  if (!top.length) return [];
-  const digests = top.map((t) => t.paper_sha256);
-  const marks = digests.map(() => "?").join(",");
-  const [papers, copies] = (await env.DB.batch<Row>([
-    statement(env.DB, `SELECT sha256, title, authors, journal, year FROM papers WHERE sha256 IN (${marks})`, ...digests),
-    statement(env.DB,
-      `SELECT c.*, ${PERSON} FROM copies c ${PUBLIC_SHELF} JOIN users u ON u.uuid = c.user_uuid
-       WHERE c.deleted_at IS NULL AND c.user_uuid IN ${people} AND c.paper_sha256 IN (${marks}) ORDER BY c.created_at DESC, c.uuid`, ...digests),
-  ])).map((r) => r.results);
-  const paperOf = new Map(papers.map((p) => [p.sha256 as string, p]));
-  return digests.filter((d) => paperOf.has(d)).map((digest) => {
-    const lines = copies.filter((c) => c.paper_sha256 === digest).map((c): Line => {
-      const shown = shownFields(c);
-      return { user: userPublic({ ...c, uuid: c.user_uuid }), did: "added", at: c.created_at as string, words: shown.thought, ratings: ratingsOf(shown) };
-    });
-    return { kind: "paper", key: digest, paper: paperOf.get(digest), in_my_nook: false, lines, at: lines[0]?.at ?? null, is_new: false };
-  });
+    seen).first<{ kept: number; dug: number; posted: number }>();
+  return { news: Boolean(row && (row.kept || row.dug || row.posted)) };
 }
 
 async function latest(env: Env, me: User, people: string, everyone: boolean) {
@@ -248,21 +220,17 @@ async function ownersOf(env: Env, uuids: string[]): Promise<Map<string, unknown>
 }
 
 export function roomRoutes(router: Router) {
-  // The room: those waiting for an answer and a few people worth knowing,
-  // then the rows. `view` is friends or everyone; with no friends yet it
-  // is everyone, whatever was asked. `order` is latest or most.
+  // The room: its rows, newest first.
+  // `view` is friends or everyone; with no friends yet it is everyone,
+  // whatever was asked.
   router.on("GET", "/api/room", async ({ request, env, url }) => {
     const me = await currentUser(request, env);
     const mine = userLiteral(me.uuid);
     const friendCount = (await statement(env.DB, `SELECT count(*) AS n FROM ${friendsOf(mine)}`).first<{ n: number }>())?.n ?? 0;
     const view = url.searchParams.get("view") === "everyone" || !friendCount ? "everyone" : "friends";
-    const order = url.searchParams.get("order") === "most" ? "most" : "latest";
     const people = view === "friends" ? friendsOf(mine) : `(SELECT lu.uuid FROM users lu WHERE lu.deleted_at IS NULL AND lu.uuid != ${mine})`;
-    const [requests, feed] = await Promise.all([
-      requestsFor(env, me),
-      order === "most" ? mostRead(env, me, people).then((rows) => ({ rows, since: null })) : latest(env, me, people, view === "everyone"),
-    ]);
-    return json({ view, order, friend_count: friendCount, seen_at: me.room_seen_at ?? null, requests, ...feed });
+    const feed = await latest(env, me, people, view === "everyone");
+    return json({ view, friend_count: friendCount, seen_at: me.room_seen_at ?? null, ...feed });
   });
 
   // The room was opened: what is in it now is no longer new.

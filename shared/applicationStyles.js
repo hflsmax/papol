@@ -5710,16 +5710,15 @@ ${talkStyles}
 
 /* A person in a line: face, name, affiliation, and what there is to say
    or do about them at the row's end. */
-.friends-list, .room-people { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
-.friends-row, .room-person-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
-.friends-row:last-child, .room-person-row:last-child { border-bottom: 0; }
+.friends-list { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.friends-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.friends-row:last-child { border-bottom: 0; }
 .friends-who { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex: 1 1 14rem; min-width: 0; color: var(--ink); text-decoration: none; }
 .friends-who:hover .friends-name { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .friends-face { flex: none; width: 32px; height: 32px; font-size: var(--fs-sm); }
 .friends-name { font: 600 var(--fs-md)/1.3 var(--font-serif); overflow-wrap: anywhere; }
 .friends-aff { min-width: 0; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
-.friends-since, .room-person-note { color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
-.room-person-note { flex: 1 1 12rem; min-width: 0; }
+.friends-since { color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
 .friends-panel { display: grid; gap: var(--space-6); max-width: 46rem; }
 .friends-block > .kicker { margin: 0 0 var(--space-1); }
 .friends-empty, .friends-note { margin: var(--space-2) 0 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
@@ -5742,14 +5741,8 @@ ${talkStyles}
    line of reading; the only gold is what is new. */
 .app:has(.room) { max-width: 860px; }
 .room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
-.room-block { padding: var(--space-3) var(--space-4) var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
-.room-block > .kicker { margin: 0; }
 .room-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 .room-head .room-views { margin-top: 0; }
-.room-orders { display: inline-flex; align-items: center; gap: var(--space-1); }
-.room-orders button { padding: 3px var(--space-2); border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
-.room-orders button:hover:not(:disabled) { background: none; color: var(--ink); }
-.room-orders button.is-on { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 2px; text-underline-offset: 5px; }
 .room-note, .room-empty, .room-end { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
@@ -5812,8 +5805,6 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
   .room-keep, .room-kept { margin-left: auto; }
   .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
   .friends-aff { white-space: normal; }
-  .room-person-note { flex: 1 1 100%; }
-  .room-block { padding-inline: var(--space-3); }
     .their-head { flex-wrap: wrap; }
 }
 
