@@ -91,6 +91,9 @@ describe("what a PDF says about itself", () => {
     expect(extractDoi("supporting info at 10.1073/pnas. and then doi: 10.1073/pnas.2423301122.")).toBe("10.1073/pnas.2423301122");
     expect(extractDoi("see https://doi.org/10.1145/2984511.2984540, cited")).toBe("10.1145/2984511.2984540");
     expect(extractDoi("nothing here")).toBeNull();
+    expect(extractDoi("https://doi.org/10.1145/nnnnnnn.nnnnnnn")).toBeNull();
+    expect(extractDoi("doi 10.1145/XXXXXXX.XXXXXXX then https://doi.org/10.1145/3408990")).toBe("10.1145/3408990");
+    expect(extractDoi("a Springer suffix 10.1007/s00453-011-9554-x")).toBe("10.1007/s00453-011-9554-x");
     expect(extractArxivId("arXiv:1607.06450v2 [cs.LG]")).toBe("1607.06450v2");
     expect(extractArxivId("at arxiv.org/abs/hep-th/9901001")).toBe("hep-th/9901001");
     expect(titleFromFilename("2016UIST-Metamaterial_AuthorsCopy.pdf")).toBe("2016uist Metamaterial Authorscopy");
@@ -135,6 +138,112 @@ describe("what a PDF says about itself", () => {
     apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
     await woken(second.job);
     expect(await ok("GET", `/api/jobs/${second.job}`, { headers: account.headers })).toMatchObject({ status: "failed", detail: "Metadata lookup failed" });
+  });
+
+  // An author's copy of a published paper, as ceptre-tog.pdf is: typeset
+  // in IEEE Transactions style, it prints its title, its authors and
+  // nothing of where it appeared — no DOI, venue line, copyright or year.
+  const ceptre = titleBlock({ title: "Modeling Game Mechanics with Ceptre", authors: ["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"] });
+  const people = (...names: string[]) => names.map((name) => ({ given: name.split(" ")[0], family: name.split(" ").slice(1).join(" ") }));
+  const ceptreArticle = { DOI: "10.1109/TG.2099.0000001", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"], "container-title": ["IEEE Transactions on Games"],
+    issued: { "date-parts": [[2024]] }, author: people("Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri") };
+
+  it("finds the published version of a paper that prints no identifier, by its title and its authors", async () => {
+    const account = await register();
+    const asked: string[] = [];
+    apis({
+      "api.crossref.org": (url) => {
+        asked.push(url.searchParams.get("query.bibliographic") ?? url.pathname);
+        return Response.json({ message: { items: [
+          // A preprint server's copy is not the published version.
+          { ...ceptreArticle, DOI: "10.36227/techrxiv.0000001", type: "posted-content", "container-title": [] },
+          // The same people's earlier paper, whose title is not this one.
+          { DOI: "10.1007/978-3-319-00000-0_1", type: "proceedings-article", title: ["Ceptre: A Language for Modeling Generative Interactive Systems"],
+            "container-title": ["AIIDE"], issued: { "date-parts": [[2015]] }, author: people("Chris Martens") },
+          ceptreArticle,
+        ] } });
+      },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [] }); },
+    });
+    const ticket = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 an author's copy", ceptre)).json<any>();
+    await woken(ticket.job);
+    expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result).toMatchObject({
+      doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre",
+      authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]), journal: "IEEE Transactions on Games", year: 2024,
+      // What the PDF printed, for the form to offer back.
+      as_printed: { doi: null, title: "Modeling Game Mechanics with Ceptre", authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]), journal: null, year: null },
+    });
+    // One free search, by the names and the title; the metered one is not spent.
+    expect(asked).toEqual(["Chris Martens, Alexander Card, Henry Crain, Asha Khatri. Modeling Game Mechanics with Ceptre"]);
+
+    // Papol holding the published paper already, the author's copy is offered as a version of it.
+    await exec("INSERT INTO papers (sha256, doi, title, file_path, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, 1)",
+      "9".repeat(64), "10.1109/TG.2099.0000001", "Modeling Game Mechanics With Ceptre", `${"9".repeat(64)}.pdf`, new Date().toISOString(), new Date().toISOString());
+    const again = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 another author's copy", ceptre)).json<any>();
+    await woken(again.job);
+    expect((await ok("GET", `/api/jobs/${again.job}`, { headers: account.headers })).result.existing).toMatchObject({ sha256: "9".repeat(64) });
+  });
+
+  // Crossref's live answer to this search, asked 2026-11-22 (all five
+  // items, in its order, with the fields the search selects).
+  const crossrefLive = { message: { items: [
+    { DOI: "10.1109/tg.2023.3292982", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"], "container-title": ["IEEE Transactions on Games"], issue: "2",
+      issued: { "date-parts": [[2024, 6]] }, author: people("Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"), score: 71.68 },
+    { DOI: "10.1109/vlhcc.2019.8818687", type: "proceedings-article", title: ["The Ceptre Editor: A Structure Editor for Rule-Based System Simulation"],
+      "container-title": ["2019 IEEE Symposium on Visual Languages and Human-Centric Computing (VL/HCC)"], issued: { "date-parts": [[2019, 10]] }, author: people("Alexander Card", "Chris Martens"), score: 33.09 },
+    { DOI: "10.1609/aiide.v11i1.12784", type: "journal-article", title: ["Ceptre: A Language for Modeling Generative Interactive Systems"],
+      "container-title": ["Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment"], issue: "1", issued: { "date-parts": [[2015, 11, 19]] }, author: people("Chris Martens"), score: 28.65 },
+    { DOI: "10.32920/21908451.v1", type: "posted-content", title: ["Game Design II - Game Mechanics (Course Intro)"], issued: { "date-parts": [[2023, 1, 17]] }, author: people("Kristopher Alexander"), score: 28.19 },
+    { DOI: "10.32920/21908451", type: "posted-content", title: ["Game Design II - Game Mechanics (Course Intro)"], issued: { "date-parts": [[2023, 1, 17]] }, author: people("Kristopher Alexander"), score: 28.16 },
+  ] } };
+
+  it("takes the IEEE Transactions on Games article from Crossref's live answer for ceptre-tog.pdf", async () => {
+    const account = await register();
+    apis({ "api.crossref.org": () => Response.json(crossrefLive), "api.openalex.org": () => { throw new Error("OpenAlex should not be asked"); } });
+    const ticket = await (await upload(account, "ceptre-tog.pdf", "%PDF-1.4 ceptre, live", ceptre)).json<any>();
+    await woken(ticket.job);
+    expect((await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result).toMatchObject({
+      doi: "10.1109/tg.2023.3292982", title: "Modeling Game Mechanics With Ceptre", journal: "IEEE Transactions on Games", year: 2024,
+      authors: JSON.stringify(["Chris Martens", "Alexander Card", "Henry Crain", "Asha Khatri"]),
+    });
+  });
+
+  it("takes no search result for the published version unless the title and the names agree, and keeps the title block then", async () => {
+    const account = await register();
+    const asked: string[] = [];
+    const answer = (items: unknown[], openalex: unknown[] = []) => apis({
+      "api.crossref.org": () => { asked.push("crossref"); return Response.json({ message: { items } }); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: openalex }); },
+    });
+    const read = async (block: TitleBlock) => {
+      const ticket = await (await upload(account, "copy.pdf", `%PDF-1.4 ${Math.random()}`, block)).json<any>();
+      await woken(ticket.job);
+      return (await ok("GET", `/api/jobs/${ticket.job}`, { headers: account.headers })).result;
+    };
+    // The same title by other people is another paper.
+    answer([{ ...ceptreArticle, author: people("Ada Lovelace", "Alan Turing") }]);
+    expect(await read(ceptre)).toMatchObject({ doi: null, title: "Modeling Game Mechanics with Ceptre", journal: null, year: null });
+    // A longer title that contains this one is another paper too.
+    answer([{ ...ceptreArticle, title: ["Modeling Game Mechanics with Ceptre and Linear Logic Programming for Interactive Narrative"] }]);
+    expect((await read(ceptre)).doi).toBeNull();
+    // Crossref convinced of nothing, OpenAlex is asked, and its find taken
+    // with the venue the publisher registered.
+    asked.length = 0;
+    apis({
+      "api.crossref.org": (url) => { asked.push("crossref"); return url.pathname.startsWith("/works/") ? Response.json({ message: ceptreArticle }) : Response.json({ message: { items: [] } }); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [{ display_name: "Modeling Game Mechanics with Ceptre", publication_year: 2024,
+        doi: "https://doi.org/10.1109/tg.2099.0000001", authorships: [{ author: { display_name: "Chris Martens" } }, { author: { display_name: "Alexander Card" } }],
+        primary_location: { source: { display_name: "IEEE Transactions on Games", type: "journal" } } }] }); },
+    });
+    expect(await read(ceptre)).toMatchObject({ doi: "10.1109/TG.2099.0000001", journal: "IEEE Transactions on Games", year: 2024 });
+    expect(asked).toEqual(["crossref", "openalex", "crossref"]);
+    // No names read, nothing to tell one paper of that title from another: not asked.
+    asked.length = 0;
+    expect(await read(titleBlock({ title: "Modeling Game Mechanics with Ceptre" }))).toMatchObject({ doi: null });
+    expect(asked).toEqual([]);
+    // Neither index answering is no answer, and no failure: the title block as read.
+    apis({ "api.crossref.org": () => new Response("down", { status: 503 }), "api.openalex.org": () => new Response("down", { status: 500 }) });
+    expect(await read(titleBlock({ ...ceptre, journal: "A Venue", year: 2023 }))).toMatchObject({ doi: null, title: "Modeling Game Mechanics with Ceptre", journal: "A Venue", year: 2023 });
   });
 
   it("asks the registry that holds a DOI, and OpenAlex only when CrossRef itself cannot answer", async () => {
@@ -260,6 +369,16 @@ describe("what a PDF says about itself", () => {
     const printed = titleBlock({ title: "What the PDF Says", authors: ["Ada Author"], journal: "PDF Conf", year: 2024 });
     const fallback = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: printed } });
     expect(fallback).toEqual({ doi: null, title: "What the PDF Says", authors: JSON.stringify(["Ada Author"]), journal: "PDF Conf", year: 2024 });
+
+    // A paper with no DOI whose file prints none: its published version, by its title and names.
+    await exec("UPDATE papers SET doi = NULL WHERE sha256 = ?", digest);
+    apis({ "api.crossref.org": () => Response.json({ message: { items: [{ DOI: "10.1109/TG.2099.0000001", type: "journal-article", title: ["Modeling Game Mechanics With Ceptre"],
+      "container-title": ["IEEE Transactions on Games"], issued: { "date-parts": [[2024]] }, author: [{ given: "Chris", family: "Martens" }, { given: "Asha", family: "Khatri" }] }] } }) });
+    const published = await ok("POST", `/api/papers/${digest.slice(0, 32)}/extract-metadata`, { headers: account.headers,
+      json: { title_block: titleBlock({ title: "Modeling Game Mechanics with Ceptre", authors: ["Chris Martens", "Asha Khatri"] }) } });
+    expect(published).toEqual({ doi: "10.1109/TG.2099.0000001", title: "Modeling Game Mechanics With Ceptre", authors: JSON.stringify(["Chris Martens", "Asha Khatri"]),
+      journal: "IEEE Transactions on Games", year: 2024,
+      as_printed: { doi: null, title: "Modeling Game Mechanics with Ceptre", authors: JSON.stringify(["Chris Martens", "Asha Khatri"]), journal: null, year: null } });
   });
 });
 

@@ -509,6 +509,14 @@ function answer(method, path, search, sent = {}) {
     }
     return { spans, papers: Object.fromEntries(papers.map((p) => [p.sha256, { title: p.title, in_nook: true }])), first_at: spans[0]?.started_at ?? null };
   }
+  // An author's own copy dropped (uploadReads.as = 'published'): it prints
+  // no identifier, and the reading finds its published version by its
+  // title and authors.
+  if (uploadReads.as === 'published') {
+    if (path === '/papers/lookup') return null;
+    if (path === '/papers/uploaded') return { job: 'published-reading', file_path: `${'f'.repeat(64)}.pdf`, sha256: 'f'.repeat(64) };
+    if (path === '/jobs/published-reading') return { status: 'done', result: PUBLISHED_READING };
+  }
   // A PDF dropped on the window: stored at once, and known to the indexes.
   if (path === '/files/upload-address') return { stored: true, file_path: `${'f'.repeat(64)}.pdf` };
   if (path === '/papers/lookup') return { doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017 };
@@ -519,6 +527,17 @@ function answer(method, path, search, sent = {}) {
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };
   return method === 'GET' ? {} : { ok: true };
 }
+
+// How a dropped PDF is read: 'known' (its arXiv id, known to the
+// indexes) or 'published' (an author's copy, matched to its published
+// version). A picture sets it before it loads its page.
+export const uploadReads = { as: 'known' };
+const CEPTRE_AUTHORS = '["Chris Martens","Alexander Card","Henry Crain","Asha Khatri"]';
+const PUBLISHED_READING = {
+  doi: '10.1109/tg.2023.3292982', title: 'Modeling Game Mechanics With Ceptre', authors: CEPTRE_AUTHORS, journal: 'IEEE Transactions on Games', year: 2024,
+  file_path: `${'f'.repeat(64)}.pdf`,
+  as_printed: { doi: null, title: 'Modeling Game Mechanics with Ceptre', authors: CEPTRE_AUTHORS, journal: null, year: null },
+};
 
 // Paths the pretend server leaves unanswered, so a picture can show a
 // page while it waits for them. A path ending in * holds every path under it.

@@ -1004,6 +1004,11 @@ button.full-width {
 .metadata-reading.known-version { flex-wrap: wrap; }
 .metadata-reading.known-version input[type='radio'] { margin: 0; accent-color: var(--accent); }
 
+/* The published paper an author's copy was matched to, and the button
+   that fills the form with its details (or takes them back). */
+.metadata-reading.published-version { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 8px; }
+.metadata-reading.published-version .published-fill { padding: 4px 12px; font-size: var(--fs-sm); }
+
 .upload-review-form .form-group {
   margin-bottom: 12px;
 }
