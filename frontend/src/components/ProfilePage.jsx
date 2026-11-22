@@ -13,7 +13,6 @@ import Avatar from './Avatar';
 import PreferencesPanel from './PreferencesPanel';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
-import FriendsPanel from './FriendsPanel';
 import ActivityPanel from './ActivityPanel.jsx';
 import {
   getLocalSyncPreference,
@@ -567,14 +566,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
       </div>
 
       {withActivity && <ActivityPanel />}
-
-      {/* On the web this is a tab of the member's page (YouPage). */}
-      {!inTab && (
-        <div className="panel">
-          <h2 className="panel-title">Friends</h2>
-          <FriendsPanel user={user} />
-        </div>
-      )}
 
       {/* On the web the preferences are a tab of their own (YouPage). */}
       {!inTab && <PreferencesPanel user={user} onUserUpdated={onUserUpdated} />}

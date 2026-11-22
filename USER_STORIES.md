@@ -197,16 +197,16 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Becoming friends**
 
 - **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out. **Find** in the Lounge looks people up by name or address; a dropdown on my **Preferences** tab, *People looking for friends*, set to *Can find me* to begin with, takes me out of what Find shows when set to *Cannot find me*. Preferences is one tab of my own page that holds every choice I make about how Papol behaves for me: whether my email shows on my nook and whether I can be found. What belongs to the reader, such as what its navigation bar marks, is set in the reader. Each is a dropdown, kept as it is chosen. Off, I can still be asked from my nook.
-- **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
+- **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on my nook, where they answer with the same two buttons.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
 - **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Find** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
 
 **Having friends**
 
-- **US-9.7** As a user, my profile lists **My friends**: face, name, affiliation, since when. Nobody else sees the list or its length, on my nook or anywhere. There is no count of friends shown to anyone.
+- **US-9.7** As a user, the Lounge's rail lists **my friends**. My own page has no Friends tab. Nobody else sees the list or its length, on my nook or anywhere. There is no count of friends shown to anyone.
 - **US-9.8** A friend's nook shows a person with a tick, in gold, where the asking glyph would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
-- **US-9.9** As a user, I can **end a friendship** from their nook or my list. It asks once, takes effect at once, and tells them nothing. What each of us posted in the other's digs stays, under our names; what friendship opened closes again.
+- **US-9.9** As a user, I can **end a friendship** from their nook. It asks once, takes effect at once, and tells them nothing. What each of us posted in the other's digs stays, under our names; what friendship opened closes again.
 - **US-9.10** Closing my account ends my friendships. My friends are in my data export.
 
 **What friendship opens**
@@ -228,12 +228,12 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.5** From a row I can open the paper's jacket, and **Add to my nook** is there on the jacket, not on the row; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
 - **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it. A row carries no buttons: a project I am in opens from its row, and one I am not in leads to the Projects page, where **Ask to join** sends its keepers a request in their Inbox, once.
-- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the Friends tab, not here.
+- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the asker's nook, not here.
 - **US-10.9** **The room ends, and narrows as the nook does.** It holds the last four weeks, oldest at the foot. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and points at Find in its rail.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty; Find stands in its rail.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**

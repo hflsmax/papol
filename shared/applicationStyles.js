@@ -5722,19 +5722,6 @@ ${talkStyles}
 
 /* A person in a line: face, name, affiliation, and what there is to say
    or do about them at the row's end. */
-.friends-list { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
-.friends-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
-.friends-row:last-child { border-bottom: 0; }
-.friends-who { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex: 1 1 14rem; min-width: 0; color: var(--ink); text-decoration: none; }
-.friends-who:hover .friends-name { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.friends-face { flex: none; width: 32px; height: 32px; font-size: var(--fs-sm); }
-.friends-name { font: 600 var(--fs-md)/1.3 var(--font-serif); overflow-wrap: anywhere; }
-.friends-aff { min-width: 0; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
-.friends-since { color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
-.friends-panel { display: grid; gap: var(--space-6); max-width: 46rem; }
-.friends-block > .kicker { margin: 0 0 var(--space-1); }
-.friends-empty, .friends-note { margin: var(--space-2) 0 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
-.friends-block .checkbox-row { margin-top: var(--space-2); font: 400 var(--fs-base) var(--font-ui); }
 .way-aside a.way-room { gap: 6px; }
 
 /* A message in the Inbox that has an answer or a place: said under it. */
@@ -5850,8 +5837,6 @@ ${talkStyles}
   .room-head, .room-when { display: none; }
   .room-faces { width: auto; justify-content: flex-start; }
   .room-pop, .room-who.is-held .room-pop { left: 0; right: 0; width: auto; max-width: none; }
-  .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
-  .friends-aff { white-space: normal; }
     .their-head { flex-wrap: wrap; }
 }
 
