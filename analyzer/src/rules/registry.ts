@@ -890,9 +890,9 @@ export const HEADER_JOURNAL_NUMBER = rule({
 export const HEADER_PROCEEDINGS = rule({
   id: "header.proceedings", stage: "header",
   summary: "The conference an ACM reference paragraph on the first page names — \"In Proceedings of the … (CHI '23)\" — by its short name in parentheses is the paper's venue.",
-  why: "ACM conference papers print how to cite them on their first page; a reader knows the conference by the short name, the one Crossref keeps with the event.",
-  pattern: /\bIn Proceedings of the .{10,180}?\s*\((?<acronym>(?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d)\)/,
-  matches: ["2023. All-in-One Print. In Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems (CHI '23), April 23–28, 2023"],
+  why: "ACM conference papers print how to cite them on their first page; a reader knows the conference by the short name, the one Crossref keeps with the event. A series named without its article (\"In Proceedings of Partial Evaluation and Program Manipulation (PEPM '26)\") is the same line.",
+  pattern: /\bIn Proceedings of (?:the )?.{10,180}?\s*\((?<acronym>(?:[A-Z]{2,}|[A-Z][a-z]+)\s*['’]\s*\d\d)\)/,
+  matches: ["2023. All-in-One Print. In Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems (CHI '23), April 23–28, 2023", "2025. Epistemic Logic for Polyglots. In Proceedings of Partial Evaluation and Program Manipulation (PEPM ’26). ACM, New York, NY, USA"],
   rejects: ["Proceedings of the ACM on Programming Languages"],
 });
 export const HEADER_JOURNAL_ABBREVIATION = rule({
