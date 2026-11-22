@@ -30,6 +30,11 @@ export function endFriend(userUuid) {
   return request(`/friends/${userUuid}`, { method: 'DELETE' });
 }
 
+// People to ask to be friends, by name or address.
+export function findPeople(query) {
+  return request(`/friends/people?q=${encodeURIComponent(query)}`);
+}
+
 export function shareReading(sharesReading) {
   return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
 }

@@ -316,6 +316,10 @@ function answer(method, path, search, sent = {}) {
     if (path === '/friends/settings') friendsNow.shares_reading = Boolean(sent.shares_reading);
     return friendsNow;
   }
+  if (path === '/friends/people') {
+    const q = (search.get('q') ?? '').toLowerCase();
+    return [mia, ...outsiders].filter((u) => u.display_name.toLowerCase().includes(q));
+  }
   const friendAct = path.match(/^\/friends\/([0-9a-f-]{36})(\/accept|\/decline)?$/);
   if (friendAct) {
     const who = [ana, ben, mia, ...outsiders].find((u) => u.uuid === friendAct[1]);

@@ -5745,6 +5745,23 @@ ${talkStyles}
 .room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
+/* My friends, as chips above the news: a face and a name to a chip, and
+   the chip that adds another. */
+.room-friends { display: grid; gap: var(--space-2); }
+.room-friend-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.room-friend { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 4px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--card); box-shadow: none; color: var(--ink); font: 400 var(--fs-xs) var(--font-ui); text-decoration: none; }
+.room-friend:hover { border-color: var(--line-strong); color: var(--accent); }
+.room-friend .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
+.room-friend-add { padding: 5px 11px 5px 9px; border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--ink-soft); cursor: pointer; }
+.room-friend-add:hover:not(:disabled), .room-friend-add.is-on { border-style: solid; border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.room-finder { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-finder-box { width: 100%; max-width: 24rem; }
+.room-finder-none { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
+.room-found { display: grid; margin: 0; padding: 0; list-style: none; }
+.room-found li { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.room-found li:first-child { border-top: 0; }
+.room-found-where { min-width: 0; overflow: hidden; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.room-found .friend-button { margin-left: auto; }
 /* The Lounge's dropdowns are the nook's tag chips with a caret: a pill
    at rest, the accent's tint once it narrows. */
 .room-picks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-bottom: calc(-1 * var(--space-2)); }

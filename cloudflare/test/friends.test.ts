@@ -47,6 +47,22 @@ describe("becoming friends", () => {
     expect((await call("GET", "/api/friends")).status).toBe(401);
   });
 
+  it("finds people to ask by name or address, never oneself", async () => {
+    const ada = await register("ada@example.test", "Ada Lovelace"), grace = await register("grace@example.test", "Grace Hopper");
+    const find = (q: string) => ok("GET", `/api/friends/people?q=${encodeURIComponent(q)}`, { headers: ada.headers });
+    expect(await find("hop")).toMatchObject([{ uuid: grace.uuid, display_name: "Grace Hopper" }]);
+    expect(await find("grace@example.test")).toMatchObject([{ uuid: grace.uuid }]);
+    // An address shown is matched in part; one nobody chose to show, only whole.
+    expect(await find("grace@")).toMatchObject([{ uuid: grace.uuid }]);
+    await exec("UPDATE users SET email_public = 0 WHERE uuid = ?", grace.uuid);
+    expect(await find("grace@")).toEqual([]);
+    expect(await find("grace@example.test")).toMatchObject([{ uuid: grace.uuid }]);
+    expect(await find("ada")).toEqual([]);
+    expect(await find("g")).toEqual([]);
+    expect(await find("100%")).toEqual([]);
+    expect((await call("GET", "/api/friends/people?q=grace")).status).toBe(401);
+  });
+
   it("happens at once when each has asked the other", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });

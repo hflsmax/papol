@@ -135,6 +135,23 @@ export function friendRoutes(router: Router) {
     return json(await friendsOut(env, await currentUser(request, env)));
   });
 
+  // People to ask: anyone in Papol whose name has the words asked for in
+  // it, or whose address is the one asked for, as a project's keeper finds
+  // someone to add. An address nobody chose to show is matched whole.
+  router.on("GET", "/api/friends/people", async ({ request, env, url }) => {
+    const me = await currentUser(request, env);
+    const asked = (url.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    if (asked.length < 2) return json([]);
+    const like = `%${asked.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const people = await all<Row>(env.DB,
+      `SELECT ${PERSON} FROM users u
+       WHERE u.deleted_at IS NULL AND u.uuid != ?
+         AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.email) = ? OR (u.email_public = 1 AND lower(u.email) LIKE ? ESCAPE '\\'))
+       ORDER BY lower(u.email) = ? DESC, lower(u.display_name), u.uuid LIMIT 8`,
+      me.uuid, like, asked, like, asked);
+    return json(people.map(userPublic));
+  });
+
   // Whether friends see what this user is reading this week.
   router.on("PUT", "/api/friends/settings", async ({ request, env }) => {
     const me = await currentUser(request, env);

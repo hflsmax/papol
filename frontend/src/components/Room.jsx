@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { getRoom, markRoomSeen } from '../../../shared/api/friends.js';
+import { findPeople, getRoom, markRoomSeen } from '../../../shared/api/friends.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -11,6 +11,7 @@ import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
 import { useFriends } from '../friendsStore';
 import { RatingSummary } from './Rating';
+import FriendButton from './FriendButton';
 
 const first = (user) => user?.display_name?.split(' ')[0] ?? 'Someone';
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
@@ -182,6 +183,73 @@ function ProjectRow({ row }) {
   );
 }
 
+// Someone to ask, found by name: who they are, and the friend button.
+function Finder({ currentUser }) {
+  const [query, setQuery] = useState('');
+  const [people, setPeople] = useState(null);
+  const [error, setError] = useState(null);
+  const asked = query.trim();
+
+  useEffect(() => {
+    setError(null);
+    if (asked.length < 2) { setPeople(null); return undefined; }
+    let active = true;
+    // A pause in the typing asks; each letter does not.
+    const wait = setTimeout(() => {
+      findPeople(asked)
+        .then((found) => { if (active) setPeople(found); })
+        .catch((err) => { if (active) setError(err.message); });
+    }, 200);
+    return () => { active = false; clearTimeout(wait); };
+  }, [asked]);
+
+  return (
+    <div className="room-finder">
+      <input
+        type="search" className="desk-search room-finder-box" value={query} autoFocus
+        placeholder="Find someone by name or email" aria-label="Find someone by name or email"
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {error && <div className="error" role="alert">{error}</div>}
+      {people && people.length === 0 && <p className="room-finder-none">Nobody in Papol by that name.</p>}
+      {people && people.length > 0 && (
+        <ul className="room-found">
+          {people.map((user) => (
+            <li key={user.uuid}>
+              <Face user={user} />
+              <a className="room-person" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
+              {user.affiliation && <span className="room-found-where">{user.affiliation}</span>}
+              <FriendButton user={user} currentUser={currentUser} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// My friends as chips, each leading to its nook, and the one place to add
+// another: the chip at the end opens the finder.
+function Friends({ friends, currentUser }) {
+  const [finding, setFinding] = useState(false);
+  return (
+    <div className="room-friends">
+      <div className="room-friend-chips" role="group" aria-label="My friends">
+        {friends.map(({ user }) => (
+          <a key={user.uuid} className="room-friend" href={appPath(`/u/${user.uuid}`)}>
+            <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+            {user.display_name}
+          </a>
+        ))}
+        <button type="button" className={finding ? 'room-friend room-friend-add is-on' : 'room-friend room-friend-add'} aria-expanded={finding} onClick={() => setFinding(!finding)}>
+          <span aria-hidden="true">+</span>Add friend
+        </button>
+      </div>
+      {finding && <Finder currentUser={currentUser} />}
+    </div>
+  );
+}
+
 const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
 // What a row holds, as lines: who did what, and when.
@@ -255,12 +323,14 @@ export default function Room({ currentUser, onSeen }) {
         {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
         {room && (
           <>
-            {room.friend_count === 0 ? (
+            {room.friend_count === 0 && (
               <p className="room-note">
                 The Lounge is your friends’ news: what they add, think and dig, and their digs to read and post in.
-                Add a friend from their nook.
+                Add a friend to begin.
               </p>
-            ) : room.rows.length === 0 ? (
+            )}
+            {friends && <Friends friends={friends.friends} currentUser={currentUser} />}
+            {room.friend_count === 0 ? null : room.rows.length === 0 ? (
               <p className="room-empty">Your friends have been quiet these four weeks.</p>
             ) : (
               <>
