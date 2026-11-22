@@ -178,7 +178,7 @@ describe("shelves", () => {
 });
 
 describe("tags", () => {
-  it("are made once whatever the case, listed by name, and taken off every copy when deleted", async () => {
+  it("are made once whatever the case, listed newest first, and taken off every copy when deleted", async () => {
     const account = await register();
     const first = await ok("POST", "/api/tags", { headers: account.headers, json: { name: "  Distributed   Systems " } });
     expect(first.name).toBe("Distributed Systems");
@@ -195,5 +195,30 @@ describe("tags", () => {
     expect(await count("copy_tags", "deleted_at IS NULL")).toBe(0);
     expect((await ok("GET", "/api/tags", { headers: account.headers })).map((t: any) => t.name)).toEqual(["algebra", "favourite"]);
     expect((await call("DELETE", `/api/tags/${first.uuid}`, { headers: (await register()).headers })).status).toBe(404);
+  });
+
+  it("are listed by when they last went onto a paper, most recent first", async () => {
+    const account = await register();
+    const names = ["algebra", "biology", "chemistry", "drama", "economics"];
+    const tags: Record<string, string> = {};
+    for (const name of names) tags[name] = (await ok("POST", "/api/tags", { headers: account.headers, json: { name } })).uuid;
+    // Made long ago, so that only their use orders them.
+    await exec("UPDATE tags SET created_at = '2020-01-01T00:00:00.000Z' WHERE user_uuid = ?", account.uuid);
+    const copy = await paperWithCopy(account, "8".repeat(64), "Tagged", { shelfUuid: await defaultShelf(account) });
+    const link = (tag: string, created: string, updated: string, deleted: string | null) => exec(
+      "INSERT INTO copy_tags (uuid, copy_uuid, tag_uuid, user_uuid, created_at, updated_at, revision, deleted_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+      uuid(), copy, tags[tag], account.uuid, created, updated, deleted);
+    await link("biology", "2024-01-01T00:00:00.000Z", "2024-01-01T00:00:00.000Z", null);
+    // Put on in 2023 and taken off since: its use was 2023, not the taking off.
+    await link("drama", "2023-01-01T00:00:00.000Z", "2025-06-01T00:00:00.000Z", "2025-06-01T00:00:00.000Z");
+    // Put on in 2022, taken off, and put back on in 2025.
+    await link("economics", "2022-01-01T00:00:00.000Z", "2025-01-01T00:00:00.000Z", null);
+    expect((await ok("GET", "/api/tags", { headers: account.headers })).map((t: any) => t.name))
+      .toEqual(["economics", "biology", "drama", "algebra", "chemistry", "favourite"]);
+
+    // Putting one on a paper now brings it to the top.
+    await ok("PUT", `/api/papers/${"8".repeat(32)}`, { headers: account.headers, json: { tag_uuids: [tags.biology, tags.economics, tags.chemistry] } });
+    expect((await ok("GET", "/api/tags", { headers: account.headers })).map((t: any) => t.name).slice(0, 3))
+      .toEqual(["chemistry", "economics", "biology"]);
   });
 });
