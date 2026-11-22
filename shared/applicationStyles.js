@@ -5740,49 +5740,44 @@ ${talkStyles}
 /* What my friends are reading and what they make of it: a paper to a row,
    and under its title a line for each friend. One column, as wide as a
    line of reading; the only gold is what is new. */
-.app:has(.room) { max-width: 860px; }
-.room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+/* The Lounge is laid out as the nook is (.nook-desk): a rail that says
+   whose news and what kind, and the rows in the nook's card beside it. */
+.app:has(.room) { max-width: 1180px; }
 .room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
 .room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
 .room-empty { padding: var(--space-6) 0; text-align: center; }
-/* My friends, as chips above the news: a face and a name to a chip, and
-   the chip that adds another. */
-.room-friends { display: grid; gap: var(--space-2); }
-.room-friend-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-.room-friend { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 4px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--card); box-shadow: none; color: var(--ink); font: 400 var(--fs-xs) var(--font-ui); text-decoration: none; }
-.room-friend:hover { border-color: var(--line-strong); color: var(--accent); }
-.room-friend .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
-.room-friend-add { padding: 5px 11px 5px 9px; border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--ink-soft); cursor: pointer; }
-.room-friend-add:hover:not(:disabled), .room-friend-add.is-on { border-style: solid; border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
-.room-finder { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-.room-finder-box { width: 100%; max-width: 24rem; }
-.room-finder-none { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
-.room-found { display: grid; margin: 0; padding: 0; list-style: none; }
-.room-found li { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
-.room-found li:first-child { border-top: 0; }
-.room-found-where { min-width: 0; overflow: hidden; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.room-found .friend-button { margin-left: auto; }
-/* The Lounge's dropdowns are the nook's tag chips with a caret: a pill
-   at rest, the accent's tint once it narrows. */
-.room-picks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-bottom: calc(-1 * var(--space-2)); }
-.room-pick { display: inline-flex; }
-.room-pick select { appearance: none; max-width: 12rem; padding: 4px 26px 4px 11px; border: 1px solid var(--line); border-radius: var(--radius-pill); background-color: var(--card); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%234d5561' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-position: right 7px center; background-repeat: no-repeat; box-shadow: none; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); cursor: pointer; text-overflow: ellipsis; }
-.room-pick select:hover { border-color: var(--line-strong); color: var(--ink); }
-.room-pick.is-on select { border-color: var(--accent-line); background-color: var(--accent-soft); color: var(--accent); }
-.room-picks-clear { color: var(--ink-faint); }
+.room button.desk-row { cursor: pointer; }
+.room-friend .mini-avatar { flex: none; width: 20px; height: 20px; margin-left: -6px; font-size: var(--fs-2xs); }
+.room-finder { padding: 0 0 var(--space-2); }
+.room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
+.room-found { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0 var(--space-2); list-style: none; }
+.room-found li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px var(--space-2); }
+.room-found .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
+.room-found-who { display: grid; min-width: 0; }
+.room-found-name { overflow: hidden; color: var(--ink); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.room-found-name:hover { color: var(--accent); }
+.room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.room-found .friend-button { grid-column: 2; }
+.room-found .friend-button button { padding: 2px var(--space-2); font-size: var(--fs-xs); box-shadow: none; }
+.room-filter { min-height: 32px; }
+.room-nook-link { margin-left: auto; text-decoration: none; }
+/* The card and its head are the nook's table and its column names. */
+.room-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-head { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 4.5rem; align-items: center; gap: var(--space-3); height: 32px; padding: 0 var(--space-3); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.room-head span:nth-child(n+2) { text-align: right; }
 /* The Lounge's rows are the nook's rows: the same card, the same title and
    authors line (.desk-title, .desk-meta), the same rule and resting tint.
    What is the Lounge's own sits at the right: faces, and what to press. */
-.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-.room-row { display: grid; align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
+.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.room-row { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
 .room-row:hover { background: color-mix(in srgb, var(--card) 94%, var(--ink)); }
-.room-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
 .room-row:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 .room-row:last-child { border-bottom: 0; }
 .room-row-head { position: relative; display: flex; align-items: center; gap: var(--space-3); }
 /* Who did something with the row: faces only, and what each did comes
    out under the row when a face is rested on, pressed or tabbed to. */
-.room-faces { display: flex; flex: none; align-items: center; gap: 4px; }
+.room-faces { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 4px; width: 6rem; }
+.room-when { flex: none; width: 4.5rem; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .room-who { position: relative; display: inline-flex; }
 .room-who-face { display: inline-flex; border-radius: 50%; cursor: default; }
 .room-who-face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -5838,6 +5833,8 @@ ${talkStyles}
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
   .room-row-text { flex-basis: 100%; }
   .room-who { position: static; }
+  .room-head, .room-when { display: none; }
+  .room-faces { width: auto; justify-content: flex-start; }
   .room-pop, .room-who.is-held .room-pop { left: 0; right: 0; width: auto; max-width: none; }
   .friends-who { flex: 1 1 100%; flex-wrap: wrap; }
   .friends-aff { white-space: normal; }

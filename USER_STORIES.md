@@ -200,7 +200,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
-- **US-9.6** **The Lounge is where friends are added.** My friends stand there as chips, each leading to its nook, and the chip at the end, **Add friend**, opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button beside each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
+- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Add** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
 
 **Having friends**
 
@@ -228,12 +228,12 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.5** From a row I can open the paper's jacket, and **Add to my nook** is there on the jacket, not on the row; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
 - **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it. A row carries no buttons: a project I am in opens from its row, and one I am not in leads to the Projects page, where **Ask to join** sends its keepers a request in their Inbox, once.
-- **US-10.8** Above the news the Lounge shows my friends as chips and the chip that adds one (US-9.6). Friend requests are answered in the Inbox and on the Friends tab, not here.
-- **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot. Dropdowns above it narrow the rows by kind, friend, activity and time. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
+- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, a line of chips, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the Friends tab, not here.
+- **US-10.9** **The room ends, and narrows as the nook does.** It holds the last four weeks, oldest at the foot. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count; the chips keep thoughts, ratings, digs or reading. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty but for the Add friend chip.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and points at Add in its rail.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**
@@ -244,7 +244,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **Elsewhere**
 
 - **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing in the Lounge sends email.
-- **US-10.17** On a phone the room is one column: my friends, the dropdowns, then the rows. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
+- **US-10.17** On a phone the room is one column: my friends, the chips and the rows, then Show. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
 
 **Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
 
