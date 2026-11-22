@@ -5747,8 +5747,8 @@ ${talkStyles}
 .preferences-panel { display: grid; gap: var(--space-4); }
 .preferences-block { display: grid; gap: var(--space-2); margin: 0; }
 .preferences-block .panel-title, .preferences-block .panel-note { margin: 0; }
-.preferences-block .checkbox-row { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
-.preferences-note { display: block; color: var(--ink-soft); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
+.preferences-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.preferences-chip { border-radius: 999px; box-shadow: none; font: 400 var(--fs-sm) var(--font-ui); }
 
 /* ---------- The Lounge ---------- */
 /* What my friends are reading and what they make of it: a paper to a row,

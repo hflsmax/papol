@@ -14,11 +14,11 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
     setError(null);
     try { onUserUpdated(await updateProfile(change)); } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
-  const tick = (label, checked, change, note) => (
-    <label className="checkbox-row">
-      <input type="checkbox" checked={checked} disabled={busy} onChange={(e) => keep(change(e.target.checked))} />
-      <span>{label}{note && <span className="preferences-note">{note}</span>}</span>
-    </label>
+  // A chip that is on or off, as a tag chip is when it narrows a list.
+  const chip = (label, on, change) => (
+    <button type="button" className={`tag-chip preferences-chip${on ? ' selected' : ''}`} aria-pressed={on} disabled={busy} onClick={() => keep(change(!on))}>
+      {label}
+    </button>
   );
 
   return (
@@ -26,9 +26,10 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       {error && <div className="error" role="alert">{error}</div>}
       <section className="panel preferences-block" aria-labelledby="preferences-privacy">
         <h2 className="panel-title" id="preferences-privacy">Privacy</h2>
-        {tick('Show my email on my nook', Boolean(user.email_public), (on) => ({ email_public: on }))}
-        {tick('Let people find me when they look for friends', user.findable ?? true, (on) => ({ findable: on }),
-          'Off, Find in the Lounge does not show you. You can still be asked from your nook.')}
+        <div className="preferences-chips">
+          {chip('Show my email on my nook', Boolean(user.email_public), (on) => ({ email_public: on }))}
+          {chip('Let people find me when they look for friends', user.findable ?? true, (on) => ({ findable: on }))}
+        </div>
       </section>
     </div>
   );
