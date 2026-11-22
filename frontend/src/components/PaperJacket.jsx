@@ -29,6 +29,8 @@ import { confirmAction } from '../../../shared/confirmAction';
 import { VISIBILITY_TIP, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { TalkCard } from '../../../shared/ui/Talk.jsx';
+import { friendDigsOn } from '../../../shared/api/friends.js';
+import { relationTo, useFriends } from '../friendsStore';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -45,6 +47,20 @@ export default function PaperJacket({
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [editData, setEditData] = useState({});
   const [error, setError] = useState(null);
+  // What my friends dug on this paper and on their marks in it, each while
+  // they keep it on a public shelf. Friends stand first among its readers.
+  const [friendDigs, setFriendDigs] = useState([]);
+  const friends = useFriends(Boolean(currentUser));
+  const isFriend = (uuid) => relationTo(friends, uuid) === 'friend';
+  useEffect(() => {
+    setFriendDigs([]);
+    if (!currentUser) return undefined;
+    let active = true;
+    friendDigsOn(paperName(paperSha256))
+      .then((found) => { if (active) setFriendDigs(found.digs ?? []); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [paperSha256, currentUser?.uuid, friends?.friends.length]);
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [metadataExtractStatus, setMetadataExtractStatus] = useState('Reading PDF…');
@@ -993,7 +1009,7 @@ export default function PaperJacket({
                 {paper.also_read_by.length === 1 ? 'nook' : 'nooks'}:
               </span>
               <div className="title-chips">
-                {paper.also_read_by.map((entry) => (
+                {[...paper.also_read_by].sort((a, b) => Number(isFriend(b.user.uuid)) - Number(isFriend(a.user.uuid))).map((entry) => (
                   <a
                     key={entry.user.uuid}
                     className={
@@ -1004,7 +1020,7 @@ export default function PaperJacket({
                     href={appPath(`/u/${entry.user.uuid}`)}
                   >
                     <Avatar user={entry.user} className="mini-avatar" />
-                    <ReaderPop entry={entry} isYou={Boolean(currentUser) && entry.user.uuid === currentUser.uuid} />
+                    <ReaderPop entry={entry} isYou={Boolean(currentUser) && entry.user.uuid === currentUser.uuid} isFriend={isFriend(entry.user.uuid)} />
                   </a>
                 ))}
               </div>
@@ -1224,7 +1240,11 @@ export default function PaperJacket({
           <section className="paper-dig" aria-labelledby="paper-dig-title">
             <h4 id="paper-dig-title">
               Your dig
-              <span className="badge visibility-badge private">private</span>
+              {/* A dig goes where its paper goes: on a public shelf my
+                  friends can read it and post in it, and nobody else. */}
+              {paper.is_public
+                ? <span className="badge visibility-badge friends" title="Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.">friends</span>
+                : <span className="badge visibility-badge private" title="On a private shelf, a dig is yours alone.">private</span>}
             </h4>
             <TalkCard
               key={paper.sha256} inline single tucked dig="mine" projectUuid={null}
@@ -1233,6 +1253,27 @@ export default function PaperJacket({
           </section>
 
         </div>
+      )}
+      {friendDigs.length > 0 && (
+        <section className="paper-dig paper-friend-digs" aria-labelledby="paper-friend-digs-title">
+          <h4 id="paper-friend-digs-title">Friends’ digs</h4>
+          <ul className="friend-digs">
+            {friendDigs.map((dig) => (
+              <li key={dig.uuid} className="friend-dig">
+                <p className="friend-dig-who">
+                  <a href={appPath(`/u/${dig.owner.uuid}`)}><Avatar user={dig.owner} className="mini-avatar" /><b>{dig.owner.display_name}</b></a>
+                  <span className="friend-dig-place">
+                    {dig.subject.kind === 'annotation' ? `on ${dig.subject.label.charAt(0).toLowerCase()}${dig.subject.label.slice(1)}` : 'on the paper'}
+                  </span>
+                </p>
+                <TalkCard
+                  inline single conversation tucked only projectUuid={null} dig={dig.uuid}
+                  subject={`dig:${dig.uuid}`} label={paper.title} currentUser={currentUser}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       </div>
     </div>

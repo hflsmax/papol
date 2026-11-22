@@ -352,6 +352,9 @@ export const desktopStyles = `
   padding: 28px 32px 48px;
 }
 
+/* The Lounge carries its own rail, so it is given the room for it. */
+.desktop-content:has(.room) { max-width: 1080px; }
+
 /* Three-pane browser: the list pane beside the paper. The list header is a
    toolbar too, so these follow the toolbar rules they override. */
 .desktop-browser {

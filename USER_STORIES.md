@@ -77,7 +77,7 @@ papers in, and I decide where they go.
 
 ## 3. Browsing
 
-- **US-3.1** As a user, I can see every user in the Library with avatar, affiliation, and how many copies each keeps on public shelves. The people and the papers are two views of one Library, not two places.
+- **US-3.1** As a user, I can find every user in the Library with avatar, affiliation, and how many copies each keeps on public shelves. The people and the papers are two views of one Library, not two places.
 - **US-3.2** As a user, I can visit another user's nook and browse the copies on their public shelves, with whatever of each copy its user has made public (US-2.5a). Notes stay private to the user who wrote them.
 - **US-3.3** As a user, I can open the **Library**, which lists **every paper** — not only the ones somebody keeps on a public shelf, because no user's shelf decides what is findable. Each paper appears once, with a row per user whose copy is on a public shelf (avatar, name, ratings) linking to theirs; a paper with no such copy shows no such row. Search matches papers and user names.
 - **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user whose copy of the same paper is on a **public shelf**. Users who keep theirs on a private shelf are not named. Hovering a chip shows what they have made public of their copy — thought, ratings, summary, tags; clicking visits their nook.
@@ -85,6 +85,7 @@ papers in, and I decide where they go.
 ## 4. Inbox
 
 - **US-4.1** As a user, I have an **Inbox** in the navigation with an unread badge; opening it shows what Papol has told me (the welcome, and for an admin, feedback) and marks it read.
+- **US-4.2** The Inbox also carries what people ask of me, each with its answer or its place beside it: a friend request (**Accept**, **Not now**), a request accepted, a post in one of my digs outside a project, and someone asking to join a project I keep. A friend request is also emailed once; the rest are never emailed.
 
 ## 5b. Boards
 
@@ -121,7 +122,7 @@ papers in, and I decide where they go.
 
 - **US-5c.1** As a user, the time I spend reading a paper in the viewer is recorded by one rule (time on boards is not recorded): it runs from one use of it to the next, and a pause of up to ten minutes between uses counts — sitting over a page, or looking something up in another tab — unless I spent it on another paper in Papol. A paper left open and never come back to adds nothing past my last use. Time spent offline, on the Mac or in the browser, arrives when Papol can be reached.
 - **US-5c.2** On my profile page, **My activity**, under my account, shows that time by **Day** (when I was reading which paper, hour by hour, each paper in a colour of its own), **Week** (seven such days, each with its total) and **Month** (a calendar shaded by how much time each day held), with the period's total and each paper the time went to. A day in the week or month opens that day. A week or month can instead be shown **by paper**: a row to each paper, a column to each day on one shared scale, and each row's total.
-- **US-5c.3** On my own nook, each paper says, in small type on its author line, how long I have spent reading it, tinted by one of five effort levels — lightest under half an hour, darkest past ten hours — so I can see down the page which papers took the most. Pressing it opens that paper's time: the total and since when, its last twelve weeks as a small calendar, and my latest days with it. Nobody else sees my activity or my effort, on my nook or anywhere.
+- **US-5c.3** On my own nook, each paper says, in small type on its author line, how long I have spent reading it, tinted by one of five effort levels — lightest under half an hour, darkest past ten hours — so I can see down the page which papers took the most. Pressing it opens that paper's time: the total and since when, its last twelve weeks as a small calendar, and my latest days with it. Nobody else sees my activity or my effort, on my nook or anywhere. Friends see none of it either (US-9.14).
 - **US-5c.4** My activity is in my data export, and goes when I close my account.
 
 ## 5d. Presence in a project
@@ -188,6 +189,64 @@ PDF, a board — Papol offers to move it there, and only there.
 - **US-7.33** **Papol for Mac does not claim Papol's web addresses.** A `https://papol.io/viewer/…` link followed from a mail or another application arrives in the browser, where the bar makes the offer. Claiming addresses would do nothing for this section's case — a user already standing on an address cannot follow a link to where they already are — and would bring Safari's own "open in the app" control, to which Papol's bar would have to yield rather than ask twice for one paper.
 - **US-7.34** **Papol cannot tell whether the app is installed, and does not pretend to.** No browser will answer that question; the only signal is whether this tab loses attention shortly after asking, which is a guess and is sometimes wrong. So the bar never announces a verdict about my computer. When nothing appears to have happened it offers the download — plainly, as an offer — and if the app did open after all, the bar simply goes away rather than arguing with what I can see.
 - **US-7.35** **The download remembers what I was opening.** Once the app is installed, the same bar is still there on the same paper, and one click hands it over — I never have to find my way back to the paper to finish what I started. Until then the tab reads exactly as it did before I asked, and nothing about the offer is repeated at me on the next page.
+
+## 9. Friends
+
+A friend is someone I chose, who chose me back. Friendship is the third audience for what I do, between everyone signed in and the members of one project. The shelf keeps the last word: a private shelf hides a copy from friends exactly as from everyone.
+
+**Becoming friends**
+
+- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out. **Find** in the Lounge looks people up by name or address; a dropdown on my **Preferences** tab, *People looking for friends*, set to *Can find me* to begin with, takes me out of what Find shows when set to *Cannot find me*. Preferences is one tab of my own page that holds every choice I make about how Papol behaves for me: whether my email shows on my nook and whether I can be found. What belongs to the reader, such as what its navigation bar marks, is set in the reader. Each is a dropdown, kept as it is chosen. Off, I can still be asked from my nook.
+- **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
+- **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
+- **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
+- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Find** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
+
+**Having friends**
+
+- **US-9.7** As a user, my profile lists **My friends**: face, name, affiliation, since when. Nobody else sees the list or its length, on my nook or anywhere. There is no count of friends shown to anyone.
+- **US-9.8** A friend's nook shows a person with a tick, in gold, where the asking glyph would be, and the pop on their chip is tagged *friend*. Among the nooks a jacket names, my friends stand first.
+- **US-9.9** As a user, I can **end a friendship** from their nook or my list. It asks once, takes effect at once, and tells them nothing. What each of us posted in the other's digs stays, under our names; what friendship opened closes again.
+- **US-9.10** Closing my account ends my friendships. My friends are in my data export.
+
+**What friendship opens**
+
+- **US-9.11** **A friend can read my digs** on any paper I keep on a public shelf: my dig on the paper and my digs on my anchors, ink and clips, each with its place. They find them on the paper's jacket under **Friends' digs** and in the Lounge. On my own jacket the dig's badge says *friends* while the paper is on a public shelf and *private* otherwise. A dig on a private-shelf paper, and every dig on a card, stays where it is today.
+- **US-9.12** **A friend can post in my dig**, as a project member can. I get it in my Inbox. Only I reword or remove the dig; only the writer edits or takes back a post. A dig has no phase outside a project, and that does not change.
+- **US-9.13** Moving the paper to a private shelf takes my digs on it out of every friend's sight at once, posts and all, and moving it back returns them. This is the rule projects already follow.
+- **US-9.14** **What I am reading is mine alone.** A friend never sees that I read a paper, when, or for how long, and there is no setting that shows it: US-5c.3 stands. What a friend does see is that I put a paper on a public shelf (US-10.3).
+- **US-9.15** Friendship changes nothing in a project. A project's members see what they see today whether or not they are friends, and a friend who is not a member sees nothing of the project but its name and members.
+
+## 10. The Lounge
+
+**The room**
+
+- **US-10.1** As a user, the bar's one link beside my face reads **Lounge** (at `/lounge`; the old `/bazaar` still leads there) and opens the news of my friends: what they added, thought, rated and dug, newest first.
+- **US-10.2** **A paper to a row, not an event to a row.** Everything my friends lately did with one paper is one row: the title, its authors and venue, and the faces of the friends who did something with it. The row does not spell out what they did. Resting on a face (pressing it on a phone, or tabbing to it) brings out a small box under the face, headed by the friend's face and name (which lead to their nook), with their lines in it: what they did, their words if they wrote any, when. Three friends keeping the same paper is one row with three faces, which is the most useful thing the room can tell me.
+- **US-10.3** What makes news: a friend put a paper on a public shelf; wrote or changed a thought; rated; wrote a dig or posted in one I can see; put a board on a public shelf; started or joined a project. The room's rows are papers, boards and projects and nothing else: a new friendship is not a row. Nothing private makes news, and taking something private again takes its line out. A thought or rating given more than a day after the paper was added is a line of its own with its own date; the bar's dot is lit exactly when some row wears one.
+- **US-10.4** **A folder brought in does not fill the room.** A friend who adds six papers or more in a day, with no thought or rating on them, adds no rows. Each of those papers gets its row when someone thinks, rates or digs.
+- **US-10.5** From a row I can open the paper's jacket, and **Add to my nook** is there on the jacket, not on the row; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
+- **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
+- **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it. A row carries no buttons: a project I am in opens from its row, and one I am not in leads to the Projects page, where **Ask to join** sends its keepers a request in their Inbox, once.
+- **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the Friends tab, not here.
+- **US-10.9** **The room ends, and narrows as the nook does.** It holds the last four weeks, oldest at the foot. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
+
+**Friends only**
+
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and points at Find in its rail.
+- **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
+
+**What the Lounge leaves out**
+
+- **US-10.13** The Lounge has no search of papers and no standing list of every paper or person; its one search finds a person to befriend. It is news, and only news. The Library's full list stays where it is in Papol for Mac (the Desk); on the web the Library's address opens the Lounge, so there a paper or a person nobody has lately touched is reached by a link, not by looking it up (US-3.1 and US-3.3 hold in Papol for Mac).
+- **US-10.15** My own projects stay in my nook's rail, where they are started and opened today. The Lounge lists no project I am in and no directory of the ones I am not; other people's projects reach me as news (US-10.7) or on the Projects page.
+
+**Elsewhere**
+
+- **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing in the Lounge sends email.
+- **US-10.17** On a phone the room is one column: my friends, the rows, then Show. Papol for Mac carries the same room, **Lounge** in its sidebar under Desk.
+
+**Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
 
 ## Non-functional
 

@@ -29,6 +29,7 @@ export function placeOf(pathname) {
   if (route.page === 'home') return '/';
   if (route.page === 'nook') return `/u/${route.uuid}`;
   if (route.page === 'papers') return '/library';
+  if (route.page === 'room') return '/lounge';
   return null;
 }
 
@@ -60,6 +61,7 @@ export function originAfterMove(origin, fromPathname, toPathname) {
 export function jacketBackTarget({ origin = null, userUuid = null } = {}) {
   const path = origin || (userUuid ? '/' : '/library');
   if (path === '/library') return { path, label: 'Library' };
+  if (path === '/lounge') return { path, label: 'Lounge' };
   const mine = path === '/' || (userUuid && path === `/u/${userUuid}`);
   return { path, label: mine ? 'My nook' : 'Nook' };
 }

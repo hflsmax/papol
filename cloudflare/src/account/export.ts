@@ -72,9 +72,15 @@ export async function gather(db: D1Database, user: User) {
   const activity = await all<Row>(db, `SELECT a.subject, a.started_at, a.ended_at, a.seconds, p.title
     FROM activity a LEFT JOIN papers p ON p.sha256 = a.subject WHERE a.user_uuid = ? ORDER BY a.started_at, a.uuid`, user.uuid);
 
+  const friends = await all<Row>(db, `SELECT u.display_name, u.affiliation, f.answered_at FROM friendships f
+    JOIN users u ON u.uuid = CASE WHEN f.asker_uuid = ? THEN f.asked_uuid ELSE f.asker_uuid END
+    WHERE f.state = 'friends' AND (f.asker_uuid = ? OR f.asked_uuid = ?) ORDER BY f.answered_at, f.uuid`, user.uuid, user.uuid, user.uuid);
+
   const paperOf = (row: Row) => row.sha256 ? paperRef(row) : null;
   return {
-    profile: { uuid: user.uuid, email: user.email, display_name: user.display_name, affiliation: user.affiliation, email_public: Boolean(user.email_public), is_admin: Boolean(user.is_admin), joined: user.created_at },
+    // My friends.
+    friends: { friends: friends.map((f) => ({ name: f.display_name, affiliation: f.affiliation ?? null, since: f.answered_at })) },
+    profile: { uuid: user.uuid, email: user.email, display_name: user.display_name, affiliation: user.affiliation, email_public: Boolean(user.email_public), findable: Boolean(user.findable ?? 1), is_admin: Boolean(user.is_admin), joined: user.created_at },
     nook: copies.map((c) => ({
       paper: paperRef(c), summary: c.summary, thought: c.thought, on_display: Boolean(c.shelf_public), shelf: c.shelf_name ?? null, i_am_an_author: Boolean(c.is_author),
       ratings: { expertise: c.rating_expertise, reading: c.rating_reading, liking: c.rating_liking },
@@ -156,6 +162,7 @@ Everything Papol holds about you, as of {date}.
   boards.json         Your private boards and the position of every item.
   activity.json       When you were reading which paper: each stretch of time,
                       and how much of it counted.
+  friends.json        Your friends.
   files.json          Every file that belongs with this export, with the name
                       it takes here and the URL on Papol it is fetched from.
   board-files/        Files and images attached to your boards.
@@ -275,7 +282,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
       await text("README.txt", README.replace("{date}", stamp).replace("{avatar}", avatarLine));
       const files: [string, unknown][] = [
         ["profile", data.profile], ["nook", data.nook], ["anchors", data.anchors], ["digs", data.digs], ["ink", data.ink],
-        ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards], ["activity", data.activity], ["files", located],
+        ["notifications", data.notifications], ["uploads", data.pdfs_i_uploaded], ["boards", data.boards], ["activity", data.activity], ["friends", data.friends], ["files", located],
       ];
       for (const [name, payload] of files) await text(`${name}.json`, JSON.stringify(payload, null, 2));
       await text("digs.md", digsMarkdown(data, stamp));

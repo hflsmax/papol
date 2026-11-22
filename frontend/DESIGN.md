@@ -194,7 +194,7 @@ sidebar, toolbar and document windows.
   Papol, the page's own title (Papers, a shelf, a project, a board, a paper)
   at a project name's size on the same baseline, the page's own controls
   beside it (a project's people and Invite, a shelf picker and the trash),
-  then the Bazaar and the member. In the nook the title
+  then the Lounge (with the gold dot when it has news) and the member. In the nook the title
   starts where the page does, so the page begins at the top of the window;
   on a narrow window the title takes the line under it. A page puts its
   title there with `InWay`; without the bar (a visitor, the Mac app) the
@@ -214,7 +214,7 @@ sidebar, toolbar and document windows.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.
 - **Sign-in returns to the path asked for,** whichever of the above it is.
-- **Full pages that stay full pages:** Bazaar and the member's own page.
+- **Full pages that stay full pages:** the Lounge and the member's own page.
   Neither a paper's brief nor a dig is a page: a brief opens beside the
   list in the project's Papers tab, a dig in its Digs tab (under its row on
   a narrow window).
