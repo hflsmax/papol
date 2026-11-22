@@ -352,7 +352,7 @@ export default function PaperUpload({
         {published && (
           <div className="metadata-reading published-version" role="status">
             <span>
-              {usePublished ? 'Filled in from the published paper,' : 'Published as'}{' '}
+              {usePublished ? 'Filled in from the identical paper,' : 'Found an identical paper,'}{' '}
               <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
             </span>
             {usePublished ? (
