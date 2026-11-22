@@ -249,17 +249,19 @@ describe("the Lounge", () => {
     await paperWithCopy(grace, digest("a"), "Long kept", { shelfUuid: await defaultShelf(grace) });
     await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
     const papers = async () => (await room(ada)).rows.filter((r: any) => r.kind === "paper");
-    expect(await papers()).toEqual([]);
+    // However long ago it was added, it is in the room.
+    const did = async () => (await papers()).map((r: any) => r.lines.map((l: any) => l.did));
+    expect(await did()).toEqual([["added"]]);
 
     // A move between shelves is not news.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { is_author: true } });
-    expect(await papers()).toEqual([]);
+    expect(await did()).toEqual([["added"]]);
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { thought: "Better on a second reading", rating_liking: 5 } });
     const [changed] = await papers();
-    expect(changed.lines.map((l: any) => [l.did, l.words ?? null, l.ratings?.liking ?? null]).sort()).toEqual([["rated", null, 5], ["thought", "Better on a second reading", null]]);
+    expect(changed.lines.map((l: any) => [l.did, l.words ?? null, l.ratings?.liking ?? null]).sort()).toEqual([["added", null, null], ["rated", null, 5], ["thought", "Better on a second reading", null]]);
     // Ratings kept private say nothing.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: grace.headers, json: { ratings_public: false } });
-    expect((await papers())[0].lines.map((l: any) => l.did)).toEqual(["thought"]);
+    expect((await papers())[0].lines.map((l: any) => l.did).sort()).toEqual(["added", "thought"]);
   });
 
   it("gives a thought written days after the adding its own line and its own dot", async () => {
@@ -297,7 +299,8 @@ describe("the Lounge", () => {
     await exec("UPDATE copies SET created_at = ? WHERE paper_sha256 = ?", new Date(Date.now() - 60 * 24 * 3_600_000).toISOString(), digest("a"));
     const at = new Date(Date.now() - 3_600_000).toISOString();
     await exec("INSERT INTO activity (uuid, user_uuid, kind, subject, started_at, ended_at, seconds) VALUES (?, ?, 'reading', ?, ?, ?, 1200)", uuid(), grace.uuid, digest("a"), at, at);
-    expect((await room(ada)).rows).toEqual([]);
+    // The paper is there as an adding from long ago, and nothing says it was read.
+    expect((await room(ada)).rows.map((r: any) => [r.at.slice(0, 10), r.lines.map((l: any) => l.did)])).toEqual([[new Date(Date.now() - 60 * 24 * 3_600_000).toISOString().slice(0, 10), ["added"]]]);
     expect(await friends(grace)).not.toHaveProperty("shares_reading");
   });
 

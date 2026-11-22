@@ -9,7 +9,7 @@
 // same shelf and the same field that shows it anywhere else.
 //
 // The room is made from the reader's friends and nobody else. What a
-// friend reads, and for how long, is never in it. It holds four weeks.
+// friend reads, and for how long, is never in it. It holds everything, however old, up to its newest rows.
 
 import { currentUser, type User } from "../auth";
 import { all, statement, type Row } from "../db";
@@ -20,7 +20,6 @@ import { friendsOf, friendSees, PERSON, userLiteral } from "./friends";
 import { excerpt, onPublicShelf } from "./projects";
 
 const DAY = 24 * 60 * 60 * 1000;
-const WEEKS = 4;
 // How many papers one user adds in a day before they are a folder brought
 // in, which is not news paper by paper.
 const BATCH = 6;
@@ -56,7 +55,8 @@ async function latest(env: Env, me: User) {
   const mine = userLiteral(me.uuid);
   const friends = friendsOf(mine);
   const people = friends;
-  const since = new Date(Date.now() - WEEKS * 7 * DAY).toISOString();
+  // Nothing is too old for the room: every time is after this one.
+  const since = "";
   const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 

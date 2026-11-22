@@ -358,7 +358,7 @@ export default function Room({ currentUser, onSeen }) {
           {error && <div className="error" role="alert">{error}</div>}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (
-            <p className="room-empty">Your friends have been quiet these four weeks.</p>
+            <p className="room-empty">Your friends have nothing here yet.</p>
           )}
           {rows.length > 0 && (
             <>
