@@ -59,7 +59,7 @@ export default function FriendsPanel({ user }) {
         {friends.friends.length === 0 ? (
           <p className="friends-empty">
             No friends yet. Add someone from their nook, or send them your friend link.
-            Friends see each other’s reading in the Common room, and read and post in each other’s digs on papers kept on a public shelf.
+            Friends see each other’s reading in the Lounge, and read and post in each other’s digs on papers kept on a public shelf.
           </p>
         ) : (
           <ul className="friends-list">

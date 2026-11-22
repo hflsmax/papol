@@ -1,4 +1,4 @@
-// The Common room: what the people a user chose are reading, and what
+// The Lounge: what the people a user chose are reading, and what
 // they make of it, a paper to a row.
 //
 // Nothing is kept for it. The room is read off what is already there: a
@@ -40,31 +40,6 @@ const PUBLIC_SHELF = "JOIN shelves s ON s.uuid = c.shelf_uuid AND s.is_public = 
 function ratingsOf(shown: ReturnType<typeof shownFields>) {
   if (shown.rating_expertise == null && shown.rating_reading == null && shown.rating_liking == null) return null;
   return { expertise: shown.rating_expertise, reading: shown.rating_reading, liking: shown.rating_liking };
-}
-
-// Up to three people worth knowing, each for a reason that can be said
-// beside their name: in a project with the reader, or keeping papers the
-// reader keeps, both on public shelves. Never anyone already asked,
-// asking, a friend, or put away.
-async function suggestions(env: Env, me: User) {
-  const mine = userLiteral(me.uuid);
-  const rows = await all<Row>(env.DB,
-    `SELECT * FROM (
-       SELECT ${PERSON},
-         EXISTS (SELECT 1 FROM project_members a JOIN project_members b ON b.project_uuid = a.project_uuid
-           JOIN projects pr ON pr.uuid = a.project_uuid AND pr.deleted_at IS NULL
-           WHERE a.user_uuid = ${mine} AND b.user_uuid = u.uuid) AS mate,
-         (SELECT count(*) FROM copies c ${PUBLIC_SHELF}
-           WHERE c.user_uuid = u.uuid AND c.deleted_at IS NULL AND ${onPublicShelf(mine, "c.paper_sha256")}) AS common
-       FROM users u
-       WHERE u.deleted_at IS NULL AND u.uuid != ${mine}
-         AND NOT EXISTS (SELECT 1 FROM friendships f WHERE (f.asker_uuid = ${mine} AND f.asked_uuid = u.uuid) OR (f.asker_uuid = u.uuid AND f.asked_uuid = ${mine}))
-         AND NOT EXISTS (SELECT 1 FROM friend_suggestions_hidden h WHERE h.user_uuid = ${mine} AND h.other_uuid = u.uuid))
-     WHERE mate OR common >= 2 ORDER BY mate DESC, common DESC, lower(display_name), uuid LIMIT 3`);
-  return rows.map((r) => ({
-    user: userPublic(r),
-    reason: r.mate ? "In a project with you" : `Reads ${r.common} papers you read`,
-  }));
 }
 
 // Whether anything in the room is new to this user: someone waiting for
@@ -283,12 +258,11 @@ export function roomRoutes(router: Router) {
     const view = url.searchParams.get("view") === "everyone" || !friendCount ? "everyone" : "friends";
     const order = url.searchParams.get("order") === "most" ? "most" : "latest";
     const people = view === "friends" ? friendsOf(mine) : `(SELECT lu.uuid FROM users lu WHERE lu.deleted_at IS NULL AND lu.uuid != ${mine})`;
-    const [requests, suggested, feed] = await Promise.all([
+    const [requests, feed] = await Promise.all([
       requestsFor(env, me),
-      suggestions(env, me),
       order === "most" ? mostRead(env, me, people).then((rows) => ({ rows, since: null })) : latest(env, me, people, view === "everyone"),
     ]);
-    return json({ view, order, friend_count: friendCount, seen_at: me.room_seen_at ?? null, requests, suggestions: suggested, ...feed });
+    return json({ view, order, friend_count: friendCount, seen_at: me.room_seen_at ?? null, requests, ...feed });
   });
 
   // The room was opened: what is in it now is no longer new.

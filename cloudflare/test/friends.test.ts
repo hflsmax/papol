@@ -1,4 +1,4 @@
-// Friends, what friendship opens, and the Common room made from it.
+// Friends, what friendship opens, and the Lounge made from it.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
@@ -176,7 +176,7 @@ describe("what a friend sees", () => {
   });
 });
 
-describe("the Common room", () => {
+describe("the Lounge", () => {
   it("is everyone's public news until there is a friend, then the friends' own, a paper to a row", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     await paperWithCopy(grace, digest("a"), "Grace's paper", { shelfUuid: await defaultShelf(grace) });
@@ -299,24 +299,6 @@ describe("the Common room", () => {
     const most = await room(ada, "?order=most");
     expect(most.order).toBe("most");
     expect(most.rows.map((r: any) => [r.paper.title, r.lines.length])).toEqual([["Kept by two", 2], ["Kept by one", 1]]);
-  });
-
-  it("suggests people for a reason it can say, and lets one be put away", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
-    await register("nobody@example.test", "Nobody");
-    for (const letter of ["a", "b"]) {
-      await paperWithCopy(ada, digest(letter), `Shared ${letter}`, { shelfUuid: await defaultShelf(ada) });
-      await ok("POST", `/api/papers/${name(letter)}/add-to-nook`, { headers: grace.headers, json: {} });
-    }
-    const project = await ok("POST", "/api/projects", { headers: ada.headers, json: { name: "Reading group" } });
-    await ok("POST", `/api/projects/${project.uuid}/members`, { headers: ada.headers, json: { user_uuid: alan.uuid } });
-    expect((await room(ada)).suggestions).toEqual([
-      { user: expect.objectContaining({ uuid: alan.uuid }), reason: "In a project with you" },
-      { user: expect.objectContaining({ uuid: grace.uuid }), reason: "Reads 2 papers you read" },
-    ]);
-    expect((await call("POST", `/api/friends/suggestions/${alan.uuid}/hide`, { headers: ada.headers })).status).toBe(204);
-    await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
-    expect((await room(ada)).suggestions).toEqual([]);
   });
 
   it("shows a project someone started, and lets the reader ask its keeper once to be let in", async () => {

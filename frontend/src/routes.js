@@ -45,10 +45,10 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/signin') return { page: 'signin' };
   const resetToken = path.match(/^\/reset-password\/([0-9a-f]{64})\/?$/i)?.[1];
   if (resetToken) return { page: 'reset-password', token: resetToken.toLowerCase() };
-  // The Common room took the Bazaar's place, and the Bazaar's address still
-  // leads there. The Library is what the room's search box searches; on the
-  // web its address opens the room, and in the Mac app it is the Desk.
-  if (path === '/common-room' || path === '/bazaar') return { page: 'room' };
+  // The Lounge took the Bazaar's place, and the Bazaar's address still
+  // leads there. The Library has no page of its own on the web: its address
+  // opens the Lounge there, and in the Mac app it is the Desk.
+  if (path === '/lounge' || path === '/bazaar') return { page: 'room' };
   if (path === '/library') return { page: 'papers' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };

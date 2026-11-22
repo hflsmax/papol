@@ -4,7 +4,7 @@ import {
 } from '../../shared/api/friends.js';
 
 // What the member's pages know of their friends, read once and shared: a
-// button on a nook, a row in the Common room and the list on their own
+// button on a nook, a row in the Lounge and the list on their own
 // page all say the same thing, and a press on one is seen by the others.
 let known = null;
 let asking = null;

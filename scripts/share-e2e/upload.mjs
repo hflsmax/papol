@@ -163,16 +163,6 @@ try {
   const opened = await browser.waitFor("location.pathname.startsWith('/paper/')", { timeout: 20_000, what: 'the saved paper to open' })
     .catch(() => false);
   check('saving opens the paper', opened, await browser.evaluate('return location.pathname;'));
-  // The Library is what the Common room's search box searches.
-  await browser.navigate(`${BASE}/common-room`);
-  await browser.waitFor("document.getElementById('library-search')", { timeout: 20_000, what: 'the Library search box' }).catch(() => false);
-  await browser.evaluate(`const box = document.getElementById('library-search');
-    if (box) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, ${JSON.stringify(expected)}); box.dispatchEvent(new Event('input', { bubbles: true })); }
-    return true;`);
-  const listed = await browser.waitFor(
-    `[...document.querySelectorAll('.paper-title-link')].some((a) => a.textContent.trim() === ${JSON.stringify(expected)})`,
-    { timeout: 20_000, what: 'the paper in the library' }).catch(() => false);
-  check('the Library finds it', listed);
   const [, papers] = await call('GET', '/api/papers', { token: me.token });
   const saved = Array.isArray(papers) ? papers.find((p) => p.sha256 === plain.sha256) : null;
   check('the API has it under its digest', !!saved, `${papers?.length} papers`);

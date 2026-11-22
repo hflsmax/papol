@@ -65,7 +65,6 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     // A request of theirs still waiting in someone's inbox goes with them.
     ["friend_requests", statement(db, "DELETE FROM notifications WHERE actor_uuid = ? AND kind = 'friend_request'", user.uuid)],
     ["friendships", statement(db, "DELETE FROM friendships WHERE asker_uuid = ? OR asked_uuid = ?", user.uuid, user.uuid)],
-    ["friend_suggestions_hidden", statement(db, "DELETE FROM friend_suggestions_hidden WHERE user_uuid = ? OR other_uuid = ?", user.uuid, user.uuid)],
     ["project_asks", statement(db, "DELETE FROM project_asks WHERE user_uuid = ?", user.uuid)],
     ["admin_message_deliveries", statement(db, "DELETE FROM admin_message_deliveries WHERE user_uuid = ?", user.uuid)],
     ["sessions", statement(db, "DELETE FROM auth_tokens WHERE user_uuid = ?", user.uuid)],

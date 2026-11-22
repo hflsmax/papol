@@ -14,7 +14,7 @@ import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
-import CommonRoom from './components/CommonRoom';
+import Room from './components/Room';
 import FriendLinkPage from './components/FriendLinkPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
@@ -26,7 +26,7 @@ import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects, markPresent } from '../../shared/api/projects.js';
-import { COMMON_ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
+import { ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
 import { getRoomNews } from '../../shared/api/friends.js';
 import { forgetFriends } from './friendsStore.js';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
@@ -517,7 +517,7 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
   }, [user, route]);
 
-  // Whether the Common room has anything I have not seen, asked as I move
+  // Whether the Lounge has anything I have not seen, asked as I move
   // about. Opening the room answers it: the room says so itself.
   useEffect(() => {
     if (!user) {
@@ -927,9 +927,8 @@ export default function App({ startupUser = null, startupError = null }) {
         />
       )}
       {(route.page === 'room' || (route.page === 'papers' && !DESKTOP)) && (
-        <CommonRoom
+        <Room
           currentUser={user}
-          onSelectBoard={openBoard}
           onSeen={() => setRoomNews(false)}
         />
       )}
@@ -1114,9 +1113,9 @@ export default function App({ startupUser = null, startupError = null }) {
   // says so itself: a jacket to the place it was opened from, a nook of
   // someone else's to the Library their papers are found in.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: COMMON_ROOM } : jacketBack]
+    ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: ROOM } : jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: ROOM_PATH, label: COMMON_ROOM }]
+      ? [{ path: ROOM_PATH, label: ROOM }]
       : [];
   return (
     <>
@@ -1155,7 +1154,7 @@ export default function App({ startupUser = null, startupError = null }) {
               Home
             </a>
             <a href={appPath(ROOM_PATH)} className={route.page === 'room' || route.page === 'papers' ? 'active' : ''}>
-              {COMMON_ROOM}
+              {ROOM}
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

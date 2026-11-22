@@ -27,7 +27,7 @@ const pages = [
   { path: `/paper/${PAPER_NAME}`, page: 'paper' },
   { path: `/u/${USER_UUID}`, page: 'nook' },
   { path: '/library', page: 'papers' },
-  { path: '/common-room', page: 'room' },
+  { path: '/lounge', page: 'room' },
   { path: '/bazaar', page: 'room' },
   { path: '/friends/join/Ab3dE5gH7j', page: 'friend-link' },
   { path: '/projects', page: 'projects' },

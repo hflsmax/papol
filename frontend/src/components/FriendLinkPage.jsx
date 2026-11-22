@@ -60,7 +60,7 @@ export default function FriendLinkPage({ code }) {
             {found.is_me && <p className="hint project-invitation-note">This is your own friend link. Whoever opens it can become your friend.</p>}
             {!found.is_me && !found.is_friend && (
               <p className="hint project-invitation-note">
-                Friends see each other’s reading in the Common room, and read and post in each other’s digs on papers kept on a public shelf.
+                Friends see each other’s reading in the Lounge, and read and post in each other’s digs on papers kept on a public shelf.
               </p>
             )}
             {found.is_friend && <p className="hint project-invitation-note">You and {owner.display_name.split(' ')[0]} are friends.</p>}

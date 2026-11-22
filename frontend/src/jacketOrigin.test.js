@@ -11,8 +11,8 @@ test('a nook, home and the library are the places a paper is kept', () => {
   assert.equal(placeOf(`/u/${U}`), `/u/${U}`);
   assert.equal(placeOf(`/u/${U}/boards`), `/u/${U}`);
   assert.equal(placeOf('/library'), '/library');
-  assert.equal(placeOf('/common-room'), '/common-room');
-  assert.equal(placeOf('/bazaar'), '/common-room');
+  assert.equal(placeOf('/lounge'), '/lounge');
+  assert.equal(placeOf('/bazaar'), '/lounge');
   assert.equal(placeOf('/inbox'), null);
   assert.equal(placeOf(PAPER), null);
 });

@@ -1,12 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import {
-  askToJoinProject, getRoom, hideSuggestion, markRoomSeen,
+  askToJoinProject, getRoom, markRoomSeen,
 } from '../../../shared/api/friends.js';
-import { addToNook, listPapers, paperHref } from '../../../shared/api/papers.js';
-import { listLibraryBoards } from '../../../shared/api/boards.js';
-import { listUsers } from '../../../shared/api/people.js';
-import { listProjects } from '../../../shared/api/projects.js';
+import { addToNook } from '../../../shared/api/papers.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -18,7 +15,6 @@ import { keep, kept } from '../lastMember';
 import { relationTo, useFriends } from '../friendsStore';
 import Avatar from './Avatar';
 import FriendButton from './FriendButton';
-import ReaderPop from './ReaderPop';
 import { RatingSummary } from './Rating';
 
 const VIEW_KEY = 'papol.roomView';
@@ -225,7 +221,7 @@ const ROWS = { paper: PaperRow, batch: BatchRow, board: BoardRow, project: Proje
 
 // A person in a line of their own: who they are, why they are here, and
 // what stands between them and the member.
-function Person({ user, note, currentUser, children }) {
+function Person({ user, note, currentUser }) {
   return (
     <li className="room-person-row">
       <a className="friends-who" href={appPath(`/u/${user.uuid}`)}>
@@ -235,126 +231,19 @@ function Person({ user, note, currentUser, children }) {
       </a>
       {note && <span className="room-person-note">{note}</span>}
       <FriendButton user={user} currentUser={currentUser} />
-      {children}
     </li>
   );
 }
 
-// The Library, asked: any paper by title, authors or venue, any user by
-// name or affiliation, any project by name, any board on a public shelf,
-// in all of Papol. It
-// is read once, the first time something is asked of it.
-function LibraryResults({ query, currentUser, onSelectBoard }) {
-  const [library, setLibrary] = useState(() => kept('library'));
-  const [error, setError] = useState(null);
-  const friends = useFriends();
-  useEffect(() => {
-    let active = true;
-    Promise.all([listPapers(), listLibraryBoards().catch(() => []), listUsers().catch(() => []), listProjects().catch(() => [])])
-      .then(([papers, boards, people, projects]) => {
-        if (!active) return;
-        const next = { papers, boards, people, projects };
-        keep('library', next);
-        setLibrary(next);
-      })
-      .catch((err) => { if (active) setError(err.message); });
-    return () => { active = false; };
-  }, []);
-  if (error) return <div className="error" role="alert">{error}</div>;
-  if (!library) return <div className="loading"><Working label="Searching the Library…" /></div>;
-
-  const asked = query.trim().toLowerCase();
-  const has = (text) => String(text ?? '').toLowerCase().includes(asked);
-  const people = library.people.filter((u) => u.uuid !== currentUser.uuid && (has(u.display_name) || has(u.affiliation)));
-  const papers = library.papers.filter((p) => has(p.title) || has(p.authors) || has(p.journal) || p.users.some((r) => has(r.user.display_name)));
-  const boards = library.boards.filter((b) => has(b.name) || has(b.owner?.display_name));
-  const projects = (library.projects ?? []).filter((p) => has(p.name));
-  // My friends stand first among a paper's readers.
-  const friendFirst = (a, b) => Number(relationTo(friends, b.user.uuid) === 'friend') - Number(relationTo(friends, a.user.uuid) === 'friend');
-
-  if (!people.length && !papers.length && !boards.length && !projects.length) return <p className="room-empty">Nothing in the Library matches “{query.trim()}”.</p>;
-  return (
-    <div className="room-results library-page">
-      {people.length > 0 && (
-        <section aria-labelledby="room-found-people">
-          <h3 className="kicker" id="room-found-people">People</h3>
-          <ul className="room-people">
-            {people.map((user) => (
-              <Person key={user.uuid} user={user} currentUser={currentUser} note={`${user.paper_count} ${user.paper_count === 1 ? 'paper' : 'papers'} on public shelves`} />
-            ))}
-          </ul>
-        </section>
-      )}
-      {projects.length > 0 && (
-        <section aria-labelledby="room-found-projects">
-          <h3 className="kicker" id="room-found-projects">Projects</h3>
-          <ul className="room-rows">
-            {projects.map((project) => (
-              <ProjectRow
-                key={project.uuid}
-                row={{ project: { ...project, member_count: project.members.length }, lines: project.members.filter((m) => m.is_keeper).map((m) => ({ user: m.user, did: 'keeps' })) }}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-      {(papers.length > 0 || boards.length > 0) && (
-        <section aria-labelledby="room-found-papers">
-          <h3 className="kicker" id="room-found-papers">Papers{boards.length > 0 ? ' and boards' : ''}</h3>
-          <ul className="grouped-papers">
-            {boards.map((board) => (
-              <li key={`board-${board.uuid}`} className="paper-group nook-board-row library-board-row">
-                <a
-                  className="paper-group-head library-board-link" href={appPath(`/boards/${board.uuid}`)} data-document
-                  onClick={(event) => { event.preventDefault(); onSelectBoard(board.uuid); }}
-                >
-                  <div className="paper-title-row"><h4>{board.name}</h4></div>
-                </a>
-                {board.owner && <a className="avatar-chip has-pop" href={appPath(`/u/${board.owner.uuid}`)}><Avatar user={board.owner} className="nook-chip-avatar" /><span className="chip-pop"><span className="chip-pop-name">{board.owner.display_name}</span>{board.owner.affiliation && <span className="chip-pop-aff">{board.owner.affiliation}</span>}</span></a>}
-              </li>
-            ))}
-            {papers.map((paper) => (
-              <li key={paper.sha256} className="paper-group">
-                <div className="paper-group-head">
-                  <div className="paper-title-row">
-                    <h4><a className="paper-title-link" href={paperHref(paper)}><PaperTitle title={paper.title} /></a></h4>
-                  </div>
-                  <p className="paper-meta">
-                    {formatAuthors(paper.authors)}
-                    {paper.year && ` (${paper.year})`}
-                    {paper.journal && ` - ${paper.journal}`}
-                  </p>
-                </div>
-                <div className="entry-chips">
-                  {[...paper.users].sort(friendFirst).map((entry) => (
-                    <a key={entry.user.uuid} className={entry.is_author ? 'avatar-chip has-pop author' : 'avatar-chip has-pop'} href={appPath(`/u/${entry.user.uuid}`)}>
-                      <Avatar user={entry.user} className="nook-chip-avatar" />
-                      <ReaderPop entry={entry} isYou={entry.user.uuid === currentUser.uuid} isFriend={relationTo(friends, entry.user.uuid) === 'friend'} />
-                    </a>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
-  );
-}
-
-// The Common room: what the member's friends are reading and what they
+// The Lounge: what the member's friends are reading and what they
 // make of it, a paper to a row, newest first; Everyone is the same room
-// made from all of Papol's public news. Those asking to be friends and a
-// few people worth knowing come first, and only when there are any. One
-// box at its head searches the Library, whose results take the room's
-// place while something is asked. The room holds four weeks, and ends.
-export default function CommonRoom({ currentUser, onSelectBoard, onSeen }) {
+// made from all of Papol's public news. Those asking to be friends come
+// first, and only when there are any. The room holds four weeks, and ends.
+export default function Room({ currentUser, onSeen }) {
   const [view, setView] = useState(() => stored(VIEW_KEY, 'friends'));
   const [order, setOrder] = useState(() => stored(ORDER_KEY, 'latest'));
   const [room, setRoom] = useState(() => kept(`room:${stored(VIEW_KEY, 'friends')}:${stored(ORDER_KEY, 'latest')}`));
   const [error, setError] = useState(null);
-  const [search, setSearch] = useState('');
-  const [hidden, setHidden] = useState([]);
   const friends = useFriends();
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
@@ -381,102 +270,69 @@ export default function CommonRoom({ currentUser, onSelectBoard, onSeen }) {
 
   const choose = (next) => { setView(next); store(VIEW_KEY, next); };
   const sort = (next) => { setOrder(next); store(ORDER_KEY, next); };
-  const searching = Boolean(search.trim());
   // With no friends yet the room is everyone's, whatever was chosen.
   const shown = room?.view ?? view;
   const requests = friends?.requests ?? room?.requests ?? [];
-  const suggestions = (room?.suggestions ?? []).filter((s) => !hidden.includes(s.user.uuid) && relationTo(friends, s.user.uuid) === null);
 
   return (
     <FacesLead.Provider value>
       <div className="room">
-        <div className="room-search">
-          <input
-            id="library-search" type="search" aria-label="Search the Library" placeholder="Search the Library: any paper, any person…"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') setSearch(''); }}
-          />
+        {requests.length > 0 && (
+          <section className="room-block" aria-labelledby="room-requests">
+            <h3 className="kicker" id="room-requests">Asking to be friends</h3>
+            <ul className="room-people">
+              {requests.map((r) => (
+                <Person
+                  key={r.user.uuid} user={r.user} currentUser={currentUser}
+                  note={r.common.length ? `You both keep ${someTitles(r.common)}` : null}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <div className="room-head">
+          <nav className="project-tabs room-views" role="tablist" aria-label="Whose news">
+            {[['friends', 'Friends'], ['everyone', 'Everyone']].map(([key, label]) => (
+              <button
+                key={key} type="button" role="tab" aria-selected={shown === key}
+                className={`project-tab${shown === key ? ' is-on' : ''}`} onClick={() => choose(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="room-orders" role="group" aria-label="Order">
+            {[['latest', 'Latest'], ['most', 'Most read']].map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={order === key} className={order === key ? 'is-on' : ''} onClick={() => sort(key)}>{label}</button>
+            ))}
+          </div>
         </div>
 
-        {searching ? (
-          <LibraryResults query={search} currentUser={currentUser} onSelectBoard={onSelectBoard} />
-        ) : (
+        {error && <div className="error" role="alert">{error}</div>}
+        {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
+        {room && (
           <>
-            {requests.length > 0 && (
-              <section className="room-block" aria-labelledby="room-requests">
-                <h3 className="kicker" id="room-requests">Asking to be friends</h3>
-                <ul className="room-people">
-                  {requests.map((r) => (
-                    <Person
-                      key={r.user.uuid} user={r.user} currentUser={currentUser}
-                      note={r.common.length ? `You both keep ${someTitles(r.common)}` : null}
-                    />
-                  ))}
-                </ul>
-              </section>
+            {room.friend_count === 0 && (
+              <p className="room-note">
+                This is everyone’s public news. Add a friend from their nook and the room becomes theirs:
+                what they add, think and dig, and their digs to read and post in.
+              </p>
             )}
-            {suggestions.length > 0 && (
-              <section className="room-block" aria-labelledby="room-suggested">
-                <h3 className="kicker" id="room-suggested">People you may know</h3>
-                <ul className="room-people">
-                  {suggestions.map((s) => (
-                    <Person key={s.user.uuid} user={s.user} currentUser={currentUser} note={s.reason}>
-                      <button
-                        type="button" className="room-put-away" aria-label={`Do not suggest ${s.user.display_name} again`} title="Do not suggest again"
-                        onClick={() => { setHidden((all) => [...all, s.user.uuid]); hideSuggestion(s.user.uuid).catch(() => {}); }}
-                      >
-                        ×
-                      </button>
-                    </Person>
-                  ))}
-                </ul>
-              </section>
+            {room.rows.length === 0 ? (
+              <p className="room-empty">
+                {order === 'most' ? 'Nothing here that is not already in your nook.'
+                  : shown === 'friends' ? 'Your friends have been quiet these four weeks.' : 'Nothing has happened in four weeks.'}
+              </p>
+            ) : (
+              <ul className="room-rows">
+                {room.rows.map((row) => {
+                  const Row = ROWS[row.kind];
+                  return Row ? <Row key={row.key} row={row} currentUser={currentUser} mostRead={order === 'most'} /> : null;
+                })}
+              </ul>
             )}
-
-            <div className="room-head">
-              <nav className="project-tabs room-views" role="tablist" aria-label="Whose news">
-                {[['friends', 'Friends'], ['everyone', 'Everyone']].map(([key, label]) => (
-                  <button
-                    key={key} type="button" role="tab" aria-selected={shown === key}
-                    className={`project-tab${shown === key ? ' is-on' : ''}`} onClick={() => choose(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
-              <div className="room-orders" role="group" aria-label="Order">
-                {[['latest', 'Latest'], ['most', 'Most read']].map(([key, label]) => (
-                  <button key={key} type="button" aria-pressed={order === key} className={order === key ? 'is-on' : ''} onClick={() => sort(key)}>{label}</button>
-                ))}
-              </div>
-            </div>
-
-            {error && <div className="error" role="alert">{error}</div>}
-            {!room && !error && <div className="loading"><Working label="Loading the Common room…" /></div>}
-            {room && (
-              <>
-                {room.friend_count === 0 && (
-                  <p className="room-note">
-                    This is everyone’s public news. Add a friend from their nook and the room becomes theirs:
-                    what they add, think and dig, and their digs to read and post in.
-                  </p>
-                )}
-                {room.rows.length === 0 ? (
-                  <p className="room-empty">
-                    {order === 'most' ? 'Nothing here that is not already in your nook.'
-                      : shown === 'friends' ? 'Your friends have been quiet these four weeks.' : 'Nothing has happened in four weeks.'}
-                  </p>
-                ) : (
-                  <ul className="room-rows">
-                    {room.rows.map((row) => {
-                      const Row = ROWS[row.kind];
-                      return Row ? <Row key={row.key} row={row} currentUser={currentUser} mostRead={order === 'most'} /> : null;
-                    })}
-                  </ul>
-                )}
-                {order === 'latest' && room.rows.length > 0 && <p className="room-end">That is everything from the last four weeks.</p>}
-              </>
-            )}
+            {order === 'latest' && room.rows.length > 0 && <p className="room-end">That is everything from the last four weeks.</p>}
           </>
         )}
       </div>

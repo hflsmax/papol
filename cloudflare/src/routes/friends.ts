@@ -214,7 +214,7 @@ export function friendRoutes(router: Router) {
       const site = (await siteUrl(env)).replace(/\/$/, "");
       const mail = queueEmail(env.DB, them.email, `${me.display_name} asks to be friends on Papol`,
         [`${me.display_name}${me.affiliation ? ` (${me.affiliation})` : ""} asks to be friends on Papol.`, "",
-          "Friends see each other's reading news in the Common room, and can read and post in each other's digs on papers kept on a public shelf.", "",
+          "Friends see each other's reading news in the Lounge, and can read and post in each other's digs on papers kept on a public shelf.", "",
           `Answer in your inbox: ${site}/inbox`, "", "— Papol"].join("\n"));
       await batch(env.DB, [
         ...(existing ? [statement(env.DB, "DELETE FROM friendships WHERE uuid = ?", existing.uuid)] : []),
@@ -269,14 +269,6 @@ export function friendRoutes(router: Router) {
       await statement(env.DB, "UPDATE friendships SET state = 'dropped' WHERE uuid = ?", existing.uuid).run();
     }
     return json(await friendsOut(env, me));
-  });
-
-  // A suggestion put away for good.
-  router.on("POST", "/api/friends/suggestions/:uuid/hide", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
-    const them = await liveUser(env, params.uuid);
-    await statement(env.DB, "INSERT OR IGNORE INTO friend_suggestions_hidden (user_uuid, other_uuid, created_at) VALUES (?, ?, ?)", me.uuid, them.uuid, now()).run();
-    return new Response(null, { status: 204 });
   });
 
   // Asking a project's keeper to be let in. Once per project: asking

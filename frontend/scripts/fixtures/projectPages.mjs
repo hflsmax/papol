@@ -273,9 +273,9 @@ const REPORT = (() => {
 let deleted = false;
 
 // What the pretend server says to each request the pages make.
-// Friends, and the Common room made from them. Ana and Ben are the
-// member's friends; Mia has asked; Marta is someone Papol suggests, and the
-// owner of the friend link the fixture answers for.
+// Friends, and the Lounge made from them. Ana and Ben are the
+// member's friends; Mia has asked; Marta is the owner of the
+// friend link the fixture answers for.
 const FRIEND_DIG = 'e1b2c3d4-0000-4000-8000-000000000060';
 const friendDig = {
   uuid: FRIEND_DIG, created_at: hoursAgo(7), updated_at: hoursAgo(2), edited_at: null, project: null, subject: subject.paperSurvey, owner: ana, is_mine: false,
@@ -358,7 +358,6 @@ function answer(method, path, search, sent = {}) {
     const order = search.get('order') === 'most' ? 'most' : 'latest';
     return {
       view, order, friend_count: friendsNow.friends.length, seen_at: daysAgo(1), requests: friendsNow.requests, since: daysAgo(28),
-      suggestions: [{ user: outsiders[0], reason: 'Reads 3 papers you read' }],
       rows: order === 'most' ? mostRead(view) : roomRows(view),
     };
   }

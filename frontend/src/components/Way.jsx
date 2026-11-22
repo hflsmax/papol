@@ -8,11 +8,11 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 // every page is a trail back to it. Beside it sits, quietly, the one place
 // where everyone else's work is: what my friends are reading, and the
 // Library's search.
-export const COMMON_ROOM = 'Common room';
-export const ROOM_PATH = '/common-room';
+export const ROOM = 'Lounge';
+export const ROOM_PATH = '/lounge';
 
 // The one bar over a signed-in member's pages on the web: the trail home
-// on the left, and on the right the Common room beside it, which wears
+// on the left, and on the right the Lounge beside it, which wears
 // the gold dot when it has news, and the member, who wears the count of what
 // has come for them; an admin also finds Admin
 // there, on every page. A page names its own trail through InWay;
@@ -35,7 +35,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, roomNews = fa
           href={appPath(ROOM_PATH)}
           aria-current={route.page === 'room' || route.page === 'papers' ? 'page' : undefined}
         >
-          {COMMON_ROOM}
+          {ROOM}
           {roomNews && <NewsDot />}
         </a>
       </nav>

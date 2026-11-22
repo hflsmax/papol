@@ -105,7 +105,7 @@ ${commonStyles}
 
 /* ---------- The way bar ----------
    A signed-in member's one bar on the web: Papol, the page's own title (or
-   the trail back), then the Common room and the member. One row with no rule
+   the trail back), then the Lounge and the member. One row with no rule
    under it. */
 
 .way-bar {
@@ -141,7 +141,7 @@ ${commonStyles}
 .way a.way-mark { display: inline-flex; align-self: center; }
 .way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
-/* Beside the trail home: the Common room, as quiet as the trail, with the
+/* Beside the trail home: the Lounge, as quiet as the trail, with the
    gold dot when a friend has news. */
 .way-aside {
   display: flex;
@@ -5736,17 +5736,14 @@ ${talkStyles}
 .notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link:hover { color: var(--accent); }
 
-/* ---------- The Common room ---------- */
+/* ---------- The Lounge ---------- */
 /* What my friends are reading and what they make of it: a paper to a row,
    and under its title a line for each friend. One column, as wide as a
    line of reading; the only gold is what is new. */
 .app:has(.room) { max-width: 860px; }
 .room { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
-.room-search input { width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 var(--space-4); border-radius: 999px; font: 400 var(--fs-md) var(--font-ui); }
 .room-block { padding: var(--space-3) var(--space-4) var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
 .room-block > .kicker { margin: 0; }
-.room-put-away { flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); font-size: var(--fs-lg); line-height: 1; }
-.room-put-away:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .room-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 .room-head .room-views { margin-top: 0; }
 .room-orders { display: inline-flex; align-items: center; gap: var(--space-1); }
@@ -5799,9 +5796,6 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
 .room-batch { display: grid; gap: var(--space-2); margin: var(--space-3) 0 0 calc(24px + var(--space-2)); padding: 0; list-style: none; }
 .room-batch-title { color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
 .room-batch-title:hover { color: var(--accent); text-decoration: underline; }
-.room-results { display: grid; gap: var(--space-5); }
-.room-results .kicker { margin: 0 0 var(--space-1); }
-.room-results .grouped-papers { margin: 0; padding: 0; list-style: none; }
 
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
@@ -5820,8 +5814,7 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
   .friends-aff { white-space: normal; }
   .room-person-note { flex: 1 1 100%; }
   .room-block { padding-inline: var(--space-3); }
-  .room-search input { font-size: var(--fs-base); }
-  .their-head { flex-wrap: wrap; }
+    .their-head { flex-wrap: wrap; }
 }
 
 /* Product-wide motion preference. Component media rules can remove layout

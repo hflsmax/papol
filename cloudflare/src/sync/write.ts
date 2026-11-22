@@ -29,7 +29,7 @@ export async function writeSynced(
 
 const RATINGS = ["rating_expertise", "rating_reading", "rating_liking"] as const;
 
-// When a copy's thought or ratings change, the Common room is told when
+// When a copy's thought or ratings change, the Lounge is told when
 // (copy_news): a copy keeps one time for every change to it, and moving
 // it to another shelf is not news. Here because every write of a copy,
 // a route's or a replica's, comes through this function.

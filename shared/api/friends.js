@@ -1,6 +1,6 @@
 import { jsonRequest, request } from '../httpClient.js';
 
-// ---------- Friends and the Common room ----------
+// ---------- Friends and the Lounge ----------
 
 // Friends are shared, online-only state, as projects are: Papol macOS asks
 // the server for them rather than keeping them in its private replica.
@@ -50,11 +50,7 @@ export function shareReading(sharesReading) {
   return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
 }
 
-export function hideSuggestion(userUuid) {
-  return request(`/friends/suggestions/${userUuid}/hide`, { method: 'POST' });
-}
-
-// The Common room: `view` is friends or everyone, `order` latest or most.
+// The Lounge: `view` is friends or everyone, `order` latest or most.
 export function getRoom({ view = 'friends', order = 'latest' } = {}) {
   return request(`/room?view=${view}&order=${order}`);
 }

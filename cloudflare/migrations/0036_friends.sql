@@ -1,4 +1,4 @@
--- Friends, and what the Common room is made from.
+-- Friends, and what the Lounge is made from.
 --
 -- A friend is someone a user asked, or who asked them, and the other
 -- accepted: always mutual, one row to a pair whoever asked. `asked` waits
@@ -24,19 +24,6 @@ CREATE TABLE friendships (
 CREATE INDEX ix_friendships_asker_uuid ON friendships (asker_uuid);
 CREATE INDEX ix_friendships_asked_uuid ON friendships (asked_uuid);
 CREATE UNIQUE INDEX uq_friendships_pair ON friendships (min(asker_uuid, asked_uuid), max(asker_uuid, asked_uuid));
-
--- Someone Papol suggested as a friend, put away for good by the user it
--- was suggested to.
-CREATE TABLE friend_suggestions_hidden (
-	user_uuid VARCHAR(36) NOT NULL,
-	other_uuid VARCHAR(36) NOT NULL,
-	created_at DATETIME NOT NULL,
-	PRIMARY KEY (user_uuid, other_uuid),
-	FOREIGN KEY(user_uuid) REFERENCES users (uuid),
-	FOREIGN KEY(other_uuid) REFERENCES users (uuid)
-);
-CREATE INDEX ix_friend_suggestions_hidden_user_uuid ON friend_suggestions_hidden (user_uuid);
-CREATE INDEX ix_friend_suggestions_hidden_other_uuid ON friend_suggestions_hidden (other_uuid);
 
 -- A user asking a project's keeper to be let in: once per project, so
 -- pressing Ask to join again tells the keeper nothing new.
@@ -67,7 +54,7 @@ CREATE TABLE copy_news (
 -- A user's friend link (the code is the whole of the permission, as a
 -- project's invitation is), whether their friends see what they are
 -- reading this week (off until they turn it on), and when they last
--- opened the Common room: what friends did after that is new to them.
+-- opened the Lounge: what friends did after that is new to them.
 ALTER TABLE users ADD COLUMN friend_code VARCHAR(10);
 ALTER TABLE users ADD COLUMN shares_reading BOOLEAN DEFAULT '0' NOT NULL;
 ALTER TABLE users ADD COLUMN room_seen_at DATETIME;
