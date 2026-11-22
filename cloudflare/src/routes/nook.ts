@@ -11,6 +11,12 @@ import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { projectsOfUser } from "./projects";
 
+// When a tag was last used: the latest time it went onto one of its owner's
+// copies (a live link's last write, or a removed link's making), and never
+// earlier than the tag's own making.
+const TAG_LAST_USED = `max(tags.created_at, coalesce((SELECT max(CASE WHEN copy_tags.deleted_at IS NULL
+  THEN copy_tags.updated_at ELSE copy_tags.created_at END) FROM copy_tags WHERE copy_tags.tag_uuid = tags.uuid), ''))`;
+
 interface Shelf extends Row {
   uuid: string;
   user_uuid: string;
@@ -151,9 +157,13 @@ export function nookRoutes(router: Router) {
     return json({ uuid: tag.uuid, name: tag.name });
   });
 
+  // Most recently used first: when the tag last went onto a paper (a link
+  // put back counts from then), or when it was made if never since; ties
+  // and the never-used by name.
   router.on("GET", "/api/tags", async ({ request, env }) => {
     const user = await currentUser(request, env);
-    return json(await all(env.DB, "SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL ORDER BY lower(name)", user.uuid));
+    return json(await all(env.DB, `SELECT uuid, name FROM tags WHERE user_uuid = ? AND deleted_at IS NULL
+      ORDER BY ${TAG_LAST_USED} DESC, lower(name), uuid`, user.uuid));
   });
 
   router.on("DELETE", "/api/tags/:uuid", async ({ request, env, params }) => {
