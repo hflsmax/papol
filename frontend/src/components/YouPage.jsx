@@ -3,19 +3,16 @@ import Avatar from './Avatar';
 import InboxPage from './InboxPage';
 import ActivityPanel from './ActivityPanel.jsx';
 import ProfilePage from './ProfilePage';
-import FriendsPanel from './FriendsPanel';
 import PreferencesPanel from './PreferencesPanel';
-import { useFriends } from '../friendsStore';
 
-const VIEWS = [['activity', 'Activity'], ['inbox', 'Inbox'], ['friends', 'Friends'], ['preferences', 'Preferences'], ['account', 'Account']];
+const VIEWS = [['activity', 'Activity'], ['inbox', 'Inbox'], ['preferences', 'Preferences'], ['account', 'Account']];
 
 // A member's own page on the web, reached by their avatar: who they are,
-// then one of what they have read, what has come for them, their friends,
+// then one of what they have read, what has come for them,
 // their preferences and their account. What they have read is first and opens by default; /inbox opens
 // on what has come for them.
 export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, onLogout, onSync, initialView = 'activity' }) {
   const [view, setView] = useState(initialView);
-  const waiting = useFriends()?.requests.length ?? 0;
   const move = (e) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (!step) return;
@@ -46,16 +43,12 @@ export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, on
             {v === 'inbox' && unreadCount > 0 && (
               <span className="project-tab-new" aria-label={`${unreadCount} unread`}>{unreadCount}</span>
             )}
-            {v === 'friends' && waiting > 0 && (
-              <span className="project-tab-new" aria-label={`${waiting} asking to be friends`}>{waiting}</span>
-            )}
           </button>
         ))}
       </nav>
       <div className="you-view" id="you-view" role="tabpanel" aria-labelledby={`you-tab-${view}`}>
         {view === 'inbox' && <InboxPage onUnread={onUnread} />}
         {view === 'activity' && <ActivityPanel />}
-        {view === 'friends' && <FriendsPanel user={user} />}
         {view === 'preferences' && <PreferencesPanel user={user} onUserUpdated={onUserUpdated} />}
         {view === 'account' && (
           <ProfilePage user={user} withActivity={false} inTab onUserUpdated={onUserUpdated} onLogout={onLogout} onSync={onSync} />

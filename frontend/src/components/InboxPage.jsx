@@ -110,7 +110,7 @@ export default function InboxPage({ onUnread }) {
                 the place it is about. */}
             {n.kind === 'friend_request' && n.actor && (friends ? relationTo(friends, n.actor.uuid) === 'asked' : n.waiting) ? (
               <span className="notification-acts">
-                {/* The same two buttons as on their nook and the Friends tab. */}
+                {/* The same two buttons as on their nook. */}
                 <span className="friend-button">
                   <button type="button" className="primary friend-accept" disabled={answering === n.uuid} onClick={() => answer(n, friendActs.accept)}>Accept</button>
                   <button type="button" className="friend-not-now" disabled={answering === n.uuid} onClick={() => answer(n, friendActs.decline)}>Not now</button>
