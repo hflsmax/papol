@@ -458,7 +458,7 @@ function answer(method, path, search, sent = {}) {
   }
   // Another member's nook, where their face leads: what they keep on
   // their public shelves, with their own takes, and their boards.
-  const someone = [ana, ben, mia].find((u) => path === `/users/${u.uuid}/nook`);
+  const someone = [ana, ben, mia, ...outsiders].find((u) => path === `/users/${u.uuid}/nook`);
   if (someone) return theirNook(someone);
   if (path === '/papers') return papers.map((p) => listed(p));
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
