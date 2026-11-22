@@ -5189,7 +5189,7 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
   .project-manage-row { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
   .project-tab.project-tab-manage { margin-left: 0; }
   .project-tabs { gap: 0; }
-  .project-tab { padding: 5px var(--space-2); }
+  .project-tab { padding: 7px var(--space-2) 3px; }
   .project-manage .project-person { flex-wrap: wrap; column-gap: var(--space-2); row-gap: 0; padding: var(--space-1) 0; }
   .project-manage .project-person-name, .project-manage .project-person-actions button { white-space: nowrap; }
 }
@@ -5207,10 +5207,12 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
   .project-tabs-row > .project-mark-all { padding: 6px; margin-right: calc(-1 * 6px); }
   .project-tabs-row { gap: var(--space-1); }
   .project-tabs { min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .project-tabs .project-tab { flex: none; gap: 4px; padding: 5px 7px; }
+  .project-tabs .project-tab { flex: none; gap: 4px; padding: 7px 7px 3px; }
   .project-mark-all-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-.project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
+/* The label's line box centres its ascent and descent, which leaves the
+   letters two pixels high in the pill; the padding sets them back. */
+.project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px var(--space-3) 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
