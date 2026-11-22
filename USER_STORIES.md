@@ -196,7 +196,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Becoming friends**
 
-- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out.
+- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out. **Find** in the Lounge looks people up by name or address; a tick box on my Account tab, *Let people find me when they look for friends*, on to begin with, takes me out of what Find shows. Off, I can still be asked from my nook.
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.

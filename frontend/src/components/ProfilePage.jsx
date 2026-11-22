@@ -276,6 +276,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
   const [emailPublic, setEmailPublic] = useState(user.email_public);
+  const [findable, setFindable] = useState(user.findable ?? true);
   const [profileError, setProfileError] = useState(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -367,6 +368,7 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
         display_name: displayName.trim(),
         affiliation: affiliation.trim(),
         email_public: emailPublic,
+        findable,
       });
       onUserUpdated(updated);
       setEmail(updated.email);
@@ -493,6 +495,14 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
                   onChange={(e) => setEmailPublic(e.target.checked)}
                 />
                 <span>Show my email on my nook</span>
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={findable}
+                  onChange={(e) => setFindable(e.target.checked)}
+                />
+                <span>Let people find me when they look for friends</span>
               </label>
             </div>
 

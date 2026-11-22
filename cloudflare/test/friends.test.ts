@@ -61,6 +61,13 @@ describe("becoming friends", () => {
     expect(await find("g")).toEqual([]);
     expect(await find("100%")).toEqual([]);
     expect((await call("GET", "/api/friends/people?q=grace")).status).toBe(401);
+    // Someone who turned finding off is not found, by name or by address; it is on to begin with.
+    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).findable).toBe(true);
+    expect((await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { findable: false } })).findable).toBe(false);
+    expect(await find("grace")).toEqual([]);
+    expect(await find("grace@example.test")).toEqual([]);
+    // They can still be asked from their nook.
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
   });
 
   it("happens at once when each has asked the other", async () => {

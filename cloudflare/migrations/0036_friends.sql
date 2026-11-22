@@ -51,6 +51,10 @@ CREATE TABLE copy_news (
 	PRIMARY KEY (copy_uuid)
 );
 
+-- Whether Find in the Lounge shows this user to people looking for
+-- someone to ask (on until they turn it off).
+ALTER TABLE users ADD COLUMN findable BOOLEAN DEFAULT '1' NOT NULL;
+
 -- When a user last opened the Lounge: what friends did after that is new
 -- to them.
 ALTER TABLE users ADD COLUMN room_seen_at DATETIME;
