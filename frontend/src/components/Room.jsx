@@ -248,18 +248,15 @@ function Finder({ currentUser, onDone }) {
 
 const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
-// What a row holds, as lines: who did what, and when.
-const linesOf = (row) => row.lines ?? [{ user: row.user, did: 'made', at: row.at }];
 const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
-const NONE = { kind: '', who: '' };
+const NONE = { kind: '' };
 // How many rows the room shows before Show more.
 const PAGE = 50;
 
-// The Lounge narrowed, as the nook is by a shelf: by whose news it is and
+// The Lounge narrowed, as the nook is by a shelf: by
 // what a row is.
 function narrowed(rows, pick) {
-  return rows.filter((row) => (!pick.kind || row.kind === pick.kind)
-    && (!pick.who || linesOf(row).some((line) => line.user.uuid === pick.who)));
+  return rows.filter((row) => !pick.kind || row.kind === pick.kind);
 }
 
 // The Lounge: what the member's friends are reading and what they make of
@@ -303,11 +300,8 @@ export default function Room({ currentUser, onSeen }) {
 
   const rows = room?.rows ?? [];
   const mine = friends?.friends ?? [];
-  // A friend who has since left the list is no longer narrowed to.
-  const who = mine.some((f) => f.user.uuid === pick.who) ? pick.who : '';
-  const chosen = mine.find((f) => f.user.uuid === who)?.user;
-  const shown = narrowed(rows, { ...pick, who });
-  const count = (kind) => narrowed(rows, { ...NONE, who, kind }).length;
+  const shown = narrowed(rows, pick);
+  const count = (kind) => narrowed(rows, { kind }).length;
 
   return (
     <FacesLead.Provider value>
@@ -321,20 +315,13 @@ export default function Room({ currentUser, onSeen }) {
               </div>
               {finding && <Finder currentUser={currentUser} onDone={() => setFinding(false)} />}
               <ul className="desk-rail-list">
-                <li>
-                  <button type="button" className={who ? 'desk-row' : 'desk-row is-on'} aria-pressed={!who} onClick={() => set('who', '')}>
-                    <span className="desk-row-name">All friends</span>
-                    <span className="desk-count">{mine.length}</span>
-                  </button>
-                </li>
                 {mine.map(({ user }) => (
-                  <li key={user.uuid} className="room-friend-item">
-                    {/* The face leads to their nook; the name narrows the news to them. */}
-                    <Face user={user} />
-                    <button type="button" className={who === user.uuid ? 'desk-row room-friend is-on' : 'desk-row room-friend'} aria-pressed={who === user.uuid} onClick={() => set('who', who === user.uuid ? '' : user.uuid)}>
-                      <span className="room-friend-gap" aria-hidden="true" />
+                  <li key={user.uuid}>
+                    {/* A friend, face and name, leads to their nook. */}
+                    <a className="desk-row room-friend" href={appPath(`/u/${user.uuid}`)}>
+                      <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
                       <span className="desk-row-name">{user.display_name}</span>
-                    </button>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -357,7 +344,7 @@ export default function Room({ currentUser, onSeen }) {
 
         <section className="desk-main" aria-label="The Lounge">
           {titled && (
-            <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
+            <InWay><h2 className="desk-main-title">Lounge</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}

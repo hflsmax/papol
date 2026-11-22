@@ -5753,10 +5753,8 @@ ${talkStyles}
 .room-more:hover, .room-more:focus-visible { background: var(--paper-sunken); }
 .room-more-left { margin-left: var(--space-2); color: var(--ink-faint); font-weight: 400; }
 .room button.desk-row { cursor: pointer; }
-.room-friend-item { position: relative; }
-.room-friend-item > .face-link { position: absolute; z-index: 1; top: 50%; left: calc(var(--space-2) - 6px); transform: translateY(-50%); }
-.room-friend-item .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
-.room-friend-gap { flex: none; width: 20px; height: 20px; margin-left: -6px; }
+.room-friend .mini-avatar { flex: none; width: 20px; height: 20px; margin-left: -6px; font-size: var(--fs-2xs); }
+.room a.desk-row { cursor: pointer; }
 .room-finder { padding: 0 0 var(--space-2); }
 .room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 .room-found { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0 var(--space-2); list-style: none; }
@@ -5766,8 +5764,6 @@ ${talkStyles}
 .room-found-name { overflow: hidden; color: var(--ink); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .room-found-name:hover { color: var(--accent); }
 .room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
-.room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
-.room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
 /* The card and its head are the nook's table and its column names. */
 .room-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .room-head { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 4.5rem; align-items: center; gap: var(--space-3); height: 32px; padding: 0 var(--space-3); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
