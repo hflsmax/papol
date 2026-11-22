@@ -225,8 +225,7 @@ export default function Room({ currentUser, onSeen }) {
             {room.friend_count === 0 ? (
               <p className="room-note">
                 The Lounge is your friends’ news: what they add, think and dig, and their digs to read and post in.
-                Add a friend from their nook, or send someone your friend link from the{' '}
-                <a href={appPath('/profile')}>Friends tab</a>.
+                Add a friend from their nook.
               </p>
             ) : room.rows.length === 0 ? (
               <p className="room-empty">Your friends have been quiet these four weeks.</p>

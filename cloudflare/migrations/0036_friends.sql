@@ -51,14 +51,11 @@ CREATE TABLE copy_news (
 	PRIMARY KEY (copy_uuid)
 );
 
--- A user's friend link (the code is the whole of the permission, as a
--- project's invitation is), whether their friends see what they are
--- reading this week (off until they turn it on), and when they last
--- opened the Lounge: what friends did after that is new to them.
-ALTER TABLE users ADD COLUMN friend_code VARCHAR(10);
+-- Whether a user's friends see what they are reading this week (off until
+-- they turn it on), and when they last opened the Lounge: what friends did
+-- after that is new to them.
 ALTER TABLE users ADD COLUMN shares_reading BOOLEAN DEFAULT '0' NOT NULL;
 ALTER TABLE users ADD COLUMN room_seen_at DATETIME;
-CREATE UNIQUE INDEX ix_users_friend_code ON users (friend_code);
 
 -- What a notification is, when it is more than its words: who it is from,
 -- and where it leads. A friend request is answered where it is read.

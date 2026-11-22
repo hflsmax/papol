@@ -91,24 +91,6 @@ describe("becoming friends", () => {
     expect((await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers })).sent).toEqual([grace.uuid]);
   });
 
-  it("takes one step through a friend link, which its owner can turn off", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    const { link } = await ok("POST", "/api/friends/link", { headers: ada.headers });
-    expect(link).toMatch(/^[0-9A-Za-z]{10}$/);
-    expect((await ok("POST", "/api/friends/link", { headers: ada.headers })).link).toBe(link);
-
-    expect((await call("GET", `/api/friend-links/${link}`)).status).toBe(401);
-    expect(await ok("GET", `/api/friend-links/${link}`, { headers: grace.headers })).toMatchObject({ user: { uuid: ada.uuid, display_name: "Ada" }, is_me: false, is_friend: false });
-    expect((await call("POST", `/api/friend-links/${link}`, { headers: ada.headers })).status).toBe(400);
-    expect(await ok("POST", `/api/friend-links/${link}`, { headers: grace.headers })).toMatchObject({ is_friend: true });
-    expect((await friends(ada)).friends).toMatchObject([{ user: { uuid: grace.uuid } }]);
-    expect((await inbox(ada))[0]).toMatchObject({ kind: "friend_accepted", content: "Grace is now your friend, through your friend link." });
-
-    expect((await ok("DELETE", "/api/friends/link", { headers: ada.headers })).link).toBeNull();
-    expect((await call("GET", `/api/friend-links/${link}`, { headers: grace.headers })).status).toBe(404);
-    expect((await ok("POST", "/api/friends/link", { headers: ada.headers })).link).not.toBe(link);
-  });
-
   it("goes with a closed account", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     await befriend(ada, grace);

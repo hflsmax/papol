@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { closeFriendLink, friendLinkPath, openFriendLink, shareReading } from '../../../shared/api/friends.js';
-import { copyText } from '../../../shared/nativeData.js';
+import { shareReading } from '../../../shared/api/friends.js';
 import { appPath } from '../base';
-import { backendPath } from '../../../shared/appUrls.js';
 import { friendActs, useFriends } from '../friendsStore';
 import Avatar from './Avatar';
 import FriendButton from './FriendButton';
@@ -18,7 +16,6 @@ export default function FriendsPanel({ user }) {
   const friends = useFriends();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
   if (!friends) return <div className="loading"><Working label="Loading friends…" /></div>;
 
   const run = async (call) => {
@@ -26,11 +23,6 @@ export default function FriendsPanel({ user }) {
     setBusy(true);
     setError(null);
     try { friendActs.set(await call()); } catch (err) { setError(err.message); } finally { setBusy(false); }
-  };
-  // On the service's address, not this window's, which on the Mac is the app's.
-  const link = friends.link ? new URL(backendPath(friendLinkPath(friends.link)), window.location.origin).toString() : null;
-  const copy = async () => {
-    try { await copyText(link); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { /* the link can be selected by hand */ }
   };
 
   return (
@@ -58,7 +50,7 @@ export default function FriendsPanel({ user }) {
         <h3 className="kicker" id="friends-mine">My friends</h3>
         {friends.friends.length === 0 ? (
           <p className="friends-empty">
-            No friends yet. Add someone from their nook, or send them your friend link.
+            No friends yet. Add someone from their nook.
             Friends see each other’s reading in the Lounge, and read and post in each other’s digs on papers kept on a public shelf.
           </p>
         ) : (
@@ -77,25 +69,6 @@ export default function FriendsPanel({ user }) {
           </ul>
         )}
         <p className="friends-note">Only you see this list.</p>
-      </section>
-
-      <section className="friends-block" aria-labelledby="friends-link">
-        <h3 className="kicker" id="friends-link">My friend link</h3>
-        {link ? (
-          <>
-            <p className="friends-note">Whoever opens this link signed in can become your friend in one press, with no second step from you.</p>
-            <div className="project-invite friends-link">
-              <code className="project-invite-link" title={link} tabIndex={0}>{link}</code>
-              <button type="button" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
-              <button type="button" className="project-quiet" disabled={busy} onClick={() => run(closeFriendLink)}>Turn off</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="friends-note">A link to hand to someone you know: opening it makes them your friend. You can turn it off whenever you like.</p>
-            <button type="button" disabled={busy} onClick={() => run(openFriendLink)}>Make my friend link</button>
-          </>
-        )}
       </section>
 
       <section className="friends-block" aria-labelledby="friends-reading">

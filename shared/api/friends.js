@@ -30,22 +30,6 @@ export function endFriend(userUuid) {
   return request(`/friends/${userUuid}`, { method: 'DELETE' });
 }
 
-export function openFriendLink() {
-  return request('/friends/link', { method: 'POST' });
-}
-
-export function closeFriendLink() {
-  return request('/friends/link', { method: 'DELETE' });
-}
-
-export function previewFriendLink(code) {
-  return request(`/friend-links/${code}`);
-}
-
-export function acceptFriendLink(code) {
-  return request(`/friend-links/${code}`, { method: 'POST' });
-}
-
 export function shareReading(sharesReading) {
   return jsonRequest('/friends/settings', 'PUT', { shares_reading: sharesReading });
 }
@@ -70,10 +54,6 @@ export function askToJoinProject(projectUuid) {
 // What my friends dug on a paper and on their marks on it.
 export function friendDigsOn(paperName) {
   return request(`/papers/${paperName}/friend-digs`);
-}
-
-export function friendLinkPath(code) {
-  return `/friends/join/${code}`;
 }
 
 // What stands between me and someone, from what getFriends answered:

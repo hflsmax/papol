@@ -29,7 +29,6 @@ const pages = [
   { path: '/library', page: 'papers' },
   { path: '/lounge', page: 'room' },
   { path: '/bazaar', page: 'room' },
-  { path: '/friends/join/Ab3dE5gH7j', page: 'friend-link' },
   { path: '/projects', page: 'projects' },
   { path: `/project/${USER_UUID}`, page: 'project' },
   { path: '/projects/join/Ab3dE5gH7j', page: 'invitation' },

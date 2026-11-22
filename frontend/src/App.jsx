@@ -15,7 +15,6 @@ import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
 import Room from './components/Room';
-import FriendLinkPage from './components/FriendLinkPage';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
@@ -75,7 +74,7 @@ export const PROJECT_PAGES = new Set(['project']);
 
 const SIGN_IN_PAGES = new Set([
   'nook', 'shelf', 'papers', 'room', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation', 'friend-link',
+  'projects', 'project', 'invitation',
 ]);
 
 // The macOS application is signed, notarized, and attached to this project's
@@ -638,7 +637,7 @@ export default function App({ startupUser = null, startupError = null }) {
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
     // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/projects/join/', '/friends/join/', '/u/', '/boards/', '/viewer/']
+    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/projects/join/', '/u/', '/boards/', '/viewer/']
       .some((start) => candidate.startsWith(start))
       ? candidate
       : '/';
@@ -931,9 +930,6 @@ export default function App({ startupUser = null, startupError = null }) {
           currentUser={user}
           onSeen={() => setRoomNews(false)}
         />
-      )}
-      {route.page === 'friend-link' && (
-        <FriendLinkPage code={route.code} currentUser={user} />
       )}
       {route.page === 'projects' && (
         <ProjectsPage

@@ -200,8 +200,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on the Friends tab of their own page until answered.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
-- **US-9.5** As a user, I have **my friend link**, one per account, on my profile. Whoever opens it signed in sees who it is from and one button, **Be friends**, and that makes us friends without a second step from me: handing someone the link was my half. A visitor is asked to register first and comes back to the same page. I can turn the link off, and asking again mints a new one, as with a project's invitation.
-- **US-9.6** Papol does not suggest people to befriend. Friends are found by their nook (a face in the Lounge, on a jacket or in a project leads there) or by a friend link.
+- **US-9.6** Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. Friends are made from a nook, by asking (a face in the Lounge, on a jacket or in a project leads there).
 
 **Having friends**
 
@@ -234,7 +233,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and says how to add one: from someone's nook, or by sending my friend link.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty and says how to add one: from someone's nook.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**

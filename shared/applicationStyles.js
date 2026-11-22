@@ -5217,7 +5217,7 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
 /* The inbox tab on the You page counts unread notifications. */
-.project-tab-new { display: inline-block; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/19px var(--font-ui); }
+.project-tab-new { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 18px; min-width: 18px; margin-top: -2px; padding: 1px 5px 0; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry.
    No rules between them: each row is a soft tile that shows only on hover,
@@ -5558,14 +5558,17 @@ ${talkStyles}
 .their-name { margin: 0; font: 600 var(--fs-xl)/1.2 var(--font-serif); }
 .their-line { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
 .their-line a { color: inherit; }
-.their-list { margin: 0; padding: 0; list-style: none; }
-.their-list li { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+/* A visitor's view of a nook lists its papers as my own nook does: the
+   same card, title and authors line (.desk-title, .desk-meta), rule and
+   tint under the pointer. */
+.their-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.their-list li { display: grid; align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
+.their-list li:hover { background: color-mix(in srgb, var(--card) 94%, var(--ink)); }
+.their-list li:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.their-list li:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 .their-list li:last-child { border-bottom: 0; }
 .their-boards { margin-top: var(--space-6); }
-.their-title { display: block; color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
-.their-title:hover, .their-title:focus-visible { color: var(--accent); text-decoration: underline; }
-.their-meta { display: block; margin-top: 2px; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
-.their-meta i { font-family: var(--font-serif); }
+.their-title { display: block; }
 .their-thought { display: block; margin-top: 4px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
 .nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .desk-rail { position: sticky; top: var(--space-4); }
@@ -5724,12 +5727,8 @@ ${talkStyles}
 .friends-panel { display: grid; gap: var(--space-6); max-width: 46rem; }
 .friends-block > .kicker { margin: 0 0 var(--space-1); }
 .friends-empty, .friends-note { margin: var(--space-2) 0 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
-.friends-link { margin-top: var(--space-2); }
 .friends-block .checkbox-row { margin-top: var(--space-2); font: 400 var(--fs-base) var(--font-ui); }
 .way-aside a.way-room { gap: 6px; }
-.friend-link-who { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3); }
-.friend-link-who h2 { margin: 0; }
-.friend-link-who p { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
 
 /* A message in the Inbox that has an answer or a place: said under it. */
 .notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }

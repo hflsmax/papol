@@ -240,8 +240,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           <ul className="their-list" aria-label="Papers">
             {[...nook.papers].sort(newestFirst).map((paper) => (
               <li key={paper.sha256}>
-                <a className="their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
-                <span className="their-meta">
+                <a className="desk-title their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
+                <span className="desk-meta their-meta">
                   {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                   {paper.journal && ` · ${paper.journal}`}
                 </span>
@@ -255,11 +255,11 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             {nook.boards.map((board) => (
               <li key={board.uuid}>
                 <a
-                  className="their-title"
+                  className="desk-title their-title"
                   href={appPath(`/boards/${board.uuid}`)}
                   onClick={(e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onSelectBoard(board.uuid); } }}
                 >{board.name}</a>
-                <span className="their-meta">Board · {board.item_count}</span>
+                <span className="desk-meta their-meta">Board · {board.item_count}</span>
               </li>
             ))}
           </ul>

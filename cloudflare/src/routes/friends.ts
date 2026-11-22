@@ -8,16 +8,14 @@
 //
 // A request is answered Accept or Not now. Not now is quiet: the asker is
 // never told and cannot ask again, though the asked can change their mind.
-// Two users who each ask the other are friends. A friend link befriends
-// whoever opens it: handing it over was its owner's half. Ending a
-// friendship tells nobody.
+// Two users who each ask the other are friends. Ending a friendship tells
+// nobody.
 
 import { currentUser, type User } from "../auth";
 import { all, batch, insert, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { queueEmail, siteUrl } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
-import { isShareCode, newShareCode } from "../papers/sharables";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { liveProject, onPublicShelf } from "./projects";
@@ -123,19 +121,13 @@ async function friendsOut(env: Env, me: User) {
     all<{ asked_uuid: string }>(env.DB, "SELECT asked_uuid FROM friendships WHERE asker_uuid = ? AND state IN ('asked', 'declined')", me.uuid),
     requestsFor(env, me),
   ]);
-  const fresh = await one<{ friend_code: string | null; shares_reading: number }>(env.DB, "SELECT friend_code, shares_reading FROM users WHERE uuid = ?", me.uuid);
+  const fresh = await one<{ shares_reading: number }>(env.DB, "SELECT shares_reading FROM users WHERE uuid = ?", me.uuid);
   return {
     friends: friends.map((f) => ({ user: userPublic(f), since: f.since })),
     requests,
     sent: sent.map((s) => s.asked_uuid),
-    link: fresh?.friend_code ?? null,
     shares_reading: Boolean(fresh?.shares_reading),
   };
-}
-
-async function linkOwner(env: Env, code: string): Promise<User> {
-  const owner = isShareCode(code) ? await one<User>(env.DB, "SELECT * FROM users WHERE friend_code = ? AND deleted_at IS NULL", code) : null;
-  return owner ?? refuse(404, "This friend link is no longer open");
 }
 
 export function friendRoutes(router: Router) {
@@ -152,44 +144,6 @@ export function friendRoutes(router: Router) {
     check.done();
     await statement(env.DB, "UPDATE users SET shares_reading = ? WHERE uuid = ?", shares ? 1 : 0, me.uuid).run();
     return json(await friendsOut(env, me));
-  });
-
-  // The user's friend link: one, and asked for again it is the same one.
-  router.on("POST", "/api/friends/link", async ({ request, env }) => {
-    const me = await currentUser(request, env);
-    const had = await one<{ friend_code: string | null }>(env.DB, "SELECT friend_code FROM users WHERE uuid = ?", me.uuid);
-    if (!had?.friend_code) await statement(env.DB, "UPDATE users SET friend_code = ? WHERE uuid = ?", newShareCode(), me.uuid).run();
-    return json(await friendsOut(env, me));
-  });
-
-  // Turned off, the link opens for nobody; the next one is new.
-  router.on("DELETE", "/api/friends/link", async ({ request, env }) => {
-    const me = await currentUser(request, env);
-    await statement(env.DB, "UPDATE users SET friend_code = NULL WHERE uuid = ?", me.uuid).run();
-    return json(await friendsOut(env, me));
-  });
-
-  // Whose link this is, before pressing Be friends. Signed-in users only.
-  router.on("GET", "/api/friend-links/:code", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
-    const owner = await linkOwner(env, params.code);
-    return json({ user: userPublic(owner), is_me: owner.uuid === me.uuid, is_friend: owner.uuid !== me.uuid && await areFriends(env, me.uuid, owner.uuid) });
-  });
-
-  router.on("POST", "/api/friend-links/:code", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
-    const owner = await linkOwner(env, params.code);
-    if (owner.uuid === me.uuid) refuse(400, "This is your own friend link");
-    const existing = await between(env, me.uuid, owner.uuid);
-    if (existing?.state !== "friends") {
-      const at = now();
-      await batch(env.DB, [
-        ...befriend(env, existing, owner.uuid, me.uuid, at),
-        requestGone(env, me.uuid, owner.uuid), requestGone(env, owner.uuid, me.uuid),
-        notice(env, owner.uuid, `${me.display_name} is now your friend, through your friend link.`, "friend_accepted", me, `/u/${me.uuid}`, at),
-      ]);
-    }
-    return json({ user: userPublic(owner), is_me: false, is_friend: true });
   });
 
   // Asking someone to be friends. Asking someone who already asked is

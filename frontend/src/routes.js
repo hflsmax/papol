@@ -34,9 +34,6 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   // An invitation's code is case-sensitive, so it is read as written.
   const invitation = path.match(/^\/projects\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
   if (invitation) return { page: 'invitation', code: invitation };
-  // A friend link's code is case-sensitive too.
-  const friendLink = path.match(/^\/friends\/join\/([0-9A-Za-z]{10})\/?$/)?.[1];
-  if (friendLink) return { page: 'friend-link', code: friendLink };
   if (path === '/projects') return { page: 'projects' };
   if (path === '/profile') return { page: 'profile' };
   if (path === '/join') return { page: 'join' };

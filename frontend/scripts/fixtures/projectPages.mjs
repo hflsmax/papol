@@ -274,8 +274,7 @@ let deleted = false;
 
 // What the pretend server says to each request the pages make.
 // Friends, and the Lounge made from them. Ana and Ben are the
-// member's friends; Mia has asked; Marta is the owner of the
-// friend link the fixture answers for.
+// member's friends; Mia has asked.
 const FRIEND_DIG = 'e1b2c3d4-0000-4000-8000-000000000060';
 const friendDig = {
   uuid: FRIEND_DIG, created_at: hoursAgo(7), updated_at: hoursAgo(2), edited_at: null, project: null, subject: subject.paperSurvey, owner: ana, is_mine: false,
@@ -285,7 +284,7 @@ const friendDig = {
 };
 const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: friendDig.created_at, updated_at: friendDig.updated_at, owner: ana, is_mine: false, text: friendDig.text, excerpt: friendDig.text, phase: 'digging', subject: subject.paperSurvey, post_count: 1, unread: 0, is_new: false, voices: [ana, ben], last_post: { user: ben, excerpt: friendDig.posts[0].body, created_at: hoursAgo(2) } };
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
-const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], link: 'Fr13ndL1nk', shares_reading: false });
+const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [], shares_reading: false });
 let friendsNow = friendState();
 const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
@@ -313,9 +312,8 @@ function answer(method, path, search, sent = {}) {
   // Each picture loads the app afresh: the project is back.
   if (path === '/auth/me') { deleted = false; friendsNow = friendState(); }
   // Friends: what the member's friends say now, changed by each answer.
-  if (path === '/friends' || path === '/friends/settings' || path === '/friends/link') {
+  if (path === '/friends' || path === '/friends/settings') {
     if (path === '/friends/settings') friendsNow.shares_reading = Boolean(sent.shares_reading);
-    if (path === '/friends/link') friendsNow.link = method === 'DELETE' ? null : 'N3wFr13nd0';
     return friendsNow;
   }
   const friendAct = path.match(/^\/friends\/([0-9a-f-]{36})(\/accept|\/decline)?$/);
@@ -331,7 +329,6 @@ function answer(method, path, search, sent = {}) {
     }
     return friendsNow;
   }
-  if (path.startsWith('/friend-links/')) return { user: outsiders[0], is_me: false, is_friend: method === 'POST' };
   if (path === '/room/news') return { news: true };
   if (path === '/room') {
     return {
