@@ -45,7 +45,7 @@ function Ratings({ ratings }) {
 // What someone did with a paper, in a line: their face, the act, their
 // words if they wrote any, and when. A dig or a post in one opens the dig
 // right there, to read and to post in.
-function Line({ line, title, currentUser }) {
+function Line({ line, title, currentUser, onOpen }) {
   const [open, setOpen] = useState(false);
   const me = line.user.uuid === currentUser.uuid;
   const whose = line.dig?.owner?.uuid === currentUser.uuid ? 'your' : line.dig?.owner?.uuid === line.user.uuid ? 'their' : `${first(line.dig?.owner)}’s`;
@@ -67,7 +67,7 @@ function Line({ line, title, currentUser }) {
         {/* A reading line says only that it happened this week. */}
         {line.did !== 'reading' && <time dateTime={line.at} title={when(line.at, { time: true })}>{when(line.at)}</time>}
         {line.dig ? (
-          <button type="button" className="room-dig-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+          <button type="button" className="room-dig-open" aria-expanded={open} onClick={() => { onOpen?.(!open); setOpen(!open); }}>
             {words}
             {line.dig.post_count > 0 && <span className="room-posts">{line.dig.post_count} {line.dig.post_count === 1 ? 'post' : 'posts'}</span>}
           </button>
@@ -100,6 +100,56 @@ function Keep({ paper, onKept }) {
   );
 }
 
+// A face in a row, and under it what that person did. The row itself
+// says nothing of it: resting on the face (or pressing it, where there is
+// nothing to rest with) brings it out, and an opened dig holds it there.
+function Who({ user, held = false, children }) {
+  return (
+    <span className={`room-who${held ? ' is-held' : ''}`}>
+      <span className="room-who-face" tabIndex={0} role="button" aria-label={`What ${user.display_name} did`}>
+        <FacesLead.Provider value={false}><Face user={user} /></FacesLead.Provider>
+      </span>
+      <div className="room-pop">{children}</div>
+    </span>
+  );
+}
+
+// One plain line of what someone did, for a row that is not a paper.
+function Said({ user, at, children }) {
+  return (
+    <div className="room-line">
+      <Face user={user} />
+      <span className="room-said">
+        {children}
+        <time dateTime={at} title={when(at, { time: true })}>{when(at)}</time>
+      </span>
+    </div>
+  );
+}
+
+function PaperWho({ user, lines, title, currentUser }) {
+  const [held, setHeld] = useState(false);
+  return (
+    <Who user={user} held={held}>
+      <ul className="room-lines">
+        {lines.map((line) => (
+          <Line key={`${line.did}:${line.dig?.uuid ?? ''}`} line={line} title={title} currentUser={currentUser} onOpen={setHeld} />
+        ))}
+      </ul>
+    </Who>
+  );
+}
+
+// Each person once, in the order their newest line came, with their lines.
+function byPerson(lines) {
+  const people = new Map();
+  for (const line of lines) {
+    if (!people.has(line.user.uuid)) people.set(line.user.uuid, { user: line.user, lines: [] });
+    people.get(line.user.uuid).lines.push(line);
+  }
+  return [...people.values()];
+}
+
 function PaperRow({ row, currentUser }) {
   return (
     <li className={`room-row is-paper${row.is_new ? ' is-new' : ''}`}>
@@ -107,33 +157,36 @@ function PaperRow({ row, currentUser }) {
         <div className="room-row-text">
           <a className="room-title" href={appPath(`/paper/${paperName(row.paper.sha256)}`)}><PaperTitle title={row.paper.title} /></a>
           {row.is_new && <NewsDot />}
-          <p className="room-meta">{metaOf(row.paper)}</p>
+          <span className="room-meta">{metaOf(row.paper)}</span>
         </div>
+        <span className="room-faces">
+          {byPerson(row.lines).map(({ user, lines }) => (
+            <PaperWho key={user.uuid} user={user} lines={lines} title={row.paper.title} currentUser={currentUser} />
+          ))}
+        </span>
         {!row.in_my_nook && <Keep paper={row.paper} />}
       </div>
-      <ul className="room-lines">
-        {row.lines.map((line) => (
-          <Line key={`${line.user.uuid}:${line.did}:${line.dig?.uuid ?? ''}`} line={line} title={row.paper.title} currentUser={currentUser} />
-        ))}
-      </ul>
     </li>
   );
 }
 
-// A folder brought in at once: one line, which unfolds to its papers.
+// A folder brought in at once: one row, which unfolds to its papers.
 function BatchRow({ row }) {
   const [open, setOpen] = useState(false);
   return (
     <li className={`room-row is-batch${row.is_new ? ' is-new' : ''}`}>
-      <div className="room-line">
-        <Face user={row.user} />
-        <span className="room-said">
-          <button type="button" className="room-batch-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
-            <b>{row.user.display_name}</b> added {row.papers.length} papers
+      <div className="room-row-head">
+        <div className="room-row-text">
+          <button type="button" className="room-title room-batch-open" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+            {row.papers.length} papers
           </button>
           {row.is_new && <NewsDot />}
-          <time dateTime={row.at}>{when(row.at)}</time>
-          {!open && <span className="room-batch-some">{someTitles(row.papers)}</span>}
+          {!open && <span className="room-meta">{someTitles(row.papers)}</span>}
+        </div>
+        <span className="room-faces">
+          <Who user={row.user}>
+            <Said user={row.user} at={row.at}><b>{row.user.display_name}</b> added {row.papers.length} papers</Said>
+          </Who>
         </span>
       </div>
       {open && (
@@ -153,14 +206,17 @@ function BatchRow({ row }) {
 function BoardRow({ row }) {
   return (
     <li className={`room-row is-board${row.is_new ? ' is-new' : ''}`}>
-      <div className="room-line">
-        <Face user={row.user} />
-        <span className="room-said">
-          <b>{row.user.display_name}</b> <span className="room-did">put a board on a public shelf</span>
-          <time dateTime={row.at}>{when(row.at)}</time>
+      <div className="room-row-head">
+        <div className="room-row-text">
+          <span className="room-kind">Board</span>
+          <a className="room-title" href={appPath(`/board/${row.board.uuid}`)}>{row.board.name}</a>
           {row.is_new && <NewsDot />}
-          <a className="room-title is-inline" href={appPath(`/board/${row.board.uuid}`)}>{row.board.name}</a>
           <span className="room-meta">{row.board.item_count} {row.board.item_count === 1 ? 'card' : 'cards'}{row.board.description ? ` · ${row.board.description}` : ''}</span>
+        </div>
+        <span className="room-faces">
+          <Who user={row.user}>
+            <Said user={row.user} at={row.at}><b>{row.user.display_name}</b> put a board on a public shelf</Said>
+          </Who>
         </span>
       </div>
     </li>
@@ -170,7 +226,6 @@ function BoardRow({ row }) {
 function ProjectRow({ row }) {
   const [asked, setAsked] = useState(row.project.asked);
   const [busy, setBusy] = useState(false);
-  const names = row.lines.map((l) => `${l.user.display_name} ${l.did === 'started' ? 'started it' : l.did === 'keeps' ? 'keeps it' : 'joined'}`).join(' · ');
   return (
     <li className={`room-row is-project${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
@@ -180,11 +235,20 @@ function ProjectRow({ row }) {
             ? <a className="room-title" href={appPath(`/project/${row.project.uuid}`)}>{row.project.name}</a>
             : <span className="room-title">{row.project.name}</span>}
           {row.is_new && <NewsDot />}
-          <p className="room-meta">
-            {names} · {row.project.member_count} {row.project.member_count === 1 ? 'member' : 'members'}
+          <span className="room-meta">
+            {row.project.member_count} {row.project.member_count === 1 ? 'member' : 'members'}
             {row.project.description ? ` · ${row.project.description}` : ''}
-          </p>
+          </span>
         </div>
+        <span className="room-faces">
+          {row.lines.map((l) => (
+            <Who key={`${l.user.uuid}:${l.did}`} user={l.user}>
+              <Said user={l.user} at={l.at}>
+                <b>{l.user.display_name}</b> {l.did === 'started' ? 'started it' : l.did === 'keeps' ? 'keeps it' : 'joined'}
+              </Said>
+            </Who>
+          ))}
+        </span>
         {!row.project.is_member && (asked ? <span className="room-kept">Asked to join</span> : (
           <button
             type="button" className="room-keep" disabled={busy}
@@ -201,12 +265,16 @@ function ProjectRow({ row }) {
 function FriendRow({ row }) {
   return (
     <li className={`room-row is-friend${row.is_new ? ' is-new' : ''}`}>
-      <div className="room-line">
-        <Face user={row.user} />
-        <span className="room-said">
-          You and <a className="room-person" href={appPath(`/u/${row.user.uuid}`)}>{row.user.display_name}</a> are friends
-          <time dateTime={row.at}>{when(row.at)}</time>
+      <div className="room-row-head">
+        <div className="room-row-text">
+          <span className="room-kind">Friend</span>
+          <a className="room-title" href={appPath(`/u/${row.user.uuid}`)}>{row.user.display_name}</a>
           {row.is_new && <NewsDot />}
+        </div>
+        <span className="room-faces">
+          <Who user={row.user}>
+            <Said user={row.user} at={row.at}>You and <b>{row.user.display_name}</b> are friends</Said>
+          </Who>
         </span>
       </div>
     </li>

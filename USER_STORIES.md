@@ -223,19 +223,19 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 **The room**
 
 - **US-10.1** As a user, the bar's one link beside my face reads **Lounge** (at `/lounge`; the old `/bazaar` still leads there) and opens the news of my friends: what they added, thought, rated and dug, newest first.
-- **US-10.2** **A paper to a row, not an event to a row.** Everything my friends lately did with one paper is one row: title and authors, then a line per friend (face, what they did, their words if they wrote any, when). Three friends keeping the same paper is one row with three faces, which is the most useful thing the room can tell me.
+- **US-10.2** **A paper to a row, not an event to a row.** Everything my friends lately did with one paper is one row: the title, its authors and venue, and the faces of the friends who did something with it. The row does not spell out what they did. Resting on a face (pressing it on a phone, or tabbing to it) brings out that friend's lines under the row: what they did, their words if they wrote any, when. Three friends keeping the same paper is one row with three faces, which is the most useful thing the room can tell me.
 - **US-10.3** What makes news: a friend put a paper on a public shelf; wrote or changed a thought; rated; wrote a dig or posted in one I can see; put a board on a public shelf; started or joined a project; became my friend. With US-9.14 on, also *reading this week*. Nothing private makes news, and taking something private again takes its line out.
-- **US-10.4** **A batch is one line.** A friend who brings in a folder of thirty-four papers shows as *Ana added 34 papers*, which unfolds, and never as thirty-four rows.
-- **US-10.5** From a row I can open the paper's jacket, **Add to my nook**, open a friend's dig and post in it, or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
+- **US-10.4** **A batch is one row.** A friend who brings in a folder of thirty-four papers shows as *34 papers* with their face, which unfolds, and never as thirty-four rows.
+- **US-10.5** From a row I can open the paper's jacket and **Add to my nook**; from what a face brings out I can open a friend's dig and post in it (an opened dig stays out until I close it), or go to their nook. There is nothing to like, no count of reactions and no reposting: the answer to a thought is a post in a dig.
 - **US-10.6** What is new since I last opened the room wears the gold dot, as news does in a project, and the bar's link wears one when there is any. No number: the room is not an inbox.
-- **US-10.7** A board's row shows its miniature, name and whose it is. A project's row shows its name and members, and for a project I am not in, **Ask to join**, which sends its keepers a request in their Inbox, once. The Projects page offers the same button.
+- **US-10.7** A board's row shows its name, how many cards it holds and whose face put it out. A project's row shows its name, how many members it has and the faces of who started or joined it, and for a project I am not in, **Ask to join**, which sends its keepers a request in their Inbox, once. The Projects page offers the same button.
 - **US-10.8** The Lounge holds news and nothing else: friend requests are answered in the Inbox and on the Friends tab, not here.
 - **US-10.9** **The room ends.** It holds the last four weeks, oldest at the foot, then one line saying so. No endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
 **Friends and everyone**
 
 - **US-10.10** Two views, side by side at the head: **Friends** and **Everyone**. Everyone is the same room made from all of Papol's public news, ordered by what happened. With no friends yet I land on Everyone, with a line saying what friends would add; with one friend or more I land on Friends.
-- **US-10.11** In Everyone, a row's faces are a way to meet people: each leads to that person's nook, where Add friend is (US-9.1).
+- **US-10.11** In Everyone, a row's faces are a way to meet people: what a face brings out leads to that person's nook, where Add friend is (US-9.1).
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**

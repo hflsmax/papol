@@ -5751,12 +5751,24 @@ ${talkStyles}
 .room-row { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .room-row:first-child { padding-top: 0; }
 .room-row:last-child { border-bottom: 0; }
-.room-row-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.room-row-head { position: relative; display: flex; align-items: flex-start; gap: var(--space-3); }
+/* Who did something with the row: faces only, and what each did comes
+   out under the row when a face is rested on, pressed or tabbed to. */
+.room-faces { display: flex; flex: none; align-items: center; gap: 4px; }
+.room-who { display: inline-flex; }
+.room-who-face { display: inline-flex; border-radius: 50%; cursor: default; }
+.room-who-face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.room-who-face .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
+.room-pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); visibility: hidden; opacity: 0; transition: opacity 0.12s 0.2s, visibility 0s 0.32s; }
+.room-pop::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 8px; }
+.room-who:hover .room-pop, .room-who:focus-within .room-pop, .room-who.is-held .room-pop { visibility: visible; opacity: 1; transition-delay: 0s; }
+.room-who:hover .room-pop { z-index: 21; }
+.room-pop .room-lines { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .room-pop { transition: none; } }
 .room-row-text { flex: 1; min-width: 0; line-height: 1.35; }
 .room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
 .room-title { color: var(--ink); font: 600 var(--fs-md)/1.3 var(--font-serif); text-decoration: none; overflow-wrap: anywhere; }
 a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.room-title.is-inline { margin-left: var(--space-2); }
 .room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 .room-meta { display: inline; margin: 0 0 0 var(--space-2); color: var(--ink-faint); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
 .room-batch .room-meta { display: block; margin: 0; }
@@ -5783,11 +5795,9 @@ a.room-title:hover, a.room-title:focus-visible { color: var(--accent); text-deco
 .room-said .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
 .room-said .talk-posts { padding: 0; }
 .room-said .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
-.room-batch-open { padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
+.room-batch-open { padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; }
 .room-batch-open:hover:not(:disabled) { background: none; color: var(--accent); }
-.room-batch-open:hover b { color: var(--accent); }
-.room-batch-some { display: block; color: var(--ink-faint); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.room-batch { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0 calc(18px + var(--space-2)); padding: 0; list-style: none; }
+.room-batch { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0 var(--space-4); padding: 0; list-style: none; }
 .room-batch-title { color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
 .room-batch-title:hover { color: var(--accent); text-decoration: underline; }
 
