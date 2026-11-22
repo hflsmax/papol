@@ -184,12 +184,12 @@ const SHOTS = {
   // up, then the form.
   'drop-uploading': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
   'drop-form': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
-  // An author's copy of a published paper dropped on the nook: its form,
-  // filled from the published version; and with what the PDF prints taken
-  // back instead.
-  'drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", size: wide },
-  'drop-form-as-printed': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP + " ", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", pointer: [['click', '.published-version input[value=printed]']], size: wide },
-  'phone-drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-doi')?.value === '10.1109/tg.2023.3292982'", size: phone },
+  // An author's copy of a published paper dropped on the nook: its form
+  // on what the PDF prints, with the published paper named and a button
+  // to fill the form from it; and after that button.
+  'drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill') && document.querySelector('#upload-paper-title')?.value === 'Modeling Game Mechanics with Ceptre'", size: wide },
+  'drop-form-filled': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill')", pointer: [['click', '.published-fill']], size: wide },
+  'phone-drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill')", size: phone },
   // Papol's mark pressed while a dropped PDF's form is open: the nook comes
   // back without the form.
   'drop-form-home': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", pointer: [['click', '.way-mark']], size: wide },

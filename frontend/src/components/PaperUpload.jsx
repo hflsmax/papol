@@ -44,11 +44,11 @@ export default function PaperUpload({
   // one, and whether the save takes it (the default) or keeps this PDF.
   const [known, setKnown] = useState(null);
   const [useKnown, setUseKnown] = useState(true);
-  // The reading, when it matched the PDF to its published version: the
-  // form holds the published details or, at the user's word, what the PDF
-  // prints (`as_printed`).
+  // The reading, when it matched the PDF to its published version. The
+  // form opens on what the PDF prints (`as_printed`); a button fills it
+  // with the published paper's details, and another takes them back.
   const [published, setPublished] = useState(null);
-  const [usePublished, setUsePublished] = useState(true);
+  const [usePublished, setUsePublished] = useState(false);
   const [formData, setFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
   const [shelves, setShelves] = useState([]);
@@ -145,7 +145,7 @@ export default function PaperUpload({
     setKnown(null);
     setUseKnown(true);
     setPublished(null);
-    setUsePublished(true);
+    setUsePublished(false);
     setIsLoading(true);
     setUploadProgress(null);
     setError(null);
@@ -194,9 +194,10 @@ export default function PaperUpload({
         return;
       }
       const settle = (read) => {
-        if (read) setFormData((current) => fillUnedited(current, editedFields.current, read));
+        const matched = publishedVersion(read) ? read : null;
+        if (read) setFormData((current) => fillUnedited(current, editedFields.current, matched ? matched.as_printed : read));
         setKnown(read?.existing?.sha256 ? read.existing : null);
-        setPublished(publishedVersion(read) ? read : null);
+        setPublished(matched);
         setReading(read ? null : 'unread');
       };
       // The indexes knew the paper while it went up: the form opens filled.
@@ -349,19 +350,16 @@ export default function PaperUpload({
           </div>
         )}
         {published && (
-          <div className="metadata-reading known-version published-version" role="status">
+          <div className="metadata-reading published-version" role="status">
             <span>
-              Matched to its published version,{' '}
+              {usePublished ? 'Filled in from the published paper,' : 'Published as'}{' '}
               <a href={publishedVersion(published).href} target="_blank" rel="noreferrer">{publishedVersion(published).where}</a>
             </span>
-            <label className="checkbox-row inline">
-              <input type="radio" name="published_version" value="published" checked={usePublished} onChange={() => choosePublished(true)} />
-              <span>Use its details</span>
-            </label>
-            <label className="checkbox-row inline">
-              <input type="radio" name="published_version" value="printed" checked={!usePublished} onChange={() => choosePublished(false)} />
-              <span>Use what the PDF prints</span>
-            </label>
+            {usePublished ? (
+              <button type="button" className="link-button" onClick={() => choosePublished(false)}>Undo</button>
+            ) : (
+              <button type="button" className="published-fill" onClick={() => choosePublished(true)}>Fill in its details</button>
+            )}
           </div>
         )}
         {error && <div className="error" role="alert">{error}</div>}

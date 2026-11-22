@@ -44,9 +44,10 @@ export function knownVersionLine(read) {
 
 // A paper that prints no identifier of its own (an author's copy) may be
 // matched to its published version by its title and authors; the reading
-// then says what the PDF itself printed (`as_printed`), and the form
-// offers it back, the match being a judgment the user can overrule. The
-// line names where the match was published, for the user to check it:
+// then says what the PDF itself printed (`as_printed`). The form opens on
+// that, the match being a judgment, and offers the published details by a
+// button. The line names where the match was published, for the user to
+// check it:
 // `{ where, href }`, or null when the fields are the PDF's own.
 export function publishedVersion(read) {
   if (!read?.as_printed || !read.doi) return null;
