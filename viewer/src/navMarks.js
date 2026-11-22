@@ -10,7 +10,16 @@ import { positionOf } from './sectionStops.js';
 export const NAV_KINDS = navMarks.kinds;
 export const NAV_SHOWN = navMarks.shown;
 
-export const NAV_NAMES = navMarks.names;
+export const NAV_NAMES = {
+  subsection: 'Subsections',
+  figure: 'Figures',
+  table: 'Tables',
+  algorithm: 'Algorithms and code',
+  definition: 'Definitions',
+  theorem: 'Theorems',
+  lemma: 'Lemmas',
+  proof: 'Proofs',
+};
 
 // The analysis's kinds, by the kind the bar marks them as. A box (Nature's
 // "Box 1") is set like a figure and read like one; a listing is code, as an
