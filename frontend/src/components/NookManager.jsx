@@ -121,7 +121,7 @@ export default function NookManager({ nook, setNook, onChanged, onClose, onTagDe
             <div className="manage-tag-list">
               {nook.tags.map((tag) => (
                 <div className="manage-tag-row" key={tag.uuid}>
-                  <span className="tag-chip"><span aria-hidden="true">#</span> {tag.name}</span>
+                  <span className="tag-chip"><span className="cap-text"><span aria-hidden="true">#</span>{tag.name}</span></span>
                   <button
                     className="icon-button tag-delete-button"
                     title={`Delete ${tag.name}`}
