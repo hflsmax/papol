@@ -3,8 +3,12 @@ import { appPath } from '../base';
 import HomeBoard from './HomeBoard';
 import HomeLounge from './HomeLounge';
 import HomeSpecimen from './HomeSpecimen';
+import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
+import { handoffCapableMac } from '../../../shared/macHandoff.js';
 
-const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
+// A visitor on a Mac is offered the app beside the account, where they are
+// already deciding how to start; anyone else finds it in the top bar.
+const ON_A_MAC = typeof navigator !== 'undefined' && handoffCapableMac(navigator);
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
@@ -43,6 +47,14 @@ export default function HomePage() {
         <p className="landing-fact">A paper reader for researchers. Free and open source, on the web and Mac.</p>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
+          {ON_A_MAC && (
+            <a className="landing-button landing-mac" href={MAC_DOWNLOAD_URL}>
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />
+              </svg>
+              Download for Mac
+            </a>
+          )}
           <a className="landing-button" href="#viewer">Try it ↓</a>
         </div>
       </header>
@@ -80,7 +92,7 @@ export default function HomePage() {
       <footer className="landing-footer">
         <a href={appPath('/about')}>About</a>
         <a href={appPath('/learn')}>Learn</a>
-        <a href={MACOS_DOWNLOAD_URL} target="_blank" rel="noreferrer">Mac app</a>
+        <a href={MAC_DOWNLOAD_URL}>Mac app</a>
         <a href="https://github.com/hflsmax/papol" target="_blank" rel="noreferrer">Open source on GitHub</a>
       </footer>
     </div>
