@@ -228,6 +228,24 @@ function viewerFixture(server) {
     res.setHeader('Content-Length', pdfBytes.length);
     res.end(pdfBytes);
   });
+  // Where the reader left each paper, as Papol keeps it: the newest read.
+  const places = new Map();
+  server.middlewares.use('/api/reading-places', (req, res) => {
+    const paper = req.url.split('?')[0].replace(/^\//, '');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'GET') {
+      res.end(JSON.stringify({ place: places.get(paper) ?? null }));
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      const place = JSON.parse(body);
+      const kept = places.get(paper);
+      if (!kept || Date.parse(place.read_at) > Date.parse(kept.read_at)) places.set(paper, place);
+      res.end(JSON.stringify({ place: places.get(paper) }));
+    });
+  });
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const body = answer(req.method, url.pathname, url.searchParams);
