@@ -20,7 +20,7 @@ func point(_ d: [String: Any], _ key: String) -> CGPoint {
 }
 
 func post(_ type: CGEventType, _ at: CGPoint, clicks: Int64 = 1) {
-  let e = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: at, mouseButton: .left)!
+  let e = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: at, mouseButton: .left)!
   e.setIntegerValueField(.mouseEventClickState, value: clicks)
   e.post(tap: .cghidEventTap)
 }
@@ -39,7 +39,7 @@ func move(_ to: CGPoint) {
 }
 
 func click(_ at: CGPoint) {
-  post(.leftMouseDown, at); usleep(40_000)
+  post(.leftMouseDown, at); usleep(80_000)
   post(.leftMouseUp, at); usleep(300_000)
 }
 
@@ -60,7 +60,8 @@ func cursor() -> String {
 
 func state() -> String {
   guard let s = get("state") else { return "no state" }
-  return "pins=\(s["pins"] ?? "?") selected=\(s["selected"] ?? "?") actions=\(s["actions"] ?? "?") selecting=\(s["selecting"] ?? "?")"
+  let age = Int(Date().timeIntervalSince1970 * 1000) - ((s["at"] as? NSNumber)?.intValue ?? 0)
+  return "age=\(age)ms pins=\(s["pins"] ?? "?") selected=\(s["selected"] ?? "?") actions=\(s["actions"] ?? "?") selecting=\(s["selecting"] ?? "?")"
 }
 
 // What this process may do, and what is on the screen.

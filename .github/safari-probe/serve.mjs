@@ -2,6 +2,7 @@
 // real-Safari check on a GitHub macOS runner (safari-cursor-probe.yml).
 // The probe page holds the viewer in a same-origin frame, reports where
 // things are on the screen, and reports the viewer's state as it changes.
+import { createServer } from 'node:http';
 import { PAPER, viewerServer } from '../../viewer/scripts/fixtures/projectViewer.mjs';
 
 const server = await viewerServer();
@@ -12,7 +13,9 @@ const html = `<!doctype html><meta charset="utf-8"><title>probe</title>
 <iframe id="v" src="/viewer/?pdf=${PAPER}"></iframe>
 <script>
 const f = document.getElementById('v');
-const post = (path, body) => fetch(path, { method: 'POST', body: JSON.stringify(body) });
+// Reported to another host name than the viewer's: Safari keeps six
+// connections a host and port, and the viewer's own can hold them all.
+const post = (path, body) => fetch('http://127.0.0.1:5200' + path, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
 const screenOf = (x, y) => {
   const top = window.screenY + (window.outerHeight - window.innerHeight);
   const left = window.screenX + (window.outerWidth - window.innerWidth) / 2;
@@ -81,8 +84,9 @@ const tick = async () => {
 tick();
 </script>`;
 // Ahead of Vite's own handlers, which answer 404 outside the viewer's base.
-server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
-  const path = req.url.split('?')[0];
+const probe = (req, res) => {
+  const path = req.url.split('?')[0].replace(/^\/probe/, '');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'POST') {
     let body = '';
     req.on('data', (c) => { body += c; });
@@ -99,6 +103,9 @@ server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
   if (path === '/state') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(states.at(-1) ?? null)); return; }
   res.setHeader('Content-Type', 'text/html');
   res.end(html);
-} });
+};
+server.middlewares.stack.unshift({ route: '/probe', handle: probe });
+// The page's reports come in on a port of their own (see post above).
+createServer(probe).listen(5200, '127.0.0.1');
 await server.listen(5199);
 console.log('probe server on http://127.0.0.1:5199/probe/');
