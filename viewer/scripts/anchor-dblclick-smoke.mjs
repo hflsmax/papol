@@ -78,8 +78,14 @@ try {
   await new Promise((r) => setTimeout(r, 300));
   check('a double-click between two lines drops no anchor', (await pins()) === before);
 
+  // What the browser had selected as the double-click arrived: nothing. A
+  // second press on bare paper is kept from the browser, which would
+  // otherwise select a line break (Chrome) or the whole page (WebKit).
+  await browser.evaluate(`window.__selected = null; document.addEventListener('dblclick', () => { window.__selected = String(getSelection()); }, { capture: true, once: true }); return true;`);
   await mouse(at.bare.x, at.bare.y, 1);
   await mouse(at.bare.x, at.bare.y, 2);
+  const selected = await browser.evaluate('return window.__selected;');
+  check('a double-click on bare paper selects nothing', selected === '', JSON.stringify(selected));
   await browser.waitFor(`document.querySelectorAll('.pdf-page[data-page="1"] .pin').length > ${before}`, { timeout: 4000, what: 'an anchor' }).catch(() => {});
   const placed = await browser.evaluate(`
     const pins = [...document.querySelectorAll('.pdf-page[data-page="1"] .pin')];

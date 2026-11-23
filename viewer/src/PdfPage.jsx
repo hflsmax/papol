@@ -2101,6 +2101,29 @@ function PdfPage({
     onSelectAnchor(pin.uuid);
   };
 
+  // Whether a double-click (or its second press) here, with this much
+  // text selected, is one that drops an anchor (blankDoubleClick.js).
+  const dropsAnchorAt = (e, selectedText) => {
+    if (tool !== 'arrow' || !onPlaceAnchor) return false;
+    const box = holderRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return false;
+    const x = (e.clientX - box.left) / box.width;
+    const y = (e.clientY - box.top) / box.height;
+    return doubleClickDropsAnchor({
+      tool,
+      button: e.button,
+      pointerType: pressedWithRef.current,
+      bare: onBareGround(e.target, holderRef.current),
+      selectedText,
+      nearText: nearText(
+        [...holderRef.current.querySelectorAll('.textLayer span')].map((span) => span.getBoundingClientRect()),
+        e.clientX,
+        e.clientY,
+      ),
+      overReference: citations.some((c) => citationHolds(c, x, y)) || links.some((l) => boxHolds(l, x, y)),
+    });
+  };
+
   const stretch = scale / renderScale;
 
   return (
@@ -2146,26 +2169,17 @@ function PdfPage({
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
       }}
       onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
+      onMouseDown={(e) => {
+        // The second press of a double-click on bare paper is the anchor's,
+        // not the browser's: left to it, WebKit (Safari and the Mac app)
+        // selects the whole text layer from there, and Chrome a line
+        // break. Kept from it, the double-click arrives with nothing
+        // selected and the anchor drops.
+        if (e.detail >= 2 && dropsAnchorAt(e, '')) e.preventDefault();
+      }}
       onDoubleClick={(e) => {
-        if (tool !== 'arrow' || !onPlaceAnchor) return;
-        const box = holderRef.current?.getBoundingClientRect();
-        if (!box?.width || !box.height) return;
-        const x = (e.clientX - box.left) / box.width;
-        const y = (e.clientY - box.top) / box.height;
-        if (!doubleClickDropsAnchor({
-          tool,
-          button: e.button,
-          pointerType: pressedWithRef.current,
-          bare: onBareGround(e.target, holderRef.current),
-          selectedText: String(window.getSelection() ?? ''),
-          nearText: nearText(
-            [...(holderRef.current.querySelectorAll('.textLayer span') ?? [])].map((span) => span.getBoundingClientRect()),
-            e.clientX,
-            e.clientY,
-          ),
-          overReference: citations.some((c) => citationHolds(c, x, y)) || links.some((l) => boxHolds(l, x, y)),
-        })) return;
-        // The line break the browser picked up on the way is no selection.
+        if (!dropsAnchorAt(e, String(window.getSelection() ?? ''))) return;
+        // Anything the browser picked up on the way is no selection.
         window.getSelection()?.removeAllRanges();
         onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
