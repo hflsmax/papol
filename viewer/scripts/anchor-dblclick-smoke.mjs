@@ -28,10 +28,14 @@ const shoot = async (name, ring = null) => {
   if (ring) {
     await browser.evaluate(`const r = document.createElement('i'); r.id = 'smoke-ring';
       r.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;width:28px;height:28px;border:2px dashed #d33;border-radius:50%;left:${ring.x - 16}px;top:${ring.y - 16}px';
-      document.body.append(r); return true;`);
+      document.body.append(r);
+      ${ring.label ? `const t = document.createElement('b'); t.id = 'smoke-label'; t.textContent = ${JSON.stringify(ring.label ?? '')};
+        t.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;font:600 13px system-ui;color:#fff;background:#d33;padding:2px 6px;border-radius:4px;left:${ring.x + 18}px;top:${ring.y + 12}px';
+        document.body.append(t);` : ''}
+      return true;`);
   }
   const { data } = await browser.send('Page.captureScreenshot', { format: 'png' });
-  await browser.evaluate("document.getElementById('smoke-ring')?.remove(); return true;");
+  await browser.evaluate("document.getElementById('smoke-ring')?.remove(); document.getElementById('smoke-label')?.remove(); return true;");
   await writeFile(`${shots}/${name}.png`, Buffer.from(data, 'base64'));
 };
 const pins = () => browser.evaluate("return document.querySelectorAll('.pdf-page[data-page=\"1\"] .pin').length;");
@@ -101,6 +105,33 @@ try {
     await mouse(placed.pin.x, placed.pin.bottom - 8, 2);
     await new Promise((r) => setTimeout(r, 300));
     check('a double-click on an anchor drops no second one', (await pins()) === before + 1);
+  }
+
+  // A citation over words shows the hand, as a link does; the words
+  // beside it keep their I-beam.
+  const cite = await browser.evaluate(`
+    const cite = [...document.querySelectorAll('.pdf-page .cite')].find((c) => c.getBoundingClientRect().width > 4);
+    if (!cite) return null;
+    cite.scrollIntoView({ block: 'center' });
+    return true;`);
+  if (cite) {
+    await new Promise((r) => setTimeout(r, 600));
+    const spot = await browser.evaluate(`
+      const box = [...document.querySelectorAll('.pdf-page .cite')].find((c) => c.getBoundingClientRect().width > 4).getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2, left: box.left - 40 };`);
+    const cursorAt = async (x, y) => {
+      await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 2, y });
+      await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await new Promise((r) => setTimeout(r, 200));
+      return browser.evaluate(`const el = document.elementFromPoint(${x}, ${y}); return el ? getComputedStyle(el).cursor : null;`);
+    };
+    const onCite = await cursorAt(spot.x, spot.y);
+    await shoot('cursor-on-citation', { x: spot.x, y: spot.y, label: `cursor: ${onCite}` });
+    check('the pointer over a citation is a hand', onCite === 'pointer', onCite);
+    const beside = await cursorAt(spot.left, spot.y);
+    check('the pointer over words beside it is an I-beam', beside === 'text', beside);
+  } else {
+    check('the fixture has a citation to point at', false);
   }
   await checks.settle();
 } finally {

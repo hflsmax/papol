@@ -2129,7 +2129,9 @@ function PdfPage({
   return (
     <div
       ref={holderRef}
-      className="pdf-page"
+      // Over a citation or a link the page says "press here": the class
+      // reaches the words under it, whose own I-beam would otherwise win.
+      className={hoveredCitation >= 0 || hoveredLink >= 0 ? 'pdf-page over-reference' : 'pdf-page'}
       style={{
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
