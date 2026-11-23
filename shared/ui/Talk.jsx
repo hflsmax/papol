@@ -565,13 +565,20 @@ export function TalkCard({
       aria-label={`Digs on ${plainTitle(topic.label)}`}
       {...CONTAINED}
     >
-      {(!inline || (picker && !pickerWithOwners && !conversation)) && (
-      <header className="talk-card-header">
-        {!pickerWithOwners && picker}
-        {!inline && <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>}
-      </header>
+      {/* Over the page, the card has no bar of its own: what it is about,
+          its phase and the way to close it share one line. */}
+      {!inline ? (
+        <div className="talk-card-top">
+          <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>
+          {picker}
+          <button type="button" className="talk-card-close" aria-label="Close" onClick={onClose}>×</button>
+        </div>
+      ) : (
+        <>
+          {picker && !pickerWithOwners && !conversation && <header className="talk-card-header">{picker}</header>}
+          {!onHome && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
+        </>
       )}
-      {(!inline || !onHome) && <p className="talk-card-subject"><PaperTitle title={topic.label} /></p>}
       {owners && (
         <nav className="talk-card-owners" aria-label="Whose dig">
           {digs.map((d) => (
