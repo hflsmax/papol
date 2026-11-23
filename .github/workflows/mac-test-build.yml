@@ -1,32 +1,30 @@
-# Temporary: an unnotarized Papol Dev app for hands-on release testing.
-# Removed before this branch's pull request is ready.
+# Temporary: hands the release dry run's notarized DMG to a draft release,
+# so it can be copied to a Mac for hands-on testing. The draft and this file
+# are removed before this branch's pull request is ready.
 name: Mac test build
 on:
   push:
     branches: [claude/project-thread-frgdi2]
     paths: [.github/workflows/mac-test-build.yml]
 permissions:
-  contents: read
+  contents: write
+  actions: read
 jobs:
-  build:
-    runs-on: macos-26
-    timeout-minutes: 45
+  hand-over:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/download-artifact@v8
         with:
-          node-version: 22
-      - name: Rust
-        run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" --profile minimal
-      - name: Dependencies
-        run: cd desktop && npm ci && npm run install:web
-      - name: Build Papol Dev
-        run: cd desktop && APPLE_SIGNING_IDENTITY=- npm run build:dev -- --bundles app
-      - name: Zip
+          name: dmg
+          run-id: 45089197644
+          github-token: ${{ github.token }}
+          path: dmg
+      - name: Draft release holding the DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          cd desktop/src-tauri/target/release/bundle/macos
-          ditto -c -k --keepParent "Papol Dev.app" "$RUNNER_TEMP/Papol-Dev.zip"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: papol-dev-app
-          path: ${{ runner.temp }}/Papol-Dev.zip
+          ls -la dmg
+          gh release create test-build-do-not-publish --repo "$GITHUB_REPOSITORY" --draft \
+            --target "$GITHUB_SHA" --title "Test build, do not publish" \
+            --notes "Temporary copy of a release dry run's DMG for hands-on testing. Will be deleted." dmg/*.dmg
