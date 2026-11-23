@@ -48,7 +48,17 @@ updates:
     ignore:
       - dependency-name: vitest
         update-types: ["version-update:semver-major"]
+      # TypeScript 7 is the rewritten compiler; moving to it is its own piece
+      # of work, not a weekly bump.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /analyzer
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    ignore:
+      # The types follow the Node that mise.toml pins (22), not the newest.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
