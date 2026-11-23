@@ -11,12 +11,13 @@
 // keeps it in this browser's storage until Papol has it, sending it again
 // as it grows (the server keeps the longest), so time spent offline, or in
 // a window closed before it could send, arrives with the next window that
-// can. Each span is stored under its own key, so two windows never write
-// over each other's.
+// can. The keeping and sending are the device outbox's (deviceOutbox.js),
+// shared with the other things a device sends Papol later.
 
 import limits from './appLimits.js';
 import { currentCredential } from './credentials.js';
 import { sendActivity } from './api/activity.js';
+import { deviceOutbox } from './deviceOutbox.js';
 
 const {
   gap_ms: GAP_MS, tick_ms: TICK_MS, span_max_ms: SPAN_MAX_MS, flush_ms: FLUSH_MS,
@@ -99,48 +100,20 @@ export function activityTracker({
 
 // The spans this browser holds, in `storage`.
 export function activityOutbox(storage) {
-  const entries = () => {
-    const found = [];
-    for (let i = 0; i < storage.length; i++) {
-      const key = storage.key(i);
-      if (!key?.startsWith(PREFIX)) continue;
-      const text = storage.getItem(key);
-      try { found.push({ key, text, span: JSON.parse(text) }); }
-      catch { found.push({ key, text, span: null }); }
-    }
-    return found;
-  };
-  const drop = (entry) => {
-    // Only if no window has grown it since it was read.
-    if (storage.getItem(entry.key) === entry.text) storage.removeItem(entry.key);
-  };
-
+  const outbox = deviceOutbox(storage, PREFIX);
   return {
-    save(span) {
-      try { storage.setItem(PREFIX + span.uuid, JSON.stringify(span)); }
-      catch { /* storage full or refused: this stretch goes unrecorded */ }
-    },
+    save(span) { outbox.save(span.uuid, span); },
 
     // Send what this account has waiting; forget what Papol now holds
     // and has finished growing, and what is too old for Papol to take.
-    async flush(account, send, at = Date.now()) {
-      const mine = [];
-      for (const entry of entries()) {
-        const ended = Date.parse(entry.span?.ended_at);
-        if (!entry.span || !Number.isFinite(ended) || ended < at - SPAN_AGE_DAYS_MAX * DAY_MS) drop(entry);
-        else if (entry.span.account === account) mine.push({ ...entry, finished: !entry.span.open || ended < at - ABANDONED_MS });
-      }
-      const batch = mine.slice(0, SPANS_PER_REQUEST);
-      if (!batch.length) return 0;
-      try {
-        await send(batch.map(({ span: { uuid, kind, subject, started_at, ended_at, seconds } }) => ({ uuid, kind, subject, started_at, ended_at, seconds })));
-      } catch (failure) {
-        // Offline, or Papol unwell: keep them for next time. Refused
-        // outright: keeping them would only refuse them again.
-        if (failure?.status !== 400 && failure?.status !== 422) return 0;
-      }
-      for (const entry of batch) if (entry.finished) drop(entry);
-      return batch.length;
+    flush(account, send, at = Date.now()) {
+      const ended = (span) => Date.parse(span.ended_at);
+      return outbox.flush(account, send, {
+        limit: SPANS_PER_REQUEST,
+        wire: ({ uuid, kind, subject, started_at, ended_at, seconds }) => ({ uuid, kind, subject, started_at, ended_at, seconds }),
+        expired: (span) => !Number.isFinite(ended(span)) || ended(span) < at - SPAN_AGE_DAYS_MAX * DAY_MS,
+        finished: (span) => !span.open || ended(span) < at - ABANDONED_MS,
+      });
     },
   };
 }

@@ -34,6 +34,7 @@ export function accountRoutes(router: Router) {
     const affiliation = "affiliation" in data ? check.string("affiliation", data.affiliation, { max: limits.text.affiliation, optional: true }) : undefined;
     const email = "email" in data ? check.string("email", data.email, { max: limits.text.email, pattern: validate.EMAIL }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
+    const findable = check.boolean("findable", data.findable, { optional: true });
     // What the viewer's nav bar marks: a list of its kinds, in any order.
     const marks = data.nav_marks;
     if (marks !== undefined && !(Array.isArray(marks) && marks.every((kind) => navMarks.kinds.includes(kind)))) {
@@ -52,8 +53,9 @@ export function accountRoutes(router: Router) {
     if (affiliation !== undefined) user.affiliation = (affiliation ?? "").trim() || null;
     if (normalizedEmail !== undefined) user.email = normalizedEmail;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
+    if (findable !== null) user.findable = findable ? 1 : 0;
     if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
-    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.nav_marks, user.uuid).run();
+    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 

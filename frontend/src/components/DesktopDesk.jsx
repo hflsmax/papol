@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { getNook } from '../../../shared/api/people.js';
 import { paperName } from '../../../shared/paperName.js';
-import { listPapers, paperHref } from '../../../shared/api/papers.js';
+import { paperHref } from '../../../shared/api/papers.js';
 import { appPath } from '../base';
 import {
-  PAPER_DRAG_TYPE, matchesSearch, paperCreatedNavigation, papersInListing,
+  PAPER_DRAG_TYPE, matchesSearch, papersInListing,
   rememberListing, shelfOf, listingPath, tagOf,
 } from '../desktopListings';
 import { formatAuthors } from '../paperFormat';
@@ -18,52 +18,10 @@ import BoardCreateForm from './BoardCreateForm';
 import Glyph from './DesktopGlyph';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
-  dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
+  nativeSyncInProgress, subscribeNativeData,
 } from '../../../shared/nativeData.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { plainTitle } from '../../../shared/texTitle.js';
-
-// Asked on every launch while another app is the PDF viewer. The viewer asks
-// the same question over an opened file; answering in either place quiets
-// both until the app is relaunched.
-function DefaultViewerPrompt() {
-  const [visible, setVisible] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    pdfViewerStatus()
-      .then((status) => {
-        if (active) setVisible(status.supported && !status.is_default && !status.prompt_dismissed);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  if (!visible) return null;
-  const dismiss = () => {
-    dismissPdfViewerPrompt().catch(() => {});
-    setVisible(false);
-  };
-  const makeDefault = async () => {
-    try {
-      await makePdfViewerDefault();
-      dismiss();
-    } catch (failure) {
-      setError(String(failure?.message ?? failure));
-    }
-  };
-
-  return (
-    <div className="notice-banner pdf-viewer-prompt" role="status">
-      <span>{error || 'Use Papol as your default PDF viewer?'}</span>
-      <span className="notice-banner-actions">
-        <button type="button" className="notice-banner-button" onClick={makeDefault}>Use Papol</button>
-        <button type="button" className="notice-banner-link" onClick={dismiss}>Not now</button>
-      </span>
-    </div>
-  );
-}
 
 // Papol macOS's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -121,7 +79,6 @@ export function DesktopBrowser({
   incomingPaperFolder = null, onIncomingPaperFolderHandled = () => {},
 }) {
   const { nook, setNook, reload, syncing } = nookState;
-  const [library, setLibrary] = useState(null);
   const [search, setSearch] = useState('');
   const [composer, setComposer] = useState(null); // null | 'paper' | 'folder' | 'board'
   // What the paper composer's upload box handed to the folder's: a folder
@@ -152,15 +109,6 @@ export function DesktopBrowser({
 
   const openUser = (href) => openDesktopDocumentWindow(href, 'popup,width=1100,height=820');
 
-  useEffect(() => {
-    if (listing !== 'library') return undefined;
-    let active = true;
-    listPapers()
-      .then((papers) => { if (active) setLibrary(papers); })
-      .catch(() => { if (active) setLibrary([]); });
-    return () => { active = false; };
-  }, [listing, route, onSyncRefresh]);
-
   // Keep the selection in view, and keep keyboard focus on it while the
   // user is moving through the list with the arrow keys.
   useEffect(() => {
@@ -174,10 +122,9 @@ export function DesktopBrowser({
   const shelf = shelfOf(listing, nook);
   const tag = tagOf(listing, nook);
   const boardsView = listing === 'boards';
-  const libraryView = listing === 'library';
-  const loading = libraryView ? library == null : nook == null;
+  const loading = nook == null;
 
-  const shownPapers = papersInListing(listing, { nook, library })
+  const shownPapers = papersInListing(listing, { nook })
     .filter((paper) => matchesSearch(search, [paper.title, paper.authors, paper.journal]));
   const shownBoards = boardsView
     ? (nook?.boards ?? [])
@@ -192,17 +139,9 @@ export function DesktopBrowser({
     if (selectedBoardUuid && nook && !selectedBoard) setSelectedBoardUuid(null);
   }, [nook, selectedBoard, selectedBoardUuid]);
 
-  const title = libraryView ? 'Library' : boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
+  const title = boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
-  const noun = boardsView ? (total === 1 ? 'board' : 'boards') : (total === 1 ? 'paper' : 'papers');
-  // The list below shows the wait itself; the subtitle only counts.
-  const subtitle = loading ? '' : [
-    `${total} ${noun}`,
-    syncing ? 'Syncing…' : null,
-    shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
-  ].filter(Boolean).join(' · ');
-
-  const canCompose = Boolean(nook) && !libraryView;
+  const canCompose = Boolean(nook);
   const listingHome = () => onNavigate(listingPath(listing));
   const moveSelection = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -227,14 +166,13 @@ export function DesktopBrowser({
   let emptyList = null;
   if (loading) emptyList = <Working label="Loading…" />;
   else if (total === 0 && search.trim()) emptyList = 'Nothing matches your search.';
-  else if (total === 0 && syncing && !libraryView) {
+  else if (total === 0 && syncing) {
     emptyList = boardsView
       ? 'Syncing your nook… Boards will appear here as they arrive.'
       : 'Syncing your nook… Papers will appear here as they arrive.';
   }
   else if (total === 0) {
-    emptyList = libraryView ? 'No one has shared a paper yet.'
-      : boardsView ? 'You have no boards yet.'
+    emptyList = boardsView ? 'You have no boards yet.'
         : shelf ? 'Nothing is on this shelf yet.'
           : tag ? 'None of your papers carry this tag.'
             : 'Your nook has no papers yet.';
@@ -255,9 +193,8 @@ export function DesktopBrowser({
               setComposer(null);
               reload();
               if (paper?.sha256 != null) {
-                const destination = paperCreatedNavigation(listing, paper.sha256);
-                rememberListing(destination.listing);
-                onNavigate(destination.path);
+                rememberListing(listing);
+                onNavigate(`/paper/${paperName(paper.sha256)}`);
               }
             }}
             incomingFile={incomingPaperFile}
@@ -370,11 +307,20 @@ export function DesktopBrowser({
   return (
     <div className="desktop-browser">
       <section className="desktop-list-pane" aria-label={title}>
+        {/* No title row: the sidebar already names the source and counts
+            it, so the search field leads the pane, in the toolbar's own
+            52px band beside the add buttons. */}
         <header className="desktop-toolbar desktop-list-header" data-tauri-drag-region="deep">
-          <div className="desktop-list-heading">
-            <h1>{title}</h1>
-            <span>{subtitle}</span>
-          </div>
+          <label className="desktop-search">
+            <Glyph name="search" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={`Search ${title}`}
+              aria-label={`Search ${title}`}
+            />
+          </label>
           {canCompose && !boardsView && (
             <button
               type="button"
@@ -398,16 +344,6 @@ export function DesktopBrowser({
             </button>
           )}
         </header>
-        <label className="desktop-search">
-          <Glyph name="search" />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Search ${title}`}
-            aria-label={`Search ${title}`}
-          />
-        </label>
         <div className="desktop-list" ref={listRef} onKeyDown={moveSelection}>
           {emptyList ? (
             <p className="desktop-list-empty">{emptyList}</p>
@@ -449,8 +385,7 @@ export function DesktopBrowser({
           ) : (
             shownPapers.map((paper) => {
               const selected = isSelected(paper);
-              const shelfColor = libraryView ? null : shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
-              const users = paper.users?.length || 0;
+              const shelfColor = shelves.find((item) => item.uuid === paper.shelf_uuid)?.color;
               return (
                 <a
                   key={paper.sha256}
@@ -459,8 +394,8 @@ export function DesktopBrowser({
                   aria-current={selected ? 'true' : undefined}
                   // A paper in the user's own nook can be dropped on one of
                   // the sidebar's shelves to move it there.
-                  draggable={libraryView ? 'false' : 'true'}
-                  onDragStart={libraryView ? undefined : (event) => {
+                  draggable="true"
+                  onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData(PAPER_DRAG_TYPE, JSON.stringify({ sha256: paper.sha256, shelfUuid: paper.shelf_uuid }));
                     event.dataTransfer.setData('text/plain', plainTitle(paper.title));
@@ -479,14 +414,9 @@ export function DesktopBrowser({
                     {paper.journal && (
                       <span className="desktop-row-sub">{paper.journal}</span>
                     )}
-                    {!libraryView && paper.tags?.length > 0 && (
+                    {paper.tags?.length > 0 && (
                       <span className="desktop-row-sub desktop-row-tags">
                         {paper.tags.map((t) => <span key={t.uuid}><span aria-hidden="true">#</span>{t.name}</span>)}
-                      </span>
-                    )}
-                    {libraryView && users > 0 && (
-                      <span className="desktop-row-sub">
-                        {users} {users === 1 ? 'user' : 'users'}
                       </span>
                     )}
                   </span>
@@ -500,7 +430,6 @@ export function DesktopBrowser({
         {/* The rest of the unified toolbar: nothing to press, but it moves
             the window like the title bar it stands in for. */}
         <div className="desktop-toolbar" data-tauri-drag-region="deep" />
-        <DefaultViewerPrompt />
         {/* Keyed by what the pane shows, so a crash stays in this pane and
             choosing anything else starts it clean. */}
         <ErrorBoundary

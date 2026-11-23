@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { createProject, listProjects } from '../../../shared/api/projects.js';
+import { askToJoinProject } from '../../../shared/api/friends.js';
 import { appPath } from '../base';
 import ProjectMembers from './ProjectMembers';
 import { forgetArrivals } from './ProjectPage';
@@ -23,11 +24,8 @@ function Crowd({ members, currentUser }) {
 }
 
 // Every project: mine first, where the work is, then everyone else's by
-// name and keepers, so anyone can see who to ask to be let in. On the web
-// it is a section of the Bazaar, beside everyone's papers and boards, and
-// a project is started from the nook's rail instead.
-export default function ProjectsPage({ currentUser, onOpenProject, onChanged, section = false }) {
-  const Title = section ? 'h3' : 'h2';
+// name and keepers, each with a way to ask its keepers to be let in.
+export default function ProjectsPage({ currentUser, onOpenProject, onChanged }) {
   const [projects, setProjects] = useState(() => kept('projects'));
   const [error, setError] = useState(null);
   const [naming, setNaming] = useState(false);
@@ -62,16 +60,27 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
     }
   };
 
+  // Asking is once: the keepers get it in their Inbox, and the button says so.
+  const ask = async (project) => {
+    setError(null);
+    try {
+      await askToJoinProject(project.uuid);
+      setProjects((list) => list.map((p) => (p.uuid === project.uuid ? { ...p, asked: true } : p)));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const stopNaming = () => { setNaming(false); setName(''); };
   const mine = (projects || []).filter((p) => p.is_member);
   const others = (projects || []).filter((p) => !p.is_member);
 
   return (
-    <div className={section ? 'projects-page is-section' : 'projects-page'}>
+    <div className="projects-page">
       <div className="projects-head">
-        <Title>Projects</Title>
+        <h2>Projects</h2>
         <ExperimentalBadge />
-        {projects && !naming && !section && (
+        {projects && !naming && (
           <button type="button" onClick={() => setNaming(true)}>New project</button>
         )}
       </div>
@@ -110,7 +119,7 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                 ))}
               </ul>
             ) : (
-              !naming && !section && (
+              !naming && (
                 <p className="projects-empty">
                   A project gathers papers and thinking for one question. Start one alone; invite others when you like.
                 </p>
@@ -127,8 +136,10 @@ export default function ProjectsPage({ currentUser, onOpenProject, onChanged, se
                     <li key={project.uuid} className="projects-row closed">
                       <div className="projects-row-text">
                         <span className="projects-row-name">{project.name}</span>
-                        <span className="projects-row-note">Ask for an invitation to join</span>
                       </div>
+                      {project.asked
+                        ? <span className="projects-row-note">Asked to join</span>
+                        : <button type="button" className="projects-ask" onClick={() => ask(project)}>Ask to join</button>}
                       <Crowd members={project.members} currentUser={currentUser} />
                     </li>
                   ))}

@@ -487,6 +487,10 @@ jobs:
           xcrun stapler staple "$dmg"
           mkdir -p release
           mv "$dmg" "release/Papol_${VERSION}_macOS.dmg"
+          # The same DMG under a name that never changes, so the site can link
+          # to releases/latest/download/Papol_macOS.dmg and always hand over
+          # the newest build.
+          cp "release/Papol_${VERSION}_macOS.dmg" release/Papol_macOS.dmg
 
       - uses: actions/upload-artifact@v7
         with:
