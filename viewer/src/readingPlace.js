@@ -52,14 +52,28 @@ export function adoptedPlace(own, theirs) {
 // The view as the viewer saw it now, against the one it kept: what to keep,
 // and whether it is a move to send. The first view of a paper this viewer
 // had no place for is only where it opened, not a place the reader chose,
-// so it carries no time and is not sent.
+// so it carries no time and is not sent. A move is kept marked unsent until
+// Papol has it, so a place read offline goes once the network is back.
 export function nextPlace(kept, seen, now = () => new Date()) {
   if (!kept) return { place: { ...seen, read_at: null }, moved: false };
   if (samePlace(kept, seen)) {
     if (kept.scale === seen.scale) return { place: kept, moved: false };
     return { place: { ...kept, scale: seen.scale }, moved: false };
   }
-  return { place: { ...seen, read_at: now().toISOString() }, moved: true };
+  return { place: { ...seen, read_at: now().toISOString(), unsent: true }, moved: true };
+}
+
+// What goes to Papol of a kept place.
+export function placeToSend(place) {
+  return { page: place.page, x: place.x, y: place.y, scale: place.scale, read_at: place.read_at };
+}
+
+// The kept place once Papol has the one read at `readAt`: no longer
+// unsent, unless the reader has moved on since and that move is still to go.
+export function sentPlace(kept, readAt) {
+  if (!kept?.unsent || kept.read_at !== readAt) return kept;
+  const { unsent, ...sent } = kept; // eslint-disable-line no-unused-vars
+  return sent;
 }
 
 // Sends the latest place once the reader has been still for `delay`, or at

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { adoptedPlace, laterPlace, nextPlace, placeSender, samePlace } from './readingPlace.js';
+import { adoptedPlace, laterPlace, nextPlace, placeSender, placeToSend, samePlace, sentPlace } from './readingPlace.js';
 
 const at = (iso) => () => new Date(iso);
 
@@ -43,7 +43,7 @@ test('where a paper opens is kept without a time, and only a move is sent', () =
   assert.deepEqual(zoomed, { place: { ...opened.place, scale: 2 }, moved: false });
   // Read on: kept and sent, with when.
   assert.deepEqual(nextPlace(zoomed.place, { page: 3, x: 0.5, y: 0.6, scale: 2 }, now),
-    { place: { page: 3, x: 0.5, y: 0.6, scale: 2, read_at: '2026-11-22T20:00:00.000Z' }, moved: true });
+    { place: { page: 3, x: 0.5, y: 0.6, scale: 2, read_at: '2026-11-22T20:00:00.000Z', unsent: true }, moved: true });
 });
 
 test('the sender sends only the latest place, after a pause or at once when the window goes', async () => {
@@ -70,4 +70,14 @@ test('a place that cannot be sent is let go', async () => {
   sender.schedule({ page: 1 });
   sender.flush();
   await new Promise((resolve) => setTimeout(resolve, 5));
+});
+
+test('a place stays marked unsent until Papol has that very place', () => {
+  const read = { page: 3, x: 0.5, y: 0.6, scale: 2, read_at: '2026-11-22T20:00:00.000Z', unsent: true };
+  assert.deepEqual(placeToSend(read), { page: 3, x: 0.5, y: 0.6, scale: 2, read_at: read.read_at });
+  assert.deepEqual(sentPlace(read, read.read_at), { page: 3, x: 0.5, y: 0.6, scale: 2, read_at: read.read_at });
+  // The reader moved on while it was on its way: the newer move still goes.
+  const later = { ...read, page: 4, read_at: '2026-11-22T20:01:00.000Z' };
+  assert.equal(sentPlace(later, read.read_at), later);
+  assert.equal(sentPlace(null, read.read_at), null);
 });

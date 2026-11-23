@@ -42,7 +42,7 @@ import {
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { recordActivity } from '../../shared/activity.js';
 import { getReadingPlace, sendReadingPlace } from '../../shared/api/readingPlaces.js';
-import { adoptedPlace, laterPlace, nextPlace, placeSender, samePlace } from './readingPlace.js';
+import { adoptedPlace, laterPlace, nextPlace, placeSender, placeToSend, samePlace, sentPlace } from './readingPlace.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -3729,6 +3729,23 @@ export default function App() {
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
   //
+  // Sends a kept place to Papol, and once Papol has it, stops marking it
+  // unsent. A failure leaves the mark: the place goes again when the
+  // network is back, or the next time the paper opens.
+  const sendPlace = async (place) => {
+    const { key, paper: sha256 } = readingView.current;
+    await sendReadingPlace(sha256, placeToSend(place));
+    const kept = readingView.current.view;
+    const sent = sentPlace(kept, place.read_at);
+    if (sent === kept) return;
+    readingView.current.view = sent;
+    try {
+      localStorage.setItem(key, JSON.stringify(sent));
+    } catch {
+      // Sent all the same; at worst it is sent again.
+    }
+  };
+
   // Puts a place's point in the middle of the view once its page is laid
   // out, then calls `done`. Returns what stops it waiting.
   const centreOnPlace = (place, done = () => {}) => {
@@ -3791,10 +3808,19 @@ export default function App() {
     let stop = null;
     (async () => {
       if (!await hydrateCredential()) return;
-      const theirs = await getReadingPlace(sha256).catch(() => null);
+      let theirs;
+      try {
+        theirs = await getReadingPlace(sha256);
+      } catch {
+        return; // Offline: this device's own place stands.
+      }
       if (cancelled) return;
       const own = readingView.current.view;
-      if (!laterPlace(own, theirs)) return;
+      if (!laterPlace(own, theirs)) {
+        // This device read later, offline: Papol has it now.
+        if (own?.unsent) sendPlace(own).catch(() => {});
+        return;
+      }
       const place = adoptedPlace(own, theirs);
       if (!readingViewRestored.current) {
         // The pages are not shown yet: the restore takes this place instead.
@@ -3863,7 +3889,7 @@ export default function App() {
     let timer = null;
     // A shared reading is someone else's: where a visitor reads it is kept
     // on their device alone.
-    const sender = readOnly ? null : placeSender((place) => sendReadingPlace(sha256, place));
+    const sender = readOnly || !sha256 ? null : placeSender(sendPlace);
     const save = () => {
       if (!readingViewRestored.current && !wantedAnchorUuid && !wantedAnnotationUuid) return;
       const box = scroller.getBoundingClientRect();
@@ -3889,9 +3915,7 @@ export default function App() {
       if (place === kept) return;
       readingView.current.view = place;
       localStorage.setItem(key, JSON.stringify(place));
-      if (moved && sender && currentCredential()) {
-        sender.schedule({ page: place.page, x: place.x, y: place.y, scale: place.scale, read_at: place.read_at });
-      }
+      if (moved && sender && currentCredential()) sender.schedule(place);
     };
     const schedule = () => {
       window.clearTimeout(timer);
@@ -3906,6 +3930,15 @@ export default function App() {
     const hidden = () => {
       if (document.visibilityState === 'hidden') leave();
     };
+    // Back online: a place read while offline goes now.
+    const online = () => {
+      const kept = readingView.current.view;
+      if (kept?.unsent && sender && currentCredential()) {
+        sender.schedule(kept);
+        sender.flush();
+      }
+    };
+    window.addEventListener('online', online);
     scroller.addEventListener('scroll', schedule, { passive: true });
     document.addEventListener('visibilitychange', hidden);
     window.addEventListener('pagehide', leave);
@@ -3914,6 +3947,7 @@ export default function App() {
       scroller.removeEventListener('scroll', schedule);
       document.removeEventListener('visibilitychange', hidden);
       window.removeEventListener('pagehide', leave);
+      window.removeEventListener('online', online);
       window.clearTimeout(timer);
       save();
       sender?.flush();
