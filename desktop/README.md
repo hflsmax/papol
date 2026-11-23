@@ -72,8 +72,8 @@ Opening a file needs no account and makes no network request. If the user's
 nook already holds those exact bytes, the window works on that paper. Otherwise
 the file is read only — an anchor, a stroke or a clip needs a nook to go into —
 and **Add to nook** copies the file into the replica; without an account it
-first asks the Desk window to sign in. The Desk banner and
-Settings can make Papol the default PDF viewer (macOS only).
+first asks the Desk window to sign in. Settings can make Papol the default
+PDF viewer (macOS only). Papol never asks on its own.
 
 ## Opening a reading handed over from a browser
 
@@ -327,7 +327,7 @@ Object embedding and frames are disabled, and `Object.prototype` is frozen in
 the custom-protocol webview.
 
 The desktop pages swap the website masthead for a native reference-manager
-layout: a source-list sidebar of shelves, tags, boards and the Library, a list
+layout: a source-list sidebar of shelves, tags, boards, projects and the Lounge, a list
 of papers, and the selected paper beside it. See "Desktop shell" in
 `frontend/DESIGN.md`. On macOS the window uses an overlay title bar, so those
 toolbars sit where the title bar would be and the traffic lights float over

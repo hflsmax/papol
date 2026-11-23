@@ -237,7 +237,7 @@ export function paperRoutes(router: Router) {
     return json(await paperDetail(env,paper, user));
   });
 
-  // Any signed-in user may open any paper: the Library holds every one,
+  // Any signed-in user may open any paper: Papol holds every one,
   // and whose nook it sits in is nobody's business but theirs.
   router.on("GET", "/api/papers/:name", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
@@ -312,7 +312,7 @@ export function paperRoutes(router: Router) {
   });
 
   // Remove the paper from the viewer's nook: their copy. The paper and its
-  // file stay, and the paper stays in the Library. Anchors, ink, clips and
+  // file stay, and the paper stays in Papol. Anchors, ink, clips and
   // digs are left where they are: leaving a nook is not a deletion, and a
   // user who adds the paper again finds them still on the page.
   router.on("DELETE", "/api/papers/:name", async ({ request, env, params }) => {
