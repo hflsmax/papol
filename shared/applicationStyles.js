@@ -27,6 +27,8 @@ export const applicationStyles = `
   --chrome: ${desktopChrome};
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);
+  /* The sidebar in the Mac app's Lounge mode: the chrome's grey, turned green. */
+  --chrome-lounge: #e3ebe2;
   --chrome-radius: 6px;
 }
 
@@ -5669,6 +5671,9 @@ ${talkStyles}
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
+/* The Mac's Lounge: its rail is the window's sidebar, so the page is the card. */
+.nook-desk.is-railless { grid-template-columns: minmax(0, 1fr); }
+.room.is-railless .room-finder { max-width: 26rem; margin-bottom: var(--space-4); }
 .nook-desk.is-reviewing .desk-rail,
 .nook-desk.is-reviewing .desk-search,
 .nook-desk.is-reviewing .desk-chips,

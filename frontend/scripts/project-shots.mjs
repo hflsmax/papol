@@ -31,6 +31,10 @@ const ADD_TYPE = (text) => `const type = () => { const f = document.querySelecto
 const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunning with 1.3 frames before we tune anything.';
 // A PDF dropped on the window, as the browser hands one over.
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: data, cancelable: true })); return true; });";
+// The Mac chrome as the built app paints it, and the Lounge's sidebar
+// without its tint.
+const PROD_CHROME = "document.documentElement.style.setProperty('--chrome', '#eaedf1');";
+const NO_TINT = "document.documentElement.style.setProperty('--chrome-lounge', '#eaedf1');";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -148,6 +152,17 @@ const SHOTS = {
   'room-hover': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[2]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
   'room-dig': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const d = document.querySelectorAll('.room-dig-open')[1]; if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.room-said .talk-post')", size: wide },
   'phone-room': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "return true;", settled: "document.querySelector('.room-dig-open')", size: phone },
+  // Lounge mode in the Mac app: the sidebar's switch, the nook's sidebar
+  // and the Lounge's, and the pages opened from the Lounge keeping it. The
+  // chrome is shown in the app's own grey, not the dev server's pink.
+  // `-plain` is the Lounge's sidebar without its tint, for comparison.
+  'mac-mode-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: `${PROD_CHROME} return true;`, size: wide },
+  'mac-mode-lounge': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} return true;`, settled: "document.querySelector('.desktop-sidebar-count') && document.querySelector('.desktop-app.is-lounge')", size: wide },
+  'mac-mode-lounge-plain': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} ${NO_TINT} return true;`, settled: "document.querySelector('.desktop-app.is-lounge')", size: wide },
+  'mac-mode-lounge-friend': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const b = [...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.includes('Ana Reyes')); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "document.querySelector('.desktop-sidebar-item.active .desktop-sidebar-face')", size: wide },
+  'mac-mode-lounge-find': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const add = document.querySelector('.desktop-sidebar-label-action[aria-label="Find someone"]'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;`, settled: "document.querySelector('.room-found .friend-button button')", size: wide },
+  'mac-mode-lounge-their-nook': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const f = document.querySelector('.room-who-face'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "location.pathname.startsWith('/u/') && document.querySelector('.desktop-app.is-lounge') && document.querySelector('.desktop-content h1, .desktop-content h2')", size: wide },
+  'mac-mode-lounge-paper': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const t = document.querySelector('.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "location.pathname.startsWith('/paper/') && document.querySelector('.desktop-app.is-lounge .paper-jacket')", size: wide },
   'mac-room': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: "return true;", settled: "document.querySelector('.room-dig-open')", size: wide },
   // More of friends and the Lounge, a state to a picture: each kind of row
   // with a face rested on, the friend button in each of its states, and

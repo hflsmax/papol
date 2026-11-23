@@ -571,8 +571,15 @@ is a dig: one person's writing about one thing, under the one spade pin.
   way to a native reference-manager layout. A 220px `--chrome` source-list
   sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
-  then Projects, and Lounge, Inbox, Learn, with Manage nook as the icon
-  beside "My nook". There is no Library: other people's papers reach the
+  then Projects, and Inbox, Learn, with Manage nook as the icon
+  beside "My nook". Above them a segmented switch, **My nook | Lounge**
+  (⌘1, ⌘2), puts the whole window in one of two modes. In Lounge mode the
+  sidebar takes a green tint (`--chrome-lounge`) and lists the Lounge's
+  own rail instead: Friends (with Find as the icon beside it), then Show,
+  then Inbox and Learn; the Lounge page is its card alone. Pages opened in
+  either mode (a paper, a friend's nook, the Inbox) keep it: in Lounge
+  mode a paper opens on its own page, not beside the nook's list. Only the
+  switch, the Lounge itself, or the nook's own lists change the mode. There is no Library: other people's papers reach the
   Mac as they do the web, through the Lounge, a nook or a link.
   Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
   a source, a 320px white list pane shows it as compact rows with a search

@@ -13,6 +13,8 @@ import { loadFriends, useFriends } from '../friendsStore';
 import { RatingSummary } from './Rating';
 import { InWay, WayShown } from './Way';
 import FriendButton from './FriendButton';
+import { DESKTOP } from '../../../shared/desktopShell';
+import { KINDS, narrowed, setLounge, useLounge } from '../loungeStore';
 
 const first = (user) => user?.display_name?.split(' ')[0] ?? 'Someone';
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
@@ -248,34 +250,30 @@ function Finder({ currentUser, onDone }) {
 
 const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
-// What a row holds, as lines: who did what, and when.
-const linesOf = (row) => row.lines ?? [{ user: row.user, did: 'made', at: row.at }];
-const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
 const NONE = { kind: '', who: '' };
 // How many rows the room shows before Show more.
 const PAGE = 50;
 
-// The Lounge narrowed, as the nook is by a shelf: by whose news it is and
-// what a row is.
-function narrowed(rows, pick) {
-  return rows.filter((row) => (!pick.kind || row.kind === pick.kind)
-    && (!pick.who || linesOf(row).some((line) => line.user.uuid === pick.who)));
-}
-
 // The Lounge: what the member's friends are reading and what they make of
 // it, a paper to a row, newest first, and nobody else's. It is laid out as
 // the nook is: a rail that says whose news and what kind, as the nook's
-// says which shelf, and the rows in the nook's own card beside it.
+// says which shelf, and the rows in the nook's own card beside it. In the
+// Mac app that rail is the window's sidebar, in Lounge mode
+// (DesktopChrome.jsx), and the page is the card alone.
 export default function Room({ currentUser, onSeen }) {
   const [room, setRoom] = useState(() => kept('room'));
   const [error, setError] = useState(null);
   const friends = useFriends();
   const titled = useContext(WayShown);
-  const [pick, setPick] = useState(NONE);
-  const [finding, setFinding] = useState(false);
+  // What the room is narrowed to lives beside the page, so the Mac's
+  // sidebar can narrow it too.
+  const { kind, who: pickedWho, finding } = useLounge();
+  const pick = { kind, who: pickedWho };
+  const setFinding = (next) => setLounge({ finding: next });
   // The room is shown a part at a time; narrowing starts it from the top.
   const [upTo, setUpTo] = useState(PAGE);
-  const set = (name, value) => { setUpTo(PAGE); setPick((was) => ({ ...was, [name]: value })); };
+  useEffect(() => { setUpTo(PAGE); }, [kind, pickedWho]);
+  const set = (name, value) => setLounge({ [name]: value });
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
   const marked = useRef(false);
@@ -286,11 +284,13 @@ export default function Room({ currentUser, onSeen }) {
     let active = true;
     setError(null);
     setRoom(kept('room'));
+    if (kept('room')) setLounge({ rows: kept('room').rows ?? [] });
     getRoom()
       .then((next) => {
         if (!active) return;
         keep('room', next);
         setRoom(next);
+        setLounge({ rows: next.rows ?? [] });
         if (!marked.current) {
           marked.current = true;
           markRoomSeen().then(() => onSeen?.()).catch(() => {});
@@ -311,7 +311,8 @@ export default function Room({ currentUser, onSeen }) {
 
   return (
     <FacesLead.Provider value>
-      <div className="nook-desk room">
+      <div className={`nook-desk room${DESKTOP ? ' is-railless' : ''}`}>
+        {!DESKTOP && (
         <aside className="desk-rail">
           <div className="desk-rail-body">
             <section className="desk-rail-part" aria-labelledby="room-friends">
@@ -354,8 +355,10 @@ export default function Room({ currentUser, onSeen }) {
             </section>
           </div>
         </aside>
+        )}
 
         <section className="desk-main" aria-label="The Lounge">
+          {DESKTOP && finding && <Finder currentUser={currentUser} onDone={() => setFinding(false)} />}
           {titled && (
             <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}

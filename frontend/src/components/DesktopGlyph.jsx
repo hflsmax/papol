@@ -5,6 +5,7 @@ import React from 'react';
 const GLYPHS = {
   papers: <><path d="M8 3.5h7l4 4V18a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" /><path d="M15 3.5v4h4M4.5 7v12.5a1 1 0 0 0 1 1H15" /></>,
   boards: <path d="M4.5 4.5h6v6h-6zm9 0h6v6h-6zm-9 9h6v6h-6zm9 0h6v6h-6z" />,
+  nook: <><path d="M4.5 11 12 4.5l7.5 6.5" /><path d="M6.5 9.5v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-9" /><path d="M10 19.5v-5h4v5" /></>,
   room: <><circle cx="9" cy="9" r="3" /><path d="M3.5 19c.4-3.2 2.6-5 5.5-5s5.1 1.8 5.5 5" /><circle cx="16.8" cy="8.2" r="2.4" /><path d="M16.6 13.2c2.2.2 3.7 1.7 4 4.3" /></>,
   inbox: <><path d="M4 13 6.6 5.5h10.8L20 13v5.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" /><path d="M4 13h4.5l1 2.2h5l1-2.2H20" /></>,
   learn: <><circle cx="12" cy="12" r="8.5" /><path d="M10.2 8.8v6.4l5-3.2z" /></>,
