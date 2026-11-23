@@ -474,41 +474,23 @@ export const desktopStyles = `
 }
 
 .desktop-list-header {
-  padding: 0 10px 0 16px;
+  gap: 4px;
+  padding: 0 10px;
   background: var(--card);
 }
 
-.desktop-list-heading {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  line-height: 1.25;
-}
-
-.desktop-list-heading h1 {
-  overflow: hidden;
-  font-size: var(--fs-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-list-heading span {
-  color: var(--ink-faint);
-  font-size: var(--fs-xs);
-}
-
+/* The search field leads the list pane, inside its toolbar band. */
 .desktop-search {
-  flex: none;
+  flex: 1;
   position: relative;
   display: block;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 
 .desktop-search svg {
   position: absolute;
   top: 50%;
-  left: 18px;
+  left: 8px;
   width: 15px;
   height: 15px;
   transform: translateY(-50%);

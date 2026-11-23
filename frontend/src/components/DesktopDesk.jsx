@@ -141,14 +141,6 @@ export function DesktopBrowser({
 
   const title = boardsView ? 'Boards' : shelf ? shelf.name : tag ? `#${tag.name}` : 'All papers';
   const total = boardsView ? shownBoards.length : shownPapers.length;
-  const noun = boardsView ? (total === 1 ? 'board' : 'boards') : (total === 1 ? 'paper' : 'papers');
-  // The list below shows the wait itself; the subtitle only counts.
-  const subtitle = loading ? '' : [
-    `${total} ${noun}`,
-    syncing ? 'Syncing…' : null,
-    shelf ? (shelf.is_public ? 'Public' : 'Private') : null,
-  ].filter(Boolean).join(' · ');
-
   const canCompose = Boolean(nook);
   const listingHome = () => onNavigate(listingPath(listing));
   const moveSelection = (event) => {
@@ -315,11 +307,20 @@ export function DesktopBrowser({
   return (
     <div className="desktop-browser">
       <section className="desktop-list-pane" aria-label={title}>
+        {/* No title row: the sidebar already names the source and counts
+            it, so the search field leads the pane, in the toolbar's own
+            52px band beside the add buttons. */}
         <header className="desktop-toolbar desktop-list-header" data-tauri-drag-region="deep">
-          <div className="desktop-list-heading">
-            <h1>{title}</h1>
-            <span>{subtitle}</span>
-          </div>
+          <label className="desktop-search">
+            <Glyph name="search" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={`Search ${title}`}
+              aria-label={`Search ${title}`}
+            />
+          </label>
           {canCompose && !boardsView && (
             <button
               type="button"
@@ -343,16 +344,6 @@ export function DesktopBrowser({
             </button>
           )}
         </header>
-        <label className="desktop-search">
-          <Glyph name="search" />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Search ${title}`}
-            aria-label={`Search ${title}`}
-          />
-        </label>
         <div className="desktop-list" ref={listRef} onKeyDown={moveSelection}>
           {emptyList ? (
             <p className="desktop-list-empty">{emptyList}</p>
