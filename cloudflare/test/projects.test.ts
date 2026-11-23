@@ -257,7 +257,7 @@ describe("what members see of each other", () => {
     expect(users.map((u: any) => u.user.uuid).sort()).toEqual([dana.uuid, ana.uuid].sort());
     expect(users.find((u: any) => u.user.uuid === ana.uuid)).toMatchObject({ thought: "The dip is the schedule", summary: null });
 
-    // The Library still names nobody for a copy on a private shelf.
+    // The list of every paper still names nobody for a copy on a private shelf.
     const library = await ok("GET", `/api/papers/${A_PAPER.slice(0, 32)}`, { headers: outsider.headers });
     expect(JSON.stringify(library)).not.toContain("The dip is the schedule");
   });

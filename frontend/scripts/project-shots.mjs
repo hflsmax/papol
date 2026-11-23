@@ -1,12 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer, uploadReads } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
 // Papers tab and a dig in the Digs tab, on the web and in the Mac shell, wide and on a phone; and the member's
-// places around it (their nook, the Library, a paper) with the bar over
+// places around it (their nook, the Lounge, a paper) with the bar over
 // every page.
 //
 //   node scripts/project-shots.mjs <out dir> [name ...]
@@ -31,6 +31,10 @@ const ADD_TYPE = (text) => `const type = () => { const f = document.querySelecto
 const TYPED = 'The loop delay they assume is half ours; section 4 needs rerunning with 1.3 frames before we tune anything.';
 // A PDF dropped on the window, as the browser hands one over.
 const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => { const data = new DataTransfer(); data.items.add(new File([bytes], 'attention.pdf', { type: 'application/pdf' })); document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: data, cancelable: true })); return true; });";
+// The Mac chrome as the built app paints it, and the Lounge's sidebar
+// without its tint.
+const PROD_CHROME = "document.documentElement.style.setProperty('--chrome', '#eaedf1');";
+const NO_TINT = "document.documentElement.style.setProperty('--chrome-lounge', '#eaedf1');";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -131,13 +135,61 @@ const SHOTS = {
   'phone-nook-read-age': { path: '/?shell=web', ready: "document.querySelectorAll('.nook .desk-title').length > 6", then: "document.querySelector('.desk-table').scrollIntoView({ block: 'start' }); return true;", size: phone },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
+  'mac-nook-boards': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Boards')).click(); return true;", settled: "document.querySelector('.desktop-row-sub')", size: wide },
+  'mac-nook-shelf': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Reading')).click(); return true;", settled: "document.querySelector('.desktop-list-pane[aria-label=\"Reading\"]')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket') && document.querySelector('.board-jacket-heading')", size: wide },
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
   'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
   'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
-  // Everyone's projects in the Bazaar, one the member is not in.
+  // Every project, one the member is not in and can ask to join.
   'bazaar-projects': { path: '/projects?shell=web', ready: "document.querySelector('.projects-row.closed')", size: wide },
-  library: { path: '/bazaar?shell=web', ready: "document.body.innerText.includes('Pyramid wavefront')", size: wide },
+  // The Lounge, where the Bazaar was: my friends' news a paper to a
+  // row; a dig opened from a face; on
+  // a phone and in the Mac app.
+  lounge: { path: '/bazaar?shell=web', ready: "document.querySelector('.room-row')", size: wide },
+  'room': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", size: { width: 1440, height: 1500 } },
+  'room-filter-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const b = document.querySelector('.room-friend'); if (!b) return setTimeout(go, 100); b.click(); }; go(); return true;", settled: "document.querySelector('.room-friend.is-on')", size: wide },
+  'room-add-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const add = document.querySelector('.room-add'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;", settled: "document.querySelector('.room-found .friend-button button')", size: wide },
+  'phone-room-add-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const add = document.querySelector('.room-add'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;", settled: "document.querySelector('.room-found .friend-button button')", size: phone },
+  'room-hover': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[2]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
+  'room-dig': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const d = document.querySelectorAll('.room-dig-open')[1]; if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.room-said .talk-post')", size: wide },
+  'phone-room': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "return true;", settled: "document.querySelector('.room-dig-open')", size: phone },
+  // Lounge mode in the Mac app: the sidebar's switch, the nook's sidebar
+  // and the Lounge's, and the pages opened from the Lounge keeping it. The
+  // chrome is shown in the app's own grey, not the dev server's pink.
+  // `-plain` is the Lounge's sidebar without its tint, for comparison.
+  'mac-mode-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: `${PROD_CHROME} return true;`, size: wide },
+  'mac-mode-lounge': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} return true;`, settled: "document.querySelector('.desktop-sidebar-count') && document.querySelector('.desktop-app.is-lounge')", size: wide },
+  'mac-mode-lounge-plain': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} ${NO_TINT} return true;`, settled: "document.querySelector('.desktop-app.is-lounge')", size: wide },
+  'mac-mode-lounge-friend': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const b = [...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.includes('Ana Reyes')); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "document.querySelector('.desktop-sidebar-item.active .desktop-sidebar-face')", size: wide },
+  'mac-mode-lounge-find': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const add = document.querySelector('.desktop-sidebar-label-action[aria-label="Find someone"]'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;`, settled: "document.querySelector('.room-found .friend-button button')", size: wide },
+  'mac-mode-lounge-their-nook': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const f = document.querySelector('.room-who-face'); if (f) f.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "location.pathname.startsWith('/u/') && document.querySelector('.desktop-app.is-lounge') && document.querySelector('.desktop-content h1, .desktop-content h2')", size: wide },
+  'mac-mode-lounge-paper': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} const go = () => { const t = document.querySelector('.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;`, settled: "location.pathname.startsWith('/paper/') && document.querySelector('.desktop-app.is-lounge .paper-jacket')", size: wide },
+  // The bar's Lounge button with its news dot, from the nook.
+  'way-lounge-news': { path: '/?shell=web', ready: "document.querySelector('.way-room .news-dot')", size: wide },
+  'mac-room': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: "return true;", settled: "document.querySelector('.room-dig-open')", size: wide },
+  // More of friends and the Lounge, a state to a picture: each kind of row
+  // with a face rested on, the friend button in each of its states, and
+  // what an answer leaves behind.
+  'room-hover-dig': { path: "/lounge?shell=web", ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[0]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
+  'room-hover-board': { path: "/lounge?shell=web", ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[4]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
+  'room-hover-project': { path: "/lounge?shell=web", ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[6]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
+  'phone-room-hover': { path: "/lounge?shell=web", ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[2]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: phone },
+  'phone-room-dig': { path: "/lounge?shell=web", ready: "document.querySelector('.room-row')", then: "const go = () => { const d = document.querySelectorAll('.room-dig-open')[1]; if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.room-said .talk-post')", size: phone },
+  'mac-room-hover': { path: "/lounge?shell=desktop", ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[2]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
+  'nook-add-friend': { path: "/u/a1b2c3d4-0000-4000-8000-000000000005?shell=web", ready: "document.querySelector('.friend-add')", size: wide },
+  'nook-requested': { path: "/u/a1b2c3d4-0000-4000-8000-000000000005?shell=web", ready: "document.querySelector('.friend-add')", then: "const go = () => { const b = document.querySelector('.friend-add'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.friend-requested')", size: wide },
+  'nook-asked': { path: "/u/a1b2c3d4-0000-4000-8000-000000000004?shell=web", ready: "document.querySelector('.friend-accept')", size: wide },
+  'phone-nook-asked': { path: "/u/a1b2c3d4-0000-4000-8000-000000000004?shell=web", ready: "document.querySelector('.friend-accept')", size: phone },
+  'nook-accepted': { path: "/u/a1b2c3d4-0000-4000-8000-000000000004?shell=web", ready: "document.querySelector('.friend-accept')", then: "const go = () => { const b = document.querySelector('.friend-accept'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.friend-is')", size: wide },
+  'inbox-accepted': { path: "/inbox?shell=web", ready: "document.querySelector('.you-page .notification-item')", then: "[...document.querySelectorAll('.notification-item button')].find((b) => b.textContent.trim() === 'Accept').click(); return true;", settled: "![...document.querySelectorAll('.notification-item button')].some((b) => b.textContent.trim() === 'Accept')", size: wide },
+  'phone-inbox': { path: "/inbox?shell=web", ready: "document.querySelector('.you-page .notification-item')", size: phone },
+  'projects-asked': { path: "/projects?shell=web", ready: "document.querySelector('.projects-ask')", then: "const go = () => { const b = document.querySelector('.projects-ask'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", settled: "!document.querySelector('.projects-ask') || document.body.textContent.includes('Asked')", size: wide },
+  'phone-paper-friend-digs': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-friend-digs .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-friend-digs').scrollIntoView({ block: 'center' }); return true;", size: phone },
+  // Friends: my list, and a request answered in the Inbox.
+  'you-preferences': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-preferences').click(); return true;", settled: "document.querySelector('.preferences-panel select')", size: wide },
+  'phone-you-preferences': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-preferences').click(); return true;", settled: "document.querySelector('.preferences-panel select')", size: phone },
+  'paper-friend-digs': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-friend-digs .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-friend-digs').scrollIntoView({ block: 'center' }); return true;", size: wide },
   paper: { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
   // A paper's jacket down to the reader's own dig on it: written on the
   // survey, still to be written on the other.
@@ -184,13 +236,19 @@ const SHOTS = {
   // up, then the form.
   'drop-uploading': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", holdThen: ['/files/upload-address'], then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .upload-going-up')", size: wide },
   'drop-form': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
+  // An author's copy of a published paper dropped on the nook: its form
+  // on what the PDF prints, with the published paper named and a button
+  // to fill the form from it; and after that button.
+  'drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill') && document.querySelector('#upload-paper-title')?.value === 'Modeling Game Mechanics with Ceptre'", size: wide },
+  'drop-form-filled': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill')", pointer: [['click', '.published-fill']], size: wide },
+  'phone-drop-form-published': { reads: 'published', path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing .published-fill')", size: phone },
   // Papol's mark pressed while a dropped PDF's form is open: the nook comes
   // back without the form.
   'drop-form-home': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: DROP, settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", pointer: [['click', '.way-mark']], size: wide },
   // A PDF dropped in the viewer, arriving in the nook's upload after the
   // page load that brings the reader here.
   'drop-from-viewer': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob()).then((bytes) => import('/@fs' + " + JSON.stringify(new URL('../../shared/droppedPapers.js', import.meta.url).pathname) + ").then((kept) => kept.handOverDroppedPdfs([new File([bytes], 'attention.pdf', { type: 'application/pdf' })]))).then(() => { location.reload(); return true; });", settled: "document.querySelector('.nook-desk.is-reviewing #upload-paper-title')?.value === 'Attention Is All You Need'", size: wide },
-  // An admin's bar, with Admin beside the Bazaar (run with PAPOL_ADMIN=1).
+  // An admin's bar, with Admin beside the Lounge (run with PAPOL_ADMIN=1).
   'admin-bar': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
   'admin-bar-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-paper') && document.querySelector('.way-aside a[href$=\"/admin\"]')", size: wide },
   // A report on the admin page, with where its writer was and the steps
@@ -229,6 +287,7 @@ try {
   for (const name of names) {
     const shot = SHOTS[name];
     held.clear();
+    uploadReads.as = shot.reads ?? 'known';
     for (const path of shot.hold ?? []) held.add(path);
     await browser.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor: 2, mobile: false, ...shot.size });
     // The Mac shell is remembered per tab, so a web shot says so.

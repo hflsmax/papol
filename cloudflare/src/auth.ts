@@ -33,6 +33,7 @@ export interface User extends Row {
   affiliation: string | null;
   avatar_path: string | null;
   email_public: number;
+  findable: number;
   is_admin: number;
   nav_marks: string | null;
   password_hash: string;
@@ -137,7 +138,7 @@ export async function currentUser(request: Request, env: Env): Promise<User> {
   return user ?? refuse(401, "Invalid or expired session");
 }
 
-// What a user sees of themselves. `email_public` and `is_admin` are stored
+// What a user sees of themselves. `email_public`, `findable` and `is_admin` are stored
 // as 0/1 and spoken as booleans.
 export function userPrivate(user: User) {
   return {
@@ -147,6 +148,7 @@ export function userPrivate(user: User) {
     affiliation: user.affiliation,
     avatar_path: user.avatar_path,
     email_public: Boolean(user.email_public),
+    findable: Boolean(user.findable ?? 1),
     is_admin: Boolean(user.is_admin),
     nav_marks: navMarksOf(user),
   };

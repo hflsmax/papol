@@ -228,6 +228,39 @@ function viewerFixture(server) {
     res.setHeader('Content-Length', pdfBytes.length);
     res.end(pdfBytes);
   });
+  // The small things the reader's devices share, as Papol keeps them:
+  // the change made last wins.
+  const states = new Map();
+  server.middlewares.use('/api/user-state', (req, res) => {
+    const path = req.url.split('?')[0].replace(/^\//, '');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'GET') {
+      const [kind, key] = path.split('/');
+      if (kind === 'flag') {
+        const flags = [...states.entries()].filter(([id]) => id.startsWith('flag:'))
+          .map(([id, s]) => ({ key: id.slice(5), value: s.value, at: s.at }));
+        res.end(JSON.stringify({ states: flags }));
+        return;
+      }
+      const kept = states.get(`${kind}:${key}`);
+      res.end(JSON.stringify({ state: kept ? { key, ...kept } : null }));
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      const { changes = [] } = JSON.parse(body || '{}');
+      let recorded = 0;
+      for (const change of changes) {
+        const id = `${change.kind}:${change.key}`;
+        const kept = states.get(id);
+        if (kept && Date.parse(change.at) <= Date.parse(kept.at)) continue;
+        states.set(id, { value: change.value, at: change.at });
+        recorded += 1;
+      }
+      res.end(JSON.stringify({ recorded, skipped: changes.length - recorded }));
+    });
+  });
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const body = answer(req.method, url.pathname, url.searchParams);

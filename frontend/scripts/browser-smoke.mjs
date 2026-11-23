@@ -26,7 +26,8 @@ const pages = [
   { path: '/', page: 'home' },
   { path: `/paper/${PAPER_NAME}`, page: 'paper' },
   { path: `/u/${USER_UUID}`, page: 'nook' },
-  { path: '/library', page: 'papers' },
+  { path: '/lounge', page: 'room' },
+  { path: '/bazaar', page: 'room' },
   { path: '/projects', page: 'projects' },
   { path: `/project/${USER_UUID}`, page: 'project' },
   { path: '/projects/join/Ab3dE5gH7j', page: 'invitation' },
@@ -168,13 +169,17 @@ const desktopReadiness = {
   desk: `
       if (document.querySelector('.desktop-browser .desktop-row')) {
         // The sidebar's list scrolls below the strip that holds the traffic
-        // lights; scrolled with the list, rows ran under the window buttons.
+        // lights, and below the mode switch under it; scrolled with the
+        // list, rows ran under the window buttons.
         const strip = document.querySelector('.desktop-sidebar-drag');
+        const modes = document.querySelector('.desktop-mode');
         const list = document.querySelector('.desktop-sidebar-list');
         const sidebar = document.querySelector('.desktop-sidebar');
+        const below = modes || strip;
         const settled = strip && list && getComputedStyle(sidebar).overflowY === 'visible'
           && strip.getBoundingClientRect().top === 0
-          && list.getBoundingClientRect().top === strip.getBoundingClientRect().bottom;
+          && (!modes || modes.getBoundingClientRect().top === strip.getBoundingClientRect().bottom)
+          && list.getBoundingClientRect().top >= below.getBoundingClientRect().bottom;
         fetch('/__papol_smoke_ready?page=' + (settled ? 'desk' : 'desk-sidebar-under-traffic-lights'), { method: 'POST' });
         return;
       }`,

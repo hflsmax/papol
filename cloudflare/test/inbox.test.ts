@@ -56,18 +56,18 @@ describe("feedback", () => {
   it("is stored, put in every admin's inbox, and mailed to each by a job, from a user or a visitor", async () => {
     const admin = await register("admin@example.test", "Admin"), reporter = await register("reporter@example.test", "Reporter");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", admin.uuid);
-    const signedIn = await ok("POST", "/api/feedback", { headers: reporter.headers, json: { content: "The cow is upside down\nSecond line", page: "/library" } });
-    expect(signedIn).toMatchObject({ content: "The cow is upside down\nSecond line", page: "/library", resolved: false, user: { uuid: reporter.uuid }, user_email: "reporter@example.test" });
+    const signedIn = await ok("POST", "/api/feedback", { headers: reporter.headers, json: { content: "The cow is upside down\nSecond line", page: "/lounge" } });
+    expect(signedIn).toMatchObject({ content: "The cow is upside down\nSecond line", page: "/lounge", resolved: false, user: { uuid: reporter.uuid }, user_email: "reporter@example.test" });
     const anonymous = await ok("POST", "/api/feedback", { json: { content: "Cannot sign in", contact: " me@example.test " } });
     expect(anonymous).toMatchObject({ user: null, user_email: null, contact: "me@example.test" });
     expect(await count("feedback")).toBe(2);
 
     const inbox = (await rows("SELECT content FROM notifications WHERE user_uuid = ? AND content LIKE 'Feedback%' ORDER BY created_at", admin.uuid)).map((n) => n.content as string);
-    expect(inbox[0]).toBe("Feedback from Reporter <reporter@example.test> (from /library):\n\nThe cow is upside down\nSecond line");
+    expect(inbox[0]).toBe("Feedback from Reporter <reporter@example.test> (from /lounge):\n\nThe cow is upside down\nSecond line");
     expect(inbox[1]).toBe("Feedback from a visitor <me@example.test>:\n\nCannot sign in");
     const mail = (await rows("SELECT payload FROM jobs WHERE kind = 'send_email' ORDER BY created_at")).map((j) => JSON.parse(j.payload as string));
     expect(mail.map((m) => [m.to, m.subject])).toEqual([["admin@example.test", "Papol feedback: The cow is upside down"], ["admin@example.test", "Papol feedback: Cannot sign in"]]);
-    expect(mail[0].body).toContain("Page: /library");
+    expect(mail[0].body).toContain("Page: /lounge");
     expect((await call("POST", "/api/feedback", { json: { content: "" } })).status).toBe(422);
   });
 

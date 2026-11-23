@@ -883,7 +883,6 @@ ${fileDropStyles}
 .storage-notice-opt-out input { margin: 0; }
 /* The wait under the button while the paper is added (docs/waiting.md). */
 .nook-adding { padding: 12px 14px; }
-.learn-papol.pdf-viewer-tip { left: auto; right: 0; }
 /* The project pill is last in the bar, so its card hangs leftward from it. */
 .learn-papol.project-visibility-tip { left: auto; right: 0; }
 .learn-papol.project-visibility-tip::before { left: auto; right: 14px; }
@@ -892,7 +891,6 @@ ${fileDropStyles}
 .learn-papol .shelf-choices button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px 4px; border-color: var(--line); box-shadow: none; font-size: var(--fs-sm); line-height: 1; text-align: left; }
 .learn-papol .shelf-choices button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
 .shelf-choices .shelf-dot { flex: none; width: 10px; height: 10px; margin-top: -3px; border-radius: 3px; }
-.learn-papol.pdf-viewer-tip::before { left: auto; right: 22px; }
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
 /* Text in these small buttons sits by its line box, which puts the caps a
    little high; a flex box centred on a 1-line box puts them in the middle. */
@@ -1489,9 +1487,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
 /* A dig being written wears no face of its own: the margin's face beside
    it is the writer's. */
-.dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr); }
+.dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr) auto; }
 .dig-margin-card .talk-dig-new > .mini-avatar { display: none; }
-.dig-margin-card .talk-dig-new-foot { grid-column: 1; }
 .dig-margin-card .talk-dig-new.is-tucked { grid-template-columns: minmax(0, 1fr) auto; }
 
 .animal-gutter {
@@ -1584,6 +1581,10 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    go. The browser's own paint on top made two shades while dragging, and a
    math face's span shaded lines above and below its own. */
 .textLayer ::selection { background: transparent; }
+/* A citation or link is found by where the pointer is, not by an element
+   over the words (that would break selection), so the hand has to be
+   given to the words themselves while the pointer is on one. */
+.pdf-page.over-reference .textLayer :is(span, br, .endOfContent) { cursor: pointer; }
 .provenance-box {
   position: absolute;
   z-index: 3;

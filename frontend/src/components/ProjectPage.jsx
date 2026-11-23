@@ -763,8 +763,8 @@ function DeskTabs({ view, onView, counts, fresh }) {
           className={`project-tab${view === v ? ' is-on' : ''}${v === 'manage' ? ' project-tab-manage' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >
-          {label}
-          {counts[v] > 0 && <span className="project-tab-count" aria-hidden="true">{counts[v]}</span>}
+          <span className="project-tab-label">{label}</span>
+          {counts[v] > 0 && <span className="project-tab-count project-tab-label" aria-hidden="true">{counts[v]}</span>}
           {fresh[v] && <NewsDot />}
         </button>
       ))}

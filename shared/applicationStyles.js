@@ -27,6 +27,8 @@ export const applicationStyles = `
   --chrome: ${desktopChrome};
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);
+  /* The sidebar in the Mac app's Lounge mode: the chrome's grey, turned green. */
+  --chrome-lounge: #e3ebe2;
   --chrome-radius: 6px;
 }
 
@@ -105,7 +107,7 @@ ${commonStyles}
 
 /* ---------- The way bar ----------
    A signed-in member's one bar on the web: Papol, the page's own title (or
-   the trail back), then the Bazaar and the member. One row with no rule
+   the trail back), then the Lounge and the member. One row with no rule
    under it. */
 
 .way-bar {
@@ -141,8 +143,8 @@ ${commonStyles}
 .way a.way-mark { display: inline-flex; align-self: center; }
 .way-mark img { display: block; width: 3rem; height: 3rem; border-radius: 12px; }
 
-/* Beside the trail home: everyone else's papers, boards and projects, and
-   the inbox, as quiet as the trail. */
+/* Beside the trail home: the Lounge, with the gold dot when a friend
+   has news. */
 .way-aside {
   display: flex;
   align-items: center;
@@ -161,6 +163,8 @@ ${commonStyles}
 }
 .way-trail:empty,
 #way-slot:not(:empty) + .way-default { display: none; }
+/* The bar's own guess stands level with Papol's mark, as a page's title does. */
+.way > .way-default { align-self: center; }
 .way-trail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .way-default a::before, #way-slot > a::before { content: '›'; margin-right: var(--space-2); color: var(--ink-faint); }
 
@@ -224,7 +228,8 @@ ${commonStyles}
 .you-avatar { width: 56px; height: 56px; font-size: var(--fs-xl); }
 .you-name { margin: 0; font: 600 var(--fs-2xl) var(--font-serif); }
 .you-affiliation { margin: 2px 0 0; color: var(--ink-soft); font-style: italic; }
-.you-tabs { margin-bottom: var(--space-4); }
+/* Five tabs are wider than a phone: they wrap to a second line. */
+.you-tabs { flex-wrap: wrap; margin-bottom: var(--space-4); }
 .you-who { flex: 1; min-width: 0; }
 .way-self .nav-avatar { margin: 0; vertical-align: 0; }
 .way-self[aria-current] .nav-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
@@ -599,11 +604,6 @@ ${macHandoffStyles}
   color: var(--gold-ink);
   font-size: var(--fs-sm);
   text-decoration: underline;
-}
-
-.pdf-viewer-prompt button.notice-banner-link {
-  padding: 0;
-  cursor: pointer;
 }
 
 .topnav .spacer {
@@ -1001,6 +1001,11 @@ button.full-width {
    and this PDF, on the same line as the reading's. */
 .metadata-reading.known-version { flex-wrap: wrap; }
 .metadata-reading.known-version input[type='radio'] { margin: 0; accent-color: var(--accent); }
+
+/* The published paper an author's copy was matched to, and the button
+   that fills the form with its details (or takes them back). */
+.metadata-reading.published-version { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 8px; }
+.metadata-reading.published-version .published-fill { padding: 4px 12px; font-size: var(--fs-sm); }
 
 .upload-review-form .form-group {
   margin-bottom: 12px;
@@ -1665,6 +1670,25 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   line-height: inherit;
   box-shadow: none;
   cursor: pointer;
+}
+
+/* Beside a jacket's heading the chip is centred on the heading's capitals,
+   whatever the font: the heading says how tall its capitals are, the chip
+   is cut to its own, and it is raised by half the difference. Small caps
+   stand about four fifths as tall. */
+@property --row-cap { syntax: '<length>'; inherits: true; initial-value: 0px; }
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) {
+  .paper-jacket h4 { --row-cap: 1cap; }
+  .paper-jacket h4.kicker { --row-cap: 0.8cap; }
+  .paper-jacket h4 .visibility-badge {
+    display: inline-block;
+    padding-block: 3.5px;
+    line-height: 1;
+    vertical-align: calc((var(--row-cap) - 1cap) / 2);
+  }
+  .paper-jacket h4 .visibility-badge > .badge-label { display: block; }
+  .paper-jacket h4 span.visibility-badge,
+  .paper-jacket h4 .visibility-badge > .badge-label { text-box: trim-both cap alphabetic; }
 }
 
 /* The once-only card saying a copy's parts can each be private or public,
@@ -3607,6 +3631,8 @@ a.button:hover {
 .landing-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .landing-button.primary { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
+.landing-button.landing-mac { display: inline-flex; align-items: center; gap: 6px; }
+.landing-mac svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .landing-place-section { scroll-margin-top: 16px; }
 .landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -3895,7 +3921,7 @@ a.button:hover {
 .thumb-title { fill: var(--line-strong); }
 .thumb-line { fill: var(--line); }
 
-/* The Library: the paper's jacket, which the visitor can add to. */
+/* The landing page's Lounge: the specimen's paper as friends' news, which the visitor can add to. */
 .landing-jacket {
   padding: 18px 20px;
   border: 1px solid var(--line-strong);
@@ -4054,24 +4080,82 @@ a.button:hover {
 
 /* ---------- Admin ---------- */
 
-.admin-tabs {
+/* One section at a time, picked from a row of tabs that stays in reach
+   as the page scrolls. */
+.admin-sections {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 16px;
+  padding: 8px 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
 }
 
-.admin-tab {
-  padding: 4px 12px;
-  font-size: var(--fs-xs);
-  font-family: var(--font-ui);
+.admin-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm, var(--fs-xs));
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: pointer;
 }
 
-.admin-tab.active {
+.admin-section:hover {
+  color: var(--ink);
+  background: var(--card);
+  border-color: var(--line);
+}
+
+.admin-section.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
+}
+
+.admin-section-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--red);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  line-height: 18px;
+  text-align: center;
+}
+
+.admin-table-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-table-picker select {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.admin-table-count {
+  color: var(--ink-faint);
+}
+
+/* A draft's long name must not push its picker past the panel. */
+.admin-message-compose .form-group select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .admin-table-wrap {
@@ -4149,6 +4233,89 @@ a.button:hover {
   outline: none;
   border-color: var(--accent);
   background: var(--card);
+}
+
+/* The Users panel: people, not cells, so it reads in the page's own face,
+   with each count right-aligned under its header. */
+.admin-users-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.admin-users-head h3 {
+  margin: 0 auto 0 0;
+  font-size: var(--fs-md);
+}
+
+.admin-users-head label {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-users-window {
+  width: auto;
+  font-size: var(--fs-xs);
+  padding: 4px 28px 4px 8px;
+}
+
+.admin-users-count {
+  margin-left: 4px;
+  color: var(--ink-faint);
+  font-weight: normal;
+}
+
+.admin-users-table {
+  font-family: inherit;
+  width: 100%;
+}
+
+.admin-users-table th.number,
+.admin-users-table td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-users-table th.number button.admin-sort {
+  flex-direction: row-reverse;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 6px 4px;
+}
+
+.admin-users-table td.admin-user {
+  max-width: 170px;
+}
+
+.admin-users-table td.admin-user-when {
+  max-width: 140px;
+}
+
+.admin-users-table td strong,
+.admin-users-table td small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-users-table small {
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs, 11px);
+}
+
+.admin-user-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--radius);
+  background: var(--accent-soft, var(--line));
+  color: var(--ink-soft);
+  font-size: var(--fs-2xs, 10px);
+  font-weight: normal;
+  vertical-align: 1px;
 }
 
 .admin-pk {
@@ -4929,13 +5096,9 @@ ${desktopStyles}
 .projects-kicker { margin: var(--space-5) 0 var(--space-2); }
 .projects-head + .projects-kicker { margin-top: 0; }
 .projects-panel { padding: 0 var(--space-4); margin-bottom: 0; }
-/* In the Bazaar, the projects are a section above everyone's papers. */
-.projects-page.is-section { max-width: none; margin-bottom: var(--space-5); }
-/* Papers come in through the nook; the Bazaar shows no drop box. A PDF
-   dropped anywhere on the window still lands here for its review. */
-.projects-page.is-section .projects-head { margin-bottom: var(--space-3); }
-.projects-page.is-section .projects-head h3 { margin: 0; font-size: var(--fs-lg); }
-.projects-page.is-section .projects-row { padding-block: var(--space-3); }
+/* Asking a project's keepers to be let in: quiet beside the faces. */
+.projects-ask { position: relative; z-index: 1; flex: none; padding: 3px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
+.projects-row.closed .projects-row-note { flex: none; flex-basis: auto; }
 .projects-list { list-style: none; margin: 0; padding: 0; }
 
 .projects-row {
@@ -5207,12 +5370,22 @@ button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) 
   .project-tabs .project-tab { flex: none; gap: 4px; padding: 5px 7px; }
   .project-mark-all-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+/* A pill's words are centred by their capitals, not by the font's own
+   line box, which differs from one system font to the next: where the
+   browser can trim a line to its capitals the pill has a height and the
+   trimmed label sits in its middle; elsewhere the padding is even. */
 .project-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px var(--space-3); border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm) var(--font-ui); }
 .project-tab:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .project-tab.is-on, .project-tab.is-on:hover:not(:disabled) { border-color: var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.project-tab-label { display: block; }
+@supports (text-box: trim-both cap alphabetic) {
+  .project-tab, .project-tabs .project-tab { min-height: 28px; padding-top: 0; padding-bottom: 0; }
+  .project-tab-label { text-box: trim-both cap alphabetic; }
+  .project-tab .project-tab-count { top: 0; }
+}
 .project-tab-count { position: relative; top: 1px; color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; }
 /* The inbox tab on the You page counts unread notifications. */
-.project-tab-new { display: inline-block; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/19px var(--font-ui); }
+.project-tab-new { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 18px; min-width: 18px; padding: 0 5px; font-variant-numeric: tabular-nums; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-ink); font: 700 var(--fs-2xs)/1 var(--font-ui); }
 .project-section-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 /* Papers as rows: a bibliography with the project's facts beside each entry.
    No rules between them: each row is a soft tile that shows only on hover,
@@ -5553,14 +5726,17 @@ ${talkStyles}
 .their-name { margin: 0; font: 600 var(--fs-xl)/1.2 var(--font-serif); }
 .their-line { margin: 2px 0 0; color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); }
 .their-line a { color: inherit; }
-.their-list { margin: 0; padding: 0; list-style: none; }
-.their-list li { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+/* A visitor's view of a nook lists its papers as my own nook does: the
+   same card, title and authors line (.desk-title, .desk-meta), rule and
+   tint under the pointer. */
+.their-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.their-list li { display: grid; align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
+.their-list li:hover { background: color-mix(in srgb, var(--card) 94%, var(--ink)); }
+.their-list li:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.their-list li:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 .their-list li:last-child { border-bottom: 0; }
 .their-boards { margin-top: var(--space-6); }
-.their-title { display: block; color: var(--ink); font: 400 var(--fs-md)/1.35 var(--font-serif); text-decoration: none; }
-.their-title:hover, .their-title:focus-visible { color: var(--accent); text-decoration: underline; }
-.their-meta { display: block; margin-top: 2px; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
-.their-meta i { font-family: var(--font-serif); }
+.their-title { display: block; }
 .their-thought { display: block; margin-top: 4px; color: var(--ink-soft); font: italic 400 var(--fs-sm)/1.4 var(--font-serif); }
 .nook-desk { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .desk-rail { position: sticky; top: var(--space-4); }
@@ -5657,6 +5833,9 @@ ${talkStyles}
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
+/* The Mac's Lounge: its rail is the window's sidebar, so the page is the card. */
+.nook-desk.is-railless { grid-template-columns: minmax(0, 1fr); }
+.room.is-railless .room-finder { max-width: 26rem; margin-bottom: var(--space-4); }
 .nook-desk.is-reviewing .desk-rail,
 .nook-desk.is-reviewing .desk-search,
 .nook-desk.is-reviewing .desk-chips,
@@ -5678,6 +5857,178 @@ ${talkStyles}
   .desk-table td.desk-col-title { grid-row: span 2; }
   .desk-meta { white-space: normal; }
   .desk-table.no-merit td.desk-col-dots, .desk-table td.desk-col-dots:nth-child(3) { display: none; }
+}
+
+/* ---------- Friends ---------- */
+/* What stands between me and someone: one quiet pill that says it, and is
+   the press that changes it. */
+.friend-button { display: inline-flex; flex: none; align-items: center; gap: var(--space-2); }
+.friend-button button { padding: 2px 10px; border-radius: 999px; box-shadow: none; font: 400 var(--fs-xs) var(--font-ui); white-space: nowrap; }
+/* Asking, waiting and being friends are each a glyph in a small round
+   button; only an answer still owed is put in words. */
+.friend-button .friend-add, .friend-button .friend-requested, .friend-button .friend-is { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border-color: transparent; background: transparent; color: var(--ink-soft); }
+.friend-glyph { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.friend-button .friend-add:hover:not(:disabled) { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.friend-button .friend-requested { color: var(--ink-faint); }
+.friend-button .friend-requested:hover:not(:disabled) { border-color: var(--line); background: var(--paper-sunken); color: var(--ink-soft); }
+.friend-button .friend-is { color: var(--gold-ink); }
+.friend-button .friend-is:hover:not(:disabled) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-ink); }
+.friend-button .friend-not-now { border-color: transparent; background: none; box-shadow: none; color: var(--ink-soft); }
+.friend-error { color: var(--accent); font: 400 var(--fs-xs) var(--font-ui); }
+.their-head .their-friend { margin-left: auto; }
+.friend-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  font: 400 var(--fs-2xs) var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+.visibility-badge.friends { color: var(--gold-ink); border-color: var(--gold-line); background: var(--gold-soft); }
+
+/* A person in a line: face, name, affiliation, and what there is to say
+   or do about them at the row's end. */
+/* The Lounge is the one other place the bar leads, so it is a button to
+   press: the app's own button, with the glyph the Mac sidebar gives the
+   Lounge, its name, and the gold dot when a friend has news. */
+.way-aside a.way-room {
+  gap: 6px; padding: 5px 14px 5px 11px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--card); box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
+  transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+.way-aside a.way-room .way-room-word { padding-block: calc((1lh - 1cap) / 2); text-box: trim-both cap alphabetic; }
+.way-aside a.way-room svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.way-aside a.way-room:hover, .way-aside a.way-room:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.way-aside a.way-room[aria-current] { border-color: var(--accent); color: var(--accent); }
+
+/* A message in the Inbox that has an answer or a place: said under it. */
+.notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }
+.notification-acts button { padding: 3px var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
+.notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
+.notification-link:hover { color: var(--accent); }
+
+/* Preferences: every choice in one place, a card to a subject, each
+   kept as it is ticked. */
+.preferences-panel { display: grid; gap: var(--space-4); }
+.preferences-block { display: grid; gap: var(--space-2); margin: 0; }
+.preferences-block .panel-title, .preferences-block .panel-note { margin: 0; }
+.preferences-row label strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.preferences-row label { line-height: 1.4; }
+.preferences-row select { width: 11rem; font-family: var(--font-ui); }
+.preferences-mac-note { display: grid; gap: 2px; margin: 0; }
+.preferences-mac-note strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.preferences-mac-note span { color: var(--ink-soft); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+.preferences-mac-download { justify-self: end; font: 400 var(--fs-sm)/1.4 var(--font-ui); }
+
+/* ---------- The Lounge ---------- */
+/* What my friends are reading and what they make of it: a paper to a row,
+   and under its title a line for each friend. One column, as wide as a
+   line of reading; the only gold is what is new. */
+/* The Lounge is laid out as the nook is (.nook-desk): a rail that says
+   whose news and what kind, and the rows in the nook's card beside it. */
+.app:has(.room) { max-width: 1180px; }
+.room-note, .room-empty { margin: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.5 var(--font-ui); }
+.room-note { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--gold-line); background: var(--gold-soft); border-radius: 0 var(--radius) var(--radius) 0; }
+.room-empty { padding: var(--space-6) 0; text-align: center; }
+.room-more { display: block; width: 100%; padding: var(--space-3); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); cursor: pointer; }
+.room-more:hover, .room-more:focus-visible { background: var(--paper-sunken); }
+.room-more-left { margin-left: var(--space-2); color: var(--ink-faint); font-weight: 400; }
+.room button.desk-row { cursor: pointer; }
+.room-friend-item { position: relative; }
+.room-friend-item > .face-link { position: absolute; z-index: 1; top: 50%; left: calc(var(--space-2) - 6px); transform: translateY(-50%); }
+.room-friend-item .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
+.room-friend-gap { flex: none; width: 20px; height: 20px; margin-left: -6px; }
+.room-finder { padding: 0 0 var(--space-2); }
+.room-finder-none { margin: 0; padding: 0 var(--space-2); color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
+.room-found { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0 var(--space-2); list-style: none; }
+.room-found li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
+.room-found .mini-avatar { width: 20px; height: 20px; font-size: var(--fs-2xs); }
+.room-found-who { display: grid; min-width: 0; }
+.room-found-name { overflow: hidden; color: var(--ink); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.room-found-name:hover { color: var(--accent); }
+.room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
+.room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
+/* The card and its head are the nook's table and its column names. */
+.room-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-head { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 4.5rem; align-items: center; gap: var(--space-3); height: 32px; padding: 0 var(--space-3); box-shadow: inset 0 -1px var(--line); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.room-head span:nth-child(n+2) { text-align: right; }
+/* The Lounge's rows are the nook's rows: the same card, the same title and
+   authors line (.desk-title, .desk-meta), the same rule and resting tint.
+   What is the Lounge's own sits at the right: faces, and what to press. */
+.room-rows { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.room-row { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; min-height: 52px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); line-height: 1.3; }
+.room-row:hover { background: color-mix(in srgb, var(--card) 94%, var(--ink)); }
+.room-row:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+.room-row:last-child { border-bottom: 0; }
+.room-row-head { position: relative; display: flex; align-items: center; gap: var(--space-3); }
+/* Who did something with the row: faces only, and what each did comes
+   out under the row when a face is rested on, pressed or tabbed to. */
+.room-faces { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 4px; width: 6rem; }
+.room-when { flex: none; width: 4.5rem; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.room-who { position: relative; display: inline-flex; }
+.room-who-face { display: inline-flex; border-radius: 50%; cursor: pointer; text-decoration: none; }
+.room-who-face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.room-who-face .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
+.room-pop { position: absolute; z-index: 20; top: calc(100% + 6px); right: -8px; width: 22rem; max-width: 80vw; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); visibility: hidden; opacity: 0; transition: opacity 0.12s 0.2s, visibility 0s 0.32s; }
+.room-who.is-held .room-pop { width: 30rem; }
+.room-pop-who { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.room-pop-who .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
+.room-person { color: var(--ink); font: 600 var(--fs-sm) var(--font-ui); text-decoration: none; }
+.room-person:hover, .room-person:focus-visible { color: var(--accent); text-decoration: underline; }
+.room-pop .room-lines { gap: var(--space-2); margin: 0; }
+.room-pop .room-did { color: var(--ink-soft); font-weight: 500; }
+.room-pop .room-words, .room-pop .room-ratings, .room-pop .room-dig-open { display: block; margin: 2px 0 0; }
+.room-pop .room-posts { display: block; margin: 2px 0 0; }
+.room-pop::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 10px; }
+.room-who:hover .room-pop, .room-who:focus-within .room-pop, .room-who.is-held .room-pop { visibility: visible; opacity: 1; transition-delay: 0s; }
+.room-who:hover .room-pop { z-index: 21; }
+@media (prefers-reduced-motion: reduce) { .room-pop { transition: none; } }
+.room-row-text { flex: 1; min-width: 0; }
+.room-row .news-dot { margin-left: var(--space-2); vertical-align: middle; }
+.room-title { overflow-wrap: anywhere; }
+.room-kind { margin-right: var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
+.room-lines { display: grid; gap: 2px; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+.room-line { display: flex; align-items: flex-start; gap: var(--space-2); }
+.room-line .mini-avatar { flex: none; width: 18px; height: 18px; font-size: 9px; }
+.room-said { flex: 1; min-width: 0; padding-top: 0; color: var(--ink-soft); font: 400 var(--fs-sm)/1.45 var(--font-ui); }
+.room-said b { color: var(--ink); font-weight: 600; }
+.room-said time { margin-left: var(--space-2); color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; }
+.room-words { margin-left: var(--space-2); color: var(--ink); font: italic 400 var(--fs-sm)/1.45 var(--font-serif); overflow-wrap: anywhere; }
+.room-ratings { display: inline-block; margin-left: var(--space-2); line-height: 1; vertical-align: baseline; }
+/* A dig's words are its door: pressed, the dig opens under them. */
+.room-dig-open { display: inline; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.room-dig-open:hover:not(:disabled) { background: none; }
+.room-dig-open:hover .room-words, .room-dig-open:focus-visible .room-words { color: var(--accent); }
+.room-posts { display: inline-block; margin-left: var(--space-2); color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
+.room-dig-open[aria-expanded='true'] .room-words, .room-dig-open[aria-expanded='true'] .room-posts { display: none; }
+.room-said .talk-card.is-inline { margin-top: var(--space-2); border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; overflow: visible; }
+.room-said .talk-card.is-inline .talk-card-body { overflow: visible; padding: 0; }
+.room-said .talk-posts { padding: 0; }
+.room-said .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
+
+/* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
+.paper-friend-digs { margin-top: var(--space-5); }
+.paper-friend-digs > h4 { margin-bottom: var(--space-2); }
+.friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.friend-dig-who { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); font: 400 var(--fs-sm) var(--font-ui); }
+.friend-dig-who a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink); text-decoration: none; }
+.friend-dig-who a:hover b { color: var(--accent); }
+.friend-dig-who .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
+.friend-dig-place { color: var(--ink-faint); }
+@media (max-width: 640px) {
+  .room { gap: var(--space-4); }
+  .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+  .room-row-text { flex-basis: 100%; }
+  .room-who { position: static; }
+  .room-head, .room-when { display: none; }
+  .room-faces { width: auto; justify-content: flex-start; }
+  .room-pop, .room-who.is-held .room-pop { left: 0; right: 0; width: auto; max-width: none; }
+    .their-head { flex-wrap: wrap; }
 }
 
 /* Product-wide motion preference. Component media rules can remove layout
