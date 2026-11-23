@@ -94,7 +94,7 @@ button {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
   line-height: 1.5;
-  box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12);
+  box-shadow: 0 1px 0 rgba(var(--shade-rgb), 0.12);
   transition: color var(--motion-fast) var(--ease-out),
     background-color var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
@@ -377,7 +377,7 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(29, 33, 41, 0.42);
+  background: rgba(var(--shade-rgb), 0.42);
   overscroll-behavior: contain;
 }
 
@@ -592,7 +592,7 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   cursor: pointer;
-  box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
+  box-shadow: 0 3px 12px rgba(var(--shade-rgb), 0.16);
 }
 
 /* Where its line can be trimmed to its capitals (see --cap-room above), the
@@ -604,7 +604,7 @@ button:disabled {
 .feedback-button:hover {
   color: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(29, 33, 41, 0.22);
+  box-shadow: 0 4px 16px rgba(var(--shade-rgb), 0.22);
 }
 
 .feedback-sheet { width: min(420px, 100%); }

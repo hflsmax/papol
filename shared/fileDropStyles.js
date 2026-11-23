@@ -31,7 +31,7 @@ export const fileDropStyles = `
   border: 1px solid currentColor;
   border-radius: var(--radius);
   background: var(--card);
-  box-shadow: 0 12px 32px rgba(29,33,41,.18);
+  box-shadow: 0 12px 32px rgba(var(--shade-rgb), .18);
   text-align: center;
 }
 
@@ -48,7 +48,7 @@ export const fileDropStyles = `
   border-radius: var(--radius);
   background: var(--card);
   color: var(--red);
-  box-shadow: 0 8px 24px rgba(29,33,41,.18);
+  box-shadow: 0 8px 24px rgba(var(--shade-rgb), .18);
   font: var(--fs-sm) var(--font-ui);
 }
 `;

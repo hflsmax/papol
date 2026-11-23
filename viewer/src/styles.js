@@ -1,5 +1,5 @@
 import { commonStyles } from '../../shared/commonStyles.js';
-import { designTokens } from '../../shared/designTokens.js';
+import { themedTokens } from '../../shared/designTokens.js';
 import { itemActionsStyles } from '../../shared/itemActionsStyles.js';
 import { compatibilityStyles } from '../../shared/compatibilityStyles.js';
 import { macHandoffStyles } from '../../shared/macHandoffStyles.js';
@@ -12,16 +12,17 @@ import { fileDropStyles } from '../../shared/fileDropStyles.js';
 export const PHONE = '(max-width: 560px)';
 
 export const styles = `
-:root {
-  ${designTokens}
-
+${themedTokens(`
   /* Viewer-only annotation colors. These identify tools and annotations rather
      than product state, so they intentionally stay outside the core set. */
   --orange: #d2691e;
   --orange-soft: #fbeee2;
   --orange-line: #efd2b6;
-
-}
+`, `
+  --orange: #e8894a;
+  --orange-soft: #2e2118;
+  --orange-line: #5a3b24;
+`)}
 
 ${itemActionsStyles}
 
@@ -154,7 +155,7 @@ ${fileDropStyles}
   background: var(--red-soft);
   color: var(--red);
   font-size: var(--fs-sm);
-  box-shadow: 0 4px 16px rgba(29, 33, 41, 0.25);
+  box-shadow: 0 4px 16px rgba(var(--shade-rgb), 0.25);
 }
 
 .error-bar .link-button { color: var(--red); }
@@ -823,7 +824,7 @@ ${fileDropStyles}
   background: rgba(30, 55, 82, 0.88);
   color: var(--ink-inverse);
   font: 74px/1 var(--font-ui);
-  box-shadow: 0 8px 30px rgba(29, 33, 41, 0.3);
+  box-shadow: 0 8px 30px rgba(var(--shade-rgb), 0.3);
   pointer-events: none;
   animation: search-wrap-fade 1.15s ease-out forwards;
 }
@@ -1075,7 +1076,7 @@ ${fileDropStyles}
   height: 22px;
   border-radius: 50%;
   background: var(--swatch);
-  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(var(--shade-rgb), 0.16);
 }
 
 /* The menagerie. Each animal shown as the drawing that will land
@@ -1154,8 +1155,8 @@ ${fileDropStyles}
   height: 16px;
   border-radius: 3px;
   overflow: hidden;
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(29, 33, 41, 0.18);
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px rgba(var(--shade-rgb), 0.18);
 }
 
 .brush-pop .shade-ink { position: absolute; inset: 0; display: block; }
@@ -1239,7 +1240,7 @@ ${fileDropStyles}
   --glyph-cutout: var(--accent);
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--ink-inverse);
   opacity: 0.82;
 }
 
@@ -1247,13 +1248,13 @@ ${fileDropStyles}
   --glyph-cutout: var(--accent-strong);
   background: var(--accent-strong);
   border-color: var(--accent-strong);
-  color: #ffffff;
+  color: var(--ink-inverse);
   opacity: 1;
 }
 
 /* The gold one keeps being gold when it is held, so it darkens instead. */
 .viewer-bar .tool[aria-label='Here'].on,
-.viewer-bar .tool[aria-label='Here'].on:hover { color: #ffffff; }
+.viewer-bar .tool[aria-label='Here'].on:hover { color: var(--ink-inverse); }
 
 
 /* ---------- Pages ---------- */
@@ -1519,7 +1520,7 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   padding: 14px 18px;
   border-radius: var(--radius);
   background: var(--card);
-  box-shadow: 0 6px 20px rgba(29, 33, 41, 0.18);
+  box-shadow: 0 6px 20px rgba(var(--shade-rgb), 0.18);
 }
 
 /* The shape of a page before there is one, so the viewer opens into
@@ -1530,19 +1531,29 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   aspect-ratio: 1 / 1.294;
   border-radius: 2px;
   background: var(--card);
-  box-shadow: 0 1px 6px rgba(29, 33, 41, 0.12);
+  box-shadow: 0 1px 6px rgba(var(--shade-rgb), 0.12);
 }
 
 .pdf-page {
   position: relative;
-  background: var(--card);
-  box-shadow: 0 1px 6px rgba(29, 33, 41, 0.18);
+  background: var(--page);
+  box-shadow: 0 1px 6px rgba(var(--shade-rgb), 0.18);
   flex: none;
 }
 
 .page-inner {
   position: relative;
   transform-origin: 0 0;
+}
+
+/* What is drawn on the paper itself (a citation's or a link's wash, the
+   place a card came from, a selection) is drawn for a printed page, which
+   is white in both themes, so it keeps the light theme's navy. */
+.cite-layer, .link-layer, .provenance-box, .provenance-highlight, .text-selection-highlight {
+  --accent: #2b4a6f;
+  --accent-strong: #1e3752;
+  --accent-rgb: 43, 74, 111;
+  --shade-rgb: 29, 33, 41;
 }
 
 .pdf-page canvas { display: block; }
@@ -1686,8 +1697,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    over the words the link sits on. */
 .pdf-link.hovered,
 .pdf-link:focus-visible {
-  background: rgba(43, 74, 111, 0.14);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.14);
   outline: none;
 }
 
@@ -1716,14 +1727,14 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .cite.hovered,
 .cite:focus-visible, .cite:hover:not(:disabled),
 .cite-group:has(.cite:focus-visible) > .cite {
-  background: rgba(43, 74, 111, 0.14);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.14);
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.14);
   outline: none;
 }
 
 .cite.open {
-  background: rgba(43, 74, 111, 0.16);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.16), inset 0 -2px 0 var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.16), inset 0 -2px 0 var(--accent);
 }
 
 /* Matched by counting rather than by the analyzer, so it is marked as the
@@ -1739,12 +1750,12 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   position: absolute;
   border-radius: 2px;
   pointer-events: none;
-  background: rgba(43, 74, 111, 0.16);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, 0.16), inset 0 -2px 0 var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.16), inset 0 -2px 0 var(--accent);
   animation: cite-occurrence-pulse 0.7s ease-out 1;
 }
 @keyframes cite-occurrence-pulse {
-  from { box-shadow: 0 0 0 9px rgba(43, 74, 111, 0.28), inset 0 -2px 0 var(--accent); }
+  from { box-shadow: 0 0 0 9px rgba(var(--accent-rgb), 0.28), inset 0 -2px 0 var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .cite-occurrence { animation: none; }
@@ -2061,7 +2072,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   position: absolute;
   z-index: 1;
   background: rgba(255, 255, 255, .9);
-  box-shadow: 0 0 0 1px rgba(43, 74, 111, .48);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .48);
 }
 .clip-guide.vertical { top: 0; bottom: 0; width: 1px; display: none; }
 .clip-guide.horizontal { left: 0; right: 0; height: 1px; display: none; }
@@ -2079,7 +2090,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   background: var(--card);
   border: 1px solid var(--line-strong);
   border-radius: 5px;
-  box-shadow: 0 5px 18px rgba(29, 33, 41, 0.28);
+  box-shadow: 0 5px 18px rgba(var(--shade-rgb), 0.28);
   touch-action: none;
   cursor: grab;
   user-select: none;
@@ -2123,7 +2134,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 }
 .paper-clip.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(43, 74, 111, .2), 0 5px 18px rgba(29, 33, 41, 0.28);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .2), 0 5px 18px rgba(var(--shade-rgb), 0.28);
 }
 .clip-canvas {
   display: block;
@@ -2139,7 +2150,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 52%, rgba(43, 74, 111, .65) 54%, rgba(43, 74, 111, .65) 62%, transparent 64%, transparent 72%, rgba(43, 74, 111, .65) 74%, rgba(43, 74, 111, .65) 82%, transparent 84%);
+  background: linear-gradient(135deg, transparent 52%, rgba(var(--accent-rgb), .65) 54%, rgba(var(--accent-rgb), .65) 62%, transparent 64%, transparent 72%, rgba(var(--accent-rgb), .65) 74%, rgba(var(--accent-rgb), .65) 82%, transparent 84%);
 }
 
 /* The other cursors are drawn rather than named, so the pointer is the

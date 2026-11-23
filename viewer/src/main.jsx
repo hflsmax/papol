@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { followTheme } from '../../shared/theme.js';
 import './configurePlatform.js';
 import '../../shared/desktopShell';
 import { startFeedbackTrail } from '../../shared/feedbackTrail.js';
@@ -10,6 +11,9 @@ import { hydrateCredential } from '../../shared/credentials.js';
 import { startSharingUserState } from '../../shared/featureStates.js';
 import { markViewerPerformance } from './performance.js';
 import { styles } from './styles.js';
+
+// Light or dark, as chosen on this device, before anything is drawn.
+followTheme();
 
 // Every report says what its writer had just done.
 startFeedbackTrail('viewer');

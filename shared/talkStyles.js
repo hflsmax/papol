@@ -1,3 +1,5 @@
+import { inDark } from './designTokens.js';
+
 // The dig pin and the dig card, worn by anything in a project that can
 // hold a dig: on the project pages, and in the viewer on another member's
 // annotation once a project is on. One sheet, so the two apps draw them
@@ -31,7 +33,7 @@ export const talkStyles = `
 
 
 /* The talk card: a board card lifted off the canvas. */
-.talk-card { position: fixed; z-index: 300; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 16px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md), 0 2px 5px rgba(29,33,41,.09); color: var(--ink); font-family: var(--font-ui); opacity: 0; visibility: hidden; }
+.talk-card { position: fixed; z-index: 300; display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 16px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md), 0 2px 5px rgba(var(--shade-rgb), .09); color: var(--ink); font-family: var(--font-ui); opacity: 0; visibility: hidden; }
 .talk-card.is-placed { visibility: visible; opacity: 1; }
 /* A dig read for the first time opens once it is read, whole and in its
    place, rather than as a header that then grows. */
@@ -48,6 +50,7 @@ export const talkStyles = `
 .phase-glyph { flex: none; width: 15px; height: 15px; overflow: visible; }
 .phase-glyph.is-digging { color: color-mix(in srgb, var(--green) 80%, var(--green-ink)); }
 .phase-glyph.is-stashed { color: #5a6fa3; }
+${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 .phase-glyph.is-gold { color: var(--gold); }
 .phase-glyph path.is-solid { fill: currentColor; stroke-width: 1; }
 .phase-glyph path.is-tinted { fill: currentColor; fill-opacity: .28; }
