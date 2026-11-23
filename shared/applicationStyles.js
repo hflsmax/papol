@@ -4175,6 +4175,89 @@ a.button:hover {
   background: var(--card);
 }
 
+/* The Users panel: people, not cells, so it reads in the page's own face,
+   with each count right-aligned under its header. */
+.admin-users-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.admin-users-head h3 {
+  margin: 0 auto 0 0;
+  font-size: var(--fs-md);
+}
+
+.admin-users-head label {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-users-window {
+  width: auto;
+  font-size: var(--fs-xs);
+  padding: 4px 28px 4px 8px;
+}
+
+.admin-users-count {
+  margin-left: 4px;
+  color: var(--ink-faint);
+  font-weight: normal;
+}
+
+.admin-users-table {
+  font-family: inherit;
+  width: 100%;
+}
+
+.admin-users-table th.number,
+.admin-users-table td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-users-table th.number button.admin-sort {
+  flex-direction: row-reverse;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 6px 4px;
+}
+
+.admin-users-table td.admin-user {
+  max-width: 170px;
+}
+
+.admin-users-table td.admin-user-when {
+  max-width: 140px;
+}
+
+.admin-users-table td strong,
+.admin-users-table td small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-users-table small {
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs, 11px);
+}
+
+.admin-user-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--radius);
+  background: var(--accent-soft, var(--line));
+  color: var(--ink-soft);
+  font-size: var(--fs-2xs, 10px);
+  font-weight: normal;
+  vertical-align: 1px;
+}
+
 .admin-pk {
   color: var(--ink-faint);
   padding: 0 6px;

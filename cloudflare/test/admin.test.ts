@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { groupSends } from "../src/routes/admin";
-import { call, count, exec, ok, register, row, rows, type Account } from "./helpers";
+import { call, count, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
 
 async function admin(): Promise<Account> {
   const account = await register("admin@example.test", "Admin");
@@ -14,7 +14,7 @@ describe("the admin pages", () => {
   it("are for admins only", async () => {
     const user = await register();
     for (const [method, path] of [["GET", "/api/admin/feedback"], ["GET", "/api/admin/tables"], ["GET", "/api/admin/tables/users"], ["POST", "/api/admin/sql"],
-      ["POST", "/api/admin/announcements"], ["GET", "/api/admin/emails"], ["GET", "/api/admin/emails/some-id"]]) {
+      ["POST", "/api/admin/announcements"], ["GET", "/api/admin/emails"], ["GET", "/api/admin/emails/some-id"], ["GET", "/api/admin/users"]]) {
       expect((await call(method, path, { headers: user.headers, ...(method === "POST" ? { json: {} } : {}) })).status, `${method} ${path}`).toBe(403);
     }
     expect((await call("GET", "/api/admin/tables")).status).toBe(401);
@@ -121,5 +121,45 @@ describe("the admin pages", () => {
     expect(broken.status).toBe(400);
     expect(((await broken.json()) as any).detail).toContain("no_such_table");
     expect((await call("POST", "/api/admin/sql", { headers: boss.headers, json: { query: "" } })).status).toBe(422);
+  });
+  it("list the users seen lately, most recent first, and the users new lately, newest first, each with their numbers", async () => {
+    const boss = await admin();
+    const old = await register("old@example.test", "Old Reader"), fresh = await register("fresh@example.test", "Fresh"),
+      quiet = await register("quiet@example.test", "Quiet"), gone = await register("gone@example.test", "Gone");
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    // Old Reader joined long ago and read an hour ago; Fresh joined two days
+    // ago and was last here yesterday; Quiet joined twenty days ago and has
+    // not been here for ten; Gone closed their account.
+    await exec("UPDATE users SET created_at = ? WHERE uuid = ?", ago(200), old.uuid);
+    await exec("UPDATE users SET created_at = ? WHERE uuid = ?", ago(2), fresh.uuid);
+    await exec("UPDATE users SET created_at = ? WHERE uuid = ?", ago(20), quiet.uuid);
+    await exec("UPDATE users SET created_at = ? WHERE uuid = ?", ago(200), boss.uuid);
+    await exec("UPDATE users SET deleted_at = ? WHERE uuid = ?", ago(0), gone.uuid);
+    await exec("UPDATE auth_tokens SET last_used_at = ? WHERE user_uuid = ?", ago(30), old.uuid);
+    await exec("UPDATE auth_tokens SET last_used_at = ? WHERE user_uuid = ?", ago(1), fresh.uuid);
+    await exec("UPDATE auth_tokens SET last_used_at = ? WHERE user_uuid = ?", ago(10), quiet.uuid);
+    await exec("INSERT INTO activity (uuid, user_uuid, kind, subject, started_at, ended_at, seconds) VALUES (?, ?, 'paper', 'a', ?, ?, 600)", uuid(), old.uuid, ago(1 / 12), ago(1 / 24));
+    await exec("INSERT INTO activity (uuid, user_uuid, kind, subject, started_at, ended_at, seconds) VALUES (?, ?, 'paper', 'b', ?, ?, 3000)", uuid(), old.uuid, ago(40), ago(40));
+
+    await paperWithCopy(old, "a".repeat(64), "One");
+    await paperWithCopy(old, "b".repeat(64), "Two");
+    await exec("INSERT INTO digs (uuid, user_uuid, subject, paper_sha256, text, created_at, updated_at) VALUES (?, ?, ?, ?, 'x', ?, ?)", uuid(), old.uuid, `paper:${"a".repeat(64)}`, "a".repeat(64), ago(0), ago(0));
+    await exec("INSERT INTO annotations (uuid, kind, user_uuid, paper_sha256, page, content, created_at, updated_at) VALUES (?, 'anchor', ?, ?, 1, '', ?, ?)", uuid(), old.uuid, "a".repeat(64), ago(0), ago(0));
+    await exec("INSERT INTO friendships (uuid, asker_uuid, asked_uuid, state, created_at) VALUES (?, ?, ?, 'friends', ?)", uuid(), fresh.uuid, old.uuid, ago(0));
+    await exec("INSERT INTO friendships (uuid, asker_uuid, asked_uuid, state, created_at) VALUES (?, ?, ?, 'asked', ?)", uuid(), quiet.uuid, old.uuid, ago(0));
+
+    const users = await ok("GET", "/api/admin/users", { headers: boss.headers });
+    expect(users).toMatchObject({ active_days: 7, new_days: 30, total_users: 4, active_count: 3, new_count: 2 });
+    expect(users.active.map((u: any) => u.display_name)).toEqual(["Admin", "Old Reader", "Fresh"]);
+    expect(users.new.map((u: any) => u.display_name)).toEqual(["Fresh", "Quiet"]);
+    expect(users.active[1]).toMatchObject({ email: "old@example.test", papers: 2, digs: 1, anchors: 1, friends: 1, projects: 0, reading_recent_seconds: 600, reading_seconds: 3600, platform: "web", is_admin: false });
+    expect(Date.parse(users.active[1].last_active_at)).toBeGreaterThan(Date.now() - 2 * 3_600_000);
+    expect(users.active[0].is_admin).toBe(true);
+
+    const wider = await ok("GET", "/api/admin/users?active_days=30&new_days=1", { headers: boss.headers });
+    expect(wider.active.map((u: any) => u.display_name)).toEqual(["Admin", "Old Reader", "Fresh", "Quiet"]);
+    expect(wider.new).toEqual([]);
+    expect((await call("GET", "/api/admin/users?active_days=0", { headers: boss.headers })).status).toBe(400);
+    expect((await call("GET", "/api/admin/users?new_days=1.5", { headers: boss.headers })).status).toBe(400);
   });
 });

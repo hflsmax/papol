@@ -15,10 +15,12 @@ import {
   adminSendAnnouncement,
   adminListEmails,
   adminGetEmail,
+  adminListUsers,
 } from '../../../shared/api/admin.js';
 import appLimits from '../../../shared/appLimits.js';
 import { nextSort, sortIndicator, sortRows } from '../adminSort.js';
 import { NEWSLETTER_DRAFTS } from '../newsletterDrafts.js';
+import { ago, readingTime, USER_WINDOWS, windowLabel } from '../adminUsers.js';
 import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 
 // The open accounts a broadcast can go to, for the audience picker.
@@ -601,6 +603,130 @@ function FeatureStatesPanel() {
   );
 }
 
+const PLATFORM = { macos: 'Mac', web: 'Web' };
+
+// One list of users with what each has made. `when` is the column the list
+// is about (last active, or joined); the other date sits under it.
+function UserTable({ users, when, recentDays, label }) {
+  const [sort, setSort] = useState(null);
+  const columns = [
+    { key: 'display_name', label: 'User' },
+    { key: when, label: when === 'last_active_at' ? 'Last active' : 'Joined' },
+    { key: 'papers', label: 'Papers', number: true },
+    { key: 'digs', label: 'Digs', number: true },
+    { key: 'anchors', label: 'Anchors', number: true },
+    { key: 'reading_recent_seconds', label: 'Reading', title: `Reading time in the ${windowLabel(recentDays)}, and in all`, number: true },
+    { key: 'friends', label: 'Friends', number: true },
+    { key: 'projects', label: 'Projects', number: true },
+  ];
+  if (users.length === 0) return <p className="no-papers">Nobody in the {windowLabel(recentDays)}.</p>;
+  const rows = sortRows(users, sort);
+  return (
+    <div className="admin-table-wrap">
+      <table className="admin-table admin-users-table" aria-label={label}>
+        <thead>
+          <tr>
+            {columns.map((c) => {
+              const { ariaSort, arrow } = sortIndicator(sort, c.key);
+              return (
+                <th key={c.key} aria-sort={ariaSort} className={c.number ? 'number' : undefined}>
+                  <button className="admin-sort" onClick={() => setSort(nextSort(sort, c.key))} title={c.title ?? `Sort by ${c.label.toLowerCase()}`}>
+                    {c.label}
+                    <span className="admin-sort-arrow" aria-hidden="true">{arrow}</span>
+                  </button>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((u) => (
+            <tr key={u.uuid}>
+              <td className="admin-user">
+                <strong>{u.display_name}{u.is_admin && <span className="admin-user-badge">admin</span>}</strong>
+                <small title={u.email}>{u.email}{u.affiliation ? ` · ${u.affiliation}` : ''}</small>
+              </td>
+              <td className="admin-user-when">
+                <span title={u[when] ? new Date(u[when]).toLocaleString() : undefined}>{ago(u[when])}</span>
+                <small>
+                  {when === 'last_active_at'
+                    ? `joined ${ago(u.created_at)}`
+                    : u.last_active_at ? `seen ${ago(u.last_active_at)}` : 'not seen yet'}
+                  {u.platform && ` · ${PLATFORM[u.platform] ?? u.platform}`}
+                </small>
+              </td>
+              <td className="number">{u.papers || '—'}</td>
+              <td className="number">{u.digs || '—'}</td>
+              <td className="number">{u.anchors || '—'}</td>
+              <td className="number">
+                {readingTime(u.reading_recent_seconds)}
+                <small>{u.reading_seconds ? `${readingTime(u.reading_seconds)} in all` : ''}</small>
+              </td>
+              <td className="number">{u.friends || '—'}</td>
+              <td className="number">{u.projects || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function WindowPicker({ id, value, onChange }) {
+  return (
+    <select id={id} className="admin-users-window" value={value} onChange={(event) => onChange(Number(event.target.value))}>
+      {USER_WINDOWS.map((days) => <option key={days} value={days}>{windowLabel(days)}</option>)}
+    </select>
+  );
+}
+
+// Who has used Papol lately and who has just joined, with what each has
+// made: papers on their shelves, digs, anchors, reading time, friends and
+// projects.
+function UsersPanel() {
+  const [activeDays, setActiveDays] = useState(7);
+  const [newDays, setNewDays] = useState(30);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let current = true;
+    setError(null);
+    adminListUsers({ activeDays, newDays })
+      .then((d) => { if (current) setData(d); })
+      .catch((e) => { if (current) setError(e.message); });
+    return () => { current = false; };
+  }, [activeDays, newDays]);
+
+  if (error) return <div className="error" role="alert">{error}</div>;
+  if (!data) return <div className="loading"><Working label="Loading users…" /></div>;
+
+  const shown = (count, list) => (count > list.length ? ` (newest ${list.length} shown)` : '');
+  return (
+    <>
+      <p className="panel-note">
+        {data.total_users} {data.total_users === 1 ? 'account' : 'accounts'}.{' '}
+        {data.active_count} active in the {windowLabel(data.active_days)},{' '}
+        {data.new_count} joined in the {windowLabel(data.new_days)}.
+      </p>
+      <div className="admin-users-head">
+        <h3>Recently active <span className="admin-users-count">{data.active_count}</span></h3>
+        <label htmlFor="admin-users-active-window">Seen in the</label>
+        <WindowPicker id="admin-users-active-window" value={activeDays} onChange={setActiveDays} />
+      </div>
+      {shown(data.active_count, data.active) && <p className="panel-note">{shown(data.active_count, data.active)}</p>}
+      <UserTable users={data.active} when="last_active_at" recentDays={data.active_days} label="Recently active users" />
+      <div className="admin-users-head">
+        <h3>New <span className="admin-users-count">{data.new_count}</span></h3>
+        <label htmlFor="admin-users-new-window">Joined in the</label>
+        <WindowPicker id="admin-users-new-window" value={newDays} onChange={setNewDays} />
+      </div>
+      {shown(data.new_count, data.new) && <p className="panel-note">{shown(data.new_count, data.new)}</p>}
+      <UserTable users={data.new} when="created_at" recentDays={data.active_days} label="New users" />
+    </>
+  );
+}
+
 export default function AdminPage() {
   const [tables, setTables] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -701,6 +827,11 @@ export default function AdminPage() {
 
   return (
     <div className="admin-page">
+      <div className="panel">
+        <h2 className="panel-title">Users</h2>
+        <UsersPanel />
+      </div>
+
       <div className="panel">
         <h2 className="panel-title">Message users</h2>
         <AdminMessagePanel />
