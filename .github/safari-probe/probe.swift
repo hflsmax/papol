@@ -102,7 +102,24 @@ func seen(_ at: CGPoint) -> String {
   let scale = Double(a.pixelsWide) / 48
   return String(format: "drawn: %dx%d px, %d px changed", Int(Double(maxX - minX + 1) / scale), Int(Double(maxY - minY + 1) / scale), n)
 }
+// The runner's Safari is slow: a press can keep the page busy for many
+// seconds, and a busy page sets no cursor. Wait until it reports again.
+func idle(_ why: String) {
+  let start = Date()
+  while Date().timeIntervalSince(start) < 90 {
+    if let st = get("state"), let at = (st["at"] as? NSNumber)?.intValue,
+       Int(Date().timeIntervalSince1970 * 1000) - at < 700 {
+      let waited = Date().timeIntervalSince(start)
+      if waited > 1 { print(String(format: "  (page busy %.0fs %@)", waited, why)) }
+      usleep(400_000)
+      return
+    }
+    usleep(200_000)
+  }
+  print("  (page still busy after 90s \(why))")
+}
 func look(_ label: String, _ at: CGPoint) -> String {
+  idle("before: " + label)
   let c = cursor(), d = seen(at)
   print(label, c, "|", d, "| front:", NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")
   return d
@@ -120,13 +137,14 @@ func fresh(_ key: String) -> CGPoint {
 print("window", (get("spots") ?? spots!)["window"] ?? "?")
 
 // A first click wakes the window: one Safari is not yet key keeps for itself.
-let wake = fresh("bare"); move(wake); click(wake); sleep(1)
+idle("at the start")
+let wake = fresh("bare"); move(wake); click(wake); sleep(1); idle("after the first click")
 var p = fresh("word"); move(p); let w1 = look("before: over a word      ", p)
 p = fresh("bare"); move(p); let b1 = look("before: over bare paper  ", p)
 p = fresh("word"); move(p); let w2 = look("before: over a word again", p)
 print("state before:", state())
 
-p = fresh("bare2"); move(p); doubleClick(p)
+p = fresh("bare2"); move(p); idle("before the double-click"); doubleClick(p); idle("after the double-click")
 print("double-clicked bare paper; state:", state())
 sleep(1)
 
