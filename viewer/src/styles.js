@@ -1487,9 +1487,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .dig-margin-card .talk-card.is-inline .talk-card-owners { flex-wrap: wrap; margin: 0 0 6px; padding: 0; }
 /* A dig being written wears no face of its own: the margin's face beside
    it is the writer's. */
-.dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr); }
+.dig-margin-card .talk-dig-new { grid-template-columns: minmax(0, 1fr) auto; }
 .dig-margin-card .talk-dig-new > .mini-avatar { display: none; }
-.dig-margin-card .talk-dig-new-foot { grid-column: 1; }
 .dig-margin-card .talk-dig-new.is-tucked { grid-template-columns: minmax(0, 1fr) auto; }
 
 .animal-gutter {
