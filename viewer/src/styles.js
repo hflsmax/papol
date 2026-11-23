@@ -48,7 +48,7 @@ ${commonStyles}
 /* The viewer's density: the shared button, one step smaller. */
 button {
   font-size: var(--fs-xs);
-  padding: 6px 12px;
+  padding: calc(6px + var(--cap-room, 0px)) 12px;
 }
 
 ${macHandoffStyles}
@@ -805,7 +805,7 @@ ${fileDropStyles}
   background: var(--card);
 }
 .pdf-search input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
-.search-pop button { min-width: 28px; height: 28px; padding: 2px 7px; }
+.search-pop button { min-width: 28px; height: 28px; padding: calc(2px + var(--cap-room, 0px)) 7px; }
 .search-count { min-width: 58px; color: var(--ink-faint); font-size: var(--fs-2xs); text-align: center; white-space: nowrap; }
 
 .search-wrap-sign {
@@ -839,7 +839,7 @@ ${fileDropStyles}
 .viewer-bar .bar-link {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  padding: 6px 12px;
+  padding: calc(6px + var(--cap-room, 0px)) 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   color: var(--ink);
@@ -888,13 +888,13 @@ ${fileDropStyles}
 .learn-papol.project-visibility-tip::before { left: auto; right: 14px; }
 /* The reader's shelves of the other kind, one row each, coloured as in the nook. */
 .project-visibility-tip .shelf-choices { display: flex; flex-direction: column; align-self: stretch; gap: 4px; }
-.learn-papol .shelf-choices button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px 4px; border-color: var(--line); box-shadow: none; font-size: var(--fs-sm); line-height: 1; text-align: left; }
+.learn-papol .shelf-choices button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px 4px; border-color: var(--line); box-shadow: none; font-size: var(--fs-sm); line-height: 1; text-align: left; --cap-room: 0px; }
 .learn-papol .shelf-choices button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
 .shelf-choices .shelf-dot { flex: none; width: 10px; height: 10px; margin-top: -3px; border-radius: 3px; }
 .pdf-viewer-tip-actions { display: flex; align-self: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
 /* Text in these small buttons sits by its line box, which puts the caps a
    little high; a flex box centred on a 1-line box puts them in the middle. */
-.learn-papol .pdf-viewer-tip-actions button { display: inline-flex; align-items: center; justify-content: center; padding: 7px 10px 3px; line-height: 1; }
+.learn-papol .pdf-viewer-tip-actions button { display: inline-flex; align-items: center; justify-content: center; padding: 7px 10px 3px; line-height: 1; --cap-room: 0px; }
 .learn-papol .pdf-viewer-tip-actions .learn-papol-close { margin-top: 0; }
 /* The same 32px square as the tools it stands beside, holding the same 18px
    glyph. Three classes, because two were not enough: written as
@@ -1803,7 +1803,7 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .ref-range-nav button {
   width: 28px;
   height: 24px;
-  padding: 0;
+  padding: var(--cap-room, 0px) 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);
@@ -1929,7 +1929,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
 .ref-places-nav button {
   width: 28px;
   height: 24px;
-  padding: 0;
+  padding: var(--cap-room, 0px) 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);

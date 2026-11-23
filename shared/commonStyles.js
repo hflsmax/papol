@@ -85,7 +85,7 @@ select:disabled { cursor: default; opacity: .65; }
    the density is the surface's business — the viewer sets a smaller size
    for its chrome, and nothing else. */
 button {
-  padding: 8px 18px;
+  padding: calc(8px + var(--cap-room, 0px)) 18px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--card);
@@ -100,6 +100,31 @@ button {
     border-color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out),
     transform var(--motion-fast) var(--ease-out);
+}
+
+/* A control's words are centred by their capitals. Centring the font's
+   line box can leave them riding a pixel or two high, because that box
+   keeps room for descenders the capitals never use, and how much room
+   differs from one font and one browser to the next. Where the browser can trim a line to
+   its capitals and baseline, the words of a plain button (and of each
+   family that asks for it below) are trimmed, and the room the trim took
+   comes back as padding, --cap-room on each side, so no control changes
+   height. --cap-room is unset everywhere else, including every browser
+   that cannot trim, so calc(6px + var(--cap-room, 0px)) in a padding is
+   always safe. A plain button that a rule lays out as flex or grid is not
+   trimmed (its words are an anonymous item), so that rule sets --cap-room
+   back to 0. A label inside a flex control wears .cap-text instead: the
+   same trim, its room given back as its own padding. (Not an @property:
+   WebKit doubles a registered length made of lh and cap.) */
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) and (height: 1lh) {
+  :is(button:not([class]), button[class='primary'], button[class='danger'],
+    button[class='primary full-width'], .cap-text, .feedback-button,
+    .landing-button, .viewer-bar button.bar-link) {
+    --cap-room: calc((1lh - 1cap) / 2);
+    align-content: center;
+    text-box: trim-both cap alphabetic;
+  }
+  .cap-text { padding-block: var(--cap-room, 0px); }
 }
 
 button:hover:not(:disabled) {
@@ -568,6 +593,12 @@ button:disabled {
   font-size: var(--fs-sm);
   cursor: pointer;
   box-shadow: 0 3px 12px rgba(29, 33, 41, 0.16);
+}
+
+/* Where its line can be trimmed to its capitals (see --cap-room above), the
+   chip is a block that centres them in its height. */
+@supports (text-box: trim-both cap alphabetic) {
+  .feedback-button { display: inline-block; }
 }
 
 .feedback-button:hover {

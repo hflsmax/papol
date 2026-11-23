@@ -4801,7 +4801,7 @@ export default function App() {
                   title={projectView ? `Reading in ${projectView.name}` : 'Read with a project on'}
                   onClick={() => { setProjectMenuOpen((open) => !open); setPaperInfoOpen(false); }}
                 >
-                  <svg className="project-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg className="project-glyph" viewBox="0.5 0.65 24 24" aria-hidden="true">
                     <circle cx="8.5" cy="9" r="3.2" /><circle cx="16.5" cy="9" r="3.2" />
                     <path d="M3 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5M11 19.5c.6-3.4 2.9-5 5.5-5s4.9 1.6 5.5 5" />
                   </svg>

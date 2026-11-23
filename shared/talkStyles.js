@@ -54,7 +54,7 @@ export const talkStyles = `
 .phase-glyph path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* The phase and, pressed, the four phases in a list dropped under it. */
 .dig-phase-pick { position: relative; display: inline-flex; flex: none; margin-left: auto; }
-.dig-phase-word, .dig-phase-menu button { display: inline-flex; align-items: center; gap: 6px; min-height: 0; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--paper-sunken); box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/26px var(--font-ui); letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+.dig-phase-word, .dig-phase-menu button { display: inline-flex; align-items: center; gap: 6px; min-height: 0; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--paper-sunken); box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/26px var(--font-ui); letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); --cap-room: 0px; }
 .dig-phase-word:hover:not(:disabled) { border: 0; background: var(--paper-sunken); color: var(--ink); }
 .dig-phase-word.is-busy { opacity: .6; }
 .dig-phase-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: grid; min-width: 9.5rem; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
@@ -82,7 +82,7 @@ export const talkStyles = `
 
 /* Whose dig: a thing holds one per member who started one. */
 .talk-card-owners { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 var(--space-4) var(--space-2); }
-.talk-card-owners button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 9px 2px 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); }
+.talk-card-owners button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 2px 9px 2px 3px; border: 1px solid transparent; border-radius: 999px; background: none; box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs) var(--font-ui); --cap-room: 0px; }
 .talk-card-owners button .mini-avatar { width: 20px; height: 20px; font-size: 10px; }
 .talk-card-owners button:hover:not(:disabled) { border-color: var(--line); background: none; color: var(--ink); }
 .talk-card-owners button.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
@@ -120,7 +120,7 @@ export const talkStyles = `
 /* Edit and Delete sit on the post's own head line, at its end, in every
    place a dig is read: the brief, the Digs tab and the viewer's margin. */
 .talk-post-actions { display: inline-flex; gap: 2px; margin: -3px -4px -3px auto; }
-.talk-post-actions button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); }
+.talk-post-actions button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); --cap-room: 0px; }
 .talk-post-actions svg { display: block; width: 14px; height: 14px; }
 .talk-post-actions .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .talk-post-actions .action-glyph-fill { fill: currentColor; stroke: none; }

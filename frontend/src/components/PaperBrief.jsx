@@ -88,12 +88,12 @@ export default function PaperBrief({ project, paper, currentUser, unread = {}, u
         {tags && <div className="paper-brief-tags">{tags}</div>}
         <div className="paper-brief-actions">
           <a className="button primary" href={viewer} data-document onClick={open(viewer)}>
-            Read
+            <span className="cap-text">Read</span>
           </a>
           {!paper.in_my_nook && (
-            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" />Add to my nook</button>
+            <button type="button" onClick={() => act(() => addToNook(paper.sha256))}><ActionGlyph name="add" /><span className="cap-text">Add to my nook</span></button>
           )}
-          {canTakeOut && <button type="button" className="paper-brief-take-out" onClick={takeOut}>Take out</button>}
+          {canTakeOut && <button type="button" className="paper-brief-take-out" onClick={takeOut}><span className="cap-text">Take out</span></button>}
           {paper.added_by && (
             <span className="project-paper-added">Added by {isMe(paper.added_by) ? 'you' : paper.added_by.display_name} · {day(paper.added_at)}</span>
           )}

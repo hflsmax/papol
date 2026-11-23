@@ -1020,7 +1020,7 @@ export default function AdminPage() {
             aria-current={s.key === current ? 'page' : undefined}
             onClick={() => open(s.key)}
           >
-            {s.label}
+            <span className="cap-text">{s.label}</span>
             {s.key === 'feedback' && openReports > 0 && <span className="admin-section-count">{openReports}</span>}
           </button>
         ))}

@@ -316,7 +316,7 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
           type="button" className="project-invite-open" aria-expanded={open === 'invite'} aria-controls="project-people"
           onClick={() => setPeopleOpen(open === 'invite' ? false : 'invite')}
         >
-          <ActionGlyph name="plus" />Invite
+          <ActionGlyph name="plus" /><span className="cap-text">Invite</span>
         </button>
       )}
     </div>

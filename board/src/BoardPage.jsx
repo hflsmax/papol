@@ -2144,7 +2144,7 @@ export default function BoardPage({ boardUuid, onHome, homeHref }) {
       {!board.can_edit && <span className="badge board-readonly-badge">Read only</span>}
       <span className="board-toolbar-spacer" />
       <DesktopSyncingStatus />
-      {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={() => tidyUp()} title="Tidy up: clear overlaps and line things up"><TidyGlyph /><span>Tidy</span></button>}
+      {board.can_edit && <button type="button" className="board-tidy-button" disabled={busy || !board.items.length} onClick={() => tidyUp()} title="Tidy up: clear overlaps and line things up"><TidyGlyph /><span className="cap-text">Tidy</span></button>}
       <div className="board-card-count" aria-label={`${board.item_count} cards`}><strong>{board.item_count}</strong> {board.item_count === 1 ? 'card' : 'cards'}</div>
       <ExperimentalBadge />
       {board.can_edit && <details ref={boardActionsRef} className="board-actions-menu"><summary aria-label="Board actions" title="Board actions"><i /><i /><i /></summary><div className="board-actions-popover"><button type="button" className="remove" disabled={busy} onClick={removeBoard}>Delete board</button></div></details>}
