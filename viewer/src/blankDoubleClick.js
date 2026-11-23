@@ -21,22 +21,17 @@ export function onBareGround(target, holder) {
 //    press, and the anchor tool already drops one on the first.
 //  - Only a mouse, trackpad or pen. A double tap on a phone or tablet is
 //    too easily a reach for zoom, and the anchor tool is there for touch.
-//  - Not where the browser has just selected a word: a double-click that
-//    found text is reading, even where the text layer's box was the target.
-//    On bare ground Chrome selects the line break the text layer ends a
-//    line with, which is no word: only text that reads as something counts.
 //  - Not on a line of text, nor in the narrow gap between two lines: that
 //    is a reader aiming at a word and landing a pixel off. The viewer takes
 //    the browser's selection into its own highlight as the second press
 //    lifts, so by the time the double-click arrives the selection may
 //    already be gone; where the words are is the dependable test.
 //  - Not on a citation or a link, which a click already opens.
-export function doubleClickDropsAnchor({ tool, button, pointerType, bare, selectedText, nearText, overReference }) {
+export function doubleClickDropsAnchor({ tool, button, pointerType, bare, nearText, overReference }) {
   return tool === 'arrow'
     && button === 0
     && pointerType !== 'touch'
     && bare
-    && !(selectedText ?? '').trim()
     && !nearText
     && !overReference;
 }

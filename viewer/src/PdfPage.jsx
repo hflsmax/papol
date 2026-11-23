@@ -2101,9 +2101,9 @@ function PdfPage({
     onSelectAnchor(pin.uuid);
   };
 
-  // Whether a double-click (or its second press) here, with this much
-  // text selected, is one that drops an anchor (blankDoubleClick.js).
-  const dropsAnchorAt = (e, selectedText) => {
+  // Whether a double-click here is one that drops an anchor
+  // (blankDoubleClick.js). Where it landed decides, not what it selected.
+  const dropsAnchorAt = (e) => {
     if (tool !== 'arrow' || !onPlaceAnchor) return false;
     const box = holderRef.current?.getBoundingClientRect();
     if (!box?.width || !box.height) return false;
@@ -2114,7 +2114,6 @@ function PdfPage({
       button: e.button,
       pointerType: pressedWithRef.current,
       bare: onBareGround(e.target, holderRef.current),
-      selectedText,
       nearText: nearText(
         [...holderRef.current.querySelectorAll('.textLayer span')].map((span) => span.getBoundingClientRect()),
         e.clientX,
@@ -2129,7 +2128,9 @@ function PdfPage({
   return (
     <div
       ref={holderRef}
-      className="pdf-page"
+      // Over a citation or a link the page says "press here": the class
+      // reaches the words under it, whose own I-beam would otherwise win.
+      className={hoveredCitation >= 0 || hoveredLink >= 0 ? 'pdf-page over-reference' : 'pdf-page'}
       style={{
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
@@ -2169,18 +2170,12 @@ function PdfPage({
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
       }}
       onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
-      onMouseDown={(e) => {
-        // The second press of a double-click on bare paper is the anchor's,
-        // not the browser's: left to it, WebKit (Safari and the Mac app)
-        // selects the whole text layer from there, and Chrome a line
-        // break. Kept from it, the double-click arrives with nothing
-        // selected and the anchor drops.
-        if (e.detail >= 2 && dropsAnchorAt(e, '')) e.preventDefault();
-      }}
       onDoubleClick={(e) => {
-        if (!dropsAnchorAt(e, String(window.getSelection() ?? ''))) return;
-        // Anything the browser picked up on the way is no selection.
-        window.getSelection()?.removeAllRanges();
+        // The browser keeps its presses: on the text layer's bare ground it
+        // selects something of its own on the way (a line break in Chrome,
+        // the whole page in WebKit), and placeAnchor puts that away rather
+        // than the page holding the second press back from the browser.
+        if (!dropsAnchorAt(e)) return;
         onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
       onClick={(e) => {

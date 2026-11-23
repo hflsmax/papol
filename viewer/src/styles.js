@@ -1581,6 +1581,10 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
    go. The browser's own paint on top made two shades while dragging, and a
    math face's span shaded lines above and below its own. */
 .textLayer ::selection { background: transparent; }
+/* A citation or link is found by where the pointer is, not by an element
+   over the words (that would break selection), so the hand has to be
+   given to the words themselves while the pointer is on one. */
+.pdf-page.over-reference .textLayer :is(span, br, .endOfContent) { cursor: pointer; }
 .provenance-box {
   position: absolute;
   z-index: 3;

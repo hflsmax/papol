@@ -3584,6 +3584,10 @@ export default function App() {
   // nook, handlePlace asks for it, as reaching for the anchor tool would.
   const placeAnchor = (spot) => {
     if (neverAnnotatable) return;
+    // What the double-click selected on the way (the whole page, in
+    // WebKit) is no reading: put it away, with its highlight and actions.
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
     handlePlace(spot);
   };
 
