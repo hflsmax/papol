@@ -6,10 +6,6 @@ import { rememberPaperIdentity } from './paperState.js';
 
 // ---------- Users / nooks ----------
 
-export function listUsers() {
-  return request('/users');
-}
-
 export async function getNook(userUuid) {
   if (nativeDataActive() && userUuid === nativeAccountUuid()) {
     const [user, boards, nook, localPapers] = await Promise.all([
