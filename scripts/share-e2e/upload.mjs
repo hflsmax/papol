@@ -163,11 +163,6 @@ try {
   const opened = await browser.waitFor("location.pathname.startsWith('/paper/')", { timeout: 20_000, what: 'the saved paper to open' })
     .catch(() => false);
   check('saving opens the paper', opened, await browser.evaluate('return location.pathname;'));
-  await browser.navigate(`${BASE}/library`);
-  const listed = await browser.waitFor(
-    `[...document.querySelectorAll('.paper-title-link')].some((a) => a.textContent.trim() === ${JSON.stringify(expected)})`,
-    { timeout: 20_000, what: 'the paper in the library' }).catch(() => false);
-  check('the library lists it', listed);
   const [, papers] = await call('GET', '/api/papers', { token: me.token });
   const saved = Array.isArray(papers) ? papers.find((p) => p.sha256 === plain.sha256) : null;
   check('the API has it under its digest', !!saved, `${papers?.length} papers`);

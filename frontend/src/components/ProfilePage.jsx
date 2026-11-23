@@ -10,6 +10,7 @@ import {
 } from '../../../shared/api/account.js';
 import { downloadMyData } from '../myData.js';
 import Avatar from './Avatar';
+import PreferencesPanel from './PreferencesPanel';
 import { confirmAction } from '../../../shared/confirmAction';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import ActivityPanel from './ActivityPanel.jsx';
@@ -274,7 +275,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
   const [email, setEmail] = useState(user.email);
   const [displayName, setDisplayName] = useState(user.display_name);
   const [affiliation, setAffiliation] = useState(user.affiliation || '');
-  const [emailPublic, setEmailPublic] = useState(user.email_public);
   const [profileError, setProfileError] = useState(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -365,7 +365,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
         email: email.trim(),
         display_name: displayName.trim(),
         affiliation: affiliation.trim(),
-        email_public: emailPublic,
       });
       onUserUpdated(updated);
       setEmail(updated.email);
@@ -484,17 +483,6 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
               />
             </div>
 
-            <div className="form-group">
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={emailPublic}
-                  onChange={(e) => setEmailPublic(e.target.checked)}
-                />
-                <span>Show my email on my nook</span>
-              </label>
-            </div>
-
             <div className="form-actions">
               <button type="submit" className="primary" disabled={isSavingProfile}>
                 {isSavingProfile ? 'Saving…' : 'Save profile'}
@@ -578,6 +566,9 @@ export default function ProfilePage({ user, onUserUpdated, onLogout, onSync, wit
       </div>
 
       {withActivity && <ActivityPanel />}
+
+      {/* On the web the preferences are a tab of their own (YouPage). */}
+      {!inTab && <PreferencesPanel user={user} onUserUpdated={onUserUpdated} />}
 
       {DESKTOP && <LocalDeviceSettings onSynced={onSync} />}
 

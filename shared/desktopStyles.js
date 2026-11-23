@@ -260,6 +260,106 @@ export const desktopStyles = `
   color: var(--red);
 }
 
+/* The window's two modes, My nook and Lounge, as a segmented control
+   under the traffic lights: the chosen one is a raised white segment, as
+   in a native toolbar. */
+.desktop-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  flex: none;
+  margin: 0 0 16px;
+  padding: 2px;
+  border-radius: calc(var(--chrome-radius) + 2px);
+  background: var(--chrome-selected);
+}
+
+.desktop-sidebar .desktop-mode-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--chrome-radius);
+  color: var(--ink-soft);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: default;
+  -webkit-user-drag: none;
+}
+
+.desktop-sidebar .desktop-mode-item:hover {
+  color: var(--ink);
+}
+
+.desktop-sidebar .desktop-mode-item.active {
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(29, 33, 41, 0.14);
+  color: var(--ink);
+}
+
+.desktop-sidebar .desktop-mode-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.desktop-mode-item svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.desktop-mode-item > .news-dot {
+  margin-left: -2px;
+}
+
+/* A friend's row carries their face where other rows carry a glyph. */
+.desktop-sidebar-face {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-inline: -1px;
+  font-size: var(--fs-2xs);
+  object-fit: cover;
+}
+
+.desktop-sidebar .desktop-sidebar-label-action.active {
+  background: var(--chrome-selected);
+  color: var(--ink);
+}
+
+/* In Lounge mode the sidebar takes the Lounge's tint, so the whole window
+   says which mode it is in. */
+.desktop-app.is-lounge .desktop-sidebar {
+  background: var(--chrome-lounge);
+}
+
+/* A row's words are centred by their capitals, not by the font's line
+   box, which sits them high or low with the font: trimmed to cap height
+   and baseline, the label, the count and the switch's words line up on
+   the glyph, face and dot beside them, which are centred in the row. */
+.desktop-sidebar-text,
+.desktop-sidebar-count,
+.desktop-sidebar-hash,
+.desktop-sidebar-label > span,
+.desktop-mode-word,
+.desktop-sync-button > span:not(.desktop-sync-mark) {
+  text-box: trim-both cap alphabetic;
+}
+
+/* The label cuts off a long name, so it keeps its line's height, the same
+   above and below the trimmed words, for accents and descenders. */
+.desktop-sidebar-text {
+  padding-block: calc((1lh - 1cap) / 2);
+}
+
 .desktop-sidebar-avatar {
   width: 20px;
   height: 20px;
@@ -352,6 +452,9 @@ export const desktopStyles = `
   padding: 28px 32px 48px;
 }
 
+/* The Lounge carries its own rail, so it is given the room for it. */
+.desktop-content:has(.room) { max-width: 1080px; }
+
 /* Three-pane browser: the list pane beside the paper. The list header is a
    toolbar too, so these follow the toolbar rules they override. */
 .desktop-browser {
@@ -371,41 +474,23 @@ export const desktopStyles = `
 }
 
 .desktop-list-header {
-  padding: 0 10px 0 16px;
+  gap: 4px;
+  padding: 0 10px;
   background: var(--card);
 }
 
-.desktop-list-heading {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  line-height: 1.25;
-}
-
-.desktop-list-heading h1 {
-  overflow: hidden;
-  font-size: var(--fs-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-list-heading span {
-  color: var(--ink-faint);
-  font-size: var(--fs-xs);
-}
-
+/* The search field leads the list pane, inside its toolbar band. */
 .desktop-search {
-  flex: none;
+  flex: 1;
   position: relative;
   display: block;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 
 .desktop-search svg {
   position: absolute;
   top: 50%;
-  left: 18px;
+  left: 8px;
   width: 15px;
   height: 15px;
   transform: translateY(-50%);
@@ -474,10 +559,13 @@ export const desktopStyles = `
   color: var(--ink-inverse);
 }
 
+/* The shelf's colour hugs the row's leading edge and its text: closer than
+   the row's own padding and gap, so the bar reads as part of the row. */
 .desktop-row-swatch {
   flex: none;
   align-self: stretch;
   width: 3px;
+  margin: 0 -4px 0 -6px;
   border-radius: 2px;
 }
 

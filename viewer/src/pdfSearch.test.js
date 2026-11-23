@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createPdfFinder, itemLayout, matchParts } from './pdfSearch.js';
+import { createPdfFinder, firstResultFrom, itemLayout, itemTops, matchParts } from './pdfSearch.js';
 
 test('lays items out as the find controller reads them', () => {
   // The controller's offsets leave line ends out; an empty item has no
@@ -115,4 +115,30 @@ test('a newer search overtakes one still under way', async () => {
     finder.destroy();
     await task.destroy();
   }
+});
+
+test('places each span by its top, measured down the page', () => {
+  // A 100pt page: a 10pt line on a baseline 80pt up has its top 10pt down.
+  const tops = itemTops([
+    { str: 'Title', transform: [1, 0, 0, 1, 0, 80], height: 10 },
+    { str: '', transform: [1, 0, 0, 1, 0, 50], height: 10 },
+    { str: 'Body', transform: [1, 0, 0, 1, 0, 30], height: 10 },
+  ], [0, 0, 100, 100]);
+  assert.deepEqual(tops, [0.1, 0.6]);
+});
+
+test('a search begins at the reader, not at the first page', () => {
+  const results = [
+    { page: 1, y: 0.5 },
+    { page: 3, y: 0.2 },
+    { page: 3, y: 0.7 },
+    { page: 5, y: 0.1 },
+  ];
+  assert.equal(firstResultFrom(results, null), 0);
+  // The middle of the view is halfway down page 3.
+  assert.equal(firstResultFrom(results, { page: 3, y: 0.5 }), 2);
+  // On a page with no result of its own, the next page's.
+  assert.equal(firstResultFrom(results, { page: 4, y: 0.9 }), 3);
+  // Past the last result, round to the first.
+  assert.equal(firstResultFrom(results, { page: 5, y: 0.5 }), 0);
 });

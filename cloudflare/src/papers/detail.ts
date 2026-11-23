@@ -78,7 +78,7 @@ export async function defaultShelf(db: D1Database, user: User): Promise<Row | nu
 // Take a paper into the user's nook: a copy of the one canonical paper
 // on their default shelf. One copy per user: a paper added back after
 // being removed revives that copy rather than storing a second. One
-// road, however the paper was found — the Library, a link — so where it
+// road, however the paper was found — the Lounge, a nook, a link — so where it
 // lands does not depend on how it was found.
 export async function keepPaper(db: D1Database, user: User, paperSha256: string): Promise<Copy> {
   if (await copyOf(db, paperSha256, user)) refuse(400, "This paper is already in your nook");

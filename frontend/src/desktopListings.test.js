@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isBrowsing, matchesSearch, paperCreatedNavigation, papersInListing,
+  isBrowsing, matchesSearch, papersInListing,
   resolveListing, listingPath,
 } from './desktopListings.js';
 
@@ -9,26 +9,13 @@ const user = { uuid: 1 };
 
 test('writes each listing as the address the sidebar links to', () => {
   assert.equal(listingPath('all'), '/');
-  assert.equal(listingPath('library'), '/library');
   assert.equal(listingPath('shelf:3'), '/?listing=shelf:3');
   assert.equal(listingPath('boards'), '/?listing=boards');
-});
-
-test('a paper imported from the library opens in the all-papers nook', () => {
-  assert.deepEqual(paperCreatedNavigation('library', 'new-paper'), {
-    listing: 'all',
-    path: '/paper/new-paper',
-  });
-  assert.deepEqual(paperCreatedNavigation('shelf:reading', 'new-paper'), {
-    listing: 'shelf:reading',
-    path: '/paper/new-paper',
-  });
 });
 
 test('reads the listing back from the address', () => {
   assert.equal(resolveListing({ page: 'home' }, user, { search: '?listing=tag:7' }), 'tag:7');
   assert.equal(resolveListing({ page: 'home' }, user), 'all');
-  assert.equal(resolveListing({ page: 'papers' }, user), 'library');
   assert.equal(resolveListing({ page: 'nook', uuid: 1, section: 'boards' }, user), 'boards');
 });
 
@@ -37,10 +24,9 @@ test('a paper keeps the list it was picked from', () => {
   assert.equal(resolveListing({ page: 'paper', uuid: '10.1/x' }, user), 'all');
 });
 
-test('the browser stands in for the nook, the library and papers, for signed-in users only', () => {
+test('the browser stands in for the nook and its papers, for signed-in users only', () => {
   assert.equal(isBrowsing({ page: 'home' }, user), true);
   assert.equal(isBrowsing({ page: 'paper' }, user), true);
-  assert.equal(isBrowsing({ page: 'papers' }, user), true);
   assert.equal(isBrowsing({ page: 'nook', uuid: 1 }, user), true);
   assert.equal(isBrowsing({ page: 'nook', uuid: 2 }, user), false);
   assert.equal(isBrowsing({ page: 'inbox' }, user), false);
@@ -67,15 +53,6 @@ test('lists the nook newest first, narrowed by shelf or tag', () => {
 
 test('a shelf that no longer exists lists the whole nook', () => {
   assert.deepEqual(ids(papersInListing('shelf:42', { nook })), ['b', 'c', 'a']);
-});
-
-test('lists the library newest first', () => {
-  const library = [
-    { sha256: 'old', created_at: '2025-01-01T00:00:00Z' },
-    { sha256: 'new', created_at: '2026-05-01T00:00:00Z' },
-  ];
-  assert.deepEqual(ids(papersInListing('library', { library })), ['new', 'old']);
-  assert.deepEqual(ids(papersInListing('library', { library: null })), []);
 });
 
 test('search matches any field, ignoring case and surrounding spaces', () => {

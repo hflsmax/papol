@@ -1,5 +1,5 @@
 // What Papol has already shown a user, or been told by them, remembered in
-// this browser. The viewer lives on the same origin as the app, so it and
+// this browser and shared with the user's other devices through Papol. The viewer lives on the same origin as the app, so it and
 // Admin read the same storage: the viewer sets these as they happen, and
 // Admin can flip them to see a lesson again or bring back what was hidden.
 // A new remembered state belongs here, so Admin lists it without changes.
@@ -23,6 +23,7 @@
 //     `papol_token`, `papol.localAccountUuid`, `papol.syncPreference`,
 //     `papol.clientCompatibility`.
 import { RETIRED_KEY } from './macHandoff.js';
+import { flagsFromPapol, rememberState, sendUserStateNow } from './userState.js';
 
 export const LINK_NAVIGATION_TIP = {
   key: 'papol_learn_link_navigation',
@@ -40,6 +41,15 @@ export const VISIBILITY_TIP = {
   description: 'The Learn Papol card that says each part of a paper in the nook can be private or public, shown the first time a user opens one of their own papers.',
   setLabel: 'Shown',
   unsetLabel: 'Not shown',
+};
+
+export const PROJECT_VISIBILITY_TIP = {
+  key: 'papol_learn_project_visibility',
+  value: 'seen',
+  name: 'Project visibility tip',
+  description: 'The Learn Papol card that says who in a project sees your digs and ink, shown when a user opens a paper with a project on, until they dismiss it with “Do not show again” ticked.',
+  setLabel: 'Dismissed',
+  unsetLabel: 'Not dismissed',
 };
 
 export const RETURN_PILL_HIDDEN = {
@@ -81,6 +91,7 @@ export const MACOS_DOWNLOAD_BANNER_DISMISSED = {
 export const FEATURE_STATES = [
   LINK_NAVIGATION_TIP,
   VISIBILITY_TIP,
+  PROJECT_VISIBILITY_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,
@@ -94,7 +105,15 @@ export function isFeatureStateSet(state) {
   catch { return false; }
 }
 
+// Set here at once, and shared with the user's other devices: a tip seen
+// on the website is seen in the Mac app too (userState.js).
 export function setFeatureState(state, on) {
+  if (!writeFeatureState(state, on)) return false;
+  rememberState('flag', state.key, on ? state.value : null);
+  return true;
+}
+
+function writeFeatureState(state, on) {
   try {
     if (on) localStorage.setItem(state.key, state.value);
     else localStorage.removeItem(state.key);
@@ -102,4 +121,40 @@ export function setFeatureState(state, on) {
   } catch {
     return false;
   }
+}
+
+// Told on `window` when what another device set has been taken here, for a
+// screen already showing a tip to look again.
+export const FEATURE_STATES_TAKEN = 'papol:feature-states-taken';
+
+// What the user's other devices set, taken here: asked once as Papol
+// opens. A state this device changed and has not yet sent keeps its own.
+// One set here that Papol has never heard of, from before devices shared
+// them, is told to Papol now. Returns whether anything changed here.
+export async function takeFeatureStatesFromPapol() {
+  const flags = await flagsFromPapol();
+  if (!flags) return false;
+  const known = new Set(flags.map((flag) => flag.key));
+  let changed = false;
+  for (const { key, value } of flags) {
+    const state = FEATURE_STATES.find((one) => one.key === key);
+    if (!state) continue;
+    const on = value === state.value;
+    if (on === isFeatureStateSet(state)) continue;
+    changed = writeFeatureState(state, on) || changed;
+  }
+  for (const state of FEATURE_STATES) {
+    if (!known.has(state.key) && isFeatureStateSet(state)) rememberState('flag', state.key, state.value);
+  }
+  if (changed && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new Event(FEATURE_STATES_TAKEN));
+  }
+  return changed;
+}
+
+// As any part of Papol opens: send what this device changed while it was
+// closed or offline, and take what the user's other devices set.
+export function startSharingUserState() {
+  void sendUserStateNow();
+  void takeFeatureStatesFromPapol().catch(() => {});
 }
