@@ -99,6 +99,18 @@ jobs:
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # A job's first Chrome reads its whole install from a cold disk, and
+      # has taken 30–40 s to start where a warm one takes one or two; that
+      # first launch was what timed the smokes out. Pay it here, untimed,
+      # so the smokes start on a warm Chrome. Never fails the job: a Chrome
+      # that will not start fails in the smokes, with its log.
+      - name: Warm Chrome
+        run: |
+          start=$(date +%s)
+          timeout 180 google-chrome --headless --no-sandbox --disable-gpu --no-first-run \
+            --user-data-dir="$RUNNER_TEMP/chrome-warm" --dump-dom about:blank > /dev/null 2>&1 || true
+          echo "Chrome's first start took $(( $(date +%s) - start )) s"
+
       # The browser is the runner's own Google Chrome, found on PATH.
       - name: Unit tests and smokes
         working-directory: ${{ matrix.app }}
@@ -179,6 +191,18 @@ jobs:
       # Chrome builds its sandbox.
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # A job's first Chrome reads its whole install from a cold disk, and
+      # has taken 30–40 s to start where a warm one takes one or two; that
+      # first launch was what timed the smokes out. Pay it here, untimed,
+      # so the smokes start on a warm Chrome. Never fails the job: a Chrome
+      # that will not start fails in the smokes, with its log.
+      - name: Warm Chrome
+        run: |
+          start=$(date +%s)
+          timeout 180 google-chrome --headless --no-sandbox --disable-gpu --no-first-run \
+            --user-data-dir="$RUNNER_TEMP/chrome-warm" --dump-dom about:blank > /dev/null 2>&1 || true
+          echo "Chrome's first start took $(( $(date +%s) - start )) s"
 
       # What the assembled site and wrangler need; the pages' own suites
       # are the page job's. Four installs that share nothing, side by side.

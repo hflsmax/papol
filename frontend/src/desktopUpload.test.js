@@ -161,7 +161,7 @@ test('a first thought that cannot be dug does not undo adding the paper', async 
   assert.equal(paper.sha256, digest);
 });
 
-test('adding a Library paper directly downloads it without running manual sync', async () => {
+test('adding a paper from another nook directly downloads it without running manual sync', async () => {
   const bytes = new TextEncoder().encode('%PDF-1.4\nready\n%%EOF');
   const digest = sha256Hex(bytes);
   const paper = {
@@ -183,10 +183,10 @@ test('adding a Library paper directly downloads it without running manual sync',
   assert.ok(added.copy_uuid);
 });
 
-test('a Library PDF that is not the paper it claims to be is not kept', async () => {
+test('a PDF that is not the paper it claims to be is not kept', async () => {
   const paper = { title: 'Swapped', file_path: 'swapped.pdf', sha256: 'e'.repeat(64) };
   native.route('GET /uploads/swapped.pdf', { body: 'not those bytes' });
-  await assert.rejects(addToNook(paper), /did not match the Library paper/);
+  await assert.rejects(addToNook(paper), /did not match the paper it was added as/);
   assert.equal(native.blobs.size, 0, 'the wrong bytes are discarded');
   assert.equal(native.argsOf('data_mutate').length, 0);
 });

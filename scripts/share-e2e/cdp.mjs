@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { stopBrowser } from '../smoke-harness.mjs';
+import { STARTUP_BUDGET_MS, stopBrowser } from '../smoke-harness.mjs';
 
 // CHROME names the binary. Unset, the Chrome the machine already has: a
 // Mac's in /Applications, else the first on PATH — `google-chrome` is
@@ -67,6 +67,17 @@ export class Browser {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-gpu',
+      // What smoke-harness.mjs turns off for the same reason: a fresh
+      // profile's background chores compete with the page on a CI runner.
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-extensions',
+      '--disable-sync',
+      '--disable-dev-shm-usage',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--mute-audio',
       // A headless Chrome on a machine with no mouse tells pages it has no
       // hover (hover: none), and the viewer lays itself out for a touch
       // screen. These are pictures and smokes of a desk: a mouse, fine.
@@ -79,6 +90,7 @@ export class Browser {
     this.stderr = '';
     this.chrome.on('error', (error) => { this.stderr += `${error.message}\n`; });
     this.chrome.stderr.on('data', (chunk) => { this.stderr += chunk; });
+    this.chrome.once('close', (code) => { this.exited = code ?? 'a signal'; });
 
     const endpoint = await this.#endpoint(port);
     this.socket = new WebSocket(endpoint);
@@ -95,8 +107,10 @@ export class Browser {
     await this.send('Runtime.enable');
   }
 
-  async #endpoint(port, deadline = Date.now() + 20_000) {
-    while (Date.now() < deadline) {
+  // A job's first Chrome reads its binary from a cold disk and has taken
+  // 30–40 s to listen on CI (it was 20 s here, and that failed runs).
+  async #endpoint(port, deadline = Date.now() + STARTUP_BUDGET_MS) {
+    while (Date.now() < deadline && this.exited === undefined) {
       try {
         const response = await fetch(`http://127.0.0.1:${port}/json/version`);
         const body = await response.json();
@@ -105,7 +119,8 @@ export class Browser {
       await new Promise((r) => setTimeout(r, 150));
     }
     throw new Error(
-      `Chrome never opened a debugging port. Set CHROME to its binary if it is `
+      `${this.exited === undefined ? `Chrome never opened a debugging port in ${STARTUP_BUDGET_MS / 1000} s`
+        : `Chrome exited (${this.exited}) before opening a debugging port`}. Set CHROME to its binary if it is `
       + `installed elsewhere.\n${this.stderr}`,
     );
   }
@@ -167,7 +182,7 @@ export class Browser {
   /// Poll until the page says yes, so a check never races a render.
   async waitFor(expression, { timeout = 15_000, what = expression } = {}) {
     const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
+    while (Date.now() < deadline && this.exited === undefined) {
       try {
         // Coerced to a boolean deliberately: returnByValue cannot serialize a
         // DOM node, so a predicate ending in querySelector would throw on
@@ -225,6 +240,12 @@ export class Browser {
   /// run again. Never throws — it runs on the way out of a failure, and a
   /// second error there would hide the first.
   async capture(name) {
+    // A browser that never started has no page to keep, and `send` would
+    // throw over the error that stopped it.
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      console.log(`    (no page to keep for ${name}: the browser is not connected)`);
+      return;
+    }
     const stem = join(ARTIFACTS, name.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'page');
     // Both are asked for before anything here is awaited, so they sit on
     // the socket ahead of whatever the suite does next, and show the page

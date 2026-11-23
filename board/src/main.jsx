@@ -6,11 +6,13 @@ import { startFeedbackTrail } from '../../shared/feedbackTrail.js';
 import App from './App.jsx';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
+import { startSharingUserState } from '../../shared/featureStates.js';
 
 // Every report says what its writer had just done.
 startFeedbackTrail('board');
 
 await hydrateCredential().catch(() => {});
+startSharingUserState();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
