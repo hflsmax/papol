@@ -477,10 +477,13 @@ export const desktopStyles = `
   color: var(--ink-inverse);
 }
 
+/* The shelf's colour hugs the row's leading edge and its text: closer than
+   the row's own padding and gap, so the bar reads as part of the row. */
 .desktop-row-swatch {
   flex: none;
   align-self: stretch;
   width: 3px;
+  margin: 0 -4px 0 -6px;
   border-radius: 2px;
 }
 
