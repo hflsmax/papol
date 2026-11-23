@@ -104,7 +104,7 @@ func seen(_ at: CGPoint) -> String {
 }
 func look(_ label: String, _ at: CGPoint) -> String {
   let c = cursor(), d = seen(at)
-  print(label, c, "|", d)
+  print(label, c, "|", d, "| front:", NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")
   return d
 }
 
@@ -139,3 +139,8 @@ let liveAfter = w3 != b3 && w3 == w4
 print("RESULT cursor follows the page before the double-click: \(liveBefore)")
 print("RESULT cursor follows the page after the double-click:  \(liveAfter)")
 print("RESULT the double-click dropped an anchor: \(state())")
+for w in (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []) where (w[kCGWindowLayer as String] as? Int ?? 0) >= 0 {
+  let owner = w[kCGWindowOwnerName as String] as? String ?? "?"
+  if owner == "Window Server" || owner == "Dock" || owner == "Control Center" { continue }
+  print("window at the end:", owner, w[kCGWindowName as String] ?? "", "layer", w[kCGWindowLayer as String] ?? "")
+}

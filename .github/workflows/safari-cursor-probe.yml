@@ -51,6 +51,12 @@ jobs:
             done
           done
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "SELECT service, client, auth_value FROM access WHERE service IN ('kTCCServiceAccessibility','kTCCServicePostEvent') AND (client LIKE '%probe%' OR client='/bin/bash' OR client LIKE '%provisioner%' OR client LIKE '%hca%');" || true
+          # macOS 15 and later also asks, each time, before a program
+          # captures the screen past its picker: the alert takes the front
+          # from Safari. Approved ahead, as the runner image does for its own.
+          approvals="$HOME/Library/Group Containers/group.com.apple.replayd/ScreenCaptureApprovals.plist"
+          for c in "$client" /usr/sbin/screencapture /bin/bash; do defaults write "$approvals" "$c" -date "3024-01-01 00:00:00 +0000" || true; done
+          killall cfprefsd 2>/dev/null || true
           sudo launchctl stop com.apple.tccd 2>/dev/null || true
           sudo killall tccd 2>/dev/null || true
           sleep 3
