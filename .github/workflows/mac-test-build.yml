@@ -8,23 +8,12 @@ on:
     paths: [.github/workflows/mac-test-build.yml]
 permissions:
   contents: write
-  actions: read
 jobs:
   hand-over:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: dmg
-          run-id: 45089197644
-          github-token: ${{ github.token }}
-          path: dmg
-      - name: Draft release holding the DMG
+      - name: Delete the test draft
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          ls -la dmg
-          gh release create test-build-do-not-publish --repo "$GITHUB_REPOSITORY" --draft \
-            --target "$GITHUB_SHA" --title "Test build, do not publish" \
-            --notes "Temporary copy of a release dry run's DMG for hands-on testing. Will be deleted." dmg/*.dmg
+        run: gh release delete test-build-do-not-publish --repo "$GITHUB_REPOSITORY" --yes
