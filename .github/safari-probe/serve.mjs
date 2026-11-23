@@ -19,14 +19,15 @@ const screenOf = (x, y) => {
   return { x: Math.round(left + x), y: Math.round(top + y) };
 };
 const describe = (t) => (t && ((t.className && String(t.className.baseVal ?? t.className)) || t.tagName)) || 'none';
+const queue = [];
 const watch = (d, where) => {
   if (d.__probe) return;
   d.__probe = true;
   for (const type of ['mouseover', 'pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick']) {
     d.addEventListener(type, (e) => {
-      post('/probe/event', { where, type, detail: e.detail, x: e.clientX, y: e.clientY, target: describe(e.target),
+      queue.push({ where, type, detail: e.detail, x: e.clientX, y: e.clientY, target: describe(e.target),
         cursor: e.target.nodeType === 1 ? getComputedStyle(e.target).cursor : '',
-        selected: String(f.contentWindow.getSelection() || '').length, prevented: e.defaultPrevented });
+        selected: String(f.contentWindow.getSelection() || '').length, prevented: e.defaultPrevented, at: Date.now() % 100000 });
     }, true);
   }
 };
@@ -48,7 +49,8 @@ const tick = async () => {
   if (find('dominant') && find('illia') && find('Abstract')) {
     if (!window.scrolled) {
       window.scrolled = true;
-      page.scrollIntoView({ block: 'start' });
+      // The word, the bare paper above the Abstract and the gap all in view.
+      find('Abstract').scrollIntoView({ block: 'center' });
       await new Promise((r) => setTimeout(r, 1500));
     }
     const w = find('dominant').getBoundingClientRect();
@@ -63,6 +65,7 @@ const tick = async () => {
       window: { screenX: window.screenX, screenY: window.screenY, outer: [window.outerWidth, window.outerHeight], inner: [window.innerWidth, window.innerHeight] },
     }).catch(() => {});
   }
+  if (queue.length) await post('/probe/event', queue.splice(0)).catch(() => {});
   if (d) {
     const sel = f.contentWindow.getSelection();
     await post('/probe/state', {
@@ -85,7 +88,7 @@ server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       const value = JSON.parse(body || '{}');
-      if (path === '/event') console.log('event', JSON.stringify(value));
+      if (path === '/event') for (const e of [].concat(value)) console.log('event', JSON.stringify(e));
       else if (path === '/spots') spots = value;
       else states.push(value);
       res.end('{}');
