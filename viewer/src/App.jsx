@@ -322,7 +322,7 @@ function LazyPageShell({ pageNumber, size, scale, previewUrl }) {
 // the help sheet — a shortcut nobody can recall is a shortcut nobody uses,
 // and "it is the third key along" is not something anyone recalls.
 const TOOLS = [
-  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, and drag anchors and ink about' },
+  { id: 'arrow', key: 'z', badge: 'Z', label: 'Read', hint: 'Select text, drag anchors and ink about, and double-click bare paper for an anchor' },
   { id: 'clipper', key: 'x', badge: 'X', label: 'Clipper', hint: 'Draw a rectangle and keep a movable view of it on the paper' },
   { id: 'brush', key: 'v', badge: 'V', label: 'Brush', hint: 'Draw on the page' },
   { id: 'eraser', key: 'c', badge: 'C', label: 'Eraser', hint: 'Rub out ink, animals, and anchors with no dig' },
@@ -3579,6 +3579,14 @@ export default function App() {
     toolBefore.current = null;
   };
 
+  // A double-click on bare paper with the arrow: the same anchor, by the
+  // same road, with the arrow kept in hand. Where the paper first needs a
+  // nook, handlePlace asks for it, as reaching for the anchor tool would.
+  const placeAnchor = (spot) => {
+    if (neverAnnotatable) return;
+    handlePlace(spot);
+  };
+
   const createClip = async (clip) => {
     if (await promptToAddForAnnotations()) return;
     const provisional = `clip-${Date.now()}`;
@@ -4175,6 +4183,7 @@ export default function App() {
   const pageRemoveAnchor = useEvent((uuid) => removeAnchor(uuid));
   const pageHover = useEvent((spot) => { hoverRef.current = spot; });
   const pageDropAnchor = useEvent(dropAnchor);
+  const pagePlaceAnchor = useEvent(placeAnchor);
   const pageCreateClip = useEvent(createClip);
   const pageUpdateClip = useEvent(updateClip);
   const pageCommitClip = useEvent(commitClip);
@@ -5127,6 +5136,7 @@ export default function App() {
               onRemoveAnchor={pageRemoveAnchor}
               onHover={pageHover}
               onDropAnchor={pageDropAnchor}
+              onPlaceAnchor={pagePlaceAnchor}
               clips={clipsByPage.get(n) || EMPTY_INK}
               project={pageProject}
               onCreateClip={pageCreateClip}
