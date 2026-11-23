@@ -6,7 +6,7 @@ import { json, Router } from "./http";
 import { consume, sweep, type Wakeup } from "./jobs/run";
 import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
-import { readingPlaceRoutes } from "./routes/readingPlaces";
+import { userStateRoutes } from "./routes/userStates";
 import { adminRoutes } from "./routes/admin";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
@@ -74,7 +74,7 @@ sharableRoutes(router);
 adminRoutes(router);
 referenceRoutes(router);
 activityRoutes(router);
-readingPlaceRoutes(router);
+userStateRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

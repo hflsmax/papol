@@ -83,7 +83,7 @@ describe("client requirements", () => {
       "copies", "copy_news", "copy_tags", "dig_posts", "digs", "error_logs", "feedback", "friendships",
       "jobs", "notifications", "paper_references", "papers", "password_resets",
       "project_asks", "project_boards", "project_member_reads", "project_members", "project_paper_tags", "project_papers", "project_tags", "projects",
-      "reading_places", "settings", "sharables", "shelves", "tags", "user_presence", "users",
+      "settings", "sharables", "shelves", "tags", "user_presence", "user_states", "users",
     ]);
   });
 });
