@@ -27,17 +27,18 @@ import InvitationPage from './components/InvitationPage';
 import { listProjects, markPresent } from '../../shared/api/projects.js';
 import { ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
 import { getRoomNews } from '../../shared/api/friends.js';
-import { forgetFriends } from './friendsStore.js';
+import { forgetFriends, useFriends } from './friendsStore.js';
+import { forgetLounge, setLounge, useLounge } from './loungeStore.js';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import {
-  DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
+  DesktopSidebar, DesktopToolbar, desktopModes, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNook } from './components/DesktopDesk';
-import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
+import { isBrowsing, lastShownListing, listingPath, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
   MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
@@ -518,6 +519,7 @@ export default function App({ startupUser = null, startupError = null }) {
     if (!user) {
       setRoomNews(false);
       forgetFriends();
+      forgetLounge();
       return;
     }
     if (route.page === 'room') return;
@@ -620,10 +622,31 @@ export default function App({ startupUser = null, startupError = null }) {
     search: window.location.search,
     lastShown: lastShownListing(),
   });
+  // The Mac window's mode (DesktopChrome.jsx, desktopModes): the Lounge
+  // turns it on, the nook's own lists turn it off, and every other page
+  // keeps the mode it was opened in.
+  const [loungeMode, setLoungeMode] = useState(() => DESKTOP && route.page === 'room');
+  useEffect(() => {
+    if (!DESKTOP) return;
+    if (route.page === 'room') setLoungeMode(true);
+    else if (isBrowsing(route, user) && route.page !== 'paper') setLoungeMode(false);
+  }, [route, user?.uuid]);
+  const lounge = useLounge();
+  const friends = useFriends(DESKTOP && Boolean(user));
+  const pickLounge = (patch) => {
+    setLounge(patch);
+    if (route.page !== 'room') navigate(ROOM_PATH);
+  };
+  const desktopModeItems = user ? desktopModes({
+    mode: loungeMode ? 'lounge' : 'nook',
+    nookPath: listingPath(lastShownListing() || 'all'),
+    roomNews,
+  }) : [];
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing, roomNews,
+    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing,
+    mode: loungeMode ? 'lounge' : 'nook', lounge, friends: friends?.friends ?? [], onPickLounge: pickLounge,
   });
-  useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
+  useDesktopShortcuts({ groups: desktopGroups, modes: desktopModeItems, onNavigate: navigate });
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
@@ -1047,9 +1070,12 @@ export default function App({ startupUser = null, startupError = null }) {
             onTagDeleted={(tagUuid) => { if (desktopListing === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
-        <div className="desktop-app" onClickCapture={routeAppLinks}>
+        <div className={`desktop-app${loungeMode ? ' is-lounge' : ''}`} onClickCapture={routeAppLinks}>
           <DesktopSidebar
             groups={desktopGroups}
+            modes={user ? desktopModeItems : null}
+            finding={lounge.finding}
+            onFind={() => pickLounge({ finding: !(lounge.finding && route.page === 'room') })}
             user={user}
             profileActive={route.page === 'profile'}
             onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
@@ -1067,7 +1093,9 @@ export default function App({ startupUser = null, startupError = null }) {
             }}
             notice={desktopNotice}
           />
-          {isBrowsing(route, user) ? (
+          {/* In Lounge mode a paper opens on its own, as other pages do,
+              rather than beside the nook's list. */}
+          {isBrowsing(route, user) && !(loungeMode && route.page === 'paper') ? (
             <DesktopBrowser
               key={`${mode}:${user.uuid}`}
               listing={desktopListing}
