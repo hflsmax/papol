@@ -85,7 +85,9 @@ function apiSource(
     requiresSignIn: true,
     // What this URL opens for someone who turns out not to keep the paper:
     // the paper alone, as a lean link opens it, rather than a refusal.
-    leanFallback: () => paperLinkSource(pdfHash),
+    // A project paper someone else added keeps the project on: its members'
+    // marks and digs are the project's to show, kept in a nook or not.
+    leanFallback: () => paperLinkSource(pdfHash, undefined, project),
     async load() {
       const loaded = await paper();
       source.homeHref = project
@@ -167,9 +169,13 @@ function sharedSource(shareUuid, load = () => readSharable(shareUuid)) {
 // it: what a lean link opens, because the digest is one. Nobody's reading,
 // so nothing is attributed; the references and the paper's card need no
 // link to be read, so the viewer's own lookups serve them.
-export function paperLinkSource(pdfHash, load = () => getPaperLink(pdfHash)) {
+export function paperLinkSource(pdfHash, load = () => getPaperLink(pdfHash), project = null) {
   return linkSource({
     load,
+    project,
+    // Its way home is the project's page for the paper, as for a reader who keeps it.
+    homeHref: project ? projectPaperPath(project, paperName(pdfHash)) : null,
+    loadProject: project ? () => listProjectAnnotations(project, pdfHash) : null,
     // Only a user who does not keep it gets here, or a visitor, who keeps
     // nothing: there is no copy to offer, only the chance to make one.
     loadNookPaper: async () => null,
@@ -180,7 +186,7 @@ export function paperLinkSource(pdfHash, load = () => getPaperLink(pdfHash)) {
 // What every source opened by link has in common: one request settles the
 // PDF and whose annotations are on it, and the interfaces it exposes are the
 // reading half of a nook source's.
-function linkSource({ load, loadNookPaper, addToNook, references, info }) {
+function linkSource({ load, loadNookPaper, addToNook, references, info, project = null, loadProject = null, homeHref = null }) {
   let readingReady = null;
   const reading = () => {
     if (!readingReady) readingReady = load();
@@ -190,7 +196,7 @@ function linkSource({ load, loadNookPaper, addToNook, references, info }) {
     // Where the home button leads. A link hands over one reading of one
     // PDF, not a place in the Desk — and the Desk asks for an account
     // besides — so the way out names no paper and goes to Papol itself.
-    homeHref: appPath('/'),
+    homeHref: homeHref ?? appPath('/'),
     requiresSignIn: false,
     // Their annotations are theirs: whatever is already on these pages was put
     // there by the sharer and nothing in the viewer may change it.
@@ -206,7 +212,7 @@ function linkSource({ load, loadNookPaper, addToNook, references, info }) {
     // would keep showing them the sharer's reading; what they asked for
     // was the paper as theirs, which is the ordinary nook viewer.
     nookHref: (nook) => (nook?.sha256
-      ? appPath(`/viewer/?pdf=${nook.sha256}`)
+      ? appPath(`/viewer/?pdf=${nook.sha256}${project ? `&project=${project}` : ''}`)
       : null),
     async load() {
       const shared = await reading();
@@ -233,6 +239,9 @@ function linkSource({ load, loadNookPaper, addToNook, references, info }) {
     },
     references,
     info: info ? async () => info(await reading()) : undefined,
+    // A project paper opened by a member who does not keep it: the project
+    // is still on, as it is for a member who does (apiSource).
+    ...(project ? { project, loadProject } : {}),
   };
 }
 

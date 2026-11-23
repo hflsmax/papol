@@ -148,9 +148,14 @@ function proseOn(page: Page, type: Type): Set<Line> {
     // And the last line of a paragraph carried over from the column
     // before, opening its column: no text line above it in the column (a
     // title or an author list across both is not the column's), set at the
-    // column's edge, ending a sentence.
+    // column's edge, ending a sentence. (Or under a float that heads the
+    // column, set off from it by more than a line's spacing, where a line
+    // of the paragraph after it follows a leading under it: a table's
+    // caption over the text it is set above.)
     const inColumn = (o: Line) => o.x0 >= l.x0 - 1 && o.x1 <= l.x0 + type.measure + l.size;
-    if (/[.?!:]\s*$/.test(l.text) && !candidates.some((o) => o.baseline < l.baseline && across(rectOf(o), rectOf(l)) && inColumn(o))
+    const over = candidates.filter((o) => o.baseline < l.baseline && across(rectOf(o), rectOf(l)) && inColumn(o));
+    const opens = !over.length || (over.every((o) => l.baseline - o.baseline > 2 * type.leading) && full.some((f) => f.baseline > l.baseline && stepped(f, l)));
+    if (/[.?!:]\s*$/.test(l.text) && opens
       && (full.some((f) => f.baseline > l.baseline && Math.abs(f.x0 - l.x0) <= 1) || type.columns.some((c) => Math.abs(c.x0 - l.x0) <= 1.5))) prose.add(l);
   }
   // And a paragraph in any font: three lines or more, each a line's

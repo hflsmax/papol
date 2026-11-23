@@ -152,7 +152,12 @@ function Card({ id, drag, grouped = false, beckon = false, className = '', child
     };
   }, [id, grouped, drag.touch]);
   return (
-    <div ref={ref} className={`board-mock-card ${className}${beckon ? ' beckon' : ''}`} {...drag.props(id, grouped)}>
+    <div
+      ref={ref}
+      className={`board-mock-card ${className}${beckon ? ' beckon' : ''}`}
+      data-hint={beckon ? 'Drag' : undefined}
+      {...drag.props(id, grouped)}
+    >
       {children}
     </div>
   );

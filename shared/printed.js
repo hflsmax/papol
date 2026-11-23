@@ -5,6 +5,9 @@
 // lay out a page, so an upload carries both, and the server asks the
 // indexes from them and fills what they do not know from the title block.
 
+// Safari's ReadableStream cannot be iterated, and pdf.js's getTextContent
+// iterates one: without this every reading there throws and comes back empty.
+import './readableStreamIteration.js';
 import { identifierInDocument } from './identifiers.js';
 
 // The rules are loaded with the first PDF read, not with the page.

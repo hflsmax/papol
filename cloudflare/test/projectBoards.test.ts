@@ -35,8 +35,6 @@ describe("project boards", () => {
 
     expect((await call("GET", `/api/boards/${board.uuid}`, { headers: sam.headers })).status).toBe(404);
     expect((await call("POST", `/api/boards/${board.uuid}/comments`, { headers: sam.headers, json: { content: "hi" } })).status).toBe(404);
-    const library = await ok("GET", "/api/library/boards", { headers: sam.headers });
-    expect(library.map((b: { uuid: string }) => b.uuid)).not.toContain(board.uuid);
 
     const seen = await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers });
     expect(seen.boards.map((b: { uuid: string; item_count: number }) => [b.uuid, b.item_count])).toEqual([[board.uuid, 1]]);
@@ -189,10 +187,13 @@ describe("digs", () => {
     }
     expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "done" } })).status).toBe(422);
     expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: ana.headers, json: { phase: "buried" } })).status).toBe(422);
-    expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: sam.headers, json: { phase: "gold" } })).status).toBe(403);
+    // Outside the project, a dig on a paper is someone else's own: not there to find.
+    expect((await call("PUT", `/api/digs/${danas.uuid}/phase`, { headers: sam.headers, json: { phase: "gold" } })).status).toBe(404);
 
-    expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(403);
-    expect((await call("POST", `/api/digs/${dug.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(403);
+    expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(404);
+    expect((await call("POST", `/api/digs/${dug.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(404);
+    // Ana did not keep the paper: digging it put it in her nook.
+    expect((await ok("GET", `/api/viewer/${A_PAPER}`, { headers: ana.headers })).sha256).toBe(A_PAPER);
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, text: "x" } })).status).toBe(404);
   });
 

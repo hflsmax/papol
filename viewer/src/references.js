@@ -1,5 +1,6 @@
 import { destinationHeight } from './sections.js';
 import { findTextLinks, linkPieces, runningText } from './textLinks.js';
+import { ruleName, sharedNames } from './sameNamedRules.js';
 /**
  * What is clickable on a page: the citations, and the PDF's own links.
  *
@@ -109,10 +110,16 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   // heading, across its column, goes to the top of the window
   // (floatView.js, sectionView).
   const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
+  // A section's box is its heading across the column it begins in.
+  const spotOf = (float) => ({ page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } });
+  // A name more than one rule goes by shows each of them (sameNamedRules.js).
+  const shared = sharedNames(analysis?.floats || []);
   const analyzedLinks = (analysis?.links || [])
     .filter((link) => link.page === pageNumber && floats.has(link.float_uuid))
     .map((link) => {
       const float = floats.get(link.float_uuid);
+      const named = float.kind === 'rule' ? shared.get(ruleName(float.label)) : null;
+      const spot = spotOf(float);
       return {
         kind: float.kind,
         label: link.label,
@@ -120,8 +127,8 @@ export async function pageOverlays(doc, pageNumber, analysis) {
         y: link.y,
         w: link.w,
         h: link.h,
-        // A section's box is its heading across the column it begins in.
-        spot: { page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } },
+        spot,
+        ...(named ? { named: named.map((f) => (f === float ? spot : spotOf(f))) } : {}),
       };
     });
 

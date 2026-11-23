@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { fillUnedited, knownVersionLine, reviewFields, savedFile, titleFromFilename } from './uploadReview.js';
+import {
+  fillUnedited, knownVersionLine, publishedVersion, refillUnedited, reviewFields, savedFile, titleFromFilename,
+} from './uploadReview.js';
 
 const read = {
   doi: '10.1000/xyz', title: 'Attention Is All You Need',
@@ -58,4 +60,20 @@ test('a reading with less than the form has changes nothing', () => {
   const partial = { title: null, authors: null, journal: null, year: null, doi: '10.1000/only' };
   assert.deepEqual(fillUnedited(opened, new Set(), partial), { ...opened, doi: '10.1000/only' });
   assert.deepEqual(fillUnedited(opened, new Set(), null), opened);
+});
+
+const printed = { doi: null, title: 'Modeling Game Mechanics with Ceptre', authors: '["Chris Martens"]', journal: null, year: null };
+const matched = { doi: '10.1109/tg.2023.3292982', title: 'Modeling Game Mechanics With Ceptre', authors: '["Chris Martens"]',
+  journal: 'IEEE Transactions on Games', year: 2024, as_printed: printed };
+
+test('a match to the published version names where it was published, linked to its DOI', () => {
+  assert.deepEqual(publishedVersion(matched), { where: 'IEEE Transactions on Games, 2024', href: 'https://doi.org/10.1109/tg.2023.3292982' });
+  assert.equal(publishedVersion({ ...matched, as_printed: undefined }), null);
+});
+
+test('choosing what the PDF prints swaps every field left alone, emptying the venue it does not print', () => {
+  const form = { ...reviewFields(matched), title: 'My own title', thought: 'kept' };
+  const back = refillUnedited(form, new Set(['title']), printed);
+  assert.deepEqual(back, { title: 'My own title', authors: 'Chris Martens', journal: '', year: '', doi: '', thought: 'kept' });
+  assert.deepEqual(refillUnedited(back, new Set(['title']), matched), { ...reviewFields(matched), title: 'My own title', thought: 'kept' });
 });

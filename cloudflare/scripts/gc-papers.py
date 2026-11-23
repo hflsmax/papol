@@ -2,7 +2,7 @@
 """Papers nobody holds: list them, and, asked to, let them go.
 
 A paper is nobody's. A copy let go of leaves the paper's row and its PDF in
-the Library, and nothing removes them by itself: that is a decision, and
+Papol, and nothing removes them by itself: that is a decision, and
 this is the hand that carries it out (docs/cloud-migration.md, phase 5,
 step 13). An orphan is a paper with no live copy by anyone, no annotation
 by anyone (a soft-deleted one still counts: a replica may still hold it),

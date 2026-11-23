@@ -309,7 +309,8 @@ impl LocalStore {
             "shelves" => {
                 query_owned_rows(&connection, account_uuid, "shelves", "position,name,uuid")
             }
-            "tags" => query_owned_rows(&connection, account_uuid, "tags", "name,uuid"),
+            // Most recently used first, as the service lists them.
+            "tags" => query_owned_rows(&connection, account_uuid, "tags", TAGS_BY_LAST_USE),
             "nook" => query_nook(&connection, account_uuid),
             "papers" => query_papers(&connection, account_uuid),
             "paper" => {
@@ -2334,6 +2335,13 @@ fn query_annotations(
         .collect::<Result<Vec<_>, String>>()?;
     Ok(Value::Array(rows))
 }
+
+// A tag's last use: the latest time it went onto a copy (a live link's
+// last write, or a removed link's making), never earlier than its making;
+// ties and the never-used by name.
+const TAGS_BY_LAST_USE: &str = "max(tags.created_at, coalesce((SELECT max(CASE WHEN copy_tags.deleted_at IS NULL \
+    THEN copy_tags.updated_at ELSE copy_tags.created_at END) FROM copy_tags WHERE copy_tags.tag_uuid = tags.uuid), '')) DESC, \
+    lower(name), uuid";
 
 fn query_owned_rows(
     connection: &Connection,
@@ -4362,6 +4370,70 @@ mod tests {
         assert_eq!(nook["tags"][0]["name"], "methods");
         assert_eq!(nook["copy_tags"][0]["copy_uuid"], copy_uuid);
         assert_eq!(reopened.outbox_count(), 2);
+    }
+
+    #[test]
+    fn tags_are_listed_by_last_use_most_recent_first() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = LocalStore::open(&directory.path().join("papol.sqlite3")).unwrap();
+        let paper_sha256 = "a".repeat(64);
+        let copy_uuid = Uuid::new_v4().to_string();
+        let old = "2020-01-01T00:00:00Z";
+        {
+            let connection = store.connection.lock().unwrap();
+            connection.execute(
+                "INSERT INTO papers(sha256,title,file_path,created_at,updated_at) VALUES (?1,'Paper',?1 || '.pdf',?2,?2)",
+                params![paper_sha256, old],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO copies(uuid,paper_sha256,user_uuid,created_at,updated_at) VALUES (?1,?2,'7',?3,?3)",
+                params![copy_uuid, paper_sha256, old],
+            ).unwrap();
+            for name in ["algebra", "biology", "chemistry", "drama", "economics"] {
+                connection.execute(
+                    "INSERT INTO tags(uuid,user_uuid,name,created_at,updated_at) VALUES (?1,'7',?1,?2,?2)",
+                    params![name, old],
+                ).unwrap();
+            }
+            // Biology on in 2024; drama on in 2023 and off in 2025 (its use
+            // was 2023); economics on in 2022, off, and back on in 2025.
+            for (tag, created, updated, deleted) in [
+                (
+                    "biology",
+                    "2024-01-01T00:00:00Z",
+                    "2024-01-01T00:00:00Z",
+                    None,
+                ),
+                (
+                    "drama",
+                    "2023-01-01T00:00:00Z",
+                    "2025-06-01T00:00:00Z",
+                    Some("2025-06-01T00:00:00Z"),
+                ),
+                (
+                    "economics",
+                    "2022-01-01T00:00:00Z",
+                    "2025-01-01T00:00:00Z",
+                    None,
+                ),
+            ] {
+                connection.execute(
+                    "INSERT INTO copy_tags(uuid,copy_uuid,tag_uuid,user_uuid,created_at,updated_at,deleted_at) VALUES (?1,?2,?3,'7',?4,?5,?6)",
+                    params![Uuid::new_v4().to_string(), copy_uuid, tag, created, updated, deleted],
+                ).unwrap();
+            }
+        }
+        let tags = store.query("7", "tags", json!({})).unwrap();
+        let names: Vec<_> = tags
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tag| tag["name"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            names,
+            ["economics", "biology", "drama", "algebra", "chemistry"]
+        );
     }
 
     #[test]
