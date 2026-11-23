@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { appPath } from '../base';
 import Avatar from './Avatar';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
+import Glyph from './DesktopGlyph';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -35,7 +36,8 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, roomNews = fa
           href={appPath(ROOM_PATH)}
           aria-current={route.page === 'room' || route.page === 'papers' ? 'page' : undefined}
         >
-          {ROOM}
+          <Glyph name="room" />
+          <span className="way-room-word">{ROOM}</span>
           {roomNews && <NewsDot />}
         </a>
       </nav>

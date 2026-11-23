@@ -5730,10 +5730,17 @@ ${talkStyles}
 
 /* A person in a line: face, name, affiliation, and what there is to say
    or do about them at the row's end. */
-/* The Lounge is the one other place the bar leads, so it is said plainly:
-   in ink, bold and large, on every page. */
-.way-aside a.way-room { gap: 6px; color: var(--ink); font-weight: 600; font-size: var(--fs-xl); }
-.way-aside a.way-room:hover { color: var(--accent); }
+/* The Lounge is the one other place the bar leads, so it is a button to
+   press: the app's own button, with the glyph the Mac sidebar gives the
+   Lounge, its name, and the gold dot when a friend has news. */
+.way-aside a.way-room {
+  gap: 6px; padding: 5px 14px 5px 11px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--card); box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
+  transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+.way-aside a.way-room svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.way-aside a.way-room:hover, .way-aside a.way-room:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.way-aside a.way-room[aria-current] { border-color: var(--accent); color: var(--accent); }
 
 /* A message in the Inbox that has an answer or a place: said under it. */
 .notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }
