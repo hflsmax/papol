@@ -41,7 +41,7 @@ import { DesktopBrowser, useNook } from './components/DesktopDesk';
 import { isBrowsing, lastShownListing, listingPath, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
-  MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
+  FEATURE_STATES_TAKEN, MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
 import SyncAttention from './components/SyncAttention';
@@ -199,6 +199,12 @@ export default function App({ startupUser = null, startupError = null }) {
   const [showMacosDownloadBanner, setShowMacosDownloadBanner] = useState(
     () => !DESKTOP && !macosBannerWasDismissed(),
   );
+  // Closed on another device, heard of after this one opened.
+  useEffect(() => {
+    const look = () => { if (macosBannerWasDismissed()) setShowMacosDownloadBanner(false); };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
 
   // An authenticated user is signed in; guest is the public fallback.
   const mode = user ? 'signed-in' : 'guest';

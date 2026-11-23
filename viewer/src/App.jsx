@@ -41,14 +41,14 @@ import {
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { recordActivity } from '../../shared/activity.js';
-import { getReadingPlace, sendReadingPlace } from '../../shared/api/readingPlaces.js';
-import { adoptedPlace, laterPlace, nextPlace, placeSender, placeToSend, samePlace, sentPlace } from './readingPlace.js';
+import { placeFromPapol, rememberState, sendUserStateNow } from '../../shared/userState.js';
+import { nextPlace, papolPlace, samePlace } from './readingPlace.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
-import { currentCredential, hydrateCredential } from '../../shared/credentials.js';
+import { hydrateCredential } from '../../shared/credentials.js';
 import { ANIMALS } from './animals';
 import ReferenceCard from './ReferenceCard';
 import { citationProblemReport } from './citationReport.js';
@@ -81,7 +81,8 @@ import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
-  LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+  FEATURE_STATES_TAKEN, LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet,
+  setFeatureState,
 } from '../../shared/featureStates';
 import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
@@ -831,6 +832,16 @@ export default function App() {
   const activitySubject = source?.openedFile && !nookCopy ? null : (paper?.sha256 ?? null);
   useEffect(() => recordActivity(activitySubject), [activitySubject]);
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
+  // A tip dismissed on another device, heard of after this one opened, is
+  // put away here too.
+  useEffect(() => {
+    const look = () => {
+      if (isFeatureStateSet(PROJECT_VISIBILITY_TIP)) setProjectVisibilityTipDismissed(true);
+      setReturnPillHidden(isFeatureStateSet(RETURN_PILL_HIDDEN));
+    };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackReportError, setFeedbackReportError] = useState(false);
@@ -3728,23 +3739,6 @@ export default function App() {
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
-  //
-  // Sends a kept place to Papol, and once Papol has it, stops marking it
-  // unsent. A failure leaves the mark: the place goes again when the
-  // network is back, or the next time the paper opens.
-  const sendPlace = async (place) => {
-    const { key, paper: sha256 } = readingView.current;
-    await sendReadingPlace(sha256, placeToSend(place));
-    const kept = readingView.current.view;
-    const sent = sentPlace(kept, place.read_at);
-    if (sent === kept) return;
-    readingView.current.view = sent;
-    try {
-      localStorage.setItem(key, JSON.stringify(sent));
-    } catch {
-      // Sent all the same; at worst it is sent again.
-    }
-  };
 
   // Puts a place's point in the middle of the view once its page is laid
   // out, then calls `done`. Returns what stops it waiting.
@@ -3800,7 +3794,8 @@ export default function App() {
   // Papol's place for this paper, which another device may have left
   // later than this one did. Asked once the paper is open here, and taken
   // only while the reader is still where the paper opened: never for a
-  // link to somewhere in it, a shared reading, or a file from disk.
+  // link to somewhere in it, a shared reading, or a file from disk. A move
+  // made here and not yet sent is newer, and Papol's is not asked for.
   useEffect(() => {
     const { key, paper: sha256 } = readingView.current;
     if (!key || !sha256 || readOnly || wantedAnchorUuid || wantedAnnotationUuid || wantedPage) return undefined;
@@ -3808,20 +3803,11 @@ export default function App() {
     let stop = null;
     (async () => {
       if (!await hydrateCredential()) return;
-      let theirs;
-      try {
-        theirs = await getReadingPlace(sha256);
-      } catch {
-        return; // Offline: this device's own place stands.
-      }
+      // Offline, or nothing newer: this device's own place stands.
+      const state = await placeFromPapol(sha256);
       if (cancelled) return;
-      const own = readingView.current.view;
-      if (!laterPlace(own, theirs)) {
-        // This device read later, offline: Papol has it now.
-        if (own?.unsent) sendPlace(own).catch(() => {});
-        return;
-      }
-      const place = adoptedPlace(own, theirs);
+      const place = papolPlace(readingView.current.view, state);
+      if (!place) return;
       if (!readingViewRestored.current) {
         // The pages are not shown yet: the restore takes this place instead.
         readingView.current.view = place;
@@ -3889,7 +3875,7 @@ export default function App() {
     let timer = null;
     // A shared reading is someone else's: where a visitor reads it is kept
     // on their device alone.
-    const sender = readOnly || !sha256 ? null : placeSender(sendPlace);
+    const shared = !readOnly && Boolean(sha256);
     const save = () => {
       if (!readingViewRestored.current && !wantedAnchorUuid && !wantedAnnotationUuid) return;
       const box = scroller.getBoundingClientRect();
@@ -3915,30 +3901,24 @@ export default function App() {
       if (place === kept) return;
       readingView.current.view = place;
       localStorage.setItem(key, JSON.stringify(place));
-      if (moved && sender && currentCredential()) sender.schedule(place);
+      if (moved && shared) {
+        rememberState('place', sha256, { page: place.page, x: place.x, y: place.y, scale: place.scale });
+      }
     };
     const schedule = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(save, 250);
     };
-    // A window going away sends its place now rather than after the pause.
+    // A window going away keeps and sends its place now rather than after
+    // the pause.
     const leave = () => {
       window.clearTimeout(timer);
       save();
-      sender?.flush();
+      sendUserStateNow();
     };
     const hidden = () => {
       if (document.visibilityState === 'hidden') leave();
     };
-    // Back online: a place read while offline goes now.
-    const online = () => {
-      const kept = readingView.current.view;
-      if (kept?.unsent && sender && currentCredential()) {
-        sender.schedule(kept);
-        sender.flush();
-      }
-    };
-    window.addEventListener('online', online);
     scroller.addEventListener('scroll', schedule, { passive: true });
     document.addEventListener('visibilitychange', hidden);
     window.addEventListener('pagehide', leave);
@@ -3947,10 +3927,8 @@ export default function App() {
       scroller.removeEventListener('scroll', schedule);
       document.removeEventListener('visibilitychange', hidden);
       window.removeEventListener('pagehide', leave);
-      window.removeEventListener('online', online);
       window.clearTimeout(timer);
       save();
-      sender?.flush();
     };
   }, [doc, hasScale, wantedAnchorUuid, wantedAnnotationUuid, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
