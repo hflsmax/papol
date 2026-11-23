@@ -10,7 +10,7 @@
     "dev": "vite",
     "test": "npm run test:unit && npm run build && npm run smoke:browser",
     "test:unit": "node --test --import ./src/browserGlobals.mjs src/*.test.js",
-    "smoke:browser": "node scripts/browser-smoke.mjs && node scripts/margin-smoke.mjs",
+    "smoke:browser": "node scripts/browser-smoke.mjs && node scripts/margin-smoke.mjs && node scripts/anchor-dblclick-smoke.mjs",
     "benchmark:pinch": "node ../scripts/benchmark-pinch-zoom.mjs",
     "benchmark:pinch:smoothness": "node ../scripts/benchmark-pinch-smoothness.mjs",
     "build": "vite build",
@@ -27,6 +27,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.1",
-    "vite": "^8.3.0"
+    "vite": "^8.3.3"
   }
 }

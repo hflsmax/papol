@@ -152,7 +152,9 @@ const YEAR_ITEM = /(?:1[5-9]\d\d|20\d\d)[a-z]?|\b[a-z]\b/g;
 // letter where the bibliography gives two works that year names the first;
 // a letter names the work lettered so, or else the n-th of that year.
 function lookup(entries: Entry[], names: string, years: string[]): Entry[] {
-  const people = unspaced(names).replace(/['’]s\b/gu, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
+  // TeX's ring of "Å" can come back before its letter, as its own
+  // character: "[ ˚Agotnes et al., 2013]".
+  const people = unspaced(names.replace(/[´`ˆ˜¨˘ˇ˚˝](?=\p{Lu})/gu, "")).replace(/['’]s\b/gu, "").replace(/\s+,/g, ",").replace(/,\s*$/, "").replace(/\bet al\.?/g, "").split(/\s(?:and|&)\s|,\s/).map((n) => n.trim()).filter(Boolean);
   const firstWords = (people[0] ?? "").split(/\s+/).filter((w) => /^\p{Lu}/u.test(w) || /^(?:van|von|de|der|den|du|la|le|da|di)$/.test(w));
   const first = normalizeName(firstWords.join(" "));
   const second = people[1] ? normalizeName(people[1].split(/\s+/).pop() ?? "") : null;
@@ -212,7 +214,7 @@ function authorYearHits(flows: Flow[], entries: Entry[], size: (p: number) => [n
         const partStart = innerStart + offset;
         offset += part.length + 1;
         const text = part.replace(/^\s*(?:(?:see|See|e\.g\.|cf\.|i\.e\.|and|also)[,]?\s+)+/, (s) => " ".repeat(s.length));
-        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text);
+        const parsed = /^(?<lead>\s*)(?<names>(?:(?:van|von|de|der|den|du|la|le|da|di|del|dos|ten|ter)\s+)*[´`ˆ˜¨˘ˇ˚˝]?[\p{Lu}][^0-9]*?)?[,]?\s*(?<years>(?:(?:1[5-9]\d\d|20\d\d)[a-z]?)(?:\s*,\s*(?:(?:1[5-9]\d\d|20\d\d)[a-z]?|[a-z]\b))*)/u.exec(text);
         if (!parsed?.groups?.years) continue;
         if (parsed.groups.names) names = parsed.groups.names.trim();
         if (!names) continue;

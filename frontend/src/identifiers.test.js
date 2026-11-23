@@ -10,6 +10,10 @@ test('the complete DOI is found, skipping a split one', () => {
   assert.equal(extractDoi('see https://doi.org/10.1145/2984511.2984540, cited'), '10.1145/2984511.2984540');
   assert.equal(extractDoi('only a split one: 10.1073/pnas.'), '10.1073/pnas');
   assert.equal(extractDoi('nothing here'), null);
+  // A template's placeholder is no DOI: acmart's, and its kind in capitals.
+  assert.equal(extractDoi('https://doi.org/10.1145/nnnnnnn.nnnnnnn'), null);
+  assert.equal(extractDoi('doi 10.1145/XXXXXXX.XXXXXXX then https://doi.org/10.1145/3408990'), '10.1145/3408990');
+  assert.equal(extractDoi('a Springer suffix 10.1007/s00453-011-9554-x'), '10.1007/s00453-011-9554-x');
   assert.equal(extractDoi(''), null);
 });
 

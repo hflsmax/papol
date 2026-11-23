@@ -9,7 +9,7 @@ import { createServer } from 'vite';
 // the server by a fetch that holds every upload at once and answers for
 // the job that reads it. No account is needed. folder-smoke.mjs checks
 // the review through it; letter-shots.mjs photographs it, with ?styled
-// (the application's styles, in the Library's frame), ?box (the upload
+// (the application's styles, in the app's frame), ?box (the upload
 // box a folder is dropped on, in place of the review) and ?flow (the box,
 // then the review once window.dropFolder() is called).
 const fixturePath = fileURLToPath(new URL('./attention.pdf', import.meta.url));
@@ -97,7 +97,7 @@ function folderFixture(server) {
         ]);
         const styled = location.search.includes('styled');
         // ?flow: the box first, and the review in its place once
-        // window.dropFolder() is called, as the Library swaps them.
+        // window.dropFolder() is called, as the app swaps them.
         const flow = location.search.includes('flow');
         const Page = () => {
           const [dropped, setDropped] = React.useState(!flow && !location.search.includes('box'));

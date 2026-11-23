@@ -136,8 +136,19 @@ const projects = [
 
 // What the pretend server says to each request the viewer makes.
 let saved = 0;
+// PAPOL_FIXTURE_NOT_KEPT=1: the paper is in the project but not in the
+// reader's nook, as it is when another member added it: the nook's viewer
+// route refuses it, and the reader has left nothing on it.
+const NOT_KEPT = process.env.PAPOL_FIXTURE_NOT_KEPT === '1';
+const REFUSED = Symbol('refused');
+
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
+  if (NOT_KEPT && path === `/viewer/${PAPER}`) return REFUSED;
+  if (path === `/viewer/${PAPER}/lean`) {
+    return { uuid: null, kind: 'lean', created_at: null, user: null, paper: { ...paper, file_url: paper.file_url ?? `/uploads/${PAPER}.pdf` }, annotations: [] };
+  }
+  if (NOT_KEPT && path === `/papers/${PAPER.slice(0, 32)}/annotations` && method === 'GET') return [];
   if (path === `/viewer/${PAPER}`) return { ...paper, anchors: mine.filter((a) => a.kind === 'anchor') };
   if (path === `/viewer/${PAPER}/info`) return { paper: { ...paper }, references_status: 'done' };
   // An anchor the reader drops is saved under a name of its own; each
@@ -168,12 +179,23 @@ function answer(method, path, search) {
     const kind = search.get('kind');
     return mine.filter((a) => !kind || a.kind === kind);
   }
+  if (path === '/shelves') return [
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000001', name: 'Display', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 12, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000002', name: 'Personal', color: '#2b4a6f', is_public: false, is_default: false, position: 1, paper_count: 4, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000003', name: 'Drafts to review', color: '#b5683a', is_public: false, is_default: false, position: 2, paper_count: 2, board_count: 0 },
+    { uuid: 'f1b2c3d4-0000-4000-8000-000000000004', name: 'Reading group', color: '#8a5cb5', is_public: true, is_default: false, position: 3, paper_count: 7, board_count: 0 },
+  ];
   if (path === '/projects') return projects;
   if (path === `/projects/${PROJECT}/papers/${PAPER}/annotations`) {
     return {
       project: { uuid: PROJECT, name: 'Adaptive optics control', members },
       me: ME,
-      annotations: [...mine, ...theirs],
+      // As the service answers since digs follow the shelf: of the others'
+      // marks only ink is drawn; an anchor or clip with a dig on it comes as
+      // a place alone.
+      annotations: [...(NOT_KEPT ? [] : mine), ...theirs.filter((a) => a.kind === 'ink')],
+      places: theirs.filter((a) => a.kind !== 'ink' && [id(7), id(8)].includes(a.uuid)),
+      my_shelf: NOT_KEPT ? null : (process.env.PAPOL_FIXTURE_SHELF || 'public'),
       digs: {
         [id(7)]: { uuid: DIG, dig_count: 1, post_count: 1, is_new: true, voices: [me, ana], lead: { owner: ana, phase: 'digging', excerpt: dig.text }, digs: [each(dig, true)] },
         [id(8)]: { uuid: INK_DIG, dig_count: 1, post_count: 1, is_new: false, voices: [ben, me], lead: { owner: ben, phase: 'digging', excerpt: inkDig.text }, digs: [each(inkDig)] },
@@ -206,10 +228,48 @@ function viewerFixture(server) {
     res.setHeader('Content-Length', pdfBytes.length);
     res.end(pdfBytes);
   });
+  // The small things the reader's devices share, as Papol keeps them:
+  // the change made last wins.
+  const states = new Map();
+  server.middlewares.use('/api/user-state', (req, res) => {
+    const path = req.url.split('?')[0].replace(/^\//, '');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'GET') {
+      const [kind, key] = path.split('/');
+      if (kind === 'flag') {
+        const flags = [...states.entries()].filter(([id]) => id.startsWith('flag:'))
+          .map(([id, s]) => ({ key: id.slice(5), value: s.value, at: s.at }));
+        res.end(JSON.stringify({ states: flags }));
+        return;
+      }
+      const kept = states.get(`${kind}:${key}`);
+      res.end(JSON.stringify({ state: kept ? { key, ...kept } : null }));
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      const { changes = [] } = JSON.parse(body || '{}');
+      let recorded = 0;
+      for (const change of changes) {
+        const id = `${change.kind}:${change.key}`;
+        const kept = states.get(id);
+        if (kept && Date.parse(change.at) <= Date.parse(kept.at)) continue;
+        states.set(id, { value: change.value, at: change.at });
+        recorded += 1;
+      }
+      res.end(JSON.stringify({ recorded, skipped: changes.length - recorded }));
+    });
+  });
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const body = answer(req.method, url.pathname, url.searchParams);
     res.setHeader('Content-Type', 'application/json');
+    if (body === REFUSED) {
+      res.statusCode = 403;
+      res.end(JSON.stringify({ error: 'Add this paper to your nook first' }));
+      return;
+    }
     res.statusCode = body === null ? 404 : 200;
     res.end(JSON.stringify(body ?? { error: 'Not found' }));
   });

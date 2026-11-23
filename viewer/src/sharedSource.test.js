@@ -338,3 +338,22 @@ test('a project paper returns home to its focused brief in the project', async (
     await signedOut();
   }
 });
+
+test('a project paper the reader does not keep still opens with the project on', async () => {
+  await signedInAs('a-session-token');
+  try {
+    await at(`http://127.0.0.1/viewer/?pdf=${HASH}&project=${PROJECT}`, async () => {
+      const lean = resolveSource().leanFallback();
+      assert.equal(lean.readOnly, true);
+      assert.equal(lean.project, PROJECT);
+      assert.equal(lean.homeHref, `/project/${PROJECT}/paper/${HASH.slice(0, 32)}`);
+      asked.length = 0;
+      await lean.loadProject().catch(() => {});
+      assert.deepEqual(pathsAsked(), [`/api/projects/${PROJECT}/papers/${HASH}/annotations`]);
+      // Kept afterwards, it is read in the same project.
+      assert.equal(lean.nookHref({ sha256: HASH }), `/viewer/?pdf=${HASH}&project=${PROJECT}`);
+    });
+  } finally {
+    await signedOut();
+  }
+});

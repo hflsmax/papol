@@ -12,6 +12,7 @@ import { appPath } from '../base';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { InWay } from './Way';
+import { readAge, readAgeLabel } from '../readAge';
 
 const added = (at) => {
   const day = new Date(at);
@@ -137,27 +138,13 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   const rated = (key) => nook.papers.some((p) => p[key]);
   const showMerit = rated('rating_liking');
 
-  // Inside a project the rail folds to a strip of the member's projects, one
-  // letter each, and opens over the project while the pointer or focus is
-  // on it: the project gets the width, the other places stay one reach away.
-  const folded = Boolean(project);
+  // Inside a project there is no rail: the project takes the whole width,
+  // and Papol's mark in the bar over it is the way back to the nook.
+  const inProject = Boolean(project);
 
   return (
-    <div className={`nook-desk${reviewing ? ' is-reviewing' : ''}${folded ? ' is-folded' : ''}`}>
-      <aside className="desk-rail">
-        {folded && (
-          <ul className="desk-strip" aria-hidden="true">
-            {(nook.projects ?? []).map((p) => (
-              <li key={p.uuid}>
-                <a
-                  className={`desk-strip-mark${p.uuid === project ? ' is-on' : ''}`}
-                  href={appPath(`/project/${p.uuid}`)}
-                  tabIndex={-1}
-                >{[...p.name.trim()][0]?.toUpperCase()}{p.new_count > 0 && <NewsDot />}</a>
-              </li>
-            ))}
-          </ul>
-        )}
+    <div className={`nook-desk${reviewing ? ' is-reviewing' : ''}${inProject ? ' is-project' : ''}`}>
+      {!inProject && <aside className="desk-rail">
         <div className="desk-rail-body">
           <section className="desk-rail-part" aria-labelledby="desk-projects">
             <div className="desk-rail-head">
@@ -258,7 +245,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             )}
           </section>
         </div>
-      </aside>
+      </aside>}
 
       {project && <section className="desk-main desk-project-view">{renderProject(project)}</section>}
       {!project && paper && <section className="desk-main desk-paper-view">{renderPaper(paper, onChanged)}</section>}
@@ -317,7 +304,12 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             </thead>
             <tbody>
               {papers.map((paper) => (
-                <tr key={paper.sha256} style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}>
+                <tr
+                  key={paper.sha256}
+                  className={readAge(paper.effort) ? `read-age-${readAge(paper.effort)}` : undefined}
+                  title={readAgeLabel(paper.effort)}
+                  style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}
+                >
                   <td className="desk-col-title">
                     <a
                       className="desk-title"

@@ -59,3 +59,11 @@ export function adminListEmails() {
 export function adminGetEmail(id) {
   return request(`/admin/emails/${encodeURIComponent(id)}`);
 }
+
+export function adminListUsers({ activeDays, newDays } = {}) {
+  const query = new URLSearchParams();
+  if (activeDays) query.set('active_days', activeDays);
+  if (newDays) query.set('new_days', newDays);
+  const search = query.toString();
+  return request(`/admin/users${search ? `?${search}` : ''}`);
+}

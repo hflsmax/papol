@@ -15,10 +15,15 @@ export const DOI_FORM = /^10\.\d{4,9}\/[^\s\])>"]+$/i;
 // split a DOI across lines, and PNAS papers print a supporting-information
 // URL before the canonical footer DOI, which comes out as the incomplete
 // `10.1073/pnas.`: a suffix without a digit yields to a later, complete one.
+// A template's placeholder — acmart's `10.1145/nnnnnnn.nnnnnnn`, printed
+// until the publisher assigns the real one — is no DOI at all.
+const PLACEHOLDER_SUFFIX = /^(?=(?:[^nx]*[nx]){3})[\dnx.\-]+$/i;
+
 export function extractDoi(text: string): string | null {
   let fallback: string | null = null;
   for (const match of text.matchAll(DOI)) {
     const candidate = match[0].replace(/[.,;:]+$/, "");
+    if (PLACEHOLDER_SUFFIX.test(candidate.split("/", 2)[1] ?? "")) continue;
     fallback = fallback ?? candidate;
     if (/\d/.test(candidate.split("/", 2)[1] ?? "")) return candidate;
   }

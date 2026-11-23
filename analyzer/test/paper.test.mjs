@@ -136,6 +136,52 @@ describe("the title block", () => {
     assert.deepEqual(header.authors, ["Xiaoyu Zheng", "Michael Kirkedal Thomsen"]);
   });
 
+  it("reads an AI Magazine article: the subtitle over two lines, and the issue stamped on its opening page (d3959dcd)", async () => {
+    const pdf = writtenPdfPages([
+      [
+        [200, 775, "AI Magazine Volume 26 Number 2 (2005)", 9],
+        [90, 150, "A general game playing system is one that can accept a formal description of a game and play it.", 8],
+        [100, 140, "In order to promote work in this area, the AAAI is sponsoring an open competition this summer.", 8],
+        [42, 50, "62 AI MAGAZINE", 9],
+      ],
+      [
+        [130, 740, "General Game", 36],
+        [180, 704, "Playing:", 36],
+        [175, 655, "Overview of the", 20],
+        [165, 625, "AAAI Competition", 20],
+        [115, 570, "Michael Genesereth, Nathaniel Love, and Barney Pell", 12],
+        [50, 500, "Games of strategy, such as chess, couple intellectual activity with competition, and we can"],
+        [50, 488, "exercise and improve our intellectual skills by playing such games against one another."],
+        [50, 476, "The competition adds excitement and allows us to compare our skills to those of others."],
+        [50, 464, "The same motivation accounts for interest in computer game playing as a testbed for AI."],
+      ],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "General Game Playing: Overview of the AAAI Competition");
+    assert.deepEqual(header.authors, ["Michael Genesereth", "Nathaniel Love", "Barney Pell"]);
+    assert.equal(header.journal, "AI Magazine");
+    assert.equal(header.year, 2005);
+  });
+
+  it("reads a Stanford technical report: the title's short first line, no group among the authors, and the dated head (946f7dd3)", async () => {
+    const pdf = writtenPdf([
+      [72, 693, "LG-2006-01"],
+      [478, 693, "March 4, 2008"],
+      [226, 593, "General Game Playing:", 17],
+      [162, 567, "Game Description Language Specification", 17],
+      [70, 510, "Nathaniel Love, Timothy Hinrichs, David Haley, Eric Schkufza, Michael Genesereth", 12],
+      [250, 259, "Stanford Logic Group", 12],
+      [227, 243, "Computer Science Department", 12],
+      [256, 226, "Stanford University", 12],
+      [268, 209, "353 Serra Mall", 12],
+      [255, 193, "Stanford, CA 94305", 12],
+    ]);
+    const { header } = await headerWithRules(pdf);
+    assert.equal(header.title, "General Game Playing: Game Description Language Specification");
+    assert.deepEqual(header.authors, ["Nathaniel Love", "Timothy Hinrichs", "David Haley", "Eric Schkufza", "Michael Genesereth"]);
+    assert.equal(header.year, 2008);
+  });
+
 });
 
 // PACMPL's first page, as acmart sets it: the venue is only in the
@@ -158,6 +204,55 @@ describe("the venue", () => {
     assert.equal(header.journal, "Proceedings of the ACM on Programming Languages (ICFP)");
     assert.equal(header.year, 2020);
     assert.equal(header.doi, "10.1145/3408990");
+  });
+});
+
+// An acmart sigplan paper (PEPM '26, aea8d5e8): the title sits at the top
+// of page one, within the margin running heads keep to, and the odd pages
+// carry it again as their running head; the reference paragraph names the
+// series without "the", and the template's placeholder DOI stands in for
+// the one ACM has not yet assigned. (Helvetica's standard encoding sets the
+// apostrophe written here as the ’ the paper prints.)
+const SIGPLAN_PAGES = writtenPdfPages([
+  [
+    [170, 745, "Epistemic Logic for Polyglots", 20],
+    [278, 720, "Luis Garcia", 12],
+    [271, 706, "Chris Martens", 12],
+    [248, 694, "garcia.lui@northeastern.edu", 10],
+    [257, 682, "Northeastern University", 10],
+    [280, 670, "Boston, USA", 10],
+    [54, 650, "Abstract", 12],
+    [54, 635, "A pattern in programming is to stitch together code from disparate programming languages."],
+    [54, 623, "This pattern is a manifestation of multilanguage computation, a subject concerning languages."],
+    [54, 200, "ACM Reference Format:", 9],
+    [54, 190, "Luis Garcia and Chris Martens. 2025. Epistemic Logic for Polyglots. In Proceedings of Partial", 9],
+    [54, 180, "Evaluation and Program Manipulation (PEPM '26). ACM, New York, NY, USA, 6 pages. https://doi.org/10.", 9],
+    [54, 170, "1145/nnnnnnn.nnnnnnn", 9],
+    [54, 80, "(c) 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.", 8],
+    [54, 60, "https://doi.org/10.1145/nnnnnnn.nnnnnnn", 8],
+  ],
+  [
+    [54, 760, "PEPM '26, January 13, 2026, Rennes, France", 8],
+    [450, 760, "Luis Garcia, Chris Martens", 8],
+    [54, 700, "We introduce the epistemic S4 type system with proof terms following the judgmental approach."],
+    [54, 688, "Our presentation of the logic can be viewed as both an extension of the modal logic S4."],
+  ],
+  [
+    [54, 760, "Epistemic Logic for Polyglots", 8],
+    [400, 760, "PEPM '26, January 13, 2026, Rennes, France", 8],
+    [54, 700, "In the logic developed by Pfenning and Davies, the modality represents validity, a truth."],
+    [54, 688, "We can generalize validity by asking to whom is a proposition valid, among principals."],
+  ],
+]);
+
+describe("an acmart sigplan paper", () => {
+  it("keeps the title its odd pages repeat as their running head, and reads past the template's DOI (aea8d5e8)", async () => {
+    const { header } = await headerWithRules(SIGPLAN_PAGES);
+    assert.equal(header.title, "Epistemic Logic for Polyglots");
+    assert.deepEqual(header.authors, ["Luis Garcia", "Chris Martens"]);
+    assert.equal(header.journal, "PEPM ’26");
+    assert.equal(header.year, 2025);
+    assert.equal(header.doi, null);
   });
 });
 
@@ -250,6 +345,85 @@ describe("the paper", () => {
       { title: "Conservative Logic", authors: ["Edward Fredkin", "Tommaso Toffoli"], year: 1982 },
     ]);
     assert.deepEqual(citations.map((c) => c.keys), [["b0"], ["b2"], ["b1"]]);
+  });
+
+  it("reads AAAI's references, parted only by a little more space than the leading, with names parted by semicolons", async () => {
+    // No numbers, no hanging indent: lines 11pt apart within an entry, 12.8
+    // between two, as AAAI sets them.
+    const pdf = writtenPdf([
+      [60, 740, "Games were played before (Pell 1992; Browne and Maire 2010),"],
+      [60, 725, "as in (Genesereth, Love, and Pell 2005), after Pitrat (1968)."],
+      [60, 300, "References", 12],
+      [60, 280, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [60, 269, "IEEE Transactions on Computational Intelligence and AI in"],
+      [60, 258, "Games, 2(1): 1-16."],
+      [60, 245.2, "Genesereth, M.; Love, N.; and Pell, B. 2005. General Game"],
+      [60, 234.2, "Playing: Overview of the AAAI Competition. AI Magazine,"],
+      [60, 223.2, "26: 62-72."],
+      [60, 210.4, "Pell, B. 1992. METAGAME in Symmetric Chess-Like"],
+      [60, 199.4, "Games. In Heuristic Programming in Artificial Intelligence."],
+      [60, 186.6, "Pitrat, J. 1968. Realization of a general game-playing pro-"],
+      [60, 175.6, "gram. In IFIP Congress, 1570-1574."],
+    ]);
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => ({ title: r.title, authors: r.authors, year: r.year })), [
+      { title: "Evolutionary game design", authors: ["C. Browne", "F. Maire"], year: 2010 },
+      { title: "General Game Playing: Overview of the AAAI Competition", authors: ["M. Genesereth", "N. Love", "B. Pell"], year: 2005 },
+      { title: "METAGAME in Symmetric Chess-Like Games", authors: ["B. Pell"], year: 1992 },
+      { title: "Realization of a general game-playing program", authors: ["J. Pitrat"], year: 1968 },
+    ]);
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b2"]], ["Browne and Maire 2010", ["b0"]], ["Genesereth, Love, and Pell 2005", ["b1"]], ["Pitrat (1968)", ["b3"]],
+    ]);
+  });
+
+  it("reads a citation on across a column's foot, past the small notice set there", async () => {
+    // AAAI's copyright notice closes the first column of page 1, in the
+    // middle of a sentence that runs on at the top of the second.
+    const left = ["Games were described before in the", "first general language for them, as", "the competition required it to be", "(Pell 1992), and then again in the", "language of the competition (Gene-"];
+    const right = ["sereth and Love 2005; Love et al. 2006),", "which many systems took up, though", "they found it slow to reason in (Pell", "1992; Browne and Maire 2010) for", "the larger games they wanted to play."];
+    const pdf = writtenPdf([
+      ...left.map((text, i) => [60, 740 - 12 * i, text]),
+      [60, 670, "Copyright 2026, Association for the Advancement", 8],
+      [60, 661, "of Artificial Intelligence. All rights reserved.", 8],
+      ...right.map((text, i) => [320, 740 - 12 * i, text]),
+      [320, 620, "References", 12],
+      [320, 600, "Browne, C.; and Maire, F. 2010. Evolutionary game design."],
+      [320, 580, "Genesereth, M.; and Love, N. 2005. General Game Playing."],
+      [320, 560, "Love, N.; and Hinrichs, T. 2006. Game Description Language."],
+      [320, 540, "Pell, B. 1992. METAGAME in Symmetric Chess-Like Games."],
+    ]);
+    const { citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Pell 1992", ["b3"]], ["Genesereth and Love 2005", ["b1"]], ["Love et al. 2006", ["b2"]], ["Pell 1992", ["b3"]], ["Browne and Maire 2010", ["b0"]],
+    ]);
+  });
+
+  it("reads IJCAI's references, each headed by how the text cites it, and links the et al. citations to them", async () => {
+    const pdf = writtenPdf([
+      [60, 740, "Games are played without human help [Genesereth et"],
+      [60, 728, "al., 2005], and the rules are written [Genesereth and Thielscher, 2014]."],
+      [60, 716, "Love et al. [2006] give the language; see also [Chang, 2015]."],
+      [60, 300, "References", 12],
+      [60, 280, "[Chang, 2015] Kenneth Chang. A math problem from Singapore goes viral."],
+      [60, 268, "The New York Times, 14 Apr 2015."],
+      [60, 256, "[Genesereth and Thielscher, 2014] Michael Genesereth and"],
+      [60, 244, "Michael Thielscher. General Game Playing. Morgan & Claypool, 2014."],
+      [60, 232, "[Genesereth et al., 2005] Michael Genesereth, Nathaniel"],
+      [60, 220, "Love, and Barney Pell. General game playing: Overview of"],
+      [60, 208, "the AAAI competition. AI Magazine, 26(2):62-72, 2005."],
+      [60, 196, "[Love et al., 2006] Nathaniel Love, Timothy Hinrichs, and"],
+      [60, 184, "Michael Genesereth. General Game Playing: Game Description"],
+      [60, 172, "Language Specification. Technical Report, Stanford, 2006."],
+    ].map(([x, y, text]) => [text.startsWith("[") && y < 300 ? x : x + (y < 300 ? 10 : 0), y, text]));
+    const { references, citations } = (await analyzeWithRules(pdf)).analysis;
+    assert.deepEqual(references.map((r) => r.authors), [
+      ["Kenneth Chang"], ["Michael Genesereth", "Michael Thielscher"],
+      ["Michael Genesereth", "Nathaniel Love", "Barney Pell"], ["Nathaniel Love", "Timothy Hinrichs", "Michael Genesereth"],
+    ]);
+    assert.deepEqual(citations.map((c) => [c.label, c.keys]), [
+      ["Genesereth et al., 2005", ["b2"]], ["Genesereth and Thielscher, 2014", ["b1"]], ["Chang, 2015", ["b0"]], ["Love et al. [2006]", ["b3"]],
+    ]);
   });
 
   it("links narrative citations with a remark, a possessive, a word between, letter-spaced names, a misread letter and swapped authors", async () => {
@@ -534,6 +708,30 @@ describe("the paper", () => {
       assert.ok(figure, "Fig. 2 is found");
       // Its caption is at 800 − 380 = 420 from the top, and its drawing over it.
       assert.ok(figure.y > 0.25 && figure.y + figure.h > 0.52, `Fig. 2 is the drawing and its caption, not the paragraph: ${JSON.stringify(figure)}`);
+    }
+  });
+
+  it("bounds a table captioned under itself, over a paragraph's last line carried into the column (AAAI10a page 2)", async () => {
+    // The table heads the column and its caption is under it; past a gap,
+    // the column's text opens with the last line of a paragraph from the
+    // column before. That line is running text, not the table under its
+    // caption: the table is the rows over the caption.
+    const rows = [["role(R)", "R is a player"], ["init(F)", "F holds in the initial position"], ["true(F)", "F holds in the current position"],
+      ["next(F)", "F holds in the next position"], ["random", "the random player"]];
+    const prose = "of the moves the players make and what each of them sees of the others, in turn";
+    const pdf = writtenPdf([
+      ...rows.flatMap(([a, b], i) => [[70, 760 - 12 * i, a], [160, 760 - 12 * i, b]]),
+      [60, 690, "Table 1: The keywords: the first four are the standard ones while the last is"],
+      [60, 678, "added in view of elements of chance in the games it describes."],
+      [60, 650, "player's knowledge."],
+      [70, 638, "The rest of the paper is organised as follows. In the next section we show the"],
+      ...Array.from({ length: 8 }, (_, i) => [60, 626 - 12 * i, prose]),
+    ]);
+    {
+      const body = (await analyzeWithRules(pdf)).analysis;
+      const table = body.floats.find((f) => f.kind === "table" && f.label === "1");
+      // The first row is 800 − 760 = 40 from the top; the carried line at 150.
+      assert.ok(table && table.y < 45 / 800 && table.y + table.h < 140 / 800, `Table 1 is its rows and its caption, not the line under it: ${JSON.stringify(table)}`);
     }
   });
 
