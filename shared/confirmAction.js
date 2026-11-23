@@ -1,4 +1,5 @@
 import { DESKTOP } from './desktopShell';
+import { addPageStyles } from './pageStyles.js';
 
 // window.confirm() is the browser's own dialog. Papol macOS's macOS webview
 // implements no JavaScript dialogs at all: confirm() answers false without
@@ -57,12 +58,7 @@ let nextId = 0;
 export function confirmAction(message, { confirmLabel = 'OK', cancelLabel = 'Cancel', destructive = false } = {}) {
   if (!DESKTOP) return Promise.resolve(window.confirm(message));
 
-  if (!document.getElementById(STYLE_ID)) {
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = STYLE;
-    document.head.appendChild(style);
-  }
+  addPageStyles(STYLE_ID, STYLE);
 
   return new Promise((resolve) => {
     const returnFocus = document.activeElement;

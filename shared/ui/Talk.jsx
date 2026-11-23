@@ -512,6 +512,10 @@ export function TalkCard({
         return;
       }
       const after = rest.length ? await getDig(rest[rest.length - 1].uuid) : null;
+      // Shown at once, not left to the topic's reload: a card already on
+      // the reader's own ('mine', as a freshly dropped anchor opens) keeps
+      // its topic, nothing reloads, and the removed dig stayed on screen.
+      setDiscussion(after);
       report(after, rest);
       setTopic({ ...topic, dig: after ? after.uuid : 'mine' });
     } catch (err) {
