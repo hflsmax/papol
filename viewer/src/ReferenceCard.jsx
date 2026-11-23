@@ -24,6 +24,7 @@ export default function ReferenceCard({
   places = null, exploring = false, onPreviousPlace, onNextPlace, backTo = null, onBack,
 }) {
   const cardRef = useRef(null);
+  const bodyRef = useRef(null);
   // Where the card last sat across the window. While the reader steps
   // through the places a work is cited, each marker is brought to where the
   // last one was, so the card keeps its height by itself; it keeps this too,
@@ -36,33 +37,68 @@ export default function ReferenceCard({
   // Placed after measuring: whether the card fits below the marker depends
   // on how tall it turned out to be, which depends on what came back.
   //
-  // On a narrow screen the card is wider than the window, and on a short
-  // one neither side of the marker has room for the whole card. So the
-  // width is what the window can spare, and the card takes the roomier
-  // side of the marker and is capped to what that side actually holds —
-  // scrolling inside itself rather than hanging off the screen.
+  // The card opens at the height its content needs, so nothing in it has to
+  // be scrolled to on arrival: it goes below the marker when it fits there,
+  // above when it fits there, and otherwise the paper is moved just enough
+  // to make room on the roomier side. Only what grows after it opened — an
+  // abstract read in full — may run past that height, and then it scrolls
+  // inside itself, never taller than about two thirds of the window (or
+  // the height it opened at, if that was more): the card is an aside about
+  // the page, not a replacement for it.
+  //
+  // On a narrow screen the card is wider than the window, so its width is
+  // what the window can spare, set before it is measured; and a window too
+  // short for the content still caps the card to the side it sits on.
+  const opened = useRef({ reference: null, height: 0 });
   useLayoutEffect(() => {
     const el = cardRef.current;
+    const body = bodyRef.current;
     if (!el || !anchor) return undefined;
 
     const place = () => {
       if (!anchor.isConnected) return;
-      const box = anchor.getBoundingClientRect();
       const scroller = anchor.closest('.pages');
       if (!scroller) return;
-      const scrollerBox = scroller.getBoundingClientRect();
       const width = Math.min(WIDTH, window.innerWidth - 2 * MARGIN);
-      const height = el.offsetHeight;
-      const roomBelow = window.innerHeight - box.bottom - 2 * MARGIN;
-      const roomAbove = box.top - 2 * MARGIN;
-      const below = height <= roomBelow || roomBelow >= roomAbove;
-      // Never taller than the side it sits on, and never more than about
-      // two thirds of the window even when there is room: the card is an
-      // aside about the page, not a replacement for it.
+      el.style.width = `${width}px`;
+      el.style.maxHeight = 'none';
+      const natural = el.offsetHeight;
+      // What the card opened to holds while its content is expanded, so
+      // reading the abstract in full does not flip it to the marker's
+      // other side.
+      if (!showAll || opened.current.reference !== reference) {
+        opened.current = { reference, height: natural };
+      }
+      const fit = opened.current.height;
+
+      let box = anchor.getBoundingClientRect();
+      const scrollerBox = scroller.getBoundingClientRect();
+      const room = () => ({
+        below: Math.min(window.innerHeight, scrollerBox.bottom) - box.bottom - 2 * MARGIN,
+        above: box.top - Math.max(0, scrollerBox.top) - 2 * MARGIN,
+      });
+      let { below: roomBelow, above: roomAbove } = room();
+      let below = fit <= roomBelow || (fit > roomAbove && roomBelow >= roomAbove);
+      // Neither side holds it: bring the marker away from the window's edge
+      // by what is missing, as far as the paper can scroll. Not while the
+      // reader steps through the places a work is cited, where the paper
+      // has already been brought to where the card last fit.
+      if (!holding && fit > Math.max(roomBelow, roomAbove)) {
+        const missing = fit - (below ? roomBelow : roomAbove);
+        const before = scroller.scrollTop;
+        scroller.scrollTop = before + (below ? missing : -missing);
+        if (scroller.scrollTop !== before) {
+          box = anchor.getBoundingClientRect();
+          ({ below: roomBelow, above: roomAbove } = room());
+          below = fit <= roomBelow || (fit > roomAbove && roomBelow >= roomAbove);
+        }
+      }
+      const side = below ? roomBelow : roomAbove;
       const cap = Math.max(
         160,
-        Math.min(below ? roomBelow : roomAbove, window.innerHeight * 0.62)
+        Math.min(side, Math.max(fit, window.innerHeight * 0.62))
       );
+      const height = Math.min(natural, cap);
       const viewportLeft = Math.min(
         Math.max(MARGIN, holding && heldLeft.current != null
           ? heldLeft.current
@@ -72,12 +108,11 @@ export default function ReferenceCard({
       heldLeft.current = viewportLeft;
       const viewportTop = below
         ? box.bottom + MARGIN
-        : Math.max(MARGIN, box.top - MARGIN - Math.min(height, cap));
+        : Math.max(MARGIN, box.top - MARGIN - height);
 
       // The card lives in the same scroll container as the PDF. Convert its
       // viewport placement into that container's content coordinates once;
       // after that the browser scrolls marker and card in one operation.
-      el.style.width = `${width}px`;
       el.style.maxHeight = `${cap}px`;
       el.style.transform = `translate3d(${
         viewportLeft - scrollerBox.left + scroller.scrollLeft
@@ -99,6 +134,10 @@ export default function ReferenceCard({
     window.addEventListener('resize', schedulePlace);
     const observer = new ResizeObserver(schedulePlace);
     observer.observe(anchor);
+    // The content can settle after it rendered — a font arriving, a title's
+    // mathematics typeset — and the card follows it rather than opening
+    // short of it.
+    if (body) observer.observe(body);
     return () => {
       window.removeEventListener('resize', schedulePlace);
       observer.disconnect();
@@ -197,6 +236,7 @@ export default function ReferenceCard({
         ×
       </button>
 
+      <div className="ref-card-body" ref={bodyRef}>
       <div className="ref-card-header">
         <div className="ref-experimental">
           <ExperimentalBadge />
@@ -335,6 +375,7 @@ export default function ReferenceCard({
       {report && !linksRow && <div className="ref-report">{report}</div>}
 
       {placesRow}
+      </div>
     </div>
   );
 }
