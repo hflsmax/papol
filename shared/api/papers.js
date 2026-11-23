@@ -342,7 +342,7 @@ async function downloadNativePaperPdf(paper) {
   const stored = await nativeBlobImport(await response.blob());
   if (stored.sha256 !== paper.sha256) {
     await discardNativeBlob(stored.sha256).catch(() => {});
-    throw new Error('The downloaded PDF did not match the Library paper.');
+    throw new Error('The downloaded PDF did not match the paper it was added as.');
   }
 }
 

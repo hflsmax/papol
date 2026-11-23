@@ -26,7 +26,7 @@ const pages = [
   { path: '/', page: 'home' },
   { path: `/paper/${PAPER_NAME}`, page: 'paper' },
   { path: `/u/${USER_UUID}`, page: 'nook' },
-  { path: '/library', page: 'papers' },
+  { path: '/library', page: 'room' },
   { path: '/lounge', page: 'room' },
   { path: '/bazaar', page: 'room' },
   { path: '/projects', page: 'projects' },

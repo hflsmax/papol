@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 
-// The landing page's Library: the jacket of the specimen's paper, with the
-// people who read it and a line from each. The visitor can add a line of
-// their own; nothing leaves the page.
+// The landing page's Lounge: the specimen's paper as friends' news, with
+// the friends who read it and a line from each. The visitor can add a line
+// of their own; nothing leaves the page.
 
 const READERS = [
   { initial: 'M', tint: 0, name: 'Mei', thought: 'The per-residue confidence is what I actually use.' },
@@ -10,7 +10,7 @@ const READERS = [
   { initial: 'A', tint: 4, name: 'Aisha', thought: 'Still struggles when a protein has few relatives to learn from.' },
 ];
 
-export default function HomeLibrary({ beckoning, onTried }) {
+export default function HomeLounge({ beckoning, onTried }) {
   const [draft, setDraft] = useState('');
   const [mine, setMine] = useState(null);
 
@@ -19,7 +19,7 @@ export default function HomeLibrary({ beckoning, onTried }) {
   return (
     <div className="landing-jacket">
       <p className="landing-jacket-title">Highly accurate protein structure prediction with AlphaFold</p>
-      <p className="landing-jacket-meta">Jumper et al. · Nature, 2021 · {readers.length} readers</p>
+      <p className="landing-jacket-meta">Jumper et al. · Nature, 2021 · {readers.length} friends</p>
       <ul className="landing-readers">
         {readers.map((reader) => (
           <li key={reader.name} className={reader.own ? 'own' : ''}>

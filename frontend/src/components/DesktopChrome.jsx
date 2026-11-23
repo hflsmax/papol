@@ -101,8 +101,7 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
     {
       label: 'Papol',
       items: [
-        { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
-        { key: 'room', label: 'Lounge', path: '/lounge', glyph: 'room', shortcut: '5', active: page === 'room', news: roomNews },
+        { key: 'room', label: 'Lounge', path: '/lounge', glyph: 'room', shortcut: '2', active: page === 'room', news: roomNews },
         { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
         { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
         ...(user.is_admin
@@ -116,7 +115,6 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
 const TITLES = {
   nook: 'Nook',
   paper: 'Paper',
-  papers: 'Desk',
   room: 'Lounge',
   projects: 'Projects',
   project: 'Project',
