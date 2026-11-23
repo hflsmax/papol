@@ -82,14 +82,13 @@ try {
   await new Promise((r) => setTimeout(r, 300));
   check('a double-click between two lines drops no anchor', (await pins()) === before);
 
-  // What the browser had selected as the double-click arrived: nothing. A
-  // second press on bare paper is kept from the browser, which would
-  // otherwise select a line break (Chrome) or the whole page (WebKit).
-  await browser.evaluate(`window.__selected = null; document.addEventListener('dblclick', () => { window.__selected = String(getSelection()); }, { capture: true, once: true }); return true;`);
   await mouse(at.bare.x, at.bare.y, 1);
   await mouse(at.bare.x, at.bare.y, 2);
-  const selected = await browser.evaluate('return window.__selected;');
-  check('a double-click on bare paper selects nothing', selected === '', JSON.stringify(selected));
+  // Whatever the browser selected on the way (the whole page, in WebKit)
+  // is put away, highlight and actions with it.
+  await new Promise((r) => setTimeout(r, 300));
+  const left = await browser.evaluate("return { text: String(getSelection()), actions: !!document.querySelector('.selection-actions') };");
+  check('a double-click on bare paper leaves nothing selected', !left.text.trim() && !left.actions, JSON.stringify(left));
   await browser.waitFor(`document.querySelectorAll('.pdf-page[data-page="1"] .pin').length > ${before}`, { timeout: 4000, what: 'an anchor' }).catch(() => {});
   const placed = await browser.evaluate(`
     const pins = [...document.querySelectorAll('.pdf-page[data-page="1"] .pin')];
@@ -133,6 +132,35 @@ try {
   } else {
     check('the fixture has a citation to point at', false);
   }
+  // WebKit (Safari, the Mac app) selects the whole text layer on the second
+  // press over bare ground, and the viewer takes that into its highlight as
+  // the press lifts. Played here by selecting the layer as the second press
+  // lifts: the anchor still drops, and the page is left with nothing
+  // selected.
+  {
+    await browser.evaluate(`document.querySelector('.pdf-page[data-page="1"]').scrollIntoView({ block: 'start' }); return true;`);
+    await new Promise((r) => setTimeout(r, 500));
+    const spot = await browser.evaluate(`
+      const page = document.querySelector('.pdf-page[data-page="1"]');
+      const box = page.getBoundingClientRect();
+      const spans = [...page.querySelectorAll('.textLayer span')];
+      const find = (text) => spans.find((s) => s.textContent.includes(text)).getBoundingClientRect();
+      return { x: box.left + box.width * 0.7, y: (find('illia').bottom + find('Abstract').top) / 2 };`);
+    await browser.evaluate(`
+      window.addEventListener('mouseup', (e) => {
+        if (e.detail < 2) return;
+        getSelection().selectAllChildren(document.querySelector('.pdf-page[data-page="1"] .textLayer'));
+      }, { capture: true, once: false });
+      return true;`);
+    const count = await pins();
+    await mouse(spot.x, spot.y, 1);
+    await mouse(spot.x, spot.y, 2);
+    await new Promise((r) => setTimeout(r, 400));
+    const left = await browser.evaluate("return { text: String(getSelection()).length, actions: !!document.querySelector('.selection-actions') };");
+    check('with the whole page selected on the way (WebKit), the anchor still drops', (await pins()) === count + 1);
+    check('and the page is left with nothing selected', !left.text && !left.actions, JSON.stringify(left));
+  }
+
   await checks.settle();
 } finally {
   await browser.stop();

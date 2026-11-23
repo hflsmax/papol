@@ -21,10 +21,11 @@ export function onBareGround(target, holder) {
 //    press, and the anchor tool already drops one on the first.
 //  - Only a mouse, trackpad or pen. A double tap on a phone or tablet is
 //    too easily a reach for zoom, and the anchor tool is there for touch.
-//  - Not where the browser has just selected a word: a double-click that
-//    found text is reading, even where the text layer's box was the target.
-//    On bare ground Chrome selects the line break the text layer ends a
-//    line with, which is no word: only text that reads as something counts.
+//  - Not where the caller says a word is selected (selectedText). The
+//    viewer passes none: on bare ground the browser selects something of
+//    its own (a line break in Chrome, the whole page in WebKit), so what is
+//    selected says nothing about where the reader aimed, and the geometry
+//    below decides.
 //  - Not on a line of text, nor in the narrow gap between two lines: that
 //    is a reader aiming at a word and landing a pixel off. The viewer takes
 //    the browser's selection into its own highlight as the second press

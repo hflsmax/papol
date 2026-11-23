@@ -2101,8 +2101,8 @@ function PdfPage({
     onSelectAnchor(pin.uuid);
   };
 
-  // Whether a double-click (or its second press) here, with this much
-  // text selected, is one that drops an anchor (blankDoubleClick.js).
+  // Whether a double-click here, with this much text selected, is one that
+  // drops an anchor (blankDoubleClick.js).
   const dropsAnchorAt = (e, selectedText) => {
     if (tool !== 'arrow' || !onPlaceAnchor) return false;
     const box = holderRef.current?.getBoundingClientRect();
@@ -2171,18 +2171,13 @@ function PdfPage({
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
       }}
       onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
-      onMouseDown={(e) => {
-        // The second press of a double-click on bare paper is the anchor's,
-        // not the browser's: left to it, WebKit (Safari and the Mac app)
-        // selects the whole text layer from there, and Chrome a line
-        // break. Kept from it, the double-click arrives with nothing
-        // selected and the anchor drops.
-        if (e.detail >= 2 && dropsAnchorAt(e, '')) e.preventDefault();
-      }}
       onDoubleClick={(e) => {
-        if (!dropsAnchorAt(e, String(window.getSelection() ?? ''))) return;
-        // Anything the browser picked up on the way is no selection.
-        window.getSelection()?.removeAllRanges();
+        // Where the double-click landed decides, not what it selected: on
+        // the text layer's bare ground the browser selects something of its
+        // own (a line break in Chrome, the whole page in WebKit), which
+        // placeAnchor puts away. The second press is not kept from the
+        // browser: a prevented mousedown left Safari's cursor frozen.
+        if (!dropsAnchorAt(e, '')) return;
         onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
       onClick={(e) => {
