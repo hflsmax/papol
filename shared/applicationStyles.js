@@ -3917,7 +3917,7 @@ a.button:hover {
 .thumb-title { fill: var(--line-strong); }
 .thumb-line { fill: var(--line); }
 
-/* The Library: the paper's jacket, which the visitor can add to. */
+/* The landing page's Lounge: the specimen's paper as friends' news, which the visitor can add to. */
 .landing-jacket {
   padding: 18px 20px;
   border: 1px solid var(--line-strong);

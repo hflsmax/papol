@@ -242,7 +242,7 @@ export default function PaperJacket({
     } catch (err) {
       setError(err?.message || String(err));
       if (err?.reportable !== false) {
-        onReportableError?.(err, 'adding a Library paper to My Nook');
+        onReportableError?.(err, 'adding a paper to My Nook');
       }
     } finally {
       setIsAddingToNook(false);

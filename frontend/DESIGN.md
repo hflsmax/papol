@@ -406,7 +406,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   Desk, where what is known about it is kept and from which it is opened.
   A paper has had one all along; a board's is new, and it is why the board's
   `description` column finally has somewhere to be read. Both sit inside the
-  Desk's own chrome with a Back to the nook or Library they were opened
+  Desk's own chrome with a Back to the nook or Lounge they were opened
   from (`jacketOrigin.js`, one remembered place per tab serving both kinds).
   A board's jacket is one component in both shells (`BoardJacket.jsx`), set
   like a paper's: the same panel, title row, shelf picker and trash. Under
@@ -571,14 +571,16 @@ is a dig: one person's writing about one thing, under the one spade pin.
   way to a native reference-manager layout. A 220px `--chrome` source-list
   sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
-  then Desk, Inbox, Learn, with Manage nook as the icon beside "My nook".
+  then Projects, and Lounge, Inbox, Learn, with Manage nook as the icon
+  beside "My nook". There is no Library: other people's papers reach the
+  Mac as they do the web, through the Lounge, a nook or a link.
   Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
   a source, a 320px white list pane shows it as compact rows with a search
   field, and the selected paper opens beside the list in the ordinary
   `PaperJacket`. A selected board opens its jacket there instead — the same
   `BoardJacket` the web shows at `/board/<uuid>`, reading the replica. One
   click selects a board; double-click, Return, or the jacket's Open board
-  or preview opens its document window. The Library is for recognising and
+  or preview opens its document window. The Desk is for recognising and
   resuming a board, never for editing its canvas. A newly created board
   becomes the selected board in the Desk and shows its jacket; creation
   never opens the document window on the user's behalf.
