@@ -9,10 +9,13 @@ import { STRIP_RATIO } from './ink';
 import { resizeClipFrame } from './clipResize';
 import { anchorSpotAtPage } from './anchorDrag';
 import { pageRenderQueue, SCROLL_QUIET_MS } from './pageRenderQueue';
+import { pageWake, REDRAW_BACKOFF_MS } from './pageWake.js';
 import { markViewerPerformance, measureViewerPerformance } from './performance.js';
 import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
+import { withinSpan } from './selectionInk.js';
+import { doubleClickDropsAnchor, nearText, onBareGround } from './blankDoubleClick.js';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { memberInk } from './project.js';
 import ThingBar from './ThingBar.jsx';
@@ -206,6 +209,25 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
       if (frame != null) cancelAnimationFrame(frame);
     };
   }, [clip.floating]);
+
+  // A clip's bitmap is lost with the page's (pageWake.js): forget what it
+  // was drawn for, and draw it again.
+  useEffect(() => {
+    const output = canvasRef.current;
+    const repaint = () => {
+      clipPaintedRef.current = null;
+      paintClipRef.current?.();
+    };
+    // Drawn again once restored: until then the lost context draws nothing.
+    output?.addEventListener('contextrestored', repaint);
+    const unsubscribe = pageWake().subscribe((reason) => {
+      if (reason === 'wake') repaint();
+    });
+    return () => {
+      output?.removeEventListener('contextrestored', repaint);
+      unsubscribe();
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const output = canvasRef.current;
@@ -489,7 +511,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
   return (<>
     <aside
       ref={rootRef}
-      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}`}
+      className={`paper-clip${selected ? ' selected' : ''}${clip.theirs ? ' theirs' : ''}${telescope ? ' telescope' : ''}${telescope?.tag ? ' tagged' : ''}`}
       style={positionStyle}
       aria-label={telescope ? telescope.title : 'Clipped paper content'}
       // Someone else's clip is a view they cut and placed. It is theirs to
@@ -508,6 +530,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
         draggedRef.current = false;
       }}
     >
+      {telescope?.tag && <span className="telescope-tag">{telescope.tag}</span>}
       <canvas ref={canvasRef} className="clip-canvas" />
       {bar}
       {selected && !readOnly && (
@@ -569,6 +592,7 @@ function PdfPage({
   onRemoveAnchor,
   onHover,
   onDropAnchor,
+  onPlaceAnchor,
   clips = [],
   onCreateClip,
   onUpdateClip,
@@ -619,6 +643,12 @@ function PdfPage({
   // Where the drawing goes, and what is there now: { canvas, doc, scale }.
   const canvasHostRef = useRef(null);
   const paintedRef = useRef(null);
+  // Set when the drawing on show can no longer be trusted — its canvas was
+  // lost, the viewer is back from a night away, or drawing it failed — and
+  // a count that goes up to ask for it again (pageWake.js).
+  const staleRef = useRef(false);
+  const [redraw, setRedraw] = useState(0);
+  const failuresRef = useRef(0);
   // What the citations and links below were worked out for.
   const overlaysForRef = useRef(null);
   // What the drawing on show was made for, { doc, scale }: the text layer
@@ -770,10 +800,11 @@ function PdfPage({
   useEffect(() => {
     if (!near || !renderScale || !size.width) return undefined;
     const painted = paintedRef.current;
-    if (painted?.doc === doc && painted.scale === renderScale) return undefined;
+    if (painted?.doc === doc && painted.scale === renderScale && !staleRef.current) return undefined;
     let cancelled = false;
     let task = null;
     let drawing = null;
+    let retry = null;
     markViewerPerformance('first-page-render-requested', { page: pageNumber });
     const withdraw = pageRenderQueue().request({
       scrollSensitive: true,
@@ -787,6 +818,7 @@ function PdfPage({
         drawing = document.createElement('canvas');
         drawing.width = Math.floor(viewport.width * ratio);
         drawing.height = Math.floor(viewport.height * ratio);
+        drawing.addEventListener('contextlost', () => drawingLostRef.current?.());
         markViewerPerformance('first-page-canvas-started', { page: pageNumber });
         task = page.render({
           canvasContext: drawing.getContext('2d', { alpha: false }),
@@ -797,6 +829,13 @@ function PdfPage({
           await task.promise;
         } catch (err) {
           if (err?.name === 'RenderingCancelledException') return;
+          // Not drawn is not done: try again shortly, and after that on the
+          // next wake or return of the network, instead of leaving the page
+          // blank for as long as it stays near.
+          staleRef.current = true;
+          const wait = REDRAW_BACKOFF_MS[failuresRef.current];
+          failuresRef.current += 1;
+          if (wait != null && !cancelled) retry = setTimeout(() => setRedraw((n) => n + 1), wait);
           throw err;
         }
         const host = canvasHostRef.current;
@@ -809,6 +848,8 @@ function PdfPage({
         detailRef.current = null;
         delete holderRef.current.dataset.detail;
         paintedRef.current = { canvas: drawing, doc, scale: renderScale };
+        staleRef.current = false;
+        failuresRef.current = 0;
         drawing = null;
         holderRef.current.dataset.painted = String(renderScale);
         setDrawn({ doc, scale: renderScale });
@@ -822,11 +863,28 @@ function PdfPage({
 
     return () => {
       cancelled = true;
+      clearTimeout(retry);
       withdraw();
       task?.cancel();
       releaseCanvas(drawing);
     };
-  }, [doc, pageNumber, renderScale, near, size.width]);
+  }, [doc, pageNumber, renderScale, near, size.width, redraw]);
+
+  // What makes a drawing on show untrustworthy, and asks for it again. The
+  // drawing stays up until the new one replaces it, so a canvas the browser
+  // did keep never flickers. A page with nothing drawn has nothing to fix.
+  const drawingLostRef = useRef(null);
+  drawingLostRef.current = () => {
+    if (!paintedRef.current && !staleRef.current) return;
+    staleRef.current = true;
+    failuresRef.current = 0;
+    setRedraw((n) => n + 1);
+  };
+  useEffect(() => pageWake().subscribe((reason) => {
+    // Back online, only a drawing that failed is worth another try.
+    if (reason === 'online' && !(staleRef.current && failuresRef.current)) return;
+    drawingLostRef.current?.();
+  }), []);
 
   // Well away from the view, a page gives back its bitmap straight away.
   useEffect(() => {
@@ -971,6 +1029,7 @@ function PdfPage({
           const ratio = Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
           drawing = document.createElement('canvas');
           drawing.className = 'page-detail';
+          drawing.addEventListener('contextlost', () => drawingLostRef.current?.());
           drawing.width = Math.max(1, Math.floor(width * ratio));
           drawing.height = Math.max(1, Math.floor(height * ratio));
           task = page.render({
@@ -1152,12 +1211,15 @@ function PdfPage({
     let activeHighlight = null;
     for (const match of searchMatches) {
       for (const part of match.parts) {
-        const textNode = spans[part.spanIndex]?.firstChild;
+        const span = spans[part.spanIndex];
+        const textNode = span?.firstChild;
         if (!textNode || textNode.nodeType !== Node.TEXT_NODE) continue;
+        const spanBox = span.getBoundingClientRect();
         const range = document.createRange();
         range.setStart(textNode, Math.min(part.start, textNode.length));
         range.setEnd(textNode, Math.min(part.end, textNode.length));
-        for (const box of range.getClientRects()) {
+        for (const glyphs of range.getClientRects()) {
+          const box = withinSpan(glyphs, spanBox);
           const highlight = document.createElement('span');
           const active = match.id === activeSearchId;
           highlight.className = `search-highlight${active ? ' search-highlight-active' : ''}`;
@@ -1205,7 +1267,11 @@ function PdfPage({
   }, [doc, pageNumber, near, analysis]);
 
   // Anchors are placed with the explicit tool, at a spot the user can see
-  // before committing to it. An ordinary double-click remains text selection.
+  // before committing to it, or by a double-click on bare paper with the
+  // arrow (blankDoubleClick.js). A double-click on words still selects them.
+  // What pressed last, since a double-click does not say whether it was a
+  // mouse or a finger.
+  const pressedWithRef = useRef(null);
 
   // A pin is dragged with the pointer captured, so the gesture survives
   // leaving the pin. A small movement is a click, not a drag — otherwise
@@ -2035,12 +2101,36 @@ function PdfPage({
     onSelectAnchor(pin.uuid);
   };
 
+  // Whether a double-click here is one that drops an anchor
+  // (blankDoubleClick.js). Where it landed decides, not what it selected.
+  const dropsAnchorAt = (e) => {
+    if (tool !== 'arrow' || !onPlaceAnchor) return false;
+    const box = holderRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return false;
+    const x = (e.clientX - box.left) / box.width;
+    const y = (e.clientY - box.top) / box.height;
+    return doubleClickDropsAnchor({
+      tool,
+      button: e.button,
+      pointerType: pressedWithRef.current,
+      bare: onBareGround(e.target, holderRef.current),
+      nearText: nearText(
+        [...holderRef.current.querySelectorAll('.textLayer span')].map((span) => span.getBoundingClientRect()),
+        e.clientX,
+        e.clientY,
+      ),
+      overReference: citations.some((c) => citationHolds(c, x, y)) || links.some((l) => boxHolds(l, x, y)),
+    });
+  };
+
   const stretch = scale / renderScale;
 
   return (
     <div
       ref={holderRef}
-      className="pdf-page"
+      // Over a citation or a link the page says "press here": the class
+      // reaches the words under it, whose own I-beam would otherwise win.
+      className={hoveredCitation >= 0 || hoveredLink >= 0 ? 'pdf-page over-reference' : 'pdf-page'}
       style={{
         width: size.width ? size.width * scale : undefined,
         height: size.height ? size.height * scale : undefined,
@@ -2078,6 +2168,15 @@ function PdfPage({
         onHoverInkObjects(pageNumber, []);
         setBrushAt(null);
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
+      }}
+      onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
+      onDoubleClick={(e) => {
+        // The browser keeps its presses: on the text layer's bare ground it
+        // selects something of its own on the way (a line break in Chrome,
+        // the whole page in WebKit), and placeAnchor puts that away rather
+        // than the page holding the second press back from the browser.
+        if (!dropsAnchorAt(e)) return;
+        onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
       onClick={(e) => {
         if (tool !== 'arrow' || e.button !== 0 || !e.target.closest?.('.textLayer')) return;
@@ -2506,17 +2605,17 @@ function PdfPage({
           onSend={(blob) => onSendClip(clip, blob)}
         />
       ))}
-      {telescope && (
+      {telescope?.clips.map(({ clip, spot, tag }) => (
         <ClipBox
-          key="telescope"
-          clip={telescope.clip}
+          key={clip.uuid}
+          clip={clip}
           doc={doc}
           readOnly
-          telescope={{ ...telescope, hold: holdTelescope }}
+          telescope={{ ...telescope, tag, hold: holdTelescope }}
           selected={false}
-          onSelect={() => onFollowLink(telescope.spot)}
+          onSelect={() => onFollowLink(spot)}
         />
-      )}
+      ))}
       <span className="page-number">{pageNumber}</span>
     </div>
   );

@@ -225,6 +225,25 @@ function glyphsDrawn(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Reco
       }
     }
   });
+  // A font that names no glyphs (a CID font drawn by Identity-H, as
+  // LuaLaTeX embeds Libertine) draws a lowercase letter by two glyphs
+  // where its text sets small capitals: the small capital is the wider
+  // (layout.small-capitals). Two glyphs or more of the letters so, each
+  // wider throughout, make the font's wider glyphs small capitals.
+  for (const [id, drawn] of glyphs) {
+    const named = names(id);
+    if (named && drawn.some((g) => g.originalCharCode !== undefined && /^\p{L}$/u.test(g.unicode ?? "") && named(g.originalCharCode) === g.unicode)) continue;
+    const codes = new Map<string, Map<number, Glyph>>();
+    for (const g of drawn) {
+      if (!/^\p{Ll}$/u.test(g.unicode ?? "") || g.originalCharCode === undefined) continue;
+      if (!codes.has(g.unicode!)) codes.set(g.unicode!, new Map());
+      codes.get(g.unicode!)!.set(g.originalCharCode, g);
+    }
+    const pairs = [...codes.values()].filter((m) => m.size === 2).map((m) => [...m.values()].sort((a, b) => a.width! - b.width!));
+    if (pairs.length < 2 || !pairs.every(([a, b]) => b.width! > a.width! * 1.02)) continue;
+    const wide = new Set(pairs.map(([, b]) => b.originalCharCode));
+    for (const g of drawn) if (/^\p{Ll}$/u.test(g.unicode ?? "") && wide.has(g.originalCharCode)) g.small = true;
+  }
   return { widths, glyphs, all };
 }
 

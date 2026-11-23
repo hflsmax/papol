@@ -114,6 +114,12 @@
     "range_days_max": 62,
     "recent_days": 91
   },
+  "user_state": {
+    "changes_per_request": 200,
+    "flags_max": 100,
+    "age_days_max": 60,
+    "send_delay_ms": 1500
+  },
   "timeouts_ms": {
     "desktop_auth": 10000,
     "nook_add_reading": 15000,

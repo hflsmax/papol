@@ -68,6 +68,14 @@ how much: the time a day held on the month's calendar, and a paper's
 5 carry `--ink-inverse` text. None
 is ever used for a state.
 
+**Read-age greys** (`--read-age-1`, `--read-age-2`) shade a paper's row
+on the member's own desk by how long ago they last read it
+(`readAge.js`): within two weeks it keeps `--card`; `1` is longer ago,
+`2` is never read. Neutral grey, so it never reads as
+effort's blue. On a shaded row `--ink-faint` becomes `--ink-soft`, which
+stays AA on the darkest step. A nook that does not know the reading time
+(the Mac's replica) shades nothing.
+
 ## Type
 
 Three families, by role:
@@ -186,7 +194,7 @@ sidebar, toolbar and document windows.
   Papol, the page's own title (Papers, a shelf, a project, a board, a paper)
   at a project name's size on the same baseline, the page's own controls
   beside it (a project's people and Invite, a shelf picker and the trash),
-  then the Bazaar and the member. In the nook the title
+  then the Lounge (with the gold dot when it has news) and the member. In the nook the title
   starts where the page does, so the page begins at the top of the window;
   on a narrow window the title takes the line under it. A page puts its
   title there with `InWay`; without the bar (a visitor, the Mac app) the
@@ -206,10 +214,14 @@ sidebar, toolbar and document windows.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.
 - **Sign-in returns to the path asked for,** whichever of the above it is.
-- **Full pages that stay full pages:** Bazaar and the member's own page.
+- **Full pages that stay full pages:** the Lounge and the member's own page.
   Neither a paper's brief nor a dig is a page: a brief opens beside the
   list in the project's Papers tab, a dig in its Digs tab (under its row on
   a narrow window).
+- **A project's settings are its Manage tab,** last after Papers, Boards
+  and Digs: name and description, members and the invitation, leaving, and
+  (a keeper only) Delete project, asked first. Deleting takes the project's
+  boards and digs; its papers are each member's own and stay in their nooks.
 
 ## Digs
 
@@ -394,7 +406,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   Desk, where what is known about it is kept and from which it is opened.
   A paper has had one all along; a board's is new, and it is why the board's
   `description` column finally has somewhere to be read. Both sit inside the
-  Desk's own chrome with a Back to the nook or Library they were opened
+  Desk's own chrome with a Back to the nook or Lounge they were opened
   from (`jacketOrigin.js`, one remembered place per tab serving both kinds).
   A board's jacket is one component in both shells (`BoardJacket.jsx`), set
   like a paper's: the same panel, title row, shelf picker and trash. Under
@@ -559,14 +571,24 @@ is a dig: one person's writing about one thing, under the one spade pin.
   way to a native reference-manager layout. A 220px `--chrome` source-list
   sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
-  then Desk, Inbox, Learn, with Manage nook as the icon beside "My nook".
+  then Projects, and Inbox, Learn, with Manage nook as the icon
+  beside "My nook". Above them a segmented switch, **My nook | Lounge**
+  (⌘1, ⌘2), puts the whole window in one of two modes. In Lounge mode the
+  sidebar takes a green tint (`--chrome-lounge`) and lists the Lounge's
+  own rail instead: Friends (with Find as the icon beside it), then Show,
+  then Inbox and Learn; the Lounge page is its card alone. Pages opened in
+  either mode (a paper, a friend's nook, the Inbox) keep it: in Lounge
+  mode a paper opens on its own page, not beside the nook's list. Only the
+  switch, the Lounge itself, or the nook's own lists change the mode. There is no Library: other people's papers reach the
+  Mac as they do the web, through the Lounge, a nook or a link.
   Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
-  a source, a 320px white list pane shows it as compact rows with a search
-  field, and the selected paper opens beside the list in the ordinary
+  a source, a 320px white list pane shows it as compact rows under a search
+  field (the pane has no title row: the field and the add buttons share its
+  52px toolbar band, since the sidebar already names and counts the source), and the selected paper opens beside the list in the ordinary
   `PaperJacket`. A selected board opens its jacket there instead — the same
   `BoardJacket` the web shows at `/board/<uuid>`, reading the replica. One
   click selects a board; double-click, Return, or the jacket's Open board
-  or preview opens its document window. The Library is for recognising and
+  or preview opens its document window. The Desk is for recognising and
   resuming a board, never for editing its canvas. A newly created board
   becomes the selected board in the Desk and shows its jacket; creation
   never opens the document window on the user's behalf.

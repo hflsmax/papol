@@ -128,3 +128,34 @@ test('pieces are joined with spaces, line breaks and page breaks as a user would
     { page: 2, text: 'five', box: box(0, 0) },
   ]), 'one two\nthree\n\nfour\n\nfive');
 });
+
+test('an indented first line or a short last line ends a paragraph without a gap', () => {
+  const line = (text, left, right, top) => ({ page: 1, text, box: { left, right, top, bottom: top + 10, height: 10 } });
+  // Lines 12 apart, as most papers set them: no gap marks the paragraph.
+  assert.equal(joinTextPieces([
+    line('the middle of a sentence that', 200, 500, 0),
+    line('runs on and ends here.', 100, 500, 12),
+    line('A new paragraph starts indented', 115, 500, 24),
+    line('and runs on.', 100, 300, 36),
+  ]), 'the middle of a sentence that\nruns on and ends here.\n\nA new paragraph starts indented\nand runs on.');
+  assert.equal(joinTextPieces([
+    line('A paragraph that ends short.', 100, 300, 0),
+    line('Another, flush with the margin,', 100, 500, 12),
+    line('wraps here. Neither breaks', 100, 500, 24),
+    line('there.', 100, 140, 36),
+  ]), 'A paragraph that ends short.\n\nAnother, flush with the margin,\nwraps here. Neither breaks\nthere.');
+});
+
+test('a sentence ending at the column\'s edge does not end the paragraph', () => {
+  const line = (text, left, right, top) => ({ page: 1, text, box: { left, right, top, bottom: top + 10, height: 10 } });
+  assert.equal(joinTextPieces([
+    line('one sentence ends right at the edge.', 100, 500, 0),
+    line('The next goes on', 100, 400, 12),
+  ]), 'one sentence ends right at the edge.\nThe next goes on');
+});
+
+test('the top of the next column starts a new line', () => {
+  const line = (text, left, top) => ({ page: 1, text, box: { left, right: left + 200, top, bottom: top + 10, height: 10 } });
+  assert.equal(joinTextPieces([line('foot of one column', 50, 700), line('head of the next', 320, 80)]),
+    'foot of one column\nhead of the next');
+});

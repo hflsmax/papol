@@ -69,6 +69,10 @@ export const BIG_OPERATOR = /^\s*[∗∑∏∐⋃⋂⨁⨂⨀⨄⨆⋁⋀⊛]\s*
 const MARGIN = 0.09;
 const OUTER = 0.2;
 const RECURS = 3;
+// A line set this much larger than the body is a title, never a running
+// head: ACM's sigplan pages print the title at the top of page one, inside
+// the margin, and again as the running head of the odd pages.
+const HEADLINE = 1.35;
 
 function median(values: number[]): number {
   if (!values.length) return 0;
@@ -539,6 +543,7 @@ function markFurniture(pages: Layout["pages"], bodySize: number): void {
       if (outer(line, page.height) && apart(line) && shape(line.text) !== "#" && (at.get(placed(line)) ?? 0) >= Math.max(RECURS, pages.length / 4)) line.furniture = true;
       continue;
     }
+    if (line.size >= HEADLINE * bodySize && /\p{L}{3}/u.test(line.text)) continue;
     const s = shape(line.text);
     if ((seen.get(s) ?? 0) >= recurring || /^[#ivxlc.\s-]+$/i.test(s) || (s.length >= 3 && recurs.some((r) => r.includes(s)))) line.furniture = true;
   }

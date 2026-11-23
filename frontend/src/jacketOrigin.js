@@ -3,7 +3,7 @@ import { parseRoute } from './routes.js';
 /**
  * Where a jacket was opened from, so its Back can lead there.
  *
- * A work is kept in two kinds of place — a nook, or the library — and Back
+ * A work is found in two kinds of place — a nook, or the Lounge — and Back
  * on its jacket means "return me to the one I found this in". The
  * browser's own history cannot be asked: the usual way onto a paper page is
  * back from the viewer, which is a separate application and a fresh
@@ -22,13 +22,13 @@ import { parseRoute } from './routes.js';
 
 const KEY = 'papol.jacketOrigin';
 
-/** The nook or library a path shows, or null if it shows neither. */
+/** The nook or Lounge a path shows, or null if it shows neither. */
 export function placeOf(pathname) {
   const route = parseRoute(pathname);
   // Home is the signed-in user's own nook, under its shortest name.
   if (route.page === 'home') return '/';
   if (route.page === 'nook') return `/u/${route.uuid}`;
-  if (route.page === 'papers') return '/library';
+  if (route.page === 'room') return '/lounge';
   return null;
 }
 
@@ -38,7 +38,7 @@ const isJacket = (route) => route.page === 'paper' || route.page === 'board';
 /**
  * The origin to remember after moving from one path to another.
  *
- * Only a move *onto* a jacket changes it. From a nook or the library, that
+ * Only a move *onto* a jacket changes it. From a nook or the Lounge, that
  * place becomes the origin. From another jacket — a reference followed, a
  * related paper opened, a board opened from a paper — the trail keeps the
  * place it started from. From anywhere else (a project, the inbox) there is
@@ -54,12 +54,12 @@ export function originAfterMove(origin, fromPathname, toPathname) {
 /**
  * Where Back leads, and what to call it. With no remembered origin — a link
  * someone was sent, a bookmark — a signed-in user goes to their own nook,
- * which is home, and a visitor to the library, which is the only place a
- * visitor can find papers at all.
+ * which is home, and a visitor to the home page.
  */
 export function jacketBackTarget({ origin = null, userUuid = null } = {}) {
-  const path = origin || (userUuid ? '/' : '/library');
-  if (path === '/library') return { path, label: 'Library' };
+  const path = origin || '/';
+  if (!userUuid && path === '/') return { path, label: 'Home' };
+  if (path === '/lounge') return { path, label: 'Lounge' };
   const mine = path === '/' || (userUuid && path === `/u/${userUuid}`);
   return { path, label: mine ? 'My nook' : 'Nook' };
 }

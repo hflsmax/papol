@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v7
 
       # Restored only: the pages job saves the npm cache for both, from main.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
           install_args: node
           cache_save: false
@@ -84,7 +84,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
           install_args: node
           cache_save: false
@@ -98,6 +98,18 @@ jobs:
       # Chrome builds its sandbox.
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # A job's first Chrome reads its whole install from a cold disk, and
+      # has taken 30–40 s to start where a warm one takes one or two; that
+      # first launch was what timed the smokes out. Pay it here, untimed,
+      # so the smokes start on a warm Chrome. Never fails the job: a Chrome
+      # that will not start fails in the smokes, with its log.
+      - name: Warm Chrome
+        run: |
+          start=$(date +%s)
+          timeout 180 google-chrome --headless --no-sandbox --disable-gpu --no-first-run \
+            --user-data-dir="$RUNNER_TEMP/chrome-warm" --dump-dom about:blank > /dev/null 2>&1 || true
+          echo "Chrome's first start took $(( $(date +%s) - start )) s"
 
       # The browser is the runner's own Google Chrome, found on PATH.
       - name: Unit tests and smokes
@@ -147,7 +159,7 @@ jobs:
       # and npm caches are saved from main alone: every PR branch writing
       # its own would push the repository past GitHub's 10 GB and evict
       # the rest.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
           install_args: node
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -179,6 +191,18 @@ jobs:
       # Chrome builds its sandbox.
       - name: Let Chrome sandbox itself
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # A job's first Chrome reads its whole install from a cold disk, and
+      # has taken 30–40 s to start where a warm one takes one or two; that
+      # first launch was what timed the smokes out. Pay it here, untimed,
+      # so the smokes start on a warm Chrome. Never fails the job: a Chrome
+      # that will not start fails in the smokes, with its log.
+      - name: Warm Chrome
+        run: |
+          start=$(date +%s)
+          timeout 180 google-chrome --headless --no-sandbox --disable-gpu --no-first-run \
+            --user-data-dir="$RUNNER_TEMP/chrome-warm" --dump-dom about:blank > /dev/null 2>&1 || true
+          echo "Chrome's first start took $(( $(date +%s) - start )) s"
 
       # What the assembled site and wrangler need; the pages' own suites
       # are the page job's. Four installs that share nothing, side by side.

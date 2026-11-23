@@ -42,7 +42,9 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (path === '/signin') return { page: 'signin' };
   const resetToken = path.match(/^\/reset-password\/([0-9a-f]{64})\/?$/i)?.[1];
   if (resetToken) return { page: 'reset-password', token: resetToken.toLowerCase() };
-  if (path === '/bazaar' || path === '/library') return { page: 'papers' };
+  // The Lounge took the Bazaar's place, and the Bazaar's address still
+  // leads there.
+  if (path === '/lounge' || path === '/bazaar') return { page: 'room' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
   // The page file itself is where the Mac app's window opens.
@@ -50,4 +52,29 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   // No page answers this path: a link that leads nowhere is a bug to report,
   // not a reason to show some other page as if it were asked for.
   return { page: 'unknown', path };
+}
+
+// The pages a visitor is asked to sign in for, in place, when they arrive
+// signed out.
+export const SIGN_IN_PAGES = new Set([
+  'nook', 'shelf', 'room', 'inbox', 'admin', 'profile',
+  'projects', 'project', 'invitation',
+]);
+
+// The canvas and the viewer are built and served apart from this app, so
+// parseRoute does not know their shapes; their links are still ours.
+const OTHER_SURFACES = ['/boards/', '/viewer/'];
+
+// Where signing in leaves someone: the page they were on, or were sent to,
+// when it is one of ours worth being returned to. A link that arrives
+// signed out (an email's /inbox, a shared paper, an invitation) asked for
+// that page, and signing in is the step on the way there, not a detour to
+// Home. The sign-in, join and reset pages themselves, and anything that
+// is not a page here, lead Home.
+export function returnAfterSignIn(candidate) {
+  const path = String(candidate || '');
+  if (!path.startsWith('/') || path.startsWith('//')) return '/';
+  if (OTHER_SURFACES.some((start) => path.startsWith(start))) return path;
+  const { page } = parseRoute(path.split(/[?#]/)[0]);
+  return page === 'paper' || page === 'board' || SIGN_IN_PAGES.has(page) ? path : '/';
 }

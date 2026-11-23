@@ -16,12 +16,12 @@
     "@noble/hashes": "^2.4.0",
     "aws4fetch": "^1.0.20",
     "fflate": "^0.8.3",
-    "linkpeek": "^2.1.5"
+    "linkpeek": "^2.1.6"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.23.0",
     "typescript": "^5.9.0",
-    "vitest": "4.1.11",
-    "wrangler": "^4.135.0"
+    "vitest": "4.1.12",
+    "wrangler": "^4.166.0"
   }
 }

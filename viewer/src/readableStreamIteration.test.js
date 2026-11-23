@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installReadableStreamIteration } from './readableStreamIteration.js';
+import { installReadableStreamIteration } from '../../shared/readableStreamIteration.js';
 
 // Node's own ReadableStream can already be iterated, so each test hands the
-// polyfill a stream class that, like WebKit's before Safari 26, cannot.
+// polyfill a stream class that, like Safari's (26.6 still), cannot.
 function webkitLikeStreamClass() {
   return class Stream {
     constructor(source) {
