@@ -2,13 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { doubleClickDropsAnchor, nearText, onBareGround } from './blankDoubleClick.js';
 
-const bare = { tool: 'arrow', button: 0, pointerType: 'mouse', bare: true, selectedText: '', nearText: false, overReference: false };
+const bare = { tool: 'arrow', button: 0, pointerType: 'mouse', bare: true, nearText: false, overReference: false };
 
 test('a double-click with the arrow on bare paper drops an anchor', () => {
   assert.equal(doubleClickDropsAnchor(bare), true);
   assert.equal(doubleClickDropsAnchor({ ...bare, pointerType: 'pen' }), true);
-  // What Chrome selects on a double-click between lines of a text layer.
-  assert.equal(doubleClickDropsAnchor({ ...bare, selectedText: '\n' }), true);
   // No pointer seen before the click (a synthetic or keyboard-free path).
   assert.equal(doubleClickDropsAnchor({ ...bare, pointerType: undefined }), true);
 });
@@ -20,7 +18,6 @@ test('every other double-click keeps what it meant', () => {
   assert.equal(doubleClickDropsAnchor({ ...bare, button: 2 }), false);
   assert.equal(doubleClickDropsAnchor({ ...bare, pointerType: 'touch' }), false);
   assert.equal(doubleClickDropsAnchor({ ...bare, bare: false }), false);
-  assert.equal(doubleClickDropsAnchor({ ...bare, selectedText: 'dominant' }), false);
   assert.equal(doubleClickDropsAnchor({ ...bare, nearText: true }), false);
   assert.equal(doubleClickDropsAnchor({ ...bare, overReference: true }), false);
 });

@@ -2101,9 +2101,9 @@ function PdfPage({
     onSelectAnchor(pin.uuid);
   };
 
-  // Whether a double-click here, with this much text selected, is one that
-  // drops an anchor (blankDoubleClick.js).
-  const dropsAnchorAt = (e, selectedText) => {
+  // Whether a double-click here is one that drops an anchor
+  // (blankDoubleClick.js). Where it landed decides, not what it selected.
+  const dropsAnchorAt = (e) => {
     if (tool !== 'arrow' || !onPlaceAnchor) return false;
     const box = holderRef.current?.getBoundingClientRect();
     if (!box?.width || !box.height) return false;
@@ -2114,7 +2114,6 @@ function PdfPage({
       button: e.button,
       pointerType: pressedWithRef.current,
       bare: onBareGround(e.target, holderRef.current),
-      selectedText,
       nearText: nearText(
         [...holderRef.current.querySelectorAll('.textLayer span')].map((span) => span.getBoundingClientRect()),
         e.clientX,
@@ -2172,12 +2171,11 @@ function PdfPage({
       }}
       onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
       onDoubleClick={(e) => {
-        // Where the double-click landed decides, not what it selected: on
-        // the text layer's bare ground the browser selects something of its
-        // own (a line break in Chrome, the whole page in WebKit), which
-        // placeAnchor puts away. The second press is not kept from the
-        // browser: a prevented mousedown left Safari's cursor frozen.
-        if (!dropsAnchorAt(e, '')) return;
+        // The browser keeps its presses: on the text layer's bare ground it
+        // selects something of its own on the way (a line break in Chrome,
+        // the whole page in WebKit), and placeAnchor puts that away rather
+        // than the page holding the second press back from the browser.
+        if (!dropsAnchorAt(e)) return;
         onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
       onClick={(e) => {
