@@ -36,11 +36,11 @@ const STYLE = `
   transition: none;
 }
 .desktop-nav .desktop-nav-button:hover:not(:disabled) {
-  background: rgba(29, 33, 41, 0.07);
+  background: rgba(var(--ink-rgb, 29, 33, 41), 0.07);
   color: var(--ink, #1d2129);
 }
 .desktop-nav .desktop-nav-button:active:not(:disabled) {
-  background: rgba(29, 33, 41, 0.13);
+  background: rgba(var(--ink-rgb, 29, 33, 41), 0.13);
 }
 .desktop-nav .desktop-nav-button:disabled {
   opacity: 0.3;

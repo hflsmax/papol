@@ -42,11 +42,11 @@ const STYLE = `
 }
 .desktop-syncing-status button:hover:not(:disabled) {
   border: 0;
-  background: var(--chrome-hover, rgba(29, 33, 41, 0.06));
+  background: var(--chrome-hover, rgba(var(--shade-rgb, 29, 33, 41), 0.06));
   color: var(--ink, #1d2129);
 }
 .desktop-syncing-status button:active:not(:disabled) {
-  background: var(--chrome-selected, rgba(29, 33, 41, 0.1));
+  background: var(--chrome-selected, rgba(var(--shade-rgb, 29, 33, 41), 0.1));
 }
 .desktop-syncing-status button:focus-visible {
   border: 0;

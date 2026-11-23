@@ -19,14 +19,14 @@ const STYLE = `
 .papol-confirm-overlay {
   position: fixed; inset: 0; z-index: 10000;
   display: grid; place-items: start center; padding: 18vh 16px 0;
-  background: rgba(29, 33, 41, 0.28);
+  background: rgba(var(--shade-rgb, 29, 33, 41), 0.28);
   animation: papol-confirm-fade 0.12s ease-out;
 }
 .papol-confirm {
   width: min(380px, 100%); padding: 20px 20px 16px;
   border-radius: var(--radius-lg, 10px);
   background: var(--card, #fff); color: var(--ink, #1d2129);
-  box-shadow: 0 18px 50px rgba(20, 25, 35, 0.28), 0 0 0 1px rgba(20, 25, 35, 0.08);
+  box-shadow: 0 18px 50px rgba(var(--shade-rgb, 29, 33, 41), 0.28), 0 0 0 1px rgba(var(--shade-rgb, 29, 33, 41), 0.08);
   font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
   font-size: var(--fs-sm, 0.85rem); line-height: 1.45;
   cursor: default; user-select: none; -webkit-user-select: none;

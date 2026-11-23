@@ -296,7 +296,7 @@ export const desktopStyles = `
 
 .desktop-sidebar .desktop-mode-item.active {
   background: var(--card);
-  box-shadow: 0 1px 2px rgba(29, 33, 41, 0.14);
+  box-shadow: 0 1px 2px rgba(var(--shade-rgb), 0.14);
   color: var(--ink);
 }
 
@@ -718,7 +718,7 @@ export const desktopStyles = `
 [data-shell='desktop'] .auth-card {
   border: 0;
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 3px rgba(29, 33, 41, 0.08), 0 10px 30px rgba(29, 33, 41, 0.08);
+  box-shadow: 0 1px 3px rgba(var(--shade-rgb), 0.08), 0 10px 30px rgba(var(--shade-rgb), 0.08);
 }
 
 [data-shell='desktop'] .auth-subtitle {

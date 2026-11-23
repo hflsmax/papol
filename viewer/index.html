@@ -4,12 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#17233b" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Papol — reading</title>
     <style>
       html, body { margin: 0; height: 100%; background: #f5f6f8; }
       #root { height: 100%; }
+      /* Until the viewer's sheet arrives: --paper, light or dark. */
+      @media (prefers-color-scheme: dark) { html:not([data-theme='light']), html:not([data-theme='light']) body { background: #15181d; } }
+      html[data-theme='dark'], html[data-theme='dark'] body { background: #15181d; }
     </style>
   </head>
   <body>

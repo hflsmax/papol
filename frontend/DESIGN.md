@@ -32,9 +32,36 @@ than design tokens.
 | `--accent-strong` | `#1e3752` | Primary button hover |
 | `--accent-soft` | `#eaeff5` | Tinted cards (digs, summaries, quotes) |
 | `--focus` / `--focus-soft` | accent / translucent accent | Keyboard focus and inset field focus |
-| `--chrome` | `#eaedf1` (`#f9ecea` in development) | Papol macOS sidebar ground; light red distinguishes development builds |
+| `--chrome` | `#eaedf1` (`#f9ecea` in development; `#1a1e24` / `#2b1d1c` dark) | Papol macOS sidebar ground; light red distinguishes development builds |
 | `--chrome-hover` / `--chrome-selected` | ink at 6% / 10% | Desktop sidebar and toolbar row hover / current row |
 | `--chrome-radius` | `6px` | Desktop sidebar rows and toolbar buttons only |
+
+### Light and dark
+
+Every colour token has a dark value (`darkTokens` in
+`shared/designTokens.js`), and `themedTokens()` writes both: the dark
+values apply when the system is dark and the member has not chosen Light,
+or when they chose Dark (Preferences, Appearance, kept per device in
+`localStorage` by `shared/theme.js`, which sets `data-theme` on `<html>`).
+Because only token values change, a rule that uses tokens is themed for
+free; never write a colour that only works on a light ground.
+
+- At night surfaces get lighter as they come forward (`--paper-sunken`,
+  `--paper`, `--card`), and saturated fills (`--accent`, `--red`, the
+  identity and heat colours) get lighter, so `--ink-inverse` turns dark to
+  stay AA on them.
+- Shadows and scrims are `rgba(var(--shade-rgb), a)`, a wash of the accent
+  `rgba(var(--accent-rgb), a)`, and a wash of the text colour (a hover)
+  `rgba(var(--ink-rgb), a)`, so their opacity holds while their colour
+  follows the theme.
+- `--page` is white in both themes: it stands for paper. PDF pages, and the
+  landing page's printed specimen, stay light, as do the highlights, ink,
+  citation washes and anchors drawn on them.
+- `--accent-band` / `--accent-band-ink` is a band of brand navy across the
+  page (the Mac download announcement): navy in both themes.
+- The rare colour that is a component's own (a lesson's picture, a shelf's
+  colour) gets its night value through `inDark([[selector, declarations]])`
+  beside its light rule.
 
 Semantic hues — states carry meaning consistently across the app:
 
