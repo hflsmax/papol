@@ -1670,6 +1670,25 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   cursor: pointer;
 }
 
+/* Beside a jacket's heading the chip is centred on the heading's capitals,
+   whatever the font: the heading says how tall its capitals are, the chip
+   is cut to its own, and it is raised by half the difference. Small caps
+   stand about four fifths as tall. */
+@property --row-cap { syntax: '<length>'; inherits: true; initial-value: 0px; }
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) {
+  .paper-jacket h4 { --row-cap: 1cap; }
+  .paper-jacket h4.kicker { --row-cap: 0.8cap; }
+  .paper-jacket h4 .visibility-badge {
+    display: inline-block;
+    padding-block: 3.5px;
+    line-height: 1;
+    vertical-align: calc((var(--row-cap) - 1cap) / 2);
+  }
+  .paper-jacket h4 .visibility-badge > .badge-label { display: block; }
+  .paper-jacket h4 span.visibility-badge,
+  .paper-jacket h4 .visibility-badge > .badge-label { text-box: trim-both cap alphabetic; }
+}
+
 /* The once-only card saying a copy's parts can each be private or public,
    hung from the first chip. It sits in a kicker heading, so it puts back
    plain text. */

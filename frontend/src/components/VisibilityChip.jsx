@@ -19,7 +19,7 @@ export default function VisibilityChip({ shown, onDisplay, onToggle }) {
       title={title}
       aria-label={`${said}: ${title}`}
     >
-      {said}
+      <span className="badge-label">{said}</span>
     </button>
   );
 }
