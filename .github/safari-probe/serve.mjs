@@ -18,25 +18,50 @@ const screenOf = (x, y) => {
   const left = window.screenX + (window.outerWidth - window.innerWidth) / 2;
   return { x: Math.round(left + x), y: Math.round(top + y) };
 };
+const describe = (t) => (t && ((t.className && String(t.className.baseVal ?? t.className)) || t.tagName)) || 'none';
+const watch = (d, where) => {
+  if (d.__probe) return;
+  d.__probe = true;
+  for (const type of ['mouseover', 'pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick']) {
+    d.addEventListener(type, (e) => {
+      post('/probe/event', { where, type, detail: e.detail, x: e.clientX, y: e.clientY, target: describe(e.target),
+        cursor: e.target.nodeType === 1 ? getComputedStyle(e.target).cursor : '',
+        selected: String(f.contentWindow.getSelection() || '').length, prevented: e.defaultPrevented });
+    }, true);
+  }
+};
+watch(document, 'top');
 const tick = async () => {
   const d = f.contentDocument;
+  if (d && d.body) {
+    watch(d, 'viewer');
+    if (!d.getElementById('probe-style')) {
+      // The "open in the Mac app" bar comes and goes over the page; kept away, the page holds still.
+      const st = d.createElement('style'); st.id = 'probe-style';
+      st.textContent = '.mac-handoff-bar{display:none!important}';
+      d.head.append(st);
+    }
+  }
   const page = d && d.querySelector('.pdf-page[data-page="1"]');
   const spans = page ? [...page.querySelectorAll('.textLayer span')] : [];
   const find = (t) => spans.find((s) => s.textContent.includes(t));
-  if (!window.sent && find('dominant') && find('illia') && find('Abstract')) {
-    page.scrollIntoView({ block: 'start' });
-    await new Promise((r) => setTimeout(r, 800));
+  if (find('dominant') && find('illia') && find('Abstract')) {
+    if (!window.scrolled) {
+      window.scrolled = true;
+      page.scrollIntoView({ block: 'start' });
+      await new Promise((r) => setTimeout(r, 1500));
+    }
     const w = find('dominant').getBoundingClientRect();
     const a = find('illia').getBoundingClientRect();
     const b = find('Abstract').getBoundingClientRect();
     const box = page.getBoundingClientRect();
-    window.sent = true;
+    const at = (x, y) => ({ ...screenOf(x, y), client: [Math.round(x), Math.round(y)], under: describe(d.elementFromPoint(x, y)) });
     await post('/probe/spots', {
-      word: screenOf(w.left + w.width * 0.3, w.top + w.height / 2),
-      bare: screenOf(box.left + box.width * 0.3, (a.bottom + b.top) / 2),
-      bare2: screenOf(box.left + box.width * 0.75, (a.bottom + b.top) / 2),
+      word: at(w.left + w.width * 0.3, w.top + w.height / 2),
+      bare: at(box.left + box.width * 0.3, (a.bottom + b.top) / 2),
+      bare2: at(box.left + box.width * 0.75, (a.bottom + b.top) / 2),
       window: { screenX: window.screenX, screenY: window.screenY, outer: [window.outerWidth, window.outerHeight], inner: [window.innerWidth, window.innerHeight] },
-    });
+    }).catch(() => {});
   }
   if (d) {
     const sel = f.contentWindow.getSelection();
@@ -50,19 +75,7 @@ const tick = async () => {
   }
   setTimeout(tick, 400);
 };
-f.addEventListener('load', () => {
-  const d = f.contentDocument;
-  for (const type of ['mouseover', 'mousedown', 'mouseup', 'click', 'dblclick']) {
-    d.addEventListener(type, (e) => {
-      const t = e.target;
-      post('/probe/event', { type, detail: e.detail, x: e.clientX, y: e.clientY,
-        target: (t.className && String(t.className.baseVal ?? t.className)) || t.tagName,
-        cursor: getComputedStyle(t).cursor, selected: String(f.contentWindow.getSelection() || '').length,
-        prevented: e.defaultPrevented });
-    }, true);
-  }
-  tick();
-});
+tick();
 </script>`;
 // Ahead of Vite's own handlers, which answer 404 outside the viewer's base.
 server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {

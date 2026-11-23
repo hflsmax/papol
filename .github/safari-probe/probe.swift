@@ -75,28 +75,66 @@ for w in (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as?
   print("window:", w[kCGWindowOwnerName as String] ?? "?", w[kCGWindowName as String] ?? "", w[kCGWindowBounds as String] ?? "")
 }
 
+// The cursor as the screen shows it: the same patch of screen taken with
+// and without the cursor drawn in; where they differ is the cursor, and
+// its outline tells an arrow from an I-beam from a hand.
+func grab(_ r: CGRect, cursor: Bool) -> NSBitmapImageRep? {
+  let file = "/tmp/probe-\(cursor ? "c" : "n").png"
+  let p = Process()
+  p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+  p.arguments = (cursor ? ["-C"] : []) + ["-x", "-R", "\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height))", file]
+  try? p.run(); p.waitUntilExit()
+  guard let data = try? Data(contentsOf: URL(fileURLWithPath: file)) else { return nil }
+  return NSBitmapImageRep(data: data)
+}
+func seen(_ at: CGPoint) -> String {
+  let r = CGRect(x: at.x - 24, y: at.y - 24, width: 48, height: 48)
+  guard let a = grab(r, cursor: true), let b = grab(r, cursor: false), a.pixelsWide == b.pixelsWide, a.pixelsHigh == b.pixelsHigh else { return "no capture" }
+  var minX = Int.max, minY = Int.max, maxX = -1, maxY = -1, n = 0
+  for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
+    guard let ca = a.colorAt(x: x, y: y), let cb = b.colorAt(x: x, y: y) else { continue }
+    if abs(ca.redComponent - cb.redComponent) + abs(ca.greenComponent - cb.greenComponent) + abs(ca.blueComponent - cb.blueComponent) > 0.15 {
+      n += 1; minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y)
+    }
+  } }
+  if n == 0 { return "drawn: nothing" }
+  let scale = Double(a.pixelsWide) / 48
+  return String(format: "drawn: %dx%d px, %d px changed", Int(Double(maxX - minX + 1) / scale), Int(Double(maxY - minY + 1) / scale), n)
+}
+func look(_ label: String, _ at: CGPoint) -> String {
+  let c = cursor(), d = seen(at)
+  print(label, c, "|", d)
+  return d
+}
+
 var spots: [String: Any]? = nil
 for _ in 0..<120 { spots = get("spots"); if spots != nil { break }; sleep(1) }
-guard let s = spots else { print("RESULT no spots: the page never reported"); exit(0) }
-print("window", s["window"] ?? "?")
-let word = point(s, "word"), bare = point(s, "bare"), bare2 = point(s, "bare2")
-print("references: known cursors arrow=\(NSCursor.arrow.hotSpot) iBeam=\(NSCursor.iBeam.hotSpot) hand=\(NSCursor.pointingHand.hotSpot)")
+guard spots != nil else { print("RESULT no spots: the page never reported"); exit(0) }
+sleep(3)
+func fresh(_ key: String) -> CGPoint {
+  let s = get("spots") ?? spots!
+  if let p = s[key] as? [String: Any] { print("  \(key): screen (\(p["x"] ?? "?"), \(p["y"] ?? "?")) client \(p["client"] ?? "?") under \(p["under"] ?? "?")") }
+  return point(s, key)
+}
+print("window", (get("spots") ?? spots!)["window"] ?? "?")
 
 // A first click wakes the window: one Safari is not yet key keeps for itself.
-move(bare); click(bare); sleep(1)
-move(word);  let w1 = cursor(); print("before: over a word      ", w1)
-move(bare);  let b1 = cursor(); print("before: over bare paper  ", b1)
-move(word);  let w2 = cursor(); print("before: over a word again", w2)
+let wake = fresh("bare"); move(wake); click(wake); sleep(1)
+var p = fresh("word"); move(p); let w1 = look("before: over a word      ", p)
+p = fresh("bare"); move(p); let b1 = look("before: over bare paper  ", p)
+p = fresh("word"); move(p); let w2 = look("before: over a word again", p)
 print("state before:", state())
 
-move(bare2); doubleClick(bare2)
+p = fresh("bare2"); move(p); doubleClick(p)
 print("double-clicked bare paper; state:", state())
+sleep(1)
 
-move(word);  let w3 = cursor(); print("after: over a word       ", w3)
-move(bare);  let b3 = cursor(); print("after: over bare paper   ", b3)
-move(word);  let w4 = cursor(); print("after: over a word again ", w4)
+p = fresh("word"); move(p); let w3 = look("after: over a word       ", p)
+p = fresh("bare"); move(p); let b3 = look("after: over bare paper   ", p)
+p = fresh("word"); move(p); let w4 = look("after: over a word again ", p)
 
 let liveBefore = w1 != b1 && w1 == w2
-let liveAfter = w3 == w1 && b3 == b1 && w4 == w1
+let liveAfter = w3 != b3 && w3 == w4
 print("RESULT cursor follows the page before the double-click: \(liveBefore)")
 print("RESULT cursor follows the page after the double-click:  \(liveAfter)")
+print("RESULT the double-click dropped an anchor: \(state())")
