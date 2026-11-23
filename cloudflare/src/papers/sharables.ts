@@ -176,7 +176,7 @@ export async function revoke(db: D1Database, sharable: Sharable): Promise<void> 
 
 // Everything the link opens, and nothing else. The paper carries no
 // `uuid` and no way to its own page: a link hands over one reading of one
-// PDF, and the page behind it belongs to the Library, which is for people
+// PDF, and the page behind it, the paper's jacket, is for people
 // with accounts. A lean link was never carrying annotations, and a rich
 // one that lost its copy has already been demoted by openSharable, so the
 // kind is the whole answer.

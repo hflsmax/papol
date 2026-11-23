@@ -43,9 +43,8 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   const resetToken = path.match(/^\/reset-password\/([0-9a-f]{64})\/?$/i)?.[1];
   if (resetToken) return { page: 'reset-password', token: resetToken.toLowerCase() };
   // The Lounge took the Bazaar's place, and the Bazaar's address still
-  // leads there. So does the Library's: there is no Library any more, and
-  // other people's papers are found through the Lounge.
-  if (path === '/lounge' || path === '/bazaar' || path === '/library') return { page: 'room' };
+  // leads there.
+  if (path === '/lounge' || path === '/bazaar') return { page: 'room' };
   if (path === '/inbox') return { page: 'inbox' };
   if (path === '/admin') return { page: 'admin' };
   // The page file itself is where the Mac app's window opens.
