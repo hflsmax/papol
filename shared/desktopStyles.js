@@ -35,9 +35,12 @@ export const desktopStyles = `
   font-size: var(--fs-sm);
 }
 
+/* Just tall enough to clear the traffic lights (set at y 24 in
+   tauri.conf.json, so they end near 31px), so the mode switch starts
+   close under them rather than below a full 52px toolbar band. */
 .desktop-sidebar-drag {
   flex: none;
-  height: 52px;
+  height: 40px;
 }
 
 /* Only the list scrolls: nothing passes under the traffic lights, and the
