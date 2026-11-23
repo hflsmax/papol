@@ -582,8 +582,9 @@ is a dig: one person's writing about one thing, under the one spade pin.
   switch, the Lounge itself, or the nook's own lists change the mode. There is no Library: other people's papers reach the
   Mac as they do the web, through the Lounge, a nook or a link.
   Reading is three panes (`components/DesktopDesk.jsx`): the Desk sidebar picks
-  a source, a 320px white list pane shows it as compact rows with a search
-  field, and the selected paper opens beside the list in the ordinary
+  a source, a 320px white list pane shows it as compact rows under a search
+  field (the pane has no title row: the field and the add buttons share its
+  52px toolbar band, since the sidebar already names and counts the source), and the selected paper opens beside the list in the ordinary
   `PaperJacket`. A selected board opens its jacket there instead — the same
   `BoardJacket` the web shows at `/board/<uuid>`, reading the replica. One
   click selects a board; double-click, Return, or the jacket's Open board
