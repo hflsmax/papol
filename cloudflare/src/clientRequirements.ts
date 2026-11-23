@@ -22,7 +22,8 @@ export const SCHEMA_HEADER = "X-Papol-Schema";
 export const AGENT_PREFIX = "Papol macOS/";
 // What the desktop's windows send, whose requests cannot set a User-Agent.
 export const DESKTOP_VERSION_HEADER = "X-Papol-Desktop-Version";
-export const DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases";
+// The same newest-DMG link the pages offer (shared/macDownload.js).
+export const DOWNLOAD_URL = "https://github.com/hflsmax/papol/releases/latest/download/Papol_macOS.dmg";
 export const MINIMUM_DESKTOP_VERSION = "0.6.0";
 
 export const SUPPORTED = "supported";

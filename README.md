@@ -18,17 +18,18 @@ and your own thoughts, on a canvas with room to spread out.
 
 ![A board of cards](docs/screenshots/board.png)
 
-## Library
+## Nook and Lounge
 
-Every paper, and who reads it. Your nook holds your papers on shelves you
-make public or keep private.
+Your nook holds your papers on shelves you make public or keep private. The
+Lounge brings you what your friends are reading.
 
 ![A nook listing papers](docs/screenshots/nook.png)
 
 ## Papol for Mac
 
 The same Papol, with your papers there when the Wi-Fi is not.
-[Download](https://github.com/hflsmax/papol/releases).
+[Download for Mac](https://github.com/hflsmax/papol/releases/latest/download/Papol_macOS.dmg)
+(Apple Silicon; every version is on [Releases](https://github.com/hflsmax/papol/releases)).
 
 ![Papol running on macOS](docs/screenshots/macos.png)
 

@@ -122,7 +122,7 @@ export async function crossrefMatch(env: Env, raw: string): Promise<Record<strin
   if (!query) return [];
   const params = new URLSearchParams({
     "query.bibliographic": query, rows: String(limits.counts.bibliography_results),
-    select: "DOI,title,author,issued,container-title,issue,event,is-referenced-by-count,abstract,link,score",
+    select: "DOI,type,title,author,issued,container-title,issue,event,is-referenced-by-count,abstract,link,score",
   });
   let response: Response;
   try {

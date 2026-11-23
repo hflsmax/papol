@@ -84,6 +84,16 @@ const papers = [
   },
 ];
 
+// Papers in the member's nook that the project does not hold yet, for
+// Add papers to offer; and the PDF a picture drops on the page.
+const NOOK_ONLY = [
+  { sha256: digest(0xc1), title: 'Wavefront reconstruction with neural networks on Shack-Hartmann data', authors: '["Y. Zhang", "R. Gomez"]', journal: 'Optics Express', year: 2024, added_at: daysAgo(14) },
+  { sha256: digest(0xc2), title: 'Kalman filtering for tip-tilt control at the VLT', authors: '["C. Petit", "J.-M. Conan", "C. Kulcsár"]', journal: 'JOSA A', year: 2021, added_at: daysAgo(25) },
+  { sha256: digest(0xc3), title: 'Reinforcement learning for adaptive optics control', authors: '["J. Nousiainen", "C. Rajani", "M. Kasper"]', journal: 'Optics Express', year: 2022, added_at: daysAgo(31) },
+  { sha256: digest(0xc4), title: 'Telescope vibrations: sources, measurement and mitigation', authors: '["M. Kasper"]', journal: 'SPIE', year: 2019, added_at: daysAgo(48) },
+].map((p) => ({ ...p, doi: null, users: [{ user: me, thought: null, rating_reading: null, rating_liking: null }] }));
+const DROPPED = { sha256: 'f'.repeat(64), title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017, doi: '10.48550/arXiv.1706.03762', users: [] };
+
 // Each board as the project lists it, latest first: known by its
 // description and who last put something there.
 const latest = (text, kind, by, at) => ({ text, kind, added_by: by, added_at: at });
@@ -156,7 +166,7 @@ const project = {
   description: 'How a closed loop can learn the turbulence it corrects, and where learned control beats a tuned integrator on a real bench.',
   members: [
     { user: me, is_keeper: true, joined_at: daysAgo(20) },
-    { user: ana, is_keeper: true, joined_at: daysAgo(19) },
+    { user: ana, is_keeper: false, joined_at: daysAgo(19) },
     { user: ben, is_keeper: false, joined_at: daysAgo(12) },
     { user: mia, is_keeper: false, joined_at: daysAgo(2) },
   ],
@@ -166,7 +176,7 @@ const project = {
 
 const summary = { uuid: PROJECT, name: project.name, created_at: project.created_at, members: project.members, is_member: true, is_keeper: true, new_count: 3 };
 const other = { uuid: 'b1b2c3d4-0000-4000-8000-000000000011', name: 'Reading group', created_at: daysAgo(60), members: [{ user: me, is_keeper: false, joined_at: daysAgo(60) }, { user: mia, is_keeper: true, joined_at: daysAgo(60) }], is_member: true, is_keeper: false, new_count: 0 };
-// A project the member is not in, as the Bazaar lists it.
+// A project the member is not in, as the Projects page lists it.
 const closed = { uuid: 'b1b2c3d4-0000-4000-8000-000000000012', name: 'Wavefront sensing', created_at: daysAgo(40), members: [{ user: mia, is_keeper: true, joined_at: daysAgo(40) }], is_member: false, is_keeper: false, new_count: 0 };
 
 const digOf = (uuid) => {
@@ -177,7 +187,7 @@ const digOf = (uuid) => {
   return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, phase: d.phase ?? 'digging', can_moderate: true, posts };
 };
 
-// A paper as the Library and a nook list it: the members' takes are the
+// A paper as a nook lists it: the members' takes are the
 // users shown against it, and a nook's own copy sits on its one shelf.
 const SHELF = { uuid: 'ab000000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 3, board_count: 0 };
 const TAGS = ['control', 'wavefront', 'to cite'].map((name, i) => ({ uuid: `ae000000-0000-4000-8000-00000000000${i + 1}`, name }));
@@ -260,19 +270,93 @@ const REPORT = (() => {
   };
 })();
 
+let deleted = false;
+
 // What the pretend server says to each request the pages make.
+// Friends, and the Lounge made from them. Ana and Ben are the
+// member's friends; Mia has asked.
+const FRIEND_DIG = 'e1b2c3d4-0000-4000-8000-000000000060';
+const friendDig = {
+  uuid: FRIEND_DIG, created_at: hoursAgo(7), updated_at: hoursAgo(2), edited_at: null, project: null, subject: subject.paperSurvey, owner: ana, is_mine: false,
+  text: 'Section 4 undersells the pyramid sensor: the gain they quote is for a point source. I think the comparison flips for our extended guide star.',
+  phase: 'digging', can_moderate: false, can_post: true,
+  posts: [post('f1000000-0000-4000-8000-000000000060', ben, 'It does flip. Table 3 in the Nakamura paper has the extended case.', hoursAgo(2), false)],
+};
+const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: friendDig.created_at, updated_at: friendDig.updated_at, owner: ana, is_mine: false, text: friendDig.text, excerpt: friendDig.text, phase: 'digging', subject: subject.paperSurvey, post_count: 1, unread: 0, is_new: false, voices: [ana, ben], last_post: { user: ben, excerpt: friendDig.posts[0].body, created_at: hoursAgo(2) } };
+const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
+const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [] });
+let friendsNow = friendState();
+const roomRows = () => {
+  const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
+  const rows = [
+    { kind: 'paper', key: `paper:${P_SURVEY}`, paper: paperOut(papers[2]), in_my_nook: true, at: hoursAgo(2), is_new: true, lines: [
+      line(ben, 'posted', hoursAgo(2), { words: friendDig.posts[0].body, dig: { uuid: FRIEND_DIG, page: null, on: 'paper', owner: ana, post_count: 1 } }),
+      line(ana, 'dug', hoursAgo(7), { words: friendDig.text, dig: { uuid: FRIEND_DIG, page: null, on: 'paper', owner: ana, post_count: 1 } }),
+    ] },
+    { kind: 'paper', key: `paper:${P_LEARN}`, paper: paperOut(papers[0]), in_my_nook: false, at: hoursAgo(5), is_new: true, lines: [
+      line(ben, 'thought', hoursAgo(5), { words: 'Worth trying on the bench this month.' }),
+      line(ben, 'rated', hoursAgo(5), { ratings: { expertise: null, reading: 3, liking: 4 } }),
+      line(ana, 'added', hoursAgo(30)),
+    ] },
+    { kind: 'board', key: 'board:1', user: ana, board: { uuid: BOARD_MAP, name: 'Wavefront sensors compared', description: null, item_count: 7 }, at: daysAgo(4), is_new: false },
+    { kind: 'paper', key: `paper:${P_PYRAMID}`, paper: paperOut(papers[3]), in_my_nook: false, at: daysAgo(9), is_new: false, lines: [
+      line(ana, 'rated', daysAgo(9), { ratings: { expertise: null, reading: 3, liking: null } }),
+    ] },
+    { kind: 'project', key: `project:${closed.uuid}`, project: { uuid: closed.uuid, name: closed.name, description: 'Which sensor for which seeing.', member_count: 3, is_member: false, asked: false }, at: daysAgo(11), is_new: false, lines: [{ user: ana, did: 'joined', at: daysAgo(11) }] },
+  ];
+  return rows;
+};
+
 function answer(method, path, search, sent = {}) {
+  // Each picture loads the app afresh: the project is back.
+  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); }
+  // Friends: what the member's friends say now, changed by each answer.
+  if (path === '/friends' || path === '/friends/settings') {
+    return friendsNow;
+  }
+  if (path === '/friends/people') {
+    const q = (search.get('q') ?? '').toLowerCase();
+    return [mia, ...outsiders].filter((u) => u.display_name.toLowerCase().includes(q));
+  }
+  const friendAct = path.match(/^\/friends\/([0-9a-f-]{36})(\/accept|\/decline)?$/);
+  if (friendAct) {
+    const who = [ana, ben, mia, ...outsiders].find((u) => u.uuid === friendAct[1]);
+    const asked = friendsNow.requests.find((r) => r.user.uuid === friendAct[1]);
+    if (friendAct[2] === '/accept' && asked) friendsNow.friends.push({ user: asked.user, since: hoursAgo(0) });
+    if (friendAct[2]) friendsNow.requests = friendsNow.requests.filter((r) => r !== asked);
+    else if (method === 'POST' && who) friendsNow.sent.push(who.uuid);
+    else if (method === 'DELETE') {
+      friendsNow.sent = friendsNow.sent.filter((uuid) => uuid !== friendAct[1]);
+      friendsNow.friends = friendsNow.friends.filter((f) => f.user.uuid !== friendAct[1]);
+    }
+    return friendsNow;
+  }
+  if (path === '/room/news') return { news: true };
+  if (path === '/room') {
+    return {
+      friend_count: friendsNow.friends.length, seen_at: daysAgo(1), since: daysAgo(28),
+      rows: roomRows(),
+    };
+  }
+  if (/^\/papers\/[0-9a-f]+\/friend-digs$/.test(path)) return { digs: P_SURVEY.startsWith(path.split('/')[2]) ? [friendDigListed] : [] };
+  if (path === `/digs/${FRIEND_DIG}`) return friendDig;
+  if (path === `/digs/${FRIEND_DIG}/posts` && method === 'POST') {
+    friendDig.posts.push(post(`f1000000-0000-4000-8000-0000000000${60 + friendDig.posts.length}`, me, sent.body, hoursAgo(0), true));
+    return friendDig;
+  }
   if (path === '/auth/me') return { ...me, is_admin: process.env.PAPOL_ADMIN === '1', email: 'dana@example.org' };
   if (path === '/notifications') {
-    const note = (n, content, h, read) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read });
+    const note = (n, content, h, read, more = {}) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, kind: null, link: null, actor: null, ...more });
     return {
       notifications: [
+        note(5, 'Mia Tanaka asks to be friends.', 4, false, { kind: 'friend_request', link: `/u/${MIA}`, actor: mia, waiting: true }),
+        note(6, 'Ben Hall posted in your dig on “A survey of predictive control for telescopes”.', 2, false, { kind: 'dig_post', link: `/paper/${P_SURVEY.slice(0, 32)}`, actor: ben }),
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
         note(2, 'Mia Tanaka joined Adaptive optics control.', 26, false),
         note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
         note(4, 'Welcome to Papol, Dana Okafor—your paper-reading companion. Your nook is where you document your reading: upload the papers you read, rate them, and keep what you think of each.', 24 * 40, true),
       ],
-      unread_count: 2,
+      unread_count: 4,
     };
   }
   if (path === '/admin-messages/pending') return [];
@@ -295,8 +379,19 @@ function answer(method, path, search, sent = {}) {
   }
   // A project started from the rail opens as the fixture's own.
   if (path === '/projects' && method === 'POST') return project;
-  if (path === '/projects') return [summary, other, closed];
+  if (path === '/projects') return deleted ? [other, closed] : [summary, other, closed];
+  // A keeper deleting the project: gone from the lists for the rest of
+  // the visit, as the server has it.
+  if (path === `/projects/${PROJECT}` && method === 'DELETE') { deleted = true; return { message: 'Project deleted' }; }
   if (path === `/projects/${PROJECT}`) return project;
+  // A paper added from the nook or dropped on the page: the project with it
+  // first, as the server answers. Nothing is kept, so each picture starts
+  // from the same project.
+  if (path === `/projects/${PROJECT}/papers` && method === 'POST') {
+    const found = [...NOOK_ONLY, DROPPED].find((p) => p.sha256 === sent.paper_sha256);
+    if (!found || papers.some((p) => p.sha256 === found.sha256)) return project;
+    return { ...project, papers: [{ ...found, added_by: me, added_at: new Date().toISOString(), is_new: false, in_my_nook: true, board_uuids: [], tags: [] }, ...papers] };
+  }
   if (path === `/projects/${PROJECT}/people`) {
     const asked = (search?.get('q') ?? '').toLowerCase();
     return asked ? outsiders.filter((u) => u.display_name.toLowerCase().includes(asked)) : [];
@@ -345,14 +440,19 @@ function answer(method, path, search, sent = {}) {
       papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({
         ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [],
         effort: EFFORT[i] ? { seconds: EFFORT[i], last_at: hoursAgo(3 + i * 20) } : null,
-      })),
+      })).concat(NOOK_ONLY.map((p, i) => ({
+        ...listed(p, true),
+        // Read at a spread of ages, so the desk shows each step of how long
+        // ago a paper was last read.
+        effort: [{ seconds: 2400, last_at: daysAgo(5) }, { seconds: 900, last_at: daysAgo(18) }, { seconds: 3600, last_at: daysAgo(60) }, { seconds: 600, last_at: daysAgo(200) }][i] ?? null,
+      }))),
       boards: NOOK_BOARDS,
       projects: [summary, other],
     };
   }
   // Another member's nook, where their face leads: what they keep on
   // their public shelves, with their own takes, and their boards.
-  const someone = [ana, ben, mia].find((u) => path === `/users/${u.uuid}/nook`);
+  const someone = [ana, ben, mia, ...outsiders].find((u) => path === `/users/${u.uuid}/nook`);
   if (someone) return theirNook(someone);
   if (path === '/papers') return papers.map((p) => listed(p));
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
@@ -385,16 +485,35 @@ function answer(method, path, search, sent = {}) {
     }
     return { spans, papers: Object.fromEntries(papers.map((p) => [p.sha256, { title: p.title, in_nook: true }])), first_at: spans[0]?.started_at ?? null };
   }
+  // An author's own copy dropped (uploadReads.as = 'published'): it prints
+  // no identifier, and the reading finds its published version by its
+  // title and authors.
+  if (uploadReads.as === 'published') {
+    if (path === '/papers/lookup') return null;
+    if (path === '/papers/uploaded') return { job: 'published-reading', file_path: `${'f'.repeat(64)}.pdf`, sha256: 'f'.repeat(64) };
+    if (path === '/jobs/published-reading') return { status: 'done', result: PUBLISHED_READING };
+  }
   // A PDF dropped on the window: stored at once, and known to the indexes.
   if (path === '/files/upload-address') return { stored: true, file_path: `${'f'.repeat(64)}.pdf` };
   if (path === '/papers/lookup') return { doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017 };
   if (path === '/papers/uploaded') return { job: null, file_path: `${'f'.repeat(64)}.pdf`, sha256: 'f'.repeat(64) };
-  if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];
+  if (path === '/tags' || path === '/boards') return [];
   if (path === '/users') return [me, ana, ben, mia].map((u) => ({ ...u, paper_count: 2 }));
   if (path === '/shelves') return [SHELF, DRAWER];
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };
   return method === 'GET' ? {} : { ok: true };
 }
+
+// How a dropped PDF is read: 'known' (its arXiv id, known to the
+// indexes) or 'published' (an author's copy, matched to its published
+// version). A picture sets it before it loads its page.
+export const uploadReads = { as: 'known' };
+const CEPTRE_AUTHORS = '["Chris Martens","Alexander Card","Henry Crain","Asha Khatri"]';
+const PUBLISHED_READING = {
+  doi: '10.1109/tg.2023.3292982', title: 'Modeling Game Mechanics With Ceptre', authors: CEPTRE_AUTHORS, journal: 'IEEE Transactions on Games', year: 2024,
+  file_path: `${'f'.repeat(64)}.pdf`,
+  as_printed: { doi: null, title: 'Modeling Game Mechanics with Ceptre', authors: CEPTRE_AUTHORS, journal: null, year: null },
+};
 
 // Paths the pretend server leaves unanswered, so a picture can show a
 // page while it waits for them. A path ending in * holds every path under it.

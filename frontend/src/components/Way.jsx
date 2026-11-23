@@ -2,23 +2,29 @@ import React, { createContext, useContext, useLayoutEffect, useState } from 'rea
 import { createPortal } from 'react-dom';
 import { appPath } from '../base';
 import Avatar from './Avatar';
+import NewsDot from '../../../shared/ui/NewsDot.jsx';
+import Glyph from './DesktopGlyph';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
-// where everyone else's work is: their papers, boards and projects.
-export const BAZAAR = 'Bazaar';
+// where everyone else's work is: what my friends are reading.
+export const ROOM = 'Lounge';
+export const ROOM_PATH = '/lounge';
 
 // The one bar over a signed-in member's pages on the web: the trail home
-// on the left, and on the right the Bazaar beside it and the member, who
-// wears the count of what has come for them; an admin also finds Admin
+// on the left, and on the right the Lounge beside it, which wears
+// the gold dot when it has news, and the member, who wears the count of what
+// has come for them; an admin also finds Admin
 // there, on every page. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none. Before the member is
 // known (their sign-in still being checked) the bar stands without them.
-export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
+export function WayBar({ user, route, trail = [], unreadCount = 0, roomNews = false }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
-        <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/favicon.svg')} alt="Papol" width="28" height="28" /></a>
+        {/* The bar's mark is the PNG drawn from favicon.svg, not the SVG
+            itself: Safari drew the SVG's gradient P as solid black. */}
+        <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
         <span className="way-trail" id="way-slot" />
         <span className="way-trail way-default">
           {trail.map(({ path, label }) => <a key={path} href={appPath(path)}>{label}</a>)}
@@ -26,8 +32,14 @@ export function WayBar({ user, route, trail = [], unreadCount = 0 }) {
       </nav>
       <nav className="way-aside" aria-label="Elsewhere">
         {user?.is_admin && <a href={appPath('/admin')} aria-current={route.page === 'admin' ? 'page' : undefined}>Admin</a>}
-        <a href={appPath('/bazaar')} aria-current={route.page === 'papers' || route.page === 'projects' ? 'page' : undefined}>
-          {BAZAAR}
+        <a
+          className="way-room"
+          href={appPath(ROOM_PATH)}
+          aria-current={route.page === 'room' ? 'page' : undefined}
+        >
+          <Glyph name="room" />
+          <span className="way-room-word">{ROOM}</span>
+          {roomNews && <NewsDot />}
         </a>
       </nav>
       {user && <a

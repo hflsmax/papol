@@ -8,6 +8,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import { queueEmail, siteUrl } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import * as validate from "../validate";
+import { userPublic } from "./boards";
 
 export async function requireAdmin(request: Request, env: Env): Promise<User> {
   const user = await currentUser(request, env);
@@ -64,12 +65,23 @@ export function feedbackContextLines(json: string | null): string[] {
 export function inboxRoutes(router: Router) {
   // ------------------------------------------------------- notifications
 
+  // A line that is more than its words says who it is from and where it
+  // leads; a friend request also says whether it still waits for an answer.
   router.on("GET", "/api/notifications", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const rows = await all<Row>(env.DB,
-      "SELECT uuid, content, read, created_at FROM notifications WHERE user_uuid = ? ORDER BY created_at DESC, uuid DESC LIMIT ?",
+      `SELECT n.uuid, n.content, n.read, n.created_at, n.kind, n.link,
+              a.uuid AS actor_uuid, a.display_name, a.affiliation, a.avatar_path, a.email, a.email_public,
+              EXISTS (SELECT 1 FROM friendships f WHERE f.asker_uuid = n.actor_uuid AND f.asked_uuid = n.user_uuid AND f.state = 'asked') AS waiting
+       FROM notifications n LEFT JOIN users a ON a.uuid = n.actor_uuid
+       WHERE n.user_uuid = ? ORDER BY n.created_at DESC, n.uuid DESC LIMIT ?`,
       user.uuid, limits.counts.notifications);
-    return json({ notifications: rows.map((n) => ({ uuid: n.uuid, content: n.content, read: Boolean(n.read), created_at: n.created_at })) });
+    return json({ notifications: rows.map((n) => ({
+      uuid: n.uuid, content: n.content, read: Boolean(n.read), created_at: n.created_at,
+      kind: n.kind ?? null, link: n.link ?? null,
+      actor: n.actor_uuid ? userPublic({ ...n, uuid: n.actor_uuid }) : null,
+      ...(n.kind === "friend_request" ? { waiting: Boolean(n.waiting) } : {}),
+    })) });
   });
 
   // Reading happens by clicking: one notification read.

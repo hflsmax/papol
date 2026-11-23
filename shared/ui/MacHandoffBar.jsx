@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { DESKTOP } from '../desktopShell.js';
 import {
-  DOWNLOAD_URL, RETIRED_KEY,
-  attemptHandoff, deferDocument, handoffCapableMac, handoffOffer, writeFlag,
+  DOWNLOAD_URL,
+  attemptHandoff, deferDocument, handoffCapableMac, handoffOffer,
 } from '../macHandoff.js';
+import { MAC_HANDOFF_RETIRED, setFeatureState } from '../featureStates.js';
 
 // Shown at the top of a document the Mac app could open better, in the
 // browser only (USER_STORIES.md §7d). It is a bar and not a dialog because
@@ -28,8 +29,10 @@ export default function MacHandoffBar() {
 
   if (!offer) return null;
 
+  // Asked again from the "didn't see it" bar, the question stays on screen
+  // while Papol is asked: the user is still answering it.
   const hand = () => {
-    setState('trying');
+    setState(state === 'missing' ? 'retrying' : 'trying');
     attemptHandoff(offer.address).then((verdict) => {
       setState(verdict === 'opened' ? 'opened' : 'missing');
     });
@@ -41,7 +44,7 @@ export default function MacHandoffBar() {
   };
 
   const retire = () => {
-    writeFlag(window.localStorage, RETIRED_KEY, true);
+    setFeatureState(MAC_HANDOFF_RETIRED, true);
     setOffer(null);
   };
 
@@ -49,13 +52,20 @@ export default function MacHandoffBar() {
   // (US-7.34). The bar simply goes.
   if (state === 'opened') return null;
 
-  if (state === 'missing') {
+  if (state === 'missing' || state === 'retrying') {
     return (
       <div className="mac-handoff-bar" role="status">
         {/* A question, not a verdict (US-7.34): this tab saw nothing, which
             is not the same as nothing having happened. Papol may well have
             opened behind a window, or be installed and simply slow. */}
         <span className="mac-handoff-message">Didn’t see Papol open?</span>
+        {/* Seeing nothing is not the same as having no Papol: it may have
+            been slow to start, or the browser's own prompt may have been
+            dismissed. So asking again stays one click away, beside the
+            download rather than replaced by it. */}
+        <button type="button" className="mac-handoff-open" onClick={hand} disabled={state === 'retrying'}>
+          {state === 'retrying' ? 'Opening…' : 'Open in Papol'}
+        </button>
         <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download Papol for Mac</a>
         <button type="button" className="mac-handoff-dismiss" onClick={notNow}>
           Not now
