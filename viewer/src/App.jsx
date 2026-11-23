@@ -36,7 +36,7 @@ import { appPath, backendPath, stripAppBase } from './base';
 import { paperName } from '../../shared/paperName.js';
 import { IS_DESKTOP } from '../../shared/appEnvironment.js';
 import {
-  dismissPdfViewerPrompt, makePdfViewerDefault, nativeDataActive, pdfViewerStatus,
+  nativeDataActive,
   recordDiagnosticEvent, requestSignIn,
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
@@ -821,19 +821,6 @@ export default function App() {
   // is a nook paper.
   const activitySubject = source?.openedFile && !nookCopy ? null : (paper?.sha256 ?? null);
   useEffect(() => recordActivity(activitySubject), [activitySubject]);
-  const [pdfViewerTip, setPdfViewerTip] = useState(false);
-  // Asked over a file opened from disk while another app is the system's PDF
-  // viewer, until answered here or in the Desk window this launch.
-  useEffect(() => {
-    if (!source?.openedFile || !firstPageReady) return undefined;
-    let cancelled = false;
-    pdfViewerStatus()
-      .then((status) => {
-        if (!cancelled) setPdfViewerTip(status.supported && !status.is_default && !status.prompt_dismissed);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [firstPageReady, source]);
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -1345,14 +1332,14 @@ export default function App() {
   }, [firstPageReady, neverAnnotatable]);
   // Behind any other window the bar hangs, and never put away unseen.
   const storageNoticeShown = storageNotice && nookStep === 'idle' && !nookPromptOpen
-    && !paperInfoOpen && !signInOffer && !pdfViewerTip;
+    && !paperInfoOpen && !signInOffer;
   const closeStorageNotice = () => {
     if (!storageNoticeShown) return;
     closeAnnotationStorageNotice(storageNoticeOptOut);
     setStorageNotice(false);
   };
 
-  const paperPopupOpen = paperInfoOpen || nookPromptOpen || pdfViewerTip || signInOffer || storageNoticeShown;
+  const paperPopupOpen = paperInfoOpen || nookPromptOpen || signInOffer || storageNoticeShown;
 
   // Everything hung from the paper menu is the same kind of transient
   // window, even though the contents differ. A click beyond the menu puts
@@ -1361,7 +1348,6 @@ export default function App() {
   useDismiss(paperPopupOpen, paperMenuRef, () => {
     setPaperInfoOpen(false);
     setNookPromptOpen(false);
-    setPdfViewerTip(false);
     setSignInOffer(false);
     closeStorageNotice();
   }, { escape: false });
@@ -1625,7 +1611,6 @@ export default function App() {
         e.preventDefault();
         setPaperInfoOpen(false);
         setNookPromptOpen(false);
-        setPdfViewerTip(false);
         setSignInOffer(false);
         closeStorageNotice();
         return;
@@ -4060,19 +4045,6 @@ export default function App() {
     };
   }, [nookStep, addToNookOnceSignedIn]);
 
-  const dismissPdfViewerTip = () => {
-    dismissPdfViewerPrompt().catch(() => {});
-    setPdfViewerTip(false);
-  };
-  const makeDefaultPdfViewer = async () => {
-    try {
-      await makePdfViewerDefault();
-    } catch (failure) {
-      setError(messageOf(failure));
-    }
-    dismissPdfViewerTip();
-  };
-
   const closeFeedback = () => {
     setFeedbackOpen(false);
     setFeedbackReportError(false);
@@ -4636,7 +4608,6 @@ export default function App() {
               onClick={() => {
                 setPaperInfoOpen((open) => !open);
                 setNookPromptOpen(false);
-                setPdfViewerTip(false);
                 setSignInOffer(false);
                 closeStorageNotice();
               }}
@@ -4834,17 +4805,6 @@ export default function App() {
                   <button type="button" className="primary" onClick={closeStorageNotice}>OK</button>
                 </div>
               </div>
-            )}
-            {pdfViewerTip && nookStep === 'idle' && !paperInfoOpen && !signInOffer && (
-              <span className="learn-papol pdf-viewer-tip" role="dialog" aria-labelledby="pdf-viewer-tip-title">
-                <strong id="pdf-viewer-tip-title">Use Papol as your default PDF viewer?</strong>
-                <span className="pdf-viewer-tip-actions">
-                  <button type="button" onClick={dismissPdfViewerTip}>Not now</button>
-                  <button type="button" className="learn-papol-close" onClick={makeDefaultPdfViewer}>
-                    Use Papol
-                  </button>
-                </span>
-              </span>
             )}
             {paperInfoOpen && (
               <div className="paper-info-pop" role="dialog" aria-label="Current paper information" data-tauri-drag-region="false">

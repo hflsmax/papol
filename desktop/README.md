@@ -73,7 +73,7 @@ nook already holds those exact bytes, the window works on that paper. Otherwise
 the file is read only — an anchor, a stroke or a clip needs a nook to go into —
 and **Add to nook** copies the file into the replica; without an account it
 first asks the Desk window to sign in. The Desk banner and
-Settings can make Papol the default PDF viewer (macOS only).
+Settings can make Papol the default PDF viewer (macOS only). Papol never asks on its own; the choice is only in Settings.
 
 ## Opening a reading handed over from a browser
 
