@@ -5,7 +5,7 @@ import {
   getClientCompatibility, hydrateClientCompatibility,
 } from '../clientCompatibility.js';
 
-const DEFAULT_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
+import { MAC_DOWNLOAD_URL as DEFAULT_DOWNLOAD_URL } from '../macDownload.js';
 
 // Mounted in every window, because compatibility is process-wide: a user
 // told this in the library must not find the viewer carrying on as though

@@ -1,4 +1,4 @@
-// One row of the Library or a nook: the paper everyone shares, the
+// One row of the list of every paper, or of a nook: the paper everyone shares, the
 // personal fields of one user's copy when it is their nook, and every
 // copy on display. Built for a whole list at once, in a handful of
 // queries, rather than a query per paper.

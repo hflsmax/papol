@@ -73,6 +73,11 @@ export const talkStyles = `
    as the face and the trash already do. */
 .talk-post-head .dig-phase-word svg { flex: none; display: block; position: relative; top: -1px; }
 .talk-card-close:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
+/* Over the page: the subject, the phase and the close on one line, no bar. */
+.talk-card-top { flex: none; display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) 8px var(--space-1) var(--space-4); }
+.talk-card-top .talk-card-subject { flex: 1 1 auto; min-width: 0; padding: 0; }
+.talk-card-top .dig-phase-pick { margin-top: -3px; }
+.talk-card-top .talk-card-close { margin-top: -5px; margin-right: -2px; }
 .talk-card-subject { flex: none; margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); overflow: hidden; color: var(--ink); font: 600 var(--fs-md)/1.35 var(--font-serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* Whose dig: a thing holds one per member who started one. */
@@ -127,14 +132,16 @@ export const talkStyles = `
 .talk-post-edit :is(textarea, .md-field):focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
 .talk-post-edit-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
 /* Your dig, still to be written: it stands in the body, where its words will go. */
-.talk-dig-new { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); padding: var(--space-2) 0; }
+.talk-dig-new { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: var(--space-2); padding: var(--space-2) 0; }
 .talk-dig-new .mini-avatar { width: 22px; height: 22px; margin-top: 7px; font-size: 11px; }
 .talk-dig-new :is(textarea, .md-field) { width: 100%; min-height: 36px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: var(--fs-md)/1.45 var(--font-serif); resize: none; max-height: 40vh; overflow-y: auto; }
 /* The box keeps its size as it is focused and written in, and grows a
    line at a time only as the words need (Talk.jsx), so nothing jumps under
    the hand, and nothing shrinks from under a press on Dig. */
 .talk-dig-new :is(textarea, .md-field):focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
-.talk-dig-new-foot { grid-column: 2; display: flex; justify-content: flex-end; }
+/* Dig stands beside the box, level with its first line. */
+.talk-dig-new-foot { display: flex; }
+.talk-dig-new-foot .primary { min-height: 36px; }
 /* Tucked: your face, one thin line and its send button. The line stays one
    line when pressed and grows only as the words wrap, so writing a dig
    moves nothing around it. */

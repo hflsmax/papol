@@ -85,7 +85,69 @@ export function groupSends(emails: SentEmail[]): Send[] {
   return sends;
 }
 
+// Who has been using Papol lately, and who has just come: the open
+// accounts last seen within a window, most recent first, and the ones made
+// within another, newest first, each with what they have made. Seen is the
+// latest of a signed-in request (auth_tokens.last_used_at, written at most
+// once a minute), the visible-tab heartbeat (user_presence) and the end of
+// a stretch of reading (activity).
+const USER_ROWS = 100;
+const DAYS_MAX = 365;
+
+function days(value: string | null, fallback: number): number {
+  if (value === null || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > DAYS_MAX) refuse(400, `Days must be a whole number from 1 to ${DAYS_MAX}`);
+  return n;
+}
+
+// Every date here is an ISO string, some written without their Z; julianday
+// reads both, and strftime writes the one form back.
+const SEEN = `SELECT user_uuid, max(at) AS at FROM (
+    SELECT user_uuid, julianday(last_used_at) AS at FROM auth_tokens WHERE last_used_at IS NOT NULL
+    UNION ALL SELECT user_uuid, julianday(last_seen_at) FROM user_presence
+    UNION ALL SELECT user_uuid, julianday(max(ended_at)) FROM activity GROUP BY user_uuid
+  ) GROUP BY user_uuid`;
+
+const USER_STATS = `u.uuid, u.display_name, u.email, u.affiliation, u.avatar_path, u.is_admin,
+    strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS created_at,
+    strftime('%Y-%m-%dT%H:%M:%SZ', seen.at) AS last_active_at,
+    (SELECT platform FROM auth_tokens t WHERE t.user_uuid = u.uuid AND t.last_used_at IS NOT NULL ORDER BY julianday(t.last_used_at) DESC LIMIT 1) AS platform,
+    (SELECT count(*) FROM copies c WHERE c.user_uuid = u.uuid AND c.deleted_at IS NULL) AS papers,
+    (SELECT count(*) FROM digs d WHERE d.user_uuid = u.uuid) AS digs,
+    (SELECT count(*) FROM annotations a WHERE a.user_uuid = u.uuid AND a.kind = 'anchor' AND a.deleted_at IS NULL) AS anchors,
+    (SELECT coalesce(sum(seconds), 0) FROM activity r WHERE r.user_uuid = u.uuid AND julianday(r.started_at) >= julianday('now', ?)) AS reading_recent_seconds,
+    (SELECT coalesce(sum(seconds), 0) FROM activity r WHERE r.user_uuid = u.uuid) AS reading_seconds,
+    (SELECT count(*) FROM friendships f WHERE f.state = 'friends' AND u.uuid IN (f.asker_uuid, f.asked_uuid)) AS friends,
+    (SELECT count(*) FROM project_members m JOIN projects p ON p.uuid = m.project_uuid AND p.deleted_at IS NULL WHERE m.user_uuid = u.uuid) AS projects`;
+
+export async function recentUsers(db: D1Database, activeDays: number, newDays: number) {
+  const recent = `-${activeDays} days`;
+  const [active, joined, totals] = await Promise.all([
+    all<Row>(db, `SELECT ${USER_STATS} FROM users u JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid
+      WHERE u.deleted_at IS NULL AND seen.at >= julianday('now', ?) ORDER BY seen.at DESC, u.uuid LIMIT ?`, recent, recent, USER_ROWS),
+    all<Row>(db, `SELECT ${USER_STATS} FROM users u LEFT JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid
+      WHERE u.deleted_at IS NULL AND julianday(u.created_at) >= julianday('now', ?) ORDER BY julianday(u.created_at) DESC, u.uuid LIMIT ?`, recent, `-${newDays} days`, USER_ROWS),
+    one<{ users: number; active: number; joined: number }>(db, `SELECT count(*) AS users,
+      coalesce(sum(seen.at >= julianday('now', ?)), 0) AS active,
+      coalesce(sum(julianday(u.created_at) >= julianday('now', ?)), 0) AS joined
+      FROM users u LEFT JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid WHERE u.deleted_at IS NULL`, recent, `-${newDays} days`),
+  ]);
+  const out = (r: Row) => ({ ...r, is_admin: Boolean(r.is_admin) });
+  return {
+    active_days: activeDays, new_days: newDays,
+    total_users: totals?.users ?? 0, active_count: totals?.active ?? 0, new_count: totals?.joined ?? 0,
+    active: active.map(out), new: joined.map(out),
+  };
+}
+
 export function adminRoutes(router: Router) {
+  // The users seen lately and the users new lately, with their numbers.
+  router.on("GET", "/api/admin/users", async ({ request, env, url }) => {
+    await requireAdmin(request, env);
+    return json(await recentUsers(env.DB, days(url.searchParams.get("active_days"), 7), days(url.searchParams.get("new_days"), 30)));
+  });
+
   // Email an announcement to every open account, to the ones picked, or,
   // as a test, to the admin alone. One job sends every copy.
   router.on("POST", "/api/admin/announcements", async ({ request, env }) => {

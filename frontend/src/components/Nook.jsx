@@ -16,12 +16,17 @@ import { paperName } from '../../../shared/paperName.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { formatAuthors, newestFirst } from '../paperFormat';
 import { keep, kept } from '../lastMember';
+import FriendButton from './FriendButton';
 
 const sectionKey = (userUuid) => `papol_nook_section_${userUuid}`;
 const storedSection = (userUuid) => {
   try { return sessionStorage.getItem(sectionKey(userUuid)) || 'papers'; }
   catch { return 'papers'; }
 };
+
+// Said on the window when a member presses a way home (App.jsx): an
+// upload's form open over their nook is put away, as Cancel would.
+export const GOING_HOME = 'papol:going-home';
 
 // A nook seen before shows at once while it is fetched again (lastMember.js).
 const lastSeen = (userUuid) => kept(`nook:${userUuid}`);
@@ -34,6 +39,8 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   const [error, setError] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
   const [reviewingUpload, setReviewingUpload] = useState(false);
+  // Turned to start the upload afresh: the one put away lets go of its PDF.
+  const [uploadTurn, setUploadTurn] = useState(0);
   // A folder, or several PDFs, being brought in (FolderImport) in place
   // of the upload box: `{}` when only opened, else what was handed over.
   const [folderRequest, setFolderRequest] = useState(null);
@@ -96,6 +103,18 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
   }, [incomingPaperFolder]);
 
   useEffect(() => {
+    if (!reviewingUpload) return undefined;
+    const home = () => {
+      setFolderRequest(null);
+      setReviewingUpload(false);
+      setUploadTurn((turn) => turn + 1);
+      loadNook();
+    };
+    window.addEventListener(GOING_HOME, home);
+    return () => window.removeEventListener(GOING_HOME, home);
+  }, [reviewingUpload, loadNook]);
+
+  useEffect(() => {
     if (nook?.user?.uuid !== userUuid) return;
     keep(`nook:${userUuid}`, nook);
   }, [nook, userUuid]);
@@ -118,6 +137,7 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
       />
     ) : (
       <PaperUpload
+        key={uploadTurn}
         onReportableError={onReportableError}
         compact
         onAddFolder={(incoming) => {
@@ -125,8 +145,10 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
           setReviewingUpload(true);
         }}
         onPaperCreated={(paper) => {
+          // The nook stays mounted under the new paper's page, so its
+          // list and counts are brought up to date now, not on a reload.
+          loadNook();
           if (paper?.sha256 != null && onSelectPaper) onSelectPaper(paper.sha256);
-          else loadNook();
         }}
         onReviewChange={setReviewingUpload}
         incomingFile={incomingPaperFile}
@@ -212,13 +234,14 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             {/* Only there when they chose to show it. */}
             {owner.email && <p className="their-line"><a href={`mailto:${owner.email}`}>{owner.email}</a></p>}
           </div>
+          <FriendButton user={owner} currentUser={currentUser} className="their-friend" />
         </header>
         {nook.papers.length > 0 && (
           <ul className="their-list" aria-label="Papers">
             {[...nook.papers].sort(newestFirst).map((paper) => (
               <li key={paper.sha256}>
-                <a className="their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
-                <span className="their-meta">
+                <a className="desk-title their-title" href={appPath(`/paper/${paperName(paper.sha256)}`)}><PaperTitle title={paper.title} /></a>
+                <span className="desk-meta their-meta">
                   {[formatAuthors(paper.authors), paper.year].filter(Boolean).join(' · ')}
                   {paper.journal && ` · ${paper.journal}`}
                 </span>
@@ -232,11 +255,11 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
             {nook.boards.map((board) => (
               <li key={board.uuid}>
                 <a
-                  className="their-title"
+                  className="desk-title their-title"
                   href={appPath(`/boards/${board.uuid}`)}
                   onClick={(e) => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); onSelectBoard(board.uuid); } }}
                 >{board.name}</a>
-                <span className="their-meta">Board · {board.item_count}</span>
+                <span className="desk-meta their-meta">Board · {board.item_count}</span>
               </li>
             ))}
           </ul>
@@ -279,6 +302,11 @@ export default function Nook({ userUuid, currentUser, onSelectPaper, onSelectBoa
               </p>
             )}
           </div>
+          {!isOwn && (
+            <div className="nook-header-actions">
+              <FriendButton user={nook.user} currentUser={currentUser} />
+            </div>
+          )}
           {isOwn && (
             <div className="nook-header-actions">
               <button className="new-board-button" type="button" onClick={() => setCreatingBoard(true)}>

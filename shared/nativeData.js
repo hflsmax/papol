@@ -548,11 +548,6 @@ export function makePdfViewerDefault() {
   return invoke('pdf_viewer_make_default');
 }
 
-export function dismissPdfViewerPrompt() {
-  if (!IS_DESKTOP) return Promise.resolve();
-  return invoke('pdf_viewer_prompt_dismiss');
-}
-
 // A v4 UUID. Browsers withhold randomUUID outside a secure context, and
 // an id is needed wherever the app happens to be running, so the random
 // bytes are drawn directly when it is missing.

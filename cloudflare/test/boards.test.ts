@@ -53,12 +53,10 @@ describe("boards", () => {
     const board = await ok("POST", "/api/boards", { headers: owner.headers, json: { name: "Shown" } });
     const seen = await ok("GET", `/api/boards/${board.uuid}`, { headers: other.headers });
     expect(seen.can_edit).toBe(false);
-    expect((await ok("GET", "/api/library/boards", { headers: other.headers })).map((b: any) => b.uuid)).toEqual([board.uuid]);
     const privateShelf = (await row("SELECT uuid FROM shelves WHERE user_uuid = ? AND is_public = 0", owner.uuid))!.uuid;
     await ok("PUT", `/api/boards/${board.uuid}`, { headers: owner.headers, json: { shelf_uuid: privateShelf } });
     expect((await call("GET", `/api/boards/${board.uuid}`, { headers: other.headers })).status).toBe(404);
     expect((await call("PUT", `/api/boards/${board.uuid}`, { headers: other.headers, json: { name: "Mine now" } })).status).toBe(404);
-    expect(await ok("GET", "/api/library/boards", { headers: other.headers })).toEqual([]);
   });
 
   it("answers every id-bearing response the client's ordered remapping needs", async () => {
