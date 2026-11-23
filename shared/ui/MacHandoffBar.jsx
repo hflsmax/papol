@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { DESKTOP } from '../desktopShell.js';
 import {
-  DOWNLOAD_URL, RETIRED_KEY,
-  attemptHandoff, deferDocument, handoffCapableMac, handoffOffer, writeFlag,
+  DOWNLOAD_URL,
+  attemptHandoff, deferDocument, handoffCapableMac, handoffOffer,
 } from '../macHandoff.js';
+import { MAC_HANDOFF_RETIRED, setFeatureState } from '../featureStates.js';
 
 // Shown at the top of a document the Mac app could open better, in the
 // browser only (USER_STORIES.md §7d). It is a bar and not a dialog because
@@ -41,7 +42,7 @@ export default function MacHandoffBar() {
   };
 
   const retire = () => {
-    writeFlag(window.localStorage, RETIRED_KEY, true);
+    setFeatureState(MAC_HANDOFF_RETIRED, true);
     setOffer(null);
   };
 

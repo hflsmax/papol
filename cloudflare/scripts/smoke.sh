@@ -7,7 +7,7 @@
 #
 # With --read-only it asks and writes nothing: the doors and the refusals.
 # Otherwise it registers an account, uploads a paper, paints and lets go,
-# and closes the account. The paper it uploaded stays in the Library, since
+# and closes the account. The paper it uploaded stays in Papol, since
 # a paper is nobody's — so the full run is for dev, never for production.
 set -euo pipefail
 read_only=no
@@ -24,7 +24,7 @@ expect() { # expect <label> <wanted status> <curl args...>
 
 expect "plain HTTP redirects" 301 "http://$host/"
 expect "the site" 200 "$base/"
-expect "a clean route is the site" 200 "$base/library"
+expect "a clean route is the site" 200 "$base/lounge"
 expect "the viewer" 200 "$base/viewer/"
 expect "a board document" 200 "$base/boards/00000000-0000-0000-0000-000000000000"
 expect "the API refuses a stranger" 401 "$base/api/papers"

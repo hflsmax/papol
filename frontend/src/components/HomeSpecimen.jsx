@@ -142,6 +142,7 @@ function Tool({ name, label, keyLetter, active, beckon, onClick }) {
     <button
       type="button"
       className={`specimen-tool${active ? ' active' : ''}${beckon ? ' beckon' : ''}`}
+      data-hint={beckon ? 'Click' : undefined}
       aria-pressed={active}
       aria-label={label}
       title={`${label} (${keyLetter})`}
@@ -239,7 +240,12 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
     if (part.sub) return <sub key={i}>{part.sub}</sub>;
     if (part.figure) {
       return (
-        <span key={i} className={`specimen-link${beckoning === 'figure' ? ' beckon' : ''}`} {...inline(openFigure)}>
+        <span
+          key={i}
+          className={`specimen-link${beckoning === 'figure' ? ' beckon' : ''}`}
+          data-hint={beckoning === 'figure' ? 'Click' : undefined}
+          {...inline(openFigure)}
+        >
           {part.figure}
         </span>
       );
@@ -251,6 +257,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
         data-occurrence={at}
         aria-label={`References ${part.label}`}
         className={`specimen-cite${at === activeAt ? ' active' : ''}${beckoning === 'cite' && at === FIRST_CITATION ? ' beckon' : ''}`}
+        data-hint={beckoning === 'cite' && at === FIRST_CITATION ? 'Click' : undefined}
         {...inline((trigger) => openCitation(at, trigger))}
       >
         {part.label}

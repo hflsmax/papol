@@ -41,13 +41,28 @@ export function analyzeLayout(layout: Layout): RulesResult {
   return { analysis, trace, stats };
 }
 
+// Small type at the foot of a column (a footnote, AAAI's copyright notice)
+// sits in reading order between the column's last line and the next
+// column's first, which is often the middle of a sentence: "(Genesereth,
+// [the notice] Love, and Pell 2005; Love et al. 2006)". It is read after
+// the page's text instead, so the sentence runs on whole and what the note
+// itself cites is still read.
+function footLast(lines: Line[], bodySize: number): Line[] {
+  const across = (a: Line, b: Line) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0;
+  const body = (l: Line) => Math.abs(l.size - bodySize) <= 0.03 * bodySize;
+  const foot = new Set(lines.filter((l) => l.size < bodySize - 0.5
+    && lines.some((o) => o.page === l.page && o.bottom <= l.top && across(o, l) && body(o))
+    && !lines.some((o) => o.page === l.page && o.top >= l.bottom && across(o, l) && body(o))));
+  return foot.size ? [...lines.filter((l) => !foot.has(l)), ...lines.filter((l) => foot.has(l))] : lines;
+}
+
 function analyzed(layout: Layout) {
   const trace = new Trace();
   const bibliography = findBibliography(layout, trace);
   // The text that can cite and mention: everything but the bibliography
   // itself and the page furniture, one flow per page.
   const readable = (line: Line) => !line.furniture && !bibliography.lines.has(line);
-  const flows = layout.pages.map((page) => flowOf(page.lines.filter(readable)));
+  const flows = layout.pages.map((page) => flowOf(footLast(page.lines.filter(readable), layout.bodySize)));
   const floats = findFloats(layout, trace);
   const sections = findSections(layout, bibliography.lines, floats.values(), trace);
   // A section's heading labels no rule ("D Erasure" over the erasure's

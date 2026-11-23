@@ -257,7 +257,7 @@ describe("what members see of each other", () => {
     expect(users.map((u: any) => u.user.uuid).sort()).toEqual([dana.uuid, ana.uuid].sort());
     expect(users.find((u: any) => u.user.uuid === ana.uuid)).toMatchObject({ thought: "The dip is the schedule", summary: null });
 
-    // The Library still names nobody for a copy on a private shelf.
+    // The list of every paper still names nobody for a copy on a private shelf.
     const library = await ok("GET", `/api/papers/${A_PAPER.slice(0, 32)}`, { headers: outsider.headers });
     expect(JSON.stringify(library)).not.toContain("The dip is the schedule");
   });
@@ -307,6 +307,21 @@ describe("people going", () => {
     expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).is_member).toBe(false);
     await ok("DELETE", `/api/projects/${project.uuid}/members/${ana.uuid}`, { headers: ana.headers });
     expect((await call("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).status).toBe(404);
+  });
+
+  it("has one keeper: making someone keeper hands it on, and a keeper cannot just stop", async () => {
+    const dana = await register(), ana = await register(), ben = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana, ben);
+    expect((await call("PUT", `/api/projects/${project.uuid}/members/${dana.uuid}`, { headers: dana.headers, json: { is_keeper: false } })).status).toBe(400);
+    const handed = await ok("PUT", `/api/projects/${project.uuid}/members/${ana.uuid}`, { headers: dana.headers, json: { is_keeper: true } });
+    expect(handed.is_keeper).toBe(false);
+    expect(handed.members.filter((m: any) => m.is_keeper).map((m: any) => m.user.uuid)).toEqual([ana.uuid]);
+    // The old keeper is a member now, and cannot hand it on again.
+    expect((await call("PUT", `/api/projects/${project.uuid}/members/${ben.uuid}`, { headers: dana.headers, json: { is_keeper: true } })).status).toBe(403);
+    expect(await row("SELECT count(*) AS n FROM project_members WHERE project_uuid = ? AND is_keeper = 1", project.uuid)).toEqual({ n: 1 });
+    // The database holds it too.
+    await expect(env.DB.prepare("UPDATE project_members SET is_keeper = 1 WHERE project_uuid = ? AND user_uuid = ?").bind(project.uuid, ben.uuid).run()).rejects.toThrow();
   });
 
   it("leaves the papers someone added, and only the adder or a keeper takes one out", async () => {
@@ -365,8 +380,10 @@ describe("a paper with the project on", () => {
     // A dig at Dana's anchor, the place; the dig is Dana's, seen by the project.
     const dig = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `annotation:${danas.uuid}`, text: "Which panel?" } });
     expect(dig.subject).toMatchObject({ kind: "annotation", key: `annotation:${danas.uuid}`, paper_sha256: A_PAPER, page: 2, down: 0.5, annotation_kind: "anchor", by: "Desktop Test", label: "An anchor on page 2" });
-    expect((await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers })).annotations.map((a: any) => a.uuid))
-      .toEqual([danas.uuid, anas.uuid]);
+    // Anchors are never shared: Ana gets Dana's only as the place of the dig.
+    const withDig = await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers });
+    expect(withDig.annotations.map((a: any) => a.uuid)).toEqual([anas.uuid]);
+    expect(withDig.places.map((a: any) => [a.uuid, a.kind, a.page])).toEqual([[danas.uuid, "anchor", 2]]);
     // Ana's ink sits by its highest point, measured from the top of the page.
     const onInk = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `annotation:${anas.uuid}`, text: "Same as eq. 3" } });
     expect(onInk.subject).toMatchObject({ annotation_kind: "ink", page: 1, down: 0.8, paper_sha256: A_PAPER, label: "Ink on page 1" });
@@ -383,6 +400,55 @@ describe("a paper with the project on", () => {
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `annotation:${bens.uuid}`, text: "?" } })).status).toBe(404);
     const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: ana.headers })).digs;
     expect(listed.map((d: any) => d.subject.label).sort()).toEqual(["An anchor on page 2", "Ink on page 1", "Loss Curves"]);
+  });
+
+  it("shows a member's digs and ink to the project only while they keep the paper on a public shelf", async () => {
+    const dana = await register(), ana = await register();
+    const project = await start(dana);
+    await invite(dana, project, ana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    await copyOf(ana, A_PAPER, "Loss Curves");
+    await ok("POST", `/api/projects/${project.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const name = A_PAPER.slice(0, 32);
+    // Ana's digs written alone, before the project held anything of hers.
+    const ink = await ok("POST", `/api/papers/${name}/annotations`, { headers: ana.headers, json: { kind: "ink", page: 1, body: { points: [{ x: 0.1, y: 0.2 }] } } });
+    const clip = await ok("POST", `/api/papers/${name}/annotations`, { headers: ana.headers, json: { kind: "clip", page: 3, body: { source: { x: 0.1, y: 0.4, w: 0.2, h: 0.1 }, frame: { x: 0.1, y: 0.4, w: 0.2, h: 0.1 }, floating: false } } });
+    const onPaper = await ok("POST", "/api/digs", { headers: ana.headers, json: { subject: `paper:${A_PAPER}`, text: "Read for the curves." } });
+    const onClip = await ok("POST", "/api/digs", { headers: ana.headers, json: { subject: `annotation:${clip.uuid}`, text: "This table." } });
+    const seen = () => ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: dana.headers });
+    const listed = async () => (await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).digs.map((d: any) => d.uuid).sort();
+
+    // On her public default shelf: Dana sees both digs and the ink, and the
+    // clip only as the place of its dig. She can reply.
+    let view = await seen();
+    expect(view.annotations.map((a: any) => a.uuid)).toEqual([ink.uuid]);
+    expect(view.places.map((a: any) => a.uuid)).toEqual([clip.uuid]);
+    expect(view.paper_digs).toMatchObject({ uuid: onPaper.uuid, lead: { owner: { uuid: ana.uuid } } });
+    expect(Object.keys(view.digs)).toEqual([clip.uuid]);
+    expect(await listed()).toEqual([onPaper.uuid, onClip.uuid].sort());
+    await ok("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: dana.headers, json: { body: "Agreed." } });
+    const herShelf = async () => (await ok("GET", `/api/projects/${project.uuid}/papers/${A_PAPER}/annotations`, { headers: ana.headers })).my_shelf;
+    expect(await herShelf()).toBe("public");
+
+    // Moved to a private shelf, all of it goes from the project at once.
+    const shelf = await ok("POST", "/api/shelves", { headers: ana.headers, json: { name: "Mine", color: "#123456", is_public: false } });
+    await ok("PUT", `/api/papers/${name}`, { headers: ana.headers, json: { shelf_uuid: shelf.uuid } });
+    expect(await herShelf()).toBe("private");
+    view = await seen();
+    expect(view.annotations).toEqual([]);
+    expect(view.places).toEqual([]);
+    expect(view.digs).toEqual({});
+    expect(view.paper_digs).toBeNull();
+    expect(await listed()).toEqual([]);
+    expect((await call("GET", `/api/digs/${onPaper.uuid}`, { headers: dana.headers })).status).toBe(404);
+    // Ana still has them, with Dana's reply kept.
+    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ana.headers })).posts.map((p: any) => p.body)).toEqual(["Agreed."]);
+
+    // Back on a public shelf, everything is back.
+    // The viewer's tip moves it by saying which kind of shelf.
+    await ok("PUT", `/api/papers/${name}`, { headers: ana.headers, json: { is_public: true } });
+    expect(await herShelf()).toBe("public");
+    expect(await listed()).toEqual([onPaper.uuid, onClip.uuid].sort());
   });
 
   it("leaves a stashed dig out of the paper's margin, and has no buried phase", async () => {
@@ -466,16 +532,65 @@ describe("a paper with the project on", () => {
     await dig(ana, project.uuid, `paper:${A_PAPER}`, null, "Mine already.");
     await dig(ana, project.uuid, `annotation:${anas}`, anas, "Old words");
     await dig(ana, null, `annotation:${anas}`, anas, "Old words");
-    // A note placed nowhere is no place to show a dig at.
-    expect((await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).digs.map((d: any) => d.owner.uuid)).toEqual([ana.uuid]);
-
     const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0025_"))!;
     for (const query of migration.queries) await exec(query);
-    const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).digs;
-    expect(listed.map((d: any) => [d.owner.uuid, d.subject.key]).sort()).toEqual([[ana.uuid, `paper:${A_PAPER}`], [dana.uuid, `paper:${A_PAPER}`]].sort());
-    expect(listed.find((d: any) => d.owner.uuid === dana.uuid).text).toBe("Language design for partial inverses.");
     // Ana's own, outside any project, is on the paper too; nothing is removed.
     expect(await row("SELECT subject FROM digs WHERE user_uuid = ? AND project_uuid IS NULL", ana.uuid)).toEqual({ subject: `paper:${A_PAPER}` });
     expect(await row("SELECT count(*) AS n FROM digs WHERE user_uuid = ?", ana.uuid)).toEqual({ n: 3 });
+
+    // 0035 then makes every dig on a paper its writer's own: Ana's two on
+    // the paper become one, her own first, with every word kept. The one
+    // 0025 left on her note stays, unshown, as before.
+    const shelfRule = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0035_"))!;
+    for (const query of shelfRule.queries) await exec(query);
+    const listed = (await ok("GET", `/api/projects/${project.uuid}`, { headers: dana.headers })).digs;
+    expect(listed.map((d: any) => [d.owner.uuid, d.subject.key]).sort()).toEqual([[ana.uuid, `paper:${A_PAPER}`], [dana.uuid, `paper:${A_PAPER}`]].sort());
+    expect(listed.find((d: any) => d.owner.uuid === dana.uuid).text).toBe("Language design for partial inverses.");
+    expect(listed.every((d: any) => d.project_uuid === null)).toBe(true);
+    expect(await row("SELECT count(*) AS n FROM digs WHERE user_uuid = ? AND subject = ?", ana.uuid, `paper:${A_PAPER}`)).toEqual({ n: 1 });
+    expect(await row("SELECT count(*) AS n FROM digs WHERE user_uuid = ?", ana.uuid)).toEqual({ n: 2 });
+    expect(listed.find((d: any) => d.owner.uuid === ana.uuid).text).toContain("Mine already.");
+  });
+});
+
+describe("0035: digs follow the shelf", () => {
+  it("makes project digs on papers their writers' own, folds doubles, keeps posts, and gives back the paper", async () => {
+    const dana = await register(), ana = await register();
+    const project = await start(dana);
+    const other = await start(dana, "Other");
+    await invite(dana, project, ana);
+    await invite(dana, other, ana);
+    await copyOf(dana, A_PAPER, "Loss Curves");
+    for (const p of [project, other]) await ok("POST", `/api/projects/${p.uuid}/papers`, { headers: dana.headers, json: { paper_sha256: A_PAPER } });
+    const at = (n: number) => new Date(Date.UTC(2026, 0, n)).toISOString();
+    const dig = async (who: Account, projectUuid: string | null, text: string, day: number) => {
+      const uuid = crypto.randomUUID();
+      await exec("INSERT INTO digs (uuid, user_uuid, project_uuid, subject, paper_sha256, text, created_at, updated_at, phase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'digging')",
+        uuid, who.uuid, projectUuid, `paper:${A_PAPER}`, A_PAPER, text, at(day), at(day));
+      return uuid;
+    };
+    // Ana dug the paper in both projects, but never kept it.
+    const first = await dig(ana, project.uuid, "First thoughts.", 1);
+    const second = await dig(ana, other.uuid, "Second thoughts.", 2);
+    await exec("INSERT INTO dig_posts (uuid, dig_uuid, user_uuid, body, created_at) VALUES (?, ?, ?, 'A reply.', ?)", crypto.randomUUID(), second, dana.uuid, at(3));
+    // A dig on a card stays its project's.
+    const board = await ok("POST", `/api/projects/${project.uuid}/boards`, { headers: dana.headers, json: { name: "Plan" } });
+    const card = await ok("POST", `/api/boards/${board.uuid}/comments`, { headers: dana.headers, json: { content: "Bench" } });
+    const onCard = await ok("POST", `/api/projects/${project.uuid}/digs`, { headers: dana.headers, json: { subject: `card:${card.uuid}`, text: "Thursday?" } });
+
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0035_"))!;
+    for (const query of migration.queries) await exec(query);
+
+    expect(await row("SELECT uuid, project_uuid, text FROM digs WHERE user_uuid = ? AND board_item_uuid IS NULL", ana.uuid))
+      .toEqual({ uuid: first, project_uuid: null, text: "First thoughts.\n\nSecond thoughts." });
+    expect(await row("SELECT count(*) AS n FROM digs WHERE uuid = ?", second)).toEqual({ n: 0 });
+    expect(await row("SELECT dig_uuid FROM dig_posts WHERE user_uuid = ?", dana.uuid)).toEqual({ dig_uuid: first });
+    expect(await row("SELECT project_uuid FROM digs WHERE uuid = ?", onCard.uuid)).toEqual({ project_uuid: project.uuid });
+    // Ana keeps the paper now, on her default shelf, so both projects still see her words.
+    expect(await row("SELECT shelf_uuid FROM copies WHERE user_uuid = ? AND paper_sha256 = ? AND deleted_at IS NULL", ana.uuid, A_PAPER))
+      .toEqual({ shelf_uuid: await defaultShelf(ana) });
+    for (const p of [project, other]) {
+      expect((await ok("GET", `/api/projects/${p.uuid}`, { headers: dana.headers })).digs.map((d: any) => d.uuid)).toContain(first);
+    }
   });
 });
