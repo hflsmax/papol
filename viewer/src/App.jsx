@@ -4027,6 +4027,7 @@ export default function App() {
     // pages is just waiting, so it lands at once.
     const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
     scroller.scrollTo({ top, behavior: far ? 'auto' : 'smooth' });
+    return top;
   };
 
   // A section begins at its heading, so the heading lands near the top of
@@ -4043,11 +4044,34 @@ export default function App() {
     const top = scroller.scrollTop + headingY - box.top - Math.min(64, box.height * 0.1);
     const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
     scroller.scrollTo({ top: Math.max(0, top), behavior: far ? 'auto' : 'smooth' });
+    return Math.max(0, top);
   };
 
   // The front of the paper, which is a place on the map like any other.
   const goToTop = () => {
     scrollerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    return 0;
+  };
+
+  // A going by the Navigator is a jump, as a link is: [ comes back to where
+  // the reader left. Kept from the press, so a drag along the strip is one
+  // jump however far it wanders, and only when it went somewhere: a nudge
+  // of a quarter of the window is still reading, not leaving (the rule a
+  // link in the paper keeps too).
+  const navigatorLeft = useRef(null);
+  const leaveByNavigator = () => {
+    navigatorLeft.current = currentView();
+  };
+  const arriveByNavigator = (top) => {
+    const from = navigatorLeft.current;
+    navigatorLeft.current = null;
+    const scroller = scrollerRef.current;
+    if (!from || !scroller || typeof top !== 'number') return;
+    if (Math.abs(top - from.top) > scroller.clientHeight * 0.25) rememberJump(from);
+  };
+  const byNavigator = (go) => (...args) => {
+    leaveByNavigator();
+    arriveByNavigator(go(...args));
   };
 
   // An anchor in the contents is one line, so it says the shortest true
@@ -4390,9 +4414,11 @@ export default function App() {
           onShown={navChoosable ? chooseNavKinds : null}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
-          onSection={goToSection}
-          onAnchor={(mark) => goToAnchor(mark.anchor)}
-          onTop={goToTop}
+          onSection={byNavigator(goToSection)}
+          onAnchor={byNavigator((mark) => goToAnchor(mark.anchor))}
+          onTop={byNavigator(goToTop)}
+          onJumpStart={leaveByNavigator}
+          onJumpEnd={arriveByNavigator}
         />
         {/* A failed sync is reported, not offered again: the viewer is for
             reading, and the Desk is where sync is driven from. */}
