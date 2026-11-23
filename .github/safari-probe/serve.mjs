@@ -52,7 +52,8 @@ const tick = async () => {
 };
 f.addEventListener('load', () => tick());
 </script>`;
-server.middlewares.use('/probe', (req, res) => {
+// Ahead of Vite's own handlers, which answer 404 outside the viewer's base.
+server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
   const path = req.url.split('?')[0];
   if (req.method === 'POST') {
     let body = '';
@@ -69,6 +70,6 @@ server.middlewares.use('/probe', (req, res) => {
   if (path === '/state') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(states.at(-1) ?? null)); return; }
   res.setHeader('Content-Type', 'text/html');
   res.end(html);
-});
+} });
 await server.listen(5199);
 console.log('probe server on http://127.0.0.1:5199/probe/');
