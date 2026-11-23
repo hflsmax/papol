@@ -18,52 +18,10 @@ import BoardCreateForm from './BoardCreateForm';
 import Glyph from './DesktopGlyph';
 import { openDesktopDocumentWindow } from '../../../shared/desktopShell';
 import {
-  dismissPdfViewerPrompt, makePdfViewerDefault, nativeSyncInProgress, pdfViewerStatus, subscribeNativeData,
+  nativeSyncInProgress, subscribeNativeData,
 } from '../../../shared/nativeData.js';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { plainTitle } from '../../../shared/texTitle.js';
-
-// Asked on every launch while another app is the PDF viewer. The viewer asks
-// the same question over an opened file; answering in either place quiets
-// both until the app is relaunched.
-function DefaultViewerPrompt() {
-  const [visible, setVisible] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    pdfViewerStatus()
-      .then((status) => {
-        if (active) setVisible(status.supported && !status.is_default && !status.prompt_dismissed);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  if (!visible) return null;
-  const dismiss = () => {
-    dismissPdfViewerPrompt().catch(() => {});
-    setVisible(false);
-  };
-  const makeDefault = async () => {
-    try {
-      await makePdfViewerDefault();
-      dismiss();
-    } catch (failure) {
-      setError(String(failure?.message ?? failure));
-    }
-  };
-
-  return (
-    <div className="notice-banner pdf-viewer-prompt" role="status">
-      <span>{error || 'Use Papol as your default PDF viewer?'}</span>
-      <span className="notice-banner-actions">
-        <button type="button" className="notice-banner-button" onClick={makeDefault}>Use Papol</button>
-        <button type="button" className="notice-banner-link" onClick={dismiss}>Not now</button>
-      </span>
-    </div>
-  );
-}
 
 // Papol macOS's three-pane browser (DESIGN.md, "Desktop shell"): the
 // sidebar picks a source, the list pane shows what is in it, and the chosen
@@ -500,7 +458,6 @@ export function DesktopBrowser({
         {/* The rest of the unified toolbar: nothing to press, but it moves
             the window like the title bar it stands in for. */}
         <div className="desktop-toolbar" data-tauri-drag-region="deep" />
-        <DefaultViewerPrompt />
         {/* Keyed by what the pane shows, so a crash stays in this pane and
             choosing anything else starts it clean. */}
         <ErrorBoundary

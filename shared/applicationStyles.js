@@ -604,11 +604,6 @@ ${macHandoffStyles}
   text-decoration: underline;
 }
 
-.pdf-viewer-prompt button.notice-banner-link {
-  padding: 0;
-  cursor: pointer;
-}
-
 .topnav .spacer {
   flex: 1;
 }
