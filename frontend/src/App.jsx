@@ -1100,13 +1100,11 @@ export default function App({ startupUser = null, startupError = null }) {
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   // Where a page leads back to on its way home to the nook, unless it
-  // says so itself: a jacket to the place it was opened from, a nook of
-  // someone else's to the Library their papers are found in.
+  // says so itself: a jacket to the place it was opened from. A nook of
+  // someone else's names no step: the Lounge is already in the bar.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
     ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: ROOM } : jacketBack]
-    : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: ROOM_PATH, label: ROOM }]
-      : [];
+    : [];
   return (
     <>
       <style>{applicationStyles}</style>
