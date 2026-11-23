@@ -718,7 +718,7 @@ describe("saving, opening and editing", () => {
     expect((await call("GET", `/api/papers/${digest.slice(0, 32)}`)).status).toBe(401);
   });
 
-  it("takes a copy, lets it go without taking the paper out of the Library, and revives it when taken again", async () => {
+  it("takes a copy, lets it go without taking the paper out of Papol, and revives it when taken again", async () => {
     const account = await register();
     await aPaper("b".repeat(64), "Held by nobody");
     const name = "b".repeat(32);

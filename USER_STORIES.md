@@ -80,7 +80,7 @@ papers in, and I decide where they go.
 
 - **US-3.1** As a user, I find a person with **Find** in the Lounge's rail, by name or email address (US-9.6), and from a face wherever one shows — a Lounge row, a jacket's "also read by", a project — I reach their nook. There is no list of every user.
 - **US-3.2** As a user, I can visit another user's nook and browse the copies on their public shelves, with whatever of each copy its user has made public (US-2.5a). Notes stay private to the user who wrote them.
-- **US-3.3** **There is no Library.** Other people's papers reach me through people: my friends' news in the Lounge (§10), a nook I visit, a jacket's "also read by", a project, and links. Papol has no page listing every paper and no search across them; the papers I search are my own, in my nook. The old address `/library` opens the Lounge.
+- **US-3.3** **There is no Library.** Other people's papers reach me through people: my friends' news in the Lounge (§10), a nook I visit, a jacket's "also read by", a project, and links. Papol has no page listing every paper and no search across them; the papers I search are my own, in my nook.
 - **US-3.4** As a user, a paper's jacket shows "Also read by" chips for every other user whose copy of the same paper is on a **public shelf**. Users who keep theirs on a private shelf are not named. Hovering a chip shows what they have made public of their copy — thought, ratings, summary, tags; clicking visits their nook.
 
 ## 4. Inbox

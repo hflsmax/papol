@@ -1,4 +1,4 @@
-// People, nooks, shelves, tags, and the Library's list of papers.
+// People, nooks, shelves, tags, and the list of every paper.
 import { describe, expect, it } from "vitest";
 
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
@@ -6,18 +6,6 @@ import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows
 async function privateShelf(account: Account): Promise<string> {
   return (await row<{ uuid: string }>("SELECT uuid FROM shelves WHERE user_uuid = ? AND is_public = 0", account.uuid))!.uuid;
 }
-
-describe("the Library's people", () => {
-  it("lists every user with how many papers they display", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    await paperWithCopy(ada, "a".repeat(64), "Shown", { shelfUuid: await defaultShelf(ada) });
-    await paperWithCopy(ada, "b".repeat(64), "Hidden", { shelfUuid: await privateShelf(ada) });
-    const users = await ok("GET", "/api/users", { headers: grace.headers });
-    expect(users.map((u: any) => [u.display_name, u.paper_count])).toEqual([["Ada", 1], ["Grace", 0]]);
-    expect(users[0].email).toBe("ada@example.test");
-    expect((await call("GET", "/api/users")).status).toBe(401);
-  });
-});
 
 describe("a nook", () => {
   it("shows its owner everything, and others only what is on display", async () => {
@@ -62,7 +50,7 @@ describe("a nook", () => {
   });
 });
 
-describe("the Library", () => {
+describe("the list of every paper", () => {
   it("lists a paper nobody displays and one nobody holds, naming no reader for either", async () => {
     const keeper = await register("keeper@example.test", "Ada"), other = await register("other@example.test", "Grace");
     const kept = "a".repeat(64), nobodys = "c".repeat(64);
