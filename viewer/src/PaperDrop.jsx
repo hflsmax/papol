@@ -3,12 +3,16 @@ import DeskFileDropFeedback from '../../shared/ui/FileDropFeedback.jsx';
 import { carriesFiles, deskFileDragState, isPdfFile } from '../../shared/fileDrop.js';
 import { handOverDroppedPdfs } from '../../shared/droppedPapers.js';
 import { getToken } from './api.js';
-import { DESKTOP } from '../../shared/desktopShell';
+import { DESKTOP, focusDesktopDeskWindow } from '../../shared/desktopShell';
 import { appPath } from './base';
 
-// PDFs dropped while reading, on the web, are papers to add, as they are on
-// every Desk page: they go to the nook's upload, which takes them in. The
-// browser is never left to open a dropped PDF in Papol's place.
+// PDFs dropped while reading are papers to add, as they are on every Desk
+// page: they go to the nook's upload, which takes them in. On the web this
+// page gives way to the nook; in the Mac app the Desk window is raised and
+// takes them there, as it takes a drop on itself (or, with no account, opens
+// the PDF in a viewer of its own). The browser, or WebKit, is never left to
+// open a dropped PDF in Papol's place: the Mac app's viewer window showed
+// "The object can not be found here." when it did.
 export default function PaperDrop() {
   const [drag, setDrag] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -16,8 +20,8 @@ export default function PaperDrop() {
   const noticeTimer = useRef(null);
 
   useEffect(() => {
-    if (DESKTOP) return undefined;
-    const member = () => Boolean(getToken());
+    // The Mac app's Desk window knows the account and decides there.
+    const member = () => DESKTOP || Boolean(getToken());
     const say = (message) => {
       setNotice(message);
       window.clearTimeout(noticeTimer.current);
@@ -58,7 +62,7 @@ export default function PaperDrop() {
         say('This browser could not hold the PDF. Add it from your nook.');
         return;
       }
-      window.location.assign(appPath('/'));
+      if (!focusDesktopDeskWindow()) window.location.assign(appPath('/'));
     };
     window.addEventListener('dragenter', enter);
     window.addEventListener('dragover', over);

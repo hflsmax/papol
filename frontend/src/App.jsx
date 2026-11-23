@@ -8,13 +8,13 @@ import { getNotifications, getPendingAdminMessages } from '../../shared/api/noti
 import { updatePaper } from '../../shared/api/papers.js';
 import AuthPage from './components/AuthPage';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
-import Nook from './components/Nook';
+import Nook, { GOING_HOME } from './components/Nook';
 import { forgetLastMember, lastMember, rememberLastMember } from './lastMember';
 import BoardJacket from './components/BoardJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
-import PapersPage from './components/PapersPage';
+import Room from './components/Room';
 import InboxPage from './components/InboxPage';
 import AdminPage from './components/AdminPage';
 import HomePage from './components/HomePage';
@@ -25,25 +25,28 @@ import YouPage from './components/YouPage';
 import ProjectPage from './components/ProjectPage';
 import InvitationPage from './components/InvitationPage';
 import { listProjects, markPresent } from '../../shared/api/projects.js';
-import { BAZAAR, WayBar, WayFoot, WayShown } from './components/Way';
+import { ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
+import { getRoomNews } from '../../shared/api/friends.js';
+import { forgetFriends, useFriends } from './friendsStore.js';
+import { forgetLounge, setLounge, useLounge } from './loungeStore.js';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import {
-  DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
+  DesktopSidebar, DesktopToolbar, desktopModes, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNook } from './components/DesktopDesk';
-import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
+import { isBrowsing, lastShownListing, listingPath, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
-  MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
+  FEATURE_STATES_TAKEN, MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
 import SyncAttention from './components/SyncAttention';
 import { appPath, stripAppBase } from './base';
-import { parseRoute } from './routes';
+import { parseRoute, returnAfterSignIn, SIGN_IN_PAGES } from './routes';
 import {
   originAfterMove, jacketBackTarget, readJacketOrigin, writeJacketOrigin,
 } from './jacketOrigin';
@@ -52,6 +55,7 @@ import { subscribeUnauthenticated } from '../../shared/httpClient.js';
 import { DESKTOP, openDesktopDocumentWindow } from '../../shared/desktopShell';
 import { confirmAction } from '../../shared/confirmAction';
 import DeskFileDropFeedback from '../../shared/ui/FileDropFeedback.jsx';
+import { dropTarget } from './dropTarget.js';
 import { handOverDroppedPdfs, takeDroppedPdfs } from '../../shared/droppedPapers.js';
 import { carriesFiles, isPdfFile, deskFileDragState } from '../../shared/fileDrop.js';
 import { droppedFolder, severalPdfs } from './agentFolder.js';
@@ -65,18 +69,12 @@ import {
   checkClientCompatibility, setClientCompatibility,
 } from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
+// The macOS application is signed, notarized, and attached to this project's
+// GitHub releases by .github/workflows/desktop-macos.yml.
+import { MAC_DOWNLOAD_URL as MACOS_DOWNLOAD_URL } from '../../shared/macDownload.js';
 
 // Where a member works inside one project.
 export const PROJECT_PAGES = new Set(['project']);
-
-const SIGN_IN_PAGES = new Set([
-  'nook', 'shelf', 'papers', 'inbox', 'admin', 'profile',
-  'projects', 'project', 'invitation',
-]);
-
-// The macOS application is signed, notarized, and attached to this project's
-// GitHub releases by .github/workflows/desktop-macos.yml.
-const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
 // Closing this is one of the things a browser remembers about a user, so it
 // is named in shared/featureStates.js rather than here, and Admin can bring
@@ -146,10 +144,10 @@ const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
 // a signed-in member sees these ones inside their nook, beside its rail.
 const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
 
-// Where a PDF dropped on the window is taken in: on the web the member's
-// own nook, whose papers it joins, straight into its upload; the Mac app's
-// Library holds the one upload box it has.
-const DROP_PLACE = DESKTOP ? '/library' : '/';
+// Where a PDF dropped on the window is taken in: the member's own nook,
+// whose papers it joins, straight into its upload (in the Mac app, All
+// papers).
+const DROP_PLACE = '/';
 
 // Links from before things had paths: /?shelf=…&paper=… and the like.
 function nookPathFromQuery(search) {
@@ -184,6 +182,7 @@ export default function App({ startupUser = null, startupError = null }) {
   const [authChecked, setAuthChecked] = useState(() => DESKTOP || Boolean(startupUser || returning) || !getToken());
   const [route, setRoute] = useState(parseRoute());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [roomNews, setRoomNews] = useState(false);
   const [projectsRevision, setProjectsRevision] = useState(0);
   const [myProjects, setMyProjects] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
@@ -198,6 +197,12 @@ export default function App({ startupUser = null, startupError = null }) {
   const [showMacosDownloadBanner, setShowMacosDownloadBanner] = useState(
     () => !DESKTOP && !macosBannerWasDismissed(),
   );
+  // Closed on another device, heard of after this one opened.
+  useEffect(() => {
+    const look = () => { if (macosBannerWasDismissed()) setShowMacosDownloadBanner(false); };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
 
   // An authenticated user is signed in; guest is the public fallback.
   const mode = user ? 'signed-in' : 'guest';
@@ -377,16 +382,42 @@ export default function App({ startupUser = null, startupError = null }) {
   }, [mode]);
 
   // PDFs dropped in the viewer, handed over on the way here: the nook's
-  // upload takes them as if they had been dropped on it.
+  // upload takes them as if they had been dropped on it. On the web they
+  // come with the page load; in the Mac app the viewer window raises this
+  // one, so they are looked for each time it comes forward, and with no
+  // account the one PDF opens in a viewer of its own, as a drop here does.
   useEffect(() => {
-    if (DESKTOP || mode !== 'signed-in') return;
-    void takeDroppedPdfs().then((files) => {
+    if (!DESKTOP && mode !== 'signed-in') return undefined;
+    let taking = false;
+    const take = async () => {
+      if (taking) return;
+      taking = true;
+      const files = await takeDroppedPdfs();
+      taking = false;
       if (!files.length) return;
+      if (DESKTOP && mode !== 'signed-in') {
+        if (files.length === 1) {
+          try {
+            await openDroppedPdf(files[0]);
+          } catch {
+            // The viewer that was dropped on is still open; nothing is lost.
+          }
+        } else {
+          setDeskDropNotice('Sign in to add several papers at once.');
+          window.clearTimeout(deskDropNoticeTimer.current);
+          deskDropNoticeTimer.current = window.setTimeout(() => setDeskDropNotice(null), 4000);
+        }
+        return;
+      }
       const uuid = globalThis.crypto.randomUUID();
       if (files.length > 1) setIncomingPaperFolder({ uuid, files });
       else setIncomingPaperFile({ uuid, file: files[0] });
-      navigate('/', { replace: true });
-    });
+      navigate(DROP_PLACE, { replace: !DESKTOP });
+    };
+    void take();
+    if (!DESKTOP) return undefined;
+    window.addEventListener('focus', take);
+    return () => window.removeEventListener('focus', take);
   }, [mode]);
 
   // Back and Forward return a page scrolled where it was left; a move
@@ -486,6 +517,21 @@ export default function App({ startupUser = null, startupError = null }) {
       .catch(() => {});
   }, [user, route]);
 
+  // Whether the Lounge has anything I have not seen, asked as I move
+  // about. Opening the room answers it: the room says so itself.
+  useEffect(() => {
+    if (!user) {
+      setRoomNews(false);
+      forgetFriends();
+      forgetLounge();
+      return;
+    }
+    if (route.page === 'room') return;
+    getRoomNews()
+      .then((d) => setRoomNews(Boolean(d.news)))
+      .catch(() => {});
+  }, [user?.uuid, route]);
+
   // The projects I am in, for the Mac app's sidebar.
   useEffect(() => {
     if (!user) {
@@ -580,10 +626,31 @@ export default function App({ startupUser = null, startupError = null }) {
     search: window.location.search,
     lastShown: lastShownListing(),
   });
+  // The Mac window's mode (DesktopChrome.jsx, desktopModes): the Lounge
+  // turns it on, the nook's own lists turn it off, and every other page
+  // keeps the mode it was opened in.
+  const [loungeMode, setLoungeMode] = useState(() => DESKTOP && route.page === 'room');
+  useEffect(() => {
+    if (!DESKTOP) return;
+    if (route.page === 'room') setLoungeMode(true);
+    else if (isBrowsing(route, user) && route.page !== 'paper') setLoungeMode(false);
+  }, [route, user?.uuid]);
+  const lounge = useLounge();
+  const friends = useFriends(DESKTOP && Boolean(user));
+  const pickLounge = (patch) => {
+    setLounge(patch);
+    if (route.page !== 'room') navigate(ROOM_PATH);
+  };
+  const desktopModeItems = user ? desktopModes({
+    mode: loungeMode ? 'lounge' : 'nook',
+    nookPath: listingPath(lastShownListing() || 'all'),
+    roomNews,
+  }) : [];
   const desktopGroups = desktopNavigation({
     user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing,
+    mode: loungeMode ? 'lounge' : 'nook', lounge, friends: friends?.friends ?? [], onPickLounge: pickLounge,
   });
-  useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
+  useDesktopShortcuts({ groups: desktopGroups, modes: desktopModeItems, onNavigate: navigate });
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
@@ -592,11 +659,9 @@ export default function App({ startupUser = null, startupError = null }) {
     // Only our own pages, and only ones worth being returned to. A
     // visitor who signed in to keep a paper somebody shared with them is
     // brought back to the link they were reading, where the paper is
-    // still theirs to add.
-    const returnTo = ['/paper/', '/shelf/', '/board/', '/project/', '/boards/', '/viewer/']
-      .some((start) => candidate.startsWith(start))
-      ? candidate
-      : '/';
+    // still theirs to add; one who followed an email to their Inbox lands
+    // in it.
+    const returnTo = returnAfterSignIn(candidate);
     // login/register already persisted the credential for this account.
     setUser(user);
     // Surfaces of their own, built and served separately from this one:
@@ -713,6 +778,10 @@ export default function App({ startupUser = null, startupError = null }) {
     // goes there, as it would from any page.
     if (OTHER_APPLICATIONS.some((prefix) => routePath.startsWith(prefix))) return;
     event.preventDefault();
+    // Papol's mark, or any other way home, pressed: whatever stands over
+    // the nook (an upload's form) is put away, even when the address is
+    // the nook's already and the move itself would change nothing.
+    if (routePath === '/' && !destination.search) window.dispatchEvent(new Event(GOING_HOME));
     navigate(`${routePath}${destination.search}`);
   };
 
@@ -877,22 +946,13 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {(route.page === 'papers' || (hasWay && route.page === 'projects')) && (
-        <PapersPage
-          projects={hasWay && (
-            <ProjectsPage
-              section
-              currentUser={user}
-              onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
-              onChanged={() => setProjectsRevision((r) => r + 1)}
-            />
-          )}
+      {route.page === 'room' && (
+        <Room
           currentUser={user}
-          onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
-          onSelectBoard={openBoard}
+          onSeen={() => setRoomNews(false)}
         />
       )}
-      {!hasWay && route.page === 'projects' && (
+      {route.page === 'projects' && (
         <ProjectsPage
           currentUser={user}
           onOpenProject={(uuid) => navigate(`/project/${uuid}`)}
@@ -999,6 +1059,7 @@ export default function App({ startupUser = null, startupError = null }) {
           state={deskFileDrag}
           message={deskDropNotice}
           opensViewer={mode === 'guest'}
+          into={mode === 'signed-in' ? dropTarget() : null}
         />
         <CompatibilityGate />
         <SyncAttention onSignedOut={askToSignIn} onDetails={() => navigate('/profile')} />
@@ -1013,9 +1074,12 @@ export default function App({ startupUser = null, startupError = null }) {
             onTagDeleted={(tagUuid) => { if (desktopListing === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
-        <div className="desktop-app" onClickCapture={routeAppLinks}>
+        <div className={`desktop-app${loungeMode ? ' is-lounge' : ''}`} onClickCapture={routeAppLinks}>
           <DesktopSidebar
             groups={desktopGroups}
+            modes={user ? desktopModeItems : null}
+            finding={lounge.finding}
+            onFind={() => pickLounge({ finding: !(lounge.finding && route.page === 'room') })}
             user={user}
             profileActive={route.page === 'profile'}
             onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
@@ -1033,7 +1097,9 @@ export default function App({ startupUser = null, startupError = null }) {
             }}
             notice={desktopNotice}
           />
-          {isBrowsing(route, user) ? (
+          {/* In Lounge mode a paper opens on its own, as other pages do,
+              rather than beside the nook's list. */}
+          {isBrowsing(route, user) && !(loungeMode && route.page === 'paper') ? (
             <DesktopBrowser
               key={`${mode}:${user.uuid}`}
               listing={desktopListing}
@@ -1066,17 +1132,15 @@ export default function App({ startupUser = null, startupError = null }) {
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   // Where a page leads back to on its way home to the nook, unless it
-  // says so itself: a jacket to the place it was opened from, a nook of
-  // someone else's to the Library their papers are found in.
+  // says so itself: a jacket to the place it was opened from. A nook of
+  // someone else's names no step: the Lounge is already in the bar.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: '/bazaar', label: BAZAAR } : jacketBack]
-    : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: '/bazaar', label: BAZAAR }]
-      : [];
+    ? [jacketBack]
+    : [];
   return (
     <>
       <style>{applicationStyles}</style>
-      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} />
+      <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} into={mode === 'signed-in' ? dropTarget() : null} />
       {adminMessageDialog}
       {macosDownloadBanner}
       {!onLanding && (
@@ -1100,6 +1164,7 @@ export default function App({ startupUser = null, startupError = null }) {
             route={route}
             trail={wayTrail}
             unreadCount={unreadCount}
+            roomNews={roomNews}
           />
         )}
         {!hasWay && <header className="topnav">
@@ -1108,8 +1173,8 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
               Home
             </a>
-            <a href={appPath('/bazaar')} className={route.page === 'papers' ? 'active' : ''}>
-              Bazaar
+            <a href={appPath(ROOM_PATH)} className={route.page === 'room' ? 'active' : ''}>
+              {ROOM}
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About

@@ -308,33 +308,20 @@ mod pdf_handler {
     }
 }
 
-/// Set when the user answers the default-viewer prompt. Held in memory so
-/// every window stops asking for the rest of this launch, and the next launch
-/// asks again.
-static PDF_VIEWER_PROMPT_DISMISSED: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
 #[tauri::command]
 fn pdf_viewer_status(app: tauri::AppHandle) -> serde_json::Value {
-    let prompt_dismissed = PDF_VIEWER_PROMPT_DISMISSED.load(std::sync::atomic::Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
         serde_json::json!({
             "supported": true,
             "is_default": pdf_handler::is_default(&app.config().identifier),
-            "prompt_dismissed": prompt_dismissed,
         })
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = app;
-        serde_json::json!({"supported": false, "is_default": false, "prompt_dismissed": prompt_dismissed})
+        serde_json::json!({"supported": false, "is_default": false})
     }
-}
-
-#[tauri::command]
-fn pdf_viewer_prompt_dismiss() {
-    PDF_VIEWER_PROMPT_DISMISSED.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -1245,8 +1232,7 @@ pub fn run() {
             opened_file_open,
             request_sign_in,
             pdf_viewer_status,
-            pdf_viewer_make_default,
-            pdf_viewer_prompt_dismiss
+            pdf_viewer_make_default
         ])
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;

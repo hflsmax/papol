@@ -18,7 +18,10 @@ identifier of its own, the notes column gives it.
 | **Visitor** | A user who is not signed in. | Sees the home page, a sharable and the sign-in pages; the community's pages ask them to sign in. |
 | **Nook** | One user's public reading corner: their copies, shelves, boards and tags. | `Nook.jsx`, `getNook()`, `GET /api/users/<uuid>/nook`, `route.page === 'nook'` at `/u/<uuid>`. |
 | **Shelf** | One of a user's homes for papers, each **public** or **private**. *The shelf says whether a copy is on display at all; of a copy on display, each of its thought, ratings, summary and tags says for itself.* | `shelves.is_public`. A copy is on display when its shelf is public; the toggle in `NookManager.jsx` reads Public / Private. The fields' own say is `copies.thought_public`, `ratings_public`, `summary_public`, `tags_public`, turned by the chip beside each on the jacket (`VisibilityChip.jsx`). |
-| **Library** | Every paper there is, and every user with a copy on a public shelf. The place a paper is found rather than owned. | Papers and the people who read them are two views of one Library, not two places. `/library`, `route.page === 'papers'`. |
+| **Friend** | A user I asked, or who asked me, and the other accepted. Always mutual. The third audience, between everyone and a project: a friend reads and posts in my digs on papers I keep on a public shelf. | `friendships` (one row per pair; `state` is `asked`, `declined`, `dropped` or `friends`), `routes/friends.ts`, `friendSees()`, `FriendButton.jsx`. Nobody but me sees who my friends are. |
+| **Request** | One user asking another to be friends. Answered **Accept** or **Not now**; unanswered it waits. Not now is quiet: the asker is never told. | `POST /api/friends/<uuid>`, `/accept`, `/decline`. A notification of kind `friend_request`. |
+| **Lounge** | The page of my friends' news, a paper to a row. It is made from my friends and nobody else. It took the place of the *Bazaar*, and with the friends' news the *Library*, the list of every paper and person, went too: both have left the vocabulary. Other people's papers are found here, on a nook, on a jacket's "also read by", or by a link; people are found with the Lounge's **Find**. | `Room.jsx`, `GET /api/room`, `route.page === 'room'` at `/lounge` (`/bazaar` still leads there). The list of every paper (`GET /api/papers`) stays, unshown: a folder's review asks it what Papol already holds. |
+| **News** | Something a user did that I am allowed to see, shown under its paper in the Lounge; in a project, what is new since I last looked. The gold dot is its one sign. | Derived on read from copies, digs, boards, projects and friendships over four weeks; `copy_news` keeps when a thought or rating last changed. `users.room_seen_at`. |
 | **Admin** | A user who can see feedback, settings and the tables page. | |
 
 ## 2. Works
@@ -28,7 +31,7 @@ identifier of its own, the notes column gives it.
 | **Paper** | One PDF and what is known about it, **keyed by the content hash** of that file. One row, shared by every user who holds it, and **owned by none of them**. | `papers`, primary key `sha256`. Metadata and "also read by" hang off the paper, never off a copy. Nothing in the code asks whose a paper is. Two PDFs of the same work — a preprint and the published version — are two papers, even when they print the same DOI. |
 | **DOI** | A paper's DOI, stored bare: `10.1000/xyz`, without `https://doi.org/`. The server strips the resolver prefix from whatever it is given, so the link is built on the way out. | `papers.doi`; `bare_doi()` in `schemas.py`. |
 | **Copy** | One user's holding of one paper: shelf, ratings, summary, thought, tags. **The only thing here a user owns.** | `copies`, `Copy`. A paper payload carries `copy_uuid` and `is_public` for the viewer's own copy. Everything private in Papol hangs off a copy. |
-| **Jacket** | A work's one screen in the Library: what is known about it, and the way in. A paper's is at `/paper/<name>`, a board's at `/board/<uuid>`. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`; `route.page` is `paper` or `board`. A jacket is a place in a surface (§9), not the application that opens the work. On the desktop it sits in the Library window while the work opens in a document window of its own. |
+| **Jacket** | A work's one screen: what is known about it, and the way in. A paper's is at `/paper/<name>`, a board's at `/board/<uuid>`. | `PaperJacket.jsx`, `BoardJacket.jsx`, `jacketOrigin.js`, `.paper-jacket`; `route.page` is `paper` or `board`. A jacket is a place in a surface (§9), not the application that opens the work. On the desktop it sits in the Desk window while the work opens in a document window of its own. |
 | **Page** | One sheet of a PDF. | `annotations.page`, `data-page`, `.pdf-page`, "page 7" in the Navigator. `route.page` is the frontend router's index of screens (`home`, `signin`, `paper`, `board`, `nook`…), not a work's page. |
 | **Summary** | My prose about a paper. **Private** unless I make it public. | `copies.summary`, `copies.summary_public`. Only its own user writes it. |
 | **Thought** | My one-line take, shown on my chip wherever I appear beside the paper. **Public** unless I make it private. | `copies.thought`, `copies.thought_public`, labelled "My thought". |
@@ -89,7 +92,7 @@ first user of a PDF waits.
 
 | Term | Meaning | Notes |
 | --- | --- | --- |
-| **Board** | A private ideation space inside one user's nook. | `boards`. Two addresses, as a paper has: its **jacket** (§2) in the Library, and the canvas it opens on, served full-screen at `/boards/<uuid>`. |
+| **Board** | A private ideation space inside one user's nook. | `boards`. Two addresses, as a paper has: its **jacket** (§2), and the canvas it opens on, served full-screen at `/boards/<uuid>`. |
 | **Card** | One item on a board. Its kind is `comment`, `excerpt`, `image`, `file`, `youtube`, `bilibili` or `webpage`. | `board_items`, `BoardItemOut`. |
 | **Board group** | A grouping of cards: a **booklet** or a **collection**. | `board_groups.kind`. Not a stroke group (§3). |
 | **Excerpt** | Text carried out of the viewer onto a board — a selection, a painted passage, or a clip's contents. | `board_items.excerpt_text`. Unwrapped from the PDF's visual line breaks on the way out; genuine paragraph breaks kept. |
@@ -160,7 +163,7 @@ is a guess, so the bar never announces a verdict about the user's computer.
 | **Surface** | One of Papol's three browser entry points: **library** (`frontend`), **viewer**, **board**. Separate applications that share `shared/` and never import one another. | Enforced by the dependency-boundary test; `docs/application-boundaries.md`. |
 | **Adapter** | Per-application platform wiring, in each surface's `configurePlatform.js`: the only layer that imports Tauri. | |
 | **Native repository** | The finite set of desktop queries and atomic transactions exposed to the bundled UI, mirrored by a closed enum in Rust. | `shared/nativeData.js`. |
-| **Listing** | What the macOS paper browser's sidebar is showing: `all`, `shelf:<uuid>`, `tag:<uuid>`, `boards` or `library`. | `desktopListings.js`, `?listing=`. |
+| **Listing** | What the macOS paper browser's sidebar is showing: `all`, `shelf:<uuid>`, `tag:<uuid>` or `boards`. | `desktopListings.js`, `?listing=`. |
 | **Sync change** | One row's movement between a replica and the server: the operation is `upsert` or `delete`. | `cloudflare/src/sync/`. A **revision** is the server-side counter per row; a **tombstone** is a `deleted_at` that stands in for the row; the **outbox** is the durable local record committed in the same transaction as the edit it describes. |
 | **Schema version** | The one number that names the data model and the wire that carries it. The developer bumps it when a change lands that an existing database, replica or build cannot be read under. | `schema_version` in `schema/sync_registry.json`. The server refuses to start on a database at another version; the desktop discards a replica at another version and synchronizes the account back; every request carries it as `X-Papol-Schema`, and the server answers 426 to any other. Nothing detects shape. |
 | **Client gate** | The 426 a client built for another schema version receives, and the covering panel it shows. | `services/client_requirements.py`, `shared/clientCompatibility.js`, `CompatibilityGate.jsx`. |
@@ -192,7 +195,6 @@ For all prose and all new identifiers.
 | ink | paint *(noun)* | Ink is the substance, the kind and the stored stroke. |
 | reading | "my notes and annotations" | The reading is the unit a rich link carries. |
 | revoke | close | A revoked link does not reopen. |
-| library | directory | Papers and the people who read them are two views of one Library. |
 | the copy's user | the paper's owner | A copy is owned; a paper is not. |
 | jacket | paper page, board page | A page is a sheet of a PDF. |
 | listing | source | Source is where a document or a card came from. |

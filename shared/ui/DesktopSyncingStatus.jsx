@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DESKTOP } from '../desktopShell.js';
+import { addPageStyles } from '../pageStyles.js';
 import { Working } from './Waiting.js';
 import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../connectivity.js';
 import {
@@ -54,12 +55,7 @@ const STYLE = `
 }
 `;
 
-if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = STYLE;
-  document.head.appendChild(style);
-}
+addPageStyles(STYLE_ID, STYLE);
 
 // Native synchronization is process-wide, while the Desk, Viewer and
 // Board each run in their own WebView. Listen to the native event as well as

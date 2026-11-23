@@ -194,6 +194,12 @@ export default function Navigator({
   onSection,
   onAnchor,
   onTop,
+  // A press, a drag along the strip, or a mark clicked is a jump like
+  // following a link, and [ comes back from it. Told when the reader
+  // leaves (before the paper moves) and where they arrive (the scroll top
+  // the press settled on), so a whole drag is one jump, not one per frame.
+  onJumpStart = null,
+  onJumpEnd = null,
 }) {
   const rootRef = useRef(null);
   const trackRef = useRef(null);
@@ -431,6 +437,7 @@ export default function Navigator({
     if (event.button !== 0 || event.target.closest('.navigator-anchor, .navigator-sub')) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     scrubbing.current = true;
+    onJumpStart?.();
     seek(pressedAt(event));
     tell(event);
   };
@@ -476,6 +483,8 @@ export default function Navigator({
   };
 
   const release = (event) => {
+    // Up, then the capture let go: only the first ends the jump.
+    if (scrubbing.current) onJumpEnd?.(glide.current.target);
     scrubbing.current = false;
     // A finger has no hover to go back to once it is lifted.
     if (event?.pointerType === 'touch') hush();
@@ -647,7 +656,11 @@ export default function Navigator({
                 // The same journey a press on the strip makes: the place
                 // comes to the middle of the window, so the marker ends up
                 // standing on the mark.
-                onClick={() => seek(over.at)}
+                onClick={() => {
+                  onJumpStart?.();
+                  seek(over.at);
+                  onJumpEnd?.(glide.current.target);
+                }}
               >
                 <MarkGlyph kind={over.kind} />
               </button>
