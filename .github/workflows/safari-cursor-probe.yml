@@ -37,11 +37,11 @@ jobs:
         run: |
           open -a Safari http://127.0.0.1:5199/probe/
           sleep 8
-          osascript -e 'tell application "Safari" to activate' || true
-          osascript -e 'tell application "Safari" to set bounds of front window to {0, 30, 1280, 900}' || true
-          sleep 4
       - name: Drive the pointer and read the cursor
         run: swiftc -O .github/safari-probe/probe.swift -o probe && ./probe | tee probe.log
+      - name: What the page saw
+        if: always()
+        run: cat serve.log || true
       - name: Screenshot
         if: always()
         run: screencapture -C -x screen.png || true

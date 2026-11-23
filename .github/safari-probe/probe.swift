@@ -36,6 +36,11 @@ func move(_ to: CGPoint) {
   usleep(500_000)
 }
 
+func click(_ at: CGPoint) {
+  post(.leftMouseDown, at); usleep(40_000)
+  post(.leftMouseUp, at); usleep(300_000)
+}
+
 func doubleClick(_ at: CGPoint) {
   post(.leftMouseDown, at, clicks: 1); usleep(40_000)
   post(.leftMouseUp, at, clicks: 1); usleep(90_000)
@@ -63,6 +68,8 @@ print("window", s["window"] ?? "?")
 let word = point(s, "word"), bare = point(s, "bare"), bare2 = point(s, "bare2")
 print("references: known cursors arrow=\(NSCursor.arrow.hotSpot) iBeam=\(NSCursor.iBeam.hotSpot) hand=\(NSCursor.pointingHand.hotSpot)")
 
+// A first click wakes the window: one Safari is not yet key keeps for itself.
+move(bare); click(bare); sleep(1)
 move(word);  let w1 = cursor(); print("before: over a word      ", w1)
 move(bare);  let b1 = cursor(); print("before: over bare paper  ", b1)
 move(word);  let w2 = cursor(); print("before: over a word again", w2)

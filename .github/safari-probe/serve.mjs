@@ -50,7 +50,19 @@ const tick = async () => {
   }
   setTimeout(tick, 400);
 };
-f.addEventListener('load', () => tick());
+f.addEventListener('load', () => {
+  const d = f.contentDocument;
+  for (const type of ['mousedown', 'mouseup', 'click', 'dblclick']) {
+    d.addEventListener(type, (e) => {
+      const t = e.target;
+      post('/probe/event', { type, detail: e.detail, x: e.clientX, y: e.clientY,
+        target: (t.className && String(t.className.baseVal ?? t.className)) || t.tagName,
+        cursor: getComputedStyle(t).cursor, selected: String(f.contentWindow.getSelection() || '').length,
+        prevented: e.defaultPrevented });
+    }, true);
+  }
+  tick();
+});
 </script>`;
 // Ahead of Vite's own handlers, which answer 404 outside the viewer's base.
 server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
@@ -60,7 +72,8 @@ server.middlewares.stack.unshift({ route: '/probe', handle: (req, res) => {
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       const value = JSON.parse(body || '{}');
-      if (path === '/spots') spots = value;
+      if (path === '/event') console.log('event', JSON.stringify(value));
+      else if (path === '/spots') spots = value;
       else states.push(value);
       res.end('{}');
     });
