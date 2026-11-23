@@ -6,7 +6,7 @@ import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer, uploadReads } from
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
 // Papers tab and a dig in the Digs tab, on the web and in the Mac shell, wide and on a phone; and the member's
-// places around it (their nook, the Library, a paper) with the bar over
+// places around it (their nook, the Lounge, a paper) with the bar over
 // every page.
 //
 //   node scripts/project-shots.mjs <out dir> [name ...]
@@ -140,7 +140,7 @@ const SHOTS = {
   // The Lounge, where the Bazaar was: my friends' news a paper to a
   // row; a dig opened from a face; on
   // a phone and in the Mac app.
-  library: { path: '/bazaar?shell=web', ready: "document.querySelector('.room-row')", size: wide },
+  lounge: { path: '/bazaar?shell=web', ready: "document.querySelector('.room-row')", size: wide },
   'room': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", size: { width: 1440, height: 1500 } },
   'room-filter-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const b = document.querySelector('.room-friend'); if (!b) return setTimeout(go, 100); b.click(); }; go(); return true;", settled: "document.querySelector('.room-friend.is-on')", size: wide },
   'room-add-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const add = document.querySelector('.room-add'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;", settled: "document.querySelector('.room-found .friend-button button')", size: wide },

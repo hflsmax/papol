@@ -145,10 +145,10 @@ const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
 // a signed-in member sees these ones inside their nook, beside its rail.
 const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
 
-// Where a PDF dropped on the window is taken in: on the web the member's
-// own nook, whose papers it joins, straight into its upload; the Mac app's
-// Library holds the one upload box it has.
-const DROP_PLACE = DESKTOP ? '/library' : '/';
+// Where a PDF dropped on the window is taken in: the member's own nook,
+// whose papers it joins, straight into its upload (in the Mac app, All
+// papers).
+const DROP_PLACE = '/';
 
 // Links from before things had paths: /?shelf=…&paper=… and the like.
 function nookPathFromQuery(search) {
@@ -919,7 +919,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {(route.page === 'room' || (route.page === 'papers' && !DESKTOP)) && (
+      {route.page === 'room' && (
         <Room
           currentUser={user}
           onSeen={() => setRoomNews(false)}
@@ -1101,9 +1101,9 @@ export default function App({ startupUser = null, startupError = null }) {
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   // Where a page leads back to on its way home to the nook, unless it
   // says so itself: a jacket to the place it was opened from, a nook of
-  // someone else's to the Library their papers are found in.
+  // someone else's to the Lounge, where other people's papers are found.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: ROOM } : jacketBack]
+    ? [jacketBack]
     : route.page === 'nook' && route.uuid !== user?.uuid
       ? [{ path: ROOM_PATH, label: ROOM }]
       : [];
@@ -1143,7 +1143,7 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
               Home
             </a>
-            <a href={appPath(ROOM_PATH)} className={route.page === 'room' || route.page === 'papers' ? 'active' : ''}>
+            <a href={appPath(ROOM_PATH)} className={route.page === 'room' ? 'active' : ''}>
               {ROOM}
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>

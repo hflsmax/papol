@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { appPath } from '../base';
 import HomeBoard from './HomeBoard';
-import HomeLibrary from './HomeLibrary';
+import HomeLounge from './HomeLounge';
 import HomeSpecimen from './HomeSpecimen';
 
 const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
@@ -13,7 +13,7 @@ const TRIES = ['cite', 'figure', 'paint', 'drag', 'line'];
 // What a visitor sees: what Papol is in a line, the way in for someone who
 // already knows it, and for someone who does not, Papol itself to try — a
 // paper in the viewer, a board its painted sentences land on, and the
-// paper's page in the Library. No feature is explained; each can be tried.
+// paper as it reaches you in the Lounge, from friends. No feature is explained; each can be tried.
 export default function HomePage() {
   const [painted, setPainted] = useState([]);
   const [flash, setFlash] = useState(null);
@@ -64,16 +64,16 @@ export default function HomePage() {
         <HomeBoard painted={painted} onBack={backTo} beckoning={beckoning} onTried={onTried} />
       </section>
 
-      <section id="library" className="landing-place-section" aria-label="Library">
-        <p className="landing-number">Library</p>
-        <HomeLibrary beckoning={beckoning} onTried={onTried} />
+      <section id="lounge" className="landing-place-section" aria-label="Lounge">
+        <p className="landing-number">Lounge</p>
+        <HomeLounge beckoning={beckoning} onTried={onTried} />
       </section>
 
       <section className="landing-close">
         <h2>Now bring your own papers.</h2>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
-          <a className="landing-button" href={appPath('/library')}>Browse the Library</a>
+          <a className="landing-button" href={appPath('/signin')}>Sign in</a>
         </div>
       </section>
 
