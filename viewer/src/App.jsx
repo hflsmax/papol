@@ -41,6 +41,8 @@ import {
 } from '../../shared/nativeData.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
 import { recordActivity } from '../../shared/activity.js';
+import { placeFromPapol, rememberState, sendUserStateNow } from '../../shared/userState.js';
+import { nextPlace, papolPlace, samePlace } from './readingPlace.js';
 import { useModalDialog } from '../../shared/useModalDialog.js';
 import { useDismiss } from '../../shared/useDismiss.js';
 import ItemActions from '../../shared/ui/ItemActions.jsx';
@@ -79,7 +81,8 @@ import {
   DESKTOP, DOCUMENT_WINDOW, MAC, closeDesktopDocumentWindow, focusDesktopDeskWindow,
 } from '../../shared/desktopShell';
 import {
-  LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet, setFeatureState,
+  FEATURE_STATES_TAKEN, LINK_NAVIGATION_TIP, PROJECT_VISIBILITY_TIP, RETURN_PILL_HIDDEN, isFeatureStateSet,
+  setFeatureState,
 } from '../../shared/featureStates';
 import { closeAnnotationStorageNotice, showsAnnotationStorageNotice } from './annotationStorageNotice.js';
 import DesktopNav from '../../shared/ui/DesktopNav.jsx';
@@ -463,19 +466,20 @@ const paperDoiHref = (doi) => `https://doi.org/${doi}`;
 
 function savedReadingView() {
   const pdf = new URLSearchParams(window.location.search).get('pdf');
-  if (!pdf) return { key: null, view: null };
-  const key = `papol_viewer_position_${pdf.toLowerCase()}`;
+  if (!pdf) return { key: null, paper: null, view: null };
+  const paper = pdf.toLowerCase();
+  const key = `papol_viewer_position_${paper}`;
   try {
     const view = JSON.parse(localStorage.getItem(key));
     if (
       Number.isInteger(view?.page) && view.page > 0 &&
       Number.isFinite(view?.x) && Number.isFinite(view?.y) &&
-      Number.isFinite(view?.scale)
-    ) return { key, view };
+      (Number.isFinite(view?.scale) || view?.scale == null)
+    ) return { key, paper, view };
   } catch {
     // A damaged preference is no reason not to open the paper.
   }
-  return { key, view: null };
+  return { key, paper, view: null };
 }
 
 export default function App() {
@@ -522,8 +526,14 @@ export default function App() {
   // File-system viewers do not read or write state keyed to the PDF. Once a
   // paper is added to the nook, its canonical viewer may remember its place.
   const readingView = useRef(source?.openedFile
-    ? { key: null, view: null }
+    ? { key: null, paper: null, view: null }
     : savedReadingView());
+  // The place the reader was put at when the paper opened. Until they move
+  // from it, a newer place from another device may still take them there.
+  const openedPlace = useRef(null);
+  // Papol's place arrived before the pages could show it: the restore runs
+  // again for it.
+  const [placeArrived, setPlaceArrived] = useState(0);
   const openingPage = Number(numberParam('page')) || readingView.current.view?.page || 1;
   const [firstPageReady, setFirstPageReady] = useState(false);
   const [firstPageInteractive, setFirstPageInteractive] = useState(false);
@@ -822,6 +832,16 @@ export default function App() {
   const activitySubject = source?.openedFile && !nookCopy ? null : (paper?.sha256 ?? null);
   useEffect(() => recordActivity(activitySubject), [activitySubject]);
   const [returnPillHidden, setReturnPillHidden] = useState(() => isFeatureStateSet(RETURN_PILL_HIDDEN));
+  // A tip dismissed on another device, heard of after this one opened, is
+  // put away here too.
+  useEffect(() => {
+    const look = () => {
+      if (isFeatureStateSet(PROJECT_VISIBILITY_TIP)) setProjectVisibilityTipDismissed(true);
+      setReturnPillHidden(isFeatureStateSet(RETURN_PILL_HIDDEN));
+    };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
   const [returnPillNotice, setReturnPillNotice] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackReportError, setFeedbackReportError] = useState(false);
@@ -3719,6 +3739,32 @@ export default function App() {
   // Reading position is implicit: remember the point at the centre of the
   // viewport, in page coordinates, together with its zoom. Page coordinates
   // survive a different window size; raw scroll offsets do not.
+
+  // Puts a place's point in the middle of the view once its page is laid
+  // out, then calls `done`. Returns what stops it waiting.
+  const centreOnPlace = (place, done = () => {}) => {
+    let frame = null;
+    let cancelled = false;
+    const whenLaidOut = () => {
+      if (cancelled) return;
+      const scroller = scrollerRef.current;
+      const pageEl = scroller?.querySelector(`[data-page="${place.page}"]`);
+      const page = pageEl?.getBoundingClientRect();
+      if (!scroller || !page || page.height < 10) {
+        frame = requestAnimationFrame(whenLaidOut);
+        return;
+      }
+      const box = scroller.getBoundingClientRect();
+      scroller.scrollLeft += page.left + place.x * page.width - (box.left + box.width / 2);
+      scroller.scrollTop += page.top + place.y * page.height - (box.top + box.height / 2);
+      done();
+    };
+    whenLaidOut();
+    return () => {
+      cancelled = true;
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  };
   useLayoutEffect(() => {
     if (readingViewRestored.current || wantedAnchorUuid || wantedAnnotationUuid || wantedPage || !doc || !scale) return;
     const saved = readingView.current.view;
@@ -3730,34 +3776,61 @@ export default function App() {
       readingViewRestored.current = true;
       return;
     }
-    const savedScale = clampScale(saved.scale);
-    if (savedScale !== scale) {
-      chosenZoom.current = true;
-      setScale(savedScale);
-      return;
-    }
-    let frame = null;
-    let cancelled = false;
-    const restoreWhenLaidOut = () => {
-      if (cancelled || readingViewRestored.current) return;
-      const scroller = scrollerRef.current;
-      const pageEl = scroller?.querySelector(`[data-page="${saved.page}"]`);
-      const page = pageEl?.getBoundingClientRect();
-      if (!scroller || !page || page.height < 10) {
-        frame = requestAnimationFrame(restoreWhenLaidOut);
+    // A place from another device carries no zoom: the page stays fitted.
+    if (saved.scale != null) {
+      const savedScale = clampScale(saved.scale);
+      if (savedScale !== scale) {
+        chosenZoom.current = true;
+        setScale(savedScale);
         return;
       }
-      const box = scroller.getBoundingClientRect();
-      scroller.scrollLeft += page.left + saved.x * page.width - (box.left + box.width / 2);
-      scroller.scrollTop += page.top + saved.y * page.height - (box.top + box.height / 2);
+    }
+    return centreOnPlace(saved, () => {
       readingViewRestored.current = true;
-    };
-    restoreWhenLaidOut();
+      openedPlace.current = saved;
+    });
+  }, [doc, scale, wantedAnchorUuid, wantedAnnotationUuid, wantedPage, placeArrived]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Papol's place for this paper, which another device may have left
+  // later than this one did. Asked once the paper is open here, and taken
+  // only while the reader is still where the paper opened: never for a
+  // link to somewhere in it, a shared reading, or a file from disk. A move
+  // made here and not yet sent is newer, and Papol's is not asked for.
+  useEffect(() => {
+    const { key, paper: sha256 } = readingView.current;
+    if (!key || !sha256 || readOnly || wantedAnchorUuid || wantedAnnotationUuid || wantedPage) return undefined;
+    let cancelled = false;
+    let stop = null;
+    (async () => {
+      if (!await hydrateCredential()) return;
+      // Offline, or nothing newer: this device's own place stands.
+      const state = await placeFromPapol(sha256);
+      if (cancelled) return;
+      const place = papolPlace(readingView.current.view, state);
+      if (!place) return;
+      if (!readingViewRestored.current) {
+        // The pages are not shown yet: the restore takes this place instead.
+        readingView.current.view = place;
+        setPlaceArrived((n) => n + 1);
+        return;
+      }
+      // The reader has already moved: their reading here is the newer.
+      const now = readingView.current.view;
+      if (openedPlace.current && now && !samePlace(now, openedPlace.current)) return;
+      readingView.current.view = place;
+      openedPlace.current = place;
+      try {
+        localStorage.setItem(key, JSON.stringify(place));
+      } catch {
+        // Kept for this window, if not for the next.
+      }
+      stop = centreOnPlace(place);
+    })();
     return () => {
       cancelled = true;
-      if (frame != null) cancelAnimationFrame(frame);
+      stop?.();
     };
-  }, [doc, scale, wantedAnchorUuid, wantedAnnotationUuid, wantedPage]);
+  }, [readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Excerpts sent to a board link back to the selected line, without
   // needing to create a permanent anchor merely to preserve provenance.
@@ -3797,9 +3870,12 @@ export default function App() {
   const hasScale = scale != null;
   useEffect(() => {
     const scroller = scrollerRef.current;
-    const key = readingView.current.key;
+    const { key, paper: sha256 } = readingView.current;
     if (!scroller || !key || !doc || !hasScale) return undefined;
     let timer = null;
+    // A shared reading is someone else's: where a visitor reads it is kept
+    // on their device alone.
+    const shared = !readOnly && Boolean(sha256);
     const save = () => {
       if (!readingViewRestored.current && !wantedAnchorUuid && !wantedAnnotationUuid) return;
       const box = scroller.getBoundingClientRect();
@@ -3813,27 +3889,48 @@ export default function App() {
         return !best || distance < best.distance ? { pageEl, rect, distance } : best;
       }, null);
       if (!nearest || nearest.rect.width < 10 || nearest.rect.height < 10) return;
-      const view = {
+      const seen = {
         page: Number(nearest.pageEl.dataset.page),
         x: Math.max(0, Math.min(1, (cx - nearest.rect.left) / nearest.rect.width)),
         y: Math.max(0, Math.min(1, (cy - nearest.rect.top) / nearest.rect.height)),
         scale: liveScale.current,
       };
-      readingView.current.view = view;
-      localStorage.setItem(key, JSON.stringify(view));
+      const kept = readingView.current.view;
+      const { place, moved } = nextPlace(kept, seen);
+      if (!openedPlace.current) openedPlace.current = place;
+      if (place === kept) return;
+      readingView.current.view = place;
+      localStorage.setItem(key, JSON.stringify(place));
+      if (moved && shared) {
+        rememberState('place', sha256, { page: place.page, x: place.x, y: place.y, scale: place.scale });
+      }
     };
     const schedule = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(save, 250);
     };
+    // A window going away keeps and sends its place now rather than after
+    // the pause.
+    const leave = () => {
+      window.clearTimeout(timer);
+      save();
+      sendUserStateNow();
+    };
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') leave();
+    };
     scroller.addEventListener('scroll', schedule, { passive: true });
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', leave);
     schedule();
     return () => {
       scroller.removeEventListener('scroll', schedule);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', leave);
       window.clearTimeout(timer);
       save();
     };
-  }, [doc, hasScale, wantedAnchorUuid, wantedAnnotationUuid]);
+  }, [doc, hasScale, wantedAnchorUuid, wantedAnnotationUuid, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Arriving from a link to one anchor: show it, once the pages exist.
   useEffect(() => {

@@ -1,5 +1,6 @@
-// People and their nooks: the Library's users, one user's corner of it,
-// their shelves and their tags, and the Library's own list of papers.
+// People and their nooks: one user's corner, their shelves and their tags,
+// and the list of every paper Papol holds (unshown; a folder's review asks
+// it what is already here).
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
@@ -52,17 +53,6 @@ function tidy(name: string): string {
 }
 
 export function nookRoutes(router: Router) {
-  // Every user in the Library. Signed-in users only.
-  router.on("GET", "/api/users", async ({ request, env }) => {
-    await currentUser(request, env);
-    const users = await all<Row>(env.DB,
-      `SELECT u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
-              (SELECT count(*) FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid
-                WHERE c.user_uuid = u.uuid AND c.deleted_at IS NULL AND s.is_public = 1) AS paper_count
-       FROM users u WHERE u.deleted_at IS NULL ORDER BY u.display_name`);
-    return json(users.map((u) => ({ ...userPublic(u), paper_count: u.paper_count })));
-  });
-
   // A user's nook. Signed-in users only; of another's copies, only what
   // each lets be seen.
   router.on("GET", "/api/users/:uuid/nook", async ({ request, env, params }) => {
@@ -131,8 +121,9 @@ export function nookRoutes(router: Router) {
   });
 
   // Every paper, newest first, one row per paper. Nothing is filtered
-  // out: no user's shelf decides what the Library holds. What display
-  // governs is the row of users shown against a paper.
+  // out: no user's shelf decides what Papol holds. What display governs is
+  // the row of users shown against a paper. Nothing shows this list; a
+  // folder's review asks it which PDFs Papol already has.
   router.on("GET", "/api/papers", async ({ request, env }) => {
     await currentUser(request, env);
     const papers = await all<Row>(env.DB, "SELECT * FROM papers ORDER BY created_at DESC, sha256");

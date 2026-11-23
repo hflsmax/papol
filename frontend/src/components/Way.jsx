@@ -7,8 +7,7 @@ import Glyph from './DesktopGlyph';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
-// where everyone else's work is: what my friends are reading, and the
-// Library's search.
+// where everyone else's work is: what my friends are reading.
 export const ROOM = 'Lounge';
 export const ROOM_PATH = '/lounge';
 
@@ -34,7 +33,7 @@ export function WayBar({ user, route, trail = [], unreadCount = 0, roomNews = fa
         <a
           className="way-room"
           href={appPath(ROOM_PATH)}
-          aria-current={route.page === 'room' || route.page === 'papers' ? 'page' : undefined}
+          aria-current={route.page === 'room' ? 'page' : undefined}
         >
           <Glyph name="room" />
           <span className="way-room-word">{ROOM}</span>

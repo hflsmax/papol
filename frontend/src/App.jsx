@@ -27,20 +27,21 @@ import InvitationPage from './components/InvitationPage';
 import { listProjects, markPresent } from '../../shared/api/projects.js';
 import { ROOM, ROOM_PATH, WayBar, WayFoot, WayShown } from './components/Way';
 import { getRoomNews } from '../../shared/api/friends.js';
-import { forgetFriends } from './friendsStore.js';
+import { forgetFriends, useFriends } from './friendsStore.js';
+import { forgetLounge, setLounge, useLounge } from './loungeStore.js';
 import FeedbackDialog from '../../shared/ui/FeedbackDialog.jsx';
 import { submitFeedback } from '../../shared/api/feedback.js';
 import AdminMessageDialog from './components/AdminMessageDialog';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import {
-  DesktopSidebar, DesktopToolbar, desktopNavigation, desktopTitle,
+  DesktopSidebar, DesktopToolbar, desktopModes, desktopNavigation, desktopTitle,
   useDesktopShortcuts,
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNook } from './components/DesktopDesk';
-import { isBrowsing, lastShownListing, rememberListing, resolveListing } from './desktopListings';
+import { isBrowsing, lastShownListing, listingPath, rememberListing, resolveListing } from './desktopListings';
 import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
-  MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
+  FEATURE_STATES_TAKEN, MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
 import NookManager from './components/NookManager';
 import SyncAttention from './components/SyncAttention';
@@ -145,10 +146,10 @@ const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
 // a signed-in member sees these ones inside their nook, beside its rail.
 const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
 
-// Where a PDF dropped on the window is taken in: on the web the member's
-// own nook, whose papers it joins, straight into its upload; the Mac app's
-// Library holds the one upload box it has.
-const DROP_PLACE = DESKTOP ? '/library' : '/';
+// Where a PDF dropped on the window is taken in: the member's own nook,
+// whose papers it joins, straight into its upload (in the Mac app, All
+// papers).
+const DROP_PLACE = '/';
 
 // Links from before things had paths: /?shelf=…&paper=… and the like.
 function nookPathFromQuery(search) {
@@ -198,6 +199,12 @@ export default function App({ startupUser = null, startupError = null }) {
   const [showMacosDownloadBanner, setShowMacosDownloadBanner] = useState(
     () => !DESKTOP && !macosBannerWasDismissed(),
   );
+  // Closed on another device, heard of after this one opened.
+  useEffect(() => {
+    const look = () => { if (macosBannerWasDismissed()) setShowMacosDownloadBanner(false); };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
 
   // An authenticated user is signed in; guest is the public fallback.
   const mode = user ? 'signed-in' : 'guest';
@@ -518,6 +525,7 @@ export default function App({ startupUser = null, startupError = null }) {
     if (!user) {
       setRoomNews(false);
       forgetFriends();
+      forgetLounge();
       return;
     }
     if (route.page === 'room') return;
@@ -620,10 +628,31 @@ export default function App({ startupUser = null, startupError = null }) {
     search: window.location.search,
     lastShown: lastShownListing(),
   });
+  // The Mac window's mode (DesktopChrome.jsx, desktopModes): the Lounge
+  // turns it on, the nook's own lists turn it off, and every other page
+  // keeps the mode it was opened in.
+  const [loungeMode, setLoungeMode] = useState(() => DESKTOP && route.page === 'room');
+  useEffect(() => {
+    if (!DESKTOP) return;
+    if (route.page === 'room') setLoungeMode(true);
+    else if (isBrowsing(route, user) && route.page !== 'paper') setLoungeMode(false);
+  }, [route, user?.uuid]);
+  const lounge = useLounge();
+  const friends = useFriends(DESKTOP && Boolean(user));
+  const pickLounge = (patch) => {
+    setLounge(patch);
+    if (route.page !== 'room') navigate(ROOM_PATH);
+  };
+  const desktopModeItems = user ? desktopModes({
+    mode: loungeMode ? 'lounge' : 'nook',
+    nookPath: listingPath(lastShownListing() || 'all'),
+    roomNews,
+  }) : [];
   const desktopGroups = desktopNavigation({
-    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing, roomNews,
+    user, route, unreadCount, projects: myProjects, nook: nookState.nook, listing: desktopListing,
+    mode: loungeMode ? 'lounge' : 'nook', lounge, friends: friends?.friends ?? [], onPickLounge: pickLounge,
   });
-  useDesktopShortcuts({ groups: desktopGroups, onNavigate: navigate });
+  useDesktopShortcuts({ groups: desktopGroups, modes: desktopModeItems, onNavigate: navigate });
 
   const handleAuth = ({ token, user }) => {
     const requestedPage = new URLSearchParams(window.location.search).get('next');
@@ -919,7 +948,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {(route.page === 'room' || (route.page === 'papers' && !DESKTOP)) && (
+      {route.page === 'room' && (
         <Room
           currentUser={user}
           onSeen={() => setRoomNews(false)}
@@ -1047,9 +1076,12 @@ export default function App({ startupUser = null, startupError = null }) {
             onTagDeleted={(tagUuid) => { if (desktopListing === `tag:${tagUuid}`) navigate('/'); }}
           />
         )}
-        <div className="desktop-app" onClickCapture={routeAppLinks}>
+        <div className={`desktop-app${loungeMode ? ' is-lounge' : ''}`} onClickCapture={routeAppLinks}>
           <DesktopSidebar
             groups={desktopGroups}
+            modes={user ? desktopModeItems : null}
+            finding={lounge.finding}
+            onFind={() => pickLounge({ finding: !(lounge.finding && route.page === 'room') })}
             user={user}
             profileActive={route.page === 'profile'}
             onFeedback={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
@@ -1067,7 +1099,9 @@ export default function App({ startupUser = null, startupError = null }) {
             }}
             notice={desktopNotice}
           />
-          {isBrowsing(route, user) ? (
+          {/* In Lounge mode a paper opens on its own, as other pages do,
+              rather than beside the nook's list. */}
+          {isBrowsing(route, user) && !(loungeMode && route.page === 'paper') ? (
             <DesktopBrowser
               key={`${mode}:${user.uuid}`}
               listing={desktopListing}
@@ -1100,13 +1134,11 @@ export default function App({ startupUser = null, startupError = null }) {
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   // Where a page leads back to on its way home to the nook, unless it
-  // says so itself: a jacket to the place it was opened from, a nook of
-  // someone else's to the Library their papers are found in.
+  // says so itself: a jacket to the place it was opened from. A nook of
+  // someone else's names no step: the Lounge is already in the bar.
   const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack.path === '/library' ? { path: ROOM_PATH, label: ROOM } : jacketBack]
-    : route.page === 'nook' && route.uuid !== user?.uuid
-      ? [{ path: ROOM_PATH, label: ROOM }]
-      : [];
+    ? [jacketBack]
+    : [];
   return (
     <>
       <style>{applicationStyles}</style>
@@ -1143,7 +1175,7 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
               Home
             </a>
-            <a href={appPath(ROOM_PATH)} className={route.page === 'room' || route.page === 'papers' ? 'active' : ''}>
+            <a href={appPath(ROOM_PATH)} className={route.page === 'room' ? 'active' : ''}>
               {ROOM}
             </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>

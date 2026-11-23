@@ -27,6 +27,8 @@ export const applicationStyles = `
   --chrome: ${desktopChrome};
   --chrome-hover: rgba(29, 33, 41, 0.06);
   --chrome-selected: rgba(29, 33, 41, 0.1);
+  /* The sidebar in the Mac app's Lounge mode: the chrome's grey, turned green. */
+  --chrome-lounge: #e3ebe2;
   --chrome-radius: 6px;
 }
 
@@ -1668,6 +1670,25 @@ input.folder-row-title:hover, input.folder-row-title:focus { border-color: var(-
   line-height: inherit;
   box-shadow: none;
   cursor: pointer;
+}
+
+/* Beside a jacket's heading the chip is centred on the heading's capitals,
+   whatever the font: the heading says how tall its capitals are, the chip
+   is cut to its own, and it is raised by half the difference. Small caps
+   stand about four fifths as tall. */
+@property --row-cap { syntax: '<length>'; inherits: true; initial-value: 0px; }
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) {
+  .paper-jacket h4 { --row-cap: 1cap; }
+  .paper-jacket h4.kicker { --row-cap: 0.8cap; }
+  .paper-jacket h4 .visibility-badge {
+    display: inline-block;
+    padding-block: 3.5px;
+    line-height: 1;
+    vertical-align: calc((var(--row-cap) - 1cap) / 2);
+  }
+  .paper-jacket h4 .visibility-badge > .badge-label { display: block; }
+  .paper-jacket h4 span.visibility-badge,
+  .paper-jacket h4 .visibility-badge > .badge-label { text-box: trim-both cap alphabetic; }
 }
 
 /* The once-only card saying a copy's parts can each be private or public,
@@ -3898,7 +3919,7 @@ a.button:hover {
 .thumb-title { fill: var(--line-strong); }
 .thumb-line { fill: var(--line); }
 
-/* The Library: the paper's jacket, which the visitor can add to. */
+/* The landing page's Lounge: the specimen's paper as friends' news, which the visitor can add to. */
 .landing-jacket {
   padding: 18px 20px;
   border: 1px solid var(--line-strong);
@@ -5669,6 +5690,9 @@ ${talkStyles}
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
+/* The Mac's Lounge: its rail is the window's sidebar, so the page is the card. */
+.nook-desk.is-railless { grid-template-columns: minmax(0, 1fr); }
+.room.is-railless .room-finder { max-width: 26rem; margin-bottom: var(--space-4); }
 .nook-desk.is-reviewing .desk-rail,
 .nook-desk.is-reviewing .desk-search,
 .nook-desk.is-reviewing .desk-chips,
@@ -5733,6 +5757,7 @@ ${talkStyles}
   background: var(--card); box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
   transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
 }
+.way-aside a.way-room .way-room-word { padding-block: calc((1lh - 1cap) / 2); text-box: trim-both cap alphabetic; }
 .way-aside a.way-room svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .way-aside a.way-room:hover, .way-aside a.way-room:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .way-aside a.way-room[aria-current] { border-color: var(--accent); color: var(--accent); }

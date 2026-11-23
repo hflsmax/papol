@@ -5,6 +5,7 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
+import { KINDS, narrowed } from '../loungeStore';
 import { appPath } from '../base';
 import { DESKTOP, MAC } from '../../../shared/desktopShell';
 import { getSyncStatus, OFFLINE_MODE_MESSAGE } from '../../../shared/connectivity.js';
@@ -22,9 +23,62 @@ import { syncFailureText } from '../../../shared/syncFailure.js';
 
 const MOD = MAC ? '⌘' : 'Ctrl+';
 
+// The window is in one of two modes, the member's nook or the Lounge, and
+// the switch at the top of the sidebar moves between them (⌘1, ⌘2). The
+// nook's sidebar lists its shelves, tags and projects; the Lounge's lists
+// its friends and what to show, the rail the Lounge has on the web. Pages
+// opened from either (a paper, a friend's nook, the Inbox) keep the mode
+// they were opened in.
+export function desktopModes({ mode, nookPath = '/', roomNews = false }) {
+  return [
+    { key: 'nook', label: 'My nook', path: nookPath, glyph: 'nook', shortcut: '1', active: mode === 'nook' },
+    { key: 'room', label: 'Lounge', path: '/lounge', glyph: 'room', shortcut: '2', active: mode === 'lounge', news: roomNews && mode !== 'lounge' },
+  ];
+}
+
+const KIND_GLYPHS = { '': 'room', paper: 'papers', board: 'boards', project: 'folder' };
+
+// The Lounge's rail as sidebar rows: whose news, then what kind. A row
+// narrows the Lounge, and leads there from wherever the member is.
+function loungeNavigation({ route, lounge, friends = [], onPick }) {
+  const inRoom = route.page === 'room';
+  const who = friends.some((f) => f.user.uuid === lounge.who) ? lounge.who : '';
+  const counted = (kind) => (lounge.rows ? narrowed(lounge.rows, { kind, who }).length : undefined);
+  return [
+    {
+      label: 'Friends',
+      find: true,
+      items: [
+        { key: 'friends', label: 'All friends', glyph: 'room', active: inRoom && !who, count: friends.length, onSelect: () => onPick({ who: '' }) },
+        ...friends.map(({ user }) => ({
+          key: `friend:${user.uuid}`,
+          label: user.display_name,
+          person: user,
+          active: inRoom && who === user.uuid,
+          onSelect: () => onPick({ who: who === user.uuid ? '' : user.uuid }),
+        })),
+      ],
+    },
+    {
+      label: 'Show',
+      items: KINDS.map(([kind, name]) => ({
+        key: `kind:${kind || 'all'}`,
+        label: name,
+        glyph: KIND_GLYPHS[kind],
+        active: inRoom && lounge.kind === kind,
+        count: counted(kind),
+        onSelect: () => onPick({ kind }),
+      })),
+    },
+  ];
+}
+
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
-// are also reachable with ⌘1…⌘4.
-export function desktopNavigation({ user, route, unreadCount, projects = [], nook, listing, roomNews = false }) {
+// are also reachable with ⌘3…⌘4; ⌘1 and ⌘2 are the modes.
+export function desktopNavigation({
+  user, route, unreadCount, projects = [], nook, listing,
+  mode = 'nook', lounge = null, friends = [], onPickLounge = () => {},
+}) {
   const page = route.page;
   if (!user) {
     return [
@@ -42,6 +96,19 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
       },
     ];
   }
+  const papol = {
+    label: 'Papol',
+    items: [
+      { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
+      { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
+      ...(user.is_admin
+        ? [{ key: 'admin', label: 'Admin', path: '/admin', glyph: 'admin', active: page === 'admin' }]
+        : []),
+    ],
+  };
+  if (mode === 'lounge' && lounge) {
+    return [...loungeNavigation({ route, lounge, friends, onPick: onPickLounge }), papol];
+  }
   const browsing = isBrowsing(route, user);
   const at = (key) => browsing && listing === key;
   // One shelf is the whole nook, so it only earns rows once there are two.
@@ -52,7 +119,7 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
       label: 'My nook',
       manage: true,
       items: [
-        { key: 'all', label: 'All papers', path: listingPath('all'), glyph: 'papers', shortcut: '1', active: at('all'), count: nook?.papers.length },
+        { key: 'all', label: 'All papers', path: listingPath('all'), glyph: 'papers', active: at('all'), count: nook?.papers.length },
         ...shelves.map((shelf) => ({
           key: `shelf:${shelf.uuid}`,
           label: shelf.name,
@@ -98,25 +165,13 @@ export function desktopNavigation({ user, route, unreadCount, projects = [], noo
         },
       ],
     },
-    {
-      label: 'Papol',
-      items: [
-        { key: 'desk', label: 'Desk', path: '/library', glyph: 'library', shortcut: '2', active: at('library') },
-        { key: 'room', label: 'Lounge', path: '/lounge', glyph: 'room', shortcut: '5', active: page === 'room', news: roomNews },
-        { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
-        { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
-        ...(user.is_admin
-          ? [{ key: 'admin', label: 'Admin', path: '/admin', glyph: 'admin', active: page === 'admin' }]
-          : []),
-      ],
-    },
+    papol,
   ];
 }
 
 const TITLES = {
   nook: 'Nook',
   paper: 'Paper',
-  papers: 'Desk',
   room: 'Lounge',
   projects: 'Projects',
   project: 'Project',
@@ -141,6 +196,7 @@ export function desktopTitle(route, user, projects = []) {
 }
 
 function ItemMark({ item }) {
+  if (item.person) return <Avatar user={item.person} className="desktop-sidebar-face" />;
   if (item.swatch) return <span className="desktop-sidebar-swatch" style={{ background: item.swatch }} aria-hidden="true" />;
   if (item.hash) return <span className="desktop-sidebar-hash" aria-hidden="true">#</span>;
   return <Glyph name={item.glyph} />;
@@ -258,7 +314,29 @@ function SyncControl({ onReportableError, onSynced }) {
   );
 }
 
-export function DesktopSidebar({ groups, user, profileActive, onFeedback, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
+// The two modes, as a segmented control under the traffic lights.
+function ModeSwitch({ modes }) {
+  return (
+    <nav className="desktop-mode" aria-label="Mode">
+      {modes.map((item) => (
+        <a
+          key={item.key}
+          href={appPath(item.path)}
+          className={`desktop-mode-item${item.active ? ' active' : ''}`}
+          aria-current={item.active ? 'page' : undefined}
+          title={`${item.label} (${MOD}${item.shortcut})`}
+          draggable="false"
+        >
+          <Glyph name={item.glyph} />
+          <span className="desktop-mode-word">{item.label}</span>
+          {item.news && <NewsDot />}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+export function DesktopSidebar({ groups, modes, user, profileActive, finding = false, onFeedback, onFind, onManageNook, onMovePaper, onNavigate, onReportableError, onSync, notice }) {
   const [dropKey, setDropKey] = useState(null);
   // Shelves accept a paper dragged from the list, the way a Finder sidebar
   // accepts files: the shelf lights up under the pointer and takes the paper
@@ -293,6 +371,7 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
     <aside className="desktop-sidebar">
       {/* The strip under the traffic lights moves the window. */}
       <div className="desktop-sidebar-drag" data-tauri-drag-region />
+      {modes && <ModeSwitch modes={modes} />}
       <div className="desktop-sidebar-list">
         {groups.map((group, index) => (
           <nav className="desktop-sidebar-group" key={group.label || index} aria-label={group.label || 'Main'}>
@@ -310,16 +389,33 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
                     <Glyph name="manage" />
                   </button>
                 )}
+                {group.find && onFind && (
+                  <button
+                    type="button"
+                    className={`desktop-sidebar-label-action${finding ? ' active' : ''}`}
+                    onClick={onFind}
+                    aria-pressed={finding}
+                    title="Find someone"
+                    aria-label="Find someone"
+                  >
+                    <Glyph name="join" />
+                  </button>
+                )}
               </div>
             )}
-            {group.items.map((item) => (
-              <a
+            {group.items.map((item) => {
+              // A row that narrows the Lounge is a button; one that goes
+              // somewhere is a link.
+              const Row = item.onSelect ? 'button' : 'a';
+              const where = item.onSelect
+                ? { type: 'button', onClick: item.onSelect, 'aria-pressed': item.active }
+                : { href: appPath(item.path), 'aria-current': item.active ? 'page' : undefined, draggable: 'false' };
+              return (
+              <Row
                 key={item.key}
-                href={appPath(item.path)}
+                {...where}
                 className={`desktop-sidebar-item${item.active ? ' active' : ''}${dropKey === item.key ? ' drop-target' : ''}`}
-                aria-current={item.active ? 'page' : undefined}
                 title={item.shortcut ? `${item.title || item.label} (${MOD}${item.shortcut})` : item.title}
-                draggable="false"
                 {...shelfDropProps(item)}
               >
                 <ItemMark item={item} />
@@ -333,8 +429,9 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
                     {item.count}
                   </span>
                 )}
-              </a>
-            ))}
+              </Row>
+              );
+            })}
           </nav>
         ))}
         {notice && <p className="desktop-sidebar-notice" role="alert">{notice}</p>}
@@ -364,12 +461,13 @@ export function DesktopSidebar({ groups, user, profileActive, onFeedback, onMana
   );
 }
 
-// ⌘1…⌘4 open the sidebar's numbered rows. Papol has no in-app history to
-// walk, so there is no Back or Forward: the sidebar is how a user moves.
-export function useDesktopShortcuts({ groups, onNavigate }) {
+// ⌘1…⌘4 open the modes and the sidebar's numbered rows. Papol has no
+// in-app history to walk, so there is no Back or Forward: the sidebar is
+// how a user moves.
+export function useDesktopShortcuts({ groups, modes = [], onNavigate }) {
   const latest = useRef(null);
   latest.current = {
-    items: groups.flatMap((group) => group.items).filter((item) => item.shortcut),
+    items: [...modes, ...groups.flatMap((group) => group.items)].filter((item) => item.shortcut),
     onNavigate,
   };
 

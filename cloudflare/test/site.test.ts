@@ -15,7 +15,7 @@ describe("the website", () => {
   it("answers the frontend's document for the root and for any clean route", async () => {
     const root = await html("/");
     expect(root).toContain("<title>");
-    expect(await html("/library")).toBe(root);
+    expect(await html("/lounge")).toBe(root);
     expect(await html("/paper/abc123")).toBe(root);
   });
 

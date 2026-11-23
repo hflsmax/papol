@@ -187,7 +187,7 @@ const digOf = (uuid) => {
   return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, phase: d.phase ?? 'digging', can_moderate: true, posts };
 };
 
-// A paper as the Library and a nook list it: the members' takes are the
+// A paper as a nook lists it: the members' takes are the
 // users shown against it, and a nook's own copy sits on its one shelf.
 const SHELF = { uuid: 'ab000000-0000-4000-8000-000000000001', name: 'Reading', color: '#7ba26c', is_public: true, is_default: true, position: 0, paper_count: 3, board_count: 0 };
 const TAGS = ['control', 'wavefront', 'to cite'].map((name, i) => ({ uuid: `ae000000-0000-4000-8000-00000000000${i + 1}`, name }));
@@ -497,7 +497,7 @@ function answer(method, path, search, sent = {}) {
   if (path === '/files/upload-address') return { stored: true, file_path: `${'f'.repeat(64)}.pdf` };
   if (path === '/papers/lookup') return { doi: '10.48550/arXiv.1706.03762', title: 'Attention Is All You Need', authors: '["Ashish Vaswani","Noam Shazeer","Niki Parmar"]', journal: 'NeurIPS', year: 2017 };
   if (path === '/papers/uploaded') return { job: null, file_path: `${'f'.repeat(64)}.pdf`, sha256: 'f'.repeat(64) };
-  if (path === '/tags' || path === '/boards' || path === '/library/boards') return [];
+  if (path === '/tags' || path === '/boards') return [];
   if (path === '/users') return [me, ana, ben, mia].map((u) => ({ ...u, paper_count: 2 }));
   if (path === '/shelves') return [SHELF, DRAWER];
   if (path.startsWith('/client-requirements') || path.startsWith('/compat')) return { ok: true };

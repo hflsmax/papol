@@ -18,10 +18,10 @@ and your own thoughts, on a canvas with room to spread out.
 
 ![A board of cards](docs/screenshots/board.png)
 
-## Library
+## Nook and Lounge
 
-Every paper, and who reads it. Your nook holds your papers on shelves you
-make public or keep private.
+Your nook holds your papers on shelves you make public or keep private. The
+Lounge brings you what your friends are reading.
 
 ![A nook listing papers](docs/screenshots/nook.png)
 

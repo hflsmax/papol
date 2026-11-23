@@ -10,27 +10,16 @@ export const PAPER_DRAG_TYPE = 'application/x-papol-paper';
 
 const LISTING_KEY = 'papol.desktopListing';
 
-// Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>', 'boards' (the user's nook) and
-// 'library' (every public paper).
+// Sources: 'all', 'shelf:<uuid>', 'tag:<uuid>' and 'boards', all of them
+// the user's own nook.
 export function listingPath(listing) {
-  if (listing === 'library') return '/library';
   if (listing === 'all') return '/';
   return `/?listing=${listing}`;
-}
-
-// An import reviewed from the public library belongs to the user's nook once
-// it is created. Select that nook listing while opening the new paper itself.
-export function paperCreatedNavigation(listing, paperSha256) {
-  return {
-    listing: listing === 'library' ? 'all' : listing,
-    path: `/paper/${paperName(paperSha256)}`,
-  };
 }
 
 // search is the page's query string. A paper's own URL does not say which
 // list it was picked from, so for a paper the list last shown stands in.
 export function resolveListing(route, user, { search = '', lastShown = null } = {}) {
-  if (route.page === 'papers') return 'library';
   if (route.page === 'nook' && route.section === 'boards') return 'boards';
   if (route.page === 'paper' && user) return lastShown || 'all';
   return new URLSearchParams(search).get('listing') || 'all';
@@ -47,11 +36,11 @@ export function lastShownListing() {
   catch { return null; }
 }
 
-// The pages the browser stands in for. A signed-out user has no nook and
-// cannot list the library, so a paper sent to them opens as a plain page.
+// The pages the browser stands in for. A signed-out user has no nook, so a
+// paper sent to them opens as a plain page.
 export function isBrowsing(route, user) {
   if (!user) return false;
-  return route.page === 'papers' || route.page === 'paper' || route.page === 'home'
+  return route.page === 'paper' || route.page === 'home'
     || (route.page === 'nook' && route.uuid === user.uuid);
 }
 
@@ -66,11 +55,8 @@ export function tagOf(listing, nook) {
 
 // The papers a listing lists, newest first. A shelf or tag the nook no longer has lists the
 // whole nook rather than nothing.
-export function papersInListing(listing, { nook, library }) {
+export function papersInListing(listing, { nook }) {
   if (listing === 'boards') return [];
-  if (listing === 'library') {
-    return [...(library || [])].sort(newestFirst);
-  }
   const shelf = shelfOf(listing, nook);
   const tag = tagOf(listing, nook);
   return (nook?.papers || [])

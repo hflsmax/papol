@@ -7,6 +7,7 @@ import '../../shared/readableStreamIteration.js';
 import App, { preloadPdfPage } from './App';
 import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import { hydrateCredential } from '../../shared/credentials.js';
+import { startSharingUserState } from '../../shared/featureStates.js';
 import { markViewerPerformance } from './performance.js';
 import { styles } from './styles.js';
 
@@ -26,7 +27,7 @@ document.adoptedStyleSheets = [...document.adoptedStyleSheets, viewerSheet];
 // hydrateCredential reads localStorage synchronously before returning its
 // already-resolved promise. Do not make the whole entry module wait through a
 // top-level-await turn before mounting the real viewer controls.
-void hydrateCredential().catch(() => {});
+void hydrateCredential().then(startSharingUserState, () => {});
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
