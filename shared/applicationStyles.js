@@ -5757,6 +5757,7 @@ ${talkStyles}
   background: var(--card); box-shadow: 0 1px 0 rgba(29, 33, 41, 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
   transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
 }
+.way-aside a.way-room .way-room-word { padding-block: calc((1lh - 1cap) / 2); text-box: trim-both cap alphabetic; }
 .way-aside a.way-room svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .way-aside a.way-room:hover, .way-aside a.way-room:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .way-aside a.way-room[aria-current] { border-color: var(--accent); color: var(--accent); }

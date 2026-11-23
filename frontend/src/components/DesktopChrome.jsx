@@ -328,7 +328,7 @@ function ModeSwitch({ modes }) {
           draggable="false"
         >
           <Glyph name={item.glyph} />
-          <span>{item.label}</span>
+          <span className="desktop-mode-word">{item.label}</span>
           {item.news && <NewsDot />}
         </a>
       ))}

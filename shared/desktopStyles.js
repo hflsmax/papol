@@ -341,6 +341,25 @@ export const desktopStyles = `
   background: var(--chrome-lounge);
 }
 
+/* A row's words are centred by their capitals, not by the font's line
+   box, which sits them high or low with the font: trimmed to cap height
+   and baseline, the label, the count and the switch's words line up on
+   the glyph, face and dot beside them, which are centred in the row. */
+.desktop-sidebar-text,
+.desktop-sidebar-count,
+.desktop-sidebar-hash,
+.desktop-sidebar-label > span,
+.desktop-mode-word,
+.desktop-sync-button > span:not(.desktop-sync-mark) {
+  text-box: trim-both cap alphabetic;
+}
+
+/* The label cuts off a long name, so it keeps its line's height, the same
+   above and below the trimmed words, for accents and descenders. */
+.desktop-sidebar-text {
+  padding-block: calc((1lh - 1cap) / 2);
+}
+
 .desktop-sidebar-avatar {
   width: 20px;
   height: 20px;
