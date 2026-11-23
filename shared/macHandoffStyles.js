@@ -107,6 +107,24 @@ export const macHandoffStyles = `
   background: var(--card);
 }
 
+/* Every answer in the bar is the same 30px box with its words in the middle
+   of it. Centring the font's line box left the words riding high, because
+   that box holds room for descenders the capitals never use. So the line is
+   trimmed to the capitals and the baseline, and the padding is what is left
+   of the 28px inside the border, split evenly. A browser without text-box
+   trimming gets a slightly taller button with the line box centred. */
+.mac-handoff-open,
+.mac-handoff-dismiss,
+.mac-handoff-bar a {
+  display: block;
+  box-sizing: border-box;
+  min-height: 0;
+  padding-top: calc((28px - 1cap) / 2);
+  padding-bottom: calc((28px - 1cap) / 2);
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
+
 @media (max-width: 560px) {
   .mac-handoff-bar {
     gap: var(--space-1) var(--space-2);
