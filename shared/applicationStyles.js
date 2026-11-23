@@ -4078,24 +4078,82 @@ a.button:hover {
 
 /* ---------- Admin ---------- */
 
-.admin-tabs {
+/* One section at a time, picked from a row of tabs that stays in reach
+   as the page scrolls. */
+.admin-sections {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 16px;
+  padding: 8px 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
 }
 
-.admin-tab {
-  padding: 4px 12px;
-  font-size: var(--fs-xs);
-  font-family: var(--font-ui);
+.admin-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm, var(--fs-xs));
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: pointer;
 }
 
-.admin-tab.active {
+.admin-section:hover {
+  color: var(--ink);
+  background: var(--card);
+  border-color: var(--line);
+}
+
+.admin-section.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
+}
+
+.admin-section-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--red);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  line-height: 18px;
+  text-align: center;
+}
+
+.admin-table-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-table-picker select {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.admin-table-count {
+  color: var(--ink-faint);
+}
+
+/* A draft's long name must not push its picker past the panel. */
+.admin-message-compose .form-group select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .admin-table-wrap {
