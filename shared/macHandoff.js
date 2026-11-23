@@ -23,7 +23,7 @@ const HANDOFF_QUERY_KEYS = Object.freeze([
 export const RETIRED_KEY = 'papol.handoff.retired';
 const DEFERRED_KEY = 'papol.handoff.deferred';
 
-export const DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
+export { MAC_DOWNLOAD_URL as DOWNLOAD_URL } from './macDownload.js';
 
 // Long enough that a cold application launch still counts as an answer,
 // short enough that a user who has no Papol is not left watching a bar

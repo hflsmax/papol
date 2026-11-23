@@ -25,10 +25,6 @@ export function listBoards() {
   return request('/boards');
 }
 
-export function listLibraryBoards() {
-  return request('/library/boards');
-}
-
 export async function createBoard(data) {
   const board = nativeDataActive()
     ? boardView((await nativeRepository.transact([{

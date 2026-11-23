@@ -1,6 +1,6 @@
 // Projects: where work on a question happens, by one person or several.
 //
-// A project holds papers, not copies, and its members, some of whom keep
+// A project holds papers, not copies, and its members, one of whom keeps
 // it. Every signed-in user can see that a project exists, what it is
 // called and who is in it, keepers marked, so they know whom to ask; only
 // members can open it, and joining is by invitation alone. Joining is
@@ -136,9 +136,9 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      WHERE m.user_uuid = ? AND pp.added_at > coalesce(r.seen_at, m.seen_at) GROUP BY m.project_uuid
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT d.uuid) AS n FROM project_members m
-     JOIN digs d ON d.project_uuid = m.project_uuid
+     JOIN digs d ON (d.project_uuid = m.project_uuid OR (d.project_uuid IS NULL AND d.paper_sha256 IN (SELECT xp.paper_sha256 FROM project_papers xp WHERE xp.project_uuid = m.project_uuid)))
      LEFT JOIN project_member_reads r ON r.member_uuid = m.uuid AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
-     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${LIVE_SUBJECT} AND ((d.created_at > coalesce(r.seen_at, m.seen_at) AND d.user_uuid != m.user_uuid)
+     WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${inProject("m.project_uuid")} AND ((d.created_at > coalesce(r.seen_at, m.seen_at) AND d.user_uuid != m.user_uuid)
        OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > coalesce(r.seen_at, m.seen_at) AND dp.user_uuid != m.user_uuid))
      GROUP BY m.project_uuid
      UNION ALL
@@ -277,8 +277,8 @@ function digsStatement(env: Env, projectUuid: string, me: User, member: Member, 
             (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
      FROM digs d ${SUBJECT_JOINS}
      LEFT JOIN project_member_reads r ON r.member_uuid = ? AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
-     WHERE d.project_uuid = ? AND ${LIVE_SUBJECT} ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
-    member.seen_at, me.uuid, member.seen_at, me.uuid, member.uuid, projectUuid, ...(only ? [only] : []));
+     WHERE ${inProject(projectLiteral(projectUuid))} ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
+    member.seen_at, me.uuid, member.seen_at, me.uuid, member.uuid, ...(only ? [only] : []));
 }
 
 // The last post in each dig and everyone who spoke, read together.
@@ -337,22 +337,40 @@ export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
   LEFT JOIN annotations an ON an.uuid = d.annotation_uuid
   LEFT JOIN users au ON au.uuid = an.user_uuid`;
 
-// A project's dig whose subject is still the project's: its paper still
-// in the project, its card still on one of the project's boards, its
-// anchor, ink or clip not deleted, on a project paper and by a member
-// (an old note placed nowhere is no place in it).
-// Any other is kept, unshown, and comes back with its subject.
-export const LIVE_SUBJECT = `(CASE
-  WHEN d.annotation_uuid IS NOT NULL THEN EXISTS (SELECT 1 FROM annotations la
-    JOIN project_papers lpp ON lpp.paper_sha256 = la.paper_sha256 AND lpp.project_uuid = d.project_uuid
-    JOIN project_members lm ON lm.user_uuid = la.user_uuid AND lm.project_uuid = d.project_uuid
-    WHERE la.uuid = d.annotation_uuid AND la.deleted_at IS NULL AND la.kind != 'note')
-  WHEN d.board_item_uuid IS NOT NULL THEN EXISTS (SELECT 1 FROM board_items lbi
-    JOIN project_boards lpb ON lpb.board_uuid = lbi.board_uuid AND lpb.project_uuid = d.project_uuid
+// What a project sees of digs (the rule agreed 2026-11-17): a dig on a
+// card on one of its boards, written in the project; and every member's
+// own dig on a paper the project holds, or on a mark on that paper, while
+// that member keeps the paper on a public shelf. Otherwise a dig is its
+// writer's alone. A dig whose subject is gone (a deleted mark, a paper
+// taken out, a card removed) is kept, unshown, and comes back with it.
+// `project` is an SQL expression for the project's uuid: a column, or a
+// uuid made a literal by projectLiteral.
+export function inProject(project: string): string {
+  return `(CASE
+  WHEN d.board_item_uuid IS NOT NULL THEN d.project_uuid = ${project} AND EXISTS (SELECT 1 FROM board_items lbi
+    JOIN project_boards lpb ON lpb.board_uuid = lbi.board_uuid AND lpb.project_uuid = ${project}
     JOIN boards lb ON lb.uuid = lbi.board_uuid AND lb.deleted_at IS NULL
     WHERE lbi.uuid = d.board_item_uuid AND lbi.deleted_at IS NULL)
-  ELSE EXISTS (SELECT 1 FROM project_papers lpp WHERE lpp.paper_sha256 = d.paper_sha256 AND lpp.project_uuid = d.project_uuid)
+  ELSE d.project_uuid IS NULL
+    AND d.paper_sha256 IN (SELECT lpp.paper_sha256 FROM project_papers lpp WHERE lpp.project_uuid = ${project})
+    AND d.user_uuid IN (SELECT lm.user_uuid FROM project_members lm WHERE lm.project_uuid = ${project})
+    AND ${onPublicShelf("d.user_uuid", "d.paper_sha256")}
+    AND (d.annotation_uuid IS NULL OR EXISTS (SELECT 1 FROM annotations la
+      WHERE la.uuid = d.annotation_uuid AND la.paper_sha256 = d.paper_sha256 AND la.deleted_at IS NULL AND la.kind != 'note'))
 END)`;
+}
+
+// Whether a user keeps a paper on one of their public shelves.
+export function onPublicShelf(user: string, paper: string): string {
+  return `EXISTS (SELECT 1 FROM copies lc JOIN shelves ls ON ls.uuid = lc.shelf_uuid AND ls.is_public = 1 AND ls.deleted_at IS NULL
+    WHERE lc.user_uuid = ${user} AND lc.paper_sha256 = ${paper} AND lc.deleted_at IS NULL)`;
+}
+
+// A project's uuid as an SQL literal for inProject. Only a uuid passes.
+export function projectLiteral(uuid: string): string {
+  if (!/^[0-9a-f-]{36}$/i.test(uuid)) throw new Error("Not a project uuid");
+  return `'${uuid}'`;
+}
 
 // What a dig is about, said the way the project page says it.
 export function subjectOut(d: Row) {
@@ -409,7 +427,7 @@ async function leaving(env: Env, project: Project, member: Member): Promise<D1Pr
     project.uuid, member.user_uuid));
   const out = statement(env.DB, "DELETE FROM project_members WHERE uuid = ?", member.uuid);
   if (!others.length) return [out, statement(env.DB, "UPDATE projects SET deleted_at = ?, invite_code = NULL, updated_at = ? WHERE uuid = ?", now(), now(), project.uuid)];
-  if (member.is_keeper && !others.some((m) => m.is_keeper)) refuse(400, "Make another member a keeper first");
+  if (member.is_keeper) refuse(400, "Make another member keeper first");
   return [out, touched(env, project)];
 }
 
@@ -425,11 +443,14 @@ export function projectRoutes(router: Router) {
     const holding = paper && DIGEST.test(paper)
       ? new Set((await all<{ project_uuid: string }>(env.DB, "SELECT project_uuid FROM project_papers WHERE paper_sha256 = ?", paper)).map((r) => r.project_uuid))
       : null;
+    // The projects I have asked to join: asking is once, so the button says so.
+    const asked = new Set((await all<{ project_uuid: string }>(env.DB, "SELECT project_uuid FROM project_asks WHERE user_uuid = ?", me.uuid)).map((r) => r.project_uuid));
     const out = projects.map((project) => {
       const summary = summaryOut(project, members.filter((m) => m.project_uuid === project.uuid), me);
       return {
         ...summary,
         new_count: summary.is_member ? counts.get(project.uuid) ?? 0 : 0,
+        ...(summary.is_member ? {} : { asked: asked.has(project.uuid) }),
         ...(holding && summary.is_member ? { has_paper: holding.has(project.uuid) } : {}),
       };
     });
@@ -475,7 +496,7 @@ export function projectRoutes(router: Router) {
         ? await one(env.DB, `SELECT b.uuid, max(bi.created_at) AS latest FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
             LEFT JOIN board_items bi ON bi.board_uuid = b.uuid AND bi.deleted_at IS NULL AND NOT bi.staged WHERE pb.project_uuid = ? AND b.uuid = ?`, project.uuid, item)
         : await one(env.DB, `SELECT d.uuid, max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid), d.created_at)) AS latest
-            FROM digs d WHERE d.project_uuid = ? AND d.uuid = ?`, project.uuid, item);
+            FROM digs d WHERE ${inProject(projectLiteral(project.uuid))} AND d.uuid = ?`, item);
     if (!belongs || (kind !== 'paper' && !belongs.uuid)) refuse(404, "Project item not found");
     const latest = String(belongs.latest ?? through);
     const seenAt = through > latest ? latest : through;
@@ -548,7 +569,7 @@ export function projectRoutes(router: Router) {
       // Joining late is seeing the whole history, none of it as news.
       const at = now();
       member = { uuid: newUuid(), project_uuid: project.uuid, user_uuid: me.uuid, is_keeper: 0, joined_at: at, seen_at: at };
-      await batch(env.DB, [insert(env.DB, "project_members", member), touched(env, project)]);
+      await batch(env.DB, [insert(env.DB, "project_members", member), statement(env.DB, "DELETE FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, me.uuid), touched(env, project)]);
     }
     return json(await projectOut(env, project, me, member));
   });
@@ -592,6 +613,8 @@ export function projectRoutes(router: Router) {
       const at = now();
       await batch(env.DB, [
         insert(env.DB, "project_members", { uuid: newUuid(), project_uuid: project.uuid, user_uuid: user.uuid, is_keeper: 0, joined_at: at, seen_at: at }),
+        // An ask that was answered is spent: having left, they may ask again.
+        statement(env.DB, "DELETE FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, user.uuid),
         insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: `${me.display_name} added you to ${project.name}.`, read: 0, created_at: at }),
         touched(env, project),
       ]);
@@ -609,12 +632,16 @@ export function projectRoutes(router: Router) {
     check.done();
     const member = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, params.user);
     if (!member) refuse(404, "Not a member of this project");
-    if (!isKeeper && member.is_keeper) {
-      const keepers = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM project_members WHERE project_uuid = ? AND is_keeper = 1", project.uuid);
-      if (keepers!.n <= 1) refuse(400, "A project needs a keeper");
-    }
-    await batch(env.DB, [statement(env.DB, "UPDATE project_members SET is_keeper = ? WHERE uuid = ?", isKeeper ? 1 : 0, member.uuid), touched(env, project)]);
-    return json(await projectOut(env, project, me, member.uuid === mine.uuid ? { ...mine, is_keeper: isKeeper ? 1 : 0 } : mine));
+    // A project has one keeper. Making someone keeper hands it to them;
+    // the keeper stops being one only by handing it on.
+    if (!isKeeper) refuse(400, member.is_keeper ? "A project has one keeper: make another member keeper to hand it on" : "Not the keeper");
+    if (member.is_keeper) return json(await projectOut(env, project, me, mine));
+    await batch(env.DB, [
+      statement(env.DB, "UPDATE project_members SET is_keeper = 0 WHERE project_uuid = ? AND is_keeper = 1", project.uuid),
+      statement(env.DB, "UPDATE project_members SET is_keeper = 1 WHERE uuid = ?", member.uuid),
+      touched(env, project),
+    ]);
+    return json(await projectOut(env, project, me, { ...mine, is_keeper: 0 }));
   });
 
   // Leaving, or a keeper removing someone. What they added stays.
@@ -782,22 +809,34 @@ export function projectRoutes(router: Router) {
     }
     const members = await membersOf(env, [project.uuid]);
     const rows = await all<Row>(env.DB,
-      `SELECT a.* FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
-       WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL ORDER BY a.created_at, a.uuid`, project.uuid, digest);
+      `SELECT a.*, ${onPublicShelf("a.user_uuid", "a.paper_sha256")} AS shared FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
+       WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL AND a.kind != 'note' ORDER BY a.created_at, a.uuid`, project.uuid, digest);
     const people = new Map(members.map((m) => [m.user_uuid, userPublic({ ...m, uuid: m.user_uuid })]));
     const paperKey = `paper:${digest}`;
     const pins = await pinsOf(env, project.uuid, me, member, [paperKey, ...rows.map((a) => `annotation:${a.uuid}`)]);
     const { [paperKey]: paperPin, ...annotationPins } = pins;
-    // Another member's anchor shows only as the place of a dig; one nobody
-    // has dug there says nothing to the project.
-    const shown = rows.filter((a) => a.kind !== "anchor" || a.user_uuid === me.uuid || `annotation:${a.uuid}` in annotationPins);
+    // Of the others' marks, only ink is shared, and only while its author
+    // keeps the paper on a public shelf. Their anchors and clips are never
+    // drawn. A mark not drawn that carries a dig the reader can see is sent
+    // as a place alone, so the dig stands level with it in the margin.
+    const drawn = (a: Row) => a.user_uuid === me.uuid || (a.kind === "ink" && Boolean(Number(a.shared)));
+    const shown = rows.filter(drawn);
+    const places = rows.filter((a) => !drawn(a) && `annotation:${a.uuid}` in annotationPins);
+    const out = (a: Row) => { const { shared: _shared, ...rest } = a; return { ...annotationOut(rest), user: people.get(String(a.user_uuid)) ?? null }; };
+    // Which shelf the reader keeps the paper on decides whether the project
+    // sees their digs and ink; none while they don't keep it.
+    const shelf = await one<Row>(env.DB,
+      `SELECT s.is_public FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid AND s.deleted_at IS NULL
+       WHERE c.user_uuid = ? AND c.paper_sha256 = ? AND c.deleted_at IS NULL LIMIT 1`, me.uuid, digest);
     return json({
       project: { uuid: project.uuid, name: project.name, members: members.map((projectMember) => memberOut(projectMember)) },
       me: me.uuid,
-      annotations: shown.map((a) => ({ ...annotationOut(a), user: people.get(String(a.user_uuid)) ?? null })),
+      annotations: shown.map(out),
+      places: places.map(out),
       digs: Object.fromEntries(Object.entries(annotationPins).map(([key, pin]) => [key.slice("annotation:".length), pin])),
       // The digs on the paper itself, which head the viewer's margin.
       paper_digs: paperPin ?? null,
+      my_shelf: shelf ? (Number(shelf.is_public) ? "public" : "private") : null,
     });
   });
 
@@ -853,7 +892,9 @@ export async function handOnProjectBoards(env: Env, userUuid: string): Promise<n
 // that a project must not be stuck without a keeper: the earliest to have
 // joined of those left is given it.
 export async function leaveAllProjects(env: Env, userUuid: string): Promise<D1PreparedStatement[]> {
-  const statements: D1PreparedStatement[] = [];
+  // Their memberships go first, so the one keeper a project may have is
+  // never two for a moment.
+  const statements: D1PreparedStatement[] = [statement(env.DB, "DELETE FROM project_members WHERE user_uuid = ?", userUuid)];
   for (const member of await all<Member>(env.DB, "SELECT * FROM project_members WHERE user_uuid = ?", userUuid)) {
     const others = await all<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid != ? ORDER BY joined_at, uuid",
       member.project_uuid, userUuid);
@@ -863,6 +904,5 @@ export async function leaveAllProjects(env: Env, userUuid: string): Promise<D1Pr
       statements.push(statement(env.DB, "UPDATE project_members SET is_keeper = 1 WHERE uuid = ?", others[0].uuid));
     }
   }
-  statements.push(statement(env.DB, "DELETE FROM project_members WHERE user_uuid = ?", userUuid));
   return statements;
 }

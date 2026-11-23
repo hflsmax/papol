@@ -236,15 +236,6 @@ export function boardRoutes(router: Router) {
     return json(await Promise.all(boards.map((b) => boardOut(env, b, { canEdit: true }))));
   });
 
-  // Boards whose shelves are public, for the shared Library.
-  router.on("GET", "/api/library/boards", async ({ request, env }) => {
-    const user = await currentUser(request, env);
-    const boards = await all<Board>(env.DB,
-      `SELECT b.* FROM boards b JOIN shelves s ON s.uuid = b.shelf_uuid WHERE s.is_public = 1 AND b.deleted_at IS NULL
-       AND b.uuid NOT IN (SELECT board_uuid FROM project_boards) ORDER BY b.updated_at DESC, b.uuid DESC`);
-    return json(await Promise.all(boards.map((b) => boardOut(env, b, { canEdit: b.user_uuid === user.uuid }))));
-  });
-
   router.on("POST", "/api/boards", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const data = await readJson<Row>(request);
