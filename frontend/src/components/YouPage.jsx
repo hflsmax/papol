@@ -4,12 +4,13 @@ import InboxPage from './InboxPage';
 import ActivityPanel from './ActivityPanel.jsx';
 import ProfilePage from './ProfilePage';
 import PreferencesPanel from './PreferencesPanel';
+import MacAppPanel from './MacAppPanel';
 
-const VIEWS = [['activity', 'Activity'], ['inbox', 'Inbox'], ['preferences', 'Preferences'], ['account', 'Account']];
+const VIEWS = [['activity', 'Activity'], ['inbox', 'Inbox'], ['preferences', 'Preferences'], ['account', 'Account'], ['mac', 'Papol for Mac']];
 
 // A member's own page on the web, reached by their avatar: who they are,
 // then one of what they have read, what has come for them,
-// their preferences and their account. What they have read is first and opens by default; /inbox opens
+// their preferences, their account and Papol for Mac. What they have read is first and opens by default; /inbox opens
 // on what has come for them.
 export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, onLogout, onSync, initialView = 'activity' }) {
   const [view, setView] = useState(initialView);
@@ -50,6 +51,7 @@ export default function YouPage({ user, unreadCount, onUnread, onUserUpdated, on
         {view === 'inbox' && <InboxPage onUnread={onUnread} />}
         {view === 'activity' && <ActivityPanel />}
         {view === 'preferences' && <PreferencesPanel user={user} onUserUpdated={onUserUpdated} />}
+        {view === 'mac' && <MacAppPanel />}
         {view === 'account' && (
           <ProfilePage user={user} withActivity={false} inTab onUserUpdated={onUserUpdated} onLogout={onLogout} onSync={onSync} />
         )}

@@ -28,7 +28,8 @@ Lounge brings you what your friends are reading.
 ## Papol for Mac
 
 The same Papol, with your papers there when the Wi-Fi is not.
-[Download](https://github.com/hflsmax/papol/releases).
+[Download for Mac](https://github.com/hflsmax/papol/releases/latest/download/Papol_macOS.dmg)
+(Apple Silicon; every version is on [Releases](https://github.com/hflsmax/papol/releases)).
 
 ![Papol running on macOS](docs/screenshots/macos.png)
 

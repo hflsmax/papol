@@ -69,14 +69,12 @@ import {
   checkClientCompatibility, setClientCompatibility,
 } from '../../shared/clientCompatibility.js';
 import { unexpectedDesktopErrorReport } from '../../shared/errorReport.js';
+// The macOS application is signed, notarized, and attached to this project's
+// GitHub releases by .github/workflows/desktop-macos.yml.
+import { MAC_DOWNLOAD_URL as MACOS_DOWNLOAD_URL } from '../../shared/macDownload.js';
 
 // Where a member works inside one project.
 export const PROJECT_PAGES = new Set(['project']);
-
-
-// The macOS application is signed, notarized, and attached to this project's
-// GitHub releases by .github/workflows/desktop-macos.yml.
-const MACOS_DOWNLOAD_URL = 'https://github.com/hflsmax/papol/releases';
 
 // Closing this is one of the things a browser remembers about a user, so it
 // is named in shared/featureStates.js rather than here, and Admin can bring
