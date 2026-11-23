@@ -25,9 +25,8 @@ const DEFAULT_WELCOME =
   "Welcome to Papol, {name}—your paper-reading companion. Your nook is where you " +
   "document your reading: upload the papers you read, rate them, " +
   "keep a summary and your own digs, and share a public " +
-  "one-sentence thought. Use the Library to find papers and see " +
-  "what other users keep in their nooks, then add papers to " +
-  "your own.";
+  "one-sentence thought. Add friends in the Lounge to see " +
+  "what they are reading, then add papers to your own nook.";
 
 export function authRoutes(router: Router) {
   router.on("POST", "/api/auth/register", async ({ request, env }) => {

@@ -207,6 +207,55 @@ describe("the venue", () => {
   });
 });
 
+// An acmart sigplan paper (PEPM '26, aea8d5e8): the title sits at the top
+// of page one, within the margin running heads keep to, and the odd pages
+// carry it again as their running head; the reference paragraph names the
+// series without "the", and the template's placeholder DOI stands in for
+// the one ACM has not yet assigned. (Helvetica's standard encoding sets the
+// apostrophe written here as the ’ the paper prints.)
+const SIGPLAN_PAGES = writtenPdfPages([
+  [
+    [170, 745, "Epistemic Logic for Polyglots", 20],
+    [278, 720, "Luis Garcia", 12],
+    [271, 706, "Chris Martens", 12],
+    [248, 694, "garcia.lui@northeastern.edu", 10],
+    [257, 682, "Northeastern University", 10],
+    [280, 670, "Boston, USA", 10],
+    [54, 650, "Abstract", 12],
+    [54, 635, "A pattern in programming is to stitch together code from disparate programming languages."],
+    [54, 623, "This pattern is a manifestation of multilanguage computation, a subject concerning languages."],
+    [54, 200, "ACM Reference Format:", 9],
+    [54, 190, "Luis Garcia and Chris Martens. 2025. Epistemic Logic for Polyglots. In Proceedings of Partial", 9],
+    [54, 180, "Evaluation and Program Manipulation (PEPM '26). ACM, New York, NY, USA, 6 pages. https://doi.org/10.", 9],
+    [54, 170, "1145/nnnnnnn.nnnnnnn", 9],
+    [54, 80, "(c) 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.", 8],
+    [54, 60, "https://doi.org/10.1145/nnnnnnn.nnnnnnn", 8],
+  ],
+  [
+    [54, 760, "PEPM '26, January 13, 2026, Rennes, France", 8],
+    [450, 760, "Luis Garcia, Chris Martens", 8],
+    [54, 700, "We introduce the epistemic S4 type system with proof terms following the judgmental approach."],
+    [54, 688, "Our presentation of the logic can be viewed as both an extension of the modal logic S4."],
+  ],
+  [
+    [54, 760, "Epistemic Logic for Polyglots", 8],
+    [400, 760, "PEPM '26, January 13, 2026, Rennes, France", 8],
+    [54, 700, "In the logic developed by Pfenning and Davies, the modality represents validity, a truth."],
+    [54, 688, "We can generalize validity by asking to whom is a proposition valid, among principals."],
+  ],
+]);
+
+describe("an acmart sigplan paper", () => {
+  it("keeps the title its odd pages repeat as their running head, and reads past the template's DOI (aea8d5e8)", async () => {
+    const { header } = await headerWithRules(SIGPLAN_PAGES);
+    assert.equal(header.title, "Epistemic Logic for Polyglots");
+    assert.deepEqual(header.authors, ["Luis Garcia", "Chris Martens"]);
+    assert.equal(header.journal, "PEPM ’26");
+    assert.equal(header.year, 2025);
+    assert.equal(header.doi, null);
+  });
+});
+
 describe("the paper", () => {
   it("reads the references, citations and figure links", async () => {
     const pdf = writtenPdf([

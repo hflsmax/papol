@@ -4,7 +4,7 @@ import { RatingSummary } from './Rating';
 // What a reader's chip shows on hover: who they are, and whatever of their
 // copy they let others see. A field they keep to themselves arrives empty,
 // so it is simply not here.
-export default function ReaderPop({ entry, isYou = false }) {
+export default function ReaderPop({ entry, isYou = false, isFriend = false }) {
   const rated = entry.rating_expertise || entry.rating_reading || entry.rating_liking;
   return (
     <span className="chip-pop">
@@ -12,6 +12,7 @@ export default function ReaderPop({ entry, isYou = false }) {
         {entry.user.display_name}
         {isYou ? ' (you)' : ''}
         {entry.is_author && <span className="author-tag">author</span>}
+        {isFriend && !isYou && <span className="friend-tag">friend</span>}
       </span>
       {entry.user.affiliation && (
         <span className="chip-pop-aff">{entry.user.affiliation}</span>
