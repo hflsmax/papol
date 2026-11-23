@@ -15,6 +15,7 @@ import appLimits from '../../shared/appLimits.js';
 import { pdfjsReady } from './pdfRuntime.js';
 import { keepSelectionSteady } from './selectionEnd.js';
 import { withinSpan } from './selectionInk.js';
+import { doubleClickDropsAnchor, nearText, onBareGround } from './blankDoubleClick.js';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { memberInk } from './project.js';
 import ThingBar from './ThingBar.jsx';
@@ -591,6 +592,7 @@ function PdfPage({
   onRemoveAnchor,
   onHover,
   onDropAnchor,
+  onPlaceAnchor,
   clips = [],
   onCreateClip,
   onUpdateClip,
@@ -1265,7 +1267,11 @@ function PdfPage({
   }, [doc, pageNumber, near, analysis]);
 
   // Anchors are placed with the explicit tool, at a spot the user can see
-  // before committing to it. An ordinary double-click remains text selection.
+  // before committing to it, or by a double-click on bare paper with the
+  // arrow (blankDoubleClick.js). A double-click on words still selects them.
+  // What pressed last, since a double-click does not say whether it was a
+  // mouse or a finger.
+  const pressedWithRef = useRef(null);
 
   // A pin is dragged with the pointer captured, so the gesture survives
   // leaving the pin. A small movement is a click, not a drag — otherwise
@@ -2138,6 +2144,30 @@ function PdfPage({
         onHoverInkObjects(pageNumber, []);
         setBrushAt(null);
         if (tool === 'clipper' && !clipRef.current) paintClipper(null, null);
+      }}
+      onPointerDownCapture={(e) => { pressedWithRef.current = e.pointerType; }}
+      onDoubleClick={(e) => {
+        if (tool !== 'arrow' || !onPlaceAnchor) return;
+        const box = holderRef.current?.getBoundingClientRect();
+        if (!box?.width || !box.height) return;
+        const x = (e.clientX - box.left) / box.width;
+        const y = (e.clientY - box.top) / box.height;
+        if (!doubleClickDropsAnchor({
+          tool,
+          button: e.button,
+          pointerType: pressedWithRef.current,
+          bare: onBareGround(e.target, holderRef.current),
+          selectedText: String(window.getSelection() ?? ''),
+          nearText: nearText(
+            [...(holderRef.current.querySelectorAll('.textLayer span') ?? [])].map((span) => span.getBoundingClientRect()),
+            e.clientX,
+            e.clientY,
+          ),
+          overReference: citations.some((c) => citationHolds(c, x, y)) || links.some((l) => boxHolds(l, x, y)),
+        })) return;
+        // The line break the browser picked up on the way is no selection.
+        window.getSelection()?.removeAllRanges();
+        onPlaceAnchor({ page: pageNumber, anchor: anchorAt(e.clientX, e.clientY) });
       }}
       onClick={(e) => {
         if (tool !== 'arrow' || e.button !== 0 || !e.target.closest?.('.textLayer')) return;
