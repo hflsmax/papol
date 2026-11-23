@@ -4078,24 +4078,82 @@ a.button:hover {
 
 /* ---------- Admin ---------- */
 
-.admin-tabs {
+/* One section at a time, picked from a row of tabs that stays in reach
+   as the page scrolls. */
+.admin-sections {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 16px;
+  padding: 8px 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
 }
 
-.admin-tab {
-  padding: 4px 12px;
-  font-size: var(--fs-xs);
-  font-family: var(--font-ui);
+.admin-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm, var(--fs-xs));
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: pointer;
 }
 
-.admin-tab.active {
+.admin-section:hover {
+  color: var(--ink);
+  background: var(--card);
+  border-color: var(--line);
+}
+
+.admin-section.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--ink-inverse);
+}
+
+.admin-section-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--red);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  line-height: 18px;
+  text-align: center;
+}
+
+.admin-table-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-table-picker select {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.admin-table-count {
+  color: var(--ink-faint);
+}
+
+/* A draft's long name must not push its picker past the panel. */
+.admin-message-compose .form-group select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .admin-table-wrap {
@@ -4173,6 +4231,89 @@ a.button:hover {
   outline: none;
   border-color: var(--accent);
   background: var(--card);
+}
+
+/* The Users panel: people, not cells, so it reads in the page's own face,
+   with each count right-aligned under its header. */
+.admin-users-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.admin-users-head h3 {
+  margin: 0 auto 0 0;
+  font-size: var(--fs-md);
+}
+
+.admin-users-head label {
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.admin-users-window {
+  width: auto;
+  font-size: var(--fs-xs);
+  padding: 4px 28px 4px 8px;
+}
+
+.admin-users-count {
+  margin-left: 4px;
+  color: var(--ink-faint);
+  font-weight: normal;
+}
+
+.admin-users-table {
+  font-family: inherit;
+  width: 100%;
+}
+
+.admin-users-table th.number,
+.admin-users-table td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-users-table th.number button.admin-sort {
+  flex-direction: row-reverse;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 6px 4px;
+}
+
+.admin-users-table td.admin-user {
+  max-width: 170px;
+}
+
+.admin-users-table td.admin-user-when {
+  max-width: 140px;
+}
+
+.admin-users-table td strong,
+.admin-users-table td small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-users-table small {
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs, 11px);
+}
+
+.admin-user-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--radius);
+  background: var(--accent-soft, var(--line));
+  color: var(--ink-soft);
+  font-size: var(--fs-2xs, 10px);
+  font-weight: normal;
+  vertical-align: 1px;
 }
 
 .admin-pk {
