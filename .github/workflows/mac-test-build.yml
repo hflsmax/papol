@@ -1,0 +1,32 @@
+# Temporary: an unnotarized Papol Dev app for hands-on release testing.
+# Removed before this branch's pull request is ready.
+name: Mac test build
+on:
+  push:
+    branches: [claude/project-thread-frgdi2]
+    paths: [.github/workflows/mac-test-build.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Rust
+        run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"$/\1/p' desktop/src-tauri/rust-toolchain.toml)" --profile minimal
+      - name: Dependencies
+        run: cd desktop && npm ci && npm run install:web
+      - name: Build Papol Dev
+        run: cd desktop && APPLE_SIGNING_IDENTITY=- npm run build:dev -- --bundles app
+      - name: Zip
+        run: |
+          cd desktop/src-tauri/target/release/bundle/macos
+          ditto -c -k --keepParent "Papol Dev.app" "$RUNNER_TEMP/Papol-Dev.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: papol-dev-app
+          path: ${{ runner.temp }}/Papol-Dev.zip
