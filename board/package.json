@@ -19,7 +19,7 @@
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-http": "^2.9.0",
     "katex": "^0.19.0",
-    "linkpeek": "^2.1.5",
+    "linkpeek": "^3.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
