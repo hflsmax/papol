@@ -110,8 +110,9 @@ function navigate(path, { replace = false } = {}) {
       mountedDestination,
     );
   } else {
-    // Back returns to this page as it was left, scrolled where it was.
-    window.history.replaceState({ ...(window.history.state || {}), papolScroll: window.scrollY }, '');
+    // Back returns to this page as it was left, scrolled where it was. In
+    // the Mac app a page scrolls in its pane, not the window.
+    window.history.replaceState({ ...(window.history.state || {}), papolScroll: pageScroller()?.scrollTop ?? window.scrollY }, '');
     window.history.pushState(
       { papolNavigation: true, papolBackHref: `${window.location.pathname}${window.location.search}` },
       '',
@@ -119,7 +120,27 @@ function navigate(path, { replace = false } = {}) {
     );
   }
   window.dispatchEvent(new PopStateEvent('popstate'));
-  if (!replace) window.scrollTo(0, 0);
+  if (!replace) {
+    window.scrollTo(0, 0);
+    const pane = pageScroller();
+    if (pane) pane.scrollTop = 0;
+  }
+}
+
+// Where a page scrolls in the Mac app when it stands alone (the Lounge, a
+// paper opened from it): its pane. The nook's panes keep their own.
+function pageScroller() {
+  return DESKTOP ? document.querySelector('.desktop-pane > .desktop-scroll') : null;
+}
+
+// Whether Escape is free to leave the page: not taken by a field being
+// typed in, a menu or a dialog that is open, or a handler of its own.
+function escapeIsFree(event) {
+  if (event.key !== 'Escape' || event.defaultPrevented) return false;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+  const target = event.target;
+  if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return false;
+  return !document.querySelector('[aria-expanded="true"], [role="dialog"], dialog[open], [aria-modal="true"]');
 }
 
 // A board row opens the board's jacket, as a paper row opens a paper's: the
@@ -435,8 +456,24 @@ export default function App({ startupUser = null, startupError = null }) {
   useLayoutEffect(() => {
     if (restoreScroll.current == null) return;
     window.scrollTo(0, restoreScroll.current);
+    const pane = pageScroller();
+    if (pane) pane.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
   }, [route]);
+  // A jacket opened from the Lounge or someone's nook is left for it with
+  // Escape, and in the Mac app with Cmd-[ as well, as Back does.
+  const leaveJacket = useRef(null);
+  useEffect(() => {
+    const onKey = (event) => {
+      if (!leaveJacket.current) return;
+      const macBack = DESKTOP && event.metaKey && event.key === '[' && !event.shiftKey && !event.altKey && !event.ctrlKey;
+      if (!macBack && !escapeIsFree(event)) return;
+      event.preventDefault();
+      leaveJacket.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   // One arrived at leaves for the nook, whose path replaces it; this runs
   // after the Back listener above is in place, so the move is heard.
   useEffect(() => {
@@ -751,6 +788,14 @@ export default function App({ startupUser = null, startupError = null }) {
     if (window.history.state?.papolBackHref === mountedPath(jacketBack.path)) window.history.back();
     else navigate(jacketBack.path);
   };
+  // The step back a jacket shows when it was opened from somewhere other
+  // than the member's own nook: the Lounge, or someone else's nook. From
+  // their own nook the list is beside it already, and Papol leads there.
+  const onJacket = route.page === 'paper' || route.page === 'board';
+  const jacketFrom = onJacket && user && jacketBack.path !== '/'
+    ? { ...jacketBack, href: mountedPath(jacketBack.path), onBack: goBackFromJacket }
+    : null;
+  leaveJacket.current = jacketFrom ? goBackFromJacket : null;
 
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
@@ -768,6 +813,8 @@ export default function App({ startupUser = null, startupError = null }) {
       // A place on this page: the browser scrolls to it.
       href.startsWith('#') ||
       anchor.hasAttribute('download') ||
+      // A Back link steps back itself, onto the entry behind when it can.
+      anchor.hasAttribute('data-back') ||
       anchor.hasAttribute('data-document') ||
       (anchor.target && anchor.target !== '_self')
     ) return;
@@ -1117,7 +1164,7 @@ export default function App({ startupUser = null, startupError = null }) {
             />
           ) : (
             <div className="desktop-pane">
-              <DesktopToolbar title={desktopTitle(route, user, myProjects)} />
+              <DesktopToolbar title={desktopTitle(route, user, myProjects)} back={jacketFrom} />
               <div className="desktop-scroll">
                 <div className="desktop-content">{pages}</div>
               </div>
@@ -1131,12 +1178,6 @@ export default function App({ startupUser = null, startupError = null }) {
   // The pages inside a project fill the window: a member at work in a
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
-  // Where a page leads back to on its way home to the nook, unless it
-  // says so itself: a jacket to the place it was opened from. A nook of
-  // someone else's names no step: the Lounge is already in the bar.
-  const wayTrail = inNook ? [] : (route.page === 'paper' || route.page === 'board') && jacketBack.path !== '/'
-    ? [jacketBack]
-    : [];
   return (
     <>
       <style>{applicationStyles}</style>
@@ -1162,7 +1203,7 @@ export default function App({ startupUser = null, startupError = null }) {
           <WayBar
             user={user}
             route={route}
-            trail={wayTrail}
+            from={jacketFrom}
             unreadCount={unreadCount}
             roomNews={roomNews}
           />

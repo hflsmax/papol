@@ -206,6 +206,24 @@ ${commonStyles}
 .app:has(.nook-desk) .way { gap: 0; }
 .app:has(.nook-desk) .way-mark { flex: none; width: calc(15rem + var(--space-6)); }
 .app:has(.nook-desk.is-project) .way-mark { width: auto; padding-right: var(--space-4); }
+/* A jacket opened from the Lounge or a friend's nook: the step back to it
+   stands beside Papol's mark, over the rail, so the title keeps its place. */
+.way a.way-from {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-3);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  color: var(--ink-soft);
+  font: 500 var(--fs-md) var(--font-ui);
+}
+.way a.way-from:hover { color: var(--accent); }
+.way-from-chevron { font-size: 1.4em; line-height: 1; margin-top: -0.12em; }
+.app:has(.nook-desk) .way:has(.way-from) .way-mark { width: auto; }
+.app:has(.nook-desk) .way a.way-from { flex: none; width: calc(15rem + var(--space-6) - 3rem - var(--space-2)); margin-left: 0; padding-left: var(--space-4); }
+.app:has(.nook-desk) .way a.way-from > * { flex: none; }
 /* Over the open rail the mark starts where the rail's words do. */
 @media (min-width: 761px) {
   .app:has(.nook-desk:not(.is-project)) .way-mark { padding-left: var(--space-2); }
@@ -249,6 +267,8 @@ ${commonStyles}
   .app:has(.nook-desk) .way-bar { flex-wrap: wrap; row-gap: var(--space-4); }
   .app:has(.nook-desk) .way { display: contents; }
   .app:has(.nook-desk) .way-mark { flex: 1; width: auto; }
+  .app:has(.nook-desk) .way:has(.way-from) .way-mark { flex: none; }
+  .app:has(.nook-desk) .way a.way-from { flex: 1; width: auto; padding-left: var(--space-3); }
   .app:has(.nook-desk) #way-slot { order: 1; flex: 1 1 100%; min-width: 0; }
   .app:has(.nook-desk) #way-slot:empty { display: none; }
   .app:has(.nook-desk) #way-slot > .project-seats { margin-left: calc(-1 * var(--space-1)); }
