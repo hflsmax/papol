@@ -4,6 +4,7 @@ import { appPath } from '../base';
 import Avatar from './Avatar';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Glyph from './DesktopGlyph';
+import BackLink from '../../../shared/ui/BackLink.jsx';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -18,13 +19,22 @@ export const ROOM_PATH = '/lounge';
 // there, on every page. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none. Before the member is
 // known (their sign-in still being checked) the bar stands without them.
-export function WayBar({ user, route, trail = [], unreadCount = 0, roomNews = false }) {
+// `from` is where a jacket was opened from, when that is not the member's
+// own nook (the Lounge, a friend's nook): a step back to it beside Papol's
+// mark, over the rail, so the jacket's title still starts where the page
+// does.
+export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, roomNews = false }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
         {/* The bar's mark is the PNG drawn from favicon.svg, not the SVG
             itself: Safari drew the SVG's gradient P as solid black. */}
         <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
+        {from && (
+          <BackLink className="way-from" href={from.href} onBack={from.onBack} title={`Back to ${from.label === 'Nook' ? 'the nook' : `the ${from.label}`}`}>
+            <span className="way-from-chevron" aria-hidden="true">‹</span>{from.label}
+          </BackLink>
+        )}
         <span className="way-trail" id="way-slot" />
         <span className="way-trail way-default">
           {trail.map(({ path, label }) => <a key={path} href={appPath(path)}>{label}</a>)}

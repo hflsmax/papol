@@ -490,9 +490,17 @@ export function useDesktopShortcuts({ groups, modes = [], onNavigate }) {
 // A page's toolbar: its title, in the strip that moves the window, and a
 // slot a page fills with its own controls through InToolbar, so a page in
 // the Mac app needs no header of its own.
-export function DesktopToolbar({ title }) {
+//
+// `back` is where a page opened on its own came from (the Lounge, for a
+// paper opened in Lounge mode): a step back to it, ahead of the title.
+export function DesktopToolbar({ title, back = null }) {
   return (
     <header className="desktop-toolbar" data-tauri-drag-region="deep">
+      {back && (
+        <button type="button" className="desktop-toolbar-back" onClick={back.onBack} title={`Back to ${back.label} (⌘[)`}>
+          <span aria-hidden="true">‹</span>{back.label}
+        </button>
+      )}
       {title && <h1 className="desktop-toolbar-title">{title}</h1>}
       <div className="desktop-toolbar-slot" id="desktop-toolbar-slot" />
     </header>

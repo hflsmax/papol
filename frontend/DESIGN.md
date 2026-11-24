@@ -237,7 +237,12 @@ sidebar, toolbar and document windows.
 - **Back is the browser's.** No in-page back links on the web. Back returns
   to the list as it was left: its scroll, tags and search, so a list stays
   mounted while a paper is open beside it. A link opened in a fresh tab has
-  nothing behind it; the rail and "Papol" are the way home.
+  nothing behind it; the rail and "Papol" are the way home. A jacket opened
+  from the Lounge or someone else's nook names that place on the bar, beside
+  Papol over the rail ("‹ Lounge"), since the rail beside it is the member's
+  own nook and not the list they came from; it steps back onto that list as
+  it was left, and so does Escape. In the Mac app the same step leads the
+  page's toolbar, with ⌘[ as well.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.
 - **Sign-in returns to the path asked for,** whichever of the above it is.

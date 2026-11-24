@@ -430,6 +430,29 @@ export const desktopStyles = `
   display: none;
 }
 
+/* The way back from a page opened on its own (a paper opened in Lounge
+   mode) to where it was opened from, ahead of the page's title. */
+.desktop-toolbar .desktop-toolbar-back {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  margin-left: -8px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: var(--chrome-radius);
+  background: none;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font: 500 var(--fs-sm) var(--font-ui);
+  cursor: default;
+  transition: none;
+}
+.desktop-toolbar-back > span { font-size: 1.35em; line-height: 1; margin-top: -2px; }
+.desktop-toolbar .desktop-toolbar-back:hover { background: var(--chrome-hover); color: var(--ink); }
+.desktop-toolbar-back + .desktop-toolbar-title { padding-left: 10px; border-left: 1px solid var(--line); }
+
 .desktop-toolbar-title {
   min-width: 0;
   overflow: hidden;

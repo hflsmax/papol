@@ -2,7 +2,7 @@ import React from 'react';
 import { appPath } from '../appUrls.js';
 
 export default function BackLink({ href, onBack, children = <>&larr; Back</>, ...props }) {
-  return <a href={href || appPath('/')} onClick={(event) => {
+  return <a data-back="" href={href || appPath('/')} onClick={(event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     onBack?.();
