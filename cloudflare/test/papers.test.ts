@@ -482,8 +482,9 @@ describe("an upload that went straight to the bucket", () => {
     expect(asked).toEqual([`/works/${encodeURIComponent("10.1145/2984511.2984540")}`]);
 
     // An arXiv id is asked about through its DataCite DOI, of DataCite,
-    // which registers it: CrossRef is not asked. arXiv knows no venue; the
-    // title block's stands.
+    // which registers it: CrossRef is not asked about it, only searched
+    // for a published version, here finding none. arXiv knows no venue;
+    // the title block's stands.
     asked.length = 0;
     apis({
       "api.datacite.org": (url) => { asked.push(url.pathname); return Response.json({ data: { attributes: {
@@ -497,13 +498,15 @@ describe("an upload that went straight to the bucket", () => {
     expect((await ok("GET", `/api/jobs/${arxiv.job}`, { headers: account.headers })).result).toMatchObject({
       doi: "10.48550/arxiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani", "Noam Shazeer"]), journal: "The Page", year: 2017,
     });
-    expect(asked).toEqual([`/dois/${encodeURIComponent("10.48550/arxiv.1706.03762")}`]);
+    expect(asked).toEqual([`/dois/${encodeURIComponent("10.48550/arxiv.1706.03762")}`, "/works"]);
     // arXiv knows no venue; a preprint typeset by its journal prints one,
     // and a PACMPL issue is the conference.
     const typeset = await queue({ arxiv_id: "1706.03762v5" }, titleBlock({ journal: "Proceedings of the ACM on Programming Languages (ICFP)" }));
     await woken(typeset.job);
     expect((await ok("GET", `/api/jobs/${typeset.job}`, { headers: account.headers })).result).toMatchObject({ title: "Attention Is All You Need", journal: "ICFP" });
-    // DataCite down: the title block as read; OpenAlex is not asked.
+    // DataCite down: the title block as read; OpenAlex is not asked about
+    // the arXiv DOI, only searched, after CrossRef, for a published version
+    // by the title block's title and names — none convincing here.
     asked.length = 0;
     apis({
       "api.datacite.org": () => { asked.push("datacite"); return new Response("", { status: 503 }); },
@@ -514,7 +517,7 @@ describe("an upload that went straight to the bucket", () => {
     await woken(fallback.job);
     expect((await ok("GET", `/api/jobs/${fallback.job}`, { headers: account.headers })).result)
       .toMatchObject({ doi: "10.48550/arXiv.1706.03762", title: "Attention Is All You Need", authors: JSON.stringify(["Ashish Vaswani"]), year: 2017 });
-    expect(asked).toEqual(["datacite"]);
+    expect(asked).toEqual(["datacite", "crossref", "openalex"]);
 
     // Unknown to the indexes: the title block as read, and the given
     // identifier stays on the form.
@@ -526,6 +529,81 @@ describe("an upload that went straight to the bucket", () => {
       .toMatchObject({ doi: "10.9999/nobody-knows", title: "As Printed", authors: JSON.stringify(["P. Rinted"]), journal: "The Page", year: 2020 });
     // CrossRef has never heard of it: DataCite is asked, not OpenAlex.
     expect(asked).toEqual([`/works/${encodeURIComponent("10.9999/nobody-knows")}`, "datacite"]);
+  });
+
+  // "Finite-Choice Logic Programming" as arXiv:2405.19040v3 prints it: the
+  // arXiv stamp, the title and the names, and nothing of POPL. DataCite's
+  // record and Crossref's search, as they answered on 2026-11-24.
+  const people = (...names: string[]) => names.map((name) => ({ given: name.split(" ").slice(0, -1).join(" "), family: name.split(" ").pop() }));
+  const finiteChoiceNames = ["Chris Martens", "Robert J. Simmons", "Michael Arntzenius"];
+  const finiteChoicePreprint = (related: unknown[]) => ({ data: { attributes: {
+    doi: "10.48550/arxiv.2405.19040", titles: [{ title: "Finite-Choice Logic Programming" }], publicationYear: 2024, publisher: "arXiv",
+    creators: finiteChoiceNames.map((name) => ({ givenName: name.split(" ").slice(0, -1).join(" "), familyName: name.split(" ").pop() })),
+    relatedIdentifiers: related,
+  } } });
+  const finiteChoicePopl = { DOI: "10.1145/3704849", type: "journal-article", title: ["Finite-Choice Logic Programming"],
+    "container-title": ["Proceedings of the ACM on Programming Languages"], issue: "POPL", issued: { "date-parts": [[2025, 1, 7]] }, author: people(...finiteChoiceNames) };
+  const finiteChoiceSearch = { message: { items: [
+    finiteChoicePopl,
+    { DOI: "10.1016/0743-1066(95)00149-2", type: "journal-article", title: ["Automatic finite unfolding using well-founded measures"],
+      "container-title": ["The Journal of Logic Programming"], issue: "2", issued: { "date-parts": [[1996, 8]] }, author: people("Bern Martens", "Danny De Schreye") },
+    { DOI: "10.1007/978-981-92-0184-6_1", type: "book-chapter", title: ["Finite Functional Programming"],
+      "container-title": ["Lecture Notes in Computer Science", "Functional and Logic Programming"], issued: { "date-parts": [[2026]] }, author: people("Michael Arntzenius", "Max Willsey") },
+  ] } };
+  const finiteChoiceBlock = titleBlock({ title: "Finite-Choice Logic Programming", authors: finiteChoiceNames, arxiv_id: "2405.19040v3" });
+  const asPreprint = { doi: "10.48550/arxiv.2405.19040", title: "Finite-Choice Logic Programming", authors: JSON.stringify(finiteChoiceNames), journal: null, year: 2024 };
+
+  it("finds the published version of an arXiv preprint, by the registry's link to it or by its title and names", async () => {
+    const account = await register();
+    const digest = await sha256(pdf);
+    await env.FILES.put(`uploads/${digest}.pdf`, pdf);
+    const asked: string[] = [];
+    const answers = (related: unknown[]) => apis({
+      "api.datacite.org": () => { asked.push("datacite"); return Response.json(finiteChoicePreprint(related)); },
+      "api.crossref.org": (url) => {
+        asked.push(url.pathname === "/works" ? "search" : url.pathname);
+        return url.pathname === "/works" ? Response.json(finiteChoiceSearch) : Response.json({ message: finiteChoicePopl });
+      },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [] }); },
+    });
+    const lookup = async () => ok("POST", "/api/papers/lookup", { headers: account.headers, json: { identifier: { arxiv_id: "2405.19040v3" }, uploaded_name: "2405.19040v3.pdf", title_block: finiteChoiceBlock } });
+    const published = { doi: "10.1145/3704849", title: "Finite-Choice Logic Programming", authors: JSON.stringify(finiteChoiceNames), journal: "POPL", year: 2025, as_printed: asPreprint };
+
+    // arXiv's record names the POPL paper it is a version of: its DOI is asked about, no search made.
+    answers([{ relationType: "IsVersionOf", relatedIdentifier: "10.1145/3704849", relatedIdentifierType: "DOI" }]);
+    expect(await lookup()).toEqual(published);
+    expect(asked).toEqual(["datacite", `/works/${encodeURIComponent("10.1145/3704849")}`]);
+
+    // No link: the search by the preprint's title and names finds it.
+    asked.length = 0;
+    answers([]);
+    expect(await lookup()).toEqual(published);
+    expect(asked).toEqual(["datacite", "search"]);
+
+    // The job, when the lookup was late, answers the same.
+    const queued = await ok("POST", "/api/papers/uploaded", { headers: account.headers,
+      json: { file_path: `${digest}.pdf`, uploaded_name: "2405.19040v3.pdf", identifier: { arxiv_id: "2405.19040v3" }, title_block: finiteChoiceBlock } });
+    await woken(queued.job);
+    expect((await ok("GET", `/api/jobs/${queued.job}`, { headers: account.headers })).result).toMatchObject(published);
+
+    // Another arXiv DOI is a version of the preprint, not its publication;
+    // a search that convinces of nothing leaves the preprint as it is.
+    asked.length = 0;
+    apis({
+      "api.datacite.org": () => Response.json(finiteChoicePreprint([{ relationType: "IsVersionOf", relatedIdentifier: "10.48550/arXiv.2405.19040", relatedIdentifierType: "DOI" }])),
+      "api.crossref.org": (url) => { asked.push(url.pathname); return Response.json({ message: { items: finiteChoiceSearch.message.items.slice(1) } }); },
+      "api.openalex.org": () => { asked.push("openalex"); return Response.json({ results: [] }); },
+    });
+    expect(await lookup()).toEqual(asPreprint);
+    expect(asked).toEqual(["/works", "openalex"]);
+
+    // The edit form's re-read finds it too.
+    answers([{ relationType: "IsVersionOf", relatedIdentifier: "10.1145/3704849", relatedIdentifierType: "DOI" }]);
+    const paper = "5".repeat(64);
+    await paperWithCopy(account, paper, "Finite-Choice Logic Programming", { filePath: "2405.19040v3.pdf" });
+    await env.FILES.put("uploads/2405.19040v3.pdf", "%PDF-1.4\n%%EOF");
+    expect(await ok("POST", `/api/papers/${paper.slice(0, 32)}/extract-metadata`, { headers: account.headers, json: { title_block: finiteChoiceBlock } }))
+      .toMatchObject({ doi: "10.1145/3704849", journal: "POPL", year: 2025 });
   });
 
   it("asks the indexes about an identifier while the PDF goes up, and an upload that has its reading queues no job", async () => {

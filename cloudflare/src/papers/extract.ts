@@ -18,13 +18,15 @@
 // A paper that prints no identifier at all is often an author's own copy
 // of a published paper: its title and authors are searched for the
 // published version (published.ts), whose DOI, venue and year the form
-// then has.
+// then has. An arXiv preprint is a self-posted copy too, and its registry
+// knows no venue: its published version is looked for the same way,
+// after the registry's own link to it.
 
 import { one, type Row } from "../db";
 import { JobError } from "../jobs/queue";
 import { byDoi, Unavailable, type Summary } from "./bibliography";
 import { arxivDoi, extractArxivId, extractDoi } from "./identifiers";
-import { publishedVersion } from "./published";
+import { preprintPublished, publishedVersion } from "./published";
 import type { HeaderMetadata } from "./reading";
 
 export { arxivDoi, extractArxivId, extractDoi };
@@ -113,7 +115,17 @@ export async function extractedMetadata(env: Env, upload: Upload): Promise<Extra
     metadata.journal = paperVenue(header.journal);
     metadata.year = header.year;
   }
-  return metadata;
+  // An arXiv preprint: the paper it was published as, when there is one.
+  const published = await preprintPublished(env, metadata.doi, known, upload.titleBlock ?? header);
+  return published ? withPublished(metadata, published) : metadata;
+}
+
+// A preprint's reading with its published version's fields in place, and
+// the preprint's own as what the PDF printed, for the form to open on and
+// offer back, as for an author's copy.
+function withPublished<T extends Reextracted>(read: T, published: Summary): T & { as_printed: AsPrinted } {
+  const { doi, title, authors, journal, year } = read;
+  return { ...read, ...knownFields(published, published.doi!, title ?? "", null), as_printed: { doi, title: title ?? published.title ?? "", authors, journal, year } };
 }
 
 // The venue a paper is known by. The Proceedings of the ACM journals
@@ -155,7 +167,10 @@ function knownFields(known: Summary, asked: string, title: string, titleBlock?: 
 export async function indexedMetadata(env: Env, identifier: Identifier, uploadedName: string, titleBlock?: HeaderMetadata | null): Promise<Omit<Extracted, "file_path"> | null> {
   const asked = lookupDoi(identifier);
   const known = asked ? await byDoi(env, asked) : null;
-  return known ? knownFields(known, asked!, titleFromFilename(uploadedName), titleBlock) : null;
+  if (!known) return null;
+  const read = knownFields(known, asked!, titleFromFilename(uploadedName), titleBlock);
+  const published = await preprintPublished(env, asked, known, titleBlock);
+  return published ? withPublished(read, published) : read;
 }
 
 // A paper Papol holds already of the same work: one carrying the DOI the
@@ -221,5 +236,8 @@ export async function reextractedMetadata(env: Env, titleBlock: HeaderMetadata |
     journal: paperVenue(titleBlock.journal),
     year: titleBlock.year,
   } : null;
-  return { ...knownFields(known, printed ?? known.doi!, known.title ?? "", titleBlock), title: known.title, ...found };
+  const read = { ...knownFields(known, printed ?? known.doi!, known.title ?? "", titleBlock), title: known.title, ...found };
+  // An arXiv preprint: its published version's fields, as the button fills them.
+  const published = printed ? await preprintPublished(env, printed, known, titleBlock) : null;
+  return published ? withPublished(read, published) : read;
 }

@@ -101,3 +101,32 @@ export async function publishedVersion(env: Env, header: HeaderMetadata | null |
   }
   return found;
 }
+
+// The published version of a preprint: an arXiv copy is the self-posted
+// one, and its registry knows no venue. "Finite-Choice Logic
+// Programming", read off arXiv:2405.19040, came to the form with DataCite's
+// record of the preprint — title, names, 2024, no venue — while the paper
+// appeared at POPL 2025; the search above was only made for a paper
+// printing no identifier at all, and an arXiv id is one.
+//
+// The registry's own word comes first: arXiv records the journal DOI its
+// authors give it, and that DOI's record is the published paper. Else the
+// preprint is searched for as an author's copy is, by its title and names
+// as the registry has them (or as the title block printed them, when the
+// registry could not say), the same agreement required. Null for a DOI
+// that is not a preprint's, or a preprint nobody knows to be published.
+export async function preprintPublished(env: Env, asked: string | null, preprint: Summary | null, titleBlock: HeaderMetadata | null | undefined): Promise<Summary | null> {
+  if (!asked?.toLowerCase().startsWith(ARXIV_DOI_PREFIX)) return null;
+  if (preprint?.published_doi) {
+    try {
+      const linked = await byDoi(env, preprint.published_doi);
+      if (linked?.doi && !linked.doi.toLowerCase().startsWith(ARXIV_DOI_PREFIX)) return linked;
+    } catch (error) {
+      if (!(error instanceof Unavailable)) throw error;
+    }
+  }
+  const header: HeaderMetadata | null | undefined = preprint?.title && preprint.authors.length
+    ? { title: preprint.title, authors: preprint.authors, journal: null, year: preprint.year, doi: null, arxiv_id: null }
+    : titleBlock;
+  return publishedVersion(env, header);
+}

@@ -32,6 +32,9 @@ export interface Summary {
   pdf_url: string | null;
   source: "crossref" | "openalex" | "datacite";
   host?: string | null;
+  // A preprint's registry record may name the published paper it is a
+  // version of: that paper's DOI (DataCite's relatedIdentifiers).
+  published_doi?: string | null;
 }
 
 function userAgent(env: Env): string {
@@ -268,6 +271,21 @@ export async function dataciteByDoi(env: Env, doi: string): Promise<Record<strin
   }
 }
 
+// The published paper a preprint's record says it is a version of. arXiv
+// registers the journal DOI its authors gave as `IsVersionOf`
+// ("Finite-Choice Logic Programming", arXiv:2405.19040, names its POPL
+// paper, 10.1145/3704849, so); other repositories say `IsPreprintOf` or
+// `IsPreviousVersionOf`. Another arXiv DOI is a version of the preprint,
+// not its publication.
+const PUBLISHED_AS = new Set(["isversionof", "ispreprintof", "ispreviousversionof"]);
+
+function publishedDoiOf(record: Record<string, any>): string | null {
+  const link = (record.relatedIdentifiers ?? []).find((related: any) =>
+    PUBLISHED_AS.has(String(related?.relationType ?? "").toLowerCase()) && String(related?.relatedIdentifierType ?? "").toUpperCase() === "DOI"
+    && /^10\.\d{4,9}\//.test(bare(String(related?.relatedIdentifier ?? ""))) && !bare(String(related.relatedIdentifier)).toLowerCase().startsWith(ARXIV_DOI_PREFIX));
+  return link ? bare(String(link.relatedIdentifier)) : null;
+}
+
 // A DataCite record as the form wants it. arXiv is where the preprint is
 // held, not a venue it appeared in, so it is the host, as OpenAlex has it.
 export function summarizeDatacite(record: Record<string, any>): Summary {
@@ -280,7 +298,7 @@ export function summarizeDatacite(record: Record<string, any>): Summary {
   return {
     title, authors, year: Number(record.publicationYear) || null, venue: null, host: record.publisher ?? null,
     abstract: abstract ? abstract.split(/\s+/).join(" ") : null, citations: record.citationCount ?? null,
-    doi, url: doi ? `https://doi.org/${doi}` : null, pdf_url: null, source: "datacite",
+    doi, url: doi ? `https://doi.org/${doi}` : null, pdf_url: null, source: "datacite", published_doi: publishedDoiOf(record),
   };
 }
 
