@@ -594,16 +594,20 @@ export default function PaperJacket({
             for every user.
           </div>
 
-          <div className="form-actions metadata-extract-action">
-            <button
-              type="button"
-              onClick={handleMetadataExtract}
-              disabled={isExtractingMetadata}
-            >
-              {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
-            </button>
-            {isExtractingMetadata && <Working label={metadataExtractStatus} />}
-          </div>
+          {/* The panel of what was found takes the button's place until
+              the user has answered it. */}
+          {!metadataFound && (
+            <div className="form-actions metadata-extract-action">
+              <button
+                type="button"
+                onClick={handleMetadataExtract}
+                disabled={isExtractingMetadata}
+              >
+                {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
+              </button>
+              {isExtractingMetadata && <Working label={metadataExtractStatus} />}
+            </div>
+          )}
 
           {metadataFound && (
             <div className="metadata-found" role="region" aria-label="Details found in the PDF">
