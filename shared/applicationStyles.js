@@ -1020,6 +1020,34 @@ button.full-width {
 .metadata-reading.published-version { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 8px; }
 .metadata-reading.published-version .published-fill { padding: 4px 12px; font-size: var(--fs-sm); }
 
+/* What the edit form's "Extract metadata from PDF" found: each field it
+   would change, from what is there to what was found, ticked to be used.
+   Nothing is written into the form until the user says which. */
+.metadata-found {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-sunken);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+.metadata-found p { margin: 0 0 8px; }
+.metadata-found-note { color: var(--ink-faint); }
+.metadata-found-sources { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 8px; }
+.metadata-found-sources input[type='radio'] { margin: 0; accent-color: var(--accent); }
+.metadata-found-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.metadata-found-list li + li { margin-top: 4px; }
+.metadata-found-list .checkbox-row { display: flex; align-items: baseline; gap: 8px; }
+.metadata-found-list input[type='checkbox'] { margin: 0; flex: none; align-self: center; accent-color: var(--accent); }
+.metadata-found-field { flex: none; width: 4.5em; color: var(--ink-faint); }
+.metadata-found-change { min-width: 0; overflow-wrap: anywhere; }
+.metadata-found-change del { color: var(--ink-faint); }
+.metadata-found-change ins { text-decoration: none; font-weight: 600; }
+.metadata-found-empty { color: var(--ink-faint); font-style: italic; }
+.metadata-found .form-actions { margin-top: 0; justify-content: flex-start; }
+.metadata-found-same { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
 .upload-review-form .form-group {
   margin-bottom: 12px;
 }

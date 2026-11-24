@@ -23,6 +23,7 @@ import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import appLimits from '../../../shared/appLimits.js';
 import AutoTextarea from './AutoTextarea';
 import { authorList } from '../paperFormat';
+import { applyChanges, foundFields, metadataCandidates, metadataChanges } from '../metadataReview.js';
 import { appPath } from '../base';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
@@ -64,6 +65,9 @@ export default function PaperJacket({
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [metadataExtractStatus, setMetadataExtractStatus] = useState('Reading PDF…');
+  // What the reading found, offered for the user to take field by field
+  // (metadataReview.js): `{ candidates, which, chosen }`, or null.
+  const [metadataFound, setMetadataFound] = useState(null);
   const [toggleWarning, setToggleWarning] = useState(null);
   const [editingThought, setEditingThought] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
@@ -179,6 +183,7 @@ export default function PaperJacket({
       year: paper.year || '',
       doi: paper.doi || '',
     });
+    setMetadataFound(null);
     setEditMode('metadata');
   };
 
@@ -373,56 +378,55 @@ export default function PaperJacket({
     }
   };
 
+  // The reading is offered, never written in: the details are every
+  // reader's, and a reading can be wrong (metadataReview.js).
+  const offerMetadata = (candidates, note = null) => {
+    const usable = candidates.filter((candidate) => candidate.fields);
+    if (!usable.length) { setMetadataFound(null); return; }
+    const changes = metadataChanges(editData, usable[0].fields);
+    setMetadataFound({ candidates: usable, which: usable[0].key, chosen: new Set(changes.map((c) => c.field)), note });
+  };
+
   const handleMetadataExtract = async () => {
     setError(null);
+    setMetadataFound(null);
     setIsExtractingMetadata(true);
     setMetadataExtractStatus('Reading PDF…');
     let href = null;
-    let readFromPdf = false;
+    let titleBlock = null;
     try {
       // The title block is read here, off the PDF this jacket shows: the
       // Mac's own copy, else the file on the server.
       href = localPdf ? await nativeBlobUrl(paper.sha256, 'application/pdf').catch(() => null) : pdfHref(paper);
       const printed = href ? await readPrintedAt(href) : null;
-      const titleBlock = printed?.title_block;
-      if (titleBlock) {
-        readFromPdf = true;
-        setEditData((current) => ({
-          ...current,
-          ...(titleBlock.title != null && { title: titleBlock.title }),
-          ...(titleBlock.authors?.length && { authors: titleBlock.authors.join(', ') }),
-          ...(titleBlock.journal != null && { journal: titleBlock.journal }),
-          ...(titleBlock.year != null && { year: titleBlock.year }),
-          ...(titleBlock.doi != null && { doi: titleBlock.doi }),
-        }));
-        const found = [
-          titleBlock.title && 'title',
-          titleBlock.authors?.length && `${titleBlock.authors.length} author${titleBlock.authors.length === 1 ? '' : 's'}`,
-          titleBlock.journal && 'venue',
-          titleBlock.year && 'year',
-          (titleBlock.doi || titleBlock.arxiv_id) && 'identifier',
-        ].filter(Boolean).join(', ');
-        setMetadataExtractStatus(`Found ${found} in the PDF. Checking scholarly registries…`);
-      } else {
-        setMetadataExtractStatus('No title block found in the PDF. Checking scholarly registries…');
-      }
+      titleBlock = printed?.title_block ?? null;
+      setMetadataExtractStatus(titleBlock ? 'Read the PDF. Checking scholarly registries…' : 'No title block found in the PDF. Checking scholarly registries…');
       const extracted = await reextractPaperMetadata(paper.sha256, printed);
-      setEditData((current) => ({
-        ...current,
-        ...(extracted.title != null && { title: extracted.title }),
-        ...(extracted.authors != null && {
-          authors: authorList(extracted.authors).join(', '),
-        }),
-        ...(extracted.journal != null && { journal: extracted.journal }),
-        ...(extracted.year != null && { year: extracted.year }),
-        ...(extracted.doi != null && { doi: extracted.doi }),
-      }));
+      offerMetadata(metadataCandidates(extracted));
     } catch (err) {
-      setError(readFromPdf ? `PDF metadata was loaded, but registry enrichment failed: ${err.message}` : err.message);
+      // The registries could not answer: what the PDF prints, if it was read.
+      if (titleBlock) offerMetadata([{ key: 'found', label: null, fields: foundFields(titleBlock) }], `Scholarly registries could not be reached (${err.message}); this is what the PDF prints.`);
+      else setError(err.message);
     } finally {
       if (localPdf && href) URL.revokeObjectURL(href);
       setIsExtractingMetadata(false);
     }
+  };
+
+  const foundCandidate = metadataFound?.candidates.find((candidate) => candidate.key === metadataFound.which);
+  const foundChanges = foundCandidate ? metadataChanges(editData, foundCandidate.fields) : [];
+  const chooseCandidate = (key) => {
+    const candidate = metadataFound.candidates.find((c) => c.key === key);
+    setMetadataFound({ ...metadataFound, which: key, chosen: new Set(metadataChanges(editData, candidate.fields).map((c) => c.field)) });
+  };
+  const toggleFound = (field) => {
+    const chosen = new Set(metadataFound.chosen);
+    if (chosen.has(field)) chosen.delete(field); else chosen.add(field);
+    setMetadataFound({ ...metadataFound, chosen });
+  };
+  const useFound = () => {
+    setEditData((current) => applyChanges(current, foundChanges, metadataFound.chosen));
+    setMetadataFound(null);
   };
 
   const saveSummary = async () => {
@@ -590,16 +594,65 @@ export default function PaperJacket({
             for every user.
           </div>
 
-          <div className="form-actions metadata-extract-action">
-            <button
-              type="button"
-              onClick={handleMetadataExtract}
-              disabled={isExtractingMetadata}
-            >
-              {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
-            </button>
-            {isExtractingMetadata && <Working label={metadataExtractStatus} />}
-          </div>
+          {/* The panel of what was found takes the button's place until
+              the user has answered it. */}
+          {!metadataFound && (
+            <div className="form-actions metadata-extract-action">
+              <button
+                type="button"
+                onClick={handleMetadataExtract}
+                disabled={isExtractingMetadata}
+              >
+                {isExtractingMetadata ? 'Extracting…' : 'Extract metadata from PDF'}
+              </button>
+              {isExtractingMetadata && <Working label={metadataExtractStatus} />}
+            </div>
+          )}
+
+          {metadataFound && (
+            <div className="metadata-found" role="region" aria-label="Details found in the PDF">
+              {metadataFound.note && <p className="metadata-found-note">{metadataFound.note}</p>}
+              {metadataFound.candidates.length > 1 && (
+                <div className="metadata-found-sources" role="radiogroup" aria-label="Which details">
+                  {metadataFound.candidates.map((candidate) => (
+                    <label key={candidate.key} className="checkbox-row inline">
+                      <input type="radio" name="metadata-found-source" checked={metadataFound.which === candidate.key} onChange={() => chooseCandidate(candidate.key)} />
+                      <span>{candidate.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {foundChanges.length ? (
+                <>
+                  <p className="metadata-found-heading">Found for this PDF. Tick the details to use:</p>
+                  <ul className="metadata-found-list">
+                    {foundChanges.map((change) => (
+                      <li key={change.field}>
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={metadataFound.chosen.has(change.field)} onChange={() => toggleFound(change.field)} />
+                          <span className="metadata-found-field">{change.label}</span>
+                          <span className="metadata-found-change">
+                            {change.from ? <del>{change.from}</del> : <span className="metadata-found-empty">empty</span>}
+                            <span aria-hidden="true"> → </span>
+                            <ins>{change.to}</ins>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="form-actions">
+                    <button type="button" className="primary" onClick={useFound} disabled={!metadataFound.chosen.size}>Use selected</button>
+                    <button type="button" onClick={() => setMetadataFound(null)}>Keep current details</button>
+                  </div>
+                </>
+              ) : (
+                <div className="metadata-found-same">
+                  <span>The details found match what is here.</span>
+                  <button type="button" onClick={() => setMetadataFound(null)}>OK</button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="paper-metadata-title">Title</label>
