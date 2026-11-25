@@ -4416,6 +4416,9 @@ export default function App() {
           floats={analysis?.floats}
           kinds={navKinds}
           onShown={navChoosable ? chooseNavKinds : null}
+          // The gear's own tip stands where the paper's cards and the
+          // project's tip do, so it waits for them.
+          hint={!paperPopupOpen && !projectMenuOpen && !(projectView?.myShelf && !projectVisibilityTipDismissed)}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
           onSection={byNavigator(goToSection)}

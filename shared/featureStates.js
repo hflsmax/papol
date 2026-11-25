@@ -52,6 +52,15 @@ export const PROJECT_VISIBILITY_TIP = {
   unsetLabel: 'Not dismissed',
 };
 
+export const DARK_PAGES_TIP = {
+  key: 'papol_learn_dark_pages',
+  value: 'seen',
+  name: 'Dark pages tip',
+  description: 'The Learn Papol card under the viewer’s gear that says dark pages can be turned on there, shown until the user dismisses it, opens the gear or turns dark pages on.',
+  setLabel: 'Shown',
+  unsetLabel: 'Not shown',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -92,6 +101,7 @@ export const FEATURE_STATES = [
   LINK_NAVIGATION_TIP,
   VISIBILITY_TIP,
   PROJECT_VISIBILITY_TIP,
+  DARK_PAGES_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,

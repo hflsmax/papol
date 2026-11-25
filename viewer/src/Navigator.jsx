@@ -9,6 +9,7 @@ import { NAV_KINDS, NAV_NAMES, NAV_SHOWN, floatMarks } from './navMarks';
 import SectionStrip from './SectionStrip';
 import { PHONE } from './styles';
 import { chooseDarkPages, darkPagesShown, subscribeDarkPages } from '../../shared/theme.js';
+import { DARK_PAGES_TIP, FEATURE_STATES_TAKEN, isFeatureStateSet, setFeatureState } from '../../shared/featureStates.js';
 
 /**
  * The paper, drawn to length across the bar.
@@ -188,6 +189,7 @@ export default function Navigator({
   // Told the kinds to mark when the reader changes them; without it (no
   // account to keep the choice on) there is no gear.
   onShown = null,
+  hint = true,
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
   // measure a place against.
@@ -695,7 +697,7 @@ export default function Navigator({
         <span className="navigator-here" aria-hidden="true" />
         <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
       </div>
-      <MarkChoices shown={kinds} onShown={onShown} />
+      <MarkChoices shown={kinds} onShown={onShown} hint={hint} />
     </div>
   );
 }
@@ -705,9 +707,25 @@ export default function Navigator({
 // reader with an account to keep the choice, so `onShown`); and, for
 // everyone, whether the pages are drawn dark (shared/theme.js). Open in one
 // step, under the gear; a press outside or Escape puts it away.
-function MarkChoices({ shown, onShown }) {
+function MarkChoices({ shown, onShown, hint }) {
   const [open, setOpen] = useState(false);
   const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
+  // That dark pages are in here, said under the gear until the reader has
+  // been told: by dismissing the card, by opening the gear, or by already
+  // reading that way. `hint` is the bar's leave to say it, withheld while
+  // another card of the bar's is up where this one would stand.
+  const [told, setTold] = useState(() => isFeatureStateSet(DARK_PAGES_TIP));
+  const tell = () => {
+    if (told) return;
+    setFeatureState(DARK_PAGES_TIP, true);
+    setTold(true);
+  };
+  useEffect(() => {
+    const look = () => { if (isFeatureStateSet(DARK_PAGES_TIP)) setTold(true); };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
+  useEffect(() => { if (open || darkPages) tell(); });
   const boxRef = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
@@ -739,6 +757,16 @@ function MarkChoices({ shown, onShown }) {
       >
         <Gear />
       </button>
+      {hint && !told && !open && !darkPages && (
+        <span className="learn-papol dark-pages-tip" role="dialog" aria-labelledby="dark-pages-tip-title">
+          <span className="kicker">Learn Papol</span>
+          <strong id="dark-pages-tip-title">Read in the dark</strong>
+          <span>Turn on Dark pages here to read the paper light on dark.</span>
+          <button type="button" className="learn-papol-close" onClick={tell} aria-label="Dismiss this tip">
+            Got it
+          </button>
+        </span>
+      )}
       {open && (
         <div className="navigator-choices">
           <div className="navigator-section" role="group" aria-labelledby="navigator-section-pages">

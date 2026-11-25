@@ -29,6 +29,9 @@ const pick = (selector) => `
 const toPage = (n) => `document.querySelector('.pdf-page[data-page="${n}"]').scrollIntoView({ block: 'start' }); return new Promise((done) => setTimeout(() => done(true), 2500));`;
 const SHOTS = {
   printed: { path: alone, ready: painted },
+  // The tip under the gear, before the reader has been told.
+  hint: { path: alone, ready: painted, hint: true, settled: '.dark-pages-tip' },
+  'dark-theme-hint': { path: alone, ready: painted, hint: true, theme: 'dark', settled: '.dark-pages-tip' },
   dark: { path: alone, ready: painted, dark: true },
   'dark-theme-printed': { path: alone, ready: painted, theme: 'dark' },
   'dark-theme-dark': { path: alone, ready: painted, dark: true, theme: 'dark' },
@@ -64,6 +67,7 @@ try {
     await browser.navigate(origin + shot.path);
     await browser.evaluate(`
       ${shot.dark ? "localStorage.setItem('papol_pdf_pages', 'dark')" : "localStorage.removeItem('papol_pdf_pages')"};
+      ${shot.hint ? "localStorage.removeItem('papol_learn_dark_pages')" : "localStorage.setItem('papol_learn_dark_pages', 'seen')"};
       ${shot.theme ? `localStorage.setItem('papol_theme', '${shot.theme}')` : "localStorage.removeItem('papol_theme')"};
       return true;`);
     await browser.navigate(origin + shot.path);
