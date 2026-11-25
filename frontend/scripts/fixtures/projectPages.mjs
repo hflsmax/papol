@@ -290,6 +290,12 @@ const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: frie
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
 const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [] });
 let friendsNow = friendState();
+const suggestionState = () => [
+  { user: leo, project_count: 1, projects: [{ uuid: PROJECT, name: project.name }], mutual_count: 2 },
+  { user: outsiders[0], project_count: 0, projects: [], mutual_count: 2 },
+  { user: outsiders[1], project_count: 0, projects: [], mutual_count: 1 },
+];
+let suggestionsNow = suggestionState();
 const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
   const rows = [
@@ -313,7 +319,7 @@ const roomRows = () => {
 
 function answer(method, path, search, sent = {}) {
   // Each picture loads the app afresh: the project is back.
-  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); }
+  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); }
   // Friends: what the member's friends say now, changed by each answer.
   if (path === '/friends' || path === '/friends/settings') {
     return friendsNow;
@@ -324,7 +330,7 @@ function answer(method, path, search, sent = {}) {
   }
   const friendAct = path.match(/^\/friends\/([0-9a-f-]{36})(\/accept|\/decline)?$/);
   if (friendAct) {
-    const who = [ana, ben, mia, ...outsiders].find((u) => u.uuid === friendAct[1]);
+    const who = [ana, ben, mia, leo, ...outsiders].find((u) => u.uuid === friendAct[1]);
     const asked = friendsNow.requests.find((r) => r.user.uuid === friendAct[1]);
     if (friendAct[2] === '/accept' && asked) friendsNow.friends.push({ user: asked.user, since: hoursAgo(0) });
     if (friendAct[2]) friendsNow.requests = friendsNow.requests.filter((r) => r !== asked);
@@ -335,6 +341,10 @@ function answer(method, path, search, sent = {}) {
     }
     return friendsNow;
   }
+  // People to ask: one from a project, two by friends in common.
+  if (path === '/friends/suggestions') return suggestionsNow;
+  const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
+  if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }
   if (path === '/room/news') return { news: true };
   if (path === '/room') {
     return {

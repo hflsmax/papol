@@ -80,7 +80,7 @@ export async function gather(db: D1Database, user: User) {
   return {
     // My friends.
     friends: { friends: friends.map((f) => ({ name: f.display_name, affiliation: f.affiliation ?? null, since: f.answered_at })) },
-    profile: { uuid: user.uuid, email: user.email, display_name: user.display_name, affiliation: user.affiliation, email_public: Boolean(user.email_public), findable: Boolean(user.findable ?? 1), is_admin: Boolean(user.is_admin), joined: user.created_at },
+    profile: { uuid: user.uuid, email: user.email, display_name: user.display_name, affiliation: user.affiliation, email_public: Boolean(user.email_public), findable: Boolean(user.findable ?? 1), weekly_friend_suggestions_email: Boolean(user.suggestion_email ?? 1), is_admin: Boolean(user.is_admin), joined: user.created_at },
     nook: copies.map((c) => ({
       paper: paperRef(c), summary: c.summary, thought: c.thought, on_display: Boolean(c.shelf_public), shelf: c.shelf_name ?? null, i_am_an_author: Boolean(c.is_author),
       ratings: { expertise: c.rating_expertise, reading: c.rating_reading, liking: c.rating_liking },

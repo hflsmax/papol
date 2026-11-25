@@ -66,6 +66,8 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     // A request of theirs still waiting in someone's inbox goes with them.
     ["friend_requests", statement(db, "DELETE FROM notifications WHERE actor_uuid = ? AND kind = 'friend_request'", user.uuid)],
     ["friendships", statement(db, "DELETE FROM friendships WHERE asker_uuid = ? OR asked_uuid = ?", user.uuid, user.uuid)],
+    // Whom they were suggested, and to whom they were.
+    ["friend_suggestions", statement(db, "DELETE FROM friend_suggestions WHERE user_uuid = ? OR suggested_uuid = ?", user.uuid, user.uuid)],
     ["project_asks", statement(db, "DELETE FROM project_asks WHERE user_uuid = ?", user.uuid)],
     ["admin_message_deliveries", statement(db, "DELETE FROM admin_message_deliveries WHERE user_uuid = ?", user.uuid)],
     ["sessions", statement(db, "DELETE FROM auth_tokens WHERE user_uuid = ?", user.uuid)],
@@ -77,7 +79,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   // The email has to stay unique and must not be an address anyone could
   // reach or re-register into; .invalid is reserved for exactly this.
   const scrub = statement(db,
-    "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, password_hash = ?, deleted_at = ? WHERE uuid = ?",
+    "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, suggestion_email = 0, password_hash = ?, deleted_at = ? WHERE uuid = ?",
     `deleted-${user.uuid}@papol.invalid`, FORMER_USER, UNUSABLE_PASSWORD, now(), user.uuid);
   const results = await db.batch([...counted.map(([, s]) => s), ...projects, scrub]);
 

@@ -7,7 +7,7 @@
 // marked, so it reads as before. The writer is the admin, but every
 // character is escaped anyway: nothing typed can become markup.
 
-const escape = (text: string) =>
+export const escape = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Only web addresses make links or pictures; anything else stays text.
@@ -23,7 +23,7 @@ const ONLY_PICTURE = new RegExp(String.raw`^!\[${LABEL}\]\(([^)\s]+)\)$`);
 // Plain, as an email a person writes: Arial at the mail app's
 // usual size, no background or card, headings only bold, links the usual
 // blue, pictures unframed. Just enough to hold a column and a picture.
-const STYLE = {
+export const STYLE = {
   body: "margin:0;padding:16px;",
   sheet: "max-width:640px;font-family:Arial,Helvetica,sans-serif;"
     + "font-size:15px;line-height:1.5;color:#222222;",

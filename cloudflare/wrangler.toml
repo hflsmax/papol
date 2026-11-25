@@ -52,9 +52,11 @@ max_retries = 0
 [browser]
 binding = "BROWSER"
 
-# Every two minutes, jobs nobody was woken for (src/jobs/run.ts).
+# Every two minutes, jobs nobody was woken for (src/jobs/run.ts); and on
+# Mondays at 14:00 UTC, the weekly email of friend suggestions
+# (src/jobs/suggestions.ts).
 [triggers]
-crons = ["*/2 * * * *"]
+crons = ["*/2 * * * *", "0 14 * * 1"]
 
 # Secrets are set with `wrangler secret put`, never written here:
 # EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts),
@@ -131,4 +133,4 @@ max_retries = 0
 binding = "BROWSER"
 
 [env.dev.triggers]
-crons = ["*/2 * * * *"]
+crons = ["*/2 * * * *", "0 14 * * 1"]

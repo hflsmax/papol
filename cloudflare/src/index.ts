@@ -4,6 +4,7 @@
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, sweep, type Wakeup } from "./jobs/run";
+import { queueSuggestions, SUGGESTIONS_CRON } from "./jobs/suggestions";
 import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
 import { userStateRoutes } from "./routes/userStates";
@@ -23,6 +24,7 @@ import { presenceRoutes } from "./routes/presence";
 import { referenceRoutes } from "./routes/references";
 import { roomRoutes } from "./routes/room";
 import { sharableRoutes } from "./routes/sharables";
+import { suggestionRoutes } from "./routes/suggestions";
 import { getBlob } from "./sync/blobs";
 import { pull, snapshot } from "./sync/pull";
 import { push } from "./sync/push";
@@ -63,6 +65,7 @@ jobRoutes(router);
 boardRoutes(router);
 nookRoutes(router);
 projectRoutes(router);
+suggestionRoutes(router);
 friendRoutes(router);
 roomRoutes(router);
 presenceRoutes(router);
@@ -94,8 +97,10 @@ export default {
     return consume(batch, env);
   },
 
-  // Every two minutes, what nobody was woken for.
-  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    await sweep(env);
+  // Every two minutes, what nobody was woken for; and once a week, the
+  // email of people to ask, as a job the sweep's own machinery runs.
+  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === SUGGESTIONS_CRON) await queueSuggestions(env);
+    else await sweep(env);
   },
 } satisfies ExportedHandler<Env, Wakeup>;
