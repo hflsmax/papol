@@ -6106,11 +6106,7 @@ ${talkStyles}
 .paper-friend-digs { margin-top: var(--space-5); }
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.friend-dig-who { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); font: 400 var(--fs-sm) var(--font-ui); }
-.friend-dig-who a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink); text-decoration: none; }
-.friend-dig-who a:hover b { color: var(--accent); }
-.friend-dig-who .mini-avatar { width: 22px; height: 22px; font-size: var(--fs-2xs); }
-.friend-dig-place { color: var(--ink-faint); }
+.friend-dig-place { margin: 0 0 var(--space-1); color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
