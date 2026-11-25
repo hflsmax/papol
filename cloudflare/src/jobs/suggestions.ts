@@ -54,7 +54,6 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
   const name = (s: Suggestion) => String(s.user.display_name);
   const subject = one ? `${name(suggestions[0])} is on Papol too` : "People you may know on Papol";
   const intro = one ? "Someone on Papol you may want to ask to be friends:" : "People on Papol you may want to ask to be friends:";
-  const why = "Friends see what each other put on public shelves, in the Lounge.";
   const foot = "Papol sends this once a week, when there is someone new to suggest.";
   const off = "under Preferences on your page";
   const nook = (s: Suggestion) => `${base}/u/${s.user.uuid}`;
@@ -63,7 +62,7 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
   const body = [
     `Hello ${to.display_name},`, "", intro, "",
     ...suggestions.flatMap((s) => [`- ${name(s)}${where(s)}`, `  ${reasonOf(s)}.`, `  ${nook(s)}`, ""]),
-    why, `See everyone suggested, and ask them, in the Lounge: ${base}/lounge`, "", "— Papol", "",
+    `See everyone suggested, and ask them, in the Lounge: ${base}/lounge`, "", "— Papol", "",
     `${foot} Turn it off ${off}: ${base}/profile`,
   ].join("\n");
 
@@ -76,7 +75,7 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
     + suggestions.map((s) => p(
       `<strong>${link(nook(s), name(s))}</strong>${escape(where(s))}<br>`
       + `<span style="color:#555555;">${escape(reasonOf(s))}.</span>`)).join("")
-    + p(`${escape(why)} ${link(`${base}/lounge`, "See everyone suggested in the Lounge")}.`)
+    + p(`${link(`${base}/lounge`, "See everyone suggested in the Lounge")}.`)
     + p("— Papol")
     + `<hr style="${STYLE.hr}">`
     + p(`${escape(foot)} Turn it off ${link(`${base}/profile`, off)}.`, quiet)
