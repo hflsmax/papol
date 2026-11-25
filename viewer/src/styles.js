@@ -603,13 +603,22 @@ ${fileDropStyles}
   height: 11px;
 }
 
-/* The pages' own switch first, then the marks, a rule between them. */
-.navigator-marks {
-  display: flex;
-  flex-direction: column;
-  margin-top: 4px;
-  padding-top: 4px;
+/* Two sections that choose different things, each under its own name:
+   how the pages are drawn, then what the bar marks over its strip. */
+.navigator-section { display: flex; flex-direction: column; }
+.navigator-section + .navigator-section {
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--line);
+}
+.navigator-section-name {
+  padding: 4px 8px 3px;
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .navigator-kind-name { flex: 1; text-align: left; }
@@ -790,7 +799,9 @@ ${fileDropStyles}
 
 .viewer-bar .spacer { flex: 1; }
 
-.pdf-search { position: relative; flex: none; font-family: var(--font-ui); }
+/* Only somewhere for the search box to hang from: no width, and the bar's
+   gap taken back, so the buttons either side stand one gap apart. */
+.pdf-search { position: relative; flex: none; margin-left: -12px; font-family: var(--font-ui); }
 .search-pop {
   position: absolute;
   z-index: 30;
@@ -2293,6 +2304,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
    that, with the menu, took a line of its own. The paddings tighten. */
 @media ${PHONE} {
   .viewer-bar { gap: 8px; padding: 8px 12px; }
+  .pdf-search { margin-left: -8px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
   .viewer-bar .tools,

@@ -741,6 +741,8 @@ function MarkChoices({ shown, onShown }) {
       </button>
       {open && (
         <div className="navigator-choices">
+          <div className="navigator-section" role="group" aria-labelledby="navigator-section-pages">
+          <span className="navigator-section-name" id="navigator-section-pages">Pages</span>
           <button
             type="button"
             className="navigator-kind navigator-pages"
@@ -755,8 +757,10 @@ function MarkChoices({ shown, onShown }) {
               <path fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" d="m2.5 6.3 2.3 2.3 4.7-5" />
             </svg>
           </button>
+          </div>
           {onShown && (
-            <div className="navigator-marks" role="group" aria-label="Marks">
+            <div className="navigator-section" role="group" aria-labelledby="navigator-section-marks">
+              <span className="navigator-section-name" id="navigator-section-marks">Navigator marks</span>
               {NAV_KINDS.map((kind) => (
             <button
               key={kind}
