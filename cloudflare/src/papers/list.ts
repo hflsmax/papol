@@ -20,9 +20,9 @@ export interface UserEntry {
 
 // Every displayed copy of these papers, with its user: the readers shown
 // against a paper, which is each user's own business to be among. Of each
-// copy, only what its user lets be seen.
+// copy, only what its user lets be seen. A mock user is not among them.
 export function displayedCopies(db: D1Database, digests: string[]): Promise<Map<string, UserEntry[]>> {
-  return shownCopies(db, digests, { join: "JOIN shelves s ON s.uuid = c.shelf_uuid AND s.is_public = 1" });
+  return shownCopies(db, digests, { join: "JOIN shelves s ON s.uuid = c.shelf_uuid AND s.is_public = 1", where: "AND u.is_mock = 0" });
 }
 
 // Every copy these users keep of these papers, on whatever shelf: the

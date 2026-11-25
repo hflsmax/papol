@@ -37,6 +37,9 @@ export interface User extends Row {
   findable: number;
   email_frequency: string;
   is_admin: number;
+  // An account nobody is behind: to everyone else it is not there
+  // (migrations/0043_mock_users.sql).
+  is_mock: number;
   nav_marks: string | null;
   password_hash: string;
   created_at: string | null;

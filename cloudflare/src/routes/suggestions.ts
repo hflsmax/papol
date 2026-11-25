@@ -7,7 +7,8 @@
 // another user's friends (routes/friends.ts), and a count gives away the
 // least of them that a suggestion can.
 //
-// Nobody is suggested who turned being found off, who is a friend
+// Nobody is suggested who turned being found off, who is a mock user
+// (nor is anybody suggested to one), who is a friend
 // already, between whom and the user any request stands or once stood
 // (asked, declined or taken back), or whom the user said Not interested
 // to. One exception: someone the user asked in the last week keeps their
@@ -60,7 +61,8 @@ export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN
      )
      SELECT ${PERSON}, coalesce(fh.n, 0) AS mutual_count, coalesce(jh.n, 0) AS project_count
      FROM users u LEFT JOIN friend_hits fh ON fh.user_uuid = u.uuid LEFT JOIN project_hits jh ON jh.user_uuid = u.uuid
-     WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.uuid != ?1 AND (fh.n > 0 OR jh.n > 0)
+     WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.is_mock = 0 AND u.uuid != ?1 AND (fh.n > 0 OR jh.n > 0)
+       AND NOT EXISTS (SELECT 1 FROM users me WHERE me.uuid = ?1 AND me.is_mock = 1)
        AND NOT EXISTS (SELECT 1 FROM friendships f
          WHERE ((f.asker_uuid = ?1 AND f.asked_uuid = u.uuid) OR (f.asker_uuid = u.uuid AND f.asked_uuid = ?1))
            AND NOT (f.asker_uuid = ?1 AND f.state != 'friends' AND f.created_at > ?3))
@@ -96,7 +98,7 @@ export function suggestionRoutes(router: Router) {
   router.on("DELETE", "/api/friends/suggestions/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const them = UUID.test(params.uuid) ? params.uuid.toLowerCase() : refuse(404, "User not found");
-    if (them === me.uuid || !(await one(env.DB, "SELECT 1 FROM users WHERE uuid = ? AND deleted_at IS NULL", them))) refuse(404, "User not found");
+    if (them === me.uuid || !(await one(env.DB, "SELECT 1 FROM users WHERE uuid = ? AND deleted_at IS NULL AND is_mock = 0", them))) refuse(404, "User not found");
     await statement(env.DB,
       `INSERT INTO friend_suggestions (user_uuid, suggested_uuid, hidden_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_uuid, suggested_uuid) DO UPDATE SET hidden_at = coalesce(hidden_at, ?3)`, me.uuid, them, now()).run();

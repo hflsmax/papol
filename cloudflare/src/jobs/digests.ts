@@ -63,7 +63,7 @@ export async function sendDigestsJob(env: Env, payload: Row): Promise<Row> {
   const weekly = Boolean(payload.weekly);
   const after = String(payload.after ?? "");
   const users = await all<Mailed>(env.DB,
-    `SELECT uuid, email, email_frequency, is_admin FROM users
+    `SELECT uuid, email, email_frequency, is_admin, is_mock FROM users
      WHERE deleted_at IS NULL AND uuid > ? AND uuid IN (SELECT user_uuid FROM email_held) ORDER BY uuid LIMIT ?`, after, CHUNK);
 
   const mails: Mail[] = [];

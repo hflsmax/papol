@@ -604,7 +604,7 @@ export function projectRoutes(router: Router) {
     const like = `%${asked.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const people = await all<Row>(env.DB,
       `SELECT u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM users u
-       WHERE u.deleted_at IS NULL
+       WHERE u.deleted_at IS NULL AND u.is_mock = 0
          AND NOT EXISTS (SELECT 1 FROM project_members m WHERE m.project_uuid = ? AND m.user_uuid = u.uuid)
          AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.email) = ? OR (u.email_public = 1 AND lower(u.email) LIKE ? ESCAPE '\\'))
        ORDER BY lower(u.email) = ? DESC, lower(u.display_name), u.uuid LIMIT 8`,
@@ -622,7 +622,7 @@ export function projectRoutes(router: Router) {
     const check = validate.checking();
     const userUuid = check.string("user_uuid", data.user_uuid, { min: 1, max: 64 });
     check.done();
-    const user = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", userUuid);
+    const user = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL AND is_mock = 0", userUuid);
     if (!user) refuse(404, "User not found");
     const already = await one<Member>(env.DB, "SELECT * FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, user.uuid);
     if (!already) {

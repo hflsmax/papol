@@ -8,6 +8,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import { mailConfigured, sentEmail, sentEmails, type SentEmail } from "../jobs/mail";
 import { queueAnnouncement } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
+import { real } from "./friends";
 import * as validate from "../validate";
 import { audienceOf, feedbackOut, requireAdmin } from "./inbox";
 
@@ -90,7 +91,8 @@ export function groupSends(emails: SentEmail[]): Send[] {
 // within another, newest first, each with what they have made. Seen is the
 // latest of a signed-in request (auth_tokens.last_used_at, written at most
 // once a minute), the visible-tab heartbeat (user_presence) and the end of
-// a stretch of reading (activity).
+// a stretch of reading (activity). A mock user is nobody using Papol, and
+// is in none of it.
 const USER_ROWS = 100;
 const DAYS_MAX = 365;
 
@@ -118,20 +120,20 @@ const USER_STATS = `u.uuid, u.display_name, u.email, u.affiliation, u.avatar_pat
     (SELECT count(*) FROM annotations a WHERE a.user_uuid = u.uuid AND a.kind = 'anchor' AND a.deleted_at IS NULL) AS anchors,
     (SELECT coalesce(sum(seconds), 0) FROM activity r WHERE r.user_uuid = u.uuid AND julianday(r.started_at) >= julianday('now', ?)) AS reading_recent_seconds,
     (SELECT coalesce(sum(seconds), 0) FROM activity r WHERE r.user_uuid = u.uuid) AS reading_seconds,
-    (SELECT count(*) FROM friendships f WHERE f.state = 'friends' AND u.uuid IN (f.asker_uuid, f.asked_uuid)) AS friends,
+    (SELECT count(*) FROM friendships f WHERE f.state = 'friends' AND u.uuid IN (f.asker_uuid, f.asked_uuid) AND ${real("f")}) AS friends,
     (SELECT count(*) FROM project_members m JOIN projects p ON p.uuid = m.project_uuid AND p.deleted_at IS NULL WHERE m.user_uuid = u.uuid) AS projects`;
 
 export async function recentUsers(db: D1Database, activeDays: number, newDays: number) {
   const recent = `-${activeDays} days`;
   const [active, joined, totals] = await Promise.all([
     all<Row>(db, `SELECT ${USER_STATS} FROM users u JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid
-      WHERE u.deleted_at IS NULL AND seen.at >= julianday('now', ?) ORDER BY seen.at DESC, u.uuid LIMIT ?`, recent, recent, USER_ROWS),
+      WHERE u.deleted_at IS NULL AND u.is_mock = 0 AND seen.at >= julianday('now', ?) ORDER BY seen.at DESC, u.uuid LIMIT ?`, recent, recent, USER_ROWS),
     all<Row>(db, `SELECT ${USER_STATS} FROM users u LEFT JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid
-      WHERE u.deleted_at IS NULL AND julianday(u.created_at) >= julianday('now', ?) ORDER BY julianday(u.created_at) DESC, u.uuid LIMIT ?`, recent, `-${newDays} days`, USER_ROWS),
+      WHERE u.deleted_at IS NULL AND u.is_mock = 0 AND julianday(u.created_at) >= julianday('now', ?) ORDER BY julianday(u.created_at) DESC, u.uuid LIMIT ?`, recent, `-${newDays} days`, USER_ROWS),
     one<{ users: number; active: number; joined: number }>(db, `SELECT count(*) AS users,
       coalesce(sum(seen.at >= julianday('now', ?)), 0) AS active,
       coalesce(sum(julianday(u.created_at) >= julianday('now', ?)), 0) AS joined
-      FROM users u LEFT JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid WHERE u.deleted_at IS NULL`, recent, `-${newDays} days`),
+      FROM users u LEFT JOIN (${SEEN}) seen ON seen.user_uuid = u.uuid WHERE u.deleted_at IS NULL AND u.is_mock = 0`, recent, `-${newDays} days`),
   ]);
   const out = (r: Row) => ({ ...r, is_admin: Boolean(r.is_admin) });
   return {

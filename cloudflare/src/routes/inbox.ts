@@ -16,13 +16,14 @@ export async function requireAdmin(request: Request, env: Env): Promise<User> {
   return user;
 }
 
-// The accounts an admin's broadcast goes to: every open account, or the
-// ones the admin picked (already checked to be a non-empty list), all of
-// which must still be open.
+// The accounts an admin's broadcast goes to: every open account that
+// somebody is behind (a mock user is not written to), or the ones the
+// admin picked (already checked to be a non-empty list), all of which
+// must still be open.
 export async function audienceOf(env: Env, userUuids: unknown): Promise<{ uuid: string; email: string }[]> {
-  if (!Array.isArray(userUuids)) return all(env.DB, "SELECT uuid, email FROM users WHERE deleted_at IS NULL");
+  if (!Array.isArray(userUuids)) return all(env.DB, "SELECT uuid, email FROM users WHERE deleted_at IS NULL AND is_mock = 0");
   const wanted = [...new Set(userUuids.map(String))];
-  const recipients = await all<{ uuid: string; email: string }>(env.DB, `SELECT uuid, email FROM users WHERE deleted_at IS NULL AND uuid IN (${wanted.map(() => "?").join(",")})`, ...wanted);
+  const recipients = await all<{ uuid: string; email: string }>(env.DB, `SELECT uuid, email FROM users WHERE deleted_at IS NULL AND is_mock = 0 AND uuid IN (${wanted.map(() => "?").join(",")})`, ...wanted);
   if (recipients.length !== wanted.length) refuse(400, "One or more selected users are unavailable");
   return recipients;
 }
@@ -148,7 +149,7 @@ export function inboxRoutes(router: Router) {
   // Active accounts available to the admin message audience picker.
   router.on("GET", "/api/admin/message-recipients", async ({ request, env }) => {
     await requireAdmin(request, env);
-    const users = await all<Row>(env.DB, "SELECT uuid, display_name, affiliation, avatar_path, email FROM users WHERE deleted_at IS NULL ORDER BY display_name, email, uuid");
+    const users = await all<Row>(env.DB, "SELECT uuid, display_name, affiliation, avatar_path, email FROM users WHERE deleted_at IS NULL AND is_mock = 0 ORDER BY display_name, email, uuid");
     return json(users.map((u) => ({ ...userBase(u), email: u.email })));
   });
 
@@ -171,7 +172,7 @@ export function inboxRoutes(router: Router) {
     const fb = { uuid: newUuid(), user_uuid: user?.uuid ?? null, content: content!.trim(), page: page || null, context, contact: contact?.trim() || null, resolved: 0, created_at: at };
     const reporter = user ? `${user.display_name} <${user.email}>` : fb.contact ? `a visitor <${fb.contact}>` : "an anonymous visitor";
     const where = fb.page ? ` (from ${fb.page})` : "";
-    const admins = await all<{ uuid: string; email: string; email_frequency: string }>(env.DB, "SELECT uuid, email, email_frequency FROM users WHERE is_admin = 1 AND deleted_at IS NULL");
+    const admins = await all<{ uuid: string; email: string; email_frequency: string; is_mock: number }>(env.DB, "SELECT uuid, email, email_frequency, is_mock FROM users WHERE is_admin = 1 AND deleted_at IS NULL");
     const headline = fb.content.split(/\r?\n/)[0].slice(0, limits.text.notification_email_headline);
     const body = [`Feedback from ${reporter}`, ...(fb.context ? [] : fb.page ? [`Page: ${fb.page}`] : []), "", fb.content, "",
       ...(fb.context ? [...feedbackContextLines(fb.context), ""] : []),

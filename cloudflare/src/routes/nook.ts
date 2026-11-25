@@ -64,7 +64,8 @@ export function nookRoutes(router: Router) {
       currentUser(request, env),
       one<User>(env.DB, "SELECT * FROM users WHERE uuid = ?", params.uuid),
     ]);
-    if (!user) refuse(404, "User not found");
+    // A mock user's nook is its own, and an admin's to look in.
+    if (!user || (user.is_mock && user.uuid !== me.uuid && !me.is_admin)) refuse(404, "User not found");
     // A tombstone has no nook — the copies went with the account.
     if (user.deleted_at) refuse(404, "This user has left Papol");
     const hidePrivate = me.uuid !== user.uuid;

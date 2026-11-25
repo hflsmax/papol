@@ -50,7 +50,7 @@ export type SureEmailKind = "password_reset" | "announcement";
 export type EmailKind = ChosenEmailKind | SureEmailKind;
 
 // As much of a user as the question needs.
-export interface Mailed { uuid: string; email: string; email_frequency?: string | null; is_admin?: number | boolean | null }
+export interface Mailed { uuid: string; email: string; email_frequency?: string | null; is_admin?: number | boolean | null; is_mock?: number | boolean | null }
 
 const KINDS = Object.keys(CHOSEN) as ChosenEmailKind[];
 const choice = (kind: ChosenEmailKind): Choice => CHOSEN[kind];
@@ -69,8 +69,11 @@ function kept(user: Pick<Mailed, "email_frequency">): Record<string, unknown> {
 }
 
 // How often this user is sent this kind: what they chose, if the kind
-// still offers it, else where the kind starts.
-export function frequencyOf(user: Pick<Mailed, "email_frequency">, kind: ChosenEmailKind): Frequency {
+// still offers it, else where the kind starts. A mock user, whose address
+// nobody reads or somebody else does, is sent none of them, whatever its
+// row says.
+export function frequencyOf(user: Pick<Mailed, "email_frequency" | "is_mock">, kind: ChosenEmailKind): Frequency {
+  if (user.is_mock) return "never";
   const chosen = kept(user)[kind];
   return choice(kind).choices.includes(chosen as Frequency) ? chosen as Frequency : choice(kind).preset;
 }
@@ -78,7 +81,7 @@ export function frequencyOf(user: Pick<Mailed, "email_frequency">, kind: ChosenE
 // The same as an expression on a users row, for a query that picks who
 // to write to.
 export function frequencySql(kind: ChosenEmailKind, users = "users"): string {
-  return `COALESCE(json_extract(${users}.email_frequency, '$.${kind}'), '${choice(kind).preset}')`;
+  return `CASE WHEN ${users}.is_mock = 1 THEN 'never' ELSE COALESCE(json_extract(${users}.email_frequency, '$.${kind}'), '${choice(kind).preset}') END`;
 }
 
 export function digestSubject(kind: ChosenEmailKind, count: number): string {
@@ -87,7 +90,7 @@ export function digestSubject(kind: ChosenEmailKind, count: number): string {
 
 // The choices this user has and what each is set to, as their
 // Preferences shows them.
-export function emailChoices(user: Pick<Mailed, "email_frequency" | "is_admin">): Partial<Record<ChosenEmailKind, Frequency>> {
+export function emailChoices(user: Pick<Mailed, "email_frequency" | "is_admin" | "is_mock">): Partial<Record<ChosenEmailKind, Frequency>> {
   const choices: Partial<Record<ChosenEmailKind, Frequency>> = {};
   for (const kind of KINDS) {
     if (choice(kind).admins && !user.is_admin) continue;
@@ -100,7 +103,7 @@ export function emailChoices(user: Pick<Mailed, "email_frequency" | "is_admin">)
 // frequency }` for any of the kinds they are shown, each to a frequency
 // the kind offers. What they chose for a kind they are no longer shown
 // is kept as it was.
-export function emailFrequencyAfter(user: Pick<Mailed, "email_frequency" | "is_admin">, change: unknown): string {
+export function emailFrequencyAfter(user: Pick<Mailed, "email_frequency" | "is_admin" | "is_mock">, change: unknown): string {
   const mine = emailChoices(user);
   const offered = (kind: string, how: unknown) => kind in mine && choice(kind as ChosenEmailKind).choices.includes(how as Frequency);
   if (!change || typeof change !== "object" || Array.isArray(change) || !Object.entries(change).every(([kind, how]) => offered(kind, how))) {

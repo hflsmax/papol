@@ -20,6 +20,7 @@
 import { type User } from "../auth";
 import { all, type Row } from "../db";
 import { emailChoices } from "../emails";
+import { real } from "../routes/friends";
 import { boardFileKey, boardFileUrl, UPLOADS, uploadUrl } from "../files";
 
 function authorsOf(paper: Row): unknown[] {
@@ -75,7 +76,7 @@ export async function gather(db: D1Database, user: User) {
 
   const friends = await all<Row>(db, `SELECT u.display_name, u.affiliation, f.answered_at FROM friendships f
     JOIN users u ON u.uuid = CASE WHEN f.asker_uuid = ? THEN f.asked_uuid ELSE f.asker_uuid END
-    WHERE f.state = 'friends' AND (f.asker_uuid = ? OR f.asked_uuid = ?) ORDER BY f.answered_at, f.uuid`, user.uuid, user.uuid, user.uuid);
+    WHERE f.state = 'friends' AND (f.asker_uuid = ? OR f.asked_uuid = ?) AND ${real("f")} ORDER BY f.answered_at, f.uuid`, user.uuid, user.uuid, user.uuid);
 
   const paperOf = (row: Row) => row.sha256 ? paperRef(row) : null;
   return {

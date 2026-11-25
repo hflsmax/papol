@@ -39,11 +39,18 @@ export function userLiteral(uuid: string): string {
   return `'${uuid}'`;
 }
 
+// Whether neither end of friendship `f` (an alias) is a mock user. A mock
+// user is nobody's friend: a friendship it was in before it was marked
+// stays a row, and counts for nothing anywhere friends are read.
+export function real(f: string): string {
+  return `NOT EXISTS (SELECT 1 FROM users lm WHERE lm.is_mock = 1 AND lm.uuid IN (${f}.asker_uuid, ${f}.asked_uuid))`;
+}
+
 // The uuids of a user's friends, as a subquery. `user` is an SQL
 // expression: a column, or a uuid made a literal by userLiteral.
 export function friendsOf(user: string): string {
   return `(SELECT CASE WHEN lf.asker_uuid = ${user} THEN lf.asked_uuid ELSE lf.asker_uuid END FROM friendships lf
-    WHERE lf.state = 'friends' AND (lf.asker_uuid = ${user} OR lf.asked_uuid = ${user}))`;
+    WHERE lf.state = 'friends' AND (lf.asker_uuid = ${user} OR lf.asked_uuid = ${user}) AND ${real("lf")})`;
 }
 
 // Whether a friend of its writer sees dig `d`: one on a paper, or on a
@@ -63,19 +70,21 @@ async function between(env: Env, a: string, b: string): Promise<Friendship | nul
     "SELECT * FROM friendships WHERE (asker_uuid = ? AND asked_uuid = ?) OR (asker_uuid = ? AND asked_uuid = ?)", a, b, b, a);
 }
 
-export async function areFriends(env: Env, a: string, b: string): Promise<boolean> {
-  return (await between(env, a, b))?.state === "friends";
-}
-
 // One line in someone's inbox that is more than its words: what it is,
 // who it is from and where it leads.
 export function notice(env: Env, userUuid: string, content: string, kind: string, actor: User, link: string, at = now()): D1PreparedStatement {
   return insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: userUuid, content, read: 0, created_at: at, kind, actor_uuid: actor.uuid, link });
 }
 
+// Someone to ask or to answer. A mock user is not there to be either.
 async function liveUser(env: Env, uuid: string): Promise<User> {
-  const user = UUID.test(uuid) ? await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", uuid.toLowerCase()) : null;
+  const user = UUID.test(uuid) ? await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL AND is_mock = 0", uuid.toLowerCase()) : null;
   return user ?? refuse(404, "User not found");
+}
+
+// A mock user asks nothing of anyone: no friend, and no project's keeper.
+function realUser(me: User): User {
+  return me.is_mock ? refuse(403, "A mock account takes no part with other people") : me;
 }
 
 // Two users become friends, whatever stood between them before.
@@ -103,7 +112,7 @@ async function commonPapers(env: Env, a: string, b: string): Promise<{ sha256: s
 export async function requestsFor(env: Env, me: User) {
   const rows = await all<Row>(env.DB,
     `SELECT f.created_at AS asked_at, ${PERSON} FROM friendships f JOIN users u ON u.uuid = f.asker_uuid AND u.deleted_at IS NULL
-     WHERE f.asked_uuid = ? AND f.state = 'asked' ORDER BY f.created_at DESC, f.uuid`, me.uuid);
+     WHERE f.asked_uuid = ? AND f.state = 'asked' AND ${real("f")} ORDER BY f.created_at DESC, f.uuid`, me.uuid);
   return Promise.all(rows.map(async (r) => ({ user: userPublic(r), asked_at: r.asked_at, common: await commonPapers(env, me.uuid, String(r.uuid)) })));
 }
 
@@ -115,9 +124,9 @@ async function friendsOut(env: Env, me: User) {
     all<Row>(env.DB,
       `SELECT f.answered_at AS since, ${PERSON} FROM friendships f
        JOIN users u ON u.uuid = CASE WHEN f.asker_uuid = ? THEN f.asked_uuid ELSE f.asker_uuid END AND u.deleted_at IS NULL
-       WHERE f.state = 'friends' AND (f.asker_uuid = ? OR f.asked_uuid = ?) ORDER BY lower(u.display_name), u.uuid`, me.uuid, me.uuid, me.uuid),
+       WHERE f.state = 'friends' AND (f.asker_uuid = ? OR f.asked_uuid = ?) AND ${real("f")} ORDER BY lower(u.display_name), u.uuid`, me.uuid, me.uuid, me.uuid),
     // A declined request reads Requested to its asker for good.
-    all<{ asked_uuid: string }>(env.DB, "SELECT asked_uuid FROM friendships WHERE asker_uuid = ? AND state IN ('asked', 'declined')", me.uuid),
+    all<{ asked_uuid: string }>(env.DB, `SELECT asked_uuid FROM friendships f WHERE asker_uuid = ? AND state IN ('asked', 'declined') AND ${real("f")}`, me.uuid),
     requestsFor(env, me),
   ]);
   return {
@@ -138,11 +147,12 @@ export function friendRoutes(router: Router) {
   router.on("GET", "/api/friends/people", async ({ request, env, url }) => {
     const me = await currentUser(request, env);
     const asked = (url.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-    if (asked.length < 2) return json([]);
+    // A mock user finds nobody, as nobody finds it.
+    if (asked.length < 2 || me.is_mock) return json([]);
     const like = `%${asked.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const people = await all<Row>(env.DB,
       `SELECT ${PERSON} FROM users u
-       WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.uuid != ?
+       WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.is_mock = 0 AND u.uuid != ?
          AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.email) = ? OR (u.email_public = 1 AND lower(u.email) LIKE ? ESCAPE '\\'))
        ORDER BY lower(u.email) = ? DESC, lower(u.display_name), u.uuid LIMIT 8`,
       me.uuid, like, asked, like, asked);
@@ -152,7 +162,7 @@ export function friendRoutes(router: Router) {
   // Asking someone to be friends. Asking someone who already asked is
   // accepting them.
   router.on("POST", "/api/friends/:uuid", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
+    const me = realUser(await currentUser(request, env));
     const them = await liveUser(env, params.uuid);
     if (them.uuid === me.uuid) refuse(400, "You cannot be your own friend");
     const existing = await between(env, me.uuid, them.uuid);
@@ -184,7 +194,7 @@ export function friendRoutes(router: Router) {
   });
 
   router.on("POST", "/api/friends/:uuid/accept", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
+    const me = realUser(await currentUser(request, env));
     const them = await liveUser(env, params.uuid);
     const existing = await between(env, me.uuid, them.uuid);
     if (!existing || existing.asked_uuid !== me.uuid || existing.state === "dropped") refuse(404, "They have not asked to be friends");
@@ -201,7 +211,7 @@ export function friendRoutes(router: Router) {
 
   // Not now. Nothing is said to the asker, then or ever.
   router.on("POST", "/api/friends/:uuid/decline", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
+    const me = realUser(await currentUser(request, env));
     const them = await liveUser(env, params.uuid);
     const existing = await between(env, me.uuid, them.uuid);
     if (!existing || existing.asked_uuid !== me.uuid || existing.state !== "asked") refuse(404, "They have not asked to be friends");
@@ -230,7 +240,7 @@ export function friendRoutes(router: Router) {
   // Asking a project's keeper to be let in. Once per project: asking
   // again tells the keeper nothing new.
   router.on("POST", "/api/projects/:uuid/ask", async ({ request, env, params }) => {
-    const me = await currentUser(request, env);
+    const me = realUser(await currentUser(request, env));
     const project = await liveProject(env, params.uuid);
     if (await one(env.DB, "SELECT 1 FROM project_members WHERE project_uuid = ? AND user_uuid = ?", project.uuid, me.uuid)) refuse(400, "You are in this project already");
     if (!(await one(env.DB, "SELECT 1 FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, me.uuid))) {
