@@ -1819,6 +1819,74 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 }
 .define-page { flex: none; color: var(--ink-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 
+.define-item { display: flex; flex-direction: column; }
+/* Under a definition, and over the list: the box set by hand. */
+.sheet .define-box,
+.sheet .define-box:hover:not(:disabled) {
+  align-self: flex-end;
+  min-height: 0;
+  margin: -2px 9px 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent);
+  font: var(--fs-xs) var(--font-ui);
+  cursor: pointer;
+}
+.sheet .define-box:hover:not(:disabled) { text-decoration: underline; }
+.sheet .define-box.anywhere { align-self: flex-start; margin: 0 0 12px; }
+
+/* A definition's box set by hand (TermBoxer.jsx): a layer over the pages'
+   window to draw on, the box with its corners, and the bar that keeps it. */
+.term-boxer {
+  position: fixed;
+  z-index: 40;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.term-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  border-radius: 2px;
+  background: rgba(var(--accent-rgb), 0.1);
+  cursor: move;
+}
+.term-box-grip {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--card);
+}
+.term-box-grip.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.term-box-grip.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.term-box-grip.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.term-box-grip.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.term-boxer-bar {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 10px 12px 10px 16px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-overlay);
+  font: var(--fs-sm)/1.4 var(--font-ui);
+}
+.term-boxer-bar p { flex: 1; margin: 0; }
+.term-boxer-bar button { flex: none; }
+
 .send-selection-sheet { width: min(520px, 100%); }
 .send-selection-field {
   display: grid;

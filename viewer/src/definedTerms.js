@@ -5,8 +5,9 @@
 //
 // A term is matched in a page's running text as a reader would find it:
 // case and spacing aside, whole words only, and its plural with it
-// ("redex" finds "redexes"). Of two terms that begin at one place the
-// longer is meant.
+// ("redex" finds "redexes"). A symbol is found in whatever letters the
+// paper sets it, in its own case. Of two terms that begin at one place
+// the longer is meant.
 
 import limits from '../../shared/appLimits.js';
 
@@ -41,26 +42,64 @@ export function definableTerm(text) {
   return term;
 }
 
+// A term as its pattern is built from it: every character in its plain form,
+// spacing aside, its case kept.
+const plainTerm = (term) => String(term ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+
+// A symbol rather than words: set in mathematical letters ("𝜏𝑃"), or with no
+// word of three letters in it ("Γ ⊢ e"). A symbol's case is part of it — τP
+// is not τp — and it has no plural.
+function isSymbol(term) {
+  const spaced = String(term ?? '').replace(/\s+/g, ' ').trim();
+  return spaced !== plainTerm(spaced) || !/\p{L}{3}/u.test(spaced);
+}
+
 function termPattern(term) {
-  const words = termKey(term).split(' ').map(escaped);
+  const symbol = isSymbol(term);
+  const words = plainTerm(term).split(' ').map(escaped);
   const first = new RegExp(`^[${LETTER}]`, 'u').test(words[0]);
   const last = words[words.length - 1];
-  const lettered = /\p{L}$/u.test(last);
+  const lettered = new RegExp(`[${LETTER}]$`, 'u').test(last);
+  const plural = !symbol && /\p{L}$/u.test(last) ? '(?:e?s)?' : '';
   // A line that ends on a hyphen is joined to the next (textLinks.js), so
   // a space in the term may be none in the text after one.
   return new RegExp(
-    `${first ? `(?<![${LETTER}])` : ''}${words.join('(?:\\s+|(?<=-))')}${lettered ? `(?:e?s)?(?![${LETTER}])` : ''}`,
-    'giu',
+    `${first ? `(?<![${LETTER}])` : ''}${words.join('(?:\\s+|(?<=-))')}${plural}${lettered ? `(?![${LETTER}])` : ''}`,
+    symbol ? 'gu' : 'giu',
   );
+}
+
+// Text with every character in its plain form, as a term's pattern has it:
+// a paper's mathematics is set in letters of its own ("𝜏" for τ, "ﬁ" for fi)
+// that read the same. With where each plain character begins and ends in
+// the text given.
+function plainText(text) {
+  let plain = '';
+  const starts = [];
+  const ends = [];
+  for (let i = 0; i < text.length;) {
+    const char = String.fromCodePoint(text.codePointAt(i));
+    const folded = char.normalize('NFKC');
+    for (let k = 0; k < folded.length; k += 1) {
+      starts.push(i);
+      ends.push(i + char.length);
+    }
+    plain += folded;
+    i += char.length;
+  }
+  return { plain, starts, ends };
 }
 
 /** Where terms are printed in running text: [{ term, index, length }], in order, none over another. */
 export function findTerms(text, terms) {
   const found = [];
+  const { plain, starts, ends } = plainText(text);
   for (const term of terms) {
     if (!termKey(term.term)) continue;
-    for (const match of text.matchAll(termPattern(term.term))) {
-      found.push({ term, index: match.index, length: match[0].length });
+    for (const match of plain.matchAll(termPattern(term.term))) {
+      if (!match[0]) continue;
+      const index = starts[match.index];
+      found.push({ term, index, length: ends[match.index + match[0].length - 1] - index });
     }
   }
   found.sort((a, b) => a.index - b.index || b.length - a.length);

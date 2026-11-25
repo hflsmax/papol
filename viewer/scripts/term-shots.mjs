@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 // short paper that states three definitions and goes on using their terms:
 // the Define button over selected words, the paper's definitions to choose
 // from, the definition shown where the term is read while the pointer is on
-// it, the definition gone to by a press, and the terms listed under the gear.
+// it, the definition gone to by a press, a definition's box set by hand
+// (one Papol found, and one drawn on a page), and the terms listed under
+// the gear.
 //
-//   node scripts/term-shots.mjs <out dir> [select | choose | hover | jump | gear ...]
+//   node scripts/term-shots.mjs <out dir> [select | choose | hover | jump | adjust | draw | cancel | drawn | gear ...]
 //
 // PAPOL_SHOTS_PREFIX names the files (default "term"): "before" for the
 // same scenes on a build that has no Define, where the later ones are
@@ -63,11 +65,60 @@ const define = (page, words, label) => [
   { waitFor: `!document.querySelector('.define-sheet')` },
 ];
 
+// The chooser, open on the words selected.
+const chooser = [select(1, 'evaluation context'), { waitFor: defineButton }, `${defineButton}.click(); return true;`, { waitFor: `document.querySelector('.define-choice')` }];
+// A press at one point of an element and a lift at another, as a hand
+// draws: points in fractions of the element's box.
+const dragged = (target, from, to) => `const el = ${target}; const r = el.getBoundingClientRect();
+  const at = ([x, y]) => ({ clientX: r.left + x * r.width, clientY: r.top + y * r.height, bubbles: true, pointerId: 1, isPrimary: true, button: 0 });
+  el.dispatchEvent(new PointerEvent('pointerdown', at(${JSON.stringify(from)})));
+  return new Promise((done) => setTimeout(() => {
+    el.dispatchEvent(new PointerEvent('pointermove', at(${JSON.stringify(to)})));
+    setTimeout(() => { el.dispatchEvent(new PointerEvent('pointerup', at(${JSON.stringify(to)}))); done(true); }, 80);
+  }, 80));`;
+// A box drawn by hand on page 2, over the layer the pages lie under.
+const drawn = [
+  ...chooser,
+  `document.querySelector('.define-box.anywhere').click(); return true;`,
+  { waitFor: `document.querySelector('.term-boxer')` },
+  `document.querySelector('.pdf-page[data-page="2"]').scrollIntoView({ block: 'center' }); return true;`,
+  { wait: 900 },
+  dragged(`document.querySelector('.term-boxer')`, [0.22, 0.015], [0.78, 0.17]),
+  { waitFor: `document.querySelector('.term-box')` },
+];
+
 const SCENES = {
   select: { steps: [select(1, 'evaluation context'), { waitFor: `document.querySelector('.selection-actions button')` }] },
   choose: { needs: true, steps: [select(1, 'evaluation context'), { waitFor: defineButton }, `${defineButton}.click(); return true;`, { waitFor: `document.querySelector('.define-choice')` }, { wait: 1200 }] },
   hover: { needs: true, steps: [...define(1, 'evaluation context', 'Definition 2'), `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`, { waitFor: termLink(3) }, hover(3), { waitFor: `document.querySelector('.paper-clip.telescope canvas')` }] },
   jump: { needs: true, steps: [...define(1, 'evaluation context', 'Definition 2'), `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`, { waitFor: termLink(3) }, `const el = ${termLink(3)}; el.scrollIntoView({ block: 'center' }); el.click(); return true;`, { wait: 900 }] },
+  // The box of a definition Papol found, being set right by a corner.
+  adjust: { needs: true, steps: [
+    ...chooser,
+    `document.querySelector('.define-box[aria-label*="Definition 2"]').click(); return true;`,
+    { waitFor: `document.querySelector('.term-box')` },
+    { wait: 900 },
+    dragged(`document.querySelector('.term-box-grip.se')`, [0.5, 0.5], [3, 4]),
+  ] },
+  // Given up, the chooser is open again over the words selected.
+  cancel: { needs: true, steps: [
+    ...drawn,
+    `[...document.querySelectorAll('.term-boxer-bar button')].find((b) => b.textContent === 'Cancel').click(); return true;`,
+    { waitFor: `document.querySelector('.define-choice') && document.querySelector('.pages').scrollTop < 400` },
+    { wait: 1200 },
+  ] },
+  // A box drawn on a page of the reader's choosing.
+  draw: { needs: true, steps: drawn },
+  // And kept: the term shows what was boxed, where it is read.
+  drawn: { needs: true, steps: [
+    ...drawn,
+    `document.querySelector('.term-boxer-bar button.primary').click(); return true;`,
+    { waitFor: `!document.querySelector('.term-boxer-bar')` },
+    // Kept, the reader is back on the words they selected.
+    { waitFor: `document.querySelector('.pages').scrollTop < 400` },
+    `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`,
+    { waitFor: termLink(3) }, hover(3), { waitFor: `document.querySelector('.paper-clip.telescope canvas')` },
+  ] },
   gear: { steps: [
     { needs: true, steps: [...define(1, 'evaluation context', 'Definition 2'), ...define(1, 'redex', 'Definition 1'), ...define(1, 'normal form', 'Definition 3')] },
     `document.querySelector('.navigator-gear').click(); return true;`,

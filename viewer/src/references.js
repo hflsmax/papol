@@ -212,11 +212,33 @@ async function termLinks(doc, pageNumber, terms) {
     return x >= outer.x && x <= outer.x + outer.w && y >= outer.y && y <= outer.y + outer.h;
   };
   return findTerms(text, terms).flatMap(({ term, index, length }) => (
-    linkPieces(from, index, length)
+    lineBoxes(linkPieces(from, index, length)
       .filter((piece) => Array.isArray(items[piece.itemIndex].transform))
-      .map((piece) => ({ kind: 'term', label: term.term, defined: term.label, spot: spotOf(term), ...itemBox(items[piece.itemIndex], viewport, piece.start, piece.end) }))
+      .map((piece) => itemBox(items[piece.itemIndex], viewport, piece.start, piece.end)))
+      .map((box) => ({ kind: 'term', label: term.term, defined: term.label, spot: spotOf(term), ...box }))
       .filter((link) => !(term.page === pageNumber && inside(link, term.box)))
   ));
+}
+
+/**
+ * One printing of a term as a box a line: a paper sets a symbol's letters
+ * as pieces of their own ("𝜏" and its subscript "𝑃"), and the pieces on one
+ * line are one thing to point at. Pieces are of a line when they share
+ * some of its height.
+ */
+export function lineBoxes(boxes) {
+  const lines = [];
+  for (const box of boxes) {
+    const line = lines[lines.length - 1];
+    if (line && Math.min(line.y + line.h, box.y + box.h) - Math.max(line.y, box.y) > 0) {
+      const x = Math.min(line.x, box.x), y = Math.min(line.y, box.y);
+      line.w = Math.max(line.x + line.w, box.x + box.w) - x;
+      line.h = Math.max(line.y + line.h, box.y + box.h) - y;
+      line.x = x;
+      line.y = y;
+    } else lines.push({ ...box });
+  }
+  return lines;
 }
 
 /**

@@ -35,6 +35,15 @@ test("a term of symbols is found as printed, and a pattern's own marks are only 
   assert.deepEqual(found('call f(x) and g(x)', 'f(x)'), ['f(x)']);
 });
 
+test('a symbol is found in the letters the paper sets it in, in its own case, with no plural', () => {
+  const text = 'operator 𝜏𝑃 : 𝜏𝑃 (⊥) and 𝜏𝑝 and 𝜏𝑃𝑄 and τP too, never 𝜏𝑃s';
+  assert.deepEqual(found(text, '𝜏𝑃'), ['𝜏𝑃', '𝜏𝑃', 'τP']);
+  assert.deepEqual(found(text, 'τP'), ['𝜏𝑃', '𝜏𝑃', 'τP']);
+  // A ligature in the paper is its letters.
+  assert.deepEqual(found('a ﬁxpoint, and ﬁxpoints', 'fixpoint'), ['ﬁxpoint', 'ﬁxpoints']);
+  assert.deepEqual(found('the prefix ﬁ', 'prefix'), ['prefix']);
+});
+
 test('the definitions a term can be pointed at: whole where the reading has it, in reading order', () => {
   const floats = [
     { uuid: 't2', kind: 'definition', label: 'Definition 2', page: 3, x: 0.1, y: 0.2, w: 0.3, h: 0.01 },

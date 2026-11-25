@@ -132,7 +132,7 @@ export function findStatements(layout: Layout, skip: Set<Line>, floats: Iterable
   for (const statement of statements.values()) {
     if (statement.kind !== "definition") continue;
     const page = layout.pages[statement.page - 1];
-    const stops = (line: Line) => line.furniture || leads.has(line) || headings.has(line) || skip.has(line)
+    const stops = (line: Line) => line.furniture || leads.has(line) || headings.has(line) || skip.has(line) || OTHER_LEAD.test(line.text)
       || line.size > 1.1 * layout.bodySize || inFloat(line, page);
     const lines = wholeOf(statement.caption, page.lines, stops);
     if (lines.length < 2) continue;
@@ -145,43 +145,91 @@ export function findStatements(layout: Layout, skip: Set<Line>, floats: Iterable
   return statements;
 }
 
+// What else a paper numbers as it numbers its statements, and sets as it
+// sets them: a line opening with one is no part of the statement over it.
+const OTHER_LEAD = /^\s*(?:Example|Remark|Note|Notation|Claim|Fact|Observation|Assumption|Conjecture|Axiom|Property|Problem|Exercise|Case)\s+(?:\d|[A-Z]\.?\d)[\w.]*\s*[.:(]/i;
+
 // How much blank under a line of prose ends its paragraph, how far in a
 // paragraph's first line may be set (a displayed formula is set further),
-// how far a line may stand from the left edge and still begin there, all in
-// the line's size; and how many lines a statement is followed for.
+// how far a line may stand from the left edge and still begin there, how
+// much blank may stand before an item of a list, all in the line's size;
+// and how many lines a statement is followed for.
 const PARAGRAPH_GAP = 0.6;
 const INDENT = [0.8, 3];
 const FLUSH = 0.5;
+const ITEM_GAP = 1.5;
+const ITEM_IN = 0.4;
 const WHOLE_LINES = 30;
+// A line that opens an item of a list: a bullet, or a number or letter
+// in brackets or with a stop. (What follows a bracket can be a tall sign
+// read apart from its line, and no space.)
+const ITEM = /^\s*(?:[•◦▪■‣∙·∗*–—-]\s|\(?(?:\d{1,2}|[a-z]|[ivx]{1,4})\)|\d{1,2}\.\s)/;
 
 // The lines of a statement, from the line it opens on: down its column to
-// the end of its paragraph, through the formulas it displays and what it
-// says after them. `stops` says which lines are something else's.
+// the end of its paragraph, through the formulas it displays, the lists it
+// sets out and what it says after them. `stops` says which lines are
+// something else's.
 export function wholeOf(lead: Line, lines: Line[], stops: (line: Line) => boolean): Line[] {
   const whole = [lead];
+  const size = lead.size;
+  // The line that began the row being read (a row's other pieces, an
+  // equation's number or a tall sign's own glyph, say nothing of where its
+  // text stands), how far down what was read reaches, and how many rows.
+  let row = lead, bottom = lead.bottom, rows = 1;
   let left = lead.x0;
-  for (let i = lead.index + 1; i < lines.length && whole.length < WHOLE_LINES; i += 1) {
-    const line = lines[i], last = whole[whole.length - 1];
-    const size = lead.size;
+  // Where a list's items begin, while one is being read; and whether the
+  // row before was the list's.
+  let list: number | null = null, listed = false;
+  // A sign set tall (a big union, a brace) can be read as a line of its
+  // own, a glyph and no more, a little off the row it is printed in: it
+  // says nothing of where the text stands.
+  const mark = (l: Line) => l.text.trim().length <= 1;
+  for (let i = lead.index + 1; i < lines.length && rows < WHOLE_LINES; i += 1) {
+    const line = lines[i];
     if (stops(line)) break;
-    // Reading on goes down the column; a line higher up begins the next.
-    if (line.top < last.top - 0.5 * size) break;
-    // A piece of the last line's own baseline (an equation's number).
-    if (line.top < last.bottom - 0.5 * size) { whole.push(line); continue; }
+    if (mark(line)) continue;
+    // Reading on goes down the column. A line higher up begins the next,
+    // unless it stands beside what was read: a formula's name or number,
+    // set at the right of its row and read after the rows under it.
+    if (line.top < row.top - 0.5 * size) {
+      if (line.top < lead.bottom - 0.5 * size || line.bottom > bottom + 0.5 * size) break;
+      whole.push(line);
+      continue;
+    }
+    // A piece of the row's own baseline.
+    if (line.top < bottom - 0.5 * size) { whole.push(line); bottom = Math.max(bottom, line.bottom); continue; }
     // No part of this column: what follows starts past its right edge.
     if (line.x0 > Math.max(...whole.map((l) => l.x1))) break;
+    const body = rows > 1;
     const flush = (l: Line) => l.x0 <= left + FLUSH * size;
-    const body = whole.length > 1;
-    const indent = line.x0 - (body ? left : Math.min(left, line.x0));
-    const indented = indent >= INDENT[0] * size && indent <= INDENT[1] * size;
-    const gap = line.top - last.bottom > PARAGRAPH_GAP * size;
-    const displayed = body && !flush(last);
-    // A paragraph's end: blank under prose and prose again, or a first
-    // line set in, under prose or under a formula with blank after it.
+    // The blank over the line: under prose, measured from where a line of
+    // its size ends, whatever a formula in it hangs below.
+    const prose = flush(row) || listed;
+    const blank = line.top - (prose ? Math.min(row.bottom, row.top + 1.1 * size) : bottom);
+    const gap = blank > PARAGRAPH_GAP * size;
+    const take = (inList: boolean) => {
+      whole.push(line); row = line; left = Math.min(left, line.x0); bottom = Math.max(bottom, line.bottom); rows += 1; listed = inList;
+    };
+    // A list the statement sets out: its items, and under an item what is
+    // set further in than its mark.
+    const item = ITEM.test(line.text) && !flush(line);
+    if (blank <= ITEM_GAP * size && (item || (list !== null && line.x0 >= list + ITEM_IN * size))) {
+      if (item && (list === null || line.x0 < list)) list = line.x0;
+      take(true);
+      continue;
+    }
+    // Under a list, a line set where its items are and no item is the
+    // text's again.
+    if (list !== null && line.x0 >= list - 0.2 * size) break;
+    list = null;
+    const indent = line.x0 - left;
+    const indented = body && indent >= INDENT[0] * size && indent <= INDENT[1] * size;
+    const displayed = body && !flush(row) && !listed;
+    // An end: blank under prose and prose again, or a first line set in,
+    // under prose, under a list, or under a formula with blank after it.
     if (gap && !displayed && (flush(line) || indented)) break;
-    if (body && indented && (!displayed || gap)) break;
-    if (!body) left = Math.min(left, line.x0);
-    whole.push(line);
+    if (indented && (!displayed || gap)) break;
+    take(false);
   }
   return whole;
 }

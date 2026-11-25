@@ -572,3 +572,13 @@ test('a destination under a column that is not the last stays on its page', asyn
   const lastColumn = foldDoc({ 12: [...left, ...right], 13: foldLines([640, 628, 616]) }, [{}, { name: 'XYZ' }, 250, 71]);
   assert.equal((await overTheFold(lastColumn, 'theorem.4.9', spot)).page, 13);
 });
+
+test("a term's pieces on one line are one box, and a term over two lines is a box a line", async () => {
+  const { lineBoxes } = await import('./references.js');
+  // "𝜏" and its subscript "𝑃", set a little lower and smaller.
+  const [one, ...more] = lineBoxes([{ x: 0.3, y: 0.5, w: 0.01, h: 0.012 }, { x: 0.31, y: 0.506, w: 0.008, h: 0.008 }]);
+  assert.equal(more.length, 0);
+  assert.deepEqual(Object.values(one).map((n) => Math.round(n * 1000)), [300, 500, 18, 14]);
+  // "typing" at a line's end and "context" at the next one's start.
+  assert.equal(lineBoxes([{ x: 0.8, y: 0.5, w: 0.1, h: 0.012 }, { x: 0.1, y: 0.515, w: 0.1, h: 0.012 }]).length, 2);
+});

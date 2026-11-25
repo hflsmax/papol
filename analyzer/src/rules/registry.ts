@@ -582,7 +582,7 @@ export const STATEMENT_LEAD = rule({
 
 export const STATEMENT_WHOLE = rule({
   id: "statement.whole", stage: "statement",
-  summary: "A definition whole is the line it opens on and the lines after it down its column, to the end of its paragraph: blank under a line of prose with prose after it, or a first line set in by a paragraph's indent. A formula it displays (set further in) and what it says after one are part of it. Another statement, a heading, a float, the bibliography or the next column ends it sooner, and it is followed for thirty lines at most.",
+  summary: "A definition whole is the line it opens on and the lines after it down its column, to the end of its paragraph: blank under a line of prose with prose after it, or a first line set in by a paragraph's indent. A formula it displays (set further in), with the name or number set at its right, a list it sets out (items opening with a bullet, a number or a letter, and what is set further in under one) and what it says flush after either are part of it; a first line set in under a list is the text's again. A tall sign read as a line of its own (one glyph) says nothing of where the text stands. Another statement, a line opening as a numbered example or remark does, a heading, a float, the bibliography or the next column ends it sooner, and it is followed for thirty lines at most.",
   why: "A term the reader defined shows its definition where the term is read, as a named rule is shown at its mention; the line a definition opens on says only its number.",
 });
 
