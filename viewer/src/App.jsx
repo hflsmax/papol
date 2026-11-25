@@ -4417,8 +4417,10 @@ export default function App() {
           kinds={navKinds}
           onShown={navChoosable ? chooseNavKinds : null}
           // The gear's own tip stands where the paper's cards and the
-          // project's tip do, so it waits for them.
-          hint={!paperPopupOpen && !projectMenuOpen && !(projectView?.myShelf && !projectVisibilityTipDismissed)}
+          // project's tip do, so it waits for them; and for a citation's
+          // card, over whose buttons no lesson may sit.
+          hint={!paperPopupOpen && !projectMenuOpen && !openCite && !exploring
+            && !(projectView?.myShelf && !projectVisibilityTipDismissed)}
           scrollerRef={scrollerRef}
           live={Boolean(doc && hasScale)}
           onSection={byNavigator(goToSection)}
