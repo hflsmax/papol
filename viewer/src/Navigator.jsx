@@ -759,6 +759,7 @@ function MarkChoices({ shown, onShown, hint }) {
       </button>
       {hint && !told && !open && !darkPages && (
         <span className="learn-papol dark-pages-tip" role="dialog" aria-labelledby="dark-pages-tip-title">
+          <span className="kicker">Learn Papol</span>
           <strong id="dark-pages-tip-title">Turn on Dark Mode here</strong>
           <button type="button" className="learn-papol-close" onClick={tell} aria-label="Dismiss this tip">
             Got it

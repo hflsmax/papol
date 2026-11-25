@@ -796,6 +796,16 @@ ${fileDropStyles}
   background: var(--accent);
   color: var(--ink-inverse);
 }
+/* Its words centred by their capitals, as a plain button's are
+   (commonStyles): left to the line box they rode two pixels high. */
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) and (height: 1lh) {
+  .learn-papol .learn-papol-close {
+    --cap-room: calc((1lh - 1cap) / 2);
+    align-content: center;
+    padding-block: calc(4px + var(--cap-room));
+    text-box: trim-both cap alphabetic;
+  }
+}
 
 .viewer-bar .spacer { flex: 1; }
 
