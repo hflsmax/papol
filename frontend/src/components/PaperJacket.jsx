@@ -1313,12 +1313,12 @@ export default function PaperJacket({
           <ul className="friend-digs">
             {friendDigs.map((dig) => (
               <li key={dig.uuid} className="friend-dig">
-                <p className="friend-dig-who">
-                  <a href={appPath(`/u/${dig.owner.uuid}`)}><Avatar user={dig.owner} className="mini-avatar" /><b>{dig.owner.display_name}</b></a>
-                  <span className="friend-dig-place">
-                    {dig.subject.kind === 'annotation' ? `on ${dig.subject.label.charAt(0).toLowerCase()}${dig.subject.label.slice(1)}` : 'on the paper'}
-                  </span>
-                </p>
+                {/* The dig's own first line already says whose it is and when,
+                    so nothing stands over it but its place, and only when
+                    it is somewhere in the paper and not on the whole of it. */}
+                {dig.subject.kind === 'annotation' && (
+                  <p className="friend-dig-place">On {dig.subject.label.charAt(0).toLowerCase()}{dig.subject.label.slice(1)}</p>
+                )}
                 <TalkCard
                   inline single conversation tucked only projectUuid={null} dig={dig.uuid}
                   subject={`dig:${dig.uuid}`} label={paper.title} currentUser={currentUser}
