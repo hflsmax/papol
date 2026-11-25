@@ -47,6 +47,9 @@ test('a keeper answers an ask to join in Manage and in the Inbox', () => {
   const asks = page.slice(page.indexOf('function Asks'), page.indexOf('// The keeper of a project others are in'));
   assert.match(manage, /\{keeper && project\.asks\?\.length > 0 && <Asks project=\{project\} act=\{act\} \/>\}/);
   assert.match(asks, /answer\(user, acceptAsk\)\}>Accept<\/button>/);
+  // The same pill buttons as the ask's line in the Inbox.
+  assert.match(asks, /className="project-person-actions friend-button">\s*<button type="button" className="primary friend-accept"/);
+  assert.match(asks, /className="friend-not-now"/);
   assert.match(asks, /answer\(user, declineAsk\)\}>Not now<\/button>/);
   assert.match(page, /manage: project\.asks\?\.length > 0/);
   assert.match(inbox, /n\.kind === 'project_ask' && n\.actor && \(n\.waiting \|\| n\.answered\)/);

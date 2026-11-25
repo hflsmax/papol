@@ -513,9 +513,10 @@ function Asks({ project, act }) {
             <Face user={user} />
             <a className="project-person-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
             {user.affiliation && <span className="project-person-role">{user.affiliation}</span>}
-            <span className="project-person-actions">
-              <button type="button" className="primary" disabled={answering === user.uuid} onClick={() => answer(user, acceptAsk)}>Accept</button>
-              <button type="button" className="project-quiet" disabled={answering === user.uuid} onClick={() => answer(user, declineAsk)}>Not now</button>
+            {/* The same two buttons as on the ask's line in the Inbox. */}
+            <span className="project-person-actions friend-button">
+              <button type="button" className="primary friend-accept" disabled={answering === user.uuid} onClick={() => answer(user, acceptAsk)}>Accept</button>
+              <button type="button" className="friend-not-now" disabled={answering === user.uuid} onClick={() => answer(user, declineAsk)}>Not now</button>
             </span>
           </li>
         ))}

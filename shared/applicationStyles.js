@@ -5978,7 +5978,7 @@ ${talkStyles}
 
 /* A message in the Inbox that has an answer or a place: said under it. */
 .notification-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3) calc(var(--space-2) + 14px + var(--space-2)); }
-.notification-acts button { padding: calc(3px + var(--cap-room, 0px)) var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
+.notification-acts button, .project-asks .friend-button button { padding: calc(3px + var(--cap-room, 0px)) var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link:hover { color: var(--accent); }
 .notification-answered { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
