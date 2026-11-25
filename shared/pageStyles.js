@@ -12,16 +12,23 @@
 // Where constructed sheets are missing (the unit tests' stand-in document),
 // a <style> element is the fallback.
 
+//
+// `first` puts the sheet under every sheet already adopted, where a
+// <style> in the document used to sit: an application's whole stylesheet
+// goes there, so the smaller sheets its pieces bring still win over it.
+
 const added = new Set();
 
-export function addPageStyles(id, css) {
+export function addPageStyles(id, css, { first = false } = {}) {
   if (typeof document === 'undefined' || added.has(id)) return;
   added.add(id);
   if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in document) {
     try {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(css);
-      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      document.adoptedStyleSheets = first
+        ? [sheet, ...document.adoptedStyleSheets]
+        : [...document.adoptedStyleSheets, sheet];
       return;
     } catch {
       // An engine without constructable sheets falls through to <style>.

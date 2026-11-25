@@ -1,6 +1,5 @@
 import React from 'react';
 import BoardPage from './BoardPage.jsx';
-import { applicationStyles } from '../../shared/applicationStyles.js';
 import CompatibilityGate from '../../shared/ui/CompatibilityGate.jsx';
 import MacHandoffBar from '../../shared/ui/MacHandoffBar.jsx';
 import { getToken } from '../../shared/api/account.js';
@@ -37,7 +36,6 @@ export default function App() {
     return null;
   }
   return <>
-    <style>{applicationStyles}</style>
     <CompatibilityGate />
     <MacHandoffBar />
     {boardUuid

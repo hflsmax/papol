@@ -4,6 +4,7 @@
 // smokes each own what they serve and what "rendered" means; this owns how
 // a page is opened and how its answer comes back.
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -227,6 +228,19 @@ export async function openHeadless(chromium, url, rendered) {
   }
 }
 
+/**
+ * The style policy Papol for Mac's windows run under, for a page's HTML.
+ * Tauri adds a hash for each inline <style> in the HTML to the window's
+ * style-src, and once a hash is there the engine ignores 'unsafe-inline':
+ * a <style> element the page adds later applies none of its rules. A smoke
+ * that serves its page with this header sees the page as the Mac draws it.
+ */
+export function macStylePolicy(html) {
+  const hashes = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+    .map(([, css]) => `'sha256-${createHash('sha256').update(css).digest('base64')}'`);
+  return `style-src 'self' 'unsafe-inline' ${hashes.join(' ')}`.trim();
+}
+
 /** What a smoke says when `openHeadless` timed out on `link`. */
 export function timeoutMessage(link, outcome) {
   const said = outcome.during === 'startup'
@@ -238,7 +252,7 @@ export function timeoutMessage(link, outcome) {
 /**
  * Serve `respond(url)` and open each page in its own headless browser.
  *
- * `respond` answers with `{ status?, type?, body }` or null for a 404; the
+ * `respond` answers with `{ status?, type?, headers?, body }` or null for a 404; the
  * injected probe reports by fetching `/__papol_smoke_ready?page=<name>`.
  * Each page names what its probe must report; anything else — a timeout, a
  * crash, an uncaught error — fails with the browser's stderr attached.
@@ -266,6 +280,7 @@ export async function runSmoke(pages, respond) {
       }
       response.writeHead(answer.status || 200, {
         'content-type': answer.type || 'application/octet-stream',
+        ...answer.headers,
       });
       response.end(answer.body);
     } catch {

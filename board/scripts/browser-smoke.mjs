@@ -8,7 +8,7 @@
 // the check is hermetic: no backend and no account, only the token the
 // application requires to be standing in localStorage.
 import { resolve } from 'node:path';
-import { distFile, runSmoke } from '../../scripts/smoke-harness.mjs';
+import { distFile, macStylePolicy, runSmoke } from '../../scripts/smoke-harness.mjs';
 
 const dist = resolve(process.env.PAPOL_SMOKE_DIST || 'dist');
 
@@ -75,7 +75,9 @@ const probe = `<script>
         return;
       }
       if (document.querySelectorAll('.board-canvas-card').length >= 2) {
-        fetch('/__papol_smoke_ready?page=board-canvas', { method: 'POST' });
+        // Drawn, and dressed: --paper is the application sheet's own.
+        const dressed = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();
+        fetch('/__papol_smoke_ready?page=' + (dressed ? 'board-canvas' : 'board-canvas-without-its-styles'), { method: 'POST' });
         return;
       }
       setTimeout(ready, 25);
@@ -98,10 +100,12 @@ await runSmoke(
     const asset = /\.[a-z0-9]+$/i.test(relative) ? relative : 'index.html';
     const file = await distFile(dist, asset);
     if (file && asset === 'index.html') {
+      const html = file.body.toString('utf8');
       return {
         type: file.type,
-        body: file.body.toString('utf8').replace('</head>', `${bootstrap}</head>`)
-          .replace('</body>', `${probe}</body>`),
+        // The page is held to the style policy of the Mac app's window.
+        headers: { 'content-security-policy': macStylePolicy(html) },
+        body: html.replace('</head>', `${bootstrap}</head>`).replace('</body>', `${probe}</body>`),
       };
     }
     return file;
