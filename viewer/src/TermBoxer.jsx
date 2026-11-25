@@ -109,7 +109,7 @@ export default function TermBoxer({ scrollerRef, term, value, scale, busy, error
       <div className="term-boxer-bar" role="dialog" aria-label={`Box the definition of ${term}`}>
         <p>
           {value
-            ? <>Pull the box’s corners until it holds the definition of <strong>{term}</strong>, or draw another.</>
+            ? 'Pull the box’s corners until it holds the definition.'
             : <>Go to where <strong>{term}</strong> is defined and draw a box around the definition.</>}
         </p>
         {error && <p className="feedback-error">{error}</p>}
