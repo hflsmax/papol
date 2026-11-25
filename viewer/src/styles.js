@@ -1755,7 +1755,7 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 
 /* Define: the selected words, and the paper's definitions to choose
    theirs from, each a row with its name, what it is about and its page. */
-.define-sheet { width: min(520px, 100%); }
+.define-sheet { width: min(680px, 100%); }
 .define-sheet .send-selection-field input { width: 100%; font-size: var(--fs-sm); }
 .define-ask {
   margin: 0 0 10px;
@@ -1765,8 +1765,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .define-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: min(46vh, 360px);
+  gap: 6px;
+  max-height: min(56vh, 520px);
   margin: 0 0 14px;
   padding: 4px;
   overflow-y: auto;
@@ -1777,11 +1777,12 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .sheet .define-choice,
 .sheet .define-choice:hover:not(:disabled) {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   width: 100%;
   min-height: 0;
-  padding: 7px 9px;
+  padding: 8px 9px 9px;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -1793,7 +1794,21 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 }
 .sheet .define-choice:hover:not(:disabled) { background: var(--accent-soft); }
 .define-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.define-head { display: flex; align-items: baseline; gap: 10px; }
 .define-choice strong { flex: none; font-weight: 600; }
+/* The definition itself, cut from its page: paper, whatever the theme,
+   and dark with the pages when they are. */
+.define-picture {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+.define-picture canvas { display: block; width: 100%; height: 100%; }
+:root[data-pdf-pages='dark'] .define-picture canvas { filter: invert(0.9) hue-rotate(180deg); }
+:root[data-pdf-pages='dark'] .define-picture { background: #1a1a1a; }
 .define-about {
   flex: 1;
   min-width: 0;
@@ -1803,18 +1818,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   white-space: nowrap;
 }
 .define-page { flex: none; color: var(--ink-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-
-/* Define, on the selected-text bar: the one action there that is not a
-   reader's habit yet, so it says its name beside its sign. */
-.item-action.worded {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  width: auto;
-  padding: 6px 11px 6px 7px;
-  border-radius: 999px;
-  font: 600 var(--fs-xs) var(--font-ui);
-}
 
 .send-selection-sheet { width: min(520px, 100%); }
 .send-selection-field {

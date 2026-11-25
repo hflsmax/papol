@@ -65,7 +65,7 @@ const define = (page, words, label) => [
 
 const SCENES = {
   select: { steps: [select(1, 'evaluation context'), { waitFor: `document.querySelector('.selection-actions button')` }] },
-  choose: { needs: true, steps: [select(1, 'evaluation context'), { waitFor: defineButton }, `${defineButton}.click(); return true;`, { waitFor: `document.querySelector('.define-choice')` }] },
+  choose: { needs: true, steps: [select(1, 'evaluation context'), { waitFor: defineButton }, `${defineButton}.click(); return true;`, { waitFor: `document.querySelector('.define-choice')` }, { wait: 1200 }] },
   hover: { needs: true, steps: [...define(1, 'evaluation context', 'Definition 2'), `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`, { waitFor: termLink(3) }, hover(3), { waitFor: `document.querySelector('.paper-clip.telescope canvas')` }] },
   jump: { needs: true, steps: [...define(1, 'evaluation context', 'Definition 2'), `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`, { waitFor: termLink(3) }, `const el = ${termLink(3)}; el.scrollIntoView({ block: 'center' }); el.click(); return true;`, { wait: 900 }] },
   gear: { steps: [

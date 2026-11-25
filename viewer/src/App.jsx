@@ -56,6 +56,7 @@ import { citationOccurrences, placeAmong, readNamedReference, stillToLookUp } fr
 import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
 import { telescopeFrame } from './telescope.js';
 import { definableTerm, definitionsIn, termKey, termSpot } from './definedTerms.js';
+import DefinitionPicture from './DefinitionPicture.jsx';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -5348,8 +5349,7 @@ export default function App() {
                       : definableTerm(selectionPaint.text)
                         ? 'Define: choose this term’s definition in the paper'
                         : 'Select a word or a short phrase to define it',
-                    icon: <><ActionGlyph name="define" /><span>Define</span></>,
-                    className: 'worded',
+                    icon: <ActionGlyph name="define" />,
                     disabled: !definableTerm(selectionPaint.text),
                     onSelect: openDefine,
                   }] : []),
@@ -5452,7 +5452,7 @@ export default function App() {
               </label>
               {definitions.length ? (
                 <>
-                  <p className="define-ask" id="define-ask">Choose its definition in this paper. Wherever the term is printed, pointing at it will show the definition and a press will go there.</p>
+                  <p className="define-ask" id="define-ask">Choose its definition in this paper, each shown as printed. Wherever the term is printed, pointing at it will show the definition and a press will go there.</p>
                   <ul className="define-list" aria-labelledby="define-ask">
                     {definitions.map((definition) => (
                       <li key={definition.uuid}>
@@ -5462,9 +5462,13 @@ export default function App() {
                           disabled={defining.busy || !definableTerm(defining.term)}
                           onClick={() => defineTerm(definition)}
                         >
-                          <strong>{definition.label}</strong>
-                          <span className="define-about">{definition.title || ''}</span>
-                          <span className="define-page">p. {definition.page}</span>
+                          <span className="define-head">
+                            <strong>{definition.label}</strong>
+                            <span className="define-about">{definition.title || ''}</span>
+                            <span className="define-page">p. {definition.page}</span>
+                          </span>
+                          {/* The definition as printed, to read before choosing. */}
+                          <DefinitionPicture doc={doc} page={definition.page} box={definition.box} />
                         </button>
                       </li>
                     ))}

@@ -816,7 +816,7 @@ function MarkChoices({ shown, onShown, hint, terms = null, onRemoveTerm, onTerm 
             <div className="navigator-section navigator-terms" role="group" aria-labelledby="navigator-section-terms">
               <span className="navigator-section-name" id="navigator-section-terms">Defined terms</span>
               {terms.length === 0 && (
-                <p className="navigator-terms-none">None yet. Select a word in the paper and press Define.</p>
+                <p className="navigator-terms-none">None yet. Select a word in the paper and press Define (≔).</p>
               )}
               {terms.map((term) => (
                 <div key={term.uuid} className="navigator-term">
