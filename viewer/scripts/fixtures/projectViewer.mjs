@@ -141,10 +141,16 @@ let saved = 0;
 // route refuses it, and the reader has left nothing on it.
 const NOT_KEPT = process.env.PAPOL_FIXTURE_NOT_KEPT === '1';
 const REFUSED = Symbol('refused');
+// PAPOL_FIXTURE_BARE=1: the reader keeps the paper and has left nothing on
+// it, for a picture of the paper alone (term-shots.mjs).
+const BARE = process.env.PAPOL_FIXTURE_BARE === '1';
 
 function answer(method, path, search) {
   if (path === '/auth/me') return { ...me, is_admin: false, email: 'dana@example.org' };
   if (NOT_KEPT && path === `/viewer/${PAPER}`) return REFUSED;
+  if (BARE && path === `/viewer/${PAPER}`) return { ...paper, anchors: [] };
+  if (BARE && path === `/papers/${PAPER.slice(0, 32)}/annotations` && method === 'GET') return [];
+  if (BARE && path === `/papers/${PAPER.slice(0, 32)}/digs`) return { digs: {}, paper_digs: null };
   if (path === `/viewer/${PAPER}/lean`) {
     return { uuid: null, kind: 'lean', created_at: null, user: null, paper: { ...paper, file_url: paper.file_url ?? `/uploads/${PAPER}.pdf` }, annotations: [] };
   }
@@ -260,6 +266,32 @@ function viewerFixture(server) {
       }
       res.end(JSON.stringify({ recorded, skipped: changes.length - recorded }));
     });
+  });
+  // The terms the reader defined in the paper, as Papol keeps them: one a
+  // term, defined again to point it elsewhere, removed one at a time.
+  const terms = [];
+  server.middlewares.use('/api', (req, res, next) => {
+    const path = req.url.split('?')[0];
+    const send = (body) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)); };
+    if (path === `/papers/${PAPER.slice(0, 32)}/terms` && req.method === 'GET') return send({ terms });
+    if (path === `/papers/${PAPER.slice(0, 32)}/terms` && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        const { term, label, page, box } = JSON.parse(body || '{}');
+        const held = terms.find((t) => t.term.toLowerCase() === term.toLowerCase());
+        const made = Object.assign(held ?? { uuid: `7e000000-0000-4000-8000-0000000000${String(terms.length).padStart(2, '0')}`, created_at: daysAgo(0) }, { term, label, page, box });
+        if (!held) terms.push(made);
+        send(made);
+      });
+      return undefined;
+    }
+    if (path.startsWith('/terms/') && req.method === 'DELETE') {
+      const at = terms.findIndex((t) => t.uuid === path.slice('/terms/'.length));
+      if (at >= 0) terms.splice(at, 1);
+      return send({ message: 'Defined term removed' });
+    }
+    return next();
   });
   server.middlewares.use('/api', (req, res) => {
     const url = new URL(req.url, 'http://localhost');

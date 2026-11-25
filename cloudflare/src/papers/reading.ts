@@ -41,6 +41,9 @@ export interface Float extends Box {
   kind: string; // figure, table, box, algorithm, listing, section, footnote, rule, theorem, lemma, definition, proof
   label: string; // its number, as printed
   title?: string; // what it is about: its caption's first sentence, a theorem's name or opening words
+  // A definition whole, where its box is only the line it opens on: that
+  // line and what it goes on to say, as fractions of the same page.
+  whole?: { x: number; y: number; w: number; h: number };
 }
 
 // A place in the text that points at a float.

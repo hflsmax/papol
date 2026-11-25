@@ -1,6 +1,7 @@
 import { destinationHeight } from './sections.js';
 import { findTextLinks, linkPieces, runningText } from './textLinks.js';
 import { ruleName, sharedNames } from './sameNamedRules.js';
+import { findTerms, termSpot } from './definedTerms.js';
 /**
  * What is clickable on a page: the citations, and the PDF's own links.
  *
@@ -69,9 +70,10 @@ const EXPECTED_DROP = 0.007;
  *
  * `analysis` is what the backend returned; `doc` and `pageNumber` are the
  * open PDF. Returns the analyzer's boxes when the PDF offers nothing
- * better.
+ * better. `terms` are the terms the reader defined (definedTerms.js): each
+ * is a link to its definition wherever it is printed and nothing else is.
  */
-export async function pageOverlays(doc, pageNumber, analysis) {
+export async function pageOverlays(doc, pageNumber, analysis, terms = []) {
   const references = (analysis?.references || []).filter(
     (r) => r.page != null && r.y != null
   );
@@ -151,6 +153,14 @@ export async function pageOverlays(doc, pageNumber, analysis) {
   } catch {
     // The page's text is a bonus, never a reason to lose its other links.
   }
+  if (terms.length) {
+    try {
+      const defined = await termLinks(doc, pageNumber, terms);
+      links.push(...defined.filter((link) => ![...links, ...citations].some((known) => overlaps(known, link))));
+    } catch {
+      // As above.
+    }
+  }
   return { citations, links };
 }
 
@@ -179,6 +189,33 @@ async function textLinks(doc, pageNumber) {
     linkPieces(from, index, length)
       .filter((piece) => Array.isArray(items[piece.itemIndex].transform))
       .map((piece) => ({ href, ...itemBox(items[piece.itemIndex], viewport, piece.start, piece.end) }))
+  ));
+}
+
+/**
+ * The terms the reader defined, where this page prints them: a box for each
+ * piece of text one covers, every piece of one term sharing its spot. The
+ * definition's own words are not a link to themselves.
+ */
+async function termLinks(doc, pageNumber, terms) {
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  const items = (await page.getTextContent()).items || [];
+  const { text, from } = runningText(items);
+  const spots = new Map();
+  const spotOf = (term) => {
+    if (!spots.has(term)) spots.set(term, termSpot(term));
+    return spots.get(term);
+  };
+  const inside = (box, outer) => {
+    const x = box.x + box.w / 2, y = box.y + box.h / 2;
+    return x >= outer.x && x <= outer.x + outer.w && y >= outer.y && y <= outer.y + outer.h;
+  };
+  return findTerms(text, terms).flatMap(({ term, index, length }) => (
+    linkPieces(from, index, length)
+      .filter((piece) => Array.isArray(items[piece.itemIndex].transform))
+      .map((piece) => ({ kind: 'term', label: term.term, defined: term.label, spot: spotOf(term), ...itemBox(items[piece.itemIndex], viewport, piece.start, piece.end) }))
+      .filter((link) => !(term.page === pageNumber && inside(link, term.box)))
   ));
 }
 

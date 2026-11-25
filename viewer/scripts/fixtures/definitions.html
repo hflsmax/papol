@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- The source of definitions.pdf, a short paper that states definitions and
+     goes on using the terms they define, for term-shots.mjs:
+       google-chrome --headless --no-pdf-header-footer --print-to-pdf=definitions.pdf definitions.html -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Small Steps: A Reduction Semantics in Three Definitions</title>
+<style>
+  @page { size: 8.5in 11in; margin: 1.15in 1.35in; }
+  body { margin: 0; font: 11pt/1.42 "Liberation Serif", serif; color: #000; text-align: justify; hyphens: none; }
+  h1 { margin: 0 0 8pt; font-size: 17pt; text-align: center; line-height: 1.2; }
+  .authors { margin: 0 0 20pt; text-align: center; font-size: 11pt; }
+  .abstract { margin: 0 0.5in 18pt; font-size: 10pt; }
+  h2 { margin: 18pt 0 7pt; font-size: 13pt; }
+  p { margin: 0; text-indent: 1.4em; }
+  h2 + p, .statement + p.after, p.first { text-indent: 0; }
+  .statement { margin: 9pt 0; }
+  .statement p { text-indent: 0; }
+  .statement p + p { margin-top: 0; }
+  .display { margin: 7pt 0; text-align: center; text-indent: 0; font-style: italic; }
+  .break { break-before: page; }
+  .refs p { margin: 0 0 4pt; padding-left: 1.6em; text-indent: -1.6em; font-size: 10pt; }
+</style>
+</head>
+<body>
+<h1>Small Steps: A Reduction Semantics in Three Definitions</h1>
+<p class="authors">Ines Halvorsen and Tomas Okonkwo</p>
+<p class="abstract"><b>Abstract.</b> We give the call-by-value lambda calculus a reduction semantics that fits on a page. Three definitions carry it: what a redex is, where one may be reduced, and when a term has nothing left to reduce. Everything after them, determinism and progress included, is a consequence.</p>
+
+<h2>1 Introduction</h2>
+<p>A reduction semantics says how a program runs by saying which part of it may be rewritten next. The part is a redex, and the place it sits in is an evaluation context. A term in which no redex is left is a normal form, and for a closed, well-typed term the normal forms are exactly the values.</p>
+<p>The three notions are easy to state and easy to confuse. A reader who meets "the redex" on page three must remember that it means a value applied to a value and not any application whatever, and that an evaluation context never has its hole under a binder. This paper keeps the three statements short enough to be looked up, and then leans on them hard [1, 2].</p>
+
+<h2>2 The calculus</h2>
+<p>Terms are variables, abstractions and applications. We write e for a term and v for a value; a value is an abstraction. Substitution is capture-avoiding and is written e[v/x].</p>
+
+<div class="statement">
+<p><b>Definition 1</b> (Redex)<b>.</b> A <i>redex</i> is an application whose function and argument are both values. Its function is an abstraction, λx. e, and its argument a value v, and it contracts in one step to the body with the argument put for the variable:</p>
+<p class="display">(λx. e) v &nbsp;⟶&nbsp; e[v/x]</p>
+<p>where the substitution renames bound variables as it must.</p>
+</div>
+
+<p class="after">Not every application is a redex. In (λx. x) ((λy. y) z) the outer application has an argument that is not yet a value, so the only redex there would be the inner one, were z a value. Which application is contracted first is not left to the redex to say: it is fixed by where a hole may stand.</p>
+
+<div class="statement">
+<p><b>Definition 2</b> (Evaluation context)<b>.</b> An <i>evaluation context</i> E is a term with one hole in it, written [ ], built by the grammar</p>
+<p class="display">E &nbsp;::=&nbsp; [ ] &nbsp;|&nbsp; E e &nbsp;|&nbsp; v E</p>
+<p>and E[e] is the term got by putting e in the hole. The hole is never under a λ, and it stands in an argument only when the function is already a value.</p>
+</div>
+
+<p class="after">An evaluation context is thus a path from the root of a term to the place where work is done. The grammar reads left to right: the function of an application is evaluated before its argument.</p>
+
+<div class="statement">
+<p><b>Definition 3</b> (Normal form)<b>.</b> A term e is a <i>normal form</i> when there are no E and no redex r with e = E[r]: nothing in it can be contracted where the grammar of contexts allows.</p>
+</div>
+
+<p class="after">Every value is a normal form, since no evaluation context reaches under its λ. The converse fails for open terms: x y is a normal form and no value.</p>
+
+<h2 class="break">3 Reduction</h2>
+<p>One step of reduction contracts a redex in an evaluation context: E[r] steps to E[r′] when r contracts to r′. Because a term is cut into a context and a redex in at most one way, the step a term takes is the only one it can take.</p>
+
+<div class="statement">
+<p><b>Lemma 4</b> (Unique decomposition)<b>.</b> <i>A closed term is either a value, or E[r] for exactly one evaluation context E and one redex r.</i></p>
+</div>
+
+<div class="statement">
+<p><i>Proof.</i> By induction on the term. A variable is not closed and an abstraction is a value. For an application e₁ e₂, if e₁ is not a value the induction hypothesis cuts it into a context and a redex, and the grammar's second form extends the context; if e₁ is a value and e₂ is not, the third form does; and if both are values the application is itself a redex in the empty context. ∎</p>
+</div>
+
+<div class="statement">
+<p><b>Theorem 5</b> (Determinism)<b>.</b> <i>If e steps to e′ and to e″, then e′ and e″ are the same term.</i></p>
+</div>
+
+<p class="after">The theorem is immediate from the lemma: the redex and its evaluation context are determined, and a redex contracts in one way. It follows that a closed term reduces to at most one normal form.</p>
+
+<h2>4 Progress</h2>
+<p>A closed term that is not a value is not stuck. By unique decomposition it holds a redex in an evaluation context, so it steps. Put the other way round, a closed normal form is a value, which is the statement usually called progress.</p>
+<p>For open terms the statement fails, and it fails for an instructive reason: x y is a normal form because x is no value, so the application is no redex, and no evaluation context finds one inside it. Typing rules out such terms at the top level, since a closed, well-typed term has no free variable to be stuck on.</p>
+<p>Nothing here depends on the calculus being small. Adding pairs adds two forms to the grammar of contexts and one kind of redex per projection, and the three definitions stand as they are. Adding state adds a store to each side of a step; an evaluation context is still a term with a hole, and a normal form is still a term with no redex in such a context.</p>
+
+<h2>5 Related work</h2>
+<p>Evaluation contexts are due to Felleisen and Hieb [1]; the presentation of type soundness as progress and preservation over such a semantics is due to Wright and Felleisen [2]. Plotkin's original account of call-by-value [3] reaches the same reduction relation by rules of inference and without contexts.</p>
+
+<h2>References</h2>
+<div class="refs">
+<p>[1] Matthias Felleisen and Robert Hieb. 1992. The revised report on the syntactic theories of sequential control and state. Theoretical Computer Science 103, 2, 235–271.</p>
+<p>[2] Andrew K. Wright and Matthias Felleisen. 1994. A syntactic approach to type soundness. Information and Computation 115, 1, 38–94.</p>
+<p>[3] Gordon D. Plotkin. 1975. Call-by-name, call-by-value and the λ-calculus. Theoretical Computer Science 1, 2, 125–159.</p>
+</div>
+</body>
+</html>
