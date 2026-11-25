@@ -1,5 +1,4 @@
-import React, { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { chooseDarkPages, darkPagesShown, subscribeDarkPages } from '../../shared/theme.js';
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { Progress, Working } from '../../shared/ui/Waiting.js';
 import { formatBytes, formatProgressDetail, progressFraction } from '../../shared/waiting.js';
 import { uploadProgressView } from '../../shared/api/files.js';
@@ -764,7 +763,6 @@ export default function App() {
   useDismiss(projectMenuOpen, projectSwitchRef, () => setProjectMenuOpen(false));
   const clipSaving = useRef(new Map());
   const [paperInfoOpen, setPaperInfoOpen] = useState(false);
-  const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
   // 'idle' | 'trying' | 'missing': the info window's own way to Papol for Mac.
   const [macHandoffStep, setMacHandoffStep] = useState('idle');
   const [paperInfo, setPaperInfo] = useState(null);
@@ -4744,21 +4742,6 @@ export default function App() {
                 {userName ? `Showing ${userName}’s annotations` : 'Showing shared annotations'}
               </span>
             )}
-            {/* The paper light on dark, for reading at night: a choice about
-                the pages alone, whatever theme the rest of Papol wears, and
-                kept on this device (shared/theme.js). */}
-            <button
-              type="button"
-              className="bar-link dark-pages-button"
-              onClick={() => chooseDarkPages(!darkPages)}
-              aria-pressed={darkPages}
-              aria-label="Dark pages"
-              title={darkPages ? 'Dark pages: on' : 'Dark pages: off'}
-            >
-              <svg className="info-glyph" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M19.6 14.2A8.1 8.1 0 0 1 9.8 4.4a8.1 8.1 0 1 0 9.8 9.8Z" strokeLinejoin="round" />
-              </svg>
-            </button>
             <button
               type="button"
               className="bar-link paper-info-button"

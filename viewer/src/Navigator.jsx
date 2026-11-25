@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   barScale, evened, laidOut, lineAtPosition, positionAtLine, shareOut,
@@ -8,6 +8,7 @@ import { positionOf, sectionStops } from './sectionStops';
 import { NAV_KINDS, NAV_NAMES, NAV_SHOWN, floatMarks } from './navMarks';
 import SectionStrip from './SectionStrip';
 import { PHONE } from './styles';
+import { chooseDarkPages, darkPagesShown, subscribeDarkPages } from '../../shared/theme.js';
 
 /**
  * The paper, drawn to length across the bar.
@@ -694,16 +695,19 @@ export default function Navigator({
         <span className="navigator-here" aria-hidden="true" />
         <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
       </div>
-      {onShown && <MarkChoices shown={kinds} onShown={onShown} />}
+      <MarkChoices shown={kinds} onShown={onShown} />
     </div>
   );
 }
 
 // The gear at the bar's right end, and what it opens: every kind the bar
-// can mark, each with its glyph and name, pressed to mark it or not. Open
-// in one step, under the gear; a press outside or Escape puts it away.
+// can mark, each with its glyph and name, pressed to mark it or not (for a
+// reader with an account to keep the choice, so `onShown`); and, for
+// everyone, whether the pages are drawn dark (shared/theme.js). Open in one
+// step, under the gear; a press outside or Escape puts it away.
 function MarkChoices({ shown, onShown }) {
   const [open, setOpen] = useState(false);
+  const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
   const boxRef = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
@@ -728,15 +732,32 @@ function MarkChoices({ shown, onShown }) {
       <button
         type="button"
         className={`navigator-gear${open ? ' open' : ''}`}
-        aria-label="Marks"
+        aria-label="View options"
+        title="View options"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
       >
         <Gear />
       </button>
       {open && (
-        <div className="navigator-choices" role="group" aria-label="Marks">
-          {NAV_KINDS.map((kind) => (
+        <div className="navigator-choices">
+          <button
+            type="button"
+            className="navigator-kind navigator-pages"
+            aria-pressed={darkPages}
+            onClick={() => chooseDarkPages(!darkPages)}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" d="M10 7.2A4.3 4.3 0 0 1 4.8 2a4.3 4.3 0 1 0 5.2 5.2Z" />
+            </svg>
+            <span className="navigator-kind-name">Dark pages</span>
+            <svg className="navigator-kind-on" viewBox="0 0 12 12" aria-hidden="true">
+              <path fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" d="m2.5 6.3 2.3 2.3 4.7-5" />
+            </svg>
+          </button>
+          {onShown && (
+            <div className="navigator-marks" role="group" aria-label="Marks">
+              {NAV_KINDS.map((kind) => (
             <button
               key={kind}
               type="button"
@@ -751,6 +772,8 @@ function MarkChoices({ shown, onShown }) {
               </svg>
             </button>
           ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -527,40 +527,38 @@ ${fileDropStyles}
   min-width: 72px;
 }
 
-/* The gear, at the strip's right end and level with it, in the marks'
-   grey: what the bar marks over the strip is chosen here. */
+/* The gear, at the strip's right end: the same 32px square as the bar's
+   other buttons, centred in the bar as they are. What the bar marks over
+   the strip is chosen here, and whether the pages are drawn dark. */
 .navigator-choice {
   position: relative;
   flex: none;
-  margin-top: var(--nav-top);
-  margin-left: 4px;
-  height: var(--nav-strip);
+  align-self: center;
+  margin-left: 12px;
 }
 
 .viewer-bar .navigator-gear,
 .viewer-bar .navigator-gear:hover:not(:disabled) {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 100%;
+  width: 32px;
+  height: 32px;
   min-height: 0;
   padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--ink-faint);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
   cursor: pointer;
 }
 
 .viewer-bar .navigator-gear:hover:not(:disabled),
-.viewer-bar .navigator-gear.open { color: var(--ink); }
+.viewer-bar .navigator-gear.open { border-color: var(--accent); color: var(--accent); }
 .navigator-gear:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 
-/* An even size in the strip's even height, so the gear's middle is the
-   strip's to the pixel. */
 .navigator-gear svg {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
 }
 
 /* The choices, under the gear, dressed as the page's options bar is: every
@@ -568,8 +566,8 @@ ${fileDropStyles}
 .navigator-choices {
   position: absolute;
   z-index: 2000;
-  top: calc(100% + 10px);
-  right: -4px;
+  top: calc(100% + 6px);
+  right: 0;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -603,6 +601,15 @@ ${fileDropStyles}
   flex: none;
   width: 11px;
   height: 11px;
+}
+
+/* The pages' own switch first, then the marks, a rule between them. */
+.navigator-marks {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
 }
 
 .navigator-kind-name { flex: 1; text-align: left; }
@@ -902,8 +909,7 @@ ${fileDropStyles}
    .paper-info-button alone, its padding of nothing lost to the bar-link's
    6px 12px, which left a 28px box two pixels of room and pushed the letter
    off to one side. */
-.viewer-bar .bar-link.paper-info-button,
-.viewer-bar .bar-link.dark-pages-button {
+.viewer-bar .bar-link.paper-info-button {
   display: grid;
   place-items: center;
   width: 32px;
@@ -926,12 +932,6 @@ ${fileDropStyles}
   stroke-linecap: round;
 }
 .info-glyph .info-dot { fill: currentColor; stroke: none; }
-/* Dark pages, on: held down, as a tool in hand is. */
-.viewer-bar .bar-link.dark-pages-button[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
 .paper-info-pop {
   position: absolute;
   z-index: 30;

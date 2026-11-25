@@ -4,7 +4,7 @@ import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 import { PAPER, PROJECT, viewerServer } from './fixtures/projectViewer.mjs';
 
 // Pictures of the fixture paper with dark pages off and on, for a pull
-// request: the reader's own marks, a thing picked out, a project's inks, a
+// request: the gear's menu that holds the switch, the reader's own marks, a thing picked out, a project's inks, a
 // figure, and each under the dark theme too.
 //
 //   node scripts/dark-pages-shots.mjs <out dir> [name ...]
@@ -32,6 +32,9 @@ const SHOTS = {
   dark: { path: alone, ready: painted, dark: true },
   'dark-theme-printed': { path: alone, ready: painted, theme: 'dark' },
   'dark-theme-dark': { path: alone, ready: painted, dark: true, theme: 'dark' },
+  // The gear pressed: the marks, and the switch under them.
+  'printed-menu': { path: alone, ready: painted, then: "document.querySelector('.navigator-gear').click(); return true;", settled: '.navigator-pages' },
+  'dark-menu': { path: alone, ready: painted, dark: true, then: "document.querySelector('.navigator-gear').click(); return true;", settled: '.navigator-pages' },
   'printed-ink': { path: alone, ready: painted, then: pick('[data-ink="d1b2c3d4-0000-4000-8000-000000000002"] .ink-grab'), settled: '.ink-actions' },
   'dark-ink': { path: alone, ready: painted, dark: true, then: pick('[data-ink="d1b2c3d4-0000-4000-8000-000000000002"] .ink-grab'), settled: '.ink-actions' },
   'printed-clip': { path: alone, ready: `${painted} && document.querySelector('.paper-clip canvas')`, then: pick('.paper-clip'), settled: '.clip-bar' },
