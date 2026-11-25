@@ -5415,9 +5415,13 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-manage-row + .project-manage-row { border-top: 1px solid var(--line); }
 .project-manage-row strong { color: var(--ink); font-weight: 500; }
 .project-manage-row p { margin: 2px 0 0; color: var(--ink-soft); font-size: var(--fs-xs); }
-.project-manage-row button { flex: none; padding: calc(var(--space-1) + var(--cap-room, 0px)) var(--space-3); }
+/* Four kinds of button in Manage, each for one thing. Filled: the one
+   answer someone waits for (Accept). Outlined: what a row is there to do
+   (Copy link, Add, Leave). Quiet words: a row's other choices (Not now, Make
+   keeper, Stop link). Red, as quiet words or the soft danger button: what
+   takes something from other members (Remove, Delete project). All one size. */
+.project-manage button:not(.project-quiet) { flex: none; padding: calc(var(--space-1) + var(--cap-room, 0px)) var(--space-3); font-size: var(--fs-sm); }
 .project-manage-danger { border-color: color-mix(in srgb, var(--red) 30%, var(--line)); }
-button.project-manage-delete, button.project-manage-delete:hover:not(:disabled) { border-color: var(--red); background: var(--red); color: var(--ink-inverse); }
 @media (max-width: 640px) {
   .project-manage-section { padding: var(--space-3) var(--space-4); }
   .project-manage-field { grid-template-columns: minmax(0, 1fr) auto; }
