@@ -721,3 +721,10 @@ Two traps worth naming, both hit in practice:
   `h2` or `p` moves the text and leaves the controls beside it behind.
 - One prominent action per view (`button.primary`); everything else is a
   plain button or a `.link-btn`.
+- **A project's Manage tab** shows the four kinds side by side, each for one
+  thing and all one size. Filled: the one answer someone waits for
+  (Accept). Outlined: what a row is there to do (Copy link, Add, Leave).
+  Quiet words: a row's other choices (Not now, Make keeper, Stop link). Red,
+  as quiet words or `button.danger`: what takes something from other
+  members (Remove, Delete project), never a filled red. Leaving is not red:
+  it takes nothing from the others.

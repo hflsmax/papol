@@ -47,9 +47,13 @@ test('a keeper answers an ask to join in Manage and in the Inbox', () => {
   const asks = page.slice(page.indexOf('function Asks'), page.indexOf('// The keeper of a project others are in'));
   assert.match(manage, /\{keeper && project\.asks\?\.length > 0 && <Asks project=\{project\} act=\{act\} \/>\}/);
   assert.match(asks, /answer\(user, acceptAsk\)\}>Accept<\/button>/);
-  // The same pill buttons as the ask's line in the Inbox.
-  assert.match(asks, /className="project-person-actions friend-button">\s*<button type="button" className="primary friend-accept"/);
-  assert.match(asks, /className="friend-not-now"/);
+  // Accept is the tab's one filled button; Not now is quiet like a row's other choices.
+  assert.match(asks, /className="primary" disabled=\{answering === user\.uuid\} onClick=\{\(\) => answer\(user, acceptAsk\)\}/);
+  assert.match(asks, /className="project-quiet" disabled=\{answering === user\.uuid\} onClick=\{\(\) => answer\(user, declineAsk\)\}/);
+  assert.equal(manage.match(/className="primary/g), null);
+  // Red is for what takes something from others: the soft danger button, never a filled one.
+  assert.match(manage, /className="danger project-manage-delete"/);
+  assert.doesNotMatch(readFileSync(new URL('../../shared/applicationStyles.js', import.meta.url), 'utf8'), /project-manage-delete[^}]*background: var\(--red\)/);
   assert.match(asks, /answer\(user, declineAsk\)\}>Not now<\/button>/);
   assert.match(page, /manage: project\.asks\?\.length > 0/);
   assert.match(inbox, /n\.kind === 'project_ask' && n\.actor && \(n\.waiting \|\| n\.answered\)/);

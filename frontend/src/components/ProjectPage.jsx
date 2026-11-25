@@ -474,7 +474,8 @@ export function MemberList({ project, currentUser, act, onLeave }) {
             )}
             {me ? (
               <span className="project-person-actions">
-                <button type="button" className="project-quiet project-danger" onClick={onLeave}
+                {/* Not red: leaving takes nothing from the others. */}
+                <button type="button" className="project-quiet" onClick={onLeave}
                   disabled={stuck} title={stuck ? 'Make another member keeper first' : undefined}>Leave</button>
               </span>
             ) : project.is_keeper && (
@@ -513,10 +514,11 @@ function Asks({ project, act }) {
             <Face user={user} />
             <a className="project-person-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
             {user.affiliation && <span className="project-person-role">{user.affiliation}</span>}
-            {/* The same two buttons as on the ask's line in the Inbox. */}
-            <span className="project-person-actions friend-button">
-              <button type="button" className="primary friend-accept" disabled={answering === user.uuid} onClick={() => answer(user, acceptAsk)}>Accept</button>
-              <button type="button" className="friend-not-now" disabled={answering === user.uuid} onClick={() => answer(user, declineAsk)}>Not now</button>
+            {/* Accept is the tab's one filled button, the answer someone
+                waits for; Not now is quiet, as a row's other choices are. */}
+            <span className="project-person-actions">
+              <button type="button" className="primary" disabled={answering === user.uuid} onClick={() => answer(user, acceptAsk)}>Accept</button>
+              <button type="button" className="project-quiet" disabled={answering === user.uuid} onClick={() => answer(user, declineAsk)}>Not now</button>
             </span>
           </li>
         ))}
@@ -598,7 +600,7 @@ function AddPerson({ project, act, focus = true }) {
 }
 
 // The one invitation link a project has, for a keeper to hand out or stop.
-function Invitation({ project, act }) {
+function Invitation({ project, act, plain = false }) {
   const [copied, setCopied] = useState(false);
   // On the service's address, not this window's, which on the Mac is the app's.
   const linkFor = (code) => new URL(backendPath(invitationPath(code)), window.location.origin).toString();
@@ -610,7 +612,7 @@ function Invitation({ project, act }) {
     return (
       <div className="project-invite">
         <button
-          type="button" className="primary"
+          type="button" className={plain ? undefined : 'primary'}
           onClick={() => act(async () => {
             await openInvitation(project.uuid);
             const next = await getProject(project.uuid);
@@ -675,7 +677,8 @@ function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft
             <h4>Add someone</h4>
             <AddPerson project={project} act={act} focus={false} />
             <h4>Invitation link</h4>
-            <Invitation project={project} act={act} />
+            {/* Outlined here: Manage keeps its filled button for Accept. */}
+            <Invitation project={project} act={act} plain />
           </div>
         )}
       </section>
@@ -694,7 +697,7 @@ function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft
               <strong>Delete this project</strong>
               <p>For everyone in it, with its boards and digs. The papers stay in each member&rsquo;s nook.</p>
             </div>
-            <button type="button" className="project-manage-delete" onClick={remove}>Delete project</button>
+            <button type="button" className="danger project-manage-delete" onClick={remove}>Delete project</button>
           </div>
         )}
       </section>
