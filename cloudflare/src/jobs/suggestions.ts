@@ -1,10 +1,12 @@
-// The weekly email of people to ask: to each user who has not turned it
-// off, those Papol suggests (routes/suggestions.ts) whom no earlier email
-// named. A week with nobody new sends nothing, so nobody is written to
-// about the same people twice, and a user nobody can be suggested to
-// never hears of it at all.
+// The email of people to ask: to each user, as often as they chose in
+// Preferences (every week to begin with, or every day, or never; the
+// `friend_suggestions` kind of src/emails.ts), those Papol suggests
+// (routes/suggestions.ts) whom no earlier email named. A run with nobody
+// new sends nothing, so nobody is written to about the same people
+// twice, and a user nobody can be suggested to never hears of it at all.
 //
-// The cron trigger queues one job; a job writes to a chunk of users, in
+// The daily cron trigger queues one job, which on Monday writes to those
+// who chose every week as well; a job writes to a chunk of users, in
 // uuid order, and queues the next chunk after itself, as the venues job
 // does (papers/venues.ts): a Worker invocation has only so many requests
 // out. Each email is its recipient's own, sent a batch to a chunk.
@@ -14,6 +16,7 @@
 // the other order would lose them.
 
 import { all, now, statement, type Row } from "../db";
+import { frequencySql, type Frequency } from "../emails";
 import { suggestionsFor, type Suggestion } from "../routes/suggestions";
 import { escape, STYLE } from "./letter";
 import { mailConfigured, sendEmails, type Mail } from "./mail";
@@ -21,10 +24,6 @@ import { siteUrl } from "./notifications";
 import { enqueue, wake } from "./queue";
 
 export const SUGGEST_FRIENDS = "suggest_friends";
-
-// Mondays at 14:00 UTC, as wrangler.toml declares it: morning in the
-// Americas, afternoon in Europe, the evening in Asia.
-export const SUGGESTIONS_CRON = "0 14 * * 1";
 
 // Users to a job: each costs a few queries, and one batch of mail.
 const CHUNK = 20;
@@ -48,13 +47,13 @@ export function reasonOf(s: Suggestion): string {
 
 // One user's email, as text and as HTML. Names and titles are other
 // people's words: escaped into the HTML, and never read as Markdown.
-export function suggestionMail(to: { email: string; display_name: string }, suggestions: Suggestion[], site: string): Mail {
+export function suggestionMail(to: { email: string; display_name: string }, suggestions: Suggestion[], site: string, often: Frequency = "weekly"): Mail {
   const base = site.replace(/\/$/, "");
   const one = suggestions.length === 1;
   const name = (s: Suggestion) => String(s.user.display_name);
   const subject = one ? `${name(suggestions[0])} is on Papol too` : "People you may know on Papol";
   const intro = one ? "Someone you may know:" : "People you may know:";
-  const foot = "Papol sends this once a week, when there is someone new to suggest.";
+  const foot = `Papol sends this once a ${often === "daily" ? "day" : "week"}, when there is someone new to suggest.`;
   const off = "under Preferences on your page";
   const nook = (s: Suggestion) => `${base}/u/${s.user.uuid}`;
   const where = (s: Suggestion) => (s.user.affiliation ? ` (${s.user.affiliation})` : "");
@@ -85,8 +84,9 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
 }
 
 // The cron trigger's part: one job, starting from the first user.
-export async function queueSuggestions(env: Env): Promise<string> {
-  const first = enqueue(env.DB, SUGGEST_FRIENDS, { after: "" });
+// `weekly` on the day those who chose every week are written to.
+export async function queueSuggestions(env: Env, weekly: boolean): Promise<string> {
+  const first = enqueue(env.DB, SUGGEST_FRIENDS, { weekly, after: "" });
   await first.statement.run();
   await wake(env, [first.uuid]);
   return first.uuid;
@@ -96,9 +96,10 @@ export async function suggestFriendsJob(env: Env, payload: Row): Promise<Row> {
   // Nothing is recorded as said that could not be sent.
   if (!mailConfigured(env)) return { sent: false, skipped: "Email not configured" };
   const after = String(payload.after ?? "");
-  const users = await all<{ uuid: string; email: string; display_name: string }>(env.DB,
-    `SELECT uuid, email, display_name FROM users
-     WHERE deleted_at IS NULL AND suggestion_email = 1 AND uuid > ? ORDER BY uuid LIMIT ?`, after, CHUNK);
+  const weekly = Boolean(payload.weekly);
+  const users = await all<{ uuid: string; email: string; display_name: string; often: Frequency }>(env.DB,
+    `SELECT uuid, email, display_name, ${frequencySql("friend_suggestions")} AS often FROM users
+     WHERE deleted_at IS NULL AND ${frequencySql("friend_suggestions")} IN ('daily'${weekly ? ", 'weekly'" : ""}) AND uuid > ? ORDER BY uuid LIMIT ?`, after, CHUNK);
   const site = (await siteUrl(env)).replace(/\/$/, "");
 
   const mails: Mail[] = [];
@@ -107,7 +108,7 @@ export async function suggestFriendsJob(env: Env, payload: Row): Promise<Row> {
   for (const user of users) {
     const suggestions = await suggestionsFor(env, user.uuid, { limit: NAMED, unmailed: true });
     if (!suggestions.length) continue;
-    mails.push(suggestionMail(user, suggestions, site));
+    mails.push(suggestionMail(user, suggestions, site, user.often));
     for (const s of suggestions) {
       said.push(statement(env.DB,
         `INSERT INTO friend_suggestions (user_uuid, suggested_uuid, mailed_at) VALUES (?1, ?2, ?3)
@@ -120,7 +121,7 @@ export async function suggestFriendsJob(env: Env, payload: Row): Promise<Row> {
   }
 
   if (users.length === CHUNK) {
-    const next = enqueue(env.DB, SUGGEST_FRIENDS, { after: users[users.length - 1].uuid });
+    const next = enqueue(env.DB, SUGGEST_FRIENDS, { weekly, after: users[users.length - 1].uuid });
     await next.statement.run();
     await wake(env, [next.uuid]);
   }

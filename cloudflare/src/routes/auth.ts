@@ -88,7 +88,7 @@ export function authRoutes(router: Router) {
       const expires = new Date(Date.now() + RESET_LIFETIME_MS).toISOString();
       const resetUrl = `${(await siteUrl(env)).replace(/\/$/, "")}/reset-password/${encodeURIComponent(token)}`;
       const mail = queueEmail(
-        env.DB, user.email, "Reset your Papol password",
+        env.DB, "password_reset", user, "Reset your Papol password",
         `Hello ${user.display_name},\n\nUse this link to choose a new Papol password:\n\n${resetUrl}\n\nThis link expires in one hour and can be used once. If you did not ask for it, you can ignore this email.`,
       );
       await batch(env.DB, [
@@ -96,7 +96,7 @@ export function authRoutes(router: Router) {
         statement(env.DB, "INSERT INTO password_resets (token_hash, user_uuid, created_at, expires_at) VALUES (?, ?, ?, ?)", tokenHash, user.uuid, at, expires),
         mail.statement,
       ]);
-      await wake(env, [mail.uuid]);
+      await wake(env, mail.wake);
     }
     return json({ message: RESET_REPLY });
   });

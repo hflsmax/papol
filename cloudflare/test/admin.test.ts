@@ -71,6 +71,8 @@ describe("the admin pages", () => {
   it("email an announcement to every open account, to the ones picked, or to the admin alone", async () => {
     const boss = await admin(), reader = await register("reader@example.test"), gone = await register("gone@example.test");
     await exec("UPDATE users SET deleted_at = ? WHERE uuid = ?", new Date().toISOString(), gone.uuid);
+    // An announcement is not a kind anyone chooses: whoever chose never for what they could still gets it.
+    await ok("PUT", "/api/auth/profile", { headers: reader.headers, json: { emails: { friend_request: "never", friend_suggestions: "never" } } });
     const announced = async (json: object) => {
       const sent = await ok("POST", "/api/admin/announcements", { headers: boss.headers, json });
       return { count: sent.recipient_count, payload: JSON.parse((await row<{ payload: string }>("SELECT payload FROM jobs WHERE uuid = ? AND kind = 'send_announcement'", sent.job))!.payload) };

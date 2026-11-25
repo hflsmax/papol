@@ -9,6 +9,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 
 import navMarks from "../../config/nav_marks.json";
 import { now, one, statement, type Row } from "./db";
+import { emailChoices } from "./emails";
 import { refuse } from "./http";
 
 // The Worker's form: `pbkdf2$<iterations>$<salt>$<hex>`, at the most
@@ -34,7 +35,7 @@ export interface User extends Row {
   avatar_path: string | null;
   email_public: number;
   findable: number;
-  suggestion_email: number;
+  email_frequency: string;
   is_admin: number;
   nav_marks: string | null;
   password_hash: string;
@@ -140,7 +141,8 @@ export async function currentUser(request: Request, env: Env): Promise<User> {
 }
 
 // What a user sees of themselves. `email_public`, `findable` and `is_admin` are stored
-// as 0/1 and spoken as booleans.
+// as 0/1 and spoken as booleans; `emails` is each kind of email they may
+// choose the frequency of, and how often that is (src/emails.ts).
 export function userPrivate(user: User) {
   return {
     uuid: user.uuid,
@@ -150,7 +152,7 @@ export function userPrivate(user: User) {
     avatar_path: user.avatar_path,
     email_public: Boolean(user.email_public),
     findable: Boolean(user.findable ?? 1),
-    suggestion_email: Boolean(user.suggestion_email ?? 1),
+    emails: emailChoices(user),
     is_admin: Boolean(user.is_admin),
     nav_marks: navMarksOf(user),
   };

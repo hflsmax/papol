@@ -138,27 +138,43 @@ describe("mail", () => {
   const configured = { EMAIL_API_URL: "https://mail.example.test/emails", EMAIL_API_KEY: "key", EMAIL_FROM: "papol@example.test" };
 
   it("sends one job's mail through the email API", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Papol: 1 new message today", "Hello");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Papol: 1 new message today", "Hello");
     await queued.statement.run();
     emailApi();
-    await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
+    await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.wake[0], "test") as Job);
     expect(posted).toEqual([{ from: "papol@example.test", to: ["reader@example.test"], subject: "Papol: 1 new message today", text: "Hello" }]);
-    expect((await job(queued.uuid)).status).toBe("done");
+    expect((await job(queued.wake[0])).status).toBe("done");
   });
 
   it("fails the job when the mail cannot be sent", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Subject", "Body");
     await queued.statement.run();
     emailApi(502, "bad gateway");
-    await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
-    expect(await job(queued.uuid)).toMatchObject({ status: "failed", error: "Email to reader@example.test failed: 502 bad gateway" });
+    await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.wake[0], "test") as Job);
+    expect(await job(queued.wake[0])).toMatchObject({ status: "failed", error: "Email to reader@example.test failed: 502 bad gateway" });
+  });
+
+  it("sends now, holds or drops by how often its recipient chose the kind, and always sends a kind nobody chooses", async () => {
+    const reader = await register("reader@example.test");
+    const chose = (emails: object) => ({ uuid: reader.uuid, email: "reader@example.test", email_frequency: JSON.stringify({ password_reset: "never", ...emails }) });
+    expect(queueEmail(env.DB, "friend_request", chose({ friend_request: "never" }), "Subject", "Body")).toBeNull();
+    // Where the kind starts, and what is not a frequency at all: now.
+    expect(queueEmail(env.DB, "friend_request", chose({}), "Subject", "Body")!.wake).toHaveLength(1);
+    expect(queueEmail(env.DB, "feedback_report", chose({ feedback_report: "hourly" }), "Subject", "Body")!.wake).toHaveLength(1);
+    expect(queueEmail(env.DB, "password_reset", chose({}), "Subject", "Body").wake).toHaveLength(1);
+    // Daily or weekly, it is held, and no job is made.
+    const held = queueEmail(env.DB, "friend_request", chose({ friend_request: "daily" }), "Subject", "Body")!;
+    expect(held.wake).toEqual([]);
+    await held.statement.run();
+    expect(await rows("SELECT user_uuid, kind, subject, body FROM email_held")).toEqual([{ user_uuid: reader.uuid, kind: "friend_request", subject: "Subject", body: "Body" }]);
+    expect(await count("jobs")).toBe(0);
   });
 
   it("skips, not fails, when no email API is configured", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Subject", "Body");
     await queued.statement.run();
-    await woken(queued.uuid);
-    expect(await job(queued.uuid)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
+    await woken(queued.wake[0]);
+    expect(await job(queued.wake[0])).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
   });
 
   it("sends an announcement as batches of a hundred, one email per recipient", async () => {

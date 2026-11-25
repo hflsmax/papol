@@ -169,16 +169,16 @@ export function friendRoutes(router: Router) {
       ]);
     } else if (!existing || existing.state === "dropped") {
       const site = (await siteUrl(env)).replace(/\/$/, "");
-      const mail = queueEmail(env.DB, them.email, `${me.display_name} asks to be friends on Papol`,
+      const mail = queueEmail(env.DB, "friend_request", them, `${me.display_name} asks to be friends on Papol`,
         [`${me.display_name}${me.affiliation ? ` (${me.affiliation})` : ""} asks to be friends on Papol.`, "",
           `Respond in your inbox: ${site}/inbox`, "", "— Papol"].join("\n"));
       await batch(env.DB, [
         ...(existing ? [statement(env.DB, "DELETE FROM friendships WHERE uuid = ?", existing.uuid)] : []),
         insert(env.DB, "friendships", { uuid: newUuid(), asker_uuid: me.uuid, asked_uuid: them.uuid, state: "asked", created_at: at, answered_at: null }),
         notice(env, them.uuid, `${me.display_name} asks to be friends.`, "friend_request", me, `/u/${me.uuid}`, at),
-        mail.statement,
+        ...(mail ? [mail.statement] : []),
       ]);
-      await wake(env, [mail.uuid]);
+      if (mail) await wake(env, mail.wake);
     }
     return json(await friendsOut(env, me));
   });

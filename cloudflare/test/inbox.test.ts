@@ -71,6 +71,18 @@ describe("feedback", () => {
     expect((await call("POST", "/api/feedback", { json: { content: "" } })).status).toBe(422);
   });
 
+  it("is emailed to each admin as often as they chose, and reaches every admin's inbox all the same", async () => {
+    const admin = await register("admin@example.test", "Admin"), other = await register("other@example.test", "Other"), weekly = await register("weekly@example.test", "Weekly");
+    await exec("UPDATE users SET is_admin = 1 WHERE uuid IN (?, ?, ?)", admin.uuid, other.uuid, weekly.uuid);
+    expect((await ok("GET", "/api/auth/me", { headers: admin.headers })).emails).toEqual({ friend_request: "now", friend_suggestions: "weekly", feedback_report: "now" });
+    await ok("PUT", "/api/auth/profile", { headers: admin.headers, json: { emails: { feedback_report: "never" } } });
+    await ok("PUT", "/api/auth/profile", { headers: weekly.headers, json: { emails: { feedback_report: "weekly" } } });
+    await ok("POST", "/api/feedback", { json: { content: "Cannot sign in" } });
+    expect(await count("notifications", "content LIKE 'Feedback%'")).toBe(3);
+    expect((await rows("SELECT payload FROM jobs WHERE kind = 'send_email'")).map((j) => JSON.parse(j.payload as string).to)).toEqual(["other@example.test"]);
+    expect(await rows("SELECT user_uuid, kind, subject FROM email_held")).toEqual([{ user_uuid: weekly.uuid, kind: "feedback_report", subject: "Papol feedback: Cannot sign in" }]);
+  });
+
   it("keeps where the reporter was and what they had just done, and mails it", async () => {
     const admin = await register("admin@example.test", "Admin"), reporter = await register("reporter@example.test", "Reporter");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", admin.uuid);

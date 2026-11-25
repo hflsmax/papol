@@ -4,7 +4,8 @@
 import { requirements, verdict } from "./clientRequirements";
 import { json, Router } from "./http";
 import { consume, sweep, type Wakeup } from "./jobs/run";
-import { queueSuggestions, SUGGESTIONS_CRON } from "./jobs/suggestions";
+import { DAILY_CRON, isWeekly, queueDigests } from "./jobs/digests";
+import { queueSuggestions } from "./jobs/suggestions";
 import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
 import { userStateRoutes } from "./routes/userStates";
@@ -97,10 +98,14 @@ export default {
     return consume(batch, env);
   },
 
-  // Every two minutes, what nobody was woken for; and once a week, the
-  // email of people to ask, as a job the sweep's own machinery runs.
+  // Every two minutes, what nobody was woken for; and once a day, the
+  // emails sent daily or weekly (held emails, people to ask), Monday's
+  // being the week's, as jobs the sweep's own machinery runs.
   async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === SUGGESTIONS_CRON) await queueSuggestions(env);
-    else await sweep(env);
+    if (controller.cron === DAILY_CRON) {
+      const weekly = isWeekly(controller.scheduledTime);
+      await queueDigests(env, weekly);
+      await queueSuggestions(env, weekly);
+    } else await sweep(env);
   },
 } satisfies ExportedHandler<Env, Wakeup>;
