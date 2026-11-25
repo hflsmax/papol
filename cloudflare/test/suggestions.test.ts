@@ -82,11 +82,36 @@ describe("people to ask", () => {
     await ok("POST", `/api/friends/${ada.uuid}`, { headers: declined.headers });
     await ok("POST", `/api/friends/${declined.uuid}/decline`, { headers: ada.headers });
     await ok("PUT", "/api/auth/profile", { headers: unfindable.headers, json: { findable: false } });
-    expect(await names(ada)).toEqual(["Open"]);
-    // Whoever she said Not now to is not shown her either.
-    expect(await names(declined)).not.toContain("Ada");
+    // Whoever she asked keeps their card for now, so she can take it back there.
+    expect(await names(ada)).toEqual(["Asked", "Open"]);
+    // Whoever she said Not now to still sees her card as asked, and learns nothing from it.
+    expect(await names(declined)).toContain("Ada");
+    expect(await names(asking)).toContain("Ada");
     // Someone who cannot be found is still suggested people.
     expect(await names(unfindable)).toContain("Open");
+  });
+
+  it("keep someone I asked for a week, whatever they answered, and let me take it back", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await project(ada, "Control Lab", grace);
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
+    expect(await names(ada)).toEqual(["Grace"]);
+    // The one asked is not suggested the asker: the request is in her inbox.
+    expect(await names(grace)).toEqual([]);
+    // A quiet Not now changes nothing she can see.
+    await ok("POST", `/api/friends/${ada.uuid}/decline`, { headers: grace.headers });
+    expect(await names(ada)).toEqual(["Grace"]);
+    await ok("DELETE", `/api/friends/${grace.uuid}`, { headers: ada.headers });
+    expect(await names(ada)).toEqual(["Grace"]);
+    // After a week the card goes; accepted, it goes at once.
+    await exec("UPDATE friendships SET created_at = ?", new Date(Date.now() - 8 * 24 * 3600_000).toISOString());
+    expect(await names(ada)).toEqual([]);
+    const edsger = await register("edsger@example.test", "Edsger");
+    await project(ada, "Second Lab", edsger);
+    await ok("POST", `/api/friends/${edsger.uuid}`, { headers: ada.headers });
+    expect(await names(ada)).toEqual(["Edsger"]);
+    await ok("POST", `/api/friends/${ada.uuid}/accept`, { headers: edsger.headers });
+    expect(await names(ada)).toEqual([]);
   });
 
   it("stop naming someone I am not interested in, and tell them nothing", async () => {

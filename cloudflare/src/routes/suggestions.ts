@@ -10,7 +10,9 @@
 // Nobody is suggested who turned being found off, who is a friend
 // already, between whom and the user any request stands or once stood
 // (asked, declined or taken back), or whom the user said Not interested
-// to. A suggestion is not kept; friend_suggestions keeps only that no,
+// to. One exception: someone the user asked in the last week keeps their
+// card in the Lounge, so the asking can be taken back there; the email
+// never names them. A suggestion is not kept; friend_suggestions keeps only that no,
 // and whom the weekly email already named.
 
 import { currentUser } from "../auth";
@@ -24,6 +26,11 @@ const SHOWN = 6;
 // How many of the projects two users share a suggestion names; the count
 // says the rest.
 const NAMED = 2;
+// How long someone the user asked from here keeps their place in the
+// Lounge: the request can be taken back where it was made. Whatever
+// became of it since, short of friendship, the card stays the same, so
+// its going says nothing of a quiet Not now.
+const ASKED_STAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface Suggestion {
@@ -55,11 +62,12 @@ export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN
      FROM users u LEFT JOIN friend_hits fh ON fh.user_uuid = u.uuid LEFT JOIN project_hits jh ON jh.user_uuid = u.uuid
      WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.uuid != ?1 AND (fh.n > 0 OR jh.n > 0)
        AND NOT EXISTS (SELECT 1 FROM friendships f
-         WHERE (f.asker_uuid = ?1 AND f.asked_uuid = u.uuid) OR (f.asker_uuid = u.uuid AND f.asked_uuid = ?1))
+         WHERE ((f.asker_uuid = ?1 AND f.asked_uuid = u.uuid) OR (f.asker_uuid = u.uuid AND f.asked_uuid = ?1))
+           AND NOT (f.asker_uuid = ?1 AND f.state != 'friends' AND f.created_at > ?3))
        AND NOT EXISTS (SELECT 1 FROM friend_suggestions fs
          WHERE fs.user_uuid = ?1 AND fs.suggested_uuid = u.uuid AND (fs.hidden_at IS NOT NULL${unmailed ? " OR fs.mailed_at IS NOT NULL" : ""}))
      ORDER BY 3 * coalesce(jh.n, 0) + coalesce(fh.n, 0) DESC, lower(u.display_name), u.uuid LIMIT ?2`,
-    userUuid, limit);
+    userUuid, limit, unmailed ? "9999" : new Date(Date.now() - ASKED_STAYS_MS).toISOString());
   if (!people.length) return [];
 
   // The projects each shares with the user, by name, in one round trip.

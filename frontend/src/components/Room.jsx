@@ -264,8 +264,8 @@ const SUGGESTED = 3;
 
 // People to ask, above the news: who they are, why Papol names them, the
 // friend button, and Not interested, which takes them out for good.
-// Someone just asked stays until the visit ends, so the asking can be
-// taken back where it was done.
+// Someone asked keeps their card for a week (the server's rule), so the
+// asking can be taken back where it was done.
 function Suggestions({ currentUser }) {
   const [people, setPeople] = useState(() => kept('room-suggestions') ?? null);
   const [error, setError] = useState(null);
