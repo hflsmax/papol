@@ -110,6 +110,28 @@ describe("a copy's fields", () => {
     // Every change is a version the replicas hear of.
     const logged = await row<{ row_json: string }>("SELECT row_json FROM _server_change_log WHERE row_uuid = ? ORDER BY sequence DESC LIMIT 1", copy);
     expect(JSON.parse(logged!.row_json)).toMatchObject({ thought_public: false, ratings_public: false, summary_public: true, tags_public: true });
+  });
+
+  it("pins a copy for its user alone, and tells the replicas", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    const digest = "f".repeat(64), name = digest.slice(0, 32);
+    const copy = await paperWithCopy(ada, digest, "Read first", { shelfUuid: await defaultShelf(ada) });
+    const nookRow = async (reader: typeof ada) => (await ok("GET", `/api/users/${ada.uuid}/nook`, { headers: reader.headers })).papers[0];
+    // A copy starts unpinned.
+    expect(await ok("GET", `/api/papers/${name}`, { headers: ada.headers })).toMatchObject({ pinned: false });
+    expect(await nookRow(ada)).toMatchObject({ pinned: false });
+
+    expect(await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { pinned: true } })).toMatchObject({ pinned: true });
+    expect(await nookRow(ada)).toMatchObject({ pinned: true });
+    // A visitor reads the nook in its own order: the pin is not theirs to see.
+    expect(await nookRow(grace)).toMatchObject({ pinned: false });
+    expect(await ok("GET", `/api/papers/${name}`, { headers: grace.headers })).toMatchObject({ pinned: null });
+    const logged = await row<{ row_json: string }>("SELECT row_json FROM _server_change_log WHERE row_uuid = ? ORDER BY sequence DESC LIMIT 1", copy);
+    expect(JSON.parse(logged!.row_json)).toMatchObject({ pinned: true });
+
+    expect((await call("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { pinned: "yes" } })).status).toBe(422);
+    expect(await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { pinned: false } })).toMatchObject({ pinned: false });
+    expect(await nookRow(ada)).toMatchObject({ pinned: false });
 
     // A public field on a private shelf is still seen by nobody.
     await ok("PUT", `/api/papers/${name}`, { headers: ada.headers, json: { shelf_uuid: await privateShelf(ada) } });

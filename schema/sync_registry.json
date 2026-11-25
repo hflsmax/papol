@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "tables": {
     "boards": {
       "owner": "user_uuid",
@@ -113,6 +113,7 @@
         "ratings_public",
         "summary_public",
         "tags_public",
+        "pinned",
         "deleted_at"
       ],
       "server_owned": [

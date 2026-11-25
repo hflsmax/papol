@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS copies (
   ratings_public INTEGER NOT NULL DEFAULT 1,
   summary_public INTEGER NOT NULL DEFAULT 0,
   tags_public INTEGER NOT NULL DEFAULT 0,
+  -- Pinned by its user to the top of their nook. Theirs alone to see.
+  pinned INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0,

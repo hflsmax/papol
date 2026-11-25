@@ -379,7 +379,7 @@ async function localCopyUuid(uuid) {
 export async function updatePaper(uuid, data) {
   const localFields = new Set([
     'summary', 'shelf_uuid', 'tag_uuids',
-    'rating_expertise', 'rating_reading', 'rating_liking', ...FIELD_VISIBILITY,
+    'rating_expertise', 'rating_reading', 'rating_liking', 'pinned', ...FIELD_VISIBILITY,
   ]);
   if (nativeDataActive() && Object.keys(data).every((key) => localFields.has(key))) {
     const copyUuid = await localCopyUuid(uuid);

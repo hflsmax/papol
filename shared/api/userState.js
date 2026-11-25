@@ -15,9 +15,3 @@ export async function getUserFlags() {
 export async function getUserPlace(sha256) {
   return (await request(`/user-state/place/${sha256}`)).state;
 }
-
-// Every paper the user pinned or unpinned: [{ key, value, at }], the key
-// the paper's sha256 and the value true, or null once unpinned.
-export async function getUserPins() {
-  return (await request('/user-state/pin')).states;
-}

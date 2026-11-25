@@ -1,5 +1,5 @@
-// User state: small things a user's devices keep for them, places, pins
-// and flags, the change made last winning whichever device sent it.
+// User state: small things a user's devices keep for them, places and
+// flags, the change made last winning whichever device sent it.
 import { describe, expect, it } from "vitest";
 
 import { call, ok, paperWithCopy, register, rows, type Account } from "./helpers";
@@ -11,7 +11,6 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const place = (page: number, madeMsAgo: number, extra: Record<string, unknown> = {}) =>
   ({ kind: "place", key: PAPER, value: { page, x: 0.5, y: 0.25, scale: 1.4 }, at: ago(madeMsAgo), ...extra });
 const flag = (key: string, value: string | null, madeMsAgo: number) => ({ kind: "flag", key, value, at: ago(madeMsAgo) });
-const pin = (value: unknown, madeMsAgo: number, key = PAPER) => ({ kind: "pin", key, value, at: ago(madeMsAgo) });
 
 const send = (account: Account, changes: unknown) =>
   ok("POST", "/api/user-state", { headers: account.headers, json: { changes } });
@@ -19,8 +18,6 @@ const placeOf = async (account: Account, paper = PAPER) =>
   (await ok("GET", `/api/user-state/place/${paper}`, { headers: account.headers })).state;
 const flagsOf = async (account: Account) =>
   (await ok("GET", "/api/user-state/flag", { headers: account.headers })).states;
-const pinsOf = async (account: Account) =>
-  (await ok("GET", "/api/user-state/pin", { headers: account.headers })).states;
 
 describe("user state", () => {
   it("keeps a place and a flag, and gives each back", async () => {
@@ -80,24 +77,5 @@ describe("user state", () => {
     expect((await call("POST", "/api/user-state", { headers: ada.headers, json: { changes: "all" } })).status).toBe(400);
     expect((await call("POST", "/api/user-state", { json: { changes: [] } })).status).toBe(401);
     expect((await call("GET", "/api/user-state/flag")).status).toBe(401);
-  });
-
-  it("keeps a pinned paper, and tells every device once it is unpinned", async () => {
-    const ada = await register(), grace = await register();
-    await paperWithCopy(ada, PAPER, "Read closely");
-    expect(await pinsOf(ada)).toEqual([]);
-    const pinned = pin(true, 5 * MINUTE);
-    expect(await send(ada, [pinned])).toEqual({ recorded: 1, skipped: 0 });
-    expect(await pinsOf(ada)).toEqual([{ key: PAPER, value: true, at: pinned.at }]);
-    expect(await pinsOf(grace)).toEqual([]);
-    // Unpinned on another device since; an older pin sent late does not undo it.
-    const unpinned = pin(null, MINUTE);
-    await send(ada, [unpinned]);
-    await send(ada, [pin(true, 3 * MINUTE)]);
-    expect(await pinsOf(ada)).toEqual([{ key: PAPER, value: null, at: unpinned.at }]);
-    // Only true or null, and only a paper Papol holds.
-    expect(await send(ada, [pin("yes", 0), pin(false, 0), pin(true, 0, "d".repeat(64)), pin(true, 0, "not-a-paper")]))
-      .toEqual({ recorded: 0, skipped: 4 });
-    expect((await call("GET", "/api/user-state/pin")).status).toBe(401);
   });
 });

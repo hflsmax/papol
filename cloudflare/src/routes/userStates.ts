@@ -1,6 +1,5 @@
 // Small things a user's devices keep for them: where they left each paper,
-// the papers they pinned to the top of their nook, and the tips they have
-// seen or dismissed. Each device keeps its own copy
+// and the tips they have seen or dismissed. Each device keeps its own copy
 // in its storage, and sends a change here when it can (shared/userState.js);
 // here the change made last wins, by when it was made, not by when it
 // arrived, so a change sent late from a device that was offline does not
@@ -47,16 +46,11 @@ export function placeOf(value: unknown): Place | null {
 // What each kind may hold. A flag is a short word, or null for unset.
 const KINDS: Record<string, { key: RegExp; value: (value: unknown) => unknown | undefined }> = {
   place: { key: DIGEST, value: (value) => placeOf(value) ?? undefined },
-  // A paper pinned to the top of its user's nook: true, or null once unpinned.
-  pin: { key: DIGEST, value: (value) => (value === true || value === null ? value : undefined) },
   flag: {
     key: /^[a-z][a-z0-9_.]{0,63}$/i,
     value: (value) => (value === null || (typeof value === "string" && value.length > 0 && value.length <= 32) ? value : undefined),
   },
 };
-
-// The kinds keyed by a paper's sha256, kept only for a paper Papol holds.
-const BY_PAPER = new Set(["place", "pin"]);
 
 // A change as a device sent it, or null for one that cannot be true.
 export function changeOf(raw: unknown, at = Date.now()): StateChange | null {
@@ -69,7 +63,7 @@ export function changeOf(raw: unknown, at = Date.now()): StateChange | null {
   if (typeof row.at !== "string" || row.at.length > 40) return null;
   const made = Date.parse(row.at);
   if (!Number.isFinite(made) || made < at - limits.user_state.age_days_max * DAY_MS) return null;
-  const key = BY_PAPER.has(row.kind as string) ? row.key.toLowerCase() : row.key;
+  const key = row.kind === "place" ? row.key.toLowerCase() : row.key;
   return { kind: row.kind as string, key, value, at: new Date(Math.min(made, at)).toISOString() };
 }
 
@@ -89,12 +83,12 @@ export function userStateRoutes(router: Router) {
     }
     const at = Date.now();
     const valid = data.changes.map((c) => changeOf(c, at)).filter((c): c is StateChange => c != null);
-    const papers = [...new Set(valid.filter((c) => BY_PAPER.has(c.kind)).map((c) => c.key))];
+    const papers = [...new Set(valid.filter((c) => c.kind === "place").map((c) => c.key))];
     const known = new Set(papers.length
       ? (await all<{ sha256: string }>(env.DB,
         `SELECT sha256 FROM papers WHERE sha256 IN (${papers.map(() => "?").join(",")})`, ...papers)).map((p) => p.sha256)
       : []);
-    const kept = valid.filter((c) => !BY_PAPER.has(c.kind) || known.has(c.key));
+    const kept = valid.filter((c) => c.kind !== "place" || known.has(c.key));
     const flags = kept.filter((c) => c.kind === "flag").length;
     if (flags) {
       const held = await one<{ n: number }>(env.DB, "SELECT count(*) AS n FROM user_states WHERE user_uuid = ? AND kind = 'flag'", user.uuid);
@@ -113,16 +107,6 @@ export function userStateRoutes(router: Router) {
     const user = await currentUser(request, env);
     const rows = await all<{ key: string; value: string | null; at: string }>(env.DB,
       `SELECT "key", value, at FROM user_states WHERE user_uuid = ? AND kind = 'flag' ORDER BY "key"`, user.uuid);
-    return json({ states: rows.map(stateOf) });
-  });
-
-  // Every paper the user pinned or unpinned, as each device asks when it
-  // opens: an unpinned one is still told (value null), so a device that
-  // has it pinned lets go of it.
-  router.on("GET", "/api/user-state/pin", async ({ request, env }) => {
-    const user = await currentUser(request, env);
-    const rows = await all<{ key: string; value: string | null; at: string }>(env.DB,
-      `SELECT "key", value, at FROM user_states WHERE user_uuid = ? AND kind = 'pin' ORDER BY "key"`, user.uuid);
     return json({ states: rows.map(stateOf) });
   });
 

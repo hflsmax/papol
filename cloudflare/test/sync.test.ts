@@ -485,6 +485,21 @@ describe("the nook", () => {
     expect(rejected.status).toBe(422);
   });
 
+  it("lets a replica pin a copy and unpin it", async () => {
+    const account = await register(), reader = await register();
+    const digest = "6".repeat(64), copy = uuid();
+    await paperWithCopy(reader, digest, "On another's shelf", { shelfUuid: await defaultShelf(reader) });
+    const made = await pushed(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", values: { paper_sha256: digest } }]));
+    expect(made.rows[0]).toMatchObject({ pinned: false });
+    const pinned = await pushed(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", base_revision: 1, values: { pinned: true } }], { sequence: 2 }));
+    expect(pinned.rows[0]).toMatchObject({ pinned: true });
+    expect((await ok("GET", `/api/users/${account.uuid}/nook`, { headers: account.headers })).papers[0]).toMatchObject({ pinned: true });
+    const rejected = await push(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", base_revision: 2, values: { pinned: "top" } }], { sequence: 3 }));
+    expect(rejected.status).toBe(422);
+    const unpinned = await pushed(account, mutation([{ table: "copies", uuid: copy, operation: "upsert", base_revision: 2, values: { pinned: false } }], { sequence: 4 }));
+    expect(unpinned.rows[0]).toMatchObject({ pinned: false });
+  });
+
   it("publishes and hides a paper by the shelf it is moved to", async () => {
     const account = await register();
     const at = new Date().toISOString();

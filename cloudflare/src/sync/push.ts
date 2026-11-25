@@ -269,7 +269,7 @@ async function newRecord(work: Working, env: Env, change: RowChange): Promise<En
       const paper = await visiblePaper(work, values.paper_sha256);
       const shelf = await ownedShelf(work, values.shelf_uuid);
       return work.create(table, { uuid, paper_sha256: paper.row.sha256, user_uuid: user, shelf_uuid: shelf?.row.uuid ?? null,
-        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY,
+        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0,
         ...bookkeeping });
     }
     case "copy_tags": {

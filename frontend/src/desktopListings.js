@@ -53,17 +53,17 @@ export function tagOf(listing, nook) {
   return (nook?.tags || []).find((tag) => `tag:${tag.uuid}` === listing) || null;
 }
 
-// The papers a listing lists: those the user pinned (`pinned`, a Set of
-// sha256) first, and newest first among them and among the rest. A shelf
-// or tag the nook no longer has lists the whole nook rather than nothing.
-export function papersInListing(listing, { nook, pinned = new Set() }) {
+// The papers a listing lists: those the user pinned first, and newest
+// first among them and among the rest. A shelf or tag the nook no longer
+// has lists the whole nook rather than nothing.
+export function papersInListing(listing, { nook }) {
   if (listing === 'boards') return [];
   const shelf = shelfOf(listing, nook);
   const tag = tagOf(listing, nook);
   return (nook?.papers || [])
     .filter((paper) => (!shelf || paper.shelf_uuid === shelf.uuid)
       && (!tag || paper.tags.some((item) => item.uuid === tag.uuid)))
-    .sort(pinnedFirst(pinned));
+    .sort(pinnedFirst);
 }
 
 // Whether any of the fields contains the typed search, ignoring case.

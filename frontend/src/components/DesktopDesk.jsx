@@ -9,7 +9,6 @@ import {
   rememberListing, shelfOf, listingPath, tagOf,
 } from '../desktopListings';
 import { formatAuthors } from '../paperFormat';
-import usePinnedPapers from '../usePinnedPapers';
 import { PinGlyph } from './PinButton';
 import PaperJacket from './PaperJacket';
 import BoardJacket from './BoardJacket';
@@ -126,9 +125,7 @@ export function DesktopBrowser({
   const boardsView = listing === 'boards';
   const loading = nook == null;
 
-  // Pinned from the paper's own pane, beside the list (PaperJacket).
-  const pinned = usePinnedPapers();
-  const shownPapers = papersInListing(listing, { nook, pinned })
+  const shownPapers = papersInListing(listing, { nook })
     .filter((paper) => matchesSearch(search, [paper.title, paper.authors, paper.journal]));
   const shownBoards = boardsView
     ? (nook?.boards ?? [])
@@ -424,7 +421,8 @@ export function DesktopBrowser({
                       </span>
                     )}
                   </span>
-                  {pinned.has(paper.sha256) && (
+                  {/* Pinned from the paper's own pane, beside the list. */}
+                  {paper.pinned && (
                     <span className="desktop-row-pin" role="img" aria-label="Pinned" title="Pinned to the top of my nook"><PinGlyph filled /></span>
                   )}
                 </a>

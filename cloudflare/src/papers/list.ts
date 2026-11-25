@@ -104,6 +104,8 @@ export async function paperListEntries(db: D1Database, listed: Listed[], hidePri
       tags: copy ? tags.get(copy.uuid as string) ?? [] : [],
       shelf_uuid: copy?.shelf_uuid ?? null,
       copy_uuid: copy?.uuid ?? null,
+      // Pinned to the top of the nook being listed: its user's own to see.
+      pinned: copy && !hidePrivate ? Boolean(copy.pinned) : false,
     };
   });
 }
