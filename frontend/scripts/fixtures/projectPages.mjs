@@ -317,7 +317,23 @@ const roomRows = () => {
   return rows;
 };
 
+// The papers the member has pinned to the top of their nook, by sha256. A
+// picture sets them before it loads its page; a pin pressed in the page
+// changes them, as Papol would keep it.
+export const pinnedNow = new Set();
+
 function answer(method, path, search, sent = {}) {
+  if (path === '/user-state/pin') {
+    return { states: [...pinnedNow].map((key) => ({ key, value: true, at: daysAgo(1) })) };
+  }
+  if (path === '/user-state' && method === 'POST') {
+    for (const change of sent.changes ?? []) {
+      if (change.kind !== 'pin') continue;
+      if (change.value === true) pinnedNow.add(change.key);
+      else pinnedNow.delete(change.key);
+    }
+    return { recorded: (sent.changes ?? []).length, skipped: 0 };
+  }
   // Each picture loads the app afresh: the project is back.
   if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); }
   // Friends: what the member's friends say now, changed by each answer.

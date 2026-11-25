@@ -5891,6 +5891,16 @@ ${talkStyles}
 @media (prefers-reduced-motion: reduce) { .nook.is-arriving { animation: none; } }
 .desk-table td.desk-col-title { position: relative; padding-left: calc(var(--space-3) + 6px); }
 .desk-table td.desk-col-title::before { content: ""; position: absolute; left: var(--space-2); top: var(--space-2); bottom: var(--space-2); width: 3px; border-radius: 2px; background: var(--shelf-color, var(--line-strong)); }
+/* A paper's pin, at the end of its title cell: there for a pinned paper,
+   and for any row under the pointer or holding focus. Where nothing
+   hovers, it is always there, faint. */
+.pin-button { display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: 0; border-radius: var(--radius); background: transparent; box-shadow: none; color: var(--ink-faint); line-height: 0; cursor: pointer; }
+.pin-button:hover:not(:disabled), .pin-button:focus-visible { border: 0; background: var(--paper-sunken); color: var(--ink); }
+.pin-button.is-on, .pin-button.is-on:hover:not(:disabled) { color: var(--accent); }
+.desk-table td.desk-col-title { padding-right: calc(var(--space-3) + 28px); }
+.desk-pin { position: absolute; top: 50%; right: var(--space-2); transform: translateY(-50%); opacity: 0; }
+.desk-table tr:hover .desk-pin, .desk-pin:focus-visible, .desk-pin.is-on { opacity: 1; }
+@media (hover: none) { .desk-pin { opacity: .55; } }
 .desk-title { color: var(--ink); font: 400 var(--fs-md) var(--font-serif); line-height: 1.3; text-decoration: none; }
 .desk-title:hover, .desk-title:focus-visible { color: var(--accent); text-decoration: underline; }
 .desk-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }

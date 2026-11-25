@@ -1,4 +1,4 @@
-import { newestFirst } from './paperFormat.js';
+import { pinnedFirst } from './paperFormat.js';
 import { paperName } from '../../shared/paperName.js';
 
 // What Papol macOS's paper browser is showing, how that is written in a URL,
@@ -53,16 +53,17 @@ export function tagOf(listing, nook) {
   return (nook?.tags || []).find((tag) => `tag:${tag.uuid}` === listing) || null;
 }
 
-// The papers a listing lists, newest first. A shelf or tag the nook no longer has lists the
-// whole nook rather than nothing.
-export function papersInListing(listing, { nook }) {
+// The papers a listing lists: those the user pinned (`pinned`, a Set of
+// sha256) first, and newest first among them and among the rest. A shelf
+// or tag the nook no longer has lists the whole nook rather than nothing.
+export function papersInListing(listing, { nook, pinned = new Set() }) {
   if (listing === 'boards') return [];
   const shelf = shelfOf(listing, nook);
   const tag = tagOf(listing, nook);
   return (nook?.papers || [])
     .filter((paper) => (!shelf || paper.shelf_uuid === shelf.uuid)
       && (!tag || paper.tags.some((item) => item.uuid === tag.uuid)))
-    .sort(newestFirst);
+    .sort(pinnedFirst(pinned));
 }
 
 // Whether any of the fields contains the typed search, ignoring case.

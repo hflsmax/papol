@@ -32,6 +32,8 @@ import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { TalkCard } from '../../../shared/ui/Talk.jsx';
 import { friendDigsOn } from '../../../shared/api/friends.js';
 import { relationTo, useFriends } from '../friendsStore';
+import usePinnedPapers from '../usePinnedPapers';
+import PinButton from './PinButton';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -40,6 +42,8 @@ export default function PaperJacket({
   // Under the bar the paper's title, authors and venue stand on it.
   const inBar = useContext(WayShown);
   const [paper, setPaper] = useState(null);
+  // Whether this paper is pinned to the top of the member's nook.
+  const pinned = usePinnedPapers();
   const [isLoading, setIsLoading] = useState(true);
   const [editMode, setEditMode] = useState(null); // null | 'metadata' | 'summary'
   const [tagDraft, setTagDraft] = useState('');
@@ -535,6 +539,7 @@ export default function PaperJacket({
           />
         )}
       </span>
+      <PinButton sha256={paper.sha256} pinned={pinned.has(paper.sha256)} className="icon-button jacket-pin" />
       <button
         className="icon-button danger-icon"
         onClick={handleDelete}

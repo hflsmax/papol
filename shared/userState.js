@@ -1,6 +1,7 @@
 // The small things a user's devices share: where they left each paper
-// ('place', keyed by the paper's sha256) and the tips they have seen or
-// dismissed ('flag', keyed by the tip's storage key).
+// ('place', keyed by the paper's sha256), the papers they pinned to the
+// top of their nook ('pin', keyed the same; pins.js) and the tips they
+// have seen or dismissed ('flag', keyed by the tip's storage key).
 //
 // One rule for all of them. Each device keeps the thing itself where it
 // always has (the viewer's position key, the tip's key), so it works at
