@@ -28,6 +28,8 @@ const me = { ...user(ME, 'Dana Okafor', 'Leiden Observatory'), online: true };
 const ana = { ...user(ANA, 'Ana Reyes', 'ESO'), online: true };
 const ben = user(BEN, 'Ben Hall', 'Leiden Observatory');
 const mia = user(MIA, 'Mia Tanaka', 'Subaru Telescope');
+const LEO = 'a1b2c3d4-0000-4000-8000-000000000009';
+const leo = user(LEO, 'Leo Marsh', 'Durham University');
 // People in Papol who are not in the project, for a keeper to add.
 const outsiders = [
   user('a1b2c3d4-0000-4000-8000-000000000005', 'Marta Lindqvist', 'Stockholm University'),
@@ -171,6 +173,8 @@ const project = {
     { user: mia, is_keeper: false, joined_at: daysAgo(2) },
   ],
   is_member: true, is_keeper: true, invite_code: 'Ab3dE5gH7j',
+  // Someone who pressed Ask to join, waiting for the keeper's answer.
+  asks: [{ user: leo, asked_at: hoursAgo(1) }],
   boards, digs, papers, tags: [TAG_BACKGROUND, TAG_BENCH, TAG_METHODS],
 };
 
@@ -349,6 +353,7 @@ function answer(method, path, search, sent = {}) {
     const note = (n, content, h, read, more = {}) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, kind: null, link: null, actor: null, ...more });
     return {
       notifications: [
+        ...(project.asks.length ? [note(7, 'Leo Marsh asks to join Adaptive optics control.', 1, false, { kind: 'project_ask', link: `/project/${PROJECT}`, actor: leo, waiting: true })] : []),
         note(5, 'Mia Tanaka asks to be friends.', 4, false, { kind: 'friend_request', link: `/u/${MIA}`, actor: mia, waiting: true }),
         note(6, 'Ben Hall posted in your dig on “A survey of predictive control for telescopes”.', 2, false, { kind: 'dig_post', link: `/paper/${P_SURVEY.slice(0, 32)}`, actor: ben }),
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
@@ -391,6 +396,14 @@ function answer(method, path, search, sent = {}) {
     const found = [...NOOK_ONLY, DROPPED].find((p) => p.sha256 === sent.paper_sha256);
     if (!found || papers.some((p) => p.sha256 === found.sha256)) return project;
     return { ...project, papers: [{ ...found, added_by: me, added_at: new Date().toISOString(), is_new: false, in_my_nook: true, board_uuids: [], tags: [] }, ...papers] };
+  }
+  // The keeper answering an ask to join: let in, or quietly not now.
+  const answered = path.match(new RegExp(`^/projects/${PROJECT}/asks/([0-9a-f-]+)/(accept|decline)$`));
+  if (answered && method === 'POST') {
+    const ask = project.asks.find((a) => a.user.uuid === answered[1]);
+    project.asks = project.asks.filter((a) => a !== ask);
+    if (ask && answered[2] === 'accept') project.members = [...project.members, { user: ask.user, is_keeper: false, joined_at: new Date().toISOString() }];
+    return project;
   }
   if (path === `/projects/${PROJECT}/people`) {
     const asked = (search?.get('q') ?? '').toLowerCase();

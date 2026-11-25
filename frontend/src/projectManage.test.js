@@ -40,3 +40,17 @@ test('a project has one keeper: Make keeper hands it on, asked first, and there 
   assert.match(page, /function keeperStays\(project\) \{\s*return Boolean\(project\.is_keeper\) && project\.members\.length > 1;/);
   assert.match(list, /disabled=\{stuck\}/);
 });
+
+test('a keeper answers an ask to join in Manage and in the Inbox', () => {
+  const inbox = readFileSync(new URL('./components/InboxPage.jsx', import.meta.url), 'utf8');
+  const manage = page.slice(page.indexOf('function ProjectManage'), page.indexOf('function ManageField'));
+  const asks = page.slice(page.indexOf('function Asks'), page.indexOf('// The keeper of a project others are in'));
+  assert.match(manage, /\{keeper && project\.asks\?\.length > 0 && <Asks project=\{project\} act=\{act\} \/>\}/);
+  assert.match(asks, /answer\(user, acceptAsk\)\}>Accept<\/button>/);
+  assert.match(asks, /answer\(user, declineAsk\)\}>Not now<\/button>/);
+  assert.match(page, /manage: project\.asks\?\.length > 0/);
+  assert.match(inbox, /n\.kind === 'project_ask' && n\.actor && \(n\.waiting \|\| n\.answered\)/);
+  assert.match(inbox, /answerAsk\(n, acceptAsk, 'Accepted'\)/);
+  assert.match(api, /export function acceptAsk\(uuid, userUuid\) \{\s*return request\(`\/projects\/\$\{uuid\}\/asks\/\$\{userUuid\}\/accept`, \{ method: 'POST' \}\);/);
+  assert.match(api, /export function declineAsk\(uuid, userUuid\) \{\s*return request\(`\/projects\/\$\{uuid\}\/asks\/\$\{userUuid\}\/decline`, \{ method: 'POST' \}\);/);
+});

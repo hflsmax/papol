@@ -5410,6 +5410,7 @@ button.project-quiet.project-danger:hover:not(:disabled) { background: var(--red
 .project-manage-kept { color: var(--green-ink); font-size: var(--fs-xs); }
 .project-manage .project-person-actions { opacity: 1; }
 .project-manage-invite .project-add { margin-bottom: 0; }
+.project-asks { margin-bottom: var(--space-5); }
 .project-manage-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; }
 .project-manage-row + .project-manage-row { border-top: 1px solid var(--line); }
 .project-manage-row strong { color: var(--ink); font-weight: 500; }
@@ -5980,6 +5981,8 @@ ${talkStyles}
 .notification-acts button { padding: calc(3px + var(--cap-room, 0px)) var(--space-3); border-radius: 999px; font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
 .notification-link:hover { color: var(--accent); }
+.notification-answered { color: var(--ink-soft); font: 400 var(--fs-sm) var(--font-ui); }
+.notification-error { flex-basis: 100%; color: var(--red); font: 400 var(--fs-sm) var(--font-ui); }
 
 /* Preferences: every choice in one place, a card to a subject, each
    kept as it is ticked. */

@@ -75,6 +75,16 @@ export function addMember(uuid, userUuid) {
   return jsonRequest(`/projects/${uuid}/members`, 'POST', { user_uuid: userUuid });
 }
 
+// The keeper answers someone who asked to join. Accept lets them in and
+// tells them; Not now is quiet, and the ask is not shown again.
+export function acceptAsk(uuid, userUuid) {
+  return request(`/projects/${uuid}/asks/${userUuid}/accept`, { method: 'POST' });
+}
+
+export function declineAsk(uuid, userUuid) {
+  return request(`/projects/${uuid}/asks/${userUuid}/decline`, { method: 'POST' });
+}
+
 export function setKeeper(uuid, userUuid, isKeeper) {
   return jsonRequest(`/projects/${uuid}/members/${userUuid}`, 'PUT', { is_keeper: isKeeper });
 }

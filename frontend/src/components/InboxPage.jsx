@@ -9,6 +9,10 @@ import { keep, kept } from '../lastMember';
 import { inboxWhen, inboxWhenFull } from '../inboxWhen';
 import { appPath } from '../base';
 import { friendActs, relationTo, useFriends } from '../friendsStore';
+import { acceptAsk, declineAsk } from '../../../shared/api/projects.js';
+
+// The project an ask to join is about: its line leads there.
+const askedProject = (n) => n.link.split('/').pop();
 
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
@@ -27,6 +31,10 @@ export default function InboxPage({ onUnread }) {
   // waits is what the member's friends say now, not what the list said.
   const friends = useFriends();
   const [answering, setAnswering] = useState(null);
+  const [askError, setAskError] = useState(null);
+  // The list as it stands when an answer comes back, not when it was pressed.
+  const latest = useRef(data);
+  latest.current = data;
   const answer = async (n, act) => {
     if (answering) return;
     setAnswering(n.uuid);
@@ -35,6 +43,21 @@ export default function InboxPage({ onUnread }) {
       await act(n.actor.uuid);
       if (!n.read) { markNotificationRead(n.uuid).catch(() => {}); applyRead([n.uuid]); }
     } catch (e) { setError(e.message); } finally { setAnswering(null); }
+  };
+  // An ask to join a project the member keeps is answered here too. The
+  // server takes an answered ask's line out; here it says what was done
+  // until the list is read again.
+  const answerAsk = async (n, act, answered) => {
+    if (answering) return;
+    setAnswering(n.uuid);
+    setAskError(null);
+    try {
+      await act(askedProject(n), n.actor.uuid);
+      readHere.current.add(n.uuid);
+      const notifications = latest.current.notifications.map((x) => (x.uuid === n.uuid ? { ...x, read: true, waiting: false, answered } : x));
+      setData({ notifications });
+      onUnread(unreadIn(notifications));
+    } catch (e) { setAskError({ uuid: n.uuid, message: e.message }); } finally { setAnswering(null); }
   };
 
   useEffect(() => {
@@ -117,9 +140,21 @@ export default function InboxPage({ onUnread }) {
                 </span>
                 <a className="notification-link" href={appPath(n.link)}>Their nook</a>
               </span>
+            ) : n.kind === 'project_ask' && n.actor && (n.waiting || n.answered) ? (
+              <span className="notification-acts">
+                {n.waiting ? (
+                  <span className="friend-button">
+                    <button type="button" className="primary friend-accept" disabled={answering === n.uuid} onClick={() => answerAsk(n, acceptAsk, 'Accepted')}>Accept</button>
+                    <button type="button" className="friend-not-now" disabled={answering === n.uuid} onClick={() => answerAsk(n, declineAsk, 'Not now')}>Not now</button>
+                  </span>
+                ) : <span className="notification-answered" role="status">{n.answered}</span>}
+                <a className="notification-link" href={appPath(`/u/${n.actor.uuid}`)}>Their nook</a>
+                <a className="notification-link" href={appPath(n.link)}>The project</a>
+                {askError?.uuid === n.uuid && <span className="notification-error" role="alert">{askError.message}</span>}
+              </span>
             ) : n.link && expanded[n.uuid] ? (
               <span className="notification-acts">
-                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' ? 'Open the paper' : n.kind === 'project_ask' ? 'Open the project' : 'Open their nook'}</a>
+                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' ? 'Open the paper' : n.kind?.startsWith('project_') ? 'Open the project' : 'Open their nook'}</a>
               </span>
             ) : null}
           </li>
