@@ -37,10 +37,52 @@ export function chooseTheme(choice) {
   return next;
 }
 
-// Wear the kept choice, and follow a choice made in another tab.
+// Dark pages: the paper itself drawn light on dark, for reading at night.
+// Apart from the theme, because a paper is printed black on white and most
+// are best left so: off until a member turns it on, in the viewer's bar or
+// in Preferences, and kept on this device as the theme is. It sets
+// data-pdf-pages="dark" on <html>; the viewer's styles do the drawing.
+export const PAGES_KEY = 'papol_pdf_pages';
+const pagesListeners = new Set();
+
+export function readDarkPages() {
+  try { return storage()?.getItem(PAGES_KEY) === 'dark'; } catch { return false; }
+}
+
+export function applyDarkPages(dark = readDarkPages()) {
+  const root = globalThis.document?.documentElement;
+  if (root) {
+    if (dark) root.dataset.pdfPages = 'dark';
+    else delete root.dataset.pdfPages;
+  }
+  for (const listener of [...pagesListeners]) listener();
+}
+
+export function chooseDarkPages(dark) {
+  const next = Boolean(dark);
+  try {
+    if (next) storage()?.setItem(PAGES_KEY, 'dark');
+    else storage()?.removeItem(PAGES_KEY);
+  } catch { /* this tab still wears it */ }
+  applyDarkPages(next);
+  return next;
+}
+
+// What is on show now, and a way to hear of a change (useSyncExternalStore).
+export const darkPagesShown = () => globalThis.document?.documentElement?.dataset.pdfPages === 'dark';
+export function subscribeDarkPages(listener) {
+  pagesListeners.add(listener);
+  return () => { pagesListeners.delete(listener); };
+}
+
+// Wear the kept choices, and follow a choice made in another tab.
 export function followTheme() {
   applyTheme();
-  const onStorage = (event) => { if (event.key === THEME_KEY || event.key === null) applyTheme(); };
+  applyDarkPages();
+  const onStorage = (event) => {
+    if (event.key === THEME_KEY || event.key === null) applyTheme();
+    if (event.key === PAGES_KEY || event.key === null) applyDarkPages();
+  };
   globalThis.addEventListener?.('storage', onStorage);
   return () => globalThis.removeEventListener?.('storage', onStorage);
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { updateProfile } from '../../../shared/api/account.js';
-import { chooseTheme, readTheme } from '../../../shared/theme.js';
+import { chooseDarkPages, chooseTheme, readDarkPages, readTheme } from '../../../shared/theme.js';
 
 // Every choice a member makes about how Papol behaves for them, in one
 // place: how it looks, who sees and finds them, and how often Papol
@@ -26,6 +26,7 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(readTheme);
+  const [darkPages, setDarkPages] = useState(readDarkPages);
 
   const keep = async (change) => {
     if (busy) return;
@@ -54,6 +55,15 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
           <select id="preference-theme" value={theme} onChange={(e) => setTheme(chooseTheme(e.target.value))}>
             <option value="system">Same as system</option>
             <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+        {/* The paper itself, apart from the theme: the viewer's bar has the
+            same switch. */}
+        <div className="local-setting-row preferences-row">
+          <label htmlFor="preference-pdf-pages"><strong>PDF pages</strong> <span className="preferences-scope">on this device</span></label>
+          <select id="preference-pdf-pages" value={darkPages ? 'dark' : 'printed'} onChange={(e) => setDarkPages(chooseDarkPages(e.target.value === 'dark'))}>
+            <option value="printed">As printed</option>
             <option value="dark">Dark</option>
           </select>
         </div>

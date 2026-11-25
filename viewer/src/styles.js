@@ -902,7 +902,8 @@ ${fileDropStyles}
    .paper-info-button alone, its padding of nothing lost to the bar-link's
    6px 12px, which left a 28px box two pixels of room and pushed the letter
    off to one side. */
-.viewer-bar .bar-link.paper-info-button {
+.viewer-bar .bar-link.paper-info-button,
+.viewer-bar .bar-link.dark-pages-button {
   display: grid;
   place-items: center;
   width: 32px;
@@ -925,6 +926,12 @@ ${fileDropStyles}
   stroke-linecap: round;
 }
 .info-glyph .info-dot { fill: currentColor; stroke: none; }
+/* Dark pages, on: held down, as a tool in hand is. */
+.viewer-bar .bar-link.dark-pages-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .paper-info-pop {
   position: absolute;
   z-index: 30;
@@ -1564,6 +1571,33 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* Over a limited drawing, the part on screen at full sharpness; placed in
    fractions of the page by PdfPage. */
 .page-canvas .page-detail { position: absolute; }
+
+/* Dark pages (shared/theme.js): the paper drawn light on dark, a member's
+   choice apart from the theme. The drawing is inverted, short of all the way
+   so the sheet is a soft black rather than a hole in the screen, and its
+   hues turned back round, so a red curve in a figure is still red. Only the
+   drawing: what Papol lays over it is coloured for a dark sheet below. */
+:root[data-pdf-pages='dark'] .pdf-page { background-color: #1a1a1a; }
+:root[data-pdf-pages='dark'] :is(.page-canvas, .clip-canvas) { filter: invert(0.9) hue-rotate(180deg); }
+/* What is drawn on the paper takes the dark theme's accent, which was made
+   to be read on a dark ground. */
+:root[data-pdf-pages='dark'] :is(.cite-layer, .link-layer, .provenance-box, .provenance-highlight, .text-selection-highlight) {
+  --accent: #7ea6d8;
+  --accent-strong: #a3c1e6;
+  --accent-rgb: 126, 166, 216;
+  --shade-rgb: 0, 0, 0;
+}
+:root[data-pdf-pages='dark'] .text-selection-highlight path { fill: #7ea6d8; stroke: none; }
+:root[data-pdf-pages='dark'] .pin:not(.worn) { color: #7ea6d8; }
+:root[data-pdf-pages='dark'] .pin.active:not(.worn) { color: #a3c1e6; }
+:root[data-pdf-pages='dark'] .pin.worn.active { color: color-mix(in srgb, var(--who) 75%, white); }
+/* Ink the colour of print would vanish into the sheet, so it is drawn the
+   colour print now is. The other inks are bright enough as they are. */
+:root[data-pdf-pages='dark'] .ink-layer [fill='#14161a'] { fill: #e6e6e6; }
+:root[data-pdf-pages='dark'] .ink-layer [stroke='#14161a'] { stroke: #e6e6e6; }
+/* A wash over light words has to be thinner, or the words sink into it. */
+:root[data-pdf-pages='dark'] .textLayer .search-highlight { background: rgba(246, 203, 65, 0.4); }
+:root[data-pdf-pages='dark'] .textLayer .search-highlight-active { background: rgba(255, 145, 32, 0.55); }
 
 .page-number {
   position: absolute;

@@ -18,6 +18,7 @@ import { withinSpan } from './selectionInk.js';
 import { doubleClickDropsAnchor, nearText, onBareGround } from './blankDoubleClick.js';
 import ActionGlyph from '../../shared/ui/ActionGlyph.jsx';
 import { memberInk } from './project.js';
+import { darkPagesShown, subscribeDarkPages } from '../../shared/theme.js';
 import ThingBar from './ThingBar.jsx';
 
 /**
@@ -111,6 +112,9 @@ const textInSlices = (textContent, queue, isCancelled) => {
 
 // A canvas's memory goes back as soon as it has no size, without waiting for
 // the collector to notice the element is gone.
+// How much thicker a translucent stroke is laid on a dark page.
+const DARK_PAGE_WASH = 1.6;
+
 const releaseCanvas = (canvas) => {
   if (!canvas) return;
   canvas.width = 0;
@@ -654,6 +658,7 @@ function PdfPage({
   // What the drawing on show was made for, { doc, scale }: the text layer
   // waits for the first one, and the sharp detail for each.
   const [drawn, setDrawn] = useState(null);
+  const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
   // A sharper drawing of the part on screen, over a limited bitmap:
   // { canvas, doc, scale, region }, the region in fractions of the page.
   const detailRef = useRef(null);
@@ -2138,7 +2143,9 @@ function PdfPage({
         // Do not advertise an invisible background image to paint/LCP while
         // an opaque sharp canvas is already present. It appears only in the
         // interval after that canvas is released and before its replacement.
-        backgroundImage: previewUrl && !drawn ? `url(${JSON.stringify(previewUrl)})` : undefined,
+        // With dark pages on, the preview is shown from the drawing's own
+        // box below, which is what is darkened.
+        backgroundImage: previewUrl && !drawn && !darkPages ? `url(${JSON.stringify(previewUrl)})` : undefined,
         backgroundSize: '100% 100%',
       }}
       onPointerMove={(e) => {
@@ -2229,7 +2236,13 @@ function PdfPage({
           '--unzoom': stretch === 1 ? 1 : 1 / stretch,
         }}
       >
-        <div className="page-canvas" ref={canvasHostRef} />
+        <div
+          className="page-canvas"
+          ref={canvasHostRef}
+          style={previewUrl && !drawn && darkPages
+            ? { backgroundImage: `url(${JSON.stringify(previewUrl)})`, backgroundSize: '100% 100%' }
+            : undefined}
+        />
         {/* Selectable text sits above the drawing; a double-click passes
             through it to the page, so both reading and marking work. */}
         <div className="text-host" ref={textHostRef} />
@@ -2303,7 +2316,9 @@ function PdfPage({
                     })}
                   {markFor(points, stroke.width * size.width, stroke.shape, {
                     fill: stroke.color,
-                    opacity: stroke.opacity ?? 1,
+                    // A wash made to tint white paper is faint on a dark
+                    // sheet, so there it is laid on thicker.
+                    opacity: darkPages ? Math.min(1, (stroke.opacity ?? 1) * DARK_PAGE_WASH) : stroke.opacity ?? 1,
                   })}
                   {/* Something to take hold of. A drawn line is a few pixels
                       wide and a hand is not that accurate, so the thing that

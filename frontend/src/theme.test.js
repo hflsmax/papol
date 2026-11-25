@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { darkTokens, designTokens, themedTokens } from '../../shared/designTokens.js';
 import { applicationStyles } from '../../shared/applicationStyles.js';
-import { applyTheme, chooseTheme, readTheme, THEME_KEY } from '../../shared/theme.js';
+import { applyTheme, chooseDarkPages, chooseTheme, darkPagesShown, PAGES_KEY, readDarkPages, readTheme, subscribeDarkPages, THEME_KEY } from '../../shared/theme.js';
 
 const colourTokens = (sheet) => new Set([...sheet.matchAll(/(--[a-z0-9-]+):\s*(#|rgba?\()/gi)].map((match) => match[1]));
 
@@ -43,6 +43,38 @@ test('the choice is kept per device and worn on <html>', () => {
     applyTheme('light');
     assert.equal(document.documentElement.dataset.theme, 'light');
   } finally {
+    globalThis.document = before;
+    delete globalThis.localStorage;
+  }
+});
+
+test('dark pages are off until chosen, kept on the device, and heard of', () => {
+  const kept = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => kept.get(key) ?? null,
+    setItem: (key, value) => kept.set(key, String(value)),
+    removeItem: (key) => kept.delete(key),
+  };
+  const before = globalThis.document;
+  globalThis.document = { documentElement: { dataset: {} } };
+  let heard = 0;
+  const stop = subscribeDarkPages(() => { heard += 1; });
+  try {
+    assert.equal(readDarkPages(), false);
+    assert.equal(darkPagesShown(), false);
+    assert.equal(chooseDarkPages(true), true);
+    assert.equal(kept.get(PAGES_KEY), 'dark');
+    assert.equal(document.documentElement.dataset.pdfPages, 'dark');
+    assert.equal(darkPagesShown(), true);
+    assert.equal(heard, 1);
+    chooseDarkPages(false);
+    assert.equal(kept.has(PAGES_KEY), false);
+    assert.equal('pdfPages' in document.documentElement.dataset, false);
+    assert.equal(heard, 2);
+    // The theme is not touched by it.
+    assert.equal('theme' in document.documentElement.dataset, false);
+  } finally {
+    stop();
     globalThis.document = before;
     delete globalThis.localStorage;
   }
