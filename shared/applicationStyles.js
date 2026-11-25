@@ -6034,7 +6034,7 @@ ${talkStyles}
 .room-suggested { margin: 0 0 var(--space-5); }
 .room-suggested-head { margin: 0 0 var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .room-suggestions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.room-suggestion { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-1) var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-suggestion { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-rows: minmax(34px, auto) auto; align-content: start; align-items: center; gap: var(--space-1) var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .room-suggestion .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
 .room-suggestion-who { display: grid; min-width: 0; }
 .room-suggestion-why { grid-column: 1 / -1; align-self: start; color: var(--ink-soft); font: 400 var(--fs-xs)/1.45 var(--font-ui); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

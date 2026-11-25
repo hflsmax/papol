@@ -9,20 +9,20 @@ import { runOne } from "../src/jobs/run";
 import { reasonOf, SUGGESTIONS_CRON } from "../src/jobs/suggestions";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
 
-const digest = (letter: string) => letter.repeat(64);
 const suggested = (account: Account) => ok("GET", "/api/friends/suggestions", { headers: account.headers });
 const names = async (account: Account) => (await suggested(account)).map((s: any) => s.user.display_name);
-const privateShelf = async (account: Account) => (await row<{ uuid: string }>("SELECT uuid FROM shelves WHERE user_uuid = ? AND is_public = 0", account.uuid))!.uuid;
 
-// A copy of a paper on the account's public shelf, or on the shelf named.
-async function keeps(account: Account, letter: string, title: string, shelfUuid?: string) {
-  const shelf = shelfUuid ?? await defaultShelf(account);
-  if (!(await row("SELECT 1 FROM papers WHERE sha256 = ?", digest(letter)))) return paperWithCopy(account, digest(letter), title, { shelfUuid: shelf });
-  const at = new Date().toISOString();
-  const copy = uuid();
-  await exec("INSERT INTO copies (uuid, paper_sha256, user_uuid, shelf_uuid, is_author, created_at, updated_at, revision) VALUES (?, ?, ?, ?, 0, ?, ?, 0)",
-    copy, digest(letter), account.uuid, shelf, at, at);
-  return copy;
+async function befriend(a: Account, b: Account) {
+  await ok("POST", `/api/friends/${b.uuid}`, { headers: a.headers });
+  await ok("POST", `/api/friends/${a.uuid}/accept`, { headers: b.headers });
+}
+
+// Ada and someone made friends of friends, through a friend made for it.
+async function linked(a: Account, b: Account, via?: Account) {
+  const between = via ?? await register(`${uuid()}@example.test`, "Between");
+  await befriend(a, between);
+  await befriend(between, b);
+  return between;
 }
 
 async function project(keeper: Account, name: string, ...joiners: Account[]) {
@@ -33,37 +33,39 @@ async function project(keeper: Account, name: string, ...joiners: Account[]) {
 }
 
 describe("people to ask", () => {
-  it("are those in a project with me or keeping my papers in the open, a project first", async () => {
+  it("are those in a project with me and the friends of my friends, a project first", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     const edsger = await register("edsger@example.test", "Edsger"), stranger = await register("stranger@example.test", "Stranger");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(ada, "b", "Error Dynamics");
-    await keeps(grace, "a", "Loss Curves");
-    await keeps(grace, "b", "Error Dynamics");
-    await keeps(stranger, "c", "Something Else");
+    const one = await register("one@example.test", "One"), two = await register("two@example.test", "Two");
+    await linked(ada, grace, one);
+    await linked(ada, grace, two);
     const lab = await project(ada, "Control Lab", edsger);
 
-    // Two papers in common are less than one project.
+    // Two friends in common are less than one project, and who they are is not said.
     expect(await suggested(ada)).toEqual([
-      { user: expect.objectContaining({ uuid: edsger.uuid, display_name: "Edsger" }), project_count: 1, projects: [{ uuid: lab, name: "Control Lab" }], paper_count: 0, papers: [] },
-      { user: expect.objectContaining({ uuid: grace.uuid }), project_count: 0, projects: [], paper_count: 2, papers: expect.arrayContaining([{ sha256: digest("a"), title: "Loss Curves" }, { sha256: digest("b"), title: "Error Dynamics" }]) },
+      { user: expect.objectContaining({ uuid: edsger.uuid, display_name: "Edsger" }), project_count: 1, projects: [{ uuid: lab, name: "Control Lab" }], mutual_count: 0 },
+      { user: expect.objectContaining({ uuid: grace.uuid }), project_count: 0, projects: [], mutual_count: 2 },
     ]);
     // It runs both ways, and to someone with nothing in common nobody is suggested.
     expect(await names(grace)).toEqual(["Ada"]);
+    // The two in between share both of them.
+    expect(await names(one)).toEqual(["Two"]);
     expect(await suggested(stranger)).toEqual([]);
     expect((await call("GET", "/api/friends/suggestions")).status).toBe(401);
   });
 
-  it("are made from nothing private", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    await keeps(ada, "a", "Loss Curves");
-    const hidden = await keeps(grace, "a", "Loss Curves", await privateShelf(grace));
+  it("are not made from papers two people both keep, or from a request not yet accepted", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), between = await register("between@example.test", "Between");
+    await paperWithCopy(ada, "a".repeat(64), "Loss Curves", { shelfUuid: await defaultShelf(ada) });
+    await ok("POST", `/api/papers/${"a".repeat(32)}/add-to-nook`, { headers: grace.headers, json: {} });
     expect(await suggested(ada)).toEqual([]);
-    expect(await suggested(grace)).toEqual([]);
-    // Put in the open, it is a reason; let go, it is none.
-    await exec("UPDATE copies SET shelf_uuid = ? WHERE uuid = ?", await defaultShelf(grace), hidden);
+    await befriend(ada, between);
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: between.headers });
+    expect(await suggested(ada)).toEqual([]);
+    await ok("POST", `/api/friends/${between.uuid}/accept`, { headers: grace.headers });
     expect(await names(ada)).toEqual(["Grace"]);
-    await exec("UPDATE copies SET deleted_at = ? WHERE uuid = ?", new Date().toISOString(), hidden);
+    // A friendship ended is a reason no longer.
+    await ok("DELETE", `/api/friends/${grace.uuid}`, { headers: between.headers });
     expect(await suggested(ada)).toEqual([]);
   });
 
@@ -71,12 +73,10 @@ describe("people to ask", () => {
     const ada = await register("ada@example.test", "Ada");
     const [friend, asked, asking, declined, unfindable, open] = await Promise.all(
       ["Friend", "Asked", "Asking", "Declined", "Unfindable", "Open"].map((name) => register(`${name.toLowerCase()}@example.test`, name)));
-    await keeps(ada, "a", "Loss Curves");
-    for (const other of [friend, asked, asking, declined, unfindable, open]) await keeps(other, "a", "Loss Curves");
+    await project(ada, "Control Lab", friend, asked, asking, declined, unfindable, open);
     expect((await names(ada)).sort()).toEqual(["Asked", "Asking", "Declined", "Friend", "Open", "Unfindable"]);
 
-    await ok("POST", `/api/friends/${friend.uuid}`, { headers: ada.headers });
-    await ok("POST", `/api/friends/${ada.uuid}/accept`, { headers: friend.headers });
+    await befriend(ada, friend);
     await ok("POST", `/api/friends/${asked.uuid}`, { headers: ada.headers });
     await ok("POST", `/api/friends/${ada.uuid}`, { headers: asking.headers });
     await ok("POST", `/api/friends/${ada.uuid}`, { headers: declined.headers });
@@ -91,9 +91,7 @@ describe("people to ask", () => {
 
   it("stop naming someone I am not interested in, and tell them nothing", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), edsger = await register("edsger@example.test", "Edsger");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(grace, "a", "Loss Curves");
-    await keeps(edsger, "a", "Loss Curves");
+    await project(ada, "Control Lab", grace, edsger);
     const told = await count("notifications");
     const left = await ok("DELETE", `/api/friends/suggestions/${grace.uuid}`, { headers: ada.headers });
     expect(left.map((s: any) => s.user.display_name)).toEqual(["Edsger"]);
@@ -111,21 +109,21 @@ describe("people to ask", () => {
 
   it("go with a closed account", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(grace, "a", "Loss Curves");
+    const between = await linked(ada, grace);
     await ok("DELETE", `/api/friends/suggestions/${grace.uuid}`, { headers: ada.headers });
     await ok("DELETE", `/api/friends/suggestions/${ada.uuid}`, { headers: grace.headers });
     const closed = await ok("DELETE", "/api/auth/account", { headers: grace.headers, json: { confirm_email: "grace@example.test" } });
     expect(closed.removed.friend_suggestions).toBe(2);
     expect(await suggested(ada)).toEqual([]);
+    expect(await suggested(between)).toEqual([]);
   });
 
   it("say why in words", () => {
     const user = { uuid: "u", display_name: "Grace", affiliation: null, avatar_path: null, email: null };
-    expect(reasonOf({ user, project_count: 1, projects: [{ uuid: "p", name: "Control Lab" }], paper_count: 0, papers: [] })).toBe("In Control Lab with you");
-    expect(reasonOf({ user, project_count: 0, projects: [], paper_count: 1, papers: [{ sha256: "a", title: "Loss Curves" }] })).toBe("Keeps “Loss Curves” that you keep too");
-    expect(reasonOf({ user, project_count: 3, projects: [{ uuid: "p", name: "Control Lab" }], paper_count: 2, papers: [{ sha256: "a", title: "Loss Curves" }] }))
-      .toBe("In Control Lab and 2 more projects with you, and keeps “Loss Curves” and 1 more paper that you keep too");
+    expect(reasonOf({ user, project_count: 1, projects: [{ uuid: "p", name: "Control Lab" }], mutual_count: 0 })).toBe("In Control Lab with you");
+    expect(reasonOf({ user, project_count: 0, projects: [], mutual_count: 1 })).toBe("1 friend in common");
+    expect(reasonOf({ user, project_count: 3, projects: [{ uuid: "p", name: "Control Lab" }], mutual_count: 2 }))
+      .toBe("In Control Lab and 2 more projects with you, and 2 friends in common");
   });
 });
 
@@ -152,12 +150,10 @@ describe("the weekly email of people to ask", () => {
     return row<Job>("SELECT * FROM jobs WHERE uuid = ?", queued[0].uuid);
   }
 
-  it("names whoever is new to each user, once, with a way out of it", async () => {
+  it("names whoever is new to each user, once, and says where to turn it off", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace <b>Hopper</b>");
     const lone = await register("lone@example.test", "Lone");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(grace, "a", "Loss Curves");
-    await keeps(lone, "z", "Nobody Else Has This");
+    const lab = await project(ada, "Control Lab", grace);
     await exec("UPDATE users SET affiliation = 'Yale' WHERE uuid = ?", grace.uuid);
 
     emailApi();
@@ -166,22 +162,16 @@ describe("the weekly email of people to ask", () => {
     expect(calls.map((c) => c.url)).toEqual(["https://mail.example.test/emails/batch"]);
     expect(sent().map((m) => m.to[0]).sort()).toEqual(["ada@example.test", "grace@example.test"]);
     const hers = sent().find((m) => m.to[0] === "ada@example.test");
-    const token = (await row<{ unsubscribe_token: string }>("SELECT unsubscribe_token FROM users WHERE uuid = ?", ada.uuid))!.unsubscribe_token;
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
-    const link = `https://papol.io/api/email/unsubscribe/${token}`;
-    expect(hers).toMatchObject({
-      from: "papol@example.test", subject: "Grace <b>Hopper</b> is on Papol too",
-      headers: { "List-Unsubscribe": `<${link}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-    });
+    expect(hers).toMatchObject({ from: "papol@example.test", subject: "Grace <b>Hopper</b> is on Papol too" });
     expect(hers.text).toContain("Hello Ada,");
-    expect(hers.text).toContain("- Grace <b>Hopper</b> (Yale)\n  Keeps “Loss Curves” that you keep too.\n  https://papol.io/u/" + grace.uuid);
+    expect(hers.text).toContain("- Grace <b>Hopper</b> (Yale)\n  In Control Lab with you.\n  https://papol.io/u/" + grace.uuid);
     expect(hers.text).toContain("https://papol.io/lounge");
-    expect(hers.text).toContain(`Stop these emails: ${link}`);
+    expect(hers.text).toContain("Turn it off under Preferences on your page: https://papol.io/profile");
     // Someone else's name is words in the HTML, never markup.
     expect(hers.html).toContain(`<a href="https://papol.io/u/${grace.uuid}"`);
     expect(hers.html).toContain("Grace &lt;b&gt;Hopper&lt;/b&gt;");
     expect(hers.html).not.toContain("<b>Hopper");
-    expect(hers.html).toContain(`href="${link}"`);
+    expect(hers.html).toContain('href="https://papol.io/profile"');
 
     // The next week has nobody new: nothing is sent, and the Lounge still shows her.
     emailApi();
@@ -191,7 +181,8 @@ describe("the weekly email of people to ask", () => {
 
     // Someone new is named alone, to those they are new to.
     const edsger = await register("edsger@example.test", "Edsger");
-    await keeps(edsger, "a", "Loss Curves");
+    const { invite_code } = await ok("POST", `/api/projects/${lab}/invite`, { headers: ada.headers });
+    await ok("POST", `/api/project-invites/${invite_code}`, { headers: edsger.headers });
     emailApi();
     await monday();
     expect(sent().map((m) => [m.to[0], m.subject]).sort()).toEqual([
@@ -199,13 +190,12 @@ describe("the weekly email of people to ask", () => {
       ["edsger@example.test", "People you may know on Papol"],
       ["grace@example.test", "Edsger is on Papol too"],
     ]);
-    // The link is the same one every week.
-    expect(sent().find((m) => m.to[0] === "ada@example.test").text).toContain(link);
+    expect(lone.uuid).toBeTruthy();
   });
 
-  it("is not sent to whoever turned it off, or about whoever they are not interested in", async () => {
+  it("is not sent to whoever turned it off in Preferences, or about whoever they are not interested in", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), edsger = await register("edsger@example.test", "Edsger");
-    for (const account of [ada, grace, edsger]) await keeps(account, "a", "Loss Curves");
+    await project(ada, "Control Lab", grace, edsger);
     // It is on to begin with, and off is kept.
     expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).suggestion_email).toBe(true);
     expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { suggestion_email: false } })).suggestion_email).toBe(false);
@@ -218,44 +208,16 @@ describe("the weekly email of people to ask", () => {
     expect(sent().map((m) => m.to[0]).sort()).toEqual(["edsger@example.test", "grace@example.test"]);
     expect(sent().find((m) => m.to[0] === "grace@example.test").text).not.toContain("Edsger");
     expect(await count("friend_suggestions", "user_uuid = ? AND mailed_at IS NOT NULL", ada.uuid)).toBe(0);
-  });
-
-  it("is turned off by the link in it, which asks before it acts", async () => {
-    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(grace, "a", "Loss Curves");
+    // Back on, the next week writes to her.
+    await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { suggestion_email: true } });
     emailApi();
     await monday();
-    vi.unstubAllGlobals();
-    const token = (await row<{ unsubscribe_token: string }>("SELECT unsubscribe_token FROM users WHERE uuid = ?", ada.uuid))!.unsubscribe_token;
-    const on = async () => (await ok("GET", "/api/auth/me", { headers: ada.headers })).suggestion_email;
-
-    // Opening the link changes nothing: a scanner opens it before she does.
-    const asked = await call("GET", `/api/email/unsubscribe/${token}`);
-    expect(asked.status).toBe(200);
-    expect(asked.headers.get("content-type")).toContain("text/html");
-    expect(await asked.text()).toContain("Stop these emails");
-    expect(await on()).toBe(true);
-    // The press, with no sign-in, turns off hers and nobody else's.
-    const done = await call("POST", `/api/email/unsubscribe/${token}`);
-    expect(done.status).toBe(200);
-    expect(await done.text()).toContain("You will get no more of these");
-    expect(await on()).toBe(false);
-    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).suggestion_email).toBe(true);
-    expect(await (await call("GET", `/api/email/unsubscribe/${token}`)).text()).toContain("already off");
-    // A link nobody was sent opens nothing.
-    expect((await call("GET", `/api/email/unsubscribe/${"0".repeat(64)}`)).status).toBe(404);
-    expect((await call("POST", `/api/email/unsubscribe/${"0".repeat(64)}`)).status).toBe(404);
-    expect((await call("POST", "/api/email/unsubscribe/nonsense")).status).toBe(404);
-    // Nor does the link of an account since closed.
-    await ok("DELETE", "/api/auth/account", { headers: ada.headers, json: { confirm_email: "ada@example.test" } });
-    expect((await call("GET", `/api/email/unsubscribe/${token}`)).status).toBe(404);
+    expect(sent().map((m) => m.to[0])).toEqual(["ada@example.test"]);
   });
 
   it("records nothing as said when the mail cannot be sent, or is not configured", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
-    await keeps(ada, "a", "Loss Curves");
-    await keeps(grace, "a", "Loss Curves");
+    await project(ada, "Control Lab", grace);
     expect(await monday(env)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
     emailApi(502);
     expect(await monday()).toMatchObject({ status: "failed" });
@@ -268,12 +230,7 @@ describe("the weekly email of people to ask", () => {
 
   it("writes to everyone, a chunk of users to a job", async () => {
     const accounts = await Promise.all(Array.from({ length: 23 }, (_, i) => register(`reader${i}@example.test`, `Reader ${i}`)));
-    const at = new Date().toISOString();
-    await paperWithCopy(accounts[0], digest("a"), "Loss Curves", { shelfUuid: await defaultShelf(accounts[0]) });
-    for (const account of accounts.slice(1)) {
-      await exec("INSERT INTO copies (uuid, paper_sha256, user_uuid, shelf_uuid, is_author, created_at, updated_at, revision) VALUES (?, ?, ?, ?, 0, ?, ?, 0)",
-        uuid(), digest("a"), account.uuid, await defaultShelf(account), at, at);
-    }
+    await project(accounts[0], "Control Lab", ...accounts.slice(1));
     emailApi();
     expect(await monday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 20, recipients: 20 }) });
     // The job queued the rest after itself.

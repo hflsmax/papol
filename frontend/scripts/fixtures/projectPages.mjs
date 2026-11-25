@@ -291,9 +291,9 @@ const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors,
 const friendState = () => ({ friends: [{ user: ana, since: daysAgo(30) }, { user: ben, since: daysAgo(12) }], requests: [{ user: mia, asked_at: hoursAgo(4), common: [paperOut(papers[1]), paperOut(papers[2])] }], sent: [] });
 let friendsNow = friendState();
 const suggestionState = () => [
-  { user: leo, project_count: 1, projects: [{ uuid: PROJECT, name: project.name }], paper_count: 2, papers: [paperOut(papers[2]), paperOut(papers[0])] },
-  { user: outsiders[0], project_count: 0, projects: [], paper_count: 3, papers: [paperOut(papers[3]), paperOut(papers[1])] },
-  { user: outsiders[1], project_count: 0, projects: [], paper_count: 1, papers: [paperOut(papers[0])] },
+  { user: leo, project_count: 1, projects: [{ uuid: PROJECT, name: project.name }], mutual_count: 2 },
+  { user: outsiders[0], project_count: 0, projects: [], mutual_count: 2 },
+  { user: outsiders[1], project_count: 0, projects: [], mutual_count: 1 },
 ];
 let suggestionsNow = suggestionState();
 const roomRows = () => {
@@ -341,7 +341,7 @@ function answer(method, path, search, sent = {}) {
     }
     return friendsNow;
   }
-  // People to ask: one from a project, two by the papers they keep.
+  // People to ask: one from a project, two by friends in common.
   if (path === '/friends/suggestions') return suggestionsNow;
   const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
   if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }

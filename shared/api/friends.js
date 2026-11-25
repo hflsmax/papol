@@ -34,8 +34,8 @@ export function findPeople(query) {
   return request(`/friends/people?q=${encodeURIComponent(query)}`);
 }
 
-// People Papol suggests I ask: those in a project with me, or keeping
-// papers I keep, on public shelves both.
+// People Papol suggests I ask: those in a project with me, and friends
+// of my friends.
 export function getSuggestions() {
   return request('/friends/suggestions');
 }

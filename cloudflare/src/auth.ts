@@ -35,7 +35,6 @@ export interface User extends Row {
   email_public: number;
   findable: number;
   suggestion_email: number;
-  unsubscribe_token: string | null;
   is_admin: number;
   nav_marks: string | null;
   password_hash: string;

@@ -249,12 +249,12 @@ function Finder({ currentUser, onDone }) {
 }
 
 // Why someone is suggested, in a line: the project we are both in, then
-// the papers we both keep on public shelves.
+// how many friends we both have.
 export function suggestionReason(suggestion) {
   const parts = [];
-  const more = (n, one, many) => (n > 0 ? ` and ${n} more ${n === 1 ? one : many}` : '');
-  if (suggestion.project_count > 0) parts.push(`in ${suggestion.projects[0].name}${more(suggestion.project_count - 1, 'project', 'projects')} with you`);
-  if (suggestion.paper_count > 0) parts.push(`keeps “${suggestion.papers[0].title}”${more(suggestion.paper_count - 1, 'paper', 'papers')} that you keep too`);
+  const more = suggestion.project_count - 1;
+  if (suggestion.project_count > 0) parts.push(`in ${suggestion.projects[0].name}${more > 0 ? ` and ${more} more ${more === 1 ? 'project' : 'projects'}` : ''} with you`);
+  if (suggestion.mutual_count > 0) parts.push(`${suggestion.mutual_count} ${suggestion.mutual_count === 1 ? 'friend' : 'friends'} in common`);
   const said = parts.join(', and ');
   return said ? said[0].toUpperCase() + said.slice(1) : '';
 }
