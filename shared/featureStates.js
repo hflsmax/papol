@@ -56,7 +56,7 @@ export const DARK_PAGES_TIP = {
   key: 'papol_learn_dark_pages',
   value: 'seen',
   name: 'Dark pages tip',
-  description: 'The Learn Papol card under the viewer’s gear that says dark pages can be turned on there, shown until the user dismisses it, opens the gear or turns dark pages on.',
+  description: 'The card under the viewer’s gear that says dark mode can be turned on there, shown until the user dismisses it, opens the gear or turns dark pages on.',
   setLabel: 'Shown',
   unsetLabel: 'Not shown',
 };

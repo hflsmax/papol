@@ -759,9 +759,7 @@ function MarkChoices({ shown, onShown, hint }) {
       </button>
       {hint && !told && !open && !darkPages && (
         <span className="learn-papol dark-pages-tip" role="dialog" aria-labelledby="dark-pages-tip-title">
-          <span className="kicker">Learn Papol</span>
-          <strong id="dark-pages-tip-title">Read in the dark</strong>
-          <span>Turn on Dark pages here to read the paper light on dark.</span>
+          <strong id="dark-pages-tip-title">Turn on Dark Mode here</strong>
           <button type="button" className="learn-papol-close" onClick={tell} aria-label="Dismiss this tip">
             Got it
           </button>
@@ -780,7 +778,7 @@ function MarkChoices({ shown, onShown, hint }) {
             <svg viewBox="0 0 12 12" aria-hidden="true">
               <path fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" d="M10 7.2A4.3 4.3 0 0 1 4.8 2a4.3 4.3 0 1 0 5.2 5.2Z" />
             </svg>
-            <span className="navigator-kind-name">Dark pages</span>
+            <span className="navigator-kind-name">Dark mode</span>
             <svg className="navigator-kind-on" viewBox="0 0 12 12" aria-hidden="true">
               <path fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" d="m2.5 6.3 2.3 2.3 4.7-5" />
             </svg>

@@ -904,7 +904,7 @@ ${fileDropStyles}
 .nook-adding { padding: 12px 14px; }
 /* The gear is near the bar's right end, so its card hangs leftward too,
    its point under the gear's middle. */
-.learn-papol.dark-pages-tip { left: auto; right: 0; z-index: 2000; white-space: normal; }
+.learn-papol.dark-pages-tip { left: auto; right: 0; z-index: 2000; width: max-content; white-space: nowrap; }
 .learn-papol.dark-pages-tip::before { left: auto; right: 10px; }
 /* The project pill is last in the bar, so its card hangs leftward from it. */
 .learn-papol.project-visibility-tip { left: auto; right: 0; }
