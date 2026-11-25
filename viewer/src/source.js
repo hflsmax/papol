@@ -10,6 +10,7 @@ import {
   getPaperByPdf, getPaperLink, getPaperAnchors, getNookPaperByPdf, addOpenedFileToNook,
   lookUpViewerReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation, restoreAnnotation,
+  listTerms, defineTerm, removeTerm,
   getToken, getReader,
 } from './api.js';
 import { listProjectAnnotations, personalDigsOn } from '../../shared/api/projects.js';
@@ -109,6 +110,13 @@ function apiSource(
       update: (uuid, changes) => updateAnnotation(uuid, changes),
       remove: (uuid) => deleteAnnotation(uuid),
       restore: (uuid, was) => restoreAnnotation(uuid, was),
+    },
+    // The terms the reader defined in this paper: theirs, on a paper they
+    // keep, so only this source has them.
+    terms: {
+      list: () => listTerms(pdfHash),
+      define: (term) => defineTerm(pdfHash, term),
+      remove: (uuid) => removeTerm(uuid),
     },
     // The project on, if one is: its name and members, and what every
     // member left on this paper. Read from the service, as projects always

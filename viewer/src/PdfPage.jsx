@@ -144,18 +144,21 @@ const boxHolds = (box, x, y) => (
 // The telescope: how long a rule's name is under the pointer before its rule shows, and
 // how long the pointer is off both before the rule goes.
 const TELESCOPE_AFTER_MS = 150;
+const EMPTY_TERMS = [];
 const LET_GO_AFTER_MS = 200;
 
 const linkTitle = (link) => {
   if (link.href) return link.href;
+  if (link.kind === 'term') return `Go to ${link.defined}, where you defined “${link.label}”`;
   if (link.kind) return `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`;
   return `Go to page ${link.spot.page}`;
 };
 
 // A telescoped rule, with the command (or control) key held, is kept here as a
 // clip rather than gone to.
-const keepsTelescope = (link, event) => link.spot?.kind === 'rule' && (event.metaKey || event.ctrlKey);
-const telescopes = (link) => link?.spot?.kind === 'rule';
+// A term the reader defined is telescoped as a rule is: its definition shown at the term.
+const telescopes = (link) => link?.spot?.kind === 'rule' || link?.spot?.kind === 'term';
+const keepsTelescope = (link, event) => telescopes(link) && (event.metaKey || event.ctrlKey);
 
 // A box stored as fractions of the page, as CSS.
 const boxStyle = (box) => ({
@@ -573,6 +576,7 @@ function PdfPage({
   onLetGoTelescope,
   onKeepTelescope,
   telescope = null,
+  terms = EMPTY_TERMS,
   onSelectAnchor,
   onMoveAnchor,
   readOnly = false,
@@ -1258,18 +1262,18 @@ function PdfPage({
   useEffect(() => {
     if (!near) return undefined;
     const done = overlaysForRef.current;
-    if (done?.doc === doc && done.pageNumber === pageNumber && done.analysis === analysis) return undefined;
+    if (done?.doc === doc && done.pageNumber === pageNumber && done.analysis === analysis && done.terms === terms) return undefined;
     let cancelled = false;
-    pageOverlays(doc, pageNumber, analysis).then((found) => {
+    pageOverlays(doc, pageNumber, analysis, terms).then((found) => {
       if (cancelled) return;
-      overlaysForRef.current = { doc, pageNumber, analysis };
+      overlaysForRef.current = { doc, pageNumber, analysis, terms };
       setCitations(found.citations);
       setLinks(found.links);
     });
     return () => {
       cancelled = true;
     };
-  }, [doc, pageNumber, near, analysis]);
+  }, [doc, pageNumber, near, analysis, terms]);
 
   // Anchors are placed with the explicit tool, at a spot the user can see
   // before committing to it, or by a double-click on bare paper with the

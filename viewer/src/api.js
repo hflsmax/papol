@@ -356,6 +356,24 @@ export function deleteAnnotation(uuid) {
   return request(`/annotations/${uuid}`, { method: 'DELETE' });
 }
 
+// ---- Defined terms ----
+//
+// Words the reader pointed at a definition in this paper (definedTerms.js).
+// Kept by Papol and asked for when the paper opens, on the Mac as in the
+// browser.
+
+export async function listTerms(paperSha256) {
+  return (await request(`/papers/${paperName(paperSha256)}/terms`)).terms ?? [];
+}
+
+export function defineTerm(paperSha256, { term, label, page, box }) {
+  return jsonRequest(`/papers/${paperName(paperSha256)}/terms`, 'POST', { term, label, page, box });
+}
+
+export function removeTerm(uuid) {
+  return request(`/terms/${uuid}`, { method: 'DELETE' });
+}
+
 // ---- References ----
 
 // What the fields of a reference read off the page are, for the Worker to

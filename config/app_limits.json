@@ -114,6 +114,11 @@
     "range_days_max": 62,
     "recent_days": 91
   },
+  "defined_terms": {
+    "term_length_max": 120,
+    "label_length_max": 120,
+    "per_paper_max": 200
+  },
   "user_state": {
     "changes_per_request": 200,
     "flags_max": 100,

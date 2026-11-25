@@ -580,6 +580,12 @@ export const STATEMENT_LEAD = rule({
   rejects: ["The theorem holds", "In Lemma 2 we", "Proofs are in the appendix", "Theorems 3 and 4 show", "Theorem of Pythagoras says", "Lemmas"],
 });
 
+export const STATEMENT_WHOLE = rule({
+  id: "statement.whole", stage: "statement",
+  summary: "A definition whole is the line it opens on and the lines after it down its column, to the end of its paragraph: blank under a line of prose with prose after it, or a first line set in by a paragraph's indent. A formula it displays (set further in) and what it says after one are part of it. Another statement, a heading, a float, the bibliography or the next column ends it sooner, and it is followed for thirty lines at most.",
+  why: "A term the reader defined shows its definition where the term is read, as a named rule is shown at its mention; the line a definition opens on says only its number.",
+});
+
 // ------------------------------------------------------------ bibliography
 
 export const BIB_HEADING = rule({

@@ -56,6 +56,13 @@ gone.
   `mention.section`). A section is stored as a float of kind `section`
   whose box is its heading, and the viewer takes a link to it to the top
   of the window, as the PDF's own section links do.
+- `statements.ts` — theorems, lemmas, definitions and proofs: where each
+  opens (`statement.lead`), kept as a float whose box is that line, for the
+  Navigator to mark. A definition is also read whole (`statement.whole`,
+  the float's `whole`): its line and the lines after it down its column to
+  the end of its paragraph, through a formula it displays. That is what
+  the viewer shows where a term the reader defined is read
+  (`viewer/src/definedTerms.js`).
 - `footnotes.ts` — footnotes: each note found at the foot of its page (a
   line smaller than the text opening with a raised number and then words,
   nothing at the text's size under it; `footnote.note`), and each raised

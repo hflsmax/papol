@@ -55,6 +55,8 @@ import { citationProblemReport } from './citationReport.js';
 import { citationOccurrences, placeAmong, readNamedReference, stillToLookUp } from './references';
 import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from './floatView.js';
 import { telescopeFrame } from './telescope.js';
+import { definableTerm, definitionsIn, termKey, termSpot } from './definedTerms.js';
+import DefinitionPicture from './DefinitionPicture.jsx';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -232,6 +234,7 @@ const INK_SHAPES = [
 ];
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
+const NO_TERMS = [];
 const NO_RESULTS = [];
 const PAGE_PREVIEW_WIDTH = 320;
 const PAGE_PREVIEW_QUALITY = 0.72;
@@ -944,6 +947,44 @@ export default function App() {
   // when the user is done with the card the anchor opened.
   const toolBefore = useRef(null);
   const [analysis, setAnalysis] = useState(null);
+  // The terms the reader defined in this paper (definedTerms.js): each a
+  // link to its definition wherever it is printed. Papol keeps them; only a
+  // paper the reader keeps has any.
+  const [terms, setTerms] = useState(NO_TERMS);
+  useEffect(() => {
+    setTerms(NO_TERMS);
+    if (!source?.terms) return undefined;
+    let gone = false;
+    source.terms.list()
+      .then((list) => { if (!gone && list.length) setTerms(list); })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, [source]);
+  // The term being defined: the words, while the reader chooses which of
+  // the paper's definitions is theirs.
+  const [defining, setDefining] = useState(null);
+  const definitions = useMemo(() => definitionsIn(analysis?.floats), [analysis]);
+  const closeDefining = () => setDefining(null);
+  const definingDialogRef = useModalDialog(Boolean(defining), () => closeDefining());
+  const defineTerm = async (definition) => {
+    const term = definableTerm(defining?.term);
+    if (!term || defining.busy) return;
+    setDefining({ ...defining, busy: true, error: null });
+    try {
+      const made = await source.terms.define({ term, label: definition.label, page: definition.page, box: definition.box });
+      // A term defined again is the same term, pointed somewhere else.
+      setTerms((held) => [...held.filter((t) => t.uuid !== made.uuid && termKey(t.term) !== termKey(made.term)), made]);
+      setDefining(null);
+    } catch (e) {
+      setDefining((now) => now && { ...now, busy: false, error: e.status === 401 ? 'Sign in to define terms.' : e.message });
+    }
+  };
+  const removeTerm = useCallback((uuid) => {
+    let was = NO_TERMS;
+    setTerms((held) => { was = held; return held.filter((t) => t.uuid !== uuid); });
+    // Gone at once; back if Papol could not be told.
+    source?.terms?.remove(uuid).catch(() => setTerms((held) => (held.some((t) => t.uuid === uuid) ? held : was)));
+  }, [source]);
   // The reference whose card is open, and the marker it was opened from —
   // the card is placed beside that box.
   const [openCite, setOpenCite] = useState(null);
@@ -2822,6 +2863,15 @@ export default function App() {
     setSendComplete(false);
   };
 
+  // Define: the selected words, and then which definition is theirs.
+  const openDefine = () => {
+    const term = definableTerm(selectionPaint?.text);
+    if (!term) return;
+    window.getSelection()?.removeAllRanges();
+    setSelectionPaint(null);
+    setDefining({ term, busy: false, error: null });
+  };
+
   const openSendSelection = () => {
     if (!selectionPaint?.text) return;
     if (source?.annotationsRequireNook) {
@@ -4416,6 +4466,9 @@ export default function App() {
           floats={analysis?.floats}
           kinds={navKinds}
           onShown={navChoosable ? chooseNavKinds : null}
+          terms={source?.terms ? terms : null}
+          onRemoveTerm={removeTerm}
+          onTerm={(term) => followLink(termSpot(term))}
           // The gear's own tip stands where the paper's cards and the
           // project's tip do, so it waits for them; and for a citation's
           // card, over whose buttons no lesson may sit.
@@ -5146,6 +5199,7 @@ export default function App() {
               anchors={anchorsByPage.get(n) || EMPTY_INK}
               activeAnchorUuid={anchorsByPage.get(n)?.some((anchor) => anchor.uuid === activeAnchorUuid) ? activeAnchorUuid : null}
               analysis={analysis}
+              terms={terms}
               openReferenceUuid={openReferencePage === n ? openCite?.referenceUuid ?? null : null}
               onOpenReference={pageOpenReference}
               onFollowLink={pageFollowLink}
@@ -5286,6 +5340,19 @@ export default function App() {
                     disabled: selectionPaint.text == null,
                     onSelect: openSendSelection,
                   },
+                  // On a paper the reader keeps: point these words at
+                  // their definition.
+                  ...(source?.terms ? [{
+                    label: 'Define selected text',
+                    title: selectionPaint.text == null
+                      ? 'Preparing selected text…'
+                      : definableTerm(selectionPaint.text)
+                        ? 'Define: choose this term’s definition in the paper'
+                        : 'Select a word or a short phrase to define it',
+                    icon: <ActionGlyph name="define" />,
+                    disabled: !definableTerm(selectionPaint.text),
+                    onSelect: openDefine,
+                  }] : []),
                 ]}
               />
             </span>
@@ -5359,6 +5426,66 @@ export default function App() {
             aria-label={searchWrap.direction > 0 ? 'Wrapped to first result' : 'Wrapped to last result'}
           >
             <span aria-hidden="true">{searchWrap.direction > 0 ? '↻' : '↺'}</span>
+          </div>
+        )}
+
+        {defining && (
+          <div
+            ref={definingDialogRef}
+            className="sheet-back"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Define a term"
+            tabIndex="-1"
+            onClick={closeDefining}
+          >
+            <div className="sheet define-sheet" onClick={(event) => event.stopPropagation()}>
+              <h3>Define a term</h3>
+              <label className="send-selection-field">
+                <span>Term</span>
+                <input
+                  type="text"
+                  maxLength={appLimits.defined_terms.term_length_max}
+                  value={defining.term}
+                  onChange={(event) => setDefining({ ...defining, term: event.target.value })}
+                />
+              </label>
+              {definitions.length ? (
+                <>
+                  <p className="define-ask" id="define-ask">Choose its definition in this paper, each shown as printed. Wherever the term is printed, pointing at it will show the definition and a press will go there.</p>
+                  <ul className="define-list" aria-labelledby="define-ask">
+                    {definitions.map((definition) => (
+                      <li key={definition.uuid}>
+                        <button
+                          type="button"
+                          className="define-choice"
+                          disabled={defining.busy || !definableTerm(defining.term)}
+                          onClick={() => defineTerm(definition)}
+                        >
+                          <span className="define-head">
+                            <strong>{definition.label}</strong>
+                            <span className="define-about">{definition.title || ''}</span>
+                            <span className="define-page">p. {definition.page}</span>
+                          </span>
+                          {/* The definition as printed, to read before choosing. */}
+                          <DefinitionPicture doc={doc} page={definition.page} box={definition.box} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="define-ask">
+                  {analysis?.status === 'pending'
+                    ? 'Papol is still reading this paper for its definitions. Try again in a moment.'
+                    : 'Papol found no definitions in this paper: nothing headed “Definition”.'}
+                </p>
+              )}
+              {defining.error && <p className="feedback-error">{defining.error}</p>}
+              <div className="feedback-actions">
+                <button type="button" onClick={closeDefining} disabled={defining.busy}>Cancel</button>
+              </div>
+            </div>
           </div>
         )}
 

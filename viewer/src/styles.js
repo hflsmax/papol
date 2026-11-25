@@ -603,6 +603,42 @@ ${fileDropStyles}
   height: 11px;
 }
 
+/* The terms the reader defined, under the gear: each a row that goes to
+   its definition, with the definition's name after it and a cross that
+   removes the term. */
+.navigator-terms { max-width: 300px; }
+.navigator-terms-none {
+  margin: 0;
+  padding: 2px 8px 6px;
+  color: var(--ink-faint);
+  font: var(--fs-xs)/1.4 var(--font-ui);
+  white-space: normal;
+}
+.navigator-term { display: flex; align-items: center; gap: 2px; }
+.viewer-bar .navigator-choices .navigator-term-go,
+.viewer-bar .navigator-choices .navigator-term-go:hover:not(:disabled) { flex: 1; min-width: 0; color: var(--ink); }
+.navigator-term-go .navigator-kind-name { overflow: hidden; text-overflow: ellipsis; }
+.navigator-term-where { flex: none; margin-left: auto; padding-left: 10px; color: var(--ink-faint); font-size: var(--fs-xs); }
+.viewer-bar .navigator-choices .navigator-term-remove,
+.viewer-bar .navigator-choices .navigator-term-remove:hover:not(:disabled) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.viewer-bar .navigator-choices .navigator-term-remove:hover:not(:disabled) { background: var(--red-soft); color: var(--red); }
+.navigator-term-remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.navigator-term-remove svg { width: 10px; height: 10px; }
+
 /* Two sections that choose different things, each under its own name:
    how the pages are drawn, then what the bar marks over its strip. */
 .navigator-section { display: flex; flex-direction: column; }
@@ -1716,6 +1752,72 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   0%, 18% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* Define: the selected words, and the paper's definitions to choose
+   theirs from, each a row with its name, what it is about and its page. */
+.define-sheet { width: min(680px, 100%); }
+.define-sheet .send-selection-field input { width: 100%; font-size: var(--fs-sm); }
+.define-ask {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font: var(--fs-xs)/1.45 var(--font-ui);
+}
+.define-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(56vh, 520px);
+  margin: 0 0 14px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  list-style: none;
+}
+.sheet .define-choice,
+.sheet .define-choice:hover:not(:disabled) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 9px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font: var(--fs-sm) var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.sheet .define-choice:hover:not(:disabled) { background: var(--accent-soft); }
+.define-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.define-head { display: flex; align-items: baseline; gap: 10px; }
+.define-choice strong { flex: none; font-weight: 600; }
+/* The definition itself, cut from its page: paper, whatever the theme,
+   and dark with the pages when they are. */
+.define-picture {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+.define-picture canvas { display: block; width: 100%; height: 100%; }
+:root[data-pdf-pages='dark'] .define-picture canvas { filter: invert(0.9) hue-rotate(180deg); }
+:root[data-pdf-pages='dark'] .define-picture { background: #1a1a1a; }
+.define-about {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.define-page { flex: none; color: var(--ink-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 
 .send-selection-sheet { width: min(520px, 100%); }
 .send-selection-field {

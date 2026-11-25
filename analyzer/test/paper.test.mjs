@@ -773,4 +773,29 @@ describe("statements", () => {
     const titles = analysis.floats.filter((f) => ["theorem", "lemma", "definition", "proof"].includes(f.kind)).map((f) => f.title);
     assert.deepEqual(titles, ["Typing", "Every typed term halts", undefined, "It is decidable", "Weakening"]);
   });
+
+  it("reads a definition whole: down to the end of its paragraph, through a formula it displays", async () => {
+    const pdf = writtenPdf([
+      [60, 700, "Definition 1 (Typing). A term is typed when a derivation of its type exists, and", 10, "italic"],
+      [60, 688, "the derivation ends in one of the rules of the figure, which is to say that"],
+      [150, 668, "G |- e : t"],
+      [60, 648, "where G holds the types of its free variables."],
+      [60, 620, "The text goes on here, in a paragraph of its own, about something else entirely."],
+      [60, 608, "And on, for another line of the same paragraph that is not the definition's."],
+      [60, 580, "Definition 2. One line and no more.", 10, "italic"],
+      [60, 552, "Lemma 3. Every typed term has a type.", 10, "italic"],
+      [60, 540, "And its type is the only one it has."],
+    ]);
+    const { analysis } = await analyzeWithRules(pdf);
+    const [first, second] = analysis.floats.filter((f) => f.kind === "definition");
+    // From the head's line to "where G holds…", and not the paragraph after.
+    assert.ok(first.whole, "the definition has a whole");
+    assert.ok(Math.abs(first.whole.y - first.y) < 0.01, "it starts at its head");
+    const bottom = (first.whole.y + first.whole.h) * 800;
+    assert.ok(bottom > 800 - 648 && bottom < 800 - 620 - 8, `it ends under its last line (${bottom})`);
+    assert.ok(first.whole.w > 0.5, "it is as wide as its lines");
+    // A definition of one line is its own box; only definitions are read whole.
+    assert.equal(second.whole, undefined);
+    assert.equal(analysis.floats.find((f) => f.kind === "lemma").whole, undefined);
+  });
 });

@@ -189,6 +189,11 @@ export default function Navigator({
   // Told the kinds to mark when the reader changes them; without it (no
   // account to keep the choice on) there is no gear.
   onShown = null,
+  // The terms the reader defined in this paper, listed under the gear to
+  // go to or remove; null where there can be none (definedTerms.js).
+  terms = null,
+  onRemoveTerm,
+  onTerm,
   hint = true,
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
@@ -697,7 +702,7 @@ export default function Navigator({
         <span className="navigator-here" aria-hidden="true" />
         <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
       </div>
-      <MarkChoices shown={kinds} onShown={onShown} hint={hint} />
+      <MarkChoices shown={kinds} onShown={onShown} hint={hint} terms={terms} onRemoveTerm={onRemoveTerm} onTerm={onTerm} />
     </div>
   );
 }
@@ -705,9 +710,11 @@ export default function Navigator({
 // The gear at the bar's right end, and what it opens: every kind the bar
 // can mark, each with its glyph and name, pressed to mark it or not (for a
 // reader with an account to keep the choice, so `onShown`); and, for
-// everyone, whether the pages are drawn dark (shared/theme.js). Open in one
-// step, under the gear; a press outside or Escape puts it away.
-function MarkChoices({ shown, onShown, hint }) {
+// everyone, whether the pages are drawn dark (shared/theme.js); and the
+// terms the reader defined in this paper, each gone to by a press on it and
+// removed by the cross beside it. Open in one step, under the gear; a press
+// outside or Escape puts it away.
+function MarkChoices({ shown, onShown, hint, terms = null, onRemoveTerm, onTerm }) {
   const [open, setOpen] = useState(false);
   const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
   // That dark pages are in here, said under the gear until the reader has
@@ -803,6 +810,38 @@ function MarkChoices({ shown, onShown, hint }) {
               </svg>
             </button>
           ))}
+            </div>
+          )}
+          {terms && (
+            <div className="navigator-section navigator-terms" role="group" aria-labelledby="navigator-section-terms">
+              <span className="navigator-section-name" id="navigator-section-terms">Defined terms</span>
+              {terms.length === 0 && (
+                <p className="navigator-terms-none">None yet. Select a word in the paper and press Define (≔).</p>
+              )}
+              {terms.map((term) => (
+                <div key={term.uuid} className="navigator-term">
+                  <button
+                    type="button"
+                    className="navigator-kind navigator-term-go"
+                    title={`Go to ${term.label}, page ${term.page}`}
+                    onClick={() => { setOpen(false); onTerm?.(term); }}
+                  >
+                    <span className="navigator-kind-name">{term.term}</span>
+                    <span className="navigator-term-where">{term.label}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="navigator-term-remove"
+                    aria-label={`Remove the defined term “${term.term}”`}
+                    title="Remove this defined term"
+                    onClick={() => onRemoveTerm?.(term.uuid)}
+                  >
+                    <svg viewBox="0 0 12 12" aria-hidden="true">
+                      <path fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" d="m3 3 6 6M9 3 3 9" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
