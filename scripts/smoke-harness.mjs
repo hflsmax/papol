@@ -149,10 +149,15 @@ export const HEADLESS_CHROME_FLAGS = [
 // Two budgets, so a slow machine and a broken page fail differently. CI's
 // first Chrome of a job reads its whole binary from a cold disk and has
 // taken 30–40 s to say it is listening; once it is, a page that does not
-// report within a minute is the page's fault.
+// report within a minute is the page's fault, unless Chrome says its own
+// network service died on the way up: on a slow start that helper has been
+// ended for answering late, and the page's first request went with it.
 export const STARTUP_BUDGET_MS = 120_000;
 export const RENDER_BUDGET_MS = 60_000;
 const STARTUP_ATTEMPTS = 2;
+
+/** Whether Chrome's stderr says its network service died under the page. */
+export const lostItsNetwork = (errors) => /Network service crashed or was terminated/.test(errors);
 
 const after = (ms, kind) => new Promise((resolveLate) => {
   setTimeout(resolveLate, ms, { kind }).unref();
@@ -163,8 +168,9 @@ const after = (ms, kind) => new Promise((resolveLate) => {
  * the caller's probe endpoint resolves). Resolves `{ kind, errors, ... }`:
  * `rendered` (with what it resolved), `closed`, `error`, or `timeout` with
  * `during` saying whether Chrome never came up or the page never reported.
- * A Chrome that never came up is launched once more; a page that came up
- * and did not report is not retried.
+ * A Chrome that never came up, or whose network service died before the
+ * page reported, is launched once more; a page that came up in a sound
+ * Chrome and did not report is not retried.
  */
 export async function openHeadless(chromium, url, rendered) {
   for (let attempt = 1; ; attempt += 1) {
@@ -205,7 +211,13 @@ export async function openHeadless(chromium, url, rendered) {
         const startup = Date.now() - startedAt;
         if (startup > 10_000) console.warn(`Chrome took ${Math.round(startup / 1000)} s to start.`);
         outcome = await Promise.race([done, closed, launchError, after(RENDER_BUDGET_MS, 'timeout')]);
-        if (outcome.kind === 'timeout') outcome.during = 'render';
+        if (outcome.kind === 'timeout') {
+          if (lostItsNetwork(errors) && attempt < STARTUP_ATTEMPTS) {
+            console.warn('Chrome lost its network service before the page reported; launching it again.');
+            continue;
+          }
+          outcome.during = 'render';
+        }
       }
       return { ...outcome, errors };
     } finally {
