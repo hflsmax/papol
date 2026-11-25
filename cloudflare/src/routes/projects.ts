@@ -155,6 +155,21 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
   return counts;
 }
 
+// Those who asked to be let in and still wait for the keeper's answer,
+// longest waiting first.
+async function asksOf(env: Env, project: Project) {
+  const rows = await all<Row>(env.DB,
+    `SELECT a.created_at AS asked_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
+     FROM project_asks a JOIN users u ON u.uuid = a.user_uuid AND u.deleted_at IS NULL
+     WHERE a.project_uuid = ? AND a.declined_at IS NULL ORDER BY a.created_at, a.uuid`, project.uuid);
+  return rows.map((r) => ({ user: userPublic(r), asked_at: r.asked_at }));
+}
+
+// An ask's own line in a keeper's inbox, taken out once it is answered.
+function askGone(env: Env, project: Project, askerUuid: string): D1PreparedStatement {
+  return statement(env.DB, "DELETE FROM notifications WHERE kind = 'project_ask' AND actor_uuid = ? AND link = ?", askerUuid, `/project/${project.uuid}`);
+}
+
 // The whole project, as a member sees it.
 // What a board's newest card says, in a line: an excerpt its words, a
 // comment its text, anything else the name it came with.
@@ -239,6 +254,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
     ...summaryOut(project, members, me),
     description: project.description,
     invite_code: member.is_keeper ? project.invite_code : null,
+    ...(member.is_keeper ? { asks: await asksOf(env, project) } : {}),
     tags: tagRows.map((t) => ({ uuid: t.uuid, name: t.name })),
     boards: boards.map((b) => ({
       uuid: b.uuid, name: b.name, description: b.description,
@@ -619,6 +635,43 @@ export function projectRoutes(router: Router) {
         touched(env, project),
       ]);
     }
+    return json(await projectOut(env, project, me, mine));
+  });
+
+  // A keeper answering someone who asked to join. Accept lets them in at
+  // once and their inbox says so. Not now is quiet: the asker is never
+  // told, and the keeper can still add them by name.
+  router.on("POST", "/api/projects/:uuid/asks/:user/accept", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    const mine = await keeping(env, project, me);
+    const ask = await one<Row>(env.DB,
+      `SELECT a.uuid FROM project_asks a JOIN users u ON u.uuid = a.user_uuid AND u.deleted_at IS NULL
+       WHERE a.project_uuid = ? AND a.user_uuid = ?`, project.uuid, params.user);
+    if (!ask) refuse(404, "They have not asked to join");
+    const at = now();
+    await batch(env.DB, [
+      statement(env.DB, `INSERT INTO project_members (uuid, project_uuid, user_uuid, is_keeper, joined_at, seen_at)
+        SELECT ?, ?, ?, 0, ?, ? WHERE NOT EXISTS (SELECT 1 FROM project_members WHERE project_uuid = ? AND user_uuid = ?)`,
+      newUuid(), project.uuid, params.user, at, at, project.uuid, params.user),
+      statement(env.DB, "DELETE FROM project_asks WHERE project_uuid = ? AND user_uuid = ?", project.uuid, params.user),
+      askGone(env, project, params.user),
+      insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: params.user, content: `${me.display_name} let you into ${project.name}.`, read: 0, created_at: at, kind: "project_accepted", actor_uuid: me.uuid, link: `/project/${project.uuid}` }),
+      touched(env, project),
+    ]);
+    return json(await projectOut(env, project, me, mine));
+  });
+
+  router.on("POST", "/api/projects/:uuid/asks/:user/decline", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const project = await liveProject(env, params.uuid);
+    const mine = await keeping(env, project, me);
+    const ask = await one<Row>(env.DB, "SELECT uuid FROM project_asks WHERE project_uuid = ? AND user_uuid = ? AND declined_at IS NULL", project.uuid, params.user);
+    if (!ask) refuse(404, "They have not asked to join");
+    await batch(env.DB, [
+      statement(env.DB, "UPDATE project_asks SET declined_at = ? WHERE uuid = ?", now(), ask!.uuid),
+      askGone(env, project, params.user),
+    ]);
     return json(await projectOut(env, project, me, mine));
   });
 

@@ -333,4 +333,45 @@ describe("the Lounge", () => {
     await ok("POST", `/api/projects/${project.uuid}/ask`, { headers: ada.headers });
     expect((await inbox(grace)).filter((n: any) => n.kind === "project_ask").length).toBe(2);
   });
+  it("lets the keeper answer an ask to join, in the inbox or on the project", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
+    const project = await ok("POST", "/api/projects", { headers: grace.headers, json: { name: "Effects" } });
+    const asks = async () => (await ok("GET", `/api/projects/${project.uuid}`, { headers: grace.headers })).asks.map((a: any) => a.user.uuid);
+    const waiting = async () => (await inbox(grace)).filter((n: any) => n.kind === "project_ask").map((n: any) => [n.actor.uuid, n.waiting]);
+    expect(await asks()).toEqual([]);
+
+    await ok("POST", `/api/projects/${project.uuid}/ask`, { headers: ada.headers });
+    await ok("POST", `/api/projects/${project.uuid}/ask`, { headers: alan.headers });
+    expect(await asks()).toEqual([ada.uuid, alan.uuid]);
+    expect(await waiting()).toEqual(expect.arrayContaining([[ada.uuid, true], [alan.uuid, true]]));
+
+    // Only the keeper answers, and only someone who asked.
+    expect((await call("POST", `/api/projects/${project.uuid}/asks/${alan.uuid}/accept`, { headers: ada.headers })).status).toBe(403);
+    expect((await call("POST", `/api/projects/${project.uuid}/asks/${uuid()}/accept`, { headers: grace.headers })).status).toBe(404);
+
+    // Accepted: a member at once, told so, and the ask is gone from the keeper's inbox.
+    const accepted = await ok("POST", `/api/projects/${project.uuid}/asks/${ada.uuid}/accept`, { headers: grace.headers });
+    expect(accepted.members.map((m: any) => [m.user.uuid, m.is_keeper])).toEqual([[grace.uuid, true], [ada.uuid, false]]);
+    expect(accepted.asks.map((a: any) => a.user.uuid)).toEqual([alan.uuid]);
+    expect((await inbox(ada))[0]).toMatchObject({ content: "Grace let you into Effects.", kind: "project_accepted", link: `/project/${project.uuid}`, actor: { uuid: grace.uuid } });
+    expect(await waiting()).toEqual([[alan.uuid, true]]);
+    // A member is not shown the asks, and an ask answered cannot be answered again.
+    expect(await ok("GET", `/api/projects/${project.uuid}`, { headers: ada.headers })).not.toHaveProperty("asks");
+    expect((await call("POST", `/api/projects/${project.uuid}/asks/${ada.uuid}/accept`, { headers: grace.headers })).status).toBe(404);
+
+    // Not now is quiet: nothing is said, the ask stands, and asking again tells the keeper nothing.
+    const before = (await inbox(alan)).length;
+    expect((await ok("POST", `/api/projects/${project.uuid}/asks/${alan.uuid}/decline`, { headers: grace.headers })).asks).toEqual([]);
+    expect((await inbox(alan)).length).toBe(before);
+    expect(await waiting()).toEqual([]);
+    await ok("POST", `/api/projects/${project.uuid}/ask`, { headers: alan.headers });
+    expect(await asks()).toEqual([]);
+    expect(await waiting()).toEqual([]);
+    expect((await ok("GET", "/api/projects", { headers: alan.headers })).find((p: any) => p.uuid === project.uuid).asked).toBe(true);
+    expect((await call("POST", `/api/projects/${project.uuid}/asks/${alan.uuid}/decline`, { headers: grace.headers })).status).toBe(404);
+    // The keeper can still change their mind and add them by name.
+    const added = await ok("POST", `/api/projects/${project.uuid}/members`, { headers: grace.headers, json: { user_uuid: alan.uuid } });
+    expect(added.members.length).toBe(3);
+    expect(await count("project_asks")).toBe(0);
+  });
 });

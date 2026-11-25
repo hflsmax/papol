@@ -6,8 +6,8 @@ import { PHASES, PhaseGlyph, DigThread, phaseRank, when } from '../../../shared/
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import { confirmAction } from '../../../shared/confirmAction';
 import {
-  addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
-  deleteProject, findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
+  acceptAsk, addMember, addProjectPaperTag, annotationViewerPath, createProjectBoard, createProjectTag,
+  declineAsk, deleteProject, findPeople, getProject, invitationPath, openInvitation, removeMember, removeProjectPaperTag,
   describeProject, markProjectItemRead, markProjectRead, renameProject, revokeInvitation, setKeeper,
 } from '../../../shared/api/projects.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -241,6 +241,8 @@ export default function ProjectPage({ projectUuid, board = null, paper = null, c
     papers: project.papers.some((p) => p.is_new),
     boards: boards.some((b) => b.is_new),
     digs: talkedAbout.some((d) => d.is_new),
+    // Someone waits for the keeper's answer, in Manage.
+    manage: project.asks?.length > 0,
   };
   const markAll = async () => {
     const items = [
@@ -492,6 +494,36 @@ export function MemberList({ project, currentUser, act, onLeave }) {
   );
 }
 
+// Those who asked to join and wait for the keeper's answer, over the
+// members they would join. Accept lets one in at once; Not now is quiet,
+// and the keeper can still add them by name.
+function Asks({ project, act }) {
+  const [answering, setAnswering] = useState(null);
+  const answer = async (user, call) => {
+    if (answering) return;
+    setAnswering(user.uuid);
+    try { await act(() => call(project.uuid, user.uuid)); } finally { setAnswering(null); }
+  };
+  return (
+    <div className="project-asks">
+      <h3 id="project-manage-asks">Asking to join <span className="project-manage-count">{project.asks.length}</span></h3>
+      <ul className="project-people-list" aria-labelledby="project-manage-asks">
+        {project.asks.map(({ user }) => (
+          <li key={user.uuid} className="project-person">
+            <Face user={user} />
+            <a className="project-person-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
+            {user.affiliation && <span className="project-person-role">{user.affiliation}</span>}
+            <span className="project-person-actions">
+              <button type="button" className="primary" disabled={answering === user.uuid} onClick={() => answer(user, acceptAsk)}>Accept</button>
+              <button type="button" className="project-quiet" disabled={answering === user.uuid} onClick={() => answer(user, declineAsk)}>Not now</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // The keeper of a project others are in leaves only after handing it on.
 function keeperStays(project) {
   return Boolean(project.is_keeper) && project.members.length > 1;
@@ -634,6 +666,7 @@ function ProjectManage({ project, currentUser, act, onRename, onDescribe, onLeft
         {!keeper && <p className="project-manage-note">Only the keeper, {keeperNames(project.members)}, can change these.</p>}
       </section>
       <section className="project-manage-section" aria-labelledby="project-manage-members">
+        {keeper && project.asks?.length > 0 && <Asks project={project} act={act} />}
         <h3 id="project-manage-members">Members <span className="project-manage-count">{project.members.length}</span></h3>
         <MemberList project={project} currentUser={currentUser} act={act} onLeave={() => leaveProject({ project, currentUser, act, onLeft })} />
         {keeper && (
@@ -759,7 +792,7 @@ function DeskTabs({ view, onView, counts, fresh }) {
         <button
           key={v} type="button" role="tab" id={`project-tab-${v}`} aria-controls="project-view"
           aria-selected={view === v} tabIndex={view === v ? 0 : -1}
-          aria-label={v in counts ? `${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total` : label}
+          aria-label={v in counts ? `${label}, ${fresh[v] ? 'new activity, ' : ''}${counts[v]} total` : v === 'manage' && fresh[v] ? `${label}, someone asks to join` : label}
           className={`project-tab${view === v ? ' is-on' : ''}${v === 'manage' ? ' project-tab-manage' : ''}`}
           onClick={() => onView(v)} onKeyDown={move}
         >

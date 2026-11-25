@@ -66,13 +66,18 @@ export function inboxRoutes(router: Router) {
   // ------------------------------------------------------- notifications
 
   // A line that is more than its words says who it is from and where it
-  // leads; a friend request also says whether it still waits for an answer.
+  // leads; a friend request, or an ask to join a project the reader
+  // keeps, also says whether it still waits for an answer.
   router.on("GET", "/api/notifications", async ({ request, env }) => {
     const user = await currentUser(request, env);
     const rows = await all<Row>(env.DB,
       `SELECT n.uuid, n.content, n.read, n.created_at, n.kind, n.link,
               a.uuid AS actor_uuid, a.display_name, a.affiliation, a.avatar_path, a.email, a.email_public,
-              EXISTS (SELECT 1 FROM friendships f WHERE f.asker_uuid = n.actor_uuid AND f.asked_uuid = n.user_uuid AND f.state = 'asked') AS waiting
+              CASE WHEN n.kind = 'project_ask'
+                THEN EXISTS (SELECT 1 FROM project_asks x JOIN project_members k ON k.project_uuid = x.project_uuid AND k.user_uuid = n.user_uuid AND k.is_keeper = 1
+                             JOIN projects pr ON pr.uuid = x.project_uuid AND pr.deleted_at IS NULL
+                             WHERE x.project_uuid = substr(n.link, 10) AND x.user_uuid = n.actor_uuid AND x.declined_at IS NULL)
+                ELSE EXISTS (SELECT 1 FROM friendships f WHERE f.asker_uuid = n.actor_uuid AND f.asked_uuid = n.user_uuid AND f.state = 'asked') END AS waiting
        FROM notifications n LEFT JOIN users a ON a.uuid = n.actor_uuid
        WHERE n.user_uuid = ? ORDER BY n.created_at DESC, n.uuid DESC LIMIT ?`,
       user.uuid, limits.counts.notifications);
@@ -80,7 +85,7 @@ export function inboxRoutes(router: Router) {
       uuid: n.uuid, content: n.content, read: Boolean(n.read), created_at: n.created_at,
       kind: n.kind ?? null, link: n.link ?? null,
       actor: n.actor_uuid ? userPublic({ ...n, uuid: n.actor_uuid }) : null,
-      ...(n.kind === "friend_request" ? { waiting: Boolean(n.waiting) } : {}),
+      ...(n.kind === "friend_request" || n.kind === "project_ask" ? { waiting: Boolean(n.waiting) } : {}),
     })) });
   });
 
