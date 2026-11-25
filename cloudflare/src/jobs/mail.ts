@@ -20,6 +20,9 @@ export interface Mail {
   // An HTML form of the same message, for mail apps that show it; the
   // body is always sent too, as its plain text.
   html?: string;
+  // Headers of the message itself, such as the weekly email's
+  // List-Unsubscribe.
+  headers?: Record<string, string>;
 }
 
 // Resend takes at most this many emails in one batch.
@@ -37,7 +40,7 @@ function emailApi(env: Env, path = "", init: RequestInit = {}): Promise<Response
 }
 
 function outgoing(env: Env, mail: Mail) {
-  return { from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.body, ...(mail.html ? { html: mail.html } : {}) };
+  return { from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.body, ...(mail.html ? { html: mail.html } : {}), ...(mail.headers ? { headers: mail.headers } : {}) };
 }
 
 export async function sendEmail(env: Env, mail: Mail): Promise<void> {

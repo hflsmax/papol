@@ -197,11 +197,13 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Becoming friends**
 
-- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out. **Find** in the Lounge looks people up by name or address; a dropdown on my **Preferences** tab, *People searching my name*, set to *Can find me* to begin with, takes me out of what Find shows when set to *Cannot find me*. Preferences is one tab of my own page that holds every choice I make about how Papol behaves for me: whether my email shows on my nook and whether I can be found. What belongs to the reader, such as what its navigation bar marks, is set in the reader. Each is a dropdown, kept as it is chosen. Off, I can still be asked from my nook.
+- **US-9.1** As a user, I can ask another user to be friends from their nook. One small button, a glyph of a person with a plus, whose tooltip reads **Ask to be friends**; once pressed it shows a person with dots (**Requested**), and pressing it again takes the request back. A glyph where words would be loud: only Accept and Not now, an answer still owed, are written out. **Find** in the Lounge looks people up by name or address; a dropdown on my **Preferences** tab, *People searching my name*, set to *Can find me* to begin with, takes me out of what Find shows when set to *Cannot find me*. Preferences is one tab of my own page that holds every choice I make about how Papol behaves for me: whether my email shows on my nook, whether I can be found, and whether Papol emails me its weekly suggestions (US-9.6b). What belongs to the reader, such as what its navigation bar marks, is set in the reader. Each is a dropdown, kept as it is chosen. Off, I can still be asked from my nook.
 - **US-9.2** A request reaches them in their Inbox, with my face, name and affiliation and the papers we both keep on public shelves, so they can tell who is asking. They answer **Accept** or **Not now**. It also waits on my nook, where they answer with the same two buttons.
 - **US-9.3** **Not now is quiet.** I am never told I was declined; my button goes on reading Requested, and I cannot ask the same person a second time. They can change their mind later from my nook.
 - **US-9.4** If we have each asked the other, we are friends; nobody is made to accept a request they also sent.
-- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Find** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol does not suggest people to befriend, and there is no link that befriends whoever opens it. A nook still carries the same button.
+- **US-9.6** **The Lounge is where friends are added.** Its rail lists my friends, as the nook's rail lists my shelves, and **Find** beside the heading opens a box that finds people by name or email address (an address its owner hides is matched only whole) and puts the friend button under each. Papol also suggests people to ask (US-9.6a). There is no link that befriends whoever opens it. A nook still carries the same button.
+- **US-9.6a** **People you may know.** Above the news, the Lounge names up to three people I may want to ask, each with their face, name and affiliation, one line of why, the friend button, and a small × (**Not interested**) that stops Papol suggesting them to me for good and tells them nothing. The reasons are only what the two of us can already see of each other: a project we are both in (which counts for most), and papers we both keep on public shelves. Nothing private makes a suggestion, and nothing I read; friends of friends are not a reason, because nobody is shown who my friends are (US-9.7). Papol never suggests a friend, anyone I asked or who asked me (answered or not), or anyone who set *People searching my name* to *Cannot find me*. The section is not shown while the news is narrowed to one friend, or when there is nobody to suggest.
+- **US-9.6b** **Once a week Papol emails me the people it suggests**, on Monday, up to three, each with the same line of why and a link to their nook. An email names only people no earlier email named, and a week with nobody new sends nothing. A dropdown on my Preferences tab, *Friend suggestions, once a week*, set to *Email me* to begin with, turns it off (*No email*); so does **Stop these emails** at the foot of every such email, which opens a page that asks once and needs no sign-in, and so does a mail app's own Unsubscribe button. Turning the email off leaves the Lounge's suggestions as they are.
 
 **Having friends**
 
@@ -234,7 +236,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room is empty; Find stands in its rail.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room has no news; Find stands in its rail, and the people Papol suggests (US-9.6a) stand where the news would.
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**
@@ -244,7 +246,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Elsewhere**
 
-- **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing in the Lounge sends email.
+- **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing a friend does in the Lounge sends email; the one email made from it is the weekly suggestions (US-9.6b).
 - **US-10.17** On a phone the room is one column: my friends, the rows, then Show. Papol for Mac carries the same room, **Lounge** first under Papol in its sidebar (⌘2).
 
 **Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.

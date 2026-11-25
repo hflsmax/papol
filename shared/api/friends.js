@@ -34,6 +34,16 @@ export function findPeople(query) {
   return request(`/friends/people?q=${encodeURIComponent(query)}`);
 }
 
+// People Papol suggests I ask: those in a project with me, or keeping
+// papers I keep, on public shelves both.
+export function getSuggestions() {
+  return request('/friends/suggestions');
+}
+
+// Not interested: they are not suggested to me again. Answers with who is left.
+export function hideSuggestion(userUuid) {
+  return request(`/friends/suggestions/${userUuid}`, { method: 'DELETE' });
+}
 
 // The Lounge: my friends' news.
 export function getRoom() {

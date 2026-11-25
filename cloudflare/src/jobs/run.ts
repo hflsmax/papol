@@ -12,7 +12,7 @@ import { refreshVenuesJob, VENUES } from "../papers/venues";
 import { captureWebpageJob, WEBPAGE } from "./capture";
 import { claim, claimDue, fail, finish, JobError, payloadOf, wake, type Job } from "./queue";
 import { SEND_ANNOUNCEMENT, SEND_EMAIL, sendAnnouncementJob, sendEmailJob } from "./notifications";
-import { enqueue } from "./queue";
+import { SUGGEST_FRIENDS, suggestFriendsJob } from "./suggestions";
 
 export type Handler = (env: Env, payload: Row) => Promise<unknown>;
 
@@ -22,6 +22,7 @@ export const HANDLERS: Record<string, Handler> = {
   [WEBPAGE]: captureWebpageJob,
   [EXTRACT]: extractMetadataJob,
   [VENUES]: refreshVenuesJob,
+  [SUGGEST_FRIENDS]: suggestFriendsJob,
 };
 
 const ERROR_LIMIT = limits.text.job_error;

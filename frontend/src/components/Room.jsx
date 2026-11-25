@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { findPeople, getRoom, markRoomSeen } from '../../../shared/api/friends.js';
+import { findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen } from '../../../shared/api/friends.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -248,6 +248,70 @@ function Finder({ currentUser, onDone }) {
   );
 }
 
+// Why someone is suggested, in a line: the project we are both in, then
+// the papers we both keep on public shelves.
+export function suggestionReason(suggestion) {
+  const parts = [];
+  const more = (n, one, many) => (n > 0 ? ` and ${n} more ${n === 1 ? one : many}` : '');
+  if (suggestion.project_count > 0) parts.push(`in ${suggestion.projects[0].name}${more(suggestion.project_count - 1, 'project', 'projects')} with you`);
+  if (suggestion.paper_count > 0) parts.push(`keeps “${suggestion.papers[0].title}”${more(suggestion.paper_count - 1, 'paper', 'papers')} that you keep too`);
+  const said = parts.join(', and ');
+  return said ? said[0].toUpperCase() + said.slice(1) : '';
+}
+
+// How many people are suggested at once; the next come up as these go.
+const SUGGESTED = 3;
+
+// People to ask, above the news: who they are, why Papol names them, the
+// friend button, and Not interested, which takes them out for good.
+// Someone just asked stays until the visit ends, so the asking can be
+// taken back where it was done.
+function Suggestions({ currentUser }) {
+  const [people, setPeople] = useState(() => kept('room-suggestions') ?? null);
+  const [error, setError] = useState(null);
+  const take = (next) => { keep('room-suggestions', next); setPeople(next); };
+
+  useEffect(() => {
+    let active = true;
+    getSuggestions().then((next) => { if (active) take(next); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const hide = async (user) => {
+    setError(null);
+    // Gone at once; the answer brings whoever is next.
+    setPeople((now) => now.filter((s) => s.user.uuid !== user.uuid));
+    try { take(await hideSuggestion(user.uuid)); } catch (err) { setError(err.message); }
+  };
+
+  if (!people?.length) return null;
+  return (
+    <section className="room-suggested" aria-labelledby="room-suggested">
+      <h3 id="room-suggested" className="room-suggested-head">People you may know</h3>
+      {error && <div className="error" role="alert">{error}</div>}
+      <ul className="room-suggestions">
+        {people.slice(0, SUGGESTED).map((suggestion) => {
+          const { user } = suggestion;
+          return (
+            <li key={user.uuid} className="room-suggestion">
+              <Face user={user} />
+              <span className="room-suggestion-who">
+                <a className="room-found-name" href={appPath(`/u/${user.uuid}`)}>{user.display_name}</a>
+                {user.affiliation && <span className="room-found-where">{user.affiliation}</span>}
+              </span>
+              <FriendButton user={user} currentUser={currentUser} />
+              <button type="button" className="room-suggestion-hide" title={`Not interested: stop suggesting ${first(user)}`} aria-label={`Not interested: stop suggesting ${user.display_name}`} onClick={() => hide(user)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+              <span className="room-suggestion-why">{suggestionReason(suggestion)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
 
 const NONE = { kind: '', who: '' };
@@ -363,6 +427,7 @@ export default function Room({ currentUser, onSeen }) {
             <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
+          {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (
             <p className="room-empty">Your friends have been quiet this month.</p>

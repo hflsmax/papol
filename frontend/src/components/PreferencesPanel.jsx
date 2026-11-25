@@ -3,7 +3,8 @@ import { updateProfile } from '../../../shared/api/account.js';
 import { chooseTheme, readTheme } from '../../../shared/theme.js';
 
 // Every choice a member makes about how Papol behaves for them, in one
-// place: how it looks, and who sees and finds them. Each is
+// place: how it looks, who sees and finds them, and what Papol emails
+// them of its own accord. Each is
 // kept the moment it is chosen; there is nothing to save. How it looks is
 // this device's (shared/theme.js); the rest are the account's.
 export default function PreferencesPanel({ user, onUserUpdated }) {
@@ -46,6 +47,10 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
         <h2 className="panel-title" id="preferences-privacy">Privacy</h2>
         {choice('preference-email', 'My email on my nook', Boolean(user.email_public), 'Shown', 'Hidden', (on) => ({ email_public: on }))}
         {choice('preference-findable', 'People searching my name', user.findable ?? true, 'Can find me', 'Cannot find me', (on) => ({ findable: on }))}
+      </section>
+      <section className="panel preferences-block" aria-labelledby="preferences-email">
+        <h2 className="panel-title" id="preferences-email">Email</h2>
+        {choice('preference-suggestion-email', 'Friend suggestions, once a week', user.suggestion_email ?? true, 'Email me', 'No email', (on) => ({ suggestion_email: on }))}
       </section>
     </div>
   );

@@ -6029,6 +6029,19 @@ ${talkStyles}
 .room-found-name { overflow: hidden; color: var(--ink); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .room-found-name:hover { color: var(--accent); }
 .room-found-where { overflow: hidden; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+/* People to ask, above the news: three to a line, each a small card of
+   who, the friend button and Not interested, and under them why. */
+.room-suggested { margin: 0 0 var(--space-5); }
+.room-suggested-head { margin: 0 0 var(--space-2); color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.room-suggestions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.room-suggestion { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-1) var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.room-suggestion .mini-avatar { width: 28px; height: 28px; font-size: var(--fs-xs); }
+.room-suggestion-who { display: grid; min-width: 0; }
+.room-suggestion-why { grid-column: 1 / -1; align-self: start; color: var(--ink-soft); font: 400 var(--fs-xs)/1.45 var(--font-ui); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.room-suggestion-hide { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: transparent; box-shadow: none; color: var(--ink-faint); cursor: pointer; }
+.room-suggestion-hide svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.room-suggestion-hide:hover, .room-suggestion-hide:focus-visible { border-color: var(--line); background: var(--paper-sunken); color: var(--ink-soft); }
+@media (max-width: 900px) { .room-suggestions { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); } }
 .room-nook-link { margin-left: var(--space-4); color: var(--ink-faint); font: 400 var(--fs-sm) var(--font-ui); letter-spacing: 0; text-decoration: none; }
 .room-nook-link:hover, .room-nook-link:focus-visible { color: var(--accent); }
 /* The card and its head are the nook's table and its column names. */
