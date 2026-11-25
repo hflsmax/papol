@@ -13,9 +13,8 @@ export default function AboutPage() {
         </p>
         <p>
           Papol is developed and maintained by{' '}
-          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">Cong Ma</a>,
-          a computer science researcher, as a personal project. The source code is
-          publicly available on{' '}
+          <a href="https://mc-pony.com" target="_blank" rel="noreferrer">Cong Ma</a>.
+          The source code is publicly available on{' '}
           <a href="https://github.com/hflsmax/papol" target="_blank" rel="noreferrer">GitHub</a>.
         </p>
         <p>
