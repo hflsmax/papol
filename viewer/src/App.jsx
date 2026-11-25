@@ -57,6 +57,7 @@ import { fitsFloat, floatScroll, floatZoom, sectionScroll, sectionZoom } from '.
 import { telescopeFrame } from './telescope.js';
 import { definableTerm, definitionsIn, termKey, termSpot } from './definedTerms.js';
 import DefinitionPicture from './DefinitionPicture.jsx';
+import TermBoxer from './TermBoxer.jsx';
 import { ToolGlyph } from './glyphs';
 import { copySelectionSnapshot } from './selectionCopy.js';
 import { citationAt, superscriptCitationIndexes } from './citationText.js';
@@ -966,17 +967,47 @@ export default function App() {
   const definitions = useMemo(() => definitionsIn(analysis?.floats), [analysis]);
   const closeDefining = () => setDefining(null);
   const definingDialogRef = useModalDialog(Boolean(defining), () => closeDefining());
+  // A term kept, pointed at a place in the paper. A term defined again is
+  // the same term, pointed somewhere else.
+  const keepTerm = async (term, { label, page, box }) => {
+    const made = await source.terms.define({ term, label, page, box });
+    setTerms((held) => [...held.filter((t) => t.uuid !== made.uuid && termKey(t.term) !== termKey(made.term)), made]);
+  };
+  const cannotDefine = (e) => (e.status === 401 ? 'Sign in to define terms.' : e.message);
   const defineTerm = async (definition) => {
     const term = definableTerm(defining?.term);
     if (!term || defining.busy) return;
     setDefining({ ...defining, busy: true, error: null });
     try {
-      const made = await source.terms.define({ term, label: definition.label, page: definition.page, box: definition.box });
-      // A term defined again is the same term, pointed somewhere else.
-      setTerms((held) => [...held.filter((t) => t.uuid !== made.uuid && termKey(t.term) !== termKey(made.term)), made]);
+      await keepTerm(term, definition);
       setDefining(null);
     } catch (e) {
-      setDefining((now) => now && { ...now, busy: false, error: e.status === 401 ? 'Sign in to define terms.' : e.message });
+      setDefining((now) => now && { ...now, busy: false, error: cannotDefine(e) });
+    }
+  };
+  // The term whose definition is being boxed by hand (TermBoxer.jsx): from
+  // one of the paper's definitions, to set its box right, or from nothing,
+  // to draw one on any page. `value` is the box and its page, once there
+  // is one; `label` the definition it began from.
+  const [boxing, setBoxing] = useState(null);
+  const boxTerm = (definition) => {
+    const term = definableTerm(defining?.term);
+    if (!term) return;
+    setBoxing({ term, label: definition?.label ?? null, value: definition ? { page: definition.page, box: definition.box } : null });
+    setDefining(null);
+    if (definition) followLink(termSpot(definition));
+  };
+  const setBoxValue = useCallback((value) => setBoxing((now) => now && { ...now, value }), []);
+  const closeBoxing = useCallback(() => setBoxing(null), []);
+  const saveBox = async () => {
+    if (!boxing?.value || boxing.busy) return;
+    setBoxing({ ...boxing, busy: true, error: null });
+    try {
+      // A box drawn on a page of the reader's choosing is named by the page.
+      await keepTerm(boxing.term, { label: boxing.label ?? `Page ${boxing.value.page}`, ...boxing.value });
+      setBoxing(null);
+    } catch (e) {
+      setBoxing((now) => now && { ...now, busy: false, error: cannotDefine(e) });
     }
   };
   const removeTerm = useCallback((uuid) => {
@@ -5452,10 +5483,10 @@ export default function App() {
               </label>
               {definitions.length ? (
                 <>
-                  <p className="define-ask" id="define-ask">Choose its definition in this paper, each shown as printed. Wherever the term is printed, pointing at it will show the definition and a press will go there.</p>
+                  <p className="define-ask" id="define-ask">Choose its definition in this paper, each shown as printed, or draw a box around it yourself. Wherever the term is printed, pointing at it will show the definition and a press will go there.</p>
                   <ul className="define-list" aria-labelledby="define-ask">
                     {definitions.map((definition) => (
-                      <li key={definition.uuid}>
+                      <li key={definition.uuid} className="define-item">
                         <button
                           type="button"
                           className="define-choice"
@@ -5470,6 +5501,15 @@ export default function App() {
                           {/* The definition as printed, to read before choosing. */}
                           <DefinitionPicture doc={doc} page={definition.page} box={definition.box} />
                         </button>
+                        <button
+                          type="button"
+                          className="define-box"
+                          aria-label={`Adjust the box of ${definition.label}`}
+                          disabled={defining.busy || !definableTerm(defining.term)}
+                          onClick={() => boxTerm(definition)}
+                        >
+                          Adjust its box
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -5481,12 +5521,36 @@ export default function App() {
                     : 'Papol found no definitions in this paper: nothing headed “Definition”.'}
                 </p>
               )}
+              {analysis?.status !== 'pending' && (
+                <button
+                  type="button"
+                  className="define-box anywhere"
+                  disabled={defining.busy || !definableTerm(defining.term)}
+                  onClick={() => boxTerm(null)}
+                >
+                  Draw a box on any page instead
+                </button>
+              )}
               {defining.error && <p className="feedback-error">{defining.error}</p>}
               <div className="feedback-actions">
                 <button type="button" onClick={closeDefining} disabled={defining.busy}>Cancel</button>
               </div>
             </div>
           </div>
+        )}
+
+        {boxing && (
+          <TermBoxer
+            scrollerRef={scrollerRef}
+            term={boxing.term}
+            value={boxing.value}
+            scale={scale}
+            busy={Boolean(boxing.busy)}
+            error={boxing.error}
+            onChange={setBoxValue}
+            onSave={saveBox}
+            onCancel={closeBoxing}
+          />
         )}
 
         {sendSelection && (
