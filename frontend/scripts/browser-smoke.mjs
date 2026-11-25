@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import {
   delimiter, extname, isAbsolute, join, relative as pathRelative, resolve,
 } from 'node:path';
-import { openHeadless, timeoutMessage } from '../../scripts/smoke-harness.mjs';
+import { macStylePolicy, openHeadless, timeoutMessage } from '../../scripts/smoke-harness.mjs';
 
 // Desktop builds can point this check at the exact web payload Tauri bundled.
 // Standalone frontend checks retain the conventional frontend/dist default.
@@ -287,8 +287,12 @@ const server = createServer(async (request, response) => {
       response.writeHead(404).end();
       return;
     }
-    response.writeHead(200, { 'content-type': mime[extname(file)] || 'application/octet-stream' });
     const body = await readFile(file);
+    response.writeHead(200, {
+      'content-type': mime[extname(file)] || 'application/octet-stream',
+      // The page is held to the style policy of the Mac app's window.
+      ...(relative === 'index.html' ? { 'content-security-policy': macStylePolicy(body.toString('utf8')) } : {}),
+    });
     if (relative === 'index.html' && desktopMode) {
       const surface = /\/paper\//.test(url.pathname) ? 'paper'
         : url.searchParams.get('listing') === 'boards' ? 'board' : 'desk';
@@ -309,7 +313,8 @@ const server = createServer(async (request, response) => {
           const ready = () => {
             observeLoading();
             const app = document.querySelector('.app');
-            if (document.querySelector('#root > style')
+            // The application's sheet is on and its rules apply: --paper is its own.
+            if (getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()
                 && app
                 && document.querySelector('.topnav, .way-bar')) {
               loadingObserver.disconnect();

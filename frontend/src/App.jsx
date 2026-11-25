@@ -39,7 +39,6 @@ import {
 } from './components/DesktopChrome';
 import { DesktopBrowser, useNook } from './components/DesktopDesk';
 import { isBrowsing, lastShownListing, listingPath, rememberListing, resolveListing } from './desktopListings';
-import { applicationStyles } from '../../shared/applicationStyles.js';
 import {
   FEATURE_STATES_TAKEN, MACOS_DOWNLOAD_BANNER_DISMISSED, isFeatureStateSet, setFeatureState,
 } from '../../shared/featureStates.js';
@@ -747,7 +746,6 @@ export default function App({ startupUser = null, startupError = null }) {
     // is checked, as it stays while the nook comes.
     return (
       <>
-        <style>{applicationStyles}</style>
         <div className="app has-way" data-page={route.page}>
           <WayBar route={route} />
           <main className="main-content"><div className="nook is-desk" /></main>
@@ -760,7 +758,6 @@ export default function App({ startupUser = null, startupError = null }) {
   if (!authChecked) {
     return (
       <>
-        <style>{applicationStyles}</style>
         <div className="loading"><Working label="Loading…" /></div>
       </>
     );
@@ -1101,7 +1098,6 @@ export default function App({ startupUser = null, startupError = null }) {
     };
     return (
       <>
-        <style>{applicationStyles}</style>
         <DeskFileDropFeedback
           state={deskFileDrag}
           message={deskDropNotice}
@@ -1180,7 +1176,6 @@ export default function App({ startupUser = null, startupError = null }) {
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
   return (
     <>
-      <style>{applicationStyles}</style>
       <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} into={mode === 'signed-in' ? dropTarget() : null} />
       {adminMessageDialog}
       {macosDownloadBanner}

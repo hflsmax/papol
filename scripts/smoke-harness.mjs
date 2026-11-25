@@ -4,6 +4,7 @@
 // smokes each own what they serve and what "rendered" means; this owns how
 // a page is opened and how its answer comes back.
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -149,10 +150,15 @@ export const HEADLESS_CHROME_FLAGS = [
 // Two budgets, so a slow machine and a broken page fail differently. CI's
 // first Chrome of a job reads its whole binary from a cold disk and has
 // taken 30–40 s to say it is listening; once it is, a page that does not
-// report within a minute is the page's fault.
+// report within a minute is the page's fault, unless Chrome says its own
+// network service died on the way up: on a slow start that helper has been
+// ended for answering late, and the page's first request went with it.
 export const STARTUP_BUDGET_MS = 120_000;
 export const RENDER_BUDGET_MS = 60_000;
 const STARTUP_ATTEMPTS = 2;
+
+/** Whether Chrome's stderr says its network service died under the page. */
+export const lostItsNetwork = (errors) => /Network service crashed or was terminated/.test(errors);
 
 const after = (ms, kind) => new Promise((resolveLate) => {
   setTimeout(resolveLate, ms, { kind }).unref();
@@ -163,8 +169,9 @@ const after = (ms, kind) => new Promise((resolveLate) => {
  * the caller's probe endpoint resolves). Resolves `{ kind, errors, ... }`:
  * `rendered` (with what it resolved), `closed`, `error`, or `timeout` with
  * `during` saying whether Chrome never came up or the page never reported.
- * A Chrome that never came up is launched once more; a page that came up
- * and did not report is not retried.
+ * A Chrome that never came up, or whose network service died before the
+ * page reported, is launched once more; a page that came up in a sound
+ * Chrome and did not report is not retried.
  */
 export async function openHeadless(chromium, url, rendered) {
   for (let attempt = 1; ; attempt += 1) {
@@ -205,7 +212,13 @@ export async function openHeadless(chromium, url, rendered) {
         const startup = Date.now() - startedAt;
         if (startup > 10_000) console.warn(`Chrome took ${Math.round(startup / 1000)} s to start.`);
         outcome = await Promise.race([done, closed, launchError, after(RENDER_BUDGET_MS, 'timeout')]);
-        if (outcome.kind === 'timeout') outcome.during = 'render';
+        if (outcome.kind === 'timeout') {
+          if (lostItsNetwork(errors) && attempt < STARTUP_ATTEMPTS) {
+            console.warn('Chrome lost its network service before the page reported; launching it again.');
+            continue;
+          }
+          outcome.during = 'render';
+        }
       }
       return { ...outcome, errors };
     } finally {
@@ -213,6 +226,19 @@ export async function openHeadless(chromium, url, rendered) {
       await rm(profile, { recursive: true, force: true, maxRetries: 5 });
     }
   }
+}
+
+/**
+ * The style policy Papol for Mac's windows run under, for a page's HTML.
+ * Tauri adds a hash for each inline <style> in the HTML to the window's
+ * style-src, and once a hash is there the engine ignores 'unsafe-inline':
+ * a <style> element the page adds later applies none of its rules. A smoke
+ * that serves its page with this header sees the page as the Mac draws it.
+ */
+export function macStylePolicy(html) {
+  const hashes = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+    .map(([, css]) => `'sha256-${createHash('sha256').update(css).digest('base64')}'`);
+  return `style-src 'self' 'unsafe-inline' ${hashes.join(' ')}`.trim();
 }
 
 /** What a smoke says when `openHeadless` timed out on `link`. */
@@ -226,7 +252,7 @@ export function timeoutMessage(link, outcome) {
 /**
  * Serve `respond(url)` and open each page in its own headless browser.
  *
- * `respond` answers with `{ status?, type?, body }` or null for a 404; the
+ * `respond` answers with `{ status?, type?, headers?, body }` or null for a 404; the
  * injected probe reports by fetching `/__papol_smoke_ready?page=<name>`.
  * Each page names what its probe must report; anything else — a timeout, a
  * crash, an uncaught error — fails with the browser's stderr attached.
@@ -254,6 +280,7 @@ export async function runSmoke(pages, respond) {
       }
       response.writeHead(answer.status || 200, {
         'content-type': answer.type || 'application/octet-stream',
+        ...answer.headers,
       });
       response.end(answer.body);
     } catch {

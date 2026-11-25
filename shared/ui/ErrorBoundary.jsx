@@ -5,6 +5,7 @@ import { unexpectedDesktopErrorReport } from '../errorReport.js';
 import { recordDiagnosticEvent } from '../nativeData.js';
 import { IS_DESKTOP } from '../appEnvironment.js';
 import { commonStyles } from '../commonStyles.js';
+import { addPageStyles } from '../pageStyles.js';
 
 /**
  * The wall between one surface and the whole window.
@@ -44,12 +45,13 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (!this.state.crashed) return this.props.children;
+    // The panel dresses itself, whatever stylesheet the surface around it
+    // has: under the application's own the same rules land twice, which is
+    // the same look once. A constructed sheet, as a <style> element here
+    // would apply nothing in Papol for Mac (shared/pageStyles.js).
+    addPageStyles('papol-render-error', commonStyles, { first: true });
     return (
       <div className="panel render-error" role="alert">
-        {/* A crash at an app's root takes the app's own stylesheet with it,
-            so the panel dresses itself. Under a surviving stylesheet the
-            same rules land twice, which is the same look once. */}
-        <style>{commonStyles}</style>
         <h2>This page hit a bug</h2>
         <p>
           The rest of Papol is still running. Reporting what happened is the
