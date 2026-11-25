@@ -98,6 +98,11 @@ publishers. Say what the reader sees, not how Papol gets there. Leave out
 the smaller fixes around each feature too. Sign it from the team,
 with no marketing adjectives.
 
+Every letter carries at least one link to papol.io that a reader can press
+to open Papol, however short the letter is: a picture's address does not
+count. Put it where the reader would act on it, such as "Open
+[Papol](https://papol.io) and…", or on its own line before the signature.
+
 The letter is `newsletters/YYYY-MM-DD-<topic>/letter.md` (the README has
 the layout), with the `# ` title as the email's subject. Its pictures
 live in the public bucket, not the repository: publish each GIF with
