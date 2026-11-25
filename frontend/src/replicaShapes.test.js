@@ -107,6 +107,18 @@ test('paper edits resolve their local copy without automatically uploading it', 
   assert.ok(native.argsOf('sync_now').every(({ request }) => request.mode === 'pull'));
 });
 
+test('a paper pinned on the Mac is written to its copy in the replica, and read back as pinned', async () => {
+  const copyUuid = '34343434-3434-4434-8434-343434343434';
+  native.query('paper', { sha256: PAPER, copy_uuid: copyUuid, pinned: 1 });
+  await updatePaper(PAPER, { pinned: true });
+  const [{ changes }] = native.argsOf('data_mutate');
+  assert.deepEqual(changes, [{ table: 'copies', uuid: copyUuid, operation: 'upsert', values: { pinned: true } }]);
+  // The replica keeps a flag as 0 or 1; the page is handed a boolean.
+  const { paperView } = await import('../../shared/nativeData.js');
+  assert.equal(paperView({ sha256: PAPER, copy_uuid: copyUuid, pinned: 1 }).pinned, true);
+  assert.equal(paperView({ sha256: PAPER, copy_uuid: copyUuid, pinned: 0 }).pinned, false);
+});
+
 test('the native repository owns query names and parameter shapes', async () => {
   const uuid = 'f5e4f3f9-a614-40a0-95d0-bad753642e2a';
   native.query('board', { uuid });

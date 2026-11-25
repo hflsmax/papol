@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { ME, P_ERROR, P_SURVEY, PROJECT, held, projectServer, uploadReads } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, P_SURVEY, PROJECT, held, pinnedNow, projectServer, uploadReads } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
@@ -35,6 +35,9 @@ const DROP = "return fetch('/scripts/fixtures/attention.pdf').then((r) => r.blob
 // without its tint.
 const PROD_CHROME = "document.documentElement.style.setProperty('--chrome', '#eaedf1');";
 const NO_TINT = "document.documentElement.style.setProperty('--chrome-lounge', '#eaedf1');";
+// The papers pinned in the pictures of a nook with pins: an old one and a
+// recent one, so the pinned are seen to lead whatever their age.
+const PINNED = ['c2'.repeat(32), P_SURVEY];
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -135,6 +138,14 @@ const SHOTS = {
   'phone-nook-read-age': { path: '/?shell=web', ready: "document.querySelectorAll('.nook .desk-title').length > 6", then: "document.querySelector('.desk-table').scrollIntoView({ block: 'start' }); return true;", size: phone },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
+  // Two papers pinned: they lead the list, each with its pin; the pointer
+  // rests on a paper that is not, whose pin shows while it does.
+  'nook-pinned': { path: '/?shell=web', pins: PINNED, ready: "document.querySelector('.nook .desk-pin.is-on')", pointer: [['move', '.desk-table tbody tr:nth-child(4) .desk-meta']], size: wide },
+  'phone-nook-pinned': { path: '/?shell=web', pins: PINNED, ready: "document.querySelector('.nook .desk-pin.is-on')", then: "document.querySelector('.desk-table').scrollIntoView({ block: 'start' }); return true;", size: phone },
+  // In the Mac shell a pinned paper is chosen: its pin is in its own pane.
+  'mac-nook-pinned': { path: '/?shell=desktop', pins: PINNED, ready: "document.querySelector('.desktop-row-pin')", then: "document.querySelector('.desktop-row').click(); return true;", settled: "document.querySelector('.jacket-pin.is-on')", size: wide },
+  // A paper's own pane on the web, pinned from there.
+  'nook-paper-pinned': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); const go = () => { const b = document.querySelector('.jacket-pin'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.jacket-pin.is-on')", size: wide },
   'mac-nook-boards': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Boards')).click(); return true;", settled: "document.querySelector('.desktop-row-sub')", size: wide },
   'mac-nook-shelf': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Reading')).click(); return true;", settled: "document.querySelector('.desktop-list-pane[aria-label=\"Reading\"]')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket') && document.querySelector('.board-jacket-heading')", size: wide },
@@ -299,6 +310,8 @@ try {
   for (const name of names) {
     const shot = SHOTS[name];
     held.clear();
+    pinnedNow.clear();
+    for (const sha256 of shot.pins ?? []) pinnedNow.add(sha256);
     uploadReads.as = shot.reads ?? 'known';
     for (const path of shot.hold ?? []) held.add(path);
     await browser.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor: 2, mobile: false, ...shot.size });

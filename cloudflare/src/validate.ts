@@ -116,7 +116,7 @@ export function copyFields(values: Record<string, unknown>) {
   }
   if ("thought" in values) check.string("thought", values.thought, { max: text.paper_thought, optional: true });
   if ("summary" in values) check.string("summary", values.summary, { optional: true });
-  for (const field of ["thought_public", "ratings_public", "summary_public", "tags_public"]) {
+  for (const field of ["thought_public", "ratings_public", "summary_public", "tags_public", "pinned"]) {
     if (field in values) check.boolean(field, values[field]);
   }
   check.done();

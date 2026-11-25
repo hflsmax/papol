@@ -8,7 +8,8 @@ import { createBoard } from '../../../shared/api/boards.js';
 import appLimits from '../../../shared/appLimits.js';
 import Effort from './EffortPop';
 import { appPath } from '../base';
-import { formatAuthors, newestFirst } from '../paperFormat';
+import { formatAuthors, pinnedFirst } from '../paperFormat';
+import PinButton from './PinButton';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { InWay } from './Way';
 import { readAge, readAgeLabel } from '../readAge';
@@ -125,12 +126,14 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
   const me = nook.user.uuid;
   const shelfOf = (uuid) => nook.shelves.find((s) => s.uuid === uuid);
 
+  // The papers the member pinned lead whatever is listed: all their papers,
+  // a shelf's, or what a tag or the filter leaves.
   const papers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return nook.papers.filter((p) =>
       (shelf == null || p.shelf_uuid === shelf) &&
       (tag == null || p.tags.some((t) => t.uuid === tag)) &&
-      (!q || [p.title, p.authors, p.journal].some((v) => v && v.toLowerCase().includes(q)))).sort(newestFirst);
+      (!q || [p.title, p.authors, p.journal].some((v) => v && v.toLowerCase().includes(q)))).sort(pinnedFirst);
   }, [nook.papers, shelf, tag, search]);
 
   const chosen = shelfOf(shelf);
@@ -301,11 +304,12 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               {papers.map((paper) => (
                 <tr
                   key={paper.sha256}
-                  className={readAge(paper.effort) ? `read-age-${readAge(paper.effort)}` : undefined}
+                  className={[readAge(paper.effort) && `read-age-${readAge(paper.effort)}`, paper.pinned && 'is-pinned'].filter(Boolean).join(' ') || undefined}
                   title={readAgeLabel(paper.effort)}
                   style={{ '--shelf-color': shelfOf(paper.shelf_uuid)?.color }}
                 >
                   <td className="desk-col-title">
+                    <PinButton sha256={paper.sha256} pinned={Boolean(paper.pinned)} className="desk-pin" onChanged={onChanged} />
                     <a
                       className="desk-title"
                       href={paperPlace(paper.sha256, { shelf })}

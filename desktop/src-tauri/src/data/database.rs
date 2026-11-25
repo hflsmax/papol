@@ -2403,6 +2403,7 @@ fn paper_view(
         "ratings_public",
         "summary_public",
         "tags_public",
+        "pinned",
     ] {
         object.insert(
             field.into(),
@@ -4338,7 +4339,10 @@ mod tests {
                             table: "copies".into(),
                             uuid: copy_uuid.clone(),
                             operation: "upsert".into(),
-                            values: Map::from_iter([("summary".into(), json!("Read locally"))]),
+                            values: Map::from_iter([
+                                ("summary".into(), json!("Read locally")),
+                                ("pinned".into(), json!(true)),
+                            ]),
                         },
                         DataChange {
                             table: "tags".into(),
@@ -4367,6 +4371,11 @@ mod tests {
         let reopened = LocalStore::open(&path).unwrap();
         let nook = reopened.query("7", "nook", json!({})).unwrap();
         assert_eq!(nook["copies"][0]["summary"], "Read locally");
+        // The copy arrived without saying whether it was pinned, as one made
+        // before copies could be; pinned here, the paper's view says so.
+        let papers = reopened.query("7", "papers", json!({})).unwrap();
+        let pinned = &papers[0]["pinned"];
+        assert!(pinned.as_bool() == Some(true) || pinned.as_i64() == Some(1));
         assert_eq!(nook["tags"][0]["name"], "methods");
         assert_eq!(nook["copy_tags"][0]["copy_uuid"], copy_uuid);
         assert_eq!(reopened.outbox_count(), 2);

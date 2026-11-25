@@ -202,6 +202,11 @@ const nookBoard = (n, name, count, shelf, at) => ({ uuid: `ad000000-0000-4000-80
 // nook lists them; one they have not opened yet.
 const EFFORT = [7500, 1260, 0];
 const NOOK_BOARDS = [nookBoard(1, 'Thesis chapter 3 outline', 18, DRAWER, hoursAgo(5)), nookBoard(2, 'Wavefront sensors compared', 7, SHELF, daysAgo(3))];
+// The papers the member has pinned to the top of their nook, by sha256. A
+// picture sets them before it loads its page; a pin pressed in the page
+// changes them.
+export const pinnedNow = new Set();
+
 const listed = (p, mine = false) => {
   const own = p.users.find((u) => u.user.uuid === ME);
   return {
@@ -209,6 +214,7 @@ const listed = (p, mine = false) => {
     created_at: p.added_at, summary: null, thought: mine ? own?.thought ?? null : null, is_public: mine ? true : null, is_author: mine ? false : null,
     rating_expertise: null, rating_reading: mine ? own?.rating_reading ?? null : null, rating_liking: mine ? own?.rating_liking ?? null : null,
     tags: [], shelf_uuid: mine ? SHELF.uuid : null, copy_uuid: mine ? `ac${p.sha256.slice(2, 8)}-0000-4000-8000-000000000001` : null, effort: null,
+    pinned: mine && pinnedNow.has(p.sha256),
     users: p.users.map((u) => ({ user: u.user, is_author: false, thought: u.thought, rating_reading: u.rating_reading, rating_liking: u.rating_liking, rating_expertise: null, summary: null, tags: [] })),
   };
 };
@@ -318,6 +324,13 @@ const roomRows = () => {
 };
 
 function answer(method, path, search, sent = {}) {
+  // A pin pressed on one of the member's papers: kept, as Papol would.
+  const pinning = method === 'PUT' && typeof sent.pinned === 'boolean' && path.match(/^\/papers\/([0-9a-f]+)$/);
+  if (pinning) {
+    const sha256 = [...papers, ...NOOK_ONLY].find((p) => p.sha256.startsWith(pinning[1]))?.sha256;
+    if (sha256 && sent.pinned) pinnedNow.add(sha256);
+    else if (sha256) pinnedNow.delete(sha256);
+  }
   // Each picture loads the app afresh: the project is back.
   if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); }
   // Friends: what the member's friends say now, changed by each answer.

@@ -14,3 +14,7 @@ export function formatAuthors(authorsJson) {
 }
 
 export const newestFirst = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+
+// A nook's own order: the papers its user pinned first, and newest first
+// among the pinned and among the rest.
+export const pinnedFirst = (a, b) => (Boolean(b.pinned) - Boolean(a.pinned)) || newestFirst(a, b);

@@ -624,6 +624,8 @@ export function paperView(row) {
     is_author: Boolean(row.is_author),
   };
   for (const field of FIELD_VISIBILITY) if (field in row) paper[field] = Boolean(row[field]);
+  // Pinned by its user to the top of their nook.
+  paper.pinned = Boolean(row.pinned);
   for (const field of PAPER_LISTS) paper[field] ??= [];
   return paper;
 }

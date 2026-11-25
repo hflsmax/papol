@@ -32,6 +32,7 @@ import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import { TalkCard } from '../../../shared/ui/Talk.jsx';
 import { friendDigsOn } from '../../../shared/api/friends.js';
 import { relationTo, useFriends } from '../friendsStore';
+import PinButton from './PinButton';
 
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
@@ -535,6 +536,7 @@ export default function PaperJacket({
           />
         )}
       </span>
+      <PinButton sha256={paper.sha256} pinned={Boolean(paper.pinned)} className="icon-button jacket-pin" size={19} onChanged={() => loadPaper()} />
       <button
         className="icon-button danger-icon"
         onClick={handleDelete}

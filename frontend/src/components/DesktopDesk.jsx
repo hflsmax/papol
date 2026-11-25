@@ -9,6 +9,7 @@ import {
   rememberListing, shelfOf, listingPath, tagOf,
 } from '../desktopListings';
 import { formatAuthors } from '../paperFormat';
+import { PinGlyph } from './PinButton';
 import PaperJacket from './PaperJacket';
 import BoardJacket from './BoardJacket';
 import ErrorBoundary from '../../../shared/ui/ErrorBoundary.jsx';
@@ -420,6 +421,10 @@ export function DesktopBrowser({
                       </span>
                     )}
                   </span>
+                  {/* Pinned from the paper's own pane, beside the list. */}
+                  {paper.pinned && (
+                    <span className="desktop-row-pin" role="img" aria-label="Pinned" title="Pinned to the top of my nook"><PinGlyph filled /></span>
+                  )}
                 </a>
               );
             })

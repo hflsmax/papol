@@ -627,6 +627,23 @@ export const desktopStyles = `
   color: var(--ink-faint);
 }
 
+/* A pinned paper's mark, at the row's trailing edge beside its title. */
+.desktop-row-pin {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+  line-height: 0;
+}
+
+.desktop-row-pin svg {
+  width: 14px;
+  height: 14px;
+}
+
+.desktop-list:focus-within .desktop-row.selected .desktop-row-pin {
+  color: inherit;
+}
+
 .desktop-row-tags > span + span {
   margin-left: var(--space-2);
 }
