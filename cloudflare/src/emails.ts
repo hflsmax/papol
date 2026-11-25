@@ -4,7 +4,7 @@
 // sent only to whoever has not turned it off, in the Email block of their
 // Preferences; one without is always sent: a password reset the user
 // asked for a moment ago, and an announcement, which an admin addresses
-// to whoever it is for. A kind with `admins` is one only an admin gets,
+// to whoever it is for; Preferences does not list those. A kind with `admins` is one only an admin gets,
 // and only an admin is shown its choice.
 //
 // What a user turned off is kept on their row, in `email_off`: a JSON

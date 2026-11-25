@@ -10,8 +10,8 @@ import { chooseTheme, readTheme } from '../../../shared/theme.js';
 //
 // The emails a member may turn off, in the order shown. Which of them
 // this member has is the server's to say (`user.emails`): an admin has one
-// more. What is always sent is named under them, so the block is every
-// email Papol sends.
+// more. What is always sent (a password reset, an announcement) has no
+// row.
 const EMAILS = [
   ['friend_request', 'Friend requests'],
   ['friend_suggestions', 'Friend suggestions, once a week'],
@@ -65,7 +65,6 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
         {EMAILS.filter(([kind]) => kind in emails).map(([kind, label]) => (
           <Fragment key={kind}>{choice(`preference-email-${kind}`, label, emails[kind], 'Email me', 'No email', (on) => ({ emails: { [kind]: on } }))}</Fragment>
         ))}
-        <p className="panel-note preferences-always">Always sent: a password reset you ask for, and announcements from Papol.</p>
       </section>
     </div>
   );
