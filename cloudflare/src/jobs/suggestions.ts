@@ -53,7 +53,7 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
   const one = suggestions.length === 1;
   const name = (s: Suggestion) => String(s.user.display_name);
   const subject = one ? `${name(suggestions[0])} is on Papol too` : "People you may know on Papol";
-  const intro = one ? "Someone on Papol you may want to ask to be friends:" : "People on Papol you may want to ask to be friends:";
+  const intro = one ? "Someone you may know:" : "People you may know:";
   const foot = "Papol sends this once a week, when there is someone new to suggest.";
   const off = "under Preferences on your page";
   const nook = (s: Suggestion) => `${base}/u/${s.user.uuid}`;
