@@ -7,7 +7,7 @@ import { closeAccount } from "../account/close";
 import { exportArchive } from "../account/export";
 import { currentUser, hashPassword, userPrivate, verifyPassword, type User } from "../auth";
 import { newUuid, one, statement } from "../db";
-import { emailOffAfter } from "../emails";
+import { emailFrequencyAfter } from "../emails";
 import { json, readJson, refuse, type Router } from "../http";
 import { UPLOADS } from "../files";
 import * as validate from "../validate";
@@ -55,9 +55,9 @@ export function accountRoutes(router: Router) {
     if (normalizedEmail !== undefined) user.email = normalizedEmail;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
     if (findable !== null) user.findable = findable ? 1 : 0;
-    if (data.emails !== undefined) user.email_off = emailOffAfter(user, data.emails);
+    if (data.emails !== undefined) user.email_frequency = emailFrequencyAfter(user, data.emails);
     if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
-    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, email_off = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.email_off ?? "[]", user.nav_marks, user.uuid).run();
+    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, email_frequency = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.email_frequency ?? "{}", user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 

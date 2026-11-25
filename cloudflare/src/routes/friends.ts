@@ -178,7 +178,7 @@ export function friendRoutes(router: Router) {
         notice(env, them.uuid, `${me.display_name} asks to be friends.`, "friend_request", me, `/u/${me.uuid}`, at),
         ...(mail ? [mail.statement] : []),
       ]);
-      if (mail) await wake(env, [mail.uuid]);
+      if (mail) await wake(env, mail.wake);
     }
     return json(await friendsOut(env, me));
   });

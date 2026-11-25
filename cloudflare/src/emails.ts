@@ -1,82 +1,112 @@
-// Every kind of email Papol sends, and which of them a user may turn off.
+// Every kind of email Papol sends, and how often each user is sent it.
 //
-// This list is the one place a kind is declared. A kind with `choice` is
-// sent only to whoever has not turned it off, in the Email block of their
-// Preferences; one without is always sent: a password reset the user
-// asked for a moment ago, and an announcement, which an admin addresses
-// to whoever it is for; Preferences does not list those. A kind with `admins` is one only an admin gets,
-// and only an admin is shown its choice.
+// This list is the one place a kind is declared. A password reset the
+// user asked for a moment ago and an announcement, which an admin
+// addresses to whoever it is for, are always sent, as they happen;
+// Preferences does not list those. Every other kind is the recipient's
+// choice of how often, in the Email block of their Preferences:
 //
-// What a user turned off is kept on their row, in `email_off`: a JSON
-// list of kinds. A kind added here is on for everyone until they say
-// otherwise, with no migration.
+//   now     as it happens, an email each
+//   daily   once a day, what gathered since the last as one email
+//   weekly  the same, on Mondays
+//   never   not at all
+//
+// A kind says which of those it offers and which it starts at (`preset`).
+// A kind with `admins` is one only an admin gets, and only an admin is
+// shown its choice.
+//
+// What a user chose is kept on their row, in `email_frequency`: a JSON
+// object, kind to frequency, holding only what they changed. A kind added
+// here is at its preset for everyone, with no migration.
 //
 // Mail to a user is queued by queueEmail (jobs/notifications.ts), which
-// takes the kind and asks here; a job that picks its own recipients in
-// SQL (jobs/suggestions.ts) filters with wantsEmailSql.
+// takes the kind and asks here: it sends now, holds for the day's or the
+// week's email (jobs/digests.ts), or does nothing. A job that picks its
+// own recipients in SQL (jobs/suggestions.ts) filters with frequencySql.
 
 import { refuse } from "./http";
 
-export const EMAIL_KINDS = {
-  password_reset: { choice: false, admins: false },
-  announcement: { choice: false, admins: false },
-  friend_request: { choice: true, admins: false },
-  friend_suggestions: { choice: true, admins: false },
-  feedback_report: { choice: true, admins: true },
-} as const;
+export type Frequency = "now" | "daily" | "weekly" | "never";
 
-export type EmailKind = keyof typeof EMAIL_KINDS;
-export type ChosenEmailKind = { [K in EmailKind]: (typeof EMAIL_KINDS)[K]["choice"] extends true ? K : never }[EmailKind];
-export type SureEmailKind = Exclude<EmailKind, ChosenEmailKind>;
+interface Choice {
+  choices: readonly Frequency[];
+  preset: Frequency;
+  admins: boolean;
+  // The subject of one email carrying several of this kind.
+  many?: (count: number) => string;
+}
+
+const EVERY: readonly Frequency[] = ["now", "daily", "weekly", "never"];
+
+const CHOSEN = {
+  friend_request: { choices: EVERY, preset: "now", admins: false, many: (count) => `${count} friend requests on Papol` },
+  // Made on a schedule, not by something happening: there is no "now".
+  friend_suggestions: { choices: ["daily", "weekly", "never"], preset: "weekly", admins: false },
+  feedback_report: { choices: EVERY, preset: "now", admins: true, many: (count) => `${count} Papol feedback reports` },
+} satisfies Record<string, Choice>;
+
+export type ChosenEmailKind = keyof typeof CHOSEN;
+export type SureEmailKind = "password_reset" | "announcement";
+export type EmailKind = ChosenEmailKind | SureEmailKind;
 
 // As much of a user as the question needs.
-export interface Mailed { email: string; email_off?: string | null; is_admin?: number | boolean | null }
+export interface Mailed { uuid: string; email: string; email_frequency?: string | null; is_admin?: number | boolean | null }
 
-const CHOSEN = (Object.keys(EMAIL_KINDS) as EmailKind[]).filter((kind) => EMAIL_KINDS[kind].choice) as ChosenEmailKind[];
+const KINDS = Object.keys(CHOSEN) as ChosenEmailKind[];
+const choice = (kind: ChosenEmailKind): Choice => CHOSEN[kind];
 
-function off(user: Mailed): string[] {
+export function isChosenKind(kind: string): kind is ChosenEmailKind {
+  return Object.hasOwn(CHOSEN, kind);
+}
+
+function kept(user: Pick<Mailed, "email_frequency">): Record<string, unknown> {
   try {
-    const list = JSON.parse(user.email_off || "[]");
-    return Array.isArray(list) ? list.map(String) : [];
+    const chosen = JSON.parse(user.email_frequency || "{}");
+    return chosen && typeof chosen === "object" && !Array.isArray(chosen) ? chosen : {};
   } catch {
-    return [];
+    return {};
   }
 }
 
-export function wantsEmail(user: Mailed, kind: EmailKind): boolean {
-  return !EMAIL_KINDS[kind].choice || !off(user).includes(kind);
+// How often this user is sent this kind: what they chose, if the kind
+// still offers it, else where the kind starts.
+export function frequencyOf(user: Pick<Mailed, "email_frequency">, kind: ChosenEmailKind): Frequency {
+  const chosen = kept(user)[kind];
+  return choice(kind).choices.includes(chosen as Frequency) ? chosen as Frequency : choice(kind).preset;
 }
 
-// The same question as a condition on a users row, for a query that
-// picks who to write to.
-export function wantsEmailSql(kind: ChosenEmailKind, users = "users"): string {
-  return `NOT EXISTS (SELECT 1 FROM json_each(${users}.email_off) WHERE value = '${kind}')`;
+// The same as an expression on a users row, for a query that picks who
+// to write to.
+export function frequencySql(kind: ChosenEmailKind, users = "users"): string {
+  return `COALESCE(json_extract(${users}.email_frequency, '$.${kind}'), '${choice(kind).preset}')`;
 }
 
-// The choices this user has, each on or off, as their Preferences shows
-// them.
-export function emailChoices(user: Mailed): Partial<Record<ChosenEmailKind, boolean>> {
-  const turnedOff = off(user);
-  const choices: Partial<Record<ChosenEmailKind, boolean>> = {};
-  for (const kind of CHOSEN) {
-    if (EMAIL_KINDS[kind].admins && !user.is_admin) continue;
-    choices[kind] = !turnedOff.includes(kind);
+export function digestSubject(kind: ChosenEmailKind, count: number): string {
+  return choice(kind).many?.(count) ?? `${count} emails from Papol`;
+}
+
+// The choices this user has and what each is set to, as their
+// Preferences shows them.
+export function emailChoices(user: Pick<Mailed, "email_frequency" | "is_admin">): Partial<Record<ChosenEmailKind, Frequency>> {
+  const choices: Partial<Record<ChosenEmailKind, Frequency>> = {};
+  for (const kind of KINDS) {
+    if (choice(kind).admins && !user.is_admin) continue;
+    choices[kind] = frequencyOf(user, kind);
   }
   return choices;
 }
 
-// The user's row after they change some of their choices: `{ kind: on }`
-// for any of the kinds they are shown. What they said about a kind they
-// are no longer shown is kept as it was.
-export function emailOffAfter(user: Mailed, change: unknown): string {
+// The user's row after they change some of their choices: `{ kind:
+// frequency }` for any of the kinds they are shown, each to a frequency
+// the kind offers. What they chose for a kind they are no longer shown
+// is kept as it was.
+export function emailFrequencyAfter(user: Pick<Mailed, "email_frequency" | "is_admin">, change: unknown): string {
   const mine = emailChoices(user);
-  if (!change || typeof change !== "object" || Array.isArray(change)
-      || !Object.entries(change).every(([kind, on]) => kind in mine && typeof on === "boolean")) {
-    refuse(422, `emails must turn ${Object.keys(mine).join(", ")} on or off`);
+  const offered = (kind: string, how: unknown) => kind in mine && choice(kind as ChosenEmailKind).choices.includes(how as Frequency);
+  if (!change || typeof change !== "object" || Array.isArray(change) || !Object.entries(change).every(([kind, how]) => offered(kind, how))) {
+    refuse(422, `emails must set ${Object.keys(mine).map((kind) => `${kind} to ${choice(kind as ChosenEmailKind).choices.join(", ")}`).join("; ")}`);
   }
-  const turnedOff = new Set(off(user));
-  for (const [kind, on] of Object.entries(change as Record<string, boolean>)) {
-    if (on) turnedOff.delete(kind); else turnedOff.add(kind);
-  }
-  return JSON.stringify(CHOSEN.filter((kind) => turnedOff.has(kind)));
+  const chosen = { ...kept(user), ...(change as Record<string, Frequency>) };
+  // Only what differs from where a kind starts is kept.
+  return JSON.stringify(Object.fromEntries(KINDS.filter((kind) => kind in chosen && chosen[kind] !== choice(kind).preset).map((kind) => [kind, chosen[kind]])));
 }

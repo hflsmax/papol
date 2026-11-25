@@ -96,7 +96,7 @@ export function authRoutes(router: Router) {
         statement(env.DB, "INSERT INTO password_resets (token_hash, user_uuid, created_at, expires_at) VALUES (?, ?, ?, ?)", tokenHash, user.uuid, at, expires),
         mail.statement,
       ]);
-      await wake(env, [mail.uuid]);
+      await wake(env, mail.wake);
     }
     return json({ message: RESET_REPLY });
   });

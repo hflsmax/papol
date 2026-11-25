@@ -1,21 +1,24 @@
-import React, { Fragment, useState } from 'react';
+import React, { useState } from 'react';
 import { updateProfile } from '../../../shared/api/account.js';
 import { chooseTheme, readTheme } from '../../../shared/theme.js';
 
 // Every choice a member makes about how Papol behaves for them, in one
-// place: how it looks, who sees and finds them, and what Papol emails
-// them of its own accord. Each is
+// place: how it looks, who sees and finds them, and how often Papol
+// emails them. Each is
 // kept the moment it is chosen; there is nothing to save. How it looks is
 // this device's (shared/theme.js); the rest are the account's.
 //
-// The emails a member may turn off, in the order shown. Which of them
-// this member has is the server's to say (`user.emails`): an admin has one
-// more. What is always sent (a password reset, an announcement) has no
-// row.
+// The emails a member chooses the frequency of, in the order shown, each
+// with the frequencies it offers. Which of them this member has, and how
+// often each is sent now, is the server's to say (`user.emails`): an
+// admin has one more. What is always sent (a password reset, an
+// announcement) has no row.
+const OFTEN = { now: 'Immediately', daily: 'Every day', weekly: 'Every week', never: 'Never' };
+const EVERY = ['now', 'daily', 'weekly', 'never'];
 const EMAILS = [
-  ['friend_request', 'Friend requests'],
-  ['friend_suggestions', 'Friend suggestions, once a week'],
-  ['feedback_report', 'Feedback reports'],
+  ['friend_request', 'Friend requests', EVERY],
+  ['friend_suggestions', 'Friend suggestions', ['daily', 'weekly', 'never']],
+  ['feedback_report', 'Feedback reports', EVERY],
 ];
 
 export default function PreferencesPanel({ user, onUserUpdated }) {
@@ -62,8 +65,13 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       </section>
       <section className="panel preferences-block" aria-labelledby="preferences-email">
         <h2 className="panel-title" id="preferences-email">Email</h2>
-        {EMAILS.filter(([kind]) => kind in emails).map(([kind, label]) => (
-          <Fragment key={kind}>{choice(`preference-email-${kind}`, label, emails[kind], 'Email me', 'No email', (on) => ({ emails: { [kind]: on } }))}</Fragment>
+        {EMAILS.filter(([kind]) => kind in emails).map(([kind, label, offered]) => (
+          <div className="local-setting-row preferences-row" key={kind}>
+            <label htmlFor={`preference-email-${kind}`}><strong>{label}</strong></label>
+            <select id={`preference-email-${kind}`} value={emails[kind]} disabled={busy} onChange={(e) => keep({ emails: { [kind]: e.target.value } })}>
+              {offered.map((often) => <option key={often} value={often}>{OFTEN[often]}</option>)}
+            </select>
+          </div>
         ))}
       </section>
     </div>

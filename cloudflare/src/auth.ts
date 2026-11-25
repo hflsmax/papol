@@ -35,7 +35,7 @@ export interface User extends Row {
   avatar_path: string | null;
   email_public: number;
   findable: number;
-  email_off: string;
+  email_frequency: string;
   is_admin: number;
   nav_marks: string | null;
   password_hash: string;
@@ -142,7 +142,7 @@ export async function currentUser(request: Request, env: Env): Promise<User> {
 
 // What a user sees of themselves. `email_public`, `findable` and `is_admin` are stored
 // as 0/1 and spoken as booleans; `emails` is each kind of email they may
-// turn off, on or off (src/emails.ts).
+// choose the frequency of, and how often that is (src/emails.ts).
 export function userPrivate(user: User) {
   return {
     uuid: user.uuid,

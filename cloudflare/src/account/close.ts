@@ -79,9 +79,11 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   // The email has to stay unique and must not be an address anyone could
   // reach or re-register into; .invalid is reserved for exactly this.
   const scrub = statement(db,
-    "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, email_off = '[]', password_hash = ?, deleted_at = ? WHERE uuid = ?",
+    "UPDATE users SET email = ?, display_name = ?, affiliation = NULL, avatar_path = NULL, email_public = 0, is_admin = 0, email_frequency = '{}', password_hash = ?, deleted_at = ? WHERE uuid = ?",
     `deleted-${user.uuid}@papol.invalid`, FORMER_USER, UNUSABLE_PASSWORD, now(), user.uuid);
-  const results = await db.batch([...counted.map(([, s]) => s), ...projects, scrub]);
+  // Email held for them is never sent.
+  const held = statement(db, "DELETE FROM email_held WHERE user_uuid = ?", user.uuid);
+  const results = await db.batch([...counted.map(([, s]) => s), ...projects, held, scrub]);
 
   const removed: Record<string, number> = {};
   counted.forEach(([name], i) => { removed[name] = results[i].meta.changes ?? 0; });
