@@ -527,40 +527,38 @@ ${fileDropStyles}
   min-width: 72px;
 }
 
-/* The gear, at the strip's right end and level with it, in the marks'
-   grey: what the bar marks over the strip is chosen here. */
+/* The gear, at the strip's right end: the same 32px square as the bar's
+   other buttons, centred in the bar as they are. What the bar marks over
+   the strip is chosen here, and whether the pages are drawn dark. */
 .navigator-choice {
   position: relative;
   flex: none;
-  margin-top: var(--nav-top);
-  margin-left: 4px;
-  height: var(--nav-strip);
+  align-self: center;
+  margin-left: 12px;
 }
 
 .viewer-bar .navigator-gear,
 .viewer-bar .navigator-gear:hover:not(:disabled) {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 100%;
+  width: 32px;
+  height: 32px;
   min-height: 0;
   padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--ink-faint);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
   cursor: pointer;
 }
 
 .viewer-bar .navigator-gear:hover:not(:disabled),
-.viewer-bar .navigator-gear.open { color: var(--ink); }
+.viewer-bar .navigator-gear.open { border-color: var(--accent); color: var(--accent); }
 .navigator-gear:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 
-/* An even size in the strip's even height, so the gear's middle is the
-   strip's to the pixel. */
 .navigator-gear svg {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
 }
 
 /* The choices, under the gear, dressed as the page's options bar is: every
@@ -568,8 +566,8 @@ ${fileDropStyles}
 .navigator-choices {
   position: absolute;
   z-index: 2000;
-  top: calc(100% + 10px);
-  right: -4px;
+  top: calc(100% + 6px);
+  right: 0;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -603,6 +601,24 @@ ${fileDropStyles}
   flex: none;
   width: 11px;
   height: 11px;
+}
+
+/* Two sections that choose different things, each under its own name:
+   how the pages are drawn, then what the bar marks over its strip. */
+.navigator-section { display: flex; flex-direction: column; }
+.navigator-section + .navigator-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.navigator-section-name {
+  padding: 4px 8px 3px;
+  color: var(--ink-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .navigator-kind-name { flex: 1; text-align: left; }
@@ -780,10 +796,22 @@ ${fileDropStyles}
   background: var(--accent);
   color: var(--ink-inverse);
 }
+/* Its words centred by their capitals, as a plain button's are
+   (commonStyles): left to the line box they rode two pixels high. */
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) and (height: 1lh) {
+  .learn-papol .learn-papol-close {
+    --cap-room: calc((1lh - 1cap) / 2);
+    align-content: center;
+    padding-block: calc(4px + var(--cap-room));
+    text-box: trim-both cap alphabetic;
+  }
+}
 
 .viewer-bar .spacer { flex: 1; }
 
-.pdf-search { position: relative; flex: none; font-family: var(--font-ui); }
+/* Only somewhere for the search box to hang from: no width, and the bar's
+   gap taken back, so the buttons either side stand one gap apart. */
+.pdf-search { position: relative; flex: none; margin-left: -12px; font-family: var(--font-ui); }
 .search-pop {
   position: absolute;
   z-index: 30;
@@ -884,6 +912,10 @@ ${fileDropStyles}
 .storage-notice-opt-out input { margin: 0; }
 /* The wait under the button while the paper is added (docs/waiting.md). */
 .nook-adding { padding: 12px 14px; }
+/* The gear is near the bar's right end, so its card hangs leftward too,
+   its point under the gear's middle. */
+.learn-papol.dark-pages-tip { left: auto; right: 0; z-index: 2000; width: max-content; white-space: nowrap; }
+.learn-papol.dark-pages-tip::before { left: auto; right: 10px; }
 /* The project pill is last in the bar, so its card hangs leftward from it. */
 .learn-papol.project-visibility-tip { left: auto; right: 0; }
 .learn-papol.project-visibility-tip::before { left: auto; right: 14px; }
@@ -1564,6 +1596,33 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 /* Over a limited drawing, the part on screen at full sharpness; placed in
    fractions of the page by PdfPage. */
 .page-canvas .page-detail { position: absolute; }
+
+/* Dark pages (shared/theme.js): the paper drawn light on dark, a member's
+   choice apart from the theme. The drawing is inverted, short of all the way
+   so the sheet is a soft black rather than a hole in the screen, and its
+   hues turned back round, so a red curve in a figure is still red. Only the
+   drawing: what Papol lays over it is coloured for a dark sheet below. */
+:root[data-pdf-pages='dark'] .pdf-page { background-color: #1a1a1a; }
+:root[data-pdf-pages='dark'] :is(.page-canvas, .clip-canvas) { filter: invert(0.9) hue-rotate(180deg); }
+/* What is drawn on the paper takes the dark theme's accent, which was made
+   to be read on a dark ground. */
+:root[data-pdf-pages='dark'] :is(.cite-layer, .link-layer, .provenance-box, .provenance-highlight, .text-selection-highlight) {
+  --accent: #7ea6d8;
+  --accent-strong: #a3c1e6;
+  --accent-rgb: 126, 166, 216;
+  --shade-rgb: 0, 0, 0;
+}
+:root[data-pdf-pages='dark'] .text-selection-highlight path { fill: #7ea6d8; stroke: none; }
+:root[data-pdf-pages='dark'] .pin:not(.worn) { color: #7ea6d8; }
+:root[data-pdf-pages='dark'] .pin.active:not(.worn) { color: #a3c1e6; }
+:root[data-pdf-pages='dark'] .pin.worn.active { color: color-mix(in srgb, var(--who) 75%, white); }
+/* Ink the colour of print would vanish into the sheet, so it is drawn the
+   colour print now is. The other inks are bright enough as they are. */
+:root[data-pdf-pages='dark'] .ink-layer [fill='#14161a'] { fill: #e6e6e6; }
+:root[data-pdf-pages='dark'] .ink-layer [stroke='#14161a'] { stroke: #e6e6e6; }
+/* A wash over light words has to be thinner, or the words sink into it. */
+:root[data-pdf-pages='dark'] .textLayer .search-highlight { background: rgba(246, 203, 65, 0.4); }
+:root[data-pdf-pages='dark'] .textLayer .search-highlight-active { background: rgba(255, 145, 32, 0.55); }
 
 .page-number {
   position: absolute;
@@ -2259,6 +2318,7 @@ button.ref-link:disabled { cursor: default; opacity: 0.6; }
    that, with the menu, took a line of its own. The paddings tighten. */
 @media ${PHONE} {
   .viewer-bar { gap: 8px; padding: 8px 12px; }
+  .pdf-search { margin-left: -8px; }
   .viewer-bar .bar-link { padding: 6px 9px; }
   .search-pop { left: 8px; right: 8px; }
   .viewer-bar .tools,

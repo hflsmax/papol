@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   barScale, evened, laidOut, lineAtPosition, positionAtLine, shareOut,
@@ -8,6 +8,8 @@ import { positionOf, sectionStops } from './sectionStops';
 import { NAV_KINDS, NAV_NAMES, NAV_SHOWN, floatMarks } from './navMarks';
 import SectionStrip from './SectionStrip';
 import { PHONE } from './styles';
+import { chooseDarkPages, darkPagesShown, subscribeDarkPages } from '../../shared/theme.js';
+import { DARK_PAGES_TIP, FEATURE_STATES_TAKEN, isFeatureStateSet, setFeatureState } from '../../shared/featureStates.js';
 
 /**
  * The paper, drawn to length across the bar.
@@ -187,6 +189,7 @@ export default function Navigator({
   // Told the kinds to mark when the reader changes them; without it (no
   // account to keep the choice on) there is no gear.
   onShown = null,
+  hint = true,
   scrollerRef,
   // Whether the pages have sizes yet. Before that there is nothing to
   // measure a place against.
@@ -694,16 +697,35 @@ export default function Navigator({
         <span className="navigator-here" aria-hidden="true" />
         <span className="navigator-tip" ref={tipRef} role="presentation" hidden />
       </div>
-      {onShown && <MarkChoices shown={kinds} onShown={onShown} />}
+      <MarkChoices shown={kinds} onShown={onShown} hint={hint} />
     </div>
   );
 }
 
 // The gear at the bar's right end, and what it opens: every kind the bar
-// can mark, each with its glyph and name, pressed to mark it or not. Open
-// in one step, under the gear; a press outside or Escape puts it away.
-function MarkChoices({ shown, onShown }) {
+// can mark, each with its glyph and name, pressed to mark it or not (for a
+// reader with an account to keep the choice, so `onShown`); and, for
+// everyone, whether the pages are drawn dark (shared/theme.js). Open in one
+// step, under the gear; a press outside or Escape puts it away.
+function MarkChoices({ shown, onShown, hint }) {
   const [open, setOpen] = useState(false);
+  const darkPages = useSyncExternalStore(subscribeDarkPages, darkPagesShown, () => false);
+  // That dark pages are in here, said under the gear until the reader has
+  // been told: by dismissing the card, by opening the gear, or by already
+  // reading that way. `hint` is the bar's leave to say it, withheld while
+  // another card of the bar's is up where this one would stand.
+  const [told, setTold] = useState(() => isFeatureStateSet(DARK_PAGES_TIP));
+  const tell = () => {
+    if (told) return;
+    setFeatureState(DARK_PAGES_TIP, true);
+    setTold(true);
+  };
+  useEffect(() => {
+    const look = () => { if (isFeatureStateSet(DARK_PAGES_TIP)) setTold(true); };
+    window.addEventListener(FEATURE_STATES_TAKEN, look);
+    return () => window.removeEventListener(FEATURE_STATES_TAKEN, look);
+  }, []);
+  useEffect(() => { if (open || darkPages) tell(); });
   const boxRef = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
@@ -728,15 +750,45 @@ function MarkChoices({ shown, onShown }) {
       <button
         type="button"
         className={`navigator-gear${open ? ' open' : ''}`}
-        aria-label="Marks"
+        aria-label="View options"
+        title="View options"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
       >
         <Gear />
       </button>
+      {hint && !told && !open && !darkPages && (
+        <span className="learn-papol dark-pages-tip" role="dialog" aria-labelledby="dark-pages-tip-title">
+          <span className="kicker">Learn Papol</span>
+          <strong id="dark-pages-tip-title">Turn on Dark Mode here</strong>
+          <button type="button" className="learn-papol-close" onClick={tell} aria-label="Dismiss this tip">
+            Got it
+          </button>
+        </span>
+      )}
       {open && (
-        <div className="navigator-choices" role="group" aria-label="Marks">
-          {NAV_KINDS.map((kind) => (
+        <div className="navigator-choices">
+          <div className="navigator-section" role="group" aria-labelledby="navigator-section-pages">
+          <span className="navigator-section-name" id="navigator-section-pages">Pages</span>
+          <button
+            type="button"
+            className="navigator-kind navigator-pages"
+            aria-pressed={darkPages}
+            onClick={() => chooseDarkPages(!darkPages)}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" d="M10 7.2A4.3 4.3 0 0 1 4.8 2a4.3 4.3 0 1 0 5.2 5.2Z" />
+            </svg>
+            <span className="navigator-kind-name">Dark mode</span>
+            <svg className="navigator-kind-on" viewBox="0 0 12 12" aria-hidden="true">
+              <path fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" d="m2.5 6.3 2.3 2.3 4.7-5" />
+            </svg>
+          </button>
+          </div>
+          {onShown && (
+            <div className="navigator-section" role="group" aria-labelledby="navigator-section-marks">
+              <span className="navigator-section-name" id="navigator-section-marks">Navigator marks</span>
+              {NAV_KINDS.map((kind) => (
             <button
               key={kind}
               type="button"
@@ -751,6 +803,8 @@ function MarkChoices({ shown, onShown }) {
               </svg>
             </button>
           ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -19,7 +19,7 @@ if (!outDir) {
   process.exit(2);
 }
 const gear = "document.querySelector('.navigator-gear')";
-const kind = (k) => `document.querySelector('.navigator-kind:nth-child(${k})')`;
+const kind = (k) => `document.querySelector('.navigator-section:last-child button:nth-of-type(${k})')`;
 
 const server = await viewerServer();
 const browser = new Browser();
