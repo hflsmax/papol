@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 // (one Papol found, and one drawn on a page), and the terms listed under
 // the gear.
 //
-//   node scripts/term-shots.mjs <out dir> [select | choose | hover | jump | adjust | draw | drawn | gear ...]
+//   node scripts/term-shots.mjs <out dir> [select | choose | hover | jump | adjust | draw | cancel | drawn | gear ...]
 //
 // PAPOL_SHOTS_PREFIX names the files (default "term"): "before" for the
 // same scenes on a build that has no Define, where the later ones are
@@ -100,6 +100,13 @@ const SCENES = {
     { wait: 900 },
     dragged(`document.querySelector('.term-box-grip.se')`, [0.5, 0.5], [3, 4]),
   ] },
+  // Given up, the chooser is open again over the words selected.
+  cancel: { needs: true, steps: [
+    ...drawn,
+    `[...document.querySelectorAll('.term-boxer-bar button')].find((b) => b.textContent === 'Cancel').click(); return true;`,
+    { waitFor: `document.querySelector('.define-choice') && document.querySelector('.pages').scrollTop < 400` },
+    { wait: 1200 },
+  ] },
   // A box drawn on a page of the reader's choosing.
   draw: { needs: true, steps: drawn },
   // And kept: the term shows what was boxed, where it is read.
@@ -107,6 +114,8 @@ const SCENES = {
     ...drawn,
     `document.querySelector('.term-boxer-bar button.primary').click(); return true;`,
     { waitFor: `!document.querySelector('.term-boxer-bar')` },
+    // Kept, the reader is back on the words they selected.
+    { waitFor: `document.querySelector('.pages').scrollTop < 400` },
     `document.querySelector('.pdf-page[data-page="3"]').scrollIntoView({ block: 'center' }); return true;`,
     { waitFor: termLink(3) }, hover(3), { waitFor: `document.querySelector('.paper-clip.telescope canvas')` },
   ] },

@@ -993,12 +993,28 @@ export default function App() {
   const boxTerm = (definition) => {
     const term = definableTerm(defining?.term);
     if (!term) return;
-    setBoxing({ term, label: definition?.label ?? null, value: definition ? { page: definition.page, box: definition.box } : null });
+    // Where the reader was, to be brought back to: boxing is an errand
+    // off the page they were reading, not a going somewhere.
+    setBoxing({ term, label: definition?.label ?? null, value: definition ? { page: definition.page, box: definition.box } : null, from: currentView() });
     setDefining(null);
-    if (definition) followLink(termSpot(definition));
+    // The definition's box, near the top of the window.
+    const scroller = scrollerRef.current;
+    const pageEl = definition && scroller?.querySelector(`[data-page="${definition.page}"]`);
+    if (pageEl) {
+      const page = pageEl.getBoundingClientRect(), view = scroller.getBoundingClientRect();
+      const top = scroller.scrollTop + page.top + definition.box.y * page.height - view.top - Math.min(96, view.height * 0.15);
+      scroller.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    }
   };
   const setBoxValue = useCallback((value) => setBoxing((now) => now && { ...now, value }), []);
-  const closeBoxing = useCallback(() => setBoxing(null), []);
+  // Given up, the reader is back where they were with the chooser open
+  // again, to choose another way.
+  const closeBoxing = () => {
+    if (!boxing) return;
+    restoreView(boxing.from);
+    setDefining({ term: boxing.term });
+    setBoxing(null);
+  };
   const saveBox = async () => {
     if (!boxing?.value || boxing.busy) return;
     setBoxing({ ...boxing, busy: true, error: null });
@@ -1006,6 +1022,8 @@ export default function App() {
       // A box drawn on a page of the reader's choosing is named by the page.
       await keepTerm(boxing.term, { label: boxing.label ?? `Page ${boxing.value.page}`, ...boxing.value });
       setBoxing(null);
+      // Kept, the reader is back where they were reading.
+      restoreView(boxing.from);
     } catch (e) {
       setBoxing((now) => now && { ...now, busy: false, error: cannotDefine(e) });
     }
