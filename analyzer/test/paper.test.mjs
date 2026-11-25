@@ -798,4 +798,42 @@ describe("statements", () => {
     assert.equal(second.whole, undefined);
     assert.equal(analysis.floats.find((f) => f.kind === "lemma").whole, undefined);
   });
+
+  it("reads a definition whole through the list it sets out, the names of its formulas and a tall sign's own glyph", async () => {
+    const pdf = writtenPdf([
+      [60, 760, "The text before the definitions, a line of it and then another line of it."],
+      [70, 740, "Definition 1 (Order). A poset is a set with a least element where all", 10, "italic"],
+      [60, 728, "compatible subsets have least upper bounds. In detail:"],
+      [75, 714, "(1) the order is reflexive, transitive and antisymmetric, as an order is,"],
+      [90, 702, "which is to say a partial order;"],
+      // A big join, read as a line of its own a little over its row.
+      [92, 694, "V"],
+      [75, 690, "(2) joins of compatible subsets exist."],
+      [70, 676, "Example 2. The subsets of a set, ordered by inclusion, are one."],
+      [60, 664, "The text goes on here, about the example and not the definition."],
+      [70, 640, "Definition 3 (Rules). Rules of a program have one of the two forms that follow, called open and closed.", 10, "italic"],
+      [200, 622, "p is? v <- F"],
+      [180, 606, "p is {v} <- F"],
+      // The forms' names, at the right of their rows and read after both.
+      [400, 622, "(open form rule)"],
+      [400, 606, "(closed form rule)"],
+      [60, 588, "In both cases the premises stand to the right of the arrow, and the conclusion to the left of it, alone."],
+      [70, 576, "A paragraph of the text's own follows, set in as its paragraphs are, and as wide as the others."],
+      [70, 550, "Definition 4. A fact is given by the items of this list:", 10, "italic"],
+      [85, 536, "- its attribute;"],
+      [85, 524, "- its value."],
+      [85, 512, "Set in where the items are, but no item: the text again, and not the list."],
+      [60, 500, "And the text goes on under it for another line."],
+    ]);
+    const { analysis } = await analyzeWithRules(pdf);
+    const [order, rules, fact] = analysis.floats.filter((f) => f.kind === "definition");
+    const bottom = (d) => (d.whole.y + d.whole.h) * 800;
+    // Through item (2) at 800 − 690, and not the example under it.
+    assert.ok(bottom(order) > 800 - 690 && bottom(order) < 800 - 676 - 8, `Definition 1 ends under its list (${bottom(order)})`);
+    // Through "In both cases…", as wide as the names at the right, and not the paragraph after.
+    assert.ok(bottom(rules) > 800 - 588 && bottom(rules) < 800 - 576, `Definition 3 ends under what it says after its formulas (${bottom(rules)})`);
+    assert.ok((rules.whole.x + rules.whole.w) * 600 > 450, `Definition 3 holds its formulas' names (${JSON.stringify(rules.whole)})`);
+    // Through "- its value." and not the line under it.
+    assert.ok(bottom(fact) > 800 - 524 && bottom(fact) < 800 - 512, `Definition 4 ends under its list (${bottom(fact)})`);
+  });
 });
