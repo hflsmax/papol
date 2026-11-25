@@ -336,7 +336,7 @@ async function fromAnnotations(doc, pageNumber, references, analyzed = []) {
       if (href) elsewhere.push({ href, ...box });
       continue;
     }
-    if (spot) elsewhere.push({ spot, ...box });
+    if (spot) elsewhere.push({ spot: await overTheFold(doc, link.dest, spot), ...box });
   }
 
   return { citations, links: elsewhere };
@@ -577,6 +577,106 @@ async function destinationSpot(doc, dest) {
   const y = destinationHeight(target);
   if (y == null) return null;
   return { page: index + 1, y: (viewport.height - y) / viewport.height };
+}
+
+// A destination at a page break points at the seam. hyperref sets a
+// theorem's anchor where the theorem was asked for; when the page was full
+// by then, that is under the last line of one page, and "Definition 4.9"
+// is the first thing printed on the next. A reader taken to the anchor
+// sees the foot of a page and a margin, the definition low in the window
+// or out of it. What is meant is over the fold: the next page's first line.
+//
+// How far under a destination its own line can begin, in points: a line
+// set there is what the destination names, and nothing is over the fold.
+const OWN_LINE = 18;
+// What is printed lower than that is a footer only this near the page's foot.
+const FOOT = 0.1;
+// A running head: alone at the top of the page, set off from the text by
+// more than this many of the text's own line spacings.
+const HEAD = { within: 0.12, apart: 1.6 };
+// Columns show as a strip no line prints in, this wide (of the page).
+const GUTTER = 0.015;
+
+const pageLines = new WeakMap();
+/** A page's lines, top down: { y: baseline, top, from, to }, in PDF points. */
+function linesOf(doc, number) {
+  let pages = pageLines.get(doc);
+  if (!pages) pageLines.set(doc, pages = new Map());
+  if (!pages.has(number)) {
+    pages.set(number, (async () => {
+      const page = await doc.getPage(number);
+      const content = await page.getTextContent();
+      const lines = [];
+      for (const item of content.items || []) {
+        const x = item?.transform?.[4];
+        const y = item?.transform?.[5];
+        if (typeof x !== 'number' || typeof y !== 'number' || !item.str?.trim()) continue;
+        const top = y + (item.height || Math.abs(item.transform[3]) || 10);
+        const to = x + (item.width || 0);
+        const line = lines.find((candidate) => Math.abs(candidate.y - y) < 1.5);
+        if (line) {
+          line.top = Math.max(line.top, top);
+          line.from = Math.min(line.from, x);
+          line.to = Math.max(line.to, to);
+          line.spans.push([x, to]);
+        } else {
+          lines.push({ y, top, from: x, to, spans: [[x, to]] });
+        }
+      }
+      lines.sort((a, b) => b.y - a.y);
+      const viewport = page.getViewport({ scale: 1 });
+      return { lines, width: viewport.width, height: viewport.height };
+    })().catch(() => null));
+  }
+  return pages.get(number);
+}
+
+/** Whether a column stands to the right of x among these lines: the destination is not in the page's last. */
+function columnToTheRight(lines, x, width) {
+  const spans = lines.flatMap((line) => line.spans).sort((a, b) => a[0] - b[0]);
+  let reach = -Infinity;
+  for (const [from, to] of spans) {
+    // A strip nothing prints in, with text on both sides of it.
+    if (reach > -Infinity && from - reach >= width * GUTTER && (x == null || x < from - width * GUTTER)) return true;
+    reach = Math.max(reach, to);
+  }
+  return false;
+}
+
+/**
+ * The spot a destination means when it is set at the foot of a page with
+ * nothing of its own under it: the first line of the next page, under its
+ * running head. Any other spot is returned as it is.
+ */
+export async function overTheFold(doc, dest, spot) {
+  try {
+    if (!spot || spot.page >= (doc.numPages || 0)) return spot;
+    const here = await linesOf(doc, spot.page);
+    if (!here?.lines.length) return spot;
+    const y = (1 - spot.y) * here.height;
+    const under = here.lines.filter((line) => line.y < y - 1);
+    if (under.some((line) => line.y > y - OWN_LINE || line.y > here.height * FOOT)) return spot;
+    // Under the last line of a column that is not the page's last, what is
+    // meant heads the next column, on this page: left as it is.
+    const target = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+    const x = target?.[1]?.name === 'XYZ' && typeof target[2] === 'number' && target[2] > 0 ? target[2] : null;
+    const above = here.lines.filter((line) => line.y >= y - 1).slice(-12);
+    if (columnToTheRight(above, x, here.width)) return spot;
+
+    const next = await linesOf(doc, spot.page + 1);
+    if (!next?.lines.length) return spot;
+    let first = next.lines[0];
+    if (next.lines.length > 2 && first.y > next.height * (1 - HEAD.within)) {
+      const gaps = next.lines.slice(1).map((line, i) => next.lines[i].y - line.y).filter((gap) => gap > 1);
+      const usual = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+      // Lines on one baseline in other columns are one line here, so the
+      // head is the top line whole, however many columns the page has.
+      if (usual && first.y - next.lines[1].y > usual * HEAD.apart) first = next.lines[1];
+    }
+    return { ...spot, page: spot.page + 1, y: Math.max(0, (next.height - first.top) / next.height) };
+  } catch {
+    return spot;
+  }
 }
 
 /** Which column each entry printed on this page sits in. */

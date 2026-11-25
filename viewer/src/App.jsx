@@ -114,6 +114,8 @@ const PdfPage = lazy(preloadPdfPage);
 
 const MIN_SCALE = appLimits.viewer.zoom_min;
 const MAX_SCALE = appLimits.viewer.zoom_max;
+// How far down the window a link's destination is put: the upper middle.
+const LINK_LANDING = 0.3;
 
 const hasAnchor = (annotation) => annotation.anchor != null;
 
@@ -2092,9 +2094,11 @@ export default function App() {
         left = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth, left));
       }
     } else {
-      // A little above what was linked to, rather than flush against the top
-      // edge: a heading with nothing above it is hard to place.
-      top = pageTop + y * pageBox.height - box.height * 0.15;
+      // What was linked to in the upper middle of the window, where the
+      // eye already is: what leads up to it above, and most of the window
+      // for the thing itself. A definition met at the window's edge has to
+      // be looked for.
+      top = pageTop + y * pageBox.height - box.height * LINK_LANDING;
     }
     top = Math.max(0, top);
     const far = Math.abs(top - from) > box.height * 1.5;
