@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { destinationHeight } from './sections.js';
 
-import {
+import { overTheFold,
   citationHolds, citationOccurrences, columnsOnPage, consolidateCitations, destinationNumber,
   pageOverlays, placeAmong, readNamedReference, referenceAt, stillToLookUp,
 } from './references.js';
@@ -520,4 +520,55 @@ test('the marker clicked is found among the places, and put in at its page when 
   assert.deepEqual(found.places, [places[0], places[1], missed, places[2]]);
   assert.equal(placeAmong(places, { ...clicked, page: 9 }).at, 3);
   assert.deepEqual(placeAmong([], clicked), { places: [clicked], at: 0 });
+});
+
+// A page of text for overTheFold: one item a line, at these baselines.
+const foldLines = (ys, { x = 46, width = 394 } = {}) => ys.map((y) => ({ str: 'text', transform: [10, 0, 0, 10, x, y], width, height: 10 }));
+const foldDoc = (pages, target = [{}, { name: 'XYZ' }, 46, 71]) => ({
+  numPages: Object.keys(pages).length + 11,
+  getDestination: async () => target,
+  getPage: async (number) => ({
+    getViewport: () => ({ width: 486, height: 720, scale: 1 }),
+    getTextContent: async () => ({ items: pages[number] || [] }),
+  }),
+});
+
+test('a destination under the last line of a page means the first line of the next', async () => {
+  // hyperref's "theorem.4.9": set at the foot of page 12, the definition
+  // heading page 13 under its running head.
+  const doc = foldDoc({
+    12: foldLines([652, 625, 613, 97, 85, 73]),
+    13: foldLines([652, 625, 613, 599, 587]),
+  });
+  const spot = await overTheFold(doc, 'theorem.4.9', { page: 12, y: (720 - 71) / 720 });
+  assert.equal(spot.page, 13);
+  assert.ok(Math.abs(spot.y - (720 - 635) / 720) < 1e-9, 'the top of the first line under the running head');
+});
+
+test('a destination with its own line under it stays where it is', async () => {
+  const doc = foldDoc({ 12: foldLines([652, 625, 613, 97, 85, 73]), 13: foldLines([652, 625, 613]) });
+  const last = { page: 12, y: (720 - 84) / 720 };
+  assert.equal(await overTheFold(doc, 'theorem.4.8', last), last, 'the last line of the page is its own');
+  const middle = { page: 12, y: (720 - 630) / 720 };
+  assert.equal(await overTheFold(doc, 'theorem.4.7', middle), middle);
+});
+
+test('a page number at the foot does not hold a destination on its page', async () => {
+  const doc = foldDoc({
+    12: [...foldLines([652, 625, 613, 97, 85]), ...foldLines([40], { x: 240, width: 8 })],
+    13: foldLines([640, 628, 616]),
+  });
+  const spot = await overTheFold(doc, 'theorem.4.9', { page: 12, y: (720 - 83) / 720 });
+  assert.equal(spot.page, 13);
+  assert.ok(Math.abs(spot.y - (720 - 650) / 720) < 1e-9, 'no running head: the first line');
+});
+
+test('a destination under a column that is not the last stays on its page', async () => {
+  const left = foldLines([652, 640, 628, 97, 85, 73], { x: 46, width: 190 });
+  const right = foldLines([652, 640, 628, 97, 85, 73], { x: 250, width: 190 });
+  const doc = foldDoc({ 12: [...left, ...right], 13: foldLines([652, 625, 613]) });
+  const spot = { page: 12, y: (720 - 71) / 720 };
+  assert.equal(await overTheFold(doc, 'theorem.4.9', spot), spot);
+  const lastColumn = foldDoc({ 12: [...left, ...right], 13: foldLines([640, 628, 616]) }, [{}, { name: 'XYZ' }, 250, 71]);
+  assert.equal((await overTheFold(lastColumn, 'theorem.4.9', spot)).page, 13);
 });
