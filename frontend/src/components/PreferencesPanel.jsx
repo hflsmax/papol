@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Fragment, useState } from 'react';
 import { updateProfile } from '../../../shared/api/account.js';
 import { chooseTheme, readTheme } from '../../../shared/theme.js';
 
@@ -7,7 +7,19 @@ import { chooseTheme, readTheme } from '../../../shared/theme.js';
 // them of its own accord. Each is
 // kept the moment it is chosen; there is nothing to save. How it looks is
 // this device's (shared/theme.js); the rest are the account's.
+//
+// The emails a member may turn off, in the order shown. Which of them
+// this member has is the server's to say (`user.emails`): an admin has one
+// more. What is always sent is named under them, so the block is every
+// email Papol sends.
+const EMAILS = [
+  ['friend_request', 'Friend requests'],
+  ['friend_suggestions', 'Friend suggestions, once a week'],
+  ['feedback_report', 'Feedback reports'],
+];
+
 export default function PreferencesPanel({ user, onUserUpdated }) {
+  const emails = user.emails ?? {};
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(readTheme);
@@ -50,7 +62,10 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       </section>
       <section className="panel preferences-block" aria-labelledby="preferences-email">
         <h2 className="panel-title" id="preferences-email">Email</h2>
-        {choice('preference-suggestion-email', 'Friend suggestions, once a week', user.suggestion_email ?? true, 'Email me', 'No email', (on) => ({ suggestion_email: on }))}
+        {EMAILS.filter(([kind]) => kind in emails).map(([kind, label]) => (
+          <Fragment key={kind}>{choice(`preference-email-${kind}`, label, emails[kind], 'Email me', 'No email', (on) => ({ emails: { [kind]: on } }))}</Fragment>
+        ))}
+        <p className="panel-note preferences-always">Always sent: a password reset you ask for, and announcements from Papol.</p>
       </section>
     </div>
   );

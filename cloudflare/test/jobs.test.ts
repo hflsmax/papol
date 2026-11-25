@@ -138,7 +138,7 @@ describe("mail", () => {
   const configured = { EMAIL_API_URL: "https://mail.example.test/emails", EMAIL_API_KEY: "key", EMAIL_FROM: "papol@example.test" };
 
   it("sends one job's mail through the email API", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Papol: 1 new message today", "Hello");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Papol: 1 new message today", "Hello");
     await queued.statement.run();
     emailApi();
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
@@ -147,15 +147,22 @@ describe("mail", () => {
   });
 
   it("fails the job when the mail cannot be sent", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Subject", "Body");
     await queued.statement.run();
     emailApi(502, "bad gateway");
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, queued.uuid, "test") as Job);
     expect(await job(queued.uuid)).toMatchObject({ status: "failed", error: "Email to reader@example.test failed: 502 bad gateway" });
   });
 
+  it("queues nothing of a kind its recipient turned off, and always a kind nobody chooses", async () => {
+    const quiet = { email: "reader@example.test", email_off: '["friend_request","password_reset","announcement"]' };
+    expect(queueEmail(env.DB, "friend_request", quiet, "Subject", "Body")).toBeNull();
+    expect(queueEmail(env.DB, "feedback_report", quiet, "Subject", "Body")).not.toBeNull();
+    expect(queueEmail(env.DB, "password_reset", quiet, "Subject", "Body").uuid).toBeTruthy();
+  });
+
   it("skips, not fails, when no email API is configured", async () => {
-    const queued = queueEmail(env.DB, "reader@example.test", "Subject", "Body");
+    const queued = queueEmail(env.DB, "password_reset", { email: "reader@example.test" }, "Subject", "Body");
     await queued.statement.run();
     await woken(queued.uuid);
     expect(await job(queued.uuid)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });

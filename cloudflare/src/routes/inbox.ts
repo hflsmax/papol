@@ -171,7 +171,7 @@ export function inboxRoutes(router: Router) {
     const fb = { uuid: newUuid(), user_uuid: user?.uuid ?? null, content: content!.trim(), page: page || null, context, contact: contact?.trim() || null, resolved: 0, created_at: at };
     const reporter = user ? `${user.display_name} <${user.email}>` : fb.contact ? `a visitor <${fb.contact}>` : "an anonymous visitor";
     const where = fb.page ? ` (from ${fb.page})` : "";
-    const admins = await all<{ uuid: string; email: string }>(env.DB, "SELECT uuid, email FROM users WHERE is_admin = 1 AND deleted_at IS NULL");
+    const admins = await all<{ uuid: string; email: string; email_off: string }>(env.DB, "SELECT uuid, email, email_off FROM users WHERE is_admin = 1 AND deleted_at IS NULL");
     const headline = fb.content.split(/\r?\n/)[0].slice(0, limits.text.notification_email_headline);
     const body = [`Feedback from ${reporter}`, ...(fb.context ? [] : fb.page ? [`Page: ${fb.page}`] : []), "", fb.content, "",
       ...(fb.context ? [...feedbackContextLines(fb.context), ""] : []),
@@ -180,7 +180,8 @@ export function inboxRoutes(router: Router) {
     const wakeups: string[] = [];
     for (const admin of admins) {
       statements.push(insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, created_at: at }));
-      const mail = queueEmail(env.DB, admin.email, `Papol feedback: ${headline}`, body);
+      const mail = queueEmail(env.DB, "feedback_report", admin, `Papol feedback: ${headline}`, body);
+      if (!mail) continue;
       statements.push(mail.statement);
       wakeups.push(mail.uuid);
     }

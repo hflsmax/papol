@@ -71,6 +71,16 @@ describe("feedback", () => {
     expect((await call("POST", "/api/feedback", { json: { content: "" } })).status).toBe(422);
   });
 
+  it("is not emailed to an admin who turned feedback report emails off, and still reaches their inbox", async () => {
+    const admin = await register("admin@example.test", "Admin"), other = await register("other@example.test", "Other");
+    await exec("UPDATE users SET is_admin = 1 WHERE uuid IN (?, ?)", admin.uuid, other.uuid);
+    expect((await ok("GET", "/api/auth/me", { headers: admin.headers })).emails).toEqual({ friend_request: true, friend_suggestions: true, feedback_report: true });
+    await ok("PUT", "/api/auth/profile", { headers: admin.headers, json: { emails: { feedback_report: false } } });
+    await ok("POST", "/api/feedback", { json: { content: "Cannot sign in" } });
+    expect(await count("notifications", "content LIKE 'Feedback%'")).toBe(2);
+    expect((await rows("SELECT payload FROM jobs WHERE kind = 'send_email'")).map((j) => JSON.parse(j.payload as string).to)).toEqual(["other@example.test"]);
+  });
+
   it("keeps where the reporter was and what they had just done, and mails it", async () => {
     const admin = await register("admin@example.test", "Admin"), reporter = await register("reporter@example.test", "Reporter");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", admin.uuid);

@@ -1,17 +1,23 @@
 // The mail Papol sends.
 //
 // A message to send is a `send_email` job — one per recipient, so one
-// refused address fails one job.
+// refused address fails one job. Each is of a kind (src/emails.ts), and a
+// kind its recipient turned off in Preferences is not queued at all.
 
 import { one, type Row } from "../db";
+import { wantsEmail, type ChosenEmailKind, type EmailKind, type Mailed, type SureEmailKind } from "../emails";
 import { letterHtml, letterText } from "./letter";
 import { mailConfigured, sendEmail, sendEmails } from "./mail";
 import { enqueue, type Enqueued } from "./queue";
 
 export const SEND_EMAIL = "send_email";
 
-export function queueEmail(db: D1Database, to: string, subject: string, body: string): Enqueued {
-  return enqueue(db, SEND_EMAIL, { to, subject, body });
+// Nothing, for a kind the recipient chose not to be sent; a kind nobody
+// chooses is always queued.
+export function queueEmail(db: D1Database, kind: SureEmailKind, to: Mailed, subject: string, body: string): Enqueued;
+export function queueEmail(db: D1Database, kind: ChosenEmailKind, to: Mailed, subject: string, body: string): Enqueued | null;
+export function queueEmail(db: D1Database, kind: EmailKind, to: Mailed, subject: string, body: string): Enqueued | null {
+  return wantsEmail(to, kind) ? enqueue(db, SEND_EMAIL, { to: to.email, subject, body }) : null;
 }
 
 export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {
@@ -20,7 +26,8 @@ export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {
   return { sent: true };
 }
 
-// An announcement an admin writes to many users is one job, each recipient
+// An announcement is a kind nobody turns off (src/emails.ts): it goes to
+// whoever the admin addressed. One an admin writes to many users is one job, each recipient
 // still getting an email of their own: one batch call, not one call per
 // recipient racing the provider's rate limit. The admin writes Markdown;
 // each copy carries it as HTML, pictures and all, and as plain text.

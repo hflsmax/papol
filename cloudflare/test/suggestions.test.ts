@@ -222,10 +222,10 @@ describe("the weekly email of people to ask", () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), edsger = await register("edsger@example.test", "Edsger");
     await project(ada, "Control Lab", grace, edsger);
     // It is on to begin with, and off is kept.
-    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).suggestion_email).toBe(true);
-    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { suggestion_email: false } })).suggestion_email).toBe(false);
+    expect((await ok("GET", "/api/auth/me", { headers: ada.headers })).emails.friend_suggestions).toBe(true);
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { emails: { friend_suggestions: false } } })).emails.friend_suggestions).toBe(false);
     // Another choice made later leaves it off.
-    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { findable: true } })).suggestion_email).toBe(false);
+    expect((await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { findable: true } })).emails.friend_suggestions).toBe(false);
     await ok("DELETE", `/api/friends/suggestions/${edsger.uuid}`, { headers: grace.headers });
 
     emailApi();
@@ -234,7 +234,7 @@ describe("the weekly email of people to ask", () => {
     expect(sent().find((m) => m.to[0] === "grace@example.test").text).not.toContain("Edsger");
     expect(await count("friend_suggestions", "user_uuid = ? AND mailed_at IS NOT NULL", ada.uuid)).toBe(0);
     // Back on, the next week writes to her.
-    await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { suggestion_email: true } });
+    await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { emails: { friend_suggestions: true } } });
     emailApi();
     await monday();
     expect(sent().map((m) => m.to[0])).toEqual(["ada@example.test"]);

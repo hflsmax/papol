@@ -7,6 +7,7 @@ import { closeAccount } from "../account/close";
 import { exportArchive } from "../account/export";
 import { currentUser, hashPassword, userPrivate, verifyPassword, type User } from "../auth";
 import { newUuid, one, statement } from "../db";
+import { emailOffAfter } from "../emails";
 import { json, readJson, refuse, type Router } from "../http";
 import { UPLOADS } from "../files";
 import * as validate from "../validate";
@@ -35,7 +36,6 @@ export function accountRoutes(router: Router) {
     const email = "email" in data ? check.string("email", data.email, { max: limits.text.email, pattern: validate.EMAIL }) : undefined;
     const emailPublic = check.boolean("email_public", data.email_public, { optional: true });
     const findable = check.boolean("findable", data.findable, { optional: true });
-    const suggestionEmail = check.boolean("suggestion_email", data.suggestion_email, { optional: true });
     // What the viewer's nav bar marks: a list of its kinds, in any order.
     const marks = data.nav_marks;
     if (marks !== undefined && !(Array.isArray(marks) && marks.every((kind) => navMarks.kinds.includes(kind)))) {
@@ -55,9 +55,9 @@ export function accountRoutes(router: Router) {
     if (normalizedEmail !== undefined) user.email = normalizedEmail;
     if (emailPublic !== null) user.email_public = emailPublic ? 1 : 0;
     if (findable !== null) user.findable = findable ? 1 : 0;
-    if (suggestionEmail !== null) user.suggestion_email = suggestionEmail ? 1 : 0;
+    if (data.emails !== undefined) user.email_off = emailOffAfter(user, data.emails);
     if (marks !== undefined) user.nav_marks = JSON.stringify(navMarks.kinds.filter((kind) => (marks as string[]).includes(kind)));
-    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, suggestion_email = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.suggestion_email ?? 1, user.nav_marks, user.uuid).run();
+    await statement(env.DB, "UPDATE users SET email = ?, display_name = ?, affiliation = ?, email_public = ?, findable = ?, email_off = ?, nav_marks = ? WHERE uuid = ?", user.email, user.display_name, user.affiliation, user.email_public, user.findable ?? 1, user.email_off ?? "[]", user.nav_marks, user.uuid).run();
     return json(userPrivate(user));
   });
 

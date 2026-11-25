@@ -8,7 +8,7 @@ describe("accounts", () => {
     const me = await ok("GET", "/api/auth/me", { headers: account.headers });
     expect(me).toEqual({
       uuid: account.uuid, email: "reader@example.test", display_name: "Reader",
-      affiliation: null, avatar_path: null, email_public: true, findable: true, suggestion_email: true, is_admin: false,
+      affiliation: null, avatar_path: null, email_public: true, findable: true, emails: { friend_request: true, friend_suggestions: true }, is_admin: false,
       nav_marks: ["figure", "table", "algorithm", "definition", "theorem"],
     });
     const shelves = await row<{ n: number }>("SELECT count(*) AS n FROM shelves WHERE user_uuid = ?", account.uuid);

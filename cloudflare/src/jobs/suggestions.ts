@@ -14,6 +14,7 @@
 // the other order would lose them.
 
 import { all, now, statement, type Row } from "../db";
+import { wantsEmailSql } from "../emails";
 import { suggestionsFor, type Suggestion } from "../routes/suggestions";
 import { escape, STYLE } from "./letter";
 import { mailConfigured, sendEmails, type Mail } from "./mail";
@@ -98,7 +99,7 @@ export async function suggestFriendsJob(env: Env, payload: Row): Promise<Row> {
   const after = String(payload.after ?? "");
   const users = await all<{ uuid: string; email: string; display_name: string }>(env.DB,
     `SELECT uuid, email, display_name FROM users
-     WHERE deleted_at IS NULL AND suggestion_email = 1 AND uuid > ? ORDER BY uuid LIMIT ?`, after, CHUNK);
+     WHERE deleted_at IS NULL AND ${wantsEmailSql("friend_suggestions")} AND uuid > ? ORDER BY uuid LIMIT ?`, after, CHUNK);
   const site = (await siteUrl(env)).replace(/\/$/, "");
 
   const mails: Mail[] = [];

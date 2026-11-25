@@ -16,6 +16,24 @@ async function befriend(a: Account, b: Account) {
 }
 
 describe("becoming friends", () => {
+  it("is not emailed to whoever turned friend request emails off in Preferences, and still reaches their inbox", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    const kept = await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_request: false } } });
+    expect(kept.emails).toEqual({ friend_request: false, friend_suggestions: true });
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_request", actor: { uuid: ada.uuid } });
+    expect(await count("jobs", "kind = 'send_email'")).toBe(0);
+    // Ada left hers on.
+    await ok("POST", `/api/friends/${ada.uuid}`, { headers: await register("alan@example.test", "Alan").then((a) => a.headers) });
+    expect((await rows("SELECT payload FROM jobs WHERE kind = 'send_email'")).map((j) => JSON.parse(j.payload as string).to)).toEqual(["ada@example.test"]);
+
+    // Only a kind the user is shown is theirs to turn off: not an admin's, not one always sent, not one Papol never heard of.
+    for (const emails of [{ feedback_report: false }, { password_reset: false }, { announcement: false }, { digest: false }, { friend_request: "no" }, ["friend_request"], null]) {
+      expect((await call("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails } })).status, JSON.stringify(emails)).toBe(422);
+    }
+    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).emails).toEqual({ friend_request: false, friend_suggestions: true });
+  });
+
   it("is asked for and accepted, with the request answered in the inbox", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await paperWithCopy(ada, digest("a"), "Both keep this", { shelfUuid: await defaultShelf(ada) });
