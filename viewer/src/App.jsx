@@ -2676,6 +2676,10 @@ export default function App() {
         left: place.left - scrollerBox.left + scroller.scrollLeft,
         top: place.top - scrollerBox.top + scroller.scrollTop,
         placement: place.placement,
+        // The actions wait, mounted and placed but unseen, until the
+        // selection is finished: a bar that follows the pointer along the
+        // words covers the next line to be selected.
+        selecting: !finalize,
       };
       if (synchronous === true) {
         flushSync(() => setSelectionPaint(snapshot));
@@ -2716,9 +2720,10 @@ export default function App() {
       return true;
     };
     const selectionChanged = () => {
-      // Mount and position the actions while the drag is still producing a
-      // native Range. By mouseup the surface has already been painted, so a
-      // WebKit compositor delay cannot trail the completed selection.
+      // Mount and position the actions, hidden, while the drag is still
+      // producing a native Range. By mouseup the surface already has its
+      // layer and only has to be shown, so a WebKit compositor delay cannot
+      // trail the completed selection.
       if (pointerSelecting) update(!previewingSelection, false);
       else update(true);
     };
@@ -5357,7 +5362,7 @@ export default function App() {
           {selectionPaint && !neverAnnotatable && (
             <span
               ref={selectionActionsRef}
-              className="selection-actions"
+              className={`selection-actions${selectionPaint.selecting ? ' selecting' : ''}`}
               style={{
                 left: selectionPaint.left,
                 top: selectionPaint.top,
