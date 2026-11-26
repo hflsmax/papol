@@ -61,6 +61,15 @@ export const DARK_PAGES_TIP = {
   unsetLabel: 'Not shown',
 };
 
+export const LOUNGE_TIP = {
+  key: 'papol_learn_lounge',
+  value: 'seen',
+  name: 'Lounge tip',
+  description: 'The Learn Papol card under the way into the Lounge that says friends’ news is there, shown until the user dismisses it or goes to the Lounge.',
+  setLabel: 'Shown',
+  unsetLabel: 'Not shown',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -102,6 +111,7 @@ export const FEATURE_STATES = [
   VISIBILITY_TIP,
   PROJECT_VISIBILITY_TIP,
   DARK_PAGES_TIP,
+  LOUNGE_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,

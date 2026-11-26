@@ -4,6 +4,7 @@ import { Working } from '../../../shared/ui/Waiting.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Avatar from './Avatar';
 import Glyph from './DesktopGlyph';
+import LoungeTip from './LoungeTip';
 import { PAPER_DRAG_TYPE, isBrowsing, listingPath } from '../desktopListings';
 import { KINDS, narrowed } from '../loungeStore';
 import { appPath } from '../base';
@@ -314,7 +315,9 @@ function SyncControl({ onReportableError, onSynced }) {
   );
 }
 
-// The two modes, as a segmented control under the traffic lights.
+// The two modes, as a segmented control under the traffic lights. Under
+// the Lounge's hangs the card saying what is there, until the member has
+// been told (LoungeTip.jsx).
 function ModeSwitch({ modes }) {
   return (
     <nav className="desktop-mode" aria-label="Mode">
@@ -332,6 +335,7 @@ function ModeSwitch({ modes }) {
           {item.news && <NewsDot />}
         </a>
       ))}
+      <LoungeTip here={modes.some((item) => item.key === 'room' && item.active)} />
     </nav>
   );
 }

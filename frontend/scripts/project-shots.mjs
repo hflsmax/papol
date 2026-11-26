@@ -138,6 +138,11 @@ const SHOTS = {
   'phone-nook-read-age': { path: '/?shell=web', ready: "document.querySelectorAll('.nook .desk-title').length > 6", then: "document.querySelector('.desk-table').scrollIntoView({ block: 'start' }); return true;", size: phone },
   'nook-tag': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "[...document.querySelectorAll('.desk-tag')].find((b) => b.textContent === '#control').click(); return true;", settled: "document.querySelector('.desk-tag.is-on')", size: wide },
   'mac-nook': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", size: wide },
+  // The card under the way into the Lounge, before the member has been
+  // told what is there: on the web's bar, under the Mac's switch, on a phone.
+  'lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: wide },
+  'mac-lounge-tip': { path: '/?shell=desktop&tip=lounge', ready: "document.querySelector('.desktop-row-title') && document.querySelector('.lounge-tip')", size: wide },
+  'phone-lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: phone },
   // Two papers pinned: they lead the list, each with its pin; the pointer
   // rests on a paper that is not, whose pin shows while it does.
   'nook-pinned': { path: '/?shell=web', pins: PINNED, ready: "document.querySelector('.nook .desk-pin.is-on')", pointer: [['move', '.desk-table tbody tr:nth-child(4) .desk-meta']], size: wide },

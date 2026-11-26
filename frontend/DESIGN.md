@@ -644,6 +644,10 @@ is a dig: one person's writing about one thing, under the one spade pin.
   What a browser remembers having shown or been told — the tip, the hidden
   pill — is listed in `shared/featureStates.js`, and Admin's Feature
   introductions panel puts each on a switch.
+  The same card hangs under the way into the Lounge (the bar's button on
+  the web, the Lounge segment of the Mac's switch): "See what your friends
+  are doing here", until the member presses Got it or goes to the Lounge
+  (`LoungeTip.jsx`).
   Chrome is UI sans at `--fs-sm`, never selectable, and uses the arrow cursor
   rather than the pointing hand; rows and toolbar buttons are borderless,
   shadowless `--chrome-radius` shapes tinted `--chrome-hover` /
