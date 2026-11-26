@@ -1812,6 +1812,8 @@ ${inDark([[
 .way-room-anchor { position: relative; display: inline-flex; }
 .learn-papol.lounge-tip { left: auto; right: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
 .learn-papol.lounge-tip::before { left: auto; right: 24px; }
+/* Its one sentence is said plainly, not as a heading. */
+.learn-papol .lounge-tip-words { color: var(--ink); font-size: var(--fs-md); }
 
 /* Keeps its own colours on hover, where every other button turns blue:
    a public chip that went blue would be saying private. */
