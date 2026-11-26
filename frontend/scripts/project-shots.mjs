@@ -38,6 +38,8 @@ const NO_TINT = "document.documentElement.style.setProperty('--chrome-lounge', '
 // The papers pinned in the pictures of a nook with pins: an old one and a
 // recent one, so the pinned are seen to lead whatever their age.
 const PINNED = ['c2'.repeat(32), P_SURVEY];
+// The first thread in the Lounge, opened.
+const OPEN_THREAD = "const go = () => { const t = document.querySelector('.room-thread-open'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -172,6 +174,12 @@ const SHOTS = {
   'phone-room-add-friend': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const add = document.querySelector('.room-add'); if (!add) return setTimeout(go, 100); add.click(); const type = () => { const box = document.querySelector('.room-finder-box'); if (!box) return setTimeout(type, 100); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(box, 'ma'); box.dispatchEvent(new Event('input', { bubbles: true })); }; type(); }; go(); return true;", settled: "document.querySelector('.room-found .friend-button button')", size: phone },
   'room-hover': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const f = document.querySelectorAll('.room-who-face')[2]; if (f) f.focus(); else setTimeout(go, 100); }; go(); return true;", settled: "document.activeElement?.classList.contains('room-who-face')", size: wide },
   'room-dig': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "const go = () => { const d = document.querySelectorAll('.room-dig-open')[1]; if (d) d.click(); else setTimeout(go, 100); }; go(); return true;", settled: "document.querySelector('.room-said .talk-post')", size: wide },
+  // A thread sent to the Lounge from a paper, opened: the passage, what
+  // was said, and the box to reply in; and a reply sent.
+  'room-thread': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: OPEN_THREAD, settled: "document.querySelector('.room-thread .talk-post')", size: wide },
+  'room-thread-replied': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: `${OPEN_THREAD.replace('return true;', '')} const type = () => { const f = document.querySelector('.room-thread-reply textarea, .room-thread-reply .md-field'); if (!f) return setTimeout(type, 100); f.focus(); document.execCommand('insertText', false, 'Done. The window that fits best is 40 frames, not the 100 they fix.'); setTimeout(() => document.querySelector('.room-thread-reply .talk-send').click(), 200); }; type(); return true;`, settled: "document.querySelectorAll('.room-thread .talk-post').length === 5", size: wide },
+  'phone-room-thread': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: OPEN_THREAD, settled: "document.querySelector('.room-thread .talk-post')", size: phone },
+  'mac-mode-lounge-thread': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-row')", then: `${PROD_CHROME} ${OPEN_THREAD}`, settled: "document.querySelector('.room-thread .talk-post')", size: wide },
   'phone-room': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: "return true;", settled: "document.querySelector('.room-dig-open')", size: phone },
   // Lounge mode in the Mac app: the sidebar's switch, the nook's sidebar
   // and the Lounge's, and the pages opened from the Lounge keeping it. The

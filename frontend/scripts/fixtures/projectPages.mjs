@@ -302,6 +302,34 @@ const suggestionState = () => [
   { user: outsiders[1], project_count: 0, projects: [], mutual_count: 1 },
 ];
 let suggestionsNow = suggestionState();
+// Threads: what Ana and the member sent to the Lounge from a paper, and
+// the replies under them. A reply typed in a picture is kept, as Papol would.
+const threadState = () => [
+  {
+    uuid: 'e2b2c3d4-0000-4000-8000-000000000070', user: ana, is_mine: false, paper_sha256: P_SURVEY, page: 7, y: 0.42, mark: 'W1s3LDAuMTMsMC44NywwLjQyLDAuMDIxXV0=', box: null,
+    excerpt: 'Predictive control recovers most of the servo-lag error only when the wind profile is stationary over the fitting window; in the two-layer case the gain halves.',
+    picture_url: null, words: 'Is the two-layer case the one we care about? Our site is closer to three most nights.', created_at: hoursAgo(9),
+    replies: [
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000071', user: ben, body: 'Three, and the top one moves fast. I would not trust the halving either way until we fit it to our own telemetry.', created_at: hoursAgo(6), is_mine: false },
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000072', user: me, body: 'I have last month\u2019s telemetry. Give me a day.', created_at: hoursAgo(5), is_mine: true },
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000073', user: ana, body: 'Wild idea while you are at it: fit the window length too, instead of fixing it.', created_at: hoursAgo(1), is_mine: false },
+    ],
+  },
+  {
+    uuid: 'e2b2c3d4-0000-4000-8000-000000000080', user: me, is_mine: true, paper_sha256: P_LEARN, page: 3, y: 0.6, mark: 'W1szLDAuMTMsMC44NywwLjYsMC4wMjFdXQ==', box: null,
+    excerpt: 'Twelve examples suffice when the prior is the instrument\u2019s own interaction matrix.', picture_url: null, words: null, created_at: daysAgo(3), replies: [],
+  },
+];
+let threadsNow = threadState();
+const threadRow = (thread, isNew) => {
+  const lines = [{ user: thread.user, did: 'started', at: thread.created_at }];
+  for (const reply of thread.replies) {
+    const line = lines.find((l) => l.user.uuid === reply.user.uuid);
+    if (!line) lines.push({ user: reply.user, did: 'replied', at: reply.created_at });
+    else if (line.did === 'replied') line.at = reply.created_at;
+  }
+  return { kind: 'thread', key: `thread:${thread.uuid}`, at: thread.replies.at(-1)?.created_at ?? thread.created_at, is_new: isNew, thread, paper: paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)), lines };
+};
 const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
   const rows = [
@@ -320,7 +348,8 @@ const roomRows = () => {
     ] },
     { kind: 'project', key: `project:${closed.uuid}`, project: { uuid: closed.uuid, name: closed.name, description: 'Which sensor for which seeing.', member_count: 3, is_member: false, asked: false }, at: daysAgo(11), is_new: false, lines: [{ user: ana, did: 'joined', at: daysAgo(11) }] },
   ];
-  return rows;
+  rows.push(...threadsNow.map((thread, at) => threadRow(thread, at === 0)));
+  return rows.sort((a, b) => b.at.localeCompare(a.at));
 };
 
 function answer(method, path, search, sent = {}) {
@@ -332,7 +361,7 @@ function answer(method, path, search, sent = {}) {
     else if (sha256) pinnedNow.delete(sha256);
   }
   // Each picture loads the app afresh: the project is back.
-  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); }
+  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); threadsNow = threadState(); }
   // Friends: what the member's friends say now, changed by each answer.
   if (path === '/friends' || path === '/friends/settings') {
     return friendsNow;
@@ -358,6 +387,21 @@ function answer(method, path, search, sent = {}) {
   if (path === '/friends/suggestions') return suggestionsNow;
   const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
   if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }
+  // A reply in a thread, a reply taken back, a thread removed.
+  const replying = method === 'POST' && path.match(/^\/threads\/([0-9a-f-]{36})\/replies$/);
+  if (replying) {
+    const thread = threadsNow.find((t) => t.uuid === replying[1]);
+    thread.replies.push({ uuid: `e2b2c3d4-0000-4000-8000-0000000000${90 + thread.replies.length}`, user: me, body: sent.body, created_at: hoursAgo(0), is_mine: true });
+    return thread;
+  }
+  const unsaid = method === 'DELETE' && path.match(/^\/thread-replies\/([0-9a-f-]{36})$/);
+  if (unsaid) {
+    const thread = threadsNow.find((t) => t.replies.some((r) => r.uuid === unsaid[1]));
+    thread.replies = thread.replies.filter((r) => r.uuid !== unsaid[1]);
+    return thread;
+  }
+  const dropped = method === 'DELETE' && path.match(/^\/threads\/([0-9a-f-]{36})$/);
+  if (dropped) { threadsNow = threadsNow.filter((t) => t.uuid !== dropped[1]); return { message: 'Thread removed' }; }
   if (path === '/room/news') return { news: true };
   if (path === '/room') {
     return {

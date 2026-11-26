@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 // sidebar carries the Lounge's friends and Show rows in place of the
 // page's own rail, so both read and change the one choice here.
 //
-//   kind     '' for everything, or 'paper', 'board', 'project'
+//   kind     '' for everything, or 'thread', 'paper', 'board', 'project'
 //   who      '' for all friends, or one friend's uuid
 //   finding  whether Find (someone to ask) is open
 //   rows     the Lounge's rows, once read, for the sidebar's counts
@@ -47,4 +47,4 @@ export function narrowed(rows, pick) {
     && (!pick.who || linesOf(row).some((line) => line.user.uuid === pick.who)));
 }
 
-export const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
+export const KINDS = [['', 'Everything'], ['thread', 'Threads'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];

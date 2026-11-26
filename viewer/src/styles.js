@@ -1911,6 +1911,9 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   color: var(--ink-faint);
   font: var(--fs-xs) var(--font-ui);
 }
+/* After a send to the Lounge: the way there, beside Done. */
+.send-selection-lounge { align-self: center; margin-right: auto; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; }
+.send-selection-lounge:hover, .send-selection-lounge:focus-visible { text-decoration: underline; }
 
 /* The PDF's own links. Invisible until pointed at, like the citations:
    a paper is not improved by underlining every cross-reference in it. */

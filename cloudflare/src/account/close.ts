@@ -54,6 +54,10 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     ["activity", statement(db, "DELETE FROM activity WHERE user_uuid = ?", user.uuid)],
     ["user_states", statement(db, "DELETE FROM user_states WHERE user_uuid = ?", user.uuid)],
     ["defined_terms", statement(db, "DELETE FROM defined_terms WHERE user_uuid = ?", user.uuid)],
+    // What they said in the Lounge: the threads they started, with every
+    // reply in them, and their replies in other people's.
+    ["thread_replies", statement(db, "DELETE FROM thread_replies WHERE user_uuid = ? OR thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?)", user.uuid, user.uuid)],
+    ["threads", statement(db, "DELETE FROM threads WHERE user_uuid = ?", user.uuid)],
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
     ["copy_news", statement(db, "DELETE FROM copy_news WHERE copy_uuid IN (SELECT uuid FROM copies WHERE user_uuid = ?)", user.uuid)],
     ["papers_in_nook", statement(db, "DELETE FROM copies WHERE user_uuid = ?", user.uuid)],
@@ -103,6 +107,8 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   for (const file of files) {
     if (!KEY.test(file.file_path)) continue;
     if (file.sha256 && await one(db, "SELECT 1 FROM board_items WHERE sha256 = ? LIMIT 1", file.sha256)) continue;
+    // Nor while a thread in the Lounge shows it as its picture.
+    if (file.sha256 && await one(db, "SELECT 1 FROM threads WHERE picture_sha256 = ? LIMIT 1", file.sha256)) continue;
     await env.FILES.delete(boardFileKey(file.file_path));
     removed.board_files++;
   }

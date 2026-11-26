@@ -10,7 +10,7 @@ import {
   getPaperByPdf, getPaperLink, getPaperAnchors, getNookPaperByPdf, addOpenedFileToNook,
   lookUpViewerReference, getViewerPaperInfo,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation, restoreAnnotation,
-  listTerms, defineTerm, removeTerm,
+  listTerms, defineTerm, removeTerm, startThread,
   getToken, getReader,
 } from './api.js';
 import { listProjectAnnotations, personalDigsOn } from '../../shared/api/projects.js';
@@ -117,6 +117,11 @@ function apiSource(
       list: () => listTerms(pdfHash),
       define: (term) => defineTerm(pdfHash, term),
       remove: (uuid) => removeTerm(uuid),
+    },
+    // The Lounge, as a place to send what is selected here: a paper Papol
+    // holds, read by someone signed in.
+    threads: {
+      start: (thread) => startThread(pdfHash, thread),
     },
     // The project on, if one is: its name and members, and what every
     // member left on this paper. Read from the service, as projects always

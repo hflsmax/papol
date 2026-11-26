@@ -1,4 +1,4 @@
-import { request } from '../httpClient.js';
+import { jsonRequest, request } from '../httpClient.js';
 
 // ---------- Friends and the Lounge ----------
 
@@ -56,6 +56,30 @@ export function markRoomSeen() {
 
 export function getRoomNews() {
   return request('/room/news');
+}
+
+// A thread in the Lounge: something a friend, or I, sent there from a
+// paper. Replying, and taking a reply back, answer with the thread as it
+// now stands.
+export function replyInThread(threadUuid, body) {
+  return jsonRequest(`/threads/${threadUuid}/replies`, 'POST', { body });
+}
+
+export function removeThread(threadUuid) {
+  return request(`/threads/${threadUuid}`, { method: 'DELETE' });
+}
+
+export function removeThreadReply(replyUuid) {
+  return request(`/thread-replies/${replyUuid}`, { method: 'DELETE' });
+}
+
+// Where a thread came from: the viewer's address for its paper, on the
+// page and at the passage or rectangle it was sent from.
+export function threadPlacePath(thread) {
+  const place = new URLSearchParams({ pdf: thread.paper_sha256, page: String(thread.page), y: String(thread.y) });
+  if (thread.mark) place.set('mark', thread.mark);
+  if (thread.box) place.set('box', thread.box);
+  return `/viewer/?${place}`;
 }
 
 export function askToJoinProject(projectUuid) {
