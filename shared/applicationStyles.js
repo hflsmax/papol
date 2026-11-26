@@ -1796,7 +1796,8 @@ ${inDark([[
   background: var(--card);
   transform: rotate(45deg);
 }
-.learn-papol strong { color: var(--ink); font-size: var(--fs-md); }
+/* A card's first line leads by its ink and size, not by weight. */
+.learn-papol strong { color: var(--ink); font-size: var(--fs-md); font-weight: 400; }
 .learn-papol .learn-papol-kicker { color: var(--accent); font-variant: small-caps; letter-spacing: 0.04em; }
 .learn-papol .learn-papol-close {
   align-self: flex-end;
@@ -1806,6 +1807,12 @@ ${inDark([[
   background: var(--accent);
   color: var(--ink-inverse);
 }
+
+/* The card saying friends' news is in the Lounge, hung from the way into
+   it: the bar's button on the web, kept inside the page's right edge. */
+.way-room-anchor { position: relative; display: inline-flex; }
+.learn-papol.lounge-tip { left: auto; right: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
+.learn-papol.lounge-tip::before { left: auto; right: 24px; }
 
 /* Keeps its own colours on hover, where every other button turns blue:
    a public chip that went blue would be saying private. */

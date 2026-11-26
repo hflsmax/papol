@@ -574,12 +574,15 @@ function projectFixture(server) {
 }
 
 // The tab is a member's before the app loads: a token where the app keeps
-// it, and no Mac banner.
+// it, no Mac banner, and the Lounge's tip already seen unless the address
+// asks for it (?tip=lounge).
 const signIn = () => ({
   name: 'project-fixture-sign-in',
   transformIndexHtml: (html) => html.replace('<head>', `<head><script>
     localStorage.setItem('papol_token', 'fixture');
     localStorage.setItem('papol.macosDownloadBannerDismissed', '1');
+    if (location.search.includes('tip=lounge')) localStorage.removeItem('papol_learn_lounge');
+    else localStorage.setItem('papol_learn_lounge', 'seen');
   </script>`),
 });
 

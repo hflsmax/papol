@@ -144,6 +144,7 @@ export class Stage {
 // loads, so none of them covers what the scene is about.
 const QUIET = {
   papol_learn_link_navigation: 'seen',
+  papol_learn_lounge: 'seen',
   'papol.handoff.retired': '1',
   'papol.macosDownloadBannerDismissed': '1',
 };

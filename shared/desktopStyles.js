@@ -320,6 +320,12 @@ export const desktopStyles = `
   margin-left: -2px;
 }
 
+/* The card saying what the Lounge holds, under the switch and as wide as
+   it, its point under the Lounge's segment. */
+.desktop-mode { position: relative; }
+.desktop-mode > .learn-papol.lounge-tip { top: calc(100% + 10px); left: 0; right: 0; width: auto; max-width: none; }
+.desktop-mode > .learn-papol.lounge-tip::before { left: calc(75% - 6px); right: auto; }
+
 /* A friend's row carries their face where other rows carry a glyph. */
 .desktop-sidebar-face {
   flex: none;

@@ -5,6 +5,7 @@ import Avatar from './Avatar';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Glyph from './DesktopGlyph';
 import BackLink from '../../../shared/ui/BackLink.jsx';
+import LoungeTip from './LoungeTip';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -14,8 +15,9 @@ export const ROOM_PATH = '/lounge';
 
 // The one bar over a signed-in member's pages on the web: the trail home
 // on the left, and on the right the Lounge beside it, which wears
-// the gold dot when it has news, and the member, who wears the count of what
-// has come for them; an admin also finds Admin
+// the gold dot when it has news (and, until the member has been told, a
+// card saying friends' news is there: LoungeTip.jsx), and the member, who
+// wears the count of what has come for them; an admin also finds Admin
 // there, on every page. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none. Before the member is
 // known (their sign-in still being checked) the bar stands without them.
@@ -42,15 +44,18 @@ export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, 
       </nav>
       <nav className="way-aside" aria-label="Elsewhere">
         {user?.is_admin && <a href={appPath('/admin')} aria-current={route.page === 'admin' ? 'page' : undefined}>Admin</a>}
-        <a
-          className="way-room"
-          href={appPath(ROOM_PATH)}
-          aria-current={route.page === 'room' ? 'page' : undefined}
-        >
-          <Glyph name="room" />
-          <span className="way-room-word">{ROOM}</span>
-          {roomNews && <NewsDot />}
-        </a>
+        <span className="way-room-anchor">
+          <a
+            className="way-room"
+            href={appPath(ROOM_PATH)}
+            aria-current={route.page === 'room' ? 'page' : undefined}
+          >
+            <Glyph name="room" />
+            <span className="way-room-word">{ROOM}</span>
+            {roomNews && <NewsDot />}
+          </a>
+          {user && <LoungeTip here={route.page === 'room'} />}
+        </span>
       </nav>
       {user && <a
         className="way-self"

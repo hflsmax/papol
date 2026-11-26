@@ -806,7 +806,8 @@ ${fileDropStyles}
   transform: rotate(45deg);
 }
 
-.learn-papol strong { color: var(--ink); font-size: var(--fs-md); }
+/* A card's first line leads by its ink and size, not by weight. */
+.learn-papol strong { color: var(--ink); font-size: var(--fs-md); font-weight: 400; }
 /* The teaching card announces itself in the accent it is outlined in. */
 .learn-papol .kicker {
   color: var(--accent);
