@@ -1728,6 +1728,12 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   transform: translate3d(-50%, 0, 0);
   will-change: transform;
 }
+/* While the words are still being selected the bar is in place but unseen;
+   it shows when the pointer lets go. */
+.selection-actions.selecting {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 /* WebKit occasionally leaves a newly mounted backdrop-filter surface waiting
    for a later pointer-driven composite. Selection actions must appear in the
