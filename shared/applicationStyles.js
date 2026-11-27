@@ -4597,7 +4597,6 @@ a.button:hover {
 /* Written, the dig is carded like the summary: private, so tinted blue. */
 .paper-dig .talk-posts { padding: 0; }
 .paper-dig .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
-.paper-dig .talk-card .talk-compose.is-tucked { margin-top: var(--space-3); padding: 0; background: none; }
 .paper-dig .talk-post-body { font-size: var(--fs-md); line-height: 1.45; }
 .paper-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
 .paper-dig .talk-post-body > :last-child { margin-bottom: 0; }
@@ -6122,7 +6121,7 @@ ${talkStyles}
 .paper-friend-digs { margin-top: var(--space-5); }
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-/* A friend's dig, top to bottom: what it is about, the dig itself tinted
+/* A dig on the jacket, mine or a friend's, top to bottom: what it is about, the dig itself tinted
    and set in as my own is, then what was posted under it and the box that
    posts, both stepped in so they read as under the dig. */
 .friend-dig-focus { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); font: var(--fs-sm)/1.4 var(--font-ui); }
@@ -6130,12 +6129,13 @@ ${talkStyles}
 a.friend-dig-focus-on { color: var(--accent); }
 a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset: 2px; }
 .friend-dig-focus-what { color: var(--ink-faint); }
-.friend-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
-.friend-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
-.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 36px; padding: 8px 0 2px; border-radius: 0; background: none; }
-.friend-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
-.friend-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 36px; padding: 8px 0 0; }
-.friend-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
+.paper-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
+.paper-dig .talk-card.is-conversation .talk-post:first-child:hover { background: var(--accent-soft); }
+.paper-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
+.paper-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 36px; padding: 8px 0 2px; border-radius: 0; background: none; }
+.paper-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
+.paper-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 36px; padding: 8px 0 0; }
+.paper-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
