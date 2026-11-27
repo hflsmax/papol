@@ -6119,14 +6119,19 @@ ${talkStyles}
 .paper-friend-digs { margin-top: var(--space-5); }
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.friend-dig-place { margin: 0 0 var(--space-1); color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
-/* A friend's dig is one block: the dig tinted and set in from its edge
-   as my own is, what was posted under it in line with its words, and the
-   box that posts at the same edge. */
+/* A friend's dig, top to bottom: what it is about, the dig itself tinted
+   and set in as my own is, then what was posted under it and the box that
+   posts, both stepped in behind one rule so they read as under the dig. */
+.friend-dig-focus { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); font: var(--fs-sm)/1.4 var(--font-ui); }
+.friend-dig-focus-on { color: var(--ink); font-weight: 600; text-decoration: none; }
+a.friend-dig-focus-on { color: var(--accent); }
+a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset: 2px; }
+.friend-dig-focus-what { color: var(--ink-faint); }
 .friend-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
 .friend-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
-.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin-top: var(--space-1); padding: 4px 12px 4px 12px; background: none; }
-.friend-dig .talk-card.is-conversation .talk-compose { margin-top: var(--space-2); padding: 0; }
+.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 20px; padding: 8px 0 2px 14px; border-left: 2px solid var(--line); border-radius: 0; background: none; }
+.friend-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
+.friend-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 20px; padding: 8px 0 0 14px; border-left: 2px solid var(--line); }
 .friend-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }

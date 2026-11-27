@@ -34,6 +34,26 @@ import { friendDigsOn } from '../../../shared/api/friends.js';
 import { relationTo, useFriends } from '../friendsStore';
 import PinButton from './PinButton';
 
+// What a friend's dig is about, at its head: the whole paper, or a place
+// in it. A place opens the paper on its page, as far down as the mark
+// sits; the mark itself is its writer's and is not drawn for anyone else.
+function FriendDigFocus({ dig, paper }) {
+  const { kind, page, down, annotation_kind: mark } = dig.subject;
+  if (kind !== 'annotation' || !page) {
+    return <p className="friend-dig-focus"><span className="friend-dig-focus-on">On the whole paper</span></p>;
+  }
+  const what = mark === 'ink' ? 'painted text' : mark === 'clip' ? 'a clip' : 'an anchor';
+  const place = appPath(`/viewer/?pdf=${paper.sha256}&page=${page}${down == null ? '' : `&y=${Math.round(down * 1000) / 1000}`}`);
+  return (
+    <p className="friend-dig-focus">
+      <a className="friend-dig-focus-on" href={place} data-document title={`Open the paper on page ${page}`}>
+        On page {page}
+      </a>
+      <span className="friend-dig-focus-what">at {what}</span>
+    </p>
+  );
+}
+
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   onDeleted, hideBack = false, backLabel = 'Back', onReportableError,
@@ -841,9 +861,10 @@ export default function PaperJacket({
 
           <div className="paper-actions">
             {/* Reading does not wait for the paper to be taken: the viewer
-                opens one that is not yet theirs as a lean link, and asks
-                for it only when they reach for an anchor or the ink. Until
-                it is theirs, adding it is the step that carries the weight. */}
+                opens one that is not yet theirs all the same, to read and
+                to dig, with the nook on offer in its bar (on the Mac, as a
+                lean link). Until it is theirs, adding it is the step that
+                carries the weight. */}
             {currentUser && viewerHref() && (
               <a
                 className={hasEntry ? 'button primary' : 'button'}
@@ -1346,11 +1367,9 @@ export default function PaperJacket({
             {friendDigs.map((dig) => (
               <li key={dig.uuid} className="friend-dig">
                 {/* The dig's own first line already says whose it is and when,
-                    so nothing stands over it but its place, and only when
-                    it is somewhere in the paper and not on the whole of it. */}
-                {dig.subject.kind === 'annotation' && (
-                  <p className="friend-dig-place">On {dig.subject.label.charAt(0).toLowerCase()}{dig.subject.label.slice(1)}</p>
-                )}
+                    so what stands over it is what it is about: the whole
+                    paper, or a place in it, which opens the paper there. */}
+                <FriendDigFocus dig={dig} paper={paper} />
                 <TalkCard
                   inline single conversation tucked only projectUuid={null} dig={dig.uuid}
                   subject={`dig:${dig.uuid}`} label={paper.title} currentUser={currentUser}
