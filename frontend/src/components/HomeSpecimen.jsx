@@ -4,8 +4,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 // the way Papol reads, before the visitor has an account. Nothing here
 // talks to a server; it acts out in miniature what the viewer does with a
 // real PDF. Nothing on it is explained either: what can be tried pulses,
-// one thing at a time, until it has been. What is painted is the landing
-// page's, which lays it on the board below.
+// one thing at a time, until it has been.
 //
 // R. Jung, J.-H. Jourdan, R. Krebbers and D. Dreyer, "RustBelt: Securing
 // the Foundations of the Rust Programming Language", Proc. ACM Program.
@@ -71,13 +70,6 @@ const FIGURE_SENTENCE = 's6';
 
 const BLOCKS = COLUMNS.flat().filter((block) => block.id);
 const citeLabel = (part) => part.cites.map((ref) => REFERENCES[ref].label).join('; ');
-const plain = (part) => {
-  if (typeof part === 'string') return part;
-  if (part.cites) return `[${citeLabel(part)}]`;
-  return part.figure || part.rule;
-};
-export const SENTENCES = Object.fromEntries(BLOCKS.map((block) => [block.id, block.parts.map(plain).join('')]));
-export const SOURCE = 'Jung et al., 2018';
 
 // Every citation, by where it stands, and every place each work is cited,
 // in reading order; and the first place a rule is named.
@@ -482,11 +474,6 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
           )}
         </div>
       </div>
-      {painted.length > 0 && (
-        <a className="specimen-landed" href="#board">
-          {painted.length === 1 ? '1 sentence' : `${painted.length} sentences`} on Rust, proved safe ↓
-        </a>
-      )}
     </div>
   );
 }
