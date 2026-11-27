@@ -1358,7 +1358,7 @@ export default function PaperJacket({
       {currentUser && !hasEntry && editMode !== 'metadata' && (
         <div className="paper-notes paper-notes-unkept">
           {yourDig}
-          <p className="paper-marked-hint">A paper you write on without adding it is kept under <a href={appPath('/aside')}>Aside</a> in your nook.</p>
+          <p className="paper-marked-hint">A paper you read or write on without adding it is kept under <a href={appPath('/passing')}>Passing</a> in your nook.</p>
         </div>
       )}
       {friendDigs.length > 0 && (

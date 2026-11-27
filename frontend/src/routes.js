@@ -23,10 +23,10 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   // picked from kept in front of it so the nook's rail keeps that place chosen.
   const picked = path.match(new RegExp(`^/(shelf|board)/${UUID}/paper/${PAPER}/?$`, 'i'));
   if (picked) return { page: 'paper', uuid: picked[3].toLowerCase(), [picked[1].toLowerCase()]: picked[2].toLowerCase() };
-  // Aside: what a member wrote on without having it in their nook,
+  // Passing: what a member read or wrote on without having it in their nook,
   // and one picked from them.
-  if (/^\/aside\/?$/i.test(path)) return { page: 'marked' };
-  if ((uuid = at(`/aside/paper/${PAPER}`))) return { page: 'paper', uuid, marked: true };
+  if (/^\/passing\/?$/i.test(path)) return { page: 'marked' };
+  if ((uuid = at(`/passing/paper/${PAPER}`))) return { page: 'paper', uuid, marked: true };
   if ((uuid = at(`/shelf/${UUID}`))) return { page: 'shelf', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
   // A thread's jacket: the one screen a thread in the Lounge has.

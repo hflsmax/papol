@@ -90,22 +90,28 @@ export function nookRoutes(router: Router) {
         // The time spent on each paper is its user's alone: how long someone
         // spends on a paper says nothing a shelf was asked to show.
         own("SELECT subject, sum(seconds) AS seconds, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? GROUP BY subject"),
-        // Aside: the papers the user wrote on that are not in their
-        // nook. A paper is remembered from its first anchor, ink, clip
-        // or dig (migration 0049) and never forgotten; it is listed while
-        // no shelf of theirs holds it, so one added to the nook leaves the
-        // list and one taken out again is back on it. Theirs alone.
-        own(`SELECT p.sha256, p.title, p.authors, p.journal, p.year, m.marked_at,
-               (SELECT count(*) FROM annotations a WHERE a.paper_sha256 = m.paper_sha256 AND a.user_uuid = m.user_uuid AND a.deleted_at IS NULL) AS annotations,
-               (SELECT count(*) FROM digs d WHERE d.paper_sha256 = m.paper_sha256 AND d.user_uuid = m.user_uuid AND d.board_item_uuid IS NULL) AS digs
-             FROM marked_papers m JOIN papers p ON p.sha256 = m.paper_sha256 AND p.deleted_at IS NULL
-             WHERE m.user_uuid = ?
-               AND NOT EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = m.paper_sha256 AND c.user_uuid = m.user_uuid AND c.deleted_at IS NULL)
-             ORDER BY m.marked_at DESC, p.sha256`),
+        // Passing: the papers the user read or wrote on that are not in
+        // their nook. Reading is what the viewer recorded of their time
+        // (activity), and writing is remembered from the first anchor,
+        // ink, clip or dig (migration 0049); neither is ever forgotten.
+        // A paper is listed while no shelf of theirs holds it, so one
+        // added to the nook leaves the list and one taken out again is
+        // back on it. Theirs alone, as their reading is.
+        own(`SELECT p.sha256, p.title, p.authors, p.journal, p.year, t.since, t.seconds, t.last_read_at,
+               (SELECT count(*) FROM annotations a WHERE a.paper_sha256 = p.sha256 AND a.user_uuid = ?1 AND a.deleted_at IS NULL) AS annotations,
+               (SELECT count(*) FROM digs d WHERE d.paper_sha256 = p.sha256 AND d.user_uuid = ?1 AND d.board_item_uuid IS NULL) AS digs
+             FROM (SELECT paper, min(since) AS since, sum(seconds) AS seconds, max(last_read_at) AS last_read_at FROM (
+                 SELECT paper_sha256 AS paper, marked_at AS since, 0 AS seconds, NULL AS last_read_at FROM marked_papers WHERE user_uuid = ?1
+                 UNION ALL
+                 SELECT subject, min(started_at), sum(seconds), max(ended_at) FROM activity WHERE user_uuid = ?1 AND seconds > 0 GROUP BY subject
+               ) GROUP BY paper) t
+             JOIN papers p ON p.sha256 = t.paper AND p.deleted_at IS NULL
+             WHERE NOT EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = p.sha256 AND c.user_uuid = ?1 AND c.deleted_at IS NULL)
+             ORDER BY max(t.since, coalesce(t.last_read_at, '')) DESC, p.sha256`),
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
-    const [copies, paperRows, boards, shelves, tags, effortRows, markedRows] = results.map((r) => r.results);
+    const [copies, paperRows, boards, shelves, tags, effortRows, unkeptRows] = results.map((r) => r.results);
     const papers = new Map(paperRows.map((p) => [p.sha256, p]));
     const effort = effortRows && new Map(effortRows.map((r) => [r.subject as string, { seconds: r.seconds, last_at: r.last_at }]));
     const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
@@ -124,9 +130,10 @@ export function nookRoutes(router: Router) {
         displayed: copies.filter((c) => c.shelf_public).length,
       },
       tags: tags ?? [],
-      marked: (markedRows ?? []).map((m) => ({
+      unkept: (unkeptRows ?? []).map((m) => ({
         sha256: m.sha256, title: m.title, authors: m.authors, journal: m.journal, year: m.year,
-        marked_at: m.marked_at, annotations: m.annotations, digs: m.digs,
+        since: m.since, annotations: m.annotations, digs: m.digs,
+        effort: m.seconds ? { seconds: m.seconds, last_at: m.last_read_at } : null,
       })),
       projects,
       shelves: shelves.map((s) => ({

@@ -4,8 +4,8 @@
 -- needs a place of its own to be found again. A paper is remembered from
 -- its writer's first anchor, ink, clip or dig on it, and never forgotten:
 -- adding it to the nook, taking it out, and rubbing the marks out again
--- all leave the row. Their nook lists the ones no shelf of theirs holds
--- as Aside (routes/nook.ts), and the list is theirs alone.
+-- all leave the row. Their nook lists the ones no shelf of theirs holds,
+-- with the papers they read, as Passing (routes/nook.ts), theirs alone.
 --
 -- Kept by the database rather than by each road a mark can arrive on —
 -- the website, a replica's push, a first thought written at upload — so

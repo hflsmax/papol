@@ -50,14 +50,14 @@ describe("a nook", () => {
   });
 });
 
-describe("Aside", () => {
-  it("lists the papers its user wrote on that are not in their nook, for good, and to nobody else", async () => {
+describe("Passing", () => {
+  it("lists the papers its user read or wrote on that are not in their nook, for good, and to nobody else", async () => {
     const keeper = await register(), reader = await register();
     const dug = "c".repeat(64), anchored = "d".repeat(64), untouched = "e".repeat(64);
     for (const [digest, title] of [[dug, "Dug"], [anchored, "Anchored"], [untouched, "Only read"]]) {
       await paperWithCopy(keeper, digest, title, { shelfUuid: await defaultShelf(keeper) });
     }
-    const marked = async (who: Account = reader) => (await ok("GET", `/api/users/${who.uuid}/nook`, { headers: who.headers })).marked;
+    const marked = async (who: Account = reader) => (await ok("GET", `/api/users/${who.uuid}/nook`, { headers: who.headers })).unkept;
     expect(await marked()).toEqual([]);
 
     // A dig and an anchor, each on a paper that is not in the reader's nook.
@@ -83,11 +83,25 @@ describe("Aside", () => {
     await ok("DELETE", `/api/digs/${dig.uuid}`, { headers: reader.headers });
     expect((await marked()).map((m: any) => [m.sha256, m.annotations, m.digs]).sort()).toEqual([[dug, 0, 0], [anchored, 0, 0]].sort());
 
-    // A paper its user keeps is not listed, however much is written on it.
+    // A paper only read is listed too, with the time spent on it, and one
+    // opened for no time at all is not.
+    const read = "f".repeat(64), glanced = "9".repeat(64);
+    await paperWithCopy(keeper, read, "Read through", { shelfUuid: await defaultShelf(keeper) });
+    await paperWithCopy(keeper, glanced, "Opened", { shelfUuid: await defaultShelf(keeper) });
+    const started = Date.now() - 600_000;
+    const span = (subject: string, seconds: number) => ({ uuid: uuid(), kind: "reading", subject, seconds,
+      started_at: new Date(started).toISOString(), ended_at: new Date(started + 300_000).toISOString() });
+    await ok("POST", "/api/activity", { headers: reader.headers, json: { spans: [span(read, 240), span(glanced, 0)] } });
+    const withRead = await marked();
+    expect(withRead.map((m: any) => m.sha256).sort()).toEqual([dug, anchored, read].sort());
+    expect(withRead.find((m: any) => m.sha256 === read)).toMatchObject({ sha256: read, title: "Read through", annotations: 0, digs: 0, effort: { seconds: 240 } });
+    expect(withRead.find((m: any) => m.sha256 === dug).effort).toBeNull();
+    // A paper its user keeps is not listed, however much is read or written on it.
+    await ok("POST", "/api/activity", { headers: keeper.headers, json: { spans: [span(untouched, 120)] } });
     await ok("POST", "/api/digs", { headers: keeper.headers, json: { subject: `paper:${untouched}`, text: "Mine" } });
     expect(await marked(keeper)).toEqual([]);
     // Nobody is shown another's list.
-    expect((await ok("GET", `/api/users/${keeper.uuid}/nook`, { headers: reader.headers })).marked).toEqual([]);
+    expect((await ok("GET", `/api/users/${keeper.uuid}/nook`, { headers: reader.headers })).unkept).toEqual([]);
   });
 });
 
