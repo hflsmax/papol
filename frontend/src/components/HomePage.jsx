@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
 import { appPath } from '../base';
-import HomeBoard from './HomeBoard';
-import HomeLounge from './HomeLounge';
 import HomeSpecimen from './HomeSpecimen';
 import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
-import { handoffCapableMac } from '../../../shared/macHandoff.js';
-
-// A visitor on a Mac is offered the app beside the account, where they are
-// already deciding how to start; anyone else finds it in the top bar.
-const ON_A_MAC = typeof navigator !== 'undefined' && handoffCapableMac(navigator);
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
-const TRIES = ['cite', 'figure', 'paint', 'drag', 'line'];
+const TRIES = ['cite', 'figure', 'rule', 'paint'];
 
 // What a visitor sees: what Papol is in a line, the way in for someone who
-// already knows it, and for someone who does not, Papol itself to try — a
-// paper in the viewer, a board its painted sentences land on, and the
-// paper as it reaches you in the Lounge, from friends. No feature is explained; each can be tried.
+// already knows it, and for someone who does not, Papol itself to try: a
+// paper in the viewer. No feature is explained; each can be tried.
 export default function HomePage() {
   const [painted, setPainted] = useState([]);
   const [flash, setFlash] = useState(null);
@@ -34,33 +26,18 @@ export default function HomePage() {
     setPainted((current) => (current.includes(id) ? current.filter((each) => each !== id) : [...current, id]));
     onTried('paint');
   };
-  // A card's backlink: back up to the page, to the sentence it came from.
-  const backTo = (id) => {
-    document.querySelector(`[data-sentence="${id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    glow(id);
-  };
-
   return (
     <div className="landing">
       <header className="landing-hero">
-        <h1 className="landing-title">Every paper, and what you make of it.</h1>
-        <p className="landing-fact">A paper reader for researchers. Free and open source, on the web and Mac.</p>
+        <h1 className="landing-title">Read more papers, more intelligently</h1>
+        <p className="landing-fact">A paper reader for researchers, free and open source.</p>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
-          {ON_A_MAC && (
-            <a className="landing-button landing-mac" href={MAC_DOWNLOAD_URL}>
-              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />
-              </svg>
-              Download for Mac
-            </a>
-          )}
           <a className="landing-button" href="#viewer">Try it ↓</a>
         </div>
       </header>
 
       <section id="viewer" className="landing-place-section" aria-label="Viewer">
-        <p className="landing-number">Viewer</p>
         <HomeSpecimen
           painted={painted}
           onTogglePaint={togglePaint}
@@ -69,16 +46,6 @@ export default function HomePage() {
           beckoning={beckoning}
           onTried={onTried}
         />
-      </section>
-
-      <section id="board" className="landing-place-section" aria-label="Board">
-        <p className="landing-number">Board</p>
-        <HomeBoard painted={painted} onBack={backTo} beckoning={beckoning} onTried={onTried} />
-      </section>
-
-      <section id="lounge" className="landing-place-section" aria-label="Lounge">
-        <p className="landing-number">Lounge</p>
-        <HomeLounge beckoning={beckoning} onTried={onTried} />
       </section>
 
       <section className="landing-close">

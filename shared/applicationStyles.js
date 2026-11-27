@@ -3706,11 +3706,8 @@ a.button:hover {
 .landing-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .landing-button.primary { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
-.landing-button.landing-mac { display: inline-flex; align-items: center; gap: 6px; --cap-room: 0px; }
-.landing-mac svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .landing-place-section { scroll-margin-top: 16px; }
-.landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 
 /* Something to try, until it has been: outlined in the accent, a ring that
    breathes, and a tag over it naming the gesture. */
@@ -3751,10 +3748,6 @@ a.button:hover {
 .landing .beckon { background: var(--accent-soft); }
 /* The window clips above the toolbar, so a tool's tag hangs below it. */
 .specimen-tool.beckon[data-hint]::before { top: calc(100% + 8px); bottom: auto; }
-/* A card's tag sits on its top edge, clear of the card above. */
-.board-mock-card.beckon[data-hint]::before { bottom: calc(100% - 10px); left: auto; right: 10px; translate: none; }
-/* On a phone a card is picked up by holding it. */
-@media (pointer: coarse) { .board-mock-card.beckon[data-hint]::before { content: 'Hold, then drag'; } }
 
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }
@@ -3830,8 +3823,12 @@ a.button:hover {
 }
 .specimen-cite:focus-visible,
 .specimen-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.specimen-cite { position: relative; padding: 0 3px; font-size: 0.72em; vertical-align: super; line-height: 1; }
-.specimen-cite::after { content: ''; position: absolute; inset: -8px -6px; }
+.specimen-cite { position: relative; }
+.specimen-link { white-space: nowrap; }
+/* A rule's name, set in small capitals as the paper sets it. */
+.specimen-rule { position: relative; font-variant-caps: small-caps; letter-spacing: 0.02em; }
+.specimen-rule.active { background: var(--accent-soft); }
+@media (hover: none) { .specimen-rule.beckon[data-hint]::before { content: 'Tap'; } }
 .specimen-cite:hover:not(:disabled),
 .specimen-link:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .specimen-cite.active,
@@ -3839,17 +3836,36 @@ a.button:hover {
 .specimen-page.painting .specimen-cite,
 .specimen-page.painting .specimen-link { pointer-events: none; color: inherit; animation: none; }
 
+/* A typing rule: premises over a bar, the conclusion under it, its name
+   over the bar's left end. */
+.rule { display: inline-grid; justify-items: center; gap: 2px; padding: 2px 4px; border-radius: 3px; font-size: var(--fs-sm); line-height: 1.4; white-space: nowrap; text-align: center; }
+.rule-name { justify-self: start; font-variant-caps: small-caps; letter-spacing: 0.02em; }
+.rule-row { display: inline-flex; gap: 1.6em; }
+.rule-bar { justify-self: stretch; height: 0; margin: 1px 0; border-top: 1px solid currentColor; }
+.rule-word { font-family: var(--font-ui); font-size: 0.92em; }
+.rule-many { text-decoration: overline; }
+.rule sub, .rule sup { font-size: 0.72em; line-height: 0; }
+.rule.flash { animation: specimen-flash 1.6s var(--ease-out); }
+.rule-judgment { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; margin-bottom: 10px; font-size: var(--fs-sm); text-align: left; }
+.specimen-rules { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 12px 28px; }
+.specimen-figure.rules { overflow-x: auto; padding-bottom: 2px; }
+
+/* The telescope: a rule brought under the line that names it, at the size
+   it is printed, looked at and not held. */
+.specimen-telescope {
+  position: absolute; z-index: 3;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-overlay);
+  color: #14161a;
+  pointer-events: none;
+  animation: specimen-rise var(--motion-fast) var(--ease-out);
+}
+
 .specimen-figure { margin: 18px 0 4px; text-align: center; }
-.specimen-figure .fold-plot { width: 100%; max-width: 380px; height: auto; }
 .specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); }
-.plot-grid { fill: none; stroke: var(--line); stroke-width: 0.8; }
-.plot-bar { fill: var(--fill-strong); }
-.plot-bar.own { fill: var(--accent); }
-.plot-ci { fill: none; stroke: var(--ink); stroke-width: 1; }
-.plot-atom { fill: none; stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 3 2; }
-.plot-label { fill: var(--ink-soft); font: 8px var(--font-ui); }
-.plot-label.end { text-anchor: end; }
-.plot-label.middle { text-anchor: middle; }
 
 .specimen-references {
   margin-top: 16px; padding-top: 10px;
@@ -3860,7 +3876,6 @@ a.button:hover {
   line-height: 1.5;
 }
 .specimen-references li + li { margin-top: 2px; }
-.specimen-references span { display: inline-block; min-width: 1.8em; }
 .specimen-licence { margin-top: 10px; color: var(--ink-faint); font: var(--fs-2xs)/1.5 var(--font-ui); }
 .specimen-licence a { color: inherit; }
 
@@ -3905,8 +3920,7 @@ a.button:hover {
   background: color-mix(in srgb, var(--paper) 95%, transparent);
   animation: specimen-fade var(--motion-base) var(--ease-out);
 }
-.specimen-figure.large { width: min(420px, 80vw); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
-.specimen-figure.large .fold-plot { max-width: none; filter: drop-shadow(0 8px 20px rgba(var(--shade-rgb), 0.1)); background: var(--card); }
+.specimen-figure.large { width: min(560px, 86vw); padding: 14px 16px; border-radius: var(--radius-lg); background: var(--page); color: #14161a; box-shadow: var(--shadow-sm); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
 .specimen-figure.large figcaption { font-size: var(--fs-sm); text-align: center; }
 .specimen-redrawn { display: block; margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-2xs) var(--font-serif); font-variant: normal; }
 .specimen-return {
@@ -3920,114 +3934,6 @@ a.button:hover {
 .specimen-return:hover:not(:disabled) { background: var(--accent-strong); color: var(--ink-inverse); }
 @keyframes specimen-fade { from { opacity: 0; } }
 @keyframes specimen-zoom { from { opacity: 0; transform: scale(0.45) translate(30%, 10%); } }
-
-.specimen-landed {
-  justify-self: center;
-  padding: 5px 14px;
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font: var(--fs-sm) var(--font-ui);
-  text-decoration: none;
-  animation: specimen-rise var(--motion-base) var(--ease-out);
-}
-.specimen-landed:hover { border-color: var(--accent); }
-
-.specimen-backlink {
-  justify-self: start;
-  padding: 0; border: 0; background: none; box-shadow: none;
-  color: var(--accent);
-  font: var(--fs-2xs) var(--font-ui);
-  text-align: left;
-}
-.specimen-backlink:hover:not(:disabled) { border: 0; background: none; color: var(--accent); text-decoration: underline; }
-
-/* The board: a canvas of cards, the way the board draws them; each card
-   can be picked up and put down anywhere. */
-.board-mock { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-md); }
-.board-mock-bar { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.board-mock-name { font-size: var(--fs-lg); font-weight: 600; }
-.board-mock-bar-end { display: inline-flex; align-items: baseline; gap: 12px; }
-.board-mock-tidy { padding: 2px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-soft); font: var(--fs-xs)/1.5 var(--font-ui); }
-.board-mock-count { color: var(--ink-faint); font: var(--fs-xs) var(--font-ui); }
-.board-mock-canvas {
-  display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: start; gap: 16px;
-  min-height: 300px;
-  padding: 18px 16px 22px;
-  background-color: var(--paper);
-  background-image: radial-gradient(var(--line-strong) 1px, transparent 1px);
-  background-size: 18px 18px;
-}
-.board-mock-booklet,
-.board-mock-loose,
-.board-mock-collection { display: grid; gap: 10px; }
-.board-mock-booklet { padding-left: 12px; border-left: 2px solid var(--line-strong); }
-.board-mock-collection { padding: 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--card) 50%, transparent); }
-.board-mock-group-title { font-size: var(--fs-sm); font-weight: 700; }
-.board-mock-card {
-  position: relative;
-  display: grid; gap: 6px;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
-  font-size: var(--fs-xs);
-  line-height: 1.45;
-  cursor: grab;
-  touch-action: manipulation;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-.board-mock-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.board-mock-card[data-lifted] { z-index: 2; box-shadow: var(--shadow-md); }
-.board-mock-card[data-returning] { transition: transform 320ms var(--ease-out); }
-.board-mock-card:active { cursor: grabbing; }
-.board-mock-card.excerpt { border-left: 3px solid rgba(217, 43, 31, 0.55); animation: board-land 420ms var(--ease-out); }
-@keyframes board-land { from { opacity: 0; transform: translateY(-26px) scale(0.92); } }
-.board-mock-kind { color: var(--ink-faint); font: 600 var(--fs-2xs)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.board-mock-file { color: var(--accent); font: var(--fs-xs) var(--font-ui); word-break: break-word; }
-.board-mock-image { display: block; width: 100%; height: 64px; border-radius: 3px; }
-.board-mock-image.video { display: grid; place-items: center; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
-.board-mock-image.distances { width: auto; height: 72px; justify-self: center; background: var(--paper-sunken); }
-.board-mock-image.distances rect { fill: var(--accent); }
-.board-mock-image.thumb { border: 1px solid var(--line); background: var(--card); }
-.thumb-bar, .thumb-picture { fill: var(--fill); }
-.thumb-title { fill: var(--line-strong); }
-.thumb-line { fill: var(--line); }
-
-/* The landing page's Lounge: the specimen's paper as friends' news, which the visitor can add to. */
-.landing-jacket {
-  padding: 18px 20px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-}
-.landing-jacket-title { font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
-.landing-jacket-meta { margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-xs); }
-.landing-readers { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); list-style: none; }
-.landing-readers li { display: grid; grid-template-columns: 28px 1fr; align-items: start; gap: 10px; font-size: var(--fs-sm); line-height: 1.4; }
-.landing-readers li.own { animation: specimen-rise 300ms var(--ease-out); }
-.landing-readers b { display: block; font: 600 var(--fs-xs) var(--font-ui); }
-.landing-readers q { color: var(--ink-soft); }
-.landing-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--ink-inverse); font: 600 var(--fs-xs)/1 var(--font-ui); }
-.landing-avatar.tint-0 { background: var(--identity-0); }
-.landing-avatar.tint-1 { background: var(--identity-1); }
-.landing-avatar.tint-2 { background: var(--identity-2); }
-.landing-avatar.tint-4 { background: var(--identity-4); }
-.landing-thought-form { display: flex; gap: 8px; margin-top: 12px; }
-.landing-thought-form input {
-  flex: 1; min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-}
-.landing-thought-form input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.landing-thought-form button { padding: calc(6px + var(--cap-room, 0px)) 14px; }
 
 .landing-close { display: grid; justify-items: center; padding: 40px 24px 28px; border-radius: var(--radius-lg); background: var(--accent-soft); text-align: center; }
 .landing-close h2 { color: var(--ink); font-size: var(--fs-hero); font-weight: 600; }
@@ -4044,14 +3950,12 @@ a.button:hover {
   .landing { gap: 44px; }
   .specimen-page { margin: 10px; padding: 18px 16px 16px; }
   .specimen-columns { columns: 1; }
-  .board-mock-canvas { grid-template-columns: 1fr; gap: 12px; }
   .specimen-doc-title { visibility: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
-  .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own, .specimen-landed { animation: none; }
-  .board-mock-card[data-returning] { transition: none; }
+  .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-telescope, .rule.flash, .specimen-figure-stage, .specimen-figure.large,
+  .specimen-sentence.flash { animation: none; }
 }
 
 /* ---------- About ---------- */
