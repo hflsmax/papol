@@ -427,6 +427,19 @@ function answer(method, path, search, sent = {}) {
     thread.replies.push({ uuid: `e2b2c3d4-0000-4000-8000-0000000000${90 + thread.replies.length}`, user: me, body: sent.body, created_at: hoursAgo(0), is_mine: true });
     return thread;
   }
+  // A thread's own words reworded, and a reply.
+  const reworded = method === 'PUT' && path.match(/^\/threads\/([0-9a-f-]{36})$/);
+  if (reworded) {
+    const thread = threadsNow.find((t) => t.uuid === reworded[1]);
+    Object.assign(thread, { words: sent.words || null, edited_at: hoursAgo(0) });
+    return thread;
+  }
+  const resaid = method === 'PUT' && path.match(/^\/thread-replies\/([0-9a-f-]{36})$/);
+  if (resaid) {
+    const thread = threadsNow.find((t) => t.replies.some((r) => r.uuid === resaid[1]));
+    Object.assign(thread.replies.find((r) => r.uuid === resaid[1]), { body: sent.body, edited_at: hoursAgo(0) });
+    return thread;
+  }
   const unsaid = method === 'DELETE' && path.match(/^\/thread-replies\/([0-9a-f-]{36})$/);
   if (unsaid) {
     const thread = threadsNow.find((t) => t.replies.some((r) => r.uuid === unsaid[1]));

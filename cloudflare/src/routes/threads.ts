@@ -9,11 +9,13 @@
 // it lives in the Lounge alone and keeps its place only to lead back
 // there. It has a jacket of its own, as a paper and a board have, which
 // is why one thread is answered with its paper. Its starter removes it, replies and all; a reply is taken back
-// by whoever wrote it.
+// by whoever wrote it. What was said is reworded by whoever said it: the
+// starter their own words, a reply's writer the reply. What was selected
+// in the paper, and what was attached, stay as sent.
 
 import limits from "../../../config/app_limits.json";
 import { currentUser, type User } from "../auth";
-import { all, batch, insert, newUuid, now, one, statement, type Row } from "../db";
+import { all, batch, insert, newUuid, now, one, statement, update, type Row } from "../db";
 import { blobKey, boardFileKey, DIGEST, fileUrl, stored } from "../files";
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
@@ -69,7 +71,7 @@ export async function dropUnnamedFiles(env: Env, digests: string[]) {
 }
 
 const replyOut = (row: Row, me: User) => ({
-  uuid: row.reply_uuid, user: userPublic({ ...row, uuid: row.user_uuid }), body: row.body, created_at: row.created_at, is_mine: row.user_uuid === me.uuid,
+  uuid: row.reply_uuid, user: userPublic({ ...row, uuid: row.user_uuid }), body: row.body, created_at: row.created_at, edited_at: row.edited_at ?? null, is_mine: row.user_uuid === me.uuid,
 });
 
 // A thread as the API answers it. `thread` carries its starter's PERSON
@@ -79,12 +81,12 @@ function threadOut(env: Env, thread: Row, replies: Row[], me: User, attached: Ro
     uuid: thread.thread_uuid, user: userPublic({ ...thread, uuid: thread.user_uuid }), is_mine: thread.user_uuid === me.uuid,
     paper_sha256: thread.paper_sha256, page: thread.page, y: thread.y, mark: thread.mark ?? null, box: thread.box ?? null,
     excerpt: thread.excerpt ?? null, picture_url: pictureUrl(env, thread), words: thread.words ?? null,
-    created_at: thread.created_at, files: attached.map((f) => fileOut(env, f)), replies: replies.map((r) => replyOut(r, me)),
+    created_at: thread.created_at, edited_at: thread.edited_at ?? null, files: attached.map((f) => fileOut(env, f)), replies: replies.map((r) => replyOut(r, me)),
   };
 }
 
-const THREAD = `t.uuid AS thread_uuid, t.user_uuid, t.paper_sha256, t.page, t.y, t.mark, t.box, t.excerpt, t.picture_sha256, t.words, t.created_at, ${PERSON}`;
-const REPLY = `r.uuid AS reply_uuid, r.thread_uuid, r.user_uuid, r.body, r.created_at, ${PERSON}`;
+const THREAD = `t.uuid AS thread_uuid, t.user_uuid, t.paper_sha256, t.page, t.y, t.mark, t.box, t.excerpt, t.picture_sha256, t.words, t.created_at, t.edited_at, ${PERSON}`;
+const REPLY = `r.uuid AS reply_uuid, r.thread_uuid, r.user_uuid, r.body, r.created_at, r.edited_at, ${PERSON}`;
 
 // The paper a thread came from, for the thread's jacket and its Lounge
 // row to name. A thread outlives a paper taken out of Papol, and then
@@ -215,6 +217,23 @@ export function threadRoutes(router: Router) {
     return answer(env, String(thread.thread_uuid), me);
   });
 
+  // Its starter rewords a thread: their own words, and nothing else of
+  // it. Words can be taken away where something else is left to read:
+  // what was selected in the paper, or what was attached.
+  router.on("PUT", "/api/threads/:uuid", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const thread = await seenThread(env, params.uuid, me);
+    if (thread.user_uuid !== me.uuid) refuse(403, "Only whoever started a thread rewords it");
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const words = check.string("words", data.words, { max: WORDS_MAX, optional: true })?.trim() || null;
+    if (!words && !thread.excerpt && !thread.picture_sha256
+      && !(await one(env.DB, "SELECT 1 FROM thread_files WHERE thread_uuid = ? LIMIT 1", thread.thread_uuid))) check.fail("a thread started in the Lounge needs words or a file");
+    check.done();
+    if (words !== (thread.words ?? null)) await batch(env.DB, [update(env.DB, "threads", "uuid", thread.thread_uuid, { words, edited_at: now() })]);
+    return answer(env, String(thread.thread_uuid), me);
+  });
+
   // Its starter removes a thread, replies and all.
   router.on("DELETE", "/api/threads/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
@@ -238,6 +257,20 @@ export function threadRoutes(router: Router) {
     if (!reply) refuse(404, "Reply not found");
     await batch(env.DB, [statement(env.DB, "DELETE FROM thread_replies WHERE uuid = ?", reply.uuid)]);
     return answer(env, String(reply.thread_uuid), me);
+  });
+
+  // A reply is reworded by whoever wrote it, while they still see the thread.
+  router.on("PUT", "/api/thread-replies/:uuid", async ({ request, env, params }) => {
+    const me = await currentUser(request, env);
+    const reply = UUID.test(params.uuid) ? await one<Row>(env.DB, "SELECT uuid, thread_uuid, body FROM thread_replies WHERE uuid = ? AND user_uuid = ?", params.uuid.toLowerCase(), me.uuid) : null;
+    if (!reply) refuse(404, "Reply not found");
+    const thread = await seenThread(env, String(reply.thread_uuid), me);
+    const data = await readJson<Row>(request);
+    const check = validate.checking();
+    const body = check.string("body", typeof data.body === "string" ? data.body.trim() : data.body, { min: 1, max: WORDS_MAX });
+    check.done();
+    if (body !== reply.body) await batch(env.DB, [update(env.DB, "thread_replies", "uuid", reply.uuid, { body, edited_at: now() })]);
+    return answer(env, String(thread.thread_uuid), me);
   });
 
   // Something attached to a thread, where the bucket has no address of

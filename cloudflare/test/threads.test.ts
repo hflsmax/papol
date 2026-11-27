@@ -84,6 +84,57 @@ describe("threads in the Lounge", () => {
     expect((await room(grace)).filter((row) => row.kind === "thread")).toEqual([]);
   });
 
+  it("are reworded by whoever said it, and rewording is not news", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
+    await paperWithCopy(ada, DIGEST, "Attention at depth");
+    await befriend(ada, grace);
+    const made = await (await start(ada)).json() as Record<string, any>;
+    expect(made.edited_at).toBeNull();
+    const replied = await (await reply(grace, made.uuid, "It does not.")).json() as Record<string, any>;
+    const graces = replied.replies[0];
+    expect(graces.edited_at).toBeNull();
+    await seen(ada); await seen(grace);
+    await new Promise((done) => setTimeout(done, 5));
+    const words = (json: unknown, account = ada, thread = made.uuid) => call("PUT", `/api/threads/${thread}`, { headers: account.headers, json });
+    const body = (json: unknown, account = grace) => call("PUT", `/api/thread-replies/${graces.uuid}`, { headers: account.headers, json });
+
+    // The starter rewords their own words; what was selected stays as sent.
+    const reworded = await (await words({ words: "  Does this hold for **our** loop?  ", excerpt: "Something else", page: 9 })).json() as Record<string, any>;
+    expect(reworded).toMatchObject({ uuid: made.uuid, words: "Does this hold for **our** loop?", excerpt: made.excerpt, page: 3, created_at: made.created_at, paper: { sha256: DIGEST } });
+    expect(reworded.edited_at).toBeTruthy();
+    // A thread from a paper can lose its words: the passage is left to read.
+    expect((await (await words({ words: "  " })).json() as Record<string, any>).words).toBeNull();
+    expect((await (await words({ words: "Back again." })).json() as Record<string, any>).words).toBe("Back again.");
+    // Nobody else rewords it: a friend who sees it, or someone who does not.
+    expect((await words({ words: "Mine now" }, grace)).status).toBe(403);
+    expect((await words({ words: "Mine now" }, alan)).status).toBe(404);
+    expect((await words({ words: "x".repeat(20001) })).status).toBe(422);
+
+    // A reply is reworded by its writer alone, and never to nothing.
+    const after = await (await body({ body: "  It does not: Table 3 is translation only. " })).json() as Record<string, any>;
+    expect(after.replies).toMatchObject([{ uuid: graces.uuid, body: "It does not: Table 3 is translation only.", created_at: graces.created_at, is_mine: true }]);
+    expect(after.replies[0].edited_at).toBeTruthy();
+    expect((await body({ body: "Not what she said" }, ada)).status).toBe(404);
+    expect((await body({ body: "   " })).status).toBe(422);
+    expect((await body({})).status).toBe(422);
+    // Saved as it was, nothing is marked as changed.
+    const same = await (await body({ body: after.replies[0].body })).json() as Record<string, any>;
+    expect(same.replies[0].edited_at).toBe(after.replies[0].edited_at);
+
+    // Rewording is not news, and moves the thread nowhere in the room.
+    expect(await news(ada)).toBe(false);
+    expect(await news(grace)).toBe(false);
+    expect((await room(ada))[0]).toMatchObject({ at: graces.created_at, is_new: false, thread: { words: "Back again.", replies: [{ body: after.replies[0].body }] } });
+
+    // Words alone are the whole of a thread started in the Lounge, so they cannot be taken away.
+    const plain = await (await start(ada, { words: "Is anyone going?" })).json() as Record<string, any>;
+    expect((await words({ words: "" }, ada, plain.uuid)).status).toBe(422);
+    expect((await words({}, ada, plain.uuid)).status).toBe(422);
+    // A reply cannot be reworded once its writer no longer sees the thread.
+    await ok("DELETE", `/api/friends/${ada.uuid}`, { headers: grace.headers });
+    expect((await body({ body: "After we parted" })).status).toBe(404);
+  });
+
   it("start in the Lounge itself, from no paper, with words alone", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await befriend(ada, grace);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { getThread, removeThread, removeThreadReply, replyInThread, threadPlacePath } from '../../../shared/api/friends.js';
+import { editThread, editThreadReply, getThread, removeThread, removeThreadReply, replyInThread, threadPlacePath } from '../../../shared/api/friends.js';
 import appLimits from '../../../shared/appLimits.js';
 import { confirmAction } from '../../../shared/confirmAction';
 import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
@@ -26,6 +26,10 @@ import { FileGlyph } from './ThreadComposer';
  * and the way back to that place in it (a thread started in the Lounge
  * itself has neither), everything said, and a box to
  * reply in. Free talk: no votes, nothing counted for approval.
+ *
+ * What was said is reworded in place by whoever said it: the starter's
+ * own words and each reply, with the pencil a dig's post has. What was
+ * selected in the paper and what was attached stay as sent.
  *
  * A thread lives in the Lounge alone, so Back always leads there.
  */
@@ -67,23 +71,48 @@ function Attached({ files }) {
   );
 }
 
-// One thing said: who, when, and their words. Its writer can take it back.
-function Said({ user, at, mine, words, files = [], removeLabel, onRemove }) {
+// One thing said: who, when, and their words. Its writer rewords it in
+// place and can take it back. `edit` is the rewording under way, if this
+// is the one being reworded: its words so far, and what Save and Cancel do.
+function Said({ user, at, mine, words, files = [], editLabel, onEdit, removeLabel, onRemove, edit }) {
   return (
     <li className={`talk-post${mine ? ' is-mine' : ''}`}>
       <p className="talk-post-head">
         <Face user={user} />
         <b>{mine ? 'You' : user.display_name}</b>
         <time dateTime={at}>{when(at, { time: true })}</time>
-        {mine && onRemove && (
-          <span className="talk-post-actions" role="group" aria-label={removeLabel}>
-            <button type="button" className="is-danger" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
-              <ActionGlyph name="trash" />
-            </button>
+        {mine && !edit && (onEdit || onRemove) && (
+          <span className="talk-post-actions" role="group" aria-label={onRemove ? 'Reply actions' : 'Thread actions'}>
+            {onEdit && (
+              <button type="button" aria-label={editLabel} title={editLabel} onClick={onEdit}>
+                <ActionGlyph name="edit" />
+              </button>
+            )}
+            {onRemove && (
+              <button type="button" className="is-danger" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
+                <ActionGlyph name="trash" />
+              </button>
+            )}
           </span>
         )}
       </p>
-      {words && <Markdown className="talk-post-body" text={words} />}
+      {edit ? (
+        <form className="talk-post-edit" onSubmit={(event) => { event.preventDefault(); edit.save(); }}>
+          <MarkdownField
+            rows={Math.min(14, Math.max(3, Math.ceil(edit.body.length / 110) + edit.body.split('\n').length))} value={edit.body}
+            maxLength={appLimits.text.thread_words} aria-label={editLabel} autoFocus
+            onChange={(event) => edit.change(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); edit.save(); }
+              if (event.key === 'Escape') { event.stopPropagation(); edit.cancel(); }
+            }}
+          />
+          <span className="talk-post-edit-foot">
+            <button type="button" className="project-quiet" onClick={edit.cancel}>Cancel</button>
+            <button type="submit" className="primary" disabled={!edit.ready}>Save</button>
+          </span>
+        </form>
+      ) : words && <Markdown className="talk-post-body" text={words} />}
       {files.length > 0 && <Attached files={files} />}
     </li>
   );
@@ -105,12 +134,16 @@ export default function ThreadJacket({
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  // What is being reworded: the thread's uuid for its starter's words, or
+  // a reply's, with the words so far.
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     let gone = false;
     setThread(kept(`thread:${threadUuid}`));
     setError(null);
     setBody('');
+    setEditing(null);
     getThread(threadUuid)
       .then((found) => { if (!gone) setThread(found); })
       .catch((err) => { if (!gone) setError(err?.message || String(err)); });
@@ -169,6 +202,26 @@ export default function ThreadJacket({
       onRemoved?.();
     });
   };
+  // The rewording of one thing said, for its row. A thread's own words
+  // can be emptied where the passage, the clip or a file is left to read.
+  const edit = (uuid, mayBeEmpty = false) => {
+    if (editing?.uuid !== uuid) return null;
+    const text = editing.body.trim();
+    const ready = !busy && (mayBeEmpty || Boolean(text));
+    return {
+      body: editing.body, ready,
+      change: (next) => setEditing({ uuid, body: next }),
+      cancel: () => setEditing(null),
+      save: () => {
+        if (!ready) return;
+        act(async () => {
+          changed(uuid === thread.uuid ? await editThread(uuid, text) : await editThreadReply(uuid, text));
+          setEditing(null);
+        });
+      },
+    };
+  };
+  const editingWords = edit(thread.uuid, from || attached.length > 0);
   const takeBack = async (reply) => {
     if (!(await confirmAction('Delete this reply?', { confirmLabel: 'Delete', destructive: true }))) return;
     act(async () => changed(await removeThreadReply(reply.uuid)));
@@ -182,6 +235,15 @@ export default function ThreadJacket({
             <h2 className="kicker thread-jacket-kind">Thread</h2>
             {thread.is_mine && (
               <div className="detail-toggle">
+                {/* Words there already are reworded where they stand. */}
+                {!thread.words && attached.length === 0 && !editingWords && (
+                  <button
+                    type="button" className="icon-button" onClick={() => setEditing({ uuid: thread.uuid, body: '' })} disabled={busy}
+                    title="Add words of your own" aria-label="Add words of your own"
+                  >
+                    <ActionGlyph name="edit" />
+                  </button>
+                )}
                 <button
                   type="button" className="icon-button danger-icon" onClick={remove} disabled={busy}
                   title={replies ? 'Remove this thread, and its replies with it' : 'Remove this thread'} aria-label="Remove this thread"
@@ -226,10 +288,16 @@ export default function ThreadJacket({
 
         <section className={`board-jacket-section thread-jacket-said${from ? '' : ' is-all'}`} aria-label="What was said">
           <ol className="talk-posts">
-            {(thread.words || attached.length > 0) && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} files={attached} />}
+            {(thread.words || attached.length > 0 || editingWords) && (
+              <Said
+                user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} files={attached}
+                editLabel={thread.words ? 'Edit your words' : 'Add words of your own'} onEdit={() => setEditing({ uuid: thread.uuid, body: thread.words ?? '' })} edit={editingWords}
+              />
+            )}
             {thread.replies.map((reply) => (
               <Said
                 key={reply.uuid} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}
+                editLabel="Edit reply" onEdit={() => setEditing({ uuid: reply.uuid, body: reply.body })} edit={edit(reply.uuid)}
                 removeLabel="Delete reply" onRemove={() => takeBack(reply)}
               />
             ))}
