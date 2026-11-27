@@ -6123,6 +6123,57 @@ ${talkStyles}
    under it. Its row is told from a paper's by the word before it; opened,
    the passage stands as a quotation with the way back to its place, then
    everything said, then the box to reply in. */
+/* The box the Lounge opens with: start a thread from no paper. Words on
+   top, what is attached under them, then the bar: formatting and
+   attaching on the left, sending on the right. */
+.thread-composer { display: grid; gap: var(--space-2); margin: 0 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); }
+.thread-composer:not(.is-open) { padding: var(--space-3) var(--space-4); border-color: color-mix(in srgb, var(--accent) 28%, var(--line)); background: var(--accent-soft); box-shadow: var(--shadow-sm); cursor: text; transition: border-color .15s, box-shadow .15s; }
+.thread-composer:not(.is-open):hover { border-color: var(--accent); box-shadow: 0 2px 10px rgb(0 0 0 / .1); }
+.thread-composer:not(.is-open) .thread-composer-write { grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+.thread-composer:not(.is-open) .mini-avatar { width: 30px; height: 30px; margin-top: 0; font-size: 13px; }
+.thread-composer:not(.is-open) .md-field { font-size: var(--fs-lg); overflow: hidden; white-space: nowrap; }
+.thread-composer:not(.is-open) .md-field[data-empty]::before { color: var(--ink-soft); }
+.thread-composer-cue { display: inline-grid; place-items: center; width: 30px; height: 30px; color: var(--accent); cursor: pointer; }
+.thread-composer-cue svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.thread-composer.is-open .md-field { min-height: 3.2em; }
+.thread-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); }
+.thread-composer.is-over { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
+.thread-composer-write { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
+.thread-composer-write .mini-avatar { width: 22px; height: 22px; margin-top: 4px; font-size: 11px; }
+.thread-composer-write .md-field { width: 100%; max-height: 22rem; margin: 0; padding: 3px 2px; border: 0; background: none; color: var(--ink); font: 400 var(--fs-md)/1.5 var(--font-serif); outline: none; box-shadow: none; }
+.thread-composer-bar-row { display: flex; align-items: center; gap: var(--space-2); padding-left: calc(22px + var(--space-2) - 6px); }
+.thread-composer-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.thread-composer-tool { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--ink-soft); font: 500 var(--fs-sm)/1 var(--font-serif); }
+.thread-composer-tool.has-gap { margin-left: var(--space-2); }
+.thread-composer-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.thread-composer-tool svg circle { fill: currentColor; stroke: none; }
+.thread-composer-tool svg rect + circle { fill: none; stroke: currentColor; }
+.thread-composer-tool:hover:not(:disabled), .thread-composer-tool:focus-visible { border: 0; background: var(--accent-soft); color: var(--accent); }
+.thread-composer-tool:disabled { opacity: .4; cursor: default; }
+.thread-composer .error { margin: 0 0 0 calc(22px + var(--space-2)); }
+.thread-composer-files { display: grid; gap: var(--space-2); padding-left: calc(22px + var(--space-2)); }
+.thread-composer-pictures, .thread-composer-attached { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.thread-composer-pictures li { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--paper); }
+.thread-composer-pictures img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thread-composer-pictures li.is-storing img { opacity: .55; }
+.thread-composer-pictures li.is-failed { border-color: var(--red); }
+.thread-composer-bar { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / .8); overflow: hidden; }
+.thread-composer-bar span { display: block; height: 100%; background: var(--accent); }
+.thread-composer-attached li { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
+.thread-composer-attached li.is-failed { border-color: var(--red); color: var(--red); }
+.thread-composer-attached svg, .thread-attached-files svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-soft); }
+.thread-composer-name, .thread-attached-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-composer-size, .thread-attached-size { flex: none; color: var(--ink-faint); }
+.thread-composer-remove { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-soft); font: 400 16px/1 var(--font-ui); }
+.thread-composer-remove:hover:not(:disabled) { border: 0; background: var(--red-soft); color: var(--red); }
+.thread-composer-pictures .thread-composer-remove { position: absolute; top: 3px; right: 3px; background: rgb(255 255 255 / .9); color: var(--ink); }
+/* What was attached, as the thread's jacket shows it under the starter's words. */
+.thread-attached { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+.thread-attached-pictures, .thread-attached-files { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.thread-attached-pictures img { display: block; height: 11rem; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; object-fit: cover; }
+.thread-attached-pictures.is-one img { height: auto; max-height: 26rem; object-fit: contain; }
+.thread-attached-files a { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 10px 5px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); font: 400 var(--fs-xs)/1.4 var(--font-ui); text-decoration: none; }
+.thread-attached-files a:hover, .thread-attached-files a:focus-visible { border-color: var(--accent); color: var(--accent); }
 .room-thread-open { display: block; text-decoration: none; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: pointer; }
 .room-thread-open:hover:not(:disabled) { background: none; }
 .room-thread-open:hover .room-thread-about, .room-thread-open:focus-visible .room-thread-about { color: var(--accent); text-decoration: underline; }
@@ -6144,6 +6195,7 @@ ${talkStyles}
 .thread-jacket-paper-meta { color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }
 .thread-jacket .paper-actions .button { width: auto; }
 .thread-jacket-said { max-width: 44rem; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.thread-jacket-said.is-all { margin-top: var(--space-3); padding-top: 0; border-top: 0; }
 .thread-jacket-said .talk-posts { padding: 0; }
 .thread-jacket-said .talk-posts:empty { display: none; }
 .thread-jacket-said .talk-post-body > :last-child { margin-bottom: 0; }

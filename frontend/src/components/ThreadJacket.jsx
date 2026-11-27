@@ -14,14 +14,17 @@ import { appPath, backendPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
 import { loungeState, setLounge, withThread } from '../loungeStore';
+import { formatBytes } from '../../../shared/waiting.js';
 import Avatar from './Avatar';
+import { FileGlyph } from './ThreadComposer';
 
 /**
  * A thread's jacket: the one screen a thread has.
  *
  * A thread is found in the Lounge and opened here, as a paper and a board
  * open on theirs: the passage or the picture it started from, the paper
- * and the way back to that place in it, everything said, and a box to
+ * and the way back to that place in it (a thread started in the Lounge
+ * itself has neither), everything said, and a box to
  * reply in. Free talk: no votes, nothing counted for approval.
  *
  * A thread lives in the Lounge alone, so Back always leads there.
@@ -29,8 +32,43 @@ import Avatar from './Avatar';
 
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
 
+// Where something attached is fetched from: the bucket's own address, or
+// the service's route for it.
+const fetched = (url) => (url.startsWith('/') ? backendPath(url) : url);
+
+// What a thread's starter attached: the pictures shown, each opening
+// whole in a tab of its own, and the files by name, to open.
+function Attached({ files }) {
+  const pictures = files.filter((f) => f.is_picture);
+  const others = files.filter((f) => !f.is_picture);
+  return (
+    <div className="thread-attached">
+      {pictures.length > 0 && (
+        <ul className={`thread-attached-pictures${pictures.length === 1 ? ' is-one' : ''}`}>
+          {pictures.map((f) => (
+            <li key={f.uuid}><a href={fetched(f.url)} target="_blank" rel="noopener noreferrer" title={f.name}><img src={fetched(f.url)} alt={f.name} loading="lazy" /></a></li>
+          ))}
+        </ul>
+      )}
+      {others.length > 0 && (
+        <ul className="thread-attached-files">
+          {others.map((f) => (
+            <li key={f.uuid}>
+              <a href={fetched(f.url)} target="_blank" rel="noopener noreferrer" download={f.name}>
+                <FileGlyph />
+                <span className="thread-attached-name">{f.name}</span>
+                <span className="thread-attached-size">{formatBytes(f.size)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // One thing said: who, when, and their words. Its writer can take it back.
-function Said({ user, at, mine, words, removeLabel, onRemove }) {
+function Said({ user, at, mine, words, files = [], removeLabel, onRemove }) {
   return (
     <li className={`talk-post${mine ? ' is-mine' : ''}`}>
       <p className="talk-post-head">
@@ -46,6 +84,7 @@ function Said({ user, at, mine, words, removeLabel, onRemove }) {
         )}
       </p>
       {words && <Markdown className="talk-post-body" text={words} />}
+      {files.length > 0 && <Attached files={files} />}
     </li>
   );
 }
@@ -98,8 +137,13 @@ export default function ThreadJacket({
 
   const { paper } = thread;
   const picture = thread.picture_url && (thread.picture_url.startsWith('/') ? backendPath(thread.picture_url) : thread.picture_url);
-  const place = appPath(threadPlacePath(thread));
+  // A thread started in the Lounge itself came from no paper: it has
+  // no passage, and no place to open.
+  const placePath = threadPlacePath(thread);
+  const place = placePath && appPath(placePath);
+  const from = Boolean(thread.excerpt || picture);
   const replies = thread.replies.length;
+  const attached = thread.files ?? [];
 
   const act = async (work) => {
     setBusy(true);
@@ -148,19 +192,24 @@ export default function ThreadJacket({
             )}
         </div>
 
-        <figure className="thread-jacket-from">
-          {thread.excerpt && <blockquote>{thread.excerpt}</blockquote>}
-          {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
-        </figure>
+        {from && (
+          <figure className="thread-jacket-from">
+            {thread.excerpt && <blockquote>{thread.excerpt}</blockquote>}
+            {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
+          </figure>
+        )}
 
-        <p className="board-jacket-facts thread-jacket-facts" aria-label="About this thread">
-          <a className="board-jacket-owner" href={appPath(`/u/${thread.user.uuid}`)}>
-            <Avatar user={thread.user} className="mini-avatar" />
-            {thread.is_mine ? 'You' : thread.user.display_name}
-          </a>
-          <time dateTime={thread.created_at}>{when(thread.created_at, { time: true })}</time>
-          <span>{replies === 0 ? 'No replies yet' : `${replies} ${replies === 1 ? 'reply' : 'replies'}`}</span>
-        </p>
+        {/* Words alone say who and when on their own first line. */}
+        {from && (
+          <p className="board-jacket-facts thread-jacket-facts" aria-label="About this thread">
+            <a className="board-jacket-owner" href={appPath(`/u/${thread.user.uuid}`)}>
+              <Avatar user={thread.user} className="mini-avatar" />
+              {thread.is_mine ? 'You' : thread.user.display_name}
+            </a>
+            <time dateTime={thread.created_at}>{when(thread.created_at, { time: true })}</time>
+            <span>{replies === 0 ? 'No replies yet' : `${replies} ${replies === 1 ? 'reply' : 'replies'}`}</span>
+          </p>
+        )}
 
         {paper && (
           <p className="thread-jacket-paper">
@@ -169,13 +218,15 @@ export default function ThreadJacket({
           </p>
         )}
 
-        <div className="paper-actions">
-          <a className="button primary" href={place}>Open in the paper</a>
-        </div>
+        {place && paper && (
+          <div className="paper-actions">
+            <a className="button primary" href={place}>Open in the paper</a>
+          </div>
+        )}
 
-        <section className="board-jacket-section thread-jacket-said" aria-label="What was said">
+        <section className={`board-jacket-section thread-jacket-said${from ? '' : ' is-all'}`} aria-label="What was said">
           <ol className="talk-posts">
-            {thread.words && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} />}
+            {(thread.words || attached.length > 0) && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} files={attached} />}
             {thread.replies.map((reply) => (
               <Said
                 key={reply.uuid} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}

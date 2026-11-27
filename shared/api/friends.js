@@ -65,6 +65,13 @@ export function getThread(threadUuid) {
   return request(`/threads/${threadUuid}`);
 }
 
+// A thread started in the Lounge itself, from no paper: words, and the
+// pictures and files attached, each uploaded already and named by its
+// digest ({ sha256, name, mime, size }).
+export function startThread(words, files = []) {
+  return jsonRequest('/threads', 'POST', { words, files });
+}
+
 export function replyInThread(threadUuid, body) {
   return jsonRequest(`/threads/${threadUuid}/replies`, 'POST', { body });
 }
@@ -80,6 +87,7 @@ export function removeThreadReply(replyUuid) {
 // Where a thread came from: the viewer's address for its paper, on the
 // page and at the passage or rectangle it was sent from.
 export function threadPlacePath(thread) {
+  if (!thread.paper_sha256) return null;
   const place = new URLSearchParams({ pdf: thread.paper_sha256, page: String(thread.page), y: String(thread.y) });
   if (thread.mark) place.set('mark', thread.mark);
   if (thread.box) place.set('box', thread.box);

@@ -14,6 +14,7 @@
     "sync_pull_default": 250,
     "sync_pull_max": 1000,
     "shelves_per_nook": 5,
+    "thread_files": 8,
     "board_group_items": 100,
     "ink_points": 4000,
     "notifications": 50,

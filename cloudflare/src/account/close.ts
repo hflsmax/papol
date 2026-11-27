@@ -6,6 +6,7 @@
 import { type User } from "../auth";
 import { all, now, one, statement, type Row } from "../db";
 import { boardFileKey, UPLOADS } from "../files";
+import { dropUnnamedFiles } from "../routes/threads";
 import { handOnProjectBoards, leaveAllProjects } from "../routes/projects";
 
 // What a closed account is called wherever it still shows.
@@ -43,6 +44,8 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     ...boardUuids, user.uuid, user.uuid)).map((d) => d.uuid);
   const inDigs = goneDigs.length ? goneDigs.map(() => "?").join(",") : "NULL";
   const files = await boardFiles(env, boardUuids);
+  // What they attached to their threads, read before the rows go.
+  const attached = (await all<{ sha256: string }>(env.DB, "SELECT DISTINCT f.sha256 FROM thread_files f JOIN threads t ON t.uuid = f.thread_uuid WHERE t.user_uuid = ?", user.uuid)).map((f) => f.sha256);
   const projects = await leaveAllProjects(env, user.uuid);
 
   // Private, and theirs alone; then signed out and forgotten by the
@@ -57,6 +60,7 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     // What they said in the Lounge: the threads they started, with every
     // reply in them, and their replies in other people's.
     ["thread_replies", statement(db, "DELETE FROM thread_replies WHERE user_uuid = ? OR thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?)", user.uuid, user.uuid)],
+    ["thread_files", statement(db, "DELETE FROM thread_files WHERE thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?)", user.uuid)],
     ["threads", statement(db, "DELETE FROM threads WHERE user_uuid = ?", user.uuid)],
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],
     ["copy_news", statement(db, "DELETE FROM copy_news WHERE copy_uuid IN (SELECT uuid FROM copies WHERE user_uuid = ?)", user.uuid)],
@@ -109,8 +113,11 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
     if (file.sha256 && await one(db, "SELECT 1 FROM board_items WHERE sha256 = ? LIMIT 1", file.sha256)) continue;
     // Nor while a thread in the Lounge shows it as its picture.
     if (file.sha256 && await one(db, "SELECT 1 FROM threads WHERE picture_sha256 = ? LIMIT 1", file.sha256)) continue;
+    // Nor while a thread carries it as an attachment.
+    if (file.sha256 && await one(db, "SELECT 1 FROM thread_files WHERE sha256 = ? LIMIT 1", file.sha256)) continue;
     await env.FILES.delete(boardFileKey(file.file_path));
     removed.board_files++;
   }
+  await dropUnnamedFiles(env, attached);
   return removed;
 }
