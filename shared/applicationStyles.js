@@ -6120,6 +6120,14 @@ ${talkStyles}
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 .friend-dig-place { margin: 0 0 var(--space-1); color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
+/* A friend's dig is one block: the dig tinted and set in from its edge
+   as my own is, what was posted under it in line with its words, and the
+   box that posts at the same edge. */
+.friend-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
+.friend-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
+.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin-top: var(--space-1); padding: 4px 12px 4px 12px; background: none; }
+.friend-dig .talk-card.is-conversation .talk-compose { margin-top: var(--space-2); padding: 0; }
+.friend-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
