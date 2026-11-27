@@ -45,6 +45,10 @@ const CHOSEN = {
   friend_suggestions: { choices: ["daily", "weekly", "never"], preset: "weekly", admins: false },
   // What friends did in the Lounge since the last (jobs/lounge.ts).
   lounge_activity: { choices: ["daily", "weekly", "never"], preset: "daily", admins: false },
+  // A friend dug a paper on a shelf of the reader's nook (routes/digs.ts).
+  friend_dig: { choices: EVERY, preset: "daily", admins: false, many: (count) => `${count} digs by friends on papers in your nook` },
+  // Someone posted in a dig the reader wrote or posted in.
+  dig_reply: { choices: EVERY, preset: "now", admins: false, many: (count) => `${count} replies in digs you are in` },
   feedback_report: { choices: EVERY, preset: "now", admins: true, many: (count) => `${count} Papol feedback reports` },
 } satisfies Record<string, Choice>;
 

@@ -74,7 +74,7 @@ describe("feedback", () => {
   it("is emailed to each admin as often as they chose, and reaches every admin's inbox all the same", async () => {
     const admin = await register("admin@example.test", "Admin"), other = await register("other@example.test", "Other"), weekly = await register("weekly@example.test", "Weekly");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid IN (?, ?, ?)", admin.uuid, other.uuid, weekly.uuid);
-    expect((await ok("GET", "/api/auth/me", { headers: admin.headers })).emails).toEqual({ friend_request: "now", friend_suggestions: "weekly", lounge_activity: "daily", feedback_report: "now" });
+    expect((await ok("GET", "/api/auth/me", { headers: admin.headers })).emails).toEqual({ friend_request: "now", friend_suggestions: "weekly", lounge_activity: "daily", friend_dig: "daily", dig_reply: "now", feedback_report: "now" });
     await ok("PUT", "/api/auth/profile", { headers: admin.headers, json: { emails: { feedback_report: "never" } } });
     await ok("PUT", "/api/auth/profile", { headers: weekly.headers, json: { emails: { feedback_report: "weekly" } } });
     await ok("POST", "/api/feedback", { json: { content: "Cannot sign in" } });

@@ -18,6 +18,8 @@ const EVERY = ['now', 'daily', 'weekly', 'never'];
 const SCHEDULED = ['daily', 'weekly', 'never'];
 const EMAILS = [
   ['lounge_activity', 'Lounge activity', SCHEDULED],
+  ['friend_dig', 'Friends’ digs on papers in your nook', EVERY],
+  ['dig_reply', 'Replies in digs you wrote or posted in', EVERY],
   ['friend_request', 'Friend requests', EVERY],
   ['friend_suggestions', 'Friend suggestions', SCHEDULED],
   ['feedback_report', 'Feedback reports', EVERY],

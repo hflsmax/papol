@@ -25,7 +25,7 @@
 
 import type { User } from "../auth";
 import { all, now, statement, type Row } from "../db";
-import { frequencySql, type Frequency } from "../emails";
+import { frequencyOf, frequencySql, type Frequency } from "../emails";
 import { excerpt } from "../routes/projects";
 import { latest } from "../routes/room";
 import { escape, STYLE } from "./letter";
@@ -81,7 +81,11 @@ function didWith(line: Row, reader: string): string {
 // The room's new rows as the email's things, each with only what was
 // done after `since` by someone other than the reader, oldest first
 // under each as a conversation reads.
-export function itemsOf(rows: RoomRow[], reader: string, since: string): Item[] {
+//
+// `told` names what the reader is already emailed about on its own
+// (emails.ts): a friend's dig on a paper in their nook, a post in a dig
+// they are in. Those lines are left out, so nothing is said twice.
+export function itemsOf(rows: RoomRow[], reader: string, since: string, told: { friend_dig?: boolean; dig_reply?: boolean } = {}): Item[] {
   const items: Item[] = [];
   const put = (item: Omit<Item, "more">) => {
     if (!item.lines.length) return;
@@ -91,7 +95,9 @@ export function itemsOf(rows: RoomRow[], reader: string, since: string): Item[] 
     if (!row.is_new) continue;
     if (row.kind === "paper") {
       const paper = row.paper as Row;
-      const said = (row.lines as Row[]).filter((line) => String(line.at) > since).reverse();
+      const said = (row.lines as Row[]).filter((line) => String(line.at) > since).reverse()
+        .filter((line) => !(told.friend_dig && line.did === "dug" && row.in_my_nook))
+        .filter((line) => !(told.dig_reply && line.did === "posted" && (line.dig as { involved?: boolean } | undefined)?.involved));
       put({
         kind: "", title: String(paper.title || "Untitled paper"), path: paperPath(paper.sha256),
         lines: said.map((line) => ({ who: name(line.user), did: didWith(line, reader), words: quoted(line.words) })),
@@ -221,7 +227,8 @@ export async function loungeNewsJob(env: Env, payload: Row): Promise<Row> {
   const at = now();
   for (const user of users) {
     const since = newsSince(user, user.often, Date.parse(at));
-    const items = itemsOf((await latest(env, user, since)).rows, user.uuid, since);
+    const items = itemsOf((await latest(env, user, since)).rows, user.uuid, since,
+      { friend_dig: frequencyOf(user, "friend_dig") !== "never", dig_reply: frequencyOf(user, "dig_reply") !== "never" });
     if (items.length) mails.push(loungeMail(user, items, site, user.often));
   }
   if (mails.length) await sendEmails(env, mails);

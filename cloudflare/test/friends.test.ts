@@ -19,7 +19,7 @@ describe("becoming friends", () => {
   it("is emailed as often as the one asked chose in Preferences, and reaches their inbox all the same", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     const kept = await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_request: "never" } } });
-    expect(kept.emails).toEqual({ friend_request: "never", friend_suggestions: "weekly", lounge_activity: "daily" });
+    expect(kept.emails).toEqual({ friend_request: "never", friend_suggestions: "weekly", lounge_activity: "daily", friend_dig: "daily", dig_reply: "now" });
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
     expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_request", actor: { uuid: ada.uuid } });
     expect(await count("jobs", "kind = 'send_email'")).toBe(0);
@@ -37,7 +37,7 @@ describe("becoming friends", () => {
     for (const emails of [{ feedback_report: "never" }, { password_reset: "never" }, { announcement: "never" }, { digest: "never" }, { friend_request: "hourly" }, { friend_request: false }, { friend_suggestions: "now" }, ["friend_request"], null]) {
       expect((await call("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails } })).status, JSON.stringify(emails)).toBe(422);
     }
-    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).emails).toEqual({ friend_request: "daily", friend_suggestions: "weekly", lounge_activity: "daily" });
+    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).emails).toEqual({ friend_request: "daily", friend_suggestions: "weekly", lounge_activity: "daily", friend_dig: "daily", dig_reply: "now" });
     // Closing the account takes what was held for it.
     await ok("DELETE", "/api/auth/account", { headers: grace.headers, json: { confirm_email: "grace@example.test" } });
     expect(await count("email_held")).toBe(0);
@@ -266,6 +266,46 @@ describe("what a friend sees", () => {
     await ok("DELETE", `/api/friends/${ada.uuid}`, { headers: grace.headers });
     expect((await call("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).status).toBe(404);
     expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ada.headers })).posts.map((p: any) => p.body)).toEqual(["Tight for d = 2 though", "Fair", "A note to myself"]);
+  });
+});
+
+describe("what a friend is told", () => {
+  it("is a friend's dig on a paper in their nook, and a post in a dig they are in, each as often as they chose", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan"), eve = await register("eve@example.test", "Eve");
+    await befriend(ada, grace);
+    await befriend(ada, alan);
+    // Grace keeps the paper, Alan only wrote on it (Passing), Eve keeps it and is no friend.
+    await paperWithCopy(grace, digest("a"), "Out in the open", { shelfUuid: await defaultShelf(grace) });
+    await ok("POST", `/api/papers/${name("a")}/annotations`, { headers: alan.headers, json: { kind: "anchor", page: 2, body: { anchor: { x: 0.4, y: 0.25 } } } });
+    await exec("INSERT INTO copies (uuid, paper_sha256, user_uuid, shelf_uuid, is_author, created_at, updated_at, revision) VALUES (?, ?, ?, NULL, 0, ?, ?, 0)", uuid(), digest("a"), eve.uuid, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
+    const mailed = async () => (await rows("SELECT payload FROM jobs WHERE kind = 'send_email' ORDER BY created_at, uuid")).map((j) => JSON.parse(j.payload as string));
+    const before = (await mailed()).length;
+
+    // A dig: an inbox line for the friend who keeps the paper, and an email held for the day's.
+    const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${digest("a")}`, text: "The bound in section 3 is loose" } });
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_dig", content: "Ada dug Out in the open, which is in your nook.", link: `/paper/${name("a")}`, actor: { uuid: ada.uuid } });
+    expect(await rows("SELECT user_uuid, kind FROM email_held")).toEqual([{ user_uuid: grace.uuid, kind: "friend_dig" }]);
+    expect((await mailed()).length).toBe(before);
+    for (const other of [alan, eve]) expect((await inbox(other)).some((n: any) => n.kind === "friend_dig")).toBe(false);
+
+    // A post in it: its writer is emailed at once, and whoever posted before, until they choose never.
+    await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: grace.headers, json: { body: "Tight for d = 2 though" } });
+    expect((await mailed()).slice(before)).toMatchObject([{ to: "ada@example.test", subject: "Grace posted in your dig on Papol" }]);
+    expect((await mailed())[before].body).toContain("Tight for d = 2 though");
+    await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { dig_reply: "never" } } });
+    await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: ada.headers, json: { body: "Fair" } });
+    expect((await mailed()).length).toBe(before + 1);
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "dig_post" });
+    await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: alan.headers, json: { body: "Agreed" } });
+    expect((await mailed()).slice(before + 1).map((m: any) => m.to)).toEqual(["ada@example.test"]);
+
+    // Chosen never, a friend's dig is still in the inbox and no email is held.
+    await exec("DELETE FROM email_held");
+    await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_dig: "never" } } });
+    const anchor = await ok("POST", `/api/papers/${name("a")}/annotations`, { headers: ada.headers, json: { kind: "anchor", page: 4, body: { anchor: { x: 0.4, y: 0.25 } } } });
+    await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${anchor.uuid}`, text: "Here it fails" } });
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_dig" });
+    expect(await count("email_held")).toBe(0);
   });
 });
 
