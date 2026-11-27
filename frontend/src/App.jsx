@@ -922,7 +922,6 @@ export default function App({ startupUser = null, startupError = null }) {
                 currentUser={user}
                 hideBack
                 onChanged={refreshNook}
-                onDeleted={() => navigate('/', { replace: true })}
                 onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
                 onReportableError={offerErrorReport}
               />
