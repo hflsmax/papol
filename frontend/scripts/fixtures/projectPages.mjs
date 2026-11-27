@@ -327,7 +327,8 @@ const threadState = () => [
   },
   {
     uuid: 'e2b2c3d4-0000-4000-8000-000000000078', user: ana, is_mine: false, paper_sha256: null, page: null, y: null, mark: null, box: null,
-    excerpt: null, picture_url: null, words: 'Who is going to the adaptive optics meeting in June? I could use someone to split a poster session with.', created_at: hoursAgo(50),
+    excerpt: null, picture_url: null, words: 'Who is going to the adaptive optics meeting in June? I could use someone to split a **poster session** with. Draft and abstract attached:\n\n- the figure is the one from our last run\n- the abstract is due on the 12th', created_at: hoursAgo(50),
+    files: [{ uuid: 'e2b2c3d4-0000-4000-8000-000000000101', name: 'poster-figure.png', mime: 'image/png', size: 184320, is_picture: true, url: CLIP }, { uuid: 'e2b2c3d4-0000-4000-8000-000000000102', name: 'abstract-draft.pdf', mime: 'application/pdf', size: 412877, is_picture: false, url: '/thread-files/e2b2c3d4-0000-4000-8000-000000000102' }],
     replies: [
       { uuid: 'e2b2c3d4-0000-4000-8000-000000000079', user: ben, body: 'Me, if the travel money comes through.', created_at: hoursAgo(47), is_mine: false },
     ],
@@ -404,9 +405,12 @@ function answer(method, path, search, sent = {}) {
   if (path === '/friends/suggestions') return suggestionsNow;
   const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
   if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }
-  // A thread started in the Lounge itself, from no paper.
+  // A file about to be attached: the pictures pretend the bucket has it.
+  if (method === 'POST' && path === '/files/upload-address') return { stored: true, file_path: `blobs/${sent.sha256}` };
+  // A thread started in the Lounge itself, from no paper, with what was attached.
   if (method === 'POST' && path === '/threads') {
-    const thread = { uuid: 'e2b2c3d4-0000-4000-8000-000000000099', user: me, is_mine: true, paper_sha256: null, page: null, y: null, mark: null, box: null, excerpt: null, picture_url: null, words: sent.words, created_at: hoursAgo(0), replies: [] };
+    const files = (sent.files ?? []).map((f, at) => ({ uuid: `e2b2c3d4-0000-4000-8000-0000000001${10 + at}`, name: f.name, mime: f.mime, size: f.size, is_picture: /^image\//.test(f.mime ?? ''), url: CLIP }));
+    const thread = { uuid: 'e2b2c3d4-0000-4000-8000-000000000099', user: me, is_mine: true, paper_sha256: null, page: null, y: null, mark: null, box: null, excerpt: null, picture_url: null, words: sent.words, created_at: hoursAgo(0), files, replies: [] };
     threadsNow = [thread, ...threadsNow];
     return { ...thread, paper: null };
   }

@@ -65,9 +65,11 @@ export function getThread(threadUuid) {
   return request(`/threads/${threadUuid}`);
 }
 
-// A thread started in the Lounge itself: words alone, from no paper.
-export function startThread(words) {
-  return jsonRequest('/threads', 'POST', { words });
+// A thread started in the Lounge itself, from no paper: words, and the
+// pictures and files attached, each uploaded already and named by its
+// digest ({ sha256, name, mime, size }).
+export function startThread(words, files = []) {
+  return jsonRequest('/threads', 'POST', { words, files });
 }
 
 export function replyInThread(threadUuid, body) {

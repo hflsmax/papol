@@ -14,7 +14,9 @@ import { appPath, backendPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
 import { loungeState, setLounge, withThread } from '../loungeStore';
+import { formatBytes } from '../../../shared/waiting.js';
 import Avatar from './Avatar';
+import { FileGlyph } from './ThreadComposer';
 
 /**
  * A thread's jacket: the one screen a thread has.
@@ -30,8 +32,43 @@ import Avatar from './Avatar';
 
 const metaOf = (paper) => [formatAuthors(paper.authors), paper.year, paper.journal].filter(Boolean).join(' · ');
 
+// Where something attached is fetched from: the bucket's own address, or
+// the service's route for it.
+const fetched = (url) => (url.startsWith('/') ? backendPath(url) : url);
+
+// What a thread's starter attached: the pictures shown, each opening
+// whole in a tab of its own, and the files by name, to open.
+function Attached({ files }) {
+  const pictures = files.filter((f) => f.is_picture);
+  const others = files.filter((f) => !f.is_picture);
+  return (
+    <div className="thread-attached">
+      {pictures.length > 0 && (
+        <ul className={`thread-attached-pictures${pictures.length === 1 ? ' is-one' : ''}`}>
+          {pictures.map((f) => (
+            <li key={f.uuid}><a href={fetched(f.url)} target="_blank" rel="noopener noreferrer" title={f.name}><img src={fetched(f.url)} alt={f.name} loading="lazy" /></a></li>
+          ))}
+        </ul>
+      )}
+      {others.length > 0 && (
+        <ul className="thread-attached-files">
+          {others.map((f) => (
+            <li key={f.uuid}>
+              <a href={fetched(f.url)} target="_blank" rel="noopener noreferrer" download={f.name}>
+                <FileGlyph />
+                <span className="thread-attached-name">{f.name}</span>
+                <span className="thread-attached-size">{formatBytes(f.size)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // One thing said: who, when, and their words. Its writer can take it back.
-function Said({ user, at, mine, words, removeLabel, onRemove }) {
+function Said({ user, at, mine, words, files = [], removeLabel, onRemove }) {
   return (
     <li className={`talk-post${mine ? ' is-mine' : ''}`}>
       <p className="talk-post-head">
@@ -47,6 +84,7 @@ function Said({ user, at, mine, words, removeLabel, onRemove }) {
         )}
       </p>
       {words && <Markdown className="talk-post-body" text={words} />}
+      {files.length > 0 && <Attached files={files} />}
     </li>
   );
 }
@@ -105,6 +143,7 @@ export default function ThreadJacket({
   const place = placePath && appPath(placePath);
   const from = Boolean(thread.excerpt || picture);
   const replies = thread.replies.length;
+  const attached = thread.files ?? [];
 
   const act = async (work) => {
     setBusy(true);
@@ -187,7 +226,7 @@ export default function ThreadJacket({
 
         <section className={`board-jacket-section thread-jacket-said${from ? '' : ' is-all'}`} aria-label="What was said">
           <ol className="talk-posts">
-            {thread.words && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} />}
+            {(thread.words || attached.length > 0) && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} files={attached} />}
             {thread.replies.map((reply) => (
               <Said
                 key={reply.uuid} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}

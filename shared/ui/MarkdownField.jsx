@@ -91,6 +91,8 @@ const MarkdownField = forwardRef(function MarkdownField({
   const composing = useRef(false);
   const editable = useRef('true');
 
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const tell = useCallback((next) => { onChange?.({ target: { name, value: next }, currentTarget: { name, value: next } }); }, [onChange, name]);
 
   // Records the words before a change, so undo can bring them back.
@@ -208,6 +210,23 @@ const MarkdownField = forwardRef(function MarkdownField({
       get value() { return text.current; },
       focus: (options) => root.focus(options),
       blur: () => root.blur(),
+      // A formatting button's change: `change` is told the words and the
+      // selection and answers with both as they should now be. One step
+      // of undo. With the caret elsewhere, the selection is the end.
+      edit: (change) => {
+        const [start, end] = selectionIn(root) ?? [text.current.length, text.current.length];
+        const next = change({ text: text.current, start, end });
+        if (!next || (maxLength && next.text.length > maxLength)) return;
+        root.focus();
+        history.current.kind = null;
+        const h = history.current;
+        h.past.push({ text: text.current, caret: [start, end] });
+        h.future = [];
+        text.current = next.text;
+        draw(root, next.text);
+        select(root, next.start, next.end);
+        onChangeRef.current?.({ target: { name, value: next.text }, currentTarget: { name, value: next.text } });
+      },
       setSelectionRange: (start, end) => { if (document.activeElement === root) select(root, start, end); },
       scrollIntoView: (options) => root.scrollIntoView(options),
       getBoundingClientRect: () => root.getBoundingClientRect(),

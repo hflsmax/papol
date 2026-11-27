@@ -114,6 +114,40 @@ describe("threads in the Lounge", () => {
     expect(await count("thread_replies")).toBe(0);
   });
 
+  it("carry the pictures and files their starter attached, and let them go with the thread", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    const photo = await sha256("a jpeg"), notes = await sha256("a zip");
+    const files = [{ sha256: photo, name: "whiteboard.jpg", mime: "image/jpeg", size: 6 }, { sha256: notes, name: 'notes "v2".zip', mime: "application/zip", size: 5 }];
+    // Not before the bytes are in.
+    expect((await start(ada, { words: "From today", files })).status).toBe(409);
+    await env.FILES.put(`board_uploads/blobs/${photo}`, "a jpeg");
+    await env.FILES.put(`board_uploads/blobs/${notes}`, "a zip");
+    const made = await (await start(ada, { files })).json() as Record<string, any>;
+    expect(made).toMatchObject({ words: null, files: [{ name: "whiteboard.jpg", is_picture: true, size: 6 }, { name: 'notes "v2".zip', is_picture: false, mime: "application/zip" }] });
+    // Her friend reads them in the room, and fetches each: a picture as itself, a file as a download.
+    const row = (await room(grace)).find((r) => r.kind === "thread")!;
+    expect(row.thread.files).toHaveLength(2);
+    const picture = await call("GET", row.thread.files[0].url);
+    expect([picture.headers.get("content-type"), await picture.text()]).toEqual(["image/jpeg", "a jpeg"]);
+    const file = await call("GET", row.thread.files[1].url);
+    expect([file.headers.get("content-type"), file.headers.get("content-disposition")]).toEqual(["application/octet-stream", 'attachment; filename="notes v2.zip"']);
+    await file.text();
+    // Refused: too many, on a thread from a paper, or shaped wrong.
+    expect((await start(ada, { words: "x", files: Array(9).fill(files[0]) })).status).toBe(422);
+    expect((await start(ada, { ...passage, files })).status).toBe(422);
+    expect((await start(ada, { words: "x", files: [{ sha256: "nope", name: "a", size: 1 }] })).status).toBe(422);
+    // A second thread names the photo too, so removing the first keeps it and drops the zip.
+    const other = await (await start(ada, { words: "Again", files: [files[0]] })).json() as Record<string, any>;
+    await ok("DELETE", `/api/threads/${made.uuid}`, { headers: ada.headers });
+    expect(await count("thread_files")).toBe(1);
+    expect([await env.FILES.head(`board_uploads/blobs/${photo}`) !== null, await env.FILES.head(`board_uploads/blobs/${notes}`) !== null]).toEqual([true, false]);
+    // Closing the account takes the rest.
+    await ok("DELETE", "/api/auth/account", { headers: ada.headers, json: { confirm_email: "ada@example.test" } });
+    expect([await count("thread_files"), await env.FILES.head(`board_uploads/blobs/${photo}`)]).toEqual([0, null]);
+    expect(other.files).toHaveLength(1);
+  });
+
   it("can start from a clipped picture, once its bytes are in", async () => {
     const ada = await register();
     await paperWithCopy(ada, DIGEST, "Attention at depth");

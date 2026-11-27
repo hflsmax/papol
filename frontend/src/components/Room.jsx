@@ -1,10 +1,9 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import {
-  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen, startThread,
+  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen,
 } from '../../../shared/api/friends.js';
-import appLimits from '../../../shared/appLimits.js';
-import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
+import { plainWords } from '../../../shared/markdownFormat.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -17,6 +16,7 @@ import { loadFriends, useFriends } from '../friendsStore';
 import { RatingSummary } from './Rating';
 import { InWay, WayShown } from './Way';
 import FriendButton from './FriendButton';
+import ThreadComposer from './ThreadComposer';
 import { DESKTOP } from '../../../shared/desktopShell';
 import { KINDS, narrowed, setLounge, useLounge } from '../loungeStore';
 
@@ -211,7 +211,12 @@ function ProjectRow({ row }) {
 function ThreadRow({ row }) {
   const { thread, paper } = row;
   const replies = thread.replies.length;
-  const about = thread.words || thread.excerpt;
+  // The starter's words are Markdown; the row is one plain line of them.
+  const about = (thread.words && plainWords(thread.words)) || thread.excerpt;
+  // With no words, what was attached says what the thread is.
+  const attached = thread.files ?? [];
+  const carried = attached.length === 0 ? '' : attached.length === 1 ? attached[0].name
+    : attached.every((f) => f.is_picture) ? `${attached.length} pictures` : `${attached.length} files`;
   return (
     <li className={`room-row is-thread${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
@@ -219,13 +224,13 @@ function ThreadRow({ row }) {
           <a className="room-thread-open" href={appPath(`/thread/${thread.uuid}`)}>
             <span className="room-kind">Thread</span>
             <span className={`desk-title room-title room-thread-about${thread.words ? '' : ' is-quote'}`}>
-              {about ? (thread.words ? about : `“${about}”`) : 'A clip'}
+              {about ? (thread.words ? about : `“${about}”`) : (carried || 'A clip')}
             </span>
             {row.is_new && <NewsDot />}
           </a>
           <span className="desk-meta room-meta">
-            {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'}${paper ? ' · ' : ''}`}
-            {paper ? <><PaperTitle title={paper.title} />, page {thread.page}</> : (replies > 0 ? null : 'No replies yet')}
+            {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'}${paper || (about && carried) ? ' · ' : ''}`}
+            {paper ? <><PaperTitle title={paper.title} />, page {thread.page}</> : [replies > 0 ? null : 'No replies yet', about && carried].filter(Boolean).join(' · ')}
           </span>
         </div>
         <span className="room-faces">
@@ -238,44 +243,6 @@ function ThreadRow({ row }) {
         <time className="room-when" dateTime={row.at} title={when(row.at, { time: true })}>{when(row.at)}</time>
       </div>
     </li>
-  );
-}
-
-// The box the Lounge opens with: words of my own, sent to my friends as
-// a thread from no paper. Sent, it is the room's newest row.
-function StartThread({ currentUser, onStarted }) {
-  const [words, setWords] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const send = async (event) => {
-    event?.preventDefault();
-    const text = words.trim();
-    if (!text || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const thread = await startThread(text);
-      setWords('');
-      onStarted(thread);
-    } catch (err) {
-      setError(err?.message || String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <form className="talk-compose room-start" onSubmit={send}>
-      <Face user={currentUser} />
-      <MarkdownField
-        rows={1} value={words} maxLength={appLimits.text.thread_words} placeholder="Start a thread" aria-label="Start a thread"
-        onChange={(event) => setWords(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send(event); }}
-      />
-      <button type="submit" className="talk-send" disabled={busy || !words.trim()} aria-label="Start the thread" title="Start the thread (⌘↩)">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-      </button>
-      {error && <div className="error" role="alert">{error}</div>}
-    </form>
   );
 }
 
@@ -518,7 +485,7 @@ export default function Room({ currentUser, onSeen }) {
             <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
-          {room && room.friend_count > 0 && !chosen && <StartThread currentUser={currentUser} onStarted={onStarted} />}
+          {room && room.friend_count > 0 && !chosen && <ThreadComposer currentUser={currentUser} onStarted={onStarted} />}
           {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (

@@ -1,7 +1,8 @@
 -- A thread can be started in the Lounge itself, from no paper: words of
--- the starter's own and nothing else. So the paper and the place in it
--- become optional, and a thread is something selected, a picture, or
--- words.
+-- the starter's own, and pictures and files they attach. So the paper and
+-- the place in it become optional. A thread from a paper is still
+-- something selected or a picture; one from no paper is words, files, or
+-- both, which the route sees to since the files are rows of their own.
 --
 -- SQLite cannot loosen a column or a check in place, so the table is
 -- built again. Its replies point at it, so they step aside first and
@@ -22,7 +23,7 @@ CREATE TABLE threads_loosened (
 	words TEXT,
 	created_at DATETIME NOT NULL,
 	PRIMARY KEY (uuid),
-	CHECK (excerpt IS NOT NULL OR picture_sha256 IS NOT NULL OR words IS NOT NULL),
+	CHECK (paper_sha256 IS NULL OR excerpt IS NOT NULL OR picture_sha256 IS NOT NULL),
 	-- Something from a paper names the paper and the place; words alone name neither.
 	CHECK ((paper_sha256 IS NOT NULL AND page IS NOT NULL AND y IS NOT NULL) OR (paper_sha256 IS NULL AND page IS NULL AND y IS NULL AND mark IS NULL AND box IS NULL AND excerpt IS NULL AND picture_sha256 IS NULL)),
 	FOREIGN KEY(user_uuid) REFERENCES users (uuid)
@@ -49,3 +50,21 @@ INSERT INTO thread_replies (uuid, thread_uuid, user_uuid, body, created_at)
 DROP TABLE thread_replies_kept;
 CREATE INDEX ix_thread_replies_thread_uuid ON thread_replies (thread_uuid, created_at);
 CREATE INDEX ix_thread_replies_user_uuid ON thread_replies (user_uuid);
+
+-- What a thread's starter attached to it: pictures, shown in the thread,
+-- and files, offered to be opened. Each is named by its digest and kept
+-- where board files are; the name and type are as the starter's own
+-- computer gave them.
+CREATE TABLE thread_files (
+	uuid VARCHAR(36) NOT NULL,
+	thread_uuid VARCHAR(36) NOT NULL,
+	sha256 VARCHAR(64) NOT NULL,
+	name VARCHAR(255) NOT NULL,
+	mime VARCHAR(255),
+	size INTEGER NOT NULL,
+	position INTEGER NOT NULL,
+	PRIMARY KEY (uuid),
+	FOREIGN KEY(thread_uuid) REFERENCES threads (uuid)
+);
+CREATE INDEX ix_thread_files_thread_uuid ON thread_files (thread_uuid, position);
+CREATE INDEX ix_thread_files_sha256 ON thread_files (sha256);
