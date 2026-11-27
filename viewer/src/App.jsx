@@ -5620,7 +5620,6 @@ export default function App() {
               <h3>{sendComplete === LOUNGE ? 'Sent to the Lounge' : sendComplete ? 'Sent to staging' : source?.threads ? 'Send' : 'Send to a board'}</h3>
               {sendComplete === LOUNGE ? (
                 <>
-                  <p>Your friends will find it in the Lounge, and can reply to it there.</p>
                   <div className="feedback-actions">
                     {!IS_DESKTOP && <a className="send-selection-lounge" href={appPath('/lounge')}>Open the Lounge</a>}
                     <button type="button" className="primary" onClick={closeSendSelection}>Done</button>
@@ -5646,34 +5645,50 @@ export default function App() {
                     />
                   </label>}
                   {/* Where it goes: the Lounge, for friends to reply to,
-                      or one of the reader's own boards. */}
-                  <label className="send-selection-field">
-                    <span>{source?.threads ? 'Send to' : 'Board'}</span>
-                    <select
-                      value={sendTo}
-                      onChange={(event) => setSendTo(event.target.value)}
-                      disabled={!sendBoards.length && !source?.threads}
-                    >
-                      {source?.threads ? (
-                        <>
-                          <option value={LOUNGE}>The Lounge: my friends can reply</option>
-                          <optgroup label="My boards">
-                            {!sendBoards.length && <option value="" disabled>No boards yet</option>}
-                            {sendBoards.map((candidate) => (
-                              <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
-                            ))}
-                          </optgroup>
-                        </>
-                      ) : (
-                        <>
-                          {!sendBoards.length && <option value="">No boards available</option>}
+                      on a button of its own, or one of the reader's own
+                      boards, in the list beside it. */}
+                  {source?.threads ? (
+                    <div className="send-selection-field" role="group" aria-label="Send to">
+                      <span>Send to</span>
+                      <div className="send-to">
+                        <button
+                          type="button"
+                          className={`send-to-lounge${sendTo === LOUNGE ? ' is-on' : ''}`}
+                          aria-pressed={sendTo === LOUNGE}
+                          onClick={() => setSendTo(LOUNGE)}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(0 -0.5)"><circle cx="9" cy="9" r="3" /><path d="M3.5 19c.4-3.2 2.6-5 5.5-5s5.1 1.8 5.5 5" /><circle cx="16.8" cy="8.2" r="2.4" /><path d="M16.6 13.2c2.2.2 3.7 1.7 4 4.3" /></g></svg>
+                          Lounge
+                        </button>
+                        <select
+                          aria-label="Board"
+                          className={sendTo === LOUNGE ? 'is-unpicked' : ''}
+                          value={sendTo === LOUNGE ? '' : sendTo}
+                          onChange={(event) => setSendTo(event.target.value)}
+                          disabled={!sendBoards.length}
+                        >
+                          {(sendTo === LOUNGE || !sendBoards.length) && <option value="" disabled>{sendBoards.length ? 'A board' : 'No boards yet'}</option>}
                           {sendBoards.map((candidate) => (
                             <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
                           ))}
-                        </>
-                      )}
-                    </select>
-                  </label>
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="send-selection-field">
+                      <span>Board</span>
+                      <select
+                        value={sendTo}
+                        onChange={(event) => setSendTo(event.target.value)}
+                        disabled={!sendBoards.length}
+                      >
+                        {!sendBoards.length && <option value="">No boards available</option>}
+                        {sendBoards.map((candidate) => (
+                          <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="send-selection-field">
                     <span>{sendTo === LOUNGE ? 'My words' : 'Comment'} <small>optional</small></span>
                     <textarea
@@ -5681,16 +5696,14 @@ export default function App() {
                       maxLength={sendTo === LOUNGE ? appLimits.text.thread_words : appLimits.text.board_content}
                       value={sendSelection.comment}
                       onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
-                      placeholder={sendTo === LOUNGE ? 'What do you make of it? Anything goes.' : 'Why are you saving this?'}
+                      placeholder={sendTo === LOUNGE ? 'What do you make of it?' : 'Why are you saving this?'}
                     />
                   </label>
-                  <p className="send-selection-source">
-                    {sendTo === LOUNGE
-                      ? <>Only your friends see it, in the Lounge, with <PaperTitle title={paper?.title || 'the paper'} /> and a link back to page {sendSelection.page}.</>
-                      : sendSelection.kind === 'clip'
-                        ? `Source: Page ${sendSelection.page}`
-                        : <>Source: <PaperTitle title={paper?.title || 'Paper'} />, page {sendSelection.page}. A backlink is included.</>}
-                  </p>
+                  {sendTo !== LOUNGE && <p className="send-selection-source">
+                    {sendSelection.kind === 'clip'
+                      ? `Source: Page ${sendSelection.page}`
+                      : <>Source: <PaperTitle title={paper?.title || 'Paper'} />, page {sendSelection.page}. A backlink is included.</>}
+                  </p>}
                   {sendError && <p className="feedback-error">{sendError}</p>}
                   <div className="feedback-actions">
                     <button type="button" onClick={closeSendSelection} disabled={sendBusy}>Cancel</button>

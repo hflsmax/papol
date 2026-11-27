@@ -3,10 +3,11 @@ import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 
 // Pictures of sending a selection to the Lounge from the viewer: the
-// selected-text bar, the send sheet set to the Lounge with the reader's
-// words written, and what it says once sent.
+// selected-text bar, the send sheet as it opens (set to a board, the
+// Lounge's button beside the list), the sheet set to the Lounge with the
+// reader's words written, and what it says once sent.
 //
-//   node scripts/lounge-send-shots.mjs <out dir> [select | sheet | sent ...]
+//   node scripts/lounge-send-shots.mjs <out dir> [select | board | sheet | sent ...]
 //
 // PAPOL_SHOTS_PREFIX names the files (default "lounge-send"): "before" for
 // the same scenes on a build whose sheet has only boards, where the sheet
@@ -38,15 +39,16 @@ const select = `
 const sendButton = `document.querySelector('.selection-actions button[aria-label^="Send selected text"]:not([disabled])')`;
 // A field set as typing sets it, so React hears it.
 const set = (field, proto, value) => `{ const f = ${field}; Object.getOwnPropertyDescriptor(${proto}.prototype, 'value').set.call(f, ${JSON.stringify(value)}); f.dispatchEvent(new Event(${proto === 'HTMLSelectElement' ? "'change'" : "'input'"}, { bubbles: true })); }`;
-const hasLounge = `!!document.querySelector('.send-selection-sheet select option[value="lounge"]')`;
+const hasLounge = `!!document.querySelector('.send-to-lounge')`;
 const sheet = [
   select, { waitFor: sendButton }, `${sendButton}.click(); return true;`,
   { waitFor: `document.querySelector('.send-selection-sheet select option:not([value=""])')` },
-  `if (${hasLounge}) { ${set(`document.querySelector('.send-selection-sheet select')`, 'HTMLSelectElement', 'lounge')} ${set(`document.querySelectorAll('.send-selection-sheet textarea')[1]`, 'HTMLTextAreaElement', 'Is this still true once the sequences get long? I half remember a result that recurrence wins there.')} } return true;`,
+  `if (${hasLounge}) { document.querySelector('.send-to-lounge').click(); ${set(`document.querySelectorAll('.send-selection-sheet textarea')[1]`, 'HTMLTextAreaElement', 'Is this still true once the sequences get long? I half remember a result that recurrence wins there.')} } return true;`,
   { wait: 300 },
 ];
 const SCENES = {
   select: { steps: [select, { waitFor: sendButton }, `${sendButton}.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); ${sendButton}.focus(); return true;`, { wait: 700 }] },
+  board: { steps: sheet.slice(0, 4) },
   sheet: { steps: sheet },
   sent: { needs: true, steps: [...sheet, `document.querySelector('.send-selection-sheet button.primary').click(); return true;`, { waitFor: `document.querySelector('.send-selection-sheet h3')?.textContent === 'Sent to the Lounge'` }] },
 };
