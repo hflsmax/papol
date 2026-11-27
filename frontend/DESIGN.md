@@ -221,7 +221,7 @@ sidebar, toolbar and document windows.
   Papol, the page's own title (Papers, a shelf, a project, a board, a paper)
   at a project name's size on the same baseline, the page's own controls
   beside it (a project's people and Invite, a shelf picker and the trash),
-  then the Lounge (with the gold dot when it has news) and the member. In the nook the title
+  then the way to the other place (the Lounge, with the gold dot when it has news, or My nook from the Lounge) and the member. In the nook the title
   starts where the page does, so the page begins at the top of the window;
   on a narrow window the title takes the line under it. A page puts its
   title there with `InWay`; without the bar (a visitor, the Mac app) the
@@ -237,15 +237,19 @@ sidebar, toolbar and document windows.
 - **Back is the browser's.** No in-page back links on the web. Back returns
   to the list as it was left: its scroll, tags and search, so a list stays
   mounted while a paper is open beside it. A link opened in a fresh tab has
-  nothing behind it; the rail and "Papol" are the way home. A jacket opened
-  from the Lounge or someone else's nook names that place on the bar, beside
-  Papol over the rail ("‹ Lounge"); it steps back onto that list as it was
-  left, and so does Escape. A paper or board opened from the Lounge stays in
-  the Lounge: its jacket takes the rows' place beside the Lounge's own rail
-  (Friends, Show), not the nook's shelves, the bar's Lounge button stays
-  lit, and picking a friend or a kind in the rail returns to the rows
-  narrowed so. On a phone the jacket stands alone under the bar. One opened
-  from someone else's nook still stands beside the member's own rail. In the Mac app the same step leads the
+  nothing behind it; the rail and "Papol" are the way home. The member is in
+  one of two places, their nook or the Lounge (the Lounge itself, a thread,
+  someone else's nook, a paper or board opened from the Lounge), and the bar
+  follows: Papol's mark leads to the top of the place they are in, and the
+  button on the right to the other one ("Lounge" from the nook, "My nook"
+  from the Lounge). A paper or board opened from the Lounge stays in the
+  Lounge: its jacket takes the rows' place beside the Lounge's own rail
+  (Friends, Show), not the nook's shelves, and picking a friend or a kind in
+  the rail returns to the rows narrowed so; Papol's mark or Escape steps
+  back onto the rows as they were left. On a phone the jacket stands alone
+  under the bar. A jacket opened from someone else's nook names that place
+  on the bar, beside Papol over the rail ("‹ Nook"), since the mark does not
+  lead there, and still stands beside the member's own rail. In the Mac app the same step leads the
   page's toolbar, with ⌘[ as well.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.

@@ -1242,8 +1242,10 @@ export default function App({ startupUser = null, startupError = null }) {
           <WayBar
             user={user}
             route={route}
-            from={jacketFrom}
-            inLounge={inLounge}
+            // Papol's mark leads back to the Lounge from what was opened
+            // there, so only another place is named beside it.
+            from={jacketFrom?.path === ROOM_PATH ? null : jacketFrom}
+            inLounge={inLounge || route.page === 'thread' || (route.page === 'nook' && route.uuid !== user.uuid)}
             unreadCount={unreadCount}
             roomNews={roomNews}
           />
