@@ -42,7 +42,7 @@ describe("a dig of one's own", () => {
     }
     expect((await call("POST", "/api/digs", { headers: grace.headers, json: { subject: `annotation:${anchor.uuid}`, text: "?" } })).status).toBe(404);
     expect((await call("POST", "/api/digs", { headers: ada.headers, json: { subject: `annotation:${graces.uuid}`, text: "?" } })).status).toBe(404);
-    // Only a paper in one's nook.
+    // Only a paper Papol holds.
     expect((await call("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${"f".repeat(64)}`, text: "?" } })).status).toBe(404);
     expect((await call("POST", "/api/digs", { headers: ada.headers, json: { subject: "card:x", text: "?" } })).status).toBe(422);
 

@@ -52,11 +52,18 @@ describe("annotations", () => {
     expect(await count("_server_change_log", "table_name = 'annotations'")).toBe(5);
   });
 
-  it("is only for a paper the user keeps", async () => {
+  it("is for any paper Papol holds, in the user's nook or not, and each user's are their own", async () => {
     const keeper = await register(), other = await register();
     const name = await kept(keeper);
-    expect((await call("GET", `/api/papers/${name}/annotations`, { headers: other.headers })).status).toBe(403);
-    expect((await call("POST", `/api/papers/${name}/annotations`, { headers: other.headers, json: { kind: "anchor", page: 1, body: { anchor: { x: 0.5, y: 0.5 } } } })).status).toBe(403);
+    expect(await ok("GET", `/api/papers/${name}/annotations`, { headers: other.headers })).toEqual([]);
+    const anchor = await ok("POST", `/api/papers/${name}/annotations`, { headers: other.headers, json: { kind: "anchor", page: 1, body: { anchor: { x: 0.5, y: 0.5 } } } });
+    expect((await ok("GET", `/api/papers/${name}/annotations`, { headers: other.headers })).map((a: { uuid: string }) => a.uuid)).toEqual([anchor.uuid]);
+    expect(await ok("GET", `/api/papers/${name}/annotations`, { headers: keeper.headers })).toEqual([]);
+    // Nothing went into the nook for it, and a replica is handed the paper the anchor stands on.
+    expect(await count("copies", `user_uuid = '${other.uuid}'`)).toBe(0);
+    const snapshot = await ok("GET", "/api/sync/snapshot", { headers: other.headers });
+    expect(snapshot.rows.filter((r: { table: string }) => r.table === "papers").length).toBe(1);
+    expect((await call("GET", `/api/papers/${name}/annotations`)).status).toBe(401);
     expect((await call("GET", `/api/papers/${"2".repeat(32)}/annotations`, { headers: keeper.headers })).status).toBe(404);
   });
 

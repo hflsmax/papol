@@ -65,6 +65,12 @@ export async function copyOf(db: D1Database, paperSha256: string, user: User): P
   return one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NULL", paperSha256, user.uuid);
 }
 
+// Whether the user ever had the paper in their nook: a copy, kept or
+// since taken out.
+export async function everKept(db: D1Database, paperSha256: string, user: User): Promise<boolean> {
+  return Boolean(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid));
+}
+
 export async function requireCopy(db: D1Database, paperSha256: string, user: User): Promise<Copy> {
   return (await copyOf(db, paperSha256, user)) ?? refuse(403, "Add this paper to your nook first");
 }
@@ -120,13 +126,17 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     thought_public: null, ratings_public: null, summary_public: null, tags_public: null,
     // Whether the viewer pinned their copy to the top of their nook.
     pinned: null,
+    // Whether the viewer's digs on this paper are shown to their friends
+    // and their projects (writingShown): on a public shelf, or on no
+    // shelf of theirs at all; not once they took the paper out.
+    digs_shown: !copy && !(await everKept(db, paper.sha256, viewer)),
     anchors: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {
     const shelf = copy.shelf_uuid ? await one<{ is_public: number }>(db, "SELECT is_public FROM shelves WHERE uuid = ?", copy.shelf_uuid) : null;
     Object.assign(detail, {
       shelf_uuid: copy.shelf_uuid, copy_uuid: copy.uuid, summary: copy.summary, thought: copy.thought,
-      is_public: Boolean(shelf?.is_public), is_author: Boolean(copy.is_author),
+      is_public: Boolean(shelf?.is_public), digs_shown: Boolean(shelf?.is_public), is_author: Boolean(copy.is_author),
       rating_expertise: copy.rating_expertise, rating_reading: copy.rating_reading, rating_liking: copy.rating_liking,
       ...visibilityOut(copy), pinned: Boolean(copy.pinned),
       tags: await all(db, `SELECT t.uuid, t.name FROM copy_tags l JOIN tags t ON t.uuid = l.tag_uuid

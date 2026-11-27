@@ -1,12 +1,15 @@
 // Everything a user leaves on a paper: an anchor, a stroke of ink, a
-// clipped view. What they write about one is a dig. Private to them, kept against the paper they were drawn on. The
+// clipped view. What they write about one is a dig. Private to them, kept against the paper they were drawn on.
+// The paper need not be in their nook: an anchor is where a dig stands,
+// and nobody needs a copy to dig (the Mac's replica still asks for one,
+// sync/push.ts). The
 // laser pointer leaves nothing here on purpose — it is a way of pointing
 // while you talk, and a gesture that outlived the sentence would be litter.
 
 import { currentUser, type User } from "../auth";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
-import { annotationOut, paperOr404, requireCopy } from "../papers/detail";
+import { annotationOut, paperOr404 } from "../papers/detail";
 import { writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
@@ -30,7 +33,6 @@ export function annotationRoutes(router: Router) {
   router.on("GET", "/api/papers/:name/annotations", async ({ request, env, params, url }) => {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
-    await requireCopy(env.DB, paper.sha256, user);
     const kind = url.searchParams.get("kind");
     if (kind !== null && !(validate.ANNOTATION_KINDS as readonly string[]).includes(kind)) refuse(422, "Unknown annotation kind");
     const rows = await all<Row>(env.DB,
@@ -42,7 +44,6 @@ export function annotationRoutes(router: Router) {
   router.on("POST", "/api/papers/:name/annotations", async ({ request, env, params }) => {
     const user = await currentUser(request, env);
     const paper = await paperOr404(env.DB, params.name);
-    await requireCopy(env.DB, paper.sha256, user);
     const data = await readJson<Row>(request);
     const body = bodyOf(data.body);
     const row = { kind: data.kind, page: data.page ?? null, group_uuid: data.group_uuid ?? null, body };

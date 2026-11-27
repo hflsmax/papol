@@ -356,8 +356,8 @@ export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
 // What a project sees of digs (the rule agreed 2026-11-17): a dig on a
 // card on one of its boards, written in the project; and every member's
 // own dig on a paper the project holds, or on a mark on that paper, while
-// that member keeps the paper on a public shelf. Otherwise a dig is its
-// writer's alone. A dig whose subject is gone (a deleted mark, a paper
+// that member's writing on the paper is shown (writingShown). Otherwise a
+// dig is its writer's alone. A dig whose subject is gone (a deleted mark, a paper
 // taken out, a card removed) is kept, unshown, and comes back with it.
 // `project` is an SQL expression for the project's uuid: a column, or a
 // uuid made a literal by projectLiteral.
@@ -370,10 +370,24 @@ export function inProject(project: string): string {
   ELSE d.project_uuid IS NULL
     AND d.paper_sha256 IN (SELECT lpp.paper_sha256 FROM project_papers lpp WHERE lpp.project_uuid = ${project})
     AND d.user_uuid IN (SELECT lm.user_uuid FROM project_members lm WHERE lm.project_uuid = ${project})
-    AND ${onPublicShelf("d.user_uuid", "d.paper_sha256")}
+    AND ${writingShown("d.user_uuid", "d.paper_sha256")}
     AND (d.annotation_uuid IS NULL OR EXISTS (SELECT 1 FROM annotations la
       WHERE la.uuid = d.annotation_uuid AND la.paper_sha256 = d.paper_sha256 AND la.deleted_at IS NULL AND la.kind != 'note'))
 END)`;
+}
+
+// Whether what a user wrote on a paper (their digs, and their ink in a
+// project) is shown to the people allowed to read it: their friends, and
+// the members of a project that holds the paper. It follows the shelf the
+// paper sits on, and a paper they never put on any shelf counts as on a
+// public one (decided 2026-11-27): nobody needs a paper in their nook to
+// dig it, and a dig on a friend's paper is written to be read. A paper
+// taken out of the nook is withdrawn: what was written on it is its
+// writer's alone until it is back on a public shelf. `user` and `paper`
+// are SQL expressions for the columns that name them.
+export function writingShown(user: string, paper: string): string {
+  return `(${onPublicShelf(user, paper)}
+    OR NOT EXISTS (SELECT 1 FROM copies nc WHERE nc.user_uuid = ${user} AND nc.paper_sha256 = ${paper}))`;
 }
 
 // Whether a user keeps a paper on one of their public shelves.
@@ -862,14 +876,14 @@ export function projectRoutes(router: Router) {
     }
     const members = await membersOf(env, [project.uuid]);
     const rows = await all<Row>(env.DB,
-      `SELECT a.*, ${onPublicShelf("a.user_uuid", "a.paper_sha256")} AS shared FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
+      `SELECT a.*, ${writingShown("a.user_uuid", "a.paper_sha256")} AS shared FROM annotations a JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = ?
        WHERE a.paper_sha256 = ? AND a.deleted_at IS NULL AND a.kind != 'note' ORDER BY a.created_at, a.uuid`, project.uuid, digest);
     const people = new Map(members.map((m) => [m.user_uuid, userPublic({ ...m, uuid: m.user_uuid })]));
     const paperKey = `paper:${digest}`;
     const pins = await pinsOf(env, project.uuid, me, member, [paperKey, ...rows.map((a) => `annotation:${a.uuid}`)]);
     const { [paperKey]: paperPin, ...annotationPins } = pins;
-    // Of the others' marks, only ink is shared, and only while its author
-    // keeps the paper on a public shelf. Their anchors and clips are never
+    // Of the others' marks, only ink is shared, and only while its author's
+    // writing on the paper is shown (writingShown). Their anchors and clips are never
     // drawn. A mark not drawn that carries a dig the reader can see is sent
     // as a place alone, so the dig stands level with it in the margin.
     const drawn = (a: Row) => a.user_uuid === me.uuid || (a.kind === "ink" && Boolean(Number(a.shared)));

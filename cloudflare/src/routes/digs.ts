@@ -14,9 +14,10 @@
 //
 // A dig on a paper, or on a mark on one, is its writer's own, never a
 // project's: the people they share a project with see it there, and post
-// in it, while the writer keeps the paper on a public shelf and the
-// project holds it (inProject). Otherwise it is theirs alone, with no
-// posts and no phase to move. A dig on a card belongs to its project.
+// in it, while the writer's writing on the paper is shown (writingShown:
+// on a public shelf, or on no shelf of theirs at all) and the project
+// holds it (inProject). Otherwise it is theirs alone, with no posts and
+// no phase to move. Nobody needs a paper in their nook to dig it. A dig on a card belongs to its project.
 // What someone writes at a place on a page, or about a paper, is always a
 // dig.
 
@@ -26,9 +27,9 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { copyOf, keepPaper, paperOr404 } from "../papers/detail";
+import { copyOf, everKept, keepPaper, paperOr404 } from "../papers/detail";
 import { friendSees, notice, userLiteral } from "./friends";
-import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, onPublicShelf, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, type Member, type Project } from "./projects";
+import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, writingShown, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
@@ -93,7 +94,7 @@ async function subjectOf(env: Env, project: Project, key: unknown, me: User): Pr
   }
   // A mark on one of the project's papers that the member can see there:
   // one of their own, or another member's ink, which is shared while its
-  // author keeps the paper on a public shelf. Anchors and clips are never
+  // author's writing on the paper is shown (writingShown). Anchors and clips are never
   // shared, so only their author digs them. A mark is its author's alone to
   // change; what is written at it is a dig.
   if (kind === "annotation" && first && second === undefined) {
@@ -102,21 +103,21 @@ async function subjectOf(env: Env, project: Project, key: unknown, me: User): Pr
        JOIN project_papers pp ON pp.paper_sha256 = a.paper_sha256 AND pp.project_uuid = ?
        JOIN project_members m ON m.user_uuid = a.user_uuid AND m.project_uuid = pp.project_uuid
        WHERE a.uuid = ? AND a.deleted_at IS NULL AND a.kind != 'note'
-         AND (a.user_uuid = ? OR (a.kind = 'ink' AND ${onPublicShelf("a.user_uuid", "a.paper_sha256")}))`, project.uuid, first, me.uuid);
+         AND (a.user_uuid = ? OR (a.kind = 'ink' AND ${writingShown("a.user_uuid", "a.paper_sha256")}))`, project.uuid, first, me.uuid);
     if (!annotation) refuse(404, "That annotation is not on one of this project's papers");
     return { ...NONE, subject: `annotation:${first}`, paper_sha256: annotation!.paper_sha256, annotation_uuid: first };
   }
   return refuse(422, "That is not something a dig can be about");
 }
 
-// Which subject a dig of one's own names: a paper in their nook, or one
-// of their own anchors, ink or clips on a paper.
+// Which subject a dig of one's own names: a paper Papol holds, in their
+// nook or not, or one of their own anchors, ink or clips on a paper.
 async function ownSubjectOf(env: Env, me: User, key: unknown): Promise<Subject> {
   if (typeof key !== "string" || !key) return refuse(422, "Say what the dig is about");
   const [kind, first, second] = key.split(":");
   if (kind === "paper" && first && second === undefined) {
     const digest = first.toLowerCase();
-    if (!DIGEST.test(digest) || !(await copyOf(env.DB, digest, me))) refuse(404, "That paper is not in your nook");
+    if (!DIGEST.test(digest) || !(await one(env.DB, "SELECT 1 FROM papers WHERE sha256 = ? AND deleted_at IS NULL", digest))) refuse(404, "Paper not found");
     return { ...NONE, subject: `paper:${digest}`, paper_sha256: digest };
   }
   if (kind === "annotation" && first && second === undefined) {
@@ -157,8 +158,8 @@ async function subjectRow(env: Env, projectUuid: string | null, subject: Subject
 // A dig and where it is read. A dig on a card is read in its project. A
 // dig on a paper or a mark is its writer's, read in a project of the
 // reader's that sees it (inProject), by a friend of its writer while the
-// writer keeps the paper on a public shelf (friendSees), or, by its
-// writer, outside any. `open` says a dig outside a project can be posted
+// writing on the paper is shown (friendSees), or, by its writer, outside
+// any. `open` says a dig outside a project can be posted
 // in: by a friend who sees it, and by its writer once somebody has.
 async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member; open: boolean }> {
   const dig = await one<Dig>(env.DB, "SELECT * FROM digs WHERE uuid = ?", uuid);
@@ -296,9 +297,13 @@ export function digRoutes(router: Router) {
     const text = postBody(data.text, "text");
     const at = now();
     // A dig on a card is the project's. One on a paper or a mark is the
-    // writer's own, which the project sees while they keep the paper on a
-    // public shelf: one they do not keep yet goes to their nook first.
-    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) await keepPaper(env.DB, me, subject.paper_sha256);
+    // writer's own, which the project sees while their writing on the
+    // paper is shown. A paper they never kept needs no copy for that. One
+    // they took out of their nook is withdrawn, so it comes back first:
+    // what is written in a project is written to be read there.
+    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me)) && (await everKept(env.DB, subject.paper_sha256, me))) {
+      await keepPaper(env.DB, me, subject.paper_sha256);
+    }
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: subject.board_item_uuid ? project.uuid : null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
     return json(await digOut(env, made, project, me, member));
@@ -342,7 +347,7 @@ export function digRoutes(router: Router) {
   });
 
   // What the reader's friends dug on a paper and on their marks on it,
-  // each while its writer keeps the paper on a public shelf: the paper's
+  // each while its writer's writing on the paper is shown: the paper's
   // own first, then by place.
   router.on("GET", "/api/papers/:name/friend-digs", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
@@ -415,7 +420,7 @@ export function digRoutes(router: Router) {
       for (const uuid of new Set([dig.user_uuid, ...others.map((o) => o.user_uuid)])) {
         if (uuid === me.uuid) continue;
         // Someone who can no longer read the dig is not told of it: a friend
-        // no longer one, or anyone once the paper left the public shelf.
+        // no longer one, or anyone once the paper went to a private shelf.
         if (uuid !== dig.user_uuid && !(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(uuid))}`, dig.uuid))) continue;
         const whose = uuid === dig.user_uuid ? "your" : dig.user_uuid === me.uuid ? "their" : `${owner?.display_name ?? "a friend"}'s`;
         told.push(notice(env, uuid, `${me.display_name} posted in ${whose} dig on ${paper?.title ?? "a paper"}.`, "dig_post", me, link, at));

@@ -175,6 +175,41 @@ describe("becoming friends", () => {
 });
 
 describe("what a friend sees", () => {
+  it("is the digs on a paper its writer never put on a shelf, until they shelve it privately or take it out", async () => {
+    const ada = await register(undefined, "Ada"), grace = await register(undefined, "Grace"), alan = await register(undefined, "Alan");
+    await paperWithCopy(ada, digest("c"), "Ada's paper", { shelfUuid: await defaultShelf(ada) });
+    await befriend(ada, grace);
+    // Grace digs her friend's paper, and a place in it, with nothing in her nook.
+    expect((await ok("GET", `/api/papers/${name("c")}`, { headers: grace.headers }))).toMatchObject({ copy_uuid: null, digs_shown: true });
+    const onPaper = await ok("POST", "/api/digs", { headers: grace.headers, json: { subject: `paper:${digest("c")}`, text: "Does section 4 need the lemma?" } });
+    const anchor = await ok("POST", `/api/papers/${name("c")}/annotations`, { headers: grace.headers, json: { kind: "anchor", page: 2, body: { anchor: { x: 0.5, y: 0.5 } } } });
+    const onAnchor = await ok("POST", "/api/digs", { headers: grace.headers, json: { subject: `annotation:${anchor.uuid}`, text: "This step" } });
+    expect(await count("copies", "user_uuid = ?", grace.uuid)).toBe(0);
+    expect((await ok("GET", `/api/papers/${name("c")}/digs`, { headers: grace.headers })).paper_digs).toMatchObject({ uuid: onPaper.uuid });
+
+    // Her friend reads both, in the paper and in the Lounge, and posts; a stranger does not.
+    const seen = async (reader: Account) => (await ok("GET", `/api/papers/${name("c")}/friend-digs`, { headers: reader.headers })).digs.map((d: any) => d.uuid);
+    expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
+    expect(JSON.stringify(await room(ada))).toContain(onPaper.uuid);
+    await ok("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: ada.headers, json: { body: "It does, for d > 2" } });
+    expect(await seen(alan)).toEqual([]);
+    expect((await call("GET", `/api/digs/${onPaper.uuid}`, { headers: alan.headers })).status).toBe(404);
+
+    // On a private shelf it is hers alone; on a public one it is read again.
+    const kept = await ok("POST", `/api/papers/${name("c")}/add-to-nook`, { headers: grace.headers, json: {} });
+    expect(kept.digs_shown).toBe(true);
+    expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
+    expect((await ok("PUT", `/api/papers/${name("c")}`, { headers: grace.headers, json: { shelf_uuid: await privateShelf(grace) } })).digs_shown).toBe(false);
+    expect(await seen(ada)).toEqual([]);
+    await ok("PUT", `/api/papers/${name("c")}`, { headers: grace.headers, json: { shelf_uuid: await defaultShelf(grace) } });
+    expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
+    // Taking the paper out of her nook withdraws what she wrote on it.
+    await ok("DELETE", `/api/papers/${name("c")}`, { headers: grace.headers });
+    expect((await ok("GET", `/api/papers/${name("c")}`, { headers: grace.headers }))).toMatchObject({ copy_uuid: null, digs_shown: false });
+    expect(await seen(ada)).toEqual([]);
+    expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).text).toBe("Does section 4 need the lemma?");
+  });
+
   it("is the digs on papers kept on a public shelf, to read and to post in", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     await paperWithCopy(ada, digest("a"), "Out in the open", { shelfUuid: await defaultShelf(ada) });

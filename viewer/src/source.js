@@ -21,7 +21,9 @@ import { projectParam } from './project.js';
  * so nothing below has to care which it is.
  *
  *   ?pdf=<sha256>          an exact PDF in the user's nook: annotations live in Papol;
- *                          for anyone else, the PDF alone, as a lean link
+ *                          for a user who does not keep it, the same on the web,
+ *                          with the nook still on offer (unkeptSource); for a
+ *                          visitor, the PDF alone, as a lean link
  *   &project=<uuid>        the same, with one of the user's projects on: every
  *                          member's annotations on the pages (project.js)
  *   ?pdf=<sha256>&file=1   a PDF opened from the file system in Papol macOS
@@ -88,7 +90,11 @@ function apiSource(
     // the paper alone, as a lean link opens it, rather than a refusal.
     // A project paper someone else added keeps the project on: its members'
     // marks and digs are the project's to show, kept in a nook or not.
-    leanFallback: () => paperLinkSource(pdfHash, undefined, project),
+    // `signedInUser` says the service knew the reader and that they do not
+    // keep the paper: on the web they still write on it (unkeptSource).
+    leanFallback: (signedInUser = false) => (signedInUser && !IS_DESKTOP
+      ? unkeptSource(pdfHash, project)
+      : paperLinkSource(pdfHash, undefined, project)),
     async load() {
       const loaded = await paper();
       source.homeHref = project
@@ -137,6 +143,28 @@ function apiSource(
       return { ...read, me };
     },
   };
+  return source;
+}
+
+// A paper Papol holds, read on the web by a user who does not keep it:
+// a friend's paper, or one opened from the Lounge. Nobody needs a paper in
+// their nook to dig it, so this is the nook source in all but three
+// things: the paper comes as a lean link gives it, there are no defined
+// terms (they belong to a copy), and the bar still offers the nook. The
+// Mac keeps annotations in a replica that holds only the nook's papers,
+// so there such a paper stays a lean link.
+function unkeptSource(pdfHash, project) {
+  const source = apiSource(
+    pdfHash,
+    async () => (await getPaperLink(pdfHash)).paper,
+    () => listAnnotations(pdfHash, { kind: 'anchor' }),
+    project,
+  );
+  delete source.leanFallback;
+  delete source.terms;
+  // Nothing of theirs to show in a nook yet, only the chance to keep it.
+  source.loadNookPaper = async () => null;
+  source.addToNook = () => addPaperToNook(pdfHash);
   return source;
 }
 

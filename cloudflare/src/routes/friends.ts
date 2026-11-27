@@ -2,9 +2,9 @@
 // asked for. It is the third audience for what a user does, between
 // everyone signed in and the members of a project: beyond what a public
 // shelf already shows, a friend reads and posts in the user's digs on the
-// papers they keep on a public shelf (friendSees). Nobody, friend or not,
-// sees what a user reads or for how long. A private shelf hides a copy
-// from friends as from everyone.
+// papers they keep on a public shelf, or on none of their shelves
+// (friendSees). Nobody, friend or not, sees what a user reads or for how
+// long. A private shelf hides a copy from friends as from everyone.
 //
 // A request is answered Accept or Not now. Not now is quiet: the asker is
 // never told and cannot ask again, though the asked can change their mind.
@@ -18,7 +18,7 @@ import { queueEmail, siteUrl } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { liveProject, onPublicShelf } from "./projects";
+import { liveProject, onPublicShelf, writingShown } from "./projects";
 
 interface Friendship extends Row {
   uuid: string;
@@ -47,13 +47,14 @@ export function friendsOf(user: string): string {
 }
 
 // Whether a friend of its writer sees dig `d`: one on a paper, or on a
-// mark on it, that its writer keeps on a public shelf. `reader` is an SQL
+// mark on it, while its writer's writing there is shown (writingShown:
+// the paper on a public shelf of theirs, or on none). `reader` is an SQL
 // expression for the reader's uuid. The rule a project follows
 // (inProject), with friendship where the project stood.
 export function friendSees(reader: string): string {
   return `(d.project_uuid IS NULL AND d.board_item_uuid IS NULL AND d.paper_sha256 IS NOT NULL
     AND d.user_uuid IN ${friendsOf(reader)}
-    AND ${onPublicShelf("d.user_uuid", "d.paper_sha256")}
+    AND ${writingShown("d.user_uuid", "d.paper_sha256")}
     AND (d.annotation_uuid IS NULL OR EXISTS (SELECT 1 FROM annotations la
       WHERE la.uuid = d.annotation_uuid AND la.paper_sha256 = d.paper_sha256 AND la.deleted_at IS NULL AND la.kind != 'note')))`;
 }

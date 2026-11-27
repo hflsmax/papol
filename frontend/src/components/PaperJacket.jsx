@@ -483,6 +483,30 @@ export default function PaperJacket({
 
   const authors = authorList(paper.authors);
   const hasEntry = currentUser != null && paper.copy_uuid != null;
+  // The reader's own dig on the paper, which they write whether or not
+  // they keep it.
+  const yourDig = (
+    <section className="paper-dig" aria-labelledby="paper-dig-title">
+      <h4 id="paper-dig-title">
+        Your dig
+        {/* A dig goes where its paper goes: on a public shelf, or on
+            no shelf of mine at all, my friends can read it and post
+            in it, and nobody else. A paper I took out of my nook is
+            withdrawn, and my dig on it with it. */}
+        {(paper.digs_shown ?? paper.is_public)
+          ? <span className="badge visibility-badge friends" title={hasEntry
+            ? 'Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.'
+            : 'Your friends can read this dig and post in it. Nobody else can. To keep it to yourself, add the paper to your nook and move it to a private shelf.'}>friends</span>
+          : <span className="badge visibility-badge private" title={hasEntry
+            ? 'On a private shelf, a dig is yours alone.'
+            : 'You took this paper out of your nook, so your dig on it is yours alone. Add it back on a public shelf for your friends to read it.'}>private</span>}
+      </h4>
+      <TalkCard
+        key={paper.sha256} inline single tucked dig="mine" projectUuid={null}
+        subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
+      />
+    </section>
+  );
   // A link hands over a PDF, so there has to be one to hand over: a paper
   // with no readable file has nothing for the viewer to open.
   const canShareThisPdf = hasEntry && Boolean(paper.file_path);
@@ -1304,21 +1328,15 @@ export default function PaperJacket({
             </div>
           </section>
 
-          <section className="paper-dig" aria-labelledby="paper-dig-title">
-            <h4 id="paper-dig-title">
-              Your dig
-              {/* A dig goes where its paper goes: on a public shelf my
-                  friends can read it and post in it, and nobody else. */}
-              {paper.is_public
-                ? <span className="badge visibility-badge friends" title="Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.">friends</span>
-                : <span className="badge visibility-badge private" title="On a private shelf, a dig is yours alone.">private</span>}
-            </h4>
-            <TalkCard
-              key={paper.sha256} inline single tucked dig="mine" projectUuid={null}
-              subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
-            />
-          </section>
+          {yourDig}
 
+        </div>
+      )}
+      {/* Nobody needs a paper in their nook to dig it: a friend's paper,
+          or one opened from the Lounge, takes a dig as it stands. */}
+      {currentUser && !hasEntry && editMode !== 'metadata' && (
+        <div className="paper-notes paper-notes-unkept">
+          {yourDig}
         </div>
       )}
       {friendDigs.length > 0 && (
