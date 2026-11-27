@@ -206,6 +206,8 @@ const NOOK_BOARDS = [nookBoard(1, 'Thesis chapter 3 outline', 18, DRAWER, hoursA
 // picture sets them before it loads its page; a pin pressed in the page
 // changes them.
 export const pinnedNow = new Set();
+// The papers the member has removed from their nook in a picture, by sha256.
+export const removedNow = new Set();
 
 const listed = (p, mine = false) => {
   const own = p.users.find((u) => u.user.uuid === ME);
@@ -372,6 +374,13 @@ const roomRows = () => {
 
 function answer(method, path, search, sent = {}) {
   // A pin pressed on one of the member's papers: kept, as Papol would.
+  // A paper removed from the member's nook: gone from it, and still a paper.
+  const removing = method === 'DELETE' && path.match(/^\/papers\/([0-9a-f]+)$/);
+  if (removing) {
+    const sha256 = [...papers, ...NOOK_ONLY].find((p) => p.sha256.startsWith(removing[1]))?.sha256;
+    if (sha256) removedNow.add(sha256);
+    return { message: 'Paper removed from your nook' };
+  }
   const pinning = method === 'PUT' && typeof sent.pinned === 'boolean' && path.match(/^\/papers\/([0-9a-f]+)$/);
   if (pinning) {
     const sha256 = [...papers, ...NOOK_ONLY].find((p) => p.sha256.startsWith(pinning[1]))?.sha256;
@@ -563,10 +572,10 @@ function answer(method, path, search, sent = {}) {
   if (path === `/users/${ME}/nook`) {
     return {
       user: me, shelves: [{ ...SHELF, board_count: 1 }, DRAWER], tags: TAGS, stats: { papers: 3, displayed: 3, notes: 4 },
-      papers: papers.filter((p) => p.in_my_nook).map((p, i) => ({
+      papers: papers.filter((p) => p.in_my_nook && !removedNow.has(p.sha256)).map((p, i) => ({
         ...listed(p, true), tags: [[TAGS[0]], [TAGS[0], TAGS[1]], [TAGS[2]]][i] ?? [],
         effort: EFFORT[i] ? { seconds: EFFORT[i], last_at: hoursAgo(3 + i * 20) } : null,
-      })).concat(NOOK_ONLY.map((p, i) => ({
+      })).concat(NOOK_ONLY.filter((p) => !removedNow.has(p.sha256)).map((p, i) => ({
         ...listed(p, true),
         // Read at a spread of ages, so the desk shows each step of how long
         // ago a paper was last read.
@@ -583,8 +592,9 @@ function answer(method, path, search, sent = {}) {
   if (path === '/papers') return papers.map((p) => listed(p));
   const one = path.match(/^\/papers\/([0-9a-f]+)$/);
   if (one) {
-    const found = papers.find((p) => p.sha256.startsWith(one[1])) ?? papers[1];
-    return { ...listed(found, found.in_my_nook), in_nook: found.in_my_nook, also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
+    const found = [...papers, ...NOOK_ONLY].find((p) => p.sha256.startsWith(one[1])) ?? papers[1];
+    const mine = (found.in_my_nook ?? true) && !removedNow.has(found.sha256);
+    return { ...listed(found, mine), in_nook: mine, also_read_by: found.users.filter((u) => u.user.uuid !== ME).map((u) => ({ ...u, is_author: false, tags: [] })), boards: [], projects: [], sharable_uuid: null };
   }
   // A paper's time, from its Effort in the nook: two sittings a day apart.
   const time = path.match(/^\/activity\/paper\/([0-9a-f]+)$/);

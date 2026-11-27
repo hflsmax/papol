@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Browser } from '../../scripts/share-e2e/cdp.mjs';
-import { ME, P_ERROR, P_SURVEY, PROJECT, held, pinnedNow, projectServer, uploadReads } from './fixtures/projectPages.mjs';
+import { ME, P_ERROR, P_SURVEY, PROJECT, held, pinnedNow, projectServer, removedNow, uploadReads } from './fixtures/projectPages.mjs';
 
 // Pictures of the pages inside a project, on the fixture project, for a
 // pull request or a letter: the desk's three tabs, a paper's brief in the
@@ -47,6 +47,9 @@ const OPEN_THREAD = "const go = () => { const t = document.querySelector('.room-
 const EDIT_REPLY = "const edit = () => { const b = document.querySelector('.thread-jacket [aria-label=\"Edit reply\"]'); if (b) b.click(); else setTimeout(edit, 100); }; edit();";
 const REWORD = (text, save = true) => `const reword = () => { const f = document.querySelector('.thread-jacket .talk-post-edit .md-field'); if (!f) return setTimeout(reword, 100); f.blur(); f.focus(); document.execCommand('insertText', false, ${JSON.stringify(text)}); ${save ? "setTimeout(() => document.querySelector('.thread-jacket .talk-post-edit .primary').click(), 300);" : ''} }; reword();`;
 const COMPOSE = "const type = () => { const f = document.querySelector('.thread-composer .md-field'); if (!f) return setTimeout(type, 100); f.focus(); if (!document.querySelector('.thread-composer-tool[aria-label=Bold]')) return setTimeout(type, 100); document.execCommand('insertText', false, 'Has anyone tried fitting the loop delay per night instead of once? Last night\\'s plot and my notes: '); document.querySelector('.thread-composer-tool[aria-label=Bold]').click(); document.execCommand('insertText', false, 'the fit moves by a third'); const c = document.createElement('canvas'); c.width = 480; c.height = 320; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 480, 320); g.strokeStyle = '#222'; g.strokeRect(50, 30, 400, 240); g.strokeStyle = '#1f4e79'; g.lineWidth = 3; g.beginPath(); for (let x = 0; x <= 400; x += 8) g.lineTo(50 + x, 150 - 80 * Math.sin(x / 55) * Math.exp(-x / 300)); g.stroke(); c.toBlob((png) => { const data = new DataTransfer(); data.items.add(new File([png], 'loop-delay-fit.png', { type: 'image/png' })); data.items.add(new File([new Uint8Array(48211)], 'fit-notes.pdf', { type: 'application/pdf' })); document.querySelector('.thread-composer').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })); }, 'image/png'); }; type(); return true;";
+// The bin on a jacket pressed and answered: the same jacket, offering the
+// paper again.
+const REMOVED = "location.pathname.includes('/paper/') && !document.querySelector('[aria-label=\"Remove from my nook\"]') && [...document.querySelectorAll('.paper-jacket .paper-actions button')].some((b) => b.textContent.trim() === 'Add to my nook')";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -166,6 +169,10 @@ const SHOTS = {
   'mac-nook-boards': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Boards')).click(); return true;", settled: "document.querySelector('.desktop-row-sub')", size: wide },
   'mac-nook-shelf': { path: '/?shell=desktop', ready: "document.querySelector('.desktop-row-title')", then: "[...document.querySelectorAll('.desktop-sidebar-item')].find((x) => x.textContent.trim().startsWith('Reading')).click(); return true;", settled: "document.querySelector('.desktop-list-pane[aria-label=\"Reading\"]')", size: wide },
   'nook-board': { path: '/board/ad000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.desk-board .board-jacket') && document.querySelector('.board-jacket-heading')", size: wide },
+  // A paper removed from the nook with the bin on its jacket: the page stays
+  // on the jacket, which now offers to add the paper.
+  'nook-paper-removed': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "window.confirm = () => true; document.querySelector('.desk-title').click(); const go = () => { const b = document.querySelector('.paper-jacket [aria-label=\"Remove from my nook\"]'); if (b) b.click(); else setTimeout(go, 100); }; go(); return true;", settled: REMOVED, size: wide },
+  'phone-paper-removed': { path: `/paper/${paper}?shell=web`, ready: "document.querySelector('.paper-jacket [aria-label=\"Remove from my nook\"]')", then: "window.confirm = () => true; document.querySelector('.paper-jacket [aria-label=\"Remove from my nook\"]').click(); return true;", settled: REMOVED, size: phone },
   'nook-project': { path: `/project/${PROJECT}?shell=web`, ready: "document.querySelector('.desk-project-view .project-tabs')", then: "document.getElementById('project-tab-papers').click(); return true;", settled: "document.querySelector('.desk-project-view .project-paper')", size: wide },
   'nook-paper': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
   'nook-board-paper': { path: '/board/ad000000-0000-4000-8000-000000000002?shell=web', ready: "document.querySelector('.board-jacket-papers a')", then: "document.querySelector('.board-jacket-papers a').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2')", size: wide },
@@ -357,6 +364,7 @@ try {
     const shot = SHOTS[name];
     held.clear();
     pinnedNow.clear();
+    removedNow.clear();
     for (const sha256 of shot.pins ?? []) pinnedNow.add(sha256);
     uploadReads.as = shot.reads ?? 'known';
     for (const path of shot.hold ?? []) held.add(path);
