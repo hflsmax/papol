@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { call, exec, ok, register, row } from "./helpers";
+import { call, count, exec, ok, paperWithCopy, register, row } from "./helpers";
 
 describe("accounts", () => {
   it("signs a new user up with their furniture and a session", async () => {
@@ -15,6 +15,33 @@ describe("accounts", () => {
     expect(shelves?.n).toBe(2);
     const welcome = await row<{ content: string }>("SELECT content FROM notifications WHERE user_uuid = ?", account.uuid);
     expect(welcome?.content).toContain("Welcome to Papol, Reader");
+  });
+
+  it("starts a new nook with the starter paper, on the private shelf, when one is set", async () => {
+    const keeper = await register("keeper@example.test", "Keeper");
+    const digest = "ab".repeat(32);
+    await paperWithCopy(keeper, digest, "A paper to start with");
+    // Unset: a nook starts empty.
+    const before = await register("before@example.test");
+    expect(await count("copies", "user_uuid = ?", before.uuid)).toBe(0);
+
+    // By the name in the paper's address, or by its whole digest.
+    for (const value of [digest.slice(0, 32), digest]) {
+      await exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('starter_paper', ?)", value);
+      const reader = await register();
+      const copy = await row<{ paper_sha256: string; is_public: number }>(
+        "SELECT c.paper_sha256, s.is_public FROM copies c JOIN shelves s ON s.uuid = c.shelf_uuid WHERE c.user_uuid = ? AND c.deleted_at IS NULL", reader.uuid);
+      expect(copy).toEqual({ paper_sha256: digest, is_public: 0 });
+      const nook = await ok("GET", `/api/users/${reader.uuid}/nook`, { headers: reader.headers });
+      expect(nook.papers.map((p: { title: string }) => p.title)).toEqual(["A paper to start with"]);
+    }
+
+    // A setting that names no paper, or a removed one, stops nobody signing up.
+    await exec("UPDATE settings SET value = 'not a paper' WHERE key = 'starter_paper'");
+    expect(await count("copies", "user_uuid = ?", (await register()).uuid)).toBe(0);
+    await exec("UPDATE settings SET value = ? WHERE key = 'starter_paper'", digest);
+    await exec("UPDATE papers SET deleted_at = '2026-01-01T00:00:00.000Z' WHERE sha256 = ?", digest);
+    expect(await count("copies", "user_uuid = ?", (await register()).uuid)).toBe(0);
   });
 
   it("refuses a second account on one address, and a password too short to be one", async () => {
