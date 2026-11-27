@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 // sidebar carries the Lounge's friends and Show rows in place of the
 // page's own rail, so both read and change the one choice here.
 //
-//   kind     '' for everything, or 'paper', 'board', 'project'
+//   kind     '' for everything, or 'thread', 'paper', 'board', 'project'
 //   who      '' for all friends, or one friend's uuid
 //   finding  whether Find (someone to ask) is open
 //   rows     the Lounge's rows, once read, for the sidebar's counts
@@ -47,4 +47,20 @@ export function narrowed(rows, pick) {
     && (!pick.who || linesOf(row).some((line) => line.user.uuid === pick.who)));
 }
 
-export const KINDS = [['', 'Everything'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
+export const KINDS = [['', 'Everything'], ['thread', 'Threads'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
+
+// The Lounge's rows after a thread was replied in or removed: its row as
+// it now stands, with the faces of everyone who spoke, or gone.
+export function withThread(rows, uuid, next) {
+  return rows.flatMap((row) => {
+    if (row.kind !== 'thread' || row.thread.uuid !== uuid) return [row];
+    if (!next) return [];
+    const lines = [{ user: next.user, did: 'started', at: next.created_at }];
+    for (const reply of next.replies) {
+      const line = lines.find((l) => l.user.uuid === reply.user.uuid);
+      if (!line) lines.push({ user: reply.user, did: 'replied', at: reply.created_at });
+      else if (line.did === 'replied') line.at = reply.created_at;
+    }
+    return [{ ...row, thread: next, lines }];
+  });
+}

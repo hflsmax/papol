@@ -92,6 +92,7 @@ test("a board link opens that board's jacket, not its canvas", () => {
   // board application — the canvas — which this router never sees.
   assert.deepEqual(parseRoute(`/board/${UUID}`), { page: 'board', uuid: UUID });
   assert.deepEqual(parseRoute(`/board/${UUID}/`), { page: 'board', uuid: UUID });
+  assert.deepEqual(parseRoute(`/thread/${UUID}`), { page: 'thread', uuid: UUID });
 });
 
 test('a path no page answers is unknown, not home', () => {

@@ -191,6 +191,11 @@ function answer(method, path, search) {
     { uuid: 'f1b2c3d4-0000-4000-8000-000000000003', name: 'Drafts to review', color: '#b5683a', is_public: false, is_default: false, position: 2, paper_count: 2, board_count: 0 },
     { uuid: 'f1b2c3d4-0000-4000-8000-000000000004', name: 'Reading group', color: '#8a5cb5', is_public: true, is_default: false, position: 3, paper_count: 7, board_count: 0 },
   ];
+  // Something sent to the Lounge comes back as the reader's own thread.
+  if (path === '/threads' && method === 'POST') {
+    return { uuid: 'e2b2c3d4-0000-4000-8000-000000000070', user: me, is_mine: true, paper_sha256: PAPER, page: 1, y: 0.5, mark: null, box: null, excerpt: 'Sent from the viewer.', picture_url: null, words: null, created_at: hoursAgo(0), replies: [] };
+  }
+  if (path === '/boards') return [{ uuid: 'b0b2c3d4-0000-4000-8000-000000000001', name: 'Loop redesign' }, { uuid: 'b0b2c3d4-0000-4000-8000-000000000002', name: 'Reading notes' }];
   if (path === '/projects') return projects;
   if (path === `/projects/${PROJECT}/papers/${PAPER}/annotations`) {
     return {

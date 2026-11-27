@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
-import { findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen } from '../../../shared/api/friends.js';
+import {
+  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen,
+} from '../../../shared/api/friends.js';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -200,6 +202,43 @@ function ProjectRow({ row }) {
   );
 }
 
+// A thread: something a friend, or I, sent to the Lounge from a paper,
+// and what was replied to it. The row says what it is about, in the
+// sender's words if they wrote any, and leads to the thread's jacket,
+// where it is read and replied in.
+function ThreadRow({ row }) {
+  const { thread, paper } = row;
+  const replies = thread.replies.length;
+  const about = thread.words || thread.excerpt;
+  return (
+    <li className={`room-row is-thread${row.is_new ? ' is-new' : ''}`}>
+      <div className="room-row-head">
+        <div className="room-row-text">
+          <a className="room-thread-open" href={appPath(`/thread/${thread.uuid}`)}>
+            <span className="room-kind">Thread</span>
+            <span className={`desk-title room-title room-thread-about${thread.words ? '' : ' is-quote'}`}>
+              {about ? (thread.words ? about : `“${about}”`) : 'A clip'}
+            </span>
+            {row.is_new && <NewsDot />}
+          </a>
+          <span className="desk-meta room-meta">
+            {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'} · `}
+            <PaperTitle title={paper.title} />, page {thread.page}
+          </span>
+        </div>
+        <span className="room-faces">
+          {row.lines.map((line) => (
+            <Who key={line.user.uuid} user={line.user}>
+              <Said at={line.at}>{line.did === 'started' ? 'Started the thread' : 'Replied'}</Said>
+            </Who>
+          ))}
+        </span>
+        <time className="room-when" dateTime={row.at} title={when(row.at, { time: true })}>{when(row.at)}</time>
+      </div>
+    </li>
+  );
+}
+
 // Someone to ask, found by name: who they are, and the friend button.
 function Finder({ currentUser, onDone }) {
   const [query, setQuery] = useState('');
@@ -312,7 +351,7 @@ function Suggestions({ currentUser }) {
   );
 }
 
-const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow };
+const ROWS = { paper: PaperRow, board: BoardRow, project: ProjectRow, thread: ThreadRow };
 
 const NONE = { kind: '', who: '' };
 // How many rows the room shows before Show more.
@@ -430,7 +469,7 @@ export default function Room({ currentUser, onSeen }) {
           {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (
-            <p className="room-empty">Your friends have been quiet this month.</p>
+            <p className="room-empty">Your friends have been quiet this month. Select something in a paper and send it here to start a thread.</p>
           )}
           {rows.length > 0 && (
             <>

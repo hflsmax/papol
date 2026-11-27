@@ -236,6 +236,9 @@ const INK_SHAPES = [
 // One array, so a page with no ink does not get a new one every render.
 const EMPTY_INK = [];
 const NO_TERMS = [];
+// The Lounge, among the places a selection is sent to; the others are
+// boards, named by their uuids.
+const LOUNGE = 'lounge';
 const NO_RESULTS = [];
 const PAGE_PREVIEW_WIDTH = 320;
 const PAGE_PREVIEW_QUALITY = 0.72;
@@ -700,7 +703,9 @@ export default function App() {
   }, [selectionPaint]);
   const [sendSelection, setSendSelection] = useState(null);
   const [sendBoards, setSendBoards] = useState([]);
-  const [sendBoardUuid, setSendBoardUuid] = useState('');
+  // Where a send goes: one of the reader's boards, by its uuid, or the
+  // Lounge. Kept from the last send.
+  const [sendTo, setSendTo] = useState('');
   const [sendBusy, setSendBusy] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [sendComplete, setSendComplete] = useState(false);
@@ -2938,6 +2943,14 @@ export default function App() {
     openSendText(text, strokes);
   };
 
+  // Where the sheet opens set to: where the last send went, if that is
+  // still there, else the first board, else the Lounge.
+  const sendPick = (picked, boards) => {
+    if (picked === LOUNGE && source?.threads) return picked;
+    if (boards.some((board) => board.uuid === picked)) return picked;
+    return boards[0]?.uuid || (source?.threads ? LOUNGE : '');
+  };
+
   // The send sheet for text and the line bands it sits in: what a selection,
   // or an ink stroke, sends to a board. The bands become the backlink's
   // highlight.
@@ -2955,52 +2968,69 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardUuid((picked) => (boards.some((board) => board.uuid === picked) ? picked : boards[0]?.uuid || ''));
+      setSendTo((picked) => sendPick(picked, boards));
     } catch (e) {
-      setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
+      setSendError(e.status === 401 ? 'Sign in to send this.' : e.message);
     }
   };
 
-  const sendSelectionToBoard = async () => {
-    if (!sendSelection || !sendBoardUuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
+  // Sends what the sheet holds where it is set to: staged on a board, with
+  // a backlink to this place, or started as a thread in the Lounge, which
+  // keeps the place itself.
+  const sendSelectionOn = async () => {
+    if (!sendSelection || !sendTo || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())) return;
     setSendBusy(true);
     setSendError(null);
-    // The desktop viewer itself has a tauri:// URL, which the backend rejects
-    // (and which would be useless outside this Mac). Keep board backlinks on
-    // the canonical hosted viewer while preserving the current paper query.
-    const backlink = new URL(backendPath('/viewer/'), window.location.href);
-    backlink.search = window.location.search;
-    backlink.hash = window.location.hash;
-    backlink.searchParams.delete('anchor');
-    backlink.searchParams.set('page', String(sendSelection.page));
-    backlink.searchParams.set('y', String(sendSelection.y));
+    // The place as the viewer writes it in its address: the page, how far
+    // down it, and the highlight drawn on arriving there.
+    const place = { page: sendSelection.page, y: sendSelection.y };
     if (sendSelection.kind === 'clip') {
       const box = sendSelection.box;
-      backlink.searchParams.delete('mark');
-      backlink.searchParams.set('box', btoa(JSON.stringify([
+      place.box = btoa(JSON.stringify([
         sendSelection.page, box.x, box.y, box.w, box.h,
-      ].map((value) => Number(value.toFixed(5))))));
+      ].map((value) => Number(value.toFixed(5)))));
     } else {
-      const compactSelection = sendSelection.strokes.map((stroke) => [
+      place.mark = btoa(JSON.stringify(sendSelection.strokes.map((stroke) => [
         stroke.page,
         Number(stroke.points[0].x.toFixed(5)),
         Number(stroke.points[1].x.toFixed(5)),
         Number(stroke.points[0].y.toFixed(5)),
         Number(stroke.width.toFixed(5)),
-      ]);
-      backlink.searchParams.set('mark', btoa(JSON.stringify(compactSelection)));
+      ])));
     }
     try {
+      if (sendTo === LOUNGE) {
+        await source.threads.start({
+          ...place,
+          y: Math.min(1, Math.max(0, place.y)),
+          words: sendSelection.comment.trim() || null,
+          ...(sendSelection.kind === 'clip' ? { blob: sendSelection.blob } : { excerpt: sendSelection.text.trim() }),
+        });
+        setSendComplete(LOUNGE);
+        return;
+      }
+      // The desktop viewer itself has a tauri:// URL, which the backend rejects
+      // (and which would be useless outside this Mac). Keep board backlinks on
+      // the canonical hosted viewer while preserving the current paper query.
+      const backlink = new URL(backendPath('/viewer/'), window.location.href);
+      backlink.search = window.location.search;
+      backlink.hash = window.location.hash;
+      backlink.searchParams.delete('anchor');
+      backlink.searchParams.delete('mark');
+      backlink.searchParams.set('page', String(place.page));
+      backlink.searchParams.set('y', String(place.y));
+      if (place.box) backlink.searchParams.set('box', place.box);
+      else backlink.searchParams.set('mark', place.mark);
       const sourceLabel = `${paper?.title || 'Paper'}, page ${sendSelection.page}`;
       if (sendSelection.kind === 'clip') {
-        await stageBoardClip(sendBoardUuid, {
+        await stageBoardClip(sendTo, {
           blob: sendSelection.blob,
           comment: sendSelection.comment.trim(),
           sourceUrl: backlink.href,
           sourceLabel,
         });
       } else {
-        await stageBoardExcerpt(sendBoardUuid, {
+        await stageBoardExcerpt(sendTo, {
           excerpt_text: sendSelection.text.trim(),
           content: sendSelection.comment.trim() || null,
           source_url: backlink.href,
@@ -3009,7 +3039,7 @@ export default function App() {
       }
       setSendComplete(true);
     } catch (e) {
-      setSendError(e.message);
+      setSendError(e.status === 401 ? 'Sign in to send this.' : e.message);
     } finally {
       setSendBusy(false);
     }
@@ -3786,9 +3816,9 @@ export default function App() {
     try {
       const boards = await listBoards();
       setSendBoards(boards);
-      setSendBoardUuid((picked) => (boards.some((board) => board.uuid === picked) ? picked : boards[0]?.uuid || ''));
+      setSendTo((picked) => sendPick(picked, boards));
     } catch (e) {
-      setSendError(e.status === 401 ? 'Sign in to send excerpts to a board.' : e.message);
+      setSendError(e.status === 401 ? 'Sign in to send this.' : e.message);
     }
   };
 
@@ -5385,10 +5415,10 @@ export default function App() {
                     onSelect: paintSelection,
                   },
                   {
-                    label: 'Send selected text to a board',
+                    label: 'Send selected text to a board or the Lounge',
                     title: selectionPaint.text == null
                       ? 'Preparing selected text…'
-                      : 'Send selected text to a board',
+                      : 'Send selected text to a board or the Lounge',
                     icon: <ActionGlyph name="send" />,
                     tone: 'accent',
                     disabled: selectionPaint.text == null,
@@ -5426,10 +5456,10 @@ export default function App() {
                 actionsLabel="Paint actions"
                 actions={selectedStrokes[0]?.theirs ? [] : [
                   {
-                    label: 'Send painted text to a board',
+                    label: 'Send painted text to a board or the Lounge',
                     title: inkActions.text == null
                       ? 'Reading the text under this paint…'
-                      : inkActions.text ? 'Send painted text to a board' : 'No text under this paint',
+                      : inkActions.text ? 'Send painted text to a board or the Lounge' : 'No text under this paint',
                     icon: <ActionGlyph name="send" />,
                     tone: 'accent',
                     disabled: !inkActions.text,
@@ -5582,13 +5612,20 @@ export default function App() {
             className="sheet-back"
             role="dialog"
             aria-modal="true"
-            aria-label={sendSelection.kind === 'clip' ? 'Send clipped area to a board' : 'Send selected text to a board'}
+            aria-label={`Send ${sendSelection.kind === 'clip' ? 'clipped area' : 'selected text'} to ${source?.threads ? 'a board or the Lounge' : 'a board'}`}
             tabIndex="-1"
             onClick={closeSendSelection}
           >
             <div className="sheet send-selection-sheet" onClick={(event) => event.stopPropagation()}>
-              <h3>{sendComplete ? 'Sent to staging' : 'Send to a board'}</h3>
-              {sendComplete ? (
+              <h3>{sendComplete === LOUNGE ? 'Sent to the Lounge' : sendComplete ? 'Sent to staging' : source?.threads ? 'Send' : 'Send to a board'}</h3>
+              {sendComplete === LOUNGE ? (
+                <>
+                  <div className="feedback-actions">
+                    {!IS_DESKTOP && <a className="send-selection-lounge" href={appPath('/lounge')}>Open the Lounge</a>}
+                    <button type="button" className="primary" onClick={closeSendSelection}>Done</button>
+                  </div>
+                </>
+              ) : sendComplete ? (
                 <>
                   <p>{sendSelection.kind === 'clip' ? 'The clip' : 'The excerpt'} is waiting in the board’s staging area.</p>
                   <div className="feedback-actions">
@@ -5601,50 +5638,82 @@ export default function App() {
                     <span>Text</span>
                     <textarea
                       rows="7"
-                      maxLength={appLimits.text.board_content}
+                      maxLength={sendTo === LOUNGE ? appLimits.text.thread_excerpt : appLimits.text.board_content}
                       value={sendSelection.text}
                       onChange={(event) => setSendSelection({ ...sendSelection, text: event.target.value })}
                       autoFocus
                     />
                   </label>}
+                  {/* Where it goes: the Lounge, for friends to reply to,
+                      on a button of its own, or one of the reader's own
+                      boards, in the list beside it. */}
+                  {source?.threads ? (
+                    <div className="send-selection-field" role="group" aria-label="Send to">
+                      <span>Send to</span>
+                      <div className="send-to">
+                        <button
+                          type="button"
+                          className={`send-to-lounge${sendTo === LOUNGE ? ' is-on' : ''}`}
+                          aria-pressed={sendTo === LOUNGE}
+                          onClick={() => setSendTo(LOUNGE)}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(0 -0.5)"><circle cx="9" cy="9" r="3" /><path d="M3.5 19c.4-3.2 2.6-5 5.5-5s5.1 1.8 5.5 5" /><circle cx="16.8" cy="8.2" r="2.4" /><path d="M16.6 13.2c2.2.2 3.7 1.7 4 4.3" /></g></svg>
+                          Lounge
+                        </button>
+                        <select
+                          aria-label="Board"
+                          className={sendTo === LOUNGE ? 'is-unpicked' : ''}
+                          value={sendTo === LOUNGE ? '' : sendTo}
+                          onChange={(event) => setSendTo(event.target.value)}
+                          disabled={!sendBoards.length}
+                        >
+                          {(sendTo === LOUNGE || !sendBoards.length) && <option value="" disabled>{sendBoards.length ? 'A board' : 'No boards yet'}</option>}
+                          {sendBoards.map((candidate) => (
+                            <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="send-selection-field">
+                      <span>Board</span>
+                      <select
+                        value={sendTo}
+                        onChange={(event) => setSendTo(event.target.value)}
+                        disabled={!sendBoards.length}
+                      >
+                        {!sendBoards.length && <option value="">No boards available</option>}
+                        {sendBoards.map((candidate) => (
+                          <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="send-selection-field">
-                    <span>Board</span>
-                    <select
-                      value={sendBoardUuid}
-                      onChange={(event) => setSendBoardUuid(event.target.value)}
-                      disabled={!sendBoards.length}
-                    >
-                      {!sendBoards.length && <option value="">No boards available</option>}
-                      {sendBoards.map((candidate) => (
-                        <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="send-selection-field">
-                    <span>Comment <small>optional</small></span>
+                    <span>{sendTo === LOUNGE ? 'My words' : 'Comment'} <small>optional</small></span>
                     <textarea
                       rows="3"
-                      maxLength={appLimits.text.board_content}
+                      maxLength={sendTo === LOUNGE ? appLimits.text.thread_words : appLimits.text.board_content}
                       value={sendSelection.comment}
                       onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
-                      placeholder="Why are you saving this?"
+                      placeholder={sendTo === LOUNGE ? 'What do you make of it?' : 'Why are you saving this?'}
                     />
                   </label>
-                  <p className="send-selection-source">
+                  {sendTo !== LOUNGE && <p className="send-selection-source">
                     {sendSelection.kind === 'clip'
                       ? `Source: Page ${sendSelection.page}`
                       : <>Source: <PaperTitle title={paper?.title || 'Paper'} />, page {sendSelection.page}. A backlink is included.</>}
-                  </p>
+                  </p>}
                   {sendError && <p className="feedback-error">{sendError}</p>}
                   <div className="feedback-actions">
                     <button type="button" onClick={closeSendSelection} disabled={sendBusy}>Cancel</button>
                     <button
                       type="button"
                       className="primary"
-                      disabled={sendBusy || !sendBoardUuid || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())}
-                      onClick={sendSelectionToBoard}
+                      disabled={sendBusy || !sendTo || (sendSelection.kind !== 'clip' && !sendSelection.text.trim())}
+                      onClick={sendSelectionOn}
                     >
-                      {sendBusy ? 'Sending…' : 'Send to board'}
+                      {sendBusy ? 'Sending…' : sendTo === LOUNGE ? 'Send to the Lounge' : 'Send to board'}
                     </button>
                   </div>
                 </>

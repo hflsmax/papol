@@ -11,6 +11,7 @@ import ErrorBoundary from '../../shared/ui/ErrorBoundary.jsx';
 import Nook, { GOING_HOME } from './components/Nook';
 import { forgetLastMember, lastMember, rememberLastMember } from './lastMember';
 import BoardJacket from './components/BoardJacket';
+import ThreadJacket from './components/ThreadJacket';
 import PaperJacket from './components/PaperJacket';
 import { storeCredential } from '../../shared/credentials.js';
 import ProfilePage from './components/ProfilePage';
@@ -665,10 +666,10 @@ export default function App({ startupUser = null, startupError = null }) {
   // The Mac window's mode (DesktopChrome.jsx, desktopModes): the Lounge
   // turns it on, the nook's own lists turn it off, and every other page
   // keeps the mode it was opened in.
-  const [loungeMode, setLoungeMode] = useState(() => DESKTOP && route.page === 'room');
+  const [loungeMode, setLoungeMode] = useState(() => DESKTOP && (route.page === 'room' || route.page === 'thread'));
   useEffect(() => {
     if (!DESKTOP) return;
-    if (route.page === 'room') setLoungeMode(true);
+    if (route.page === 'room' || route.page === 'thread') setLoungeMode(true);
     else if (isBrowsing(route, user) && route.page !== 'paper') setLoungeMode(false);
   }, [route, user?.uuid]);
   const lounge = useLounge();
@@ -789,10 +790,18 @@ export default function App({ startupUser = null, startupError = null }) {
   // than the member's own nook: the Lounge, or someone else's nook. From
   // their own nook the list is beside it already, and Papol leads there.
   const onJacket = route.page === 'paper' || route.page === 'board';
-  const jacketFrom = onJacket && user && jacketBack.path !== '/'
-    ? { ...jacketBack, href: mountedPath(jacketBack.path), onBack: goBackFromJacket }
-    : null;
-  leaveJacket.current = jacketFrom ? goBackFromJacket : null;
+  // A thread lives in the Lounge alone, so its jacket always steps back
+  // there, wherever it was opened from.
+  const goBackFromThread = () => {
+    if (window.history.state?.papolBackHref === mountedPath(ROOM_PATH)) window.history.back();
+    else navigate(ROOM_PATH);
+  };
+  const threadFrom = { path: ROOM_PATH, label: ROOM, href: mountedPath(ROOM_PATH), onBack: goBackFromThread };
+  const jacketFrom = route.page === 'thread' && user ? threadFrom
+    : onJacket && user && jacketBack.path !== '/'
+      ? { ...jacketBack, href: mountedPath(jacketBack.path), onBack: goBackFromJacket }
+      : null;
+  leaveJacket.current = jacketFrom ? jacketFrom.onBack : null;
 
   const guestNeedsSignIn = mode === 'guest' && SIGN_IN_PAGES.has(route.page);
 
@@ -988,6 +997,17 @@ export default function App({ startupUser = null, startupError = null }) {
           onDeleted={() => navigate(jacketBack.path, { replace: true })}
           backHref={mountedPath(jacketBack.path)}
           backLabel={jacketBack.label}
+        />
+      )}
+      {route.page === 'thread' && (
+        <ThreadJacket
+          threadUuid={route.uuid}
+          currentUser={user}
+          hideBack={hasWay || DESKTOP}
+          onBack={goBackFromThread}
+          backHref={mountedPath(ROOM_PATH)}
+          backLabel={ROOM}
+          onRemoved={() => navigate(ROOM_PATH, { replace: true })}
         />
       )}
       {route.page === 'room' && (

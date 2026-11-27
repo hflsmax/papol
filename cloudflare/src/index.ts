@@ -10,6 +10,7 @@ import { accountRoutes } from "./routes/account";
 import { activityRoutes } from "./routes/activity";
 import { userStateRoutes } from "./routes/userStates";
 import { termRoutes } from "./routes/terms";
+import { threadRoutes } from "./routes/threads";
 import { adminRoutes } from "./routes/admin";
 import { annotationRoutes } from "./routes/annotations";
 import { authRoutes } from "./routes/auth";
@@ -81,6 +82,7 @@ referenceRoutes(router);
 activityRoutes(router);
 userStateRoutes(router);
 termRoutes(router);
+threadRoutes(router);
 
 router.on("POST", "/api/sync/push", push);
 router.on("GET", "/api/sync/snapshot", snapshot);

@@ -1911,6 +1911,31 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
   color: var(--ink-faint);
   font: var(--fs-xs) var(--font-ui);
 }
+/* Where a send goes: the Lounge on a button of its own, in the Lounge's
+   gold, beside the list of the reader's boards. Whichever is chosen is the
+   one that is lit. */
+.send-to { display: flex; align-items: stretch; gap: 8px; }
+.send-to select { flex: 1; min-width: 0; }
+.send-to select.is-unpicked { color: var(--ink-faint); }
+.send-to-lounge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  background: var(--gold-soft);
+  box-shadow: none;
+  color: var(--gold-ink);
+  font: 600 var(--fs-sm) var(--font-ui);
+}
+.send-to-lounge svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.send-to-lounge:hover:not(:disabled) { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
+.send-to-lounge.is-on, .send-to-lounge.is-on:hover:not(:disabled) { border-color: var(--gold); background: var(--gold); color: var(--ink-inverse); }
+/* After a send to the Lounge: the way there, beside Done. */
+.send-selection-lounge { align-self: center; margin-right: auto; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; }
+.send-selection-lounge:hover, .send-selection-lounge:focus-visible { text-decoration: underline; }
 
 /* The PDF's own links. Invisible until pointed at, like the citations:
    a paper is not improved by underlining every cross-reference in it. */

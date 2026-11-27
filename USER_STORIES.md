@@ -237,6 +237,12 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.8** **The Lounge is laid out as my nook is.** A rail on the left, the page's name and a count on the bar, then the rows in one card under column names (Title, Friends, Latest). Friend requests are answered in the Inbox and on the asker's nook, not here.
 - **US-10.9** **The room ends, and narrows as the nook does.** It holds the last month of what my friends did, newest first and oldest at the foot. It shows fifty rows and **Show more** brings the next fifty. Pressing a friend in the rail shows only their news, with a link to their nook; **Show** in the rail keeps papers, boards or projects, each with its count. No dropdowns, no endless scroll, no ranking by anything but time, nothing shown because it is popular.
 
+**Threads**
+
+- **US-10.18** **I can send what I select in a paper to the Lounge.** Words I selected, a passage I painted or a clip I cut are sent from the same Send button that sends them to a board: its sheet's *Send to* has a **Lounge** button, in the Lounge's gold, beside the list of my boards; whichever I pick is lit, and the sheet takes words of my own if I have any (*My words*, optional). Once sent, the sheet says so and offers the way to the Lounge, and nothing more. What I send starts a **thread**: the passage or the picture, the paper's title, a link that opens the paper at that place with the passage lit, and my words. Free talk about a place in a paper: it has no phase, no votes and no counts of approval.
+- **US-10.19** **A thread is one row in the Lounge**, marked *Thread*: the sender's words (or the passage, when they wrote none), the paper and page, how many replies, and the faces of everyone who spoke in it. Pressing it opens the thread's **jacket**, a page of its own at `/thread/<uuid>` as a paper and a board have: the passage as a quotation (or the clip), who sent it and when, the paper and page with **Open in the paper** leading to that place, everything said in order, and a box to **reply**. Its Back leads to the Lounge, wherever the jacket was opened from. My own threads are in my Lounge too, so I read the replies. A thread started, or a reply by someone else, wears the gold dot until I have opened the Lounge. *Threads* in the rail's Show narrows the room to them.
+- **US-10.20** **A thread is seen by its sender's friends and nobody else**, and whoever sees it can reply; every reply is seen by all of them, friends of mine or not. It lives in the Lounge alone: nothing is drawn on the paper, on my copy or on anyone's. Its sender removes it, replies and all; a reply is taken back by whoever wrote it. A thread stays in the room for a month after the last thing said in it.
+
 **Friends only**
 
 - **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room has no news; Find stands in its rail, and the people Papol suggests (US-9.6a) stand where the news would.
@@ -252,7 +258,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 - **US-10.16** What friends ask of me reaches my Inbox (US-4.2). Nothing a friend does in the Lounge sends email; the one email made from it is the suggestions (US-9.6b).
 - **US-10.17** On a phone the room is one column: my friends, the rows, then Show. Papol for Mac carries the same room, **Lounge** first under Papol in its sidebar (⌘2).
 
-**Left out on purpose:** one-way following, a friends-only shelf, direct messages, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
+**Left out on purpose:** one-way following, a friends-only shelf, direct messages, votes or likes on a thread, a thread's marker on the paper, a friend's ink on my page, blocking and reporting, and an email digest. Not now and ending a friendship are both silent, which is enough at today's size.
 
 ## Non-functional
 

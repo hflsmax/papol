@@ -10,6 +10,10 @@
 //
 // The room is made from the reader's friends and nobody else. What a
 // friend reads, and for how long, is never in it. It holds one month; the page shows it a part at a time.
+//
+// One thing is kept for it: a thread (routes/threads.ts), something a
+// friend, or the reader, sent here from a paper for the others to reply
+// to. The reader's own threads are in their room, so they read the replies.
 
 import { currentUser, type User } from "../auth";
 import { all, statement, type Row } from "../db";
@@ -18,6 +22,7 @@ import { shownFields } from "../papers/visibility";
 import { userPublic } from "./boards";
 import { friendsOf, friendSees, PERSON, userLiteral } from "./friends";
 import { excerpt, onPublicShelf } from "./projects";
+import { threadRows } from "./threads";
 
 const DAY = 24 * 60 * 60 * 1000;
 // How far back the room goes: a month.
@@ -183,6 +188,8 @@ async function latest(env: Env, me: User) {
     projects.set(String(j.project_uuid), row);
   }
   rows.push(...projects.values());
+  // What was sent to the Lounge from a paper, and the replies under it.
+  rows.push(...await threadRows(env, me, since, seen));
 
   rows.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
   return { rows, since };

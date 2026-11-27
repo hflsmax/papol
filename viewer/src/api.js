@@ -287,6 +287,18 @@ export async function stageBoardClip(boardUuid, { blob, comment, sourceUrl, sour
   });
 }
 
+// ---- Threads ----
+//
+// Something selected in a paper, sent to the Lounge for the reader's
+// friends to reply to: its words, or a clipped rectangle as a picture,
+// with the place it came from and the reader's own words. The Lounge is
+// read online, so this asks Papol itself, on the Mac as in the browser; a
+// picture goes into the bucket first, as a board file does.
+export async function startThread(paperSha256, { blob = null, ...thread }) {
+  const picture = blob ? await storeFile('board_file', blob, { name: 'paper-clip.png', mime: 'image/png' }) : null;
+  return jsonRequest('/threads', 'POST', { ...thread, paper_sha256: paperSha256, ...(picture ? { picture_sha256: picture.sha256 } : {}) });
+}
+
 // ---- Annotations ----
 //
 // Anchors, ink and clips are one kind of thing with three shapes, so they are

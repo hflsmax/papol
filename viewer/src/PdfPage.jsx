@@ -505,7 +505,7 @@ function ClipBox({ clip, doc, selected, readOnly, telescope = null, project, onC
           onSelect: toggleFloating,
         },
         {
-          label: 'Send clipped content to a board',
+          label: 'Send clipped content to a board or the Lounge',
           icon: <ActionGlyph name="send" />,
           tone: 'accent',
           onSelect: () => canvasRef.current?.toBlob((blob) => { if (blob) onSend(blob); }, 'image/png'),

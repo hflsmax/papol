@@ -37,7 +37,7 @@ export function desktopModes({ mode, nookPath = '/', roomNews = false }) {
   ];
 }
 
-const KIND_GLYPHS = { '': 'room', paper: 'papers', board: 'boards', project: 'folder' };
+const KIND_GLYPHS = { '': 'room', thread: 'feedback', paper: 'papers', board: 'boards', project: 'folder' };
 
 // The Lounge's rail as sidebar rows: whose news, then what kind. A row
 // narrows the Lounge, and leads there from wherever the member is.
@@ -174,6 +174,7 @@ const TITLES = {
   nook: 'Nook',
   paper: 'Paper',
   room: 'Lounge',
+  thread: 'Thread',
   projects: 'Projects',
   project: 'Project',
   invitation: 'Invitation',
