@@ -495,10 +495,7 @@ export default function Room({ currentUser, onSeen }) {
           {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count === 0 && rows.length === 0 && (
-            <p className="room-empty">
-              The Lounge is where your friends’ news is: what they add, think and dig.{' '}
-              <button type="button" className="link-button" onClick={() => setFinding(true)}>Find someone</button> by name or email to ask them.
-            </p>
+            <p className="room-empty">The Lounge shows your friends’ activities.</p>
           )}
           {room && room.friend_count > 0 && rows.length === 0 && (
             <p className="room-empty">Your friends have been quiet this month. Start a thread above, or select something in a paper and send it here.</p>

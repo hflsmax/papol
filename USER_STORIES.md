@@ -248,7 +248,7 @@ A friend is someone I chose, who chose me back. Friendship is the third audience
 
 **Friends only**
 
-- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room has no news; Find stands in its rail, the people Papol suggests (US-9.6a) stand where the news would, and a line under them says what the room is for and opens Find.
+- **US-10.10** The Lounge is made from my friends and nobody else. There is no Everyone view: what a stranger does on their public shelves is not in the room, though their nook still opens by a link. With no friends yet the room has no news; Find stands in its rail, the people Papol suggests (US-9.6a) stand where the news would, and a line under them says what the room is: *The Lounge shows your friends’ activities.*
 - **US-10.12** The room has one order, newest first. Nothing is ranked by how many people keep it.
 
 **What the Lounge leaves out**
