@@ -74,25 +74,26 @@ describe("becoming friends", () => {
     expect((await call("GET", "/api/friends")).status).toBe(401);
   });
 
-  it("makes friends at once when an admin asks, and tells the one asked", async () => {
+  it("makes friends at once when an admin is asked, and tells the admin", async () => {
     const boss = await register("boss@example.test", "Boss"), grace = await register("grace@example.test", "Grace");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", boss.uuid);
-    const asked = await ok("POST", `/api/friends/${grace.uuid}`, { headers: boss.headers });
-    expect(asked).toMatchObject({ friends: [{ user: { uuid: grace.uuid } }], sent: [] });
-    expect(await friends(grace)).toMatchObject({ friends: [{ user: { uuid: boss.uuid } }], requests: [] });
-    // One line in her inbox, nothing to answer, and no email.
-    expect(await inbox(grace)).toMatchObject([{ content: "Boss added you as a friend.", kind: "friend_added", actor: { uuid: boss.uuid }, link: `/u/${boss.uuid}` }, {}]);
+    const asked = await ok("POST", `/api/friends/${boss.uuid}`, { headers: grace.headers });
+    expect(asked).toMatchObject({ friends: [{ user: { uuid: boss.uuid } }], sent: [] });
+    expect(await friends(boss)).toMatchObject({ friends: [{ user: { uuid: grace.uuid } }], requests: [] });
+    // One line in the admin's inbox, nothing to answer, and no email.
+    expect(await inbox(boss)).toMatchObject([{ content: "Grace added you as a friend.", kind: "friend_added", actor: { uuid: grace.uuid }, link: `/u/${grace.uuid}` }, {}]);
     expect(await count("jobs", "kind = 'send_email'")).toBe(0);
-    // Asking again changes nothing, and she can end it as any friendship.
-    await ok("POST", `/api/friends/${grace.uuid}`, { headers: boss.headers });
+    // Asking again changes nothing, and either ends it as any friendship.
+    await ok("POST", `/api/friends/${boss.uuid}`, { headers: grace.headers });
     expect(await count("friendships")).toBe(1);
-    expect((await inbox(grace)).filter((n: any) => n.kind === "friend_added")).toHaveLength(1);
+    expect((await inbox(boss)).filter((n: any) => n.kind === "friend_added")).toHaveLength(1);
     await ok("DELETE", `/api/friends/${boss.uuid}`, { headers: grace.headers });
     expect((await friends(boss)).friends).toEqual([]);
 
-    // A request to an admin waits for its answer like any other.
-    await ok("POST", `/api/friends/${boss.uuid}`, { headers: grace.headers });
-    expect((await friends(boss)).requests).toMatchObject([{ user: { uuid: grace.uuid } }]);
+    // What an admin asks waits for its answer like any other request.
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: boss.headers });
+    expect((await friends(grace)).requests).toMatchObject([{ user: { uuid: boss.uuid } }]);
+    expect((await friends(grace)).friends).toEqual([]);
   });
 
   it("finds people to ask by name or address, never oneself", async () => {

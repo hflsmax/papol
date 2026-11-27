@@ -41,11 +41,10 @@ async function starterPaper(env: Env, user: User): Promise<void> {
 // The {name} placeholder is filled with the new user's display name.
 // Overridden by the settings table key "welcome_message".
 const DEFAULT_WELCOME =
-  "Welcome to Papol, {name}—your paper-reading companion. Your nook is where you " +
-  "document your reading: upload the papers you read, rate them, " +
-  "keep a summary and your own digs, and share a public " +
-  "one-sentence thought. Add friends in the Lounge to see " +
-  "what they are reading, then add papers to your own nook.";
+  "Welcome to Papol, {name}. Your nook is where you keep the papers you read: " +
+  "add a PDF, read it in Papol, and keep your summary, ratings and digs with it. " +
+  "Each shelf is public or private, so you choose what others see. " +
+  "In the Lounge, ask people to be friends to see what they are reading.";
 
 export function authRoutes(router: Router) {
   router.on("POST", "/api/auth/register", async ({ request, env }) => {
