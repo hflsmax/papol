@@ -239,9 +239,13 @@ sidebar, toolbar and document windows.
   mounted while a paper is open beside it. A link opened in a fresh tab has
   nothing behind it; the rail and "Papol" are the way home. A jacket opened
   from the Lounge or someone else's nook names that place on the bar, beside
-  Papol over the rail ("‹ Lounge"), since the rail beside it is the member's
-  own nook and not the list they came from; it steps back onto that list as
-  it was left, and so does Escape. In the Mac app the same step leads the
+  Papol over the rail ("‹ Lounge"); it steps back onto that list as it was
+  left, and so does Escape. A paper or board opened from the Lounge stays in
+  the Lounge: its jacket takes the rows' place beside the Lounge's own rail
+  (Friends, Show), not the nook's shelves, the bar's Lounge button stays
+  lit, and picking a friend or a kind in the rail returns to the rows
+  narrowed so. On a phone the jacket stands alone under the bar. One opened
+  from someone else's nook still stands beside the member's own rail. In the Mac app the same step leads the
   page's toolbar, with ⌘[ as well.
 - **Separate apps.** The viewer and the board canvas open in the same tab;
   Back brings the member to the place they left.

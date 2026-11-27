@@ -24,8 +24,9 @@ export const ROOM_PATH = '/lounge';
 // `from` is where a jacket was opened from, when that is not the member's
 // own nook (the Lounge, a friend's nook): a step back to it beside Papol's
 // mark, over the rail, so the jacket's title still starts where the page
-// does.
-export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, roomNews = false }) {
+// does. `inLounge` keeps the Lounge's button lit over a paper or board
+// opened from the Lounge, which is drawn inside it.
+export function WayBar({ user, route, trail = [], from = null, inLounge = route.page === 'room', unreadCount = 0, roomNews = false }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
@@ -48,7 +49,7 @@ export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, 
           <a
             className="way-room"
             href={appPath(ROOM_PATH)}
-            aria-current={route.page === 'room' ? 'page' : undefined}
+            aria-current={route.page === 'room' ? 'page' : inLounge ? 'location' : undefined}
           >
             <Glyph name="room" />
             <span className="way-room-word">{ROOM}</span>
