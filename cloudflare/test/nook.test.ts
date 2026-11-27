@@ -101,6 +101,8 @@ describe("Passing", () => {
     const withRead = await marked();
     expect(withRead.map((m: any) => m.sha256).sort()).toEqual([dug, anchored, read].sort());
     expect(withRead.find((m: any) => m.sha256 === read)).toMatchObject({ sha256: read, title: "Read through", effort: { seconds: 240 } });
+    // Listed by when it was last read, which is when the span ended, not when the copy began.
+    expect(withRead.find((m: any) => m.sha256 === read).effort.last_at).toBe(new Date(started + 300_000).toISOString());
     expect(withRead.find((m: any) => m.sha256 === dug).effort).toBeNull();
     // A paper its user keeps is not listed, however much is read or written on it.
     await ok("POST", "/api/activity", { headers: keeper.headers, json: { spans: [span(untouched, 120)] } });

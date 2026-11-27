@@ -102,7 +102,7 @@ export function nookRoutes(router: Router) {
                         FROM activity WHERE seconds > 0 GROUP BY user_uuid, subject) t
                ON t.user_uuid = c.user_uuid AND t.subject = c.paper_sha256
              WHERE c.user_uuid = ? AND (c.deleted_at IS NOT NULL OR NOT c.kept)
-             ORDER BY max(coalesce(c.deleted_at, c.created_at), coalesce(t.last_read_at, '')) DESC, p.sha256`),
+             ORDER BY coalesce(t.last_read_at, c.deleted_at, c.created_at) DESC, p.sha256`),
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);

@@ -222,8 +222,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               <li>
                 <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/passing')} aria-current={marked ? 'page' : undefined}>
                   <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M1.5 8C3.5 4.6 5.6 3.5 8 3.5S12.5 4.6 14.5 8C12.5 11.4 10.4 12.5 8 12.5S3.5 11.4 1.5 8z" />
-                    <circle cx="8" cy="8" r="2" />
+                    <path d="M8 4.2C6.4 3.2 4.2 3 2 3.4v8.8c2.2-.4 4.4-.2 6 .8 1.6-1 3.8-1.2 6-.8V3.4c-2.2-.4-4.4-.2-6 .8z" />
+                    <path d="M8 4.2V13" />
                   </svg>
                   <span className="desk-row-name">Passing</span>
                   <span className="desk-count">{markedPapers.length}</span>
@@ -288,14 +288,14 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           {!(paper || reviewing) && (
             <InWay><h2 id="desk-marked" className="desk-main-title">Passing<span className="desk-count">{markedPapers.length}</span></h2></InWay>
           )}
-          <p className="desk-marked-note">Read or written on, not in your nook. Only you see this.</p>
+          <p className="desk-marked-note">Read but not kept. Only you see this list; a dig on one of these papers can still be seen by your friends.</p>
           {markedPapers.length > 0 ? (
             <table className="desk-table">
               <thead>
                 <tr>
                   <th scope="col" className="desk-col-title">Title</th>
                   <th scope="col" className="desk-col-effort">Effort</th>
-                  <th scope="col" className="desk-col-date">Since</th>
+                  <th scope="col" className="desk-col-date">Last read</th>
                 </tr>
               </thead>
               <tbody>
@@ -309,7 +309,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                       </span>
                     </td>
                     <td className="desk-col-effort"><Effort effort={p.effort} subject={p.sha256} compact /></td>
-                    <td className="desk-col-date">{added(p.since)}</td>
+                    <td className="desk-col-date">{p.effort ? added(p.effort.last_at) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
