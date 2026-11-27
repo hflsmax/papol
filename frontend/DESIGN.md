@@ -242,8 +242,8 @@ sidebar, toolbar and document windows.
   someone else's nook, a paper or board opened from the Lounge), and the bar
   follows: Papol's mark leads to the top of the place they are in, and the
   button on the right to the other one ("Lounge" from the nook, "My nook"
-  from the Lounge). A paper or board opened from the Lounge stays in the
-  Lounge: its jacket takes the rows' place beside the Lounge's own rail
+  from the Lounge). A thread, and a paper or board opened from the Lounge, stays in the
+  Lounge (a thread under the Lounge's own title): its jacket takes the rows' place beside the Lounge's own rail
   (Friends, Show), not the nook's shelves, and picking a friend or a kind in
   the rail returns to the rows narrowed so; Papol's mark or Escape steps
   back onto the rows as they were left. On a phone the jacket stands alone

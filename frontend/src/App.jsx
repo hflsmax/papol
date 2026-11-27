@@ -892,7 +892,8 @@ export default function App({ startupUser = null, startupError = null }) {
   // A paper or board opened from the Lounge is still in the Lounge: its
   // jacket is drawn there, beside the Lounge's rail and over its rows, not
   // in the nook beside the member's shelves.
-  const inLounge = hasWay && (route.page === 'room' || (onJacket && jacketBack.path === ROOM_PATH));
+  // A thread lives in the Lounge alone, so it is always drawn there.
+  const inLounge = hasWay && (route.page === 'room' || route.page === 'thread' || (onJacket && jacketBack.path === ROOM_PATH));
   const inNook = hasWay && NOOK_PAGES.has(route.page) && !inLounge;
 
   // Keyed by identity: changing accounts remounts every page so no nook or
@@ -1002,7 +1003,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {route.page === 'thread' && (
+      {!inLounge && route.page === 'thread' && (
         <ThreadJacket
           threadUuid={route.uuid}
           currentUser={user}
@@ -1017,8 +1018,18 @@ export default function App({ startupUser = null, startupError = null }) {
         <Room
           currentUser={user}
           onSeen={() => setRoomNews(false)}
-          onLeave={goBackFromJacket}
-          jacket={!inLounge || route.page === 'room' ? null : route.page === 'paper' ? (
+          onLeave={route.page === 'thread' ? goBackFromThread : goBackFromJacket}
+          jacketTitled={route.page !== 'thread'}
+          jacket={!inLounge || route.page === 'room' ? null : route.page === 'thread' ? (
+            <ThreadJacket
+              key={route.uuid}
+              threadUuid={route.uuid}
+              currentUser={user}
+              hideBack
+              onBack={goBackFromThread}
+              onRemoved={() => navigate(ROOM_PATH, { replace: true })}
+            />
+          ) : route.page === 'paper' ? (
             <PaperJacket
               key={route.uuid}
               paperSha256={route.uuid}
@@ -1244,7 +1255,7 @@ export default function App({ startupUser = null, startupError = null }) {
             // Papol's mark leads back to the Lounge from what was opened
             // there, so only another place is named beside it.
             from={jacketFrom?.path === ROOM_PATH ? null : jacketFrom}
-            inLounge={inLounge || route.page === 'thread' || (route.page === 'nook' && route.uuid !== user.uuid)}
+            inLounge={inLounge || (route.page === 'nook' && route.uuid !== user.uuid)}
             unreadCount={unreadCount}
             roomNews={roomNews}
           />
