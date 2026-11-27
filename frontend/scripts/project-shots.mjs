@@ -177,6 +177,12 @@ const SHOTS = {
   // A thread sent to the Lounge from a paper, opened on its jacket: the
   // passage, what was said, and the box to reply in; a reply sent; and
   // the member's own thread, nobody having replied yet.
+  // A thread started in the Lounge itself: the box, words typed in it and sent, and such a thread's jacket.
+  'room-start-typed': { path: '/lounge?shell=web', ready: "document.querySelector('.room-start')", then: "const type = () => { const f = document.querySelector('.room-start textarea, .room-start .md-field'); if (!f) return setTimeout(type, 100); f.focus(); document.execCommand('insertText', false, 'Has anyone tried fitting the loop delay per night instead of once?'); }; type(); return true;", settled: "!document.querySelector('.room-start .talk-send').disabled", size: wide },
+  'room-started': { path: '/lounge?shell=web', ready: "document.querySelector('.room-start')", then: "const type = () => { const f = document.querySelector('.room-start textarea, .room-start .md-field'); if (!f) return setTimeout(type, 100); f.focus(); document.execCommand('insertText', false, 'Has anyone tried fitting the loop delay per night instead of once?'); setTimeout(() => document.querySelector('.room-start .talk-send').click(), 200); }; type(); return true;", settled: "document.querySelectorAll('.room-row.is-thread').length === 5", size: wide },
+  'thread-words': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000078?shell=web', ready: "document.querySelector('.thread-jacket .talk-post')", size: wide },
+  'phone-room-start': { path: '/lounge?shell=web', ready: "document.querySelector('.room-start')", size: phone },
+  'mac-mode-lounge-start': { path: '/lounge?shell=desktop', ready: "document.querySelector('.room-start')", then: `${PROD_CHROME} return true;`, settled: "document.querySelector('.room-row')", size: wide },
   'thread-clip': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000075?shell=web', ready: "document.querySelector('.thread-jacket-from img')", size: wide },
   'phone-thread-clip': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000075?shell=web', ready: "document.querySelector('.thread-jacket-from img')", size: phone },
   'thread-mine': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000080?shell=web', ready: "document.querySelector('.thread-jacket-from')", size: wide },

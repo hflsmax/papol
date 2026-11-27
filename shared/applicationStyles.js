@@ -6123,6 +6123,9 @@ ${talkStyles}
    under it. Its row is told from a paper's by the word before it; opened,
    the passage stands as a quotation with the way back to its place, then
    everything said, then the box to reply in. */
+/* The box the Lounge opens with: start a thread from no paper. */
+.room-start.talk-compose { margin: 0 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); }
+.room-start .error { grid-column: 1 / -1; margin: 0; }
 .room-thread-open { display: block; text-decoration: none; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: pointer; }
 .room-thread-open:hover:not(:disabled) { background: none; }
 .room-thread-open:hover .room-thread-about, .room-thread-open:focus-visible .room-thread-about { color: var(--accent); text-decoration: underline; }
@@ -6144,6 +6147,7 @@ ${talkStyles}
 .thread-jacket-paper-meta { color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }
 .thread-jacket .paper-actions .button { width: auto; }
 .thread-jacket-said { max-width: 44rem; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.thread-jacket-said.is-all { margin-top: var(--space-3); padding-top: 0; border-top: 0; }
 .thread-jacket-said .talk-posts { padding: 0; }
 .thread-jacket-said .talk-posts:empty { display: none; }
 .thread-jacket-said .talk-post-body > :last-child { margin-bottom: 0; }

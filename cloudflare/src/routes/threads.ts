@@ -1,7 +1,7 @@
 // Threads: the Lounge's free-form talk. A user sends something they
 // selected in a paper to the Lounge, words or a clipped rectangle as a
-// picture, with words of their own if they have any, and their friends
-// reply under it.
+// picture, with words of their own if they have any, or starts one in
+// the Lounge itself with words alone, and their friends reply under it.
 //
 // One audience and one rule: a thread is seen by its starter and by the
 // starter's friends, and whoever sees it can reply. Nothing is voted on
@@ -93,8 +93,8 @@ export async function threadRows(env: Env, me: User, since: string, seen: string
   const mine = userLiteral(me.uuid);
   const threads = await all<Row>(env.DB,
     `SELECT ${THREAD}, ${PAPER}
-     FROM threads t JOIN users u ON u.uuid = t.user_uuid JOIN papers p ON p.sha256 = t.paper_sha256 AND p.deleted_at IS NULL
-     WHERE ${seesThread(mine)}
+     FROM threads t JOIN users u ON u.uuid = t.user_uuid LEFT JOIN papers p ON p.sha256 = t.paper_sha256 AND p.deleted_at IS NULL
+     WHERE ${seesThread(mine)} AND (t.paper_sha256 IS NULL OR p.sha256 IS NOT NULL)
        AND (t.created_at > ?1 OR EXISTS (SELECT 1 FROM thread_replies x WHERE x.thread_uuid = t.uuid AND x.created_at > ?1))`, since);
   const replies = await repliesOf(env, threads.map((t) => String(t.thread_uuid)));
   return threads.map((t) => {
@@ -124,18 +124,25 @@ export function threadRoutes(router: Router) {
     const me = await currentUser(request, env);
     const data = await readJson<Row>(request);
     const check = validate.checking();
-    const digest = check.string("paper_sha256", data.paper_sha256, { pattern: DIGEST });
-    const page = check.integer("page", data.page, { min: 1 });
-    const y = check.number("y", data.y, { min: 0, max: 1 });
-    const mark = check.string("mark", data.mark, { min: 1, max: PLACE_MAX, pattern: PLACE, optional: true });
-    const box = check.string("box", data.box, { min: 1, max: PLACE_MAX, pattern: PLACE, optional: true });
+    // A thread comes from a paper, or is started in the Lounge itself
+    // with words alone and names no paper and no place.
+    const fromPaper = data.paper_sha256 != null;
+    const digest = fromPaper ? check.string("paper_sha256", data.paper_sha256, { pattern: DIGEST }) : null;
+    const page = fromPaper ? check.integer("page", data.page, { min: 1 }) : null;
+    const y = fromPaper ? check.number("y", data.y, { min: 0, max: 1 }) : null;
+    const mark = fromPaper ? check.string("mark", data.mark, { min: 1, max: PLACE_MAX, pattern: PLACE, optional: true }) : null;
+    const box = fromPaper ? check.string("box", data.box, { min: 1, max: PLACE_MAX, pattern: PLACE, optional: true }) : null;
     const excerpt = check.string("excerpt", data.excerpt, { max: EXCERPT_MAX, optional: true })?.trim() || null;
     const picture = check.string("picture_sha256", data.picture_sha256, { pattern: DIGEST, optional: true });
     const words = check.string("words", data.words, { max: WORDS_MAX, optional: true })?.trim() || null;
-    if (!excerpt && !picture) check.fail("a thread starts from selected words or a picture");
+    if (fromPaper && !excerpt && !picture) check.fail("a thread from a paper starts from selected words or a picture");
+    if (!fromPaper && (excerpt || picture)) check.fail("selected words and a picture come from a paper");
+    if (!fromPaper && !words) check.fail("a thread started in the Lounge needs words");
     check.done();
-    const paper = await one<Row>(env.DB, "SELECT sha256 FROM papers WHERE sha256 = ? AND deleted_at IS NULL", digest);
-    if (!paper) refuse(404, "Paper not found");
+    if (digest) {
+      const paper = await one<Row>(env.DB, "SELECT sha256 FROM papers WHERE sha256 = ? AND deleted_at IS NULL", digest);
+      if (!paper) refuse(404, "Paper not found");
+    }
     if (picture && !(await stored(env, boardFileKey(blobKey(picture))))) refuse(409, "The picture has not been uploaded");
     const uuid = newUuid();
     await batch(env.DB, [insert(env.DB, "threads", {

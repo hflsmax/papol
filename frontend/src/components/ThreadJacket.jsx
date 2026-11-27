@@ -21,7 +21,8 @@ import Avatar from './Avatar';
  *
  * A thread is found in the Lounge and opened here, as a paper and a board
  * open on theirs: the passage or the picture it started from, the paper
- * and the way back to that place in it, everything said, and a box to
+ * and the way back to that place in it (a thread started in the Lounge
+ * itself has neither), everything said, and a box to
  * reply in. Free talk: no votes, nothing counted for approval.
  *
  * A thread lives in the Lounge alone, so Back always leads there.
@@ -98,7 +99,11 @@ export default function ThreadJacket({
 
   const { paper } = thread;
   const picture = thread.picture_url && (thread.picture_url.startsWith('/') ? backendPath(thread.picture_url) : thread.picture_url);
-  const place = appPath(threadPlacePath(thread));
+  // A thread started in the Lounge itself came from no paper: it has
+  // no passage, and no place to open.
+  const placePath = threadPlacePath(thread);
+  const place = placePath && appPath(placePath);
+  const from = Boolean(thread.excerpt || picture);
   const replies = thread.replies.length;
 
   const act = async (work) => {
@@ -148,19 +153,24 @@ export default function ThreadJacket({
             )}
         </div>
 
-        <figure className="thread-jacket-from">
-          {thread.excerpt && <blockquote>{thread.excerpt}</blockquote>}
-          {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
-        </figure>
+        {from && (
+          <figure className="thread-jacket-from">
+            {thread.excerpt && <blockquote>{thread.excerpt}</blockquote>}
+            {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
+          </figure>
+        )}
 
-        <p className="board-jacket-facts thread-jacket-facts" aria-label="About this thread">
-          <a className="board-jacket-owner" href={appPath(`/u/${thread.user.uuid}`)}>
-            <Avatar user={thread.user} className="mini-avatar" />
-            {thread.is_mine ? 'You' : thread.user.display_name}
-          </a>
-          <time dateTime={thread.created_at}>{when(thread.created_at, { time: true })}</time>
-          <span>{replies === 0 ? 'No replies yet' : `${replies} ${replies === 1 ? 'reply' : 'replies'}`}</span>
-        </p>
+        {/* Words alone say who and when on their own first line. */}
+        {from && (
+          <p className="board-jacket-facts thread-jacket-facts" aria-label="About this thread">
+            <a className="board-jacket-owner" href={appPath(`/u/${thread.user.uuid}`)}>
+              <Avatar user={thread.user} className="mini-avatar" />
+              {thread.is_mine ? 'You' : thread.user.display_name}
+            </a>
+            <time dateTime={thread.created_at}>{when(thread.created_at, { time: true })}</time>
+            <span>{replies === 0 ? 'No replies yet' : `${replies} ${replies === 1 ? 'reply' : 'replies'}`}</span>
+          </p>
+        )}
 
         {paper && (
           <p className="thread-jacket-paper">
@@ -169,11 +179,13 @@ export default function ThreadJacket({
           </p>
         )}
 
-        <div className="paper-actions">
-          <a className="button primary" href={place}>Open in the paper</a>
-        </div>
+        {place && paper && (
+          <div className="paper-actions">
+            <a className="button primary" href={place}>Open in the paper</a>
+          </div>
+        )}
 
-        <section className="board-jacket-section thread-jacket-said" aria-label="What was said">
+        <section className={`board-jacket-section thread-jacket-said${from ? '' : ' is-all'}`} aria-label="What was said">
           <ol className="talk-posts">
             {thread.words && <Said user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} />}
             {thread.replies.map((reply) => (

@@ -84,6 +84,20 @@ describe("threads in the Lounge", () => {
     expect((await room(grace)).filter((row) => row.kind === "thread")).toEqual([]);
   });
 
+  it("start in the Lounge itself, from no paper, with words alone", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    const made = await (await start(ada, { words: "  Is anyone going to the adaptive optics meeting?  " })).json() as Record<string, any>;
+    expect(made).toMatchObject({ is_mine: true, paper_sha256: null, page: null, y: null, excerpt: null, picture_url: null, words: "Is anyone going to the adaptive optics meeting?", paper: null, replies: [] });
+    expect((await room(grace)).filter((row) => row.kind === "thread")).toMatchObject([{ thread: { uuid: made.uuid }, paper: null }]);
+    expect((await ok("POST", `/api/threads/${made.uuid}/replies`, { headers: grace.headers, json: { body: "I am." } })).replies).toHaveLength(1);
+    // Words are the whole of it, and nothing from a paper comes without the paper.
+    expect((await start(ada, {})).status).toBe(422);
+    expect((await start(ada, { words: "   " })).status).toBe(422);
+    expect((await start(ada, { words: "Look", excerpt: "selected" })).status).toBe(422);
+    expect((await start(ada, { ...passage, paper_sha256: undefined })).status).toBe(422);
+  });
+
   it("leave with the friendship, and with a closed account", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await paperWithCopy(ada, DIGEST, "Attention at depth");

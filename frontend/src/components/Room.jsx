@@ -1,8 +1,10 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import {
-  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen,
+  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen, startThread,
 } from '../../../shared/api/friends.js';
+import appLimits from '../../../shared/appLimits.js';
+import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
@@ -222,8 +224,8 @@ function ThreadRow({ row }) {
             {row.is_new && <NewsDot />}
           </a>
           <span className="desk-meta room-meta">
-            {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'} · `}
-            <PaperTitle title={paper.title} />, page {thread.page}
+            {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'}${paper ? ' · ' : ''}`}
+            {paper ? <><PaperTitle title={paper.title} />, page {thread.page}</> : (replies > 0 ? null : 'No replies yet')}
           </span>
         </div>
         <span className="room-faces">
@@ -236,6 +238,44 @@ function ThreadRow({ row }) {
         <time className="room-when" dateTime={row.at} title={when(row.at, { time: true })}>{when(row.at)}</time>
       </div>
     </li>
+  );
+}
+
+// The box the Lounge opens with: words of my own, sent to my friends as
+// a thread from no paper. Sent, it is the room's newest row.
+function StartThread({ currentUser, onStarted }) {
+  const [words, setWords] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const send = async (event) => {
+    event?.preventDefault();
+    const text = words.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const thread = await startThread(text);
+      setWords('');
+      onStarted(thread);
+    } catch (err) {
+      setError(err?.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="talk-compose room-start" onSubmit={send}>
+      <Face user={currentUser} />
+      <MarkdownField
+        rows={1} value={words} maxLength={appLimits.text.thread_words} placeholder="Start a thread" aria-label="Start a thread"
+        onChange={(event) => setWords(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send(event); }}
+      />
+      <button type="submit" className="talk-send" disabled={busy || !words.trim()} aria-label="Start the thread" title="Start the thread (⌘↩)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+      </button>
+      {error && <div className="error" role="alert">{error}</div>}
+    </form>
   );
 }
 
@@ -404,6 +444,18 @@ export default function Room({ currentUser, onSeen }) {
     // Friends made or ended here change who the room is made from.
   }, [friends?.friends.length]);
 
+  // A thread I started here: the room's newest row, at once.
+  const onStarted = (thread) => {
+    const row = {
+      kind: 'thread', key: `thread:${thread.uuid}`, at: thread.created_at, is_new: false, thread, paper: thread.paper ?? null,
+      lines: [{ user: thread.user, did: 'started', at: thread.created_at }],
+    };
+    const changed = { ...(room ?? {}), rows: [row, ...(room?.rows ?? [])] };
+    keep('room', changed);
+    setRoom(changed);
+    setLounge({ rows: changed.rows });
+  };
+
   const rows = room?.rows ?? [];
   const mine = friends?.friends ?? [];
   // A friend who has since left the list is no longer narrowed to.
@@ -466,10 +518,11 @@ export default function Room({ currentUser, onSeen }) {
             <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
+          {room && room.friend_count > 0 && !chosen && <StartThread currentUser={currentUser} onStarted={onStarted} />}
           {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
           {room && room.friend_count > 0 && rows.length === 0 && (
-            <p className="room-empty">Your friends have been quiet this month. Select something in a paper and send it here to start a thread.</p>
+            <p className="room-empty">Your friends have been quiet this month. Start a thread above, or select something in a paper and send it here.</p>
           )}
           {rows.length > 0 && (
             <>

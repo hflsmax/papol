@@ -326,6 +326,13 @@ const threadState = () => [
     ],
   },
   {
+    uuid: 'e2b2c3d4-0000-4000-8000-000000000078', user: ana, is_mine: false, paper_sha256: null, page: null, y: null, mark: null, box: null,
+    excerpt: null, picture_url: null, words: 'Who is going to the adaptive optics meeting in June? I could use someone to split a poster session with.', created_at: hoursAgo(50),
+    replies: [
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000079', user: ben, body: 'Me, if the travel money comes through.', created_at: hoursAgo(47), is_mine: false },
+    ],
+  },
+  {
     uuid: 'e2b2c3d4-0000-4000-8000-000000000080', user: me, is_mine: true, paper_sha256: P_LEARN, page: 3, y: 0.6, mark: 'W1szLDAuMTMsMC44NywwLjYsMC4wMjFdXQ==', box: null,
     excerpt: 'Twelve examples suffice when the prior is the instrument\u2019s own interaction matrix.', picture_url: null, words: null, created_at: daysAgo(3), replies: [],
   },
@@ -338,7 +345,7 @@ const threadRow = (thread, isNew) => {
     if (!line) lines.push({ user: reply.user, did: 'replied', at: reply.created_at });
     else if (line.did === 'replied') line.at = reply.created_at;
   }
-  return { kind: 'thread', key: `thread:${thread.uuid}`, at: thread.replies.at(-1)?.created_at ?? thread.created_at, is_new: isNew, thread, paper: paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)), lines };
+  return { kind: 'thread', key: `thread:${thread.uuid}`, at: thread.replies.at(-1)?.created_at ?? thread.created_at, is_new: isNew, thread, paper: thread.paper_sha256 ? paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)) : null, lines };
 };
 const roomRows = () => {
   const line = (user, did, at, more = {}) => ({ user, did, at, words: null, ratings: null, dig: null, ...more });
@@ -397,11 +404,17 @@ function answer(method, path, search, sent = {}) {
   if (path === '/friends/suggestions') return suggestionsNow;
   const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
   if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }
+  // A thread started in the Lounge itself, from no paper.
+  if (method === 'POST' && path === '/threads') {
+    const thread = { uuid: 'e2b2c3d4-0000-4000-8000-000000000099', user: me, is_mine: true, paper_sha256: null, page: null, y: null, mark: null, box: null, excerpt: null, picture_url: null, words: sent.words, created_at: hoursAgo(0), replies: [] };
+    threadsNow = [thread, ...threadsNow];
+    return { ...thread, paper: null };
+  }
   // A thread read for its jacket, with its paper.
   const read = method === 'GET' && path.match(/^\/threads\/([0-9a-f-]{36})$/);
   if (read) {
     const thread = threadsNow.find((t) => t.uuid === read[1]);
-    return thread ? { ...thread, paper: paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)) } : undefined;
+    return thread ? { ...thread, paper: thread.paper_sha256 ? paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)) : null } : undefined;
   }
   // A reply in a thread, a reply taken back, a thread removed.
   const replying = method === 'POST' && path.match(/^\/threads\/([0-9a-f-]{36})\/replies$/);
