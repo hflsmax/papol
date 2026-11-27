@@ -5834,9 +5834,7 @@ ${talkStyles}
 .desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
 .desk-mark { flex: none; width: 12px; height: 12px; margin: 0 -1px; fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linejoin: round; }
 .desk-marked-note { max-width: 46rem; margin: 0 0 var(--space-4); color: var(--ink-soft); font-size: var(--fs-sm); }
-.desk-marked-where { display: block; margin-top: 3px; color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
 .paper-marked-hint { margin: var(--space-2) 0 0; color: var(--ink-faint); font-size: var(--fs-xs); }
-.desk-marked-where.is-kept { color: var(--ink-soft); }
 .desk-col-written { width: 9rem; white-space: nowrap; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }

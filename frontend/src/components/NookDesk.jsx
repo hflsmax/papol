@@ -24,7 +24,7 @@ const added = (at) => {
 // Where a paper opens beside the rail, the shelf or board it came from kept
 // in front of it (frontend/DESIGN.md, Navigation).
 const paperPlace = (sha256, { shelf = null, board = null, marked = false }) =>
-  appPath(`${board ? `/board/${board}` : marked ? '/marked' : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
+  appPath(`${board ? `/board/${board}` : marked ? '/aside' : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
 
 // What is written on a marked paper now: "2 marks · 1 dig".
 const written = ({ annotations, digs }) => [
@@ -96,7 +96,7 @@ const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users
 export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, marked: markedAsked = false, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
-  // Marked: every paper the member wrote on, in their nook or not.
+  // Aside: what the member wrote on that is not in their nook.
   const marked = !project && !board && markedAsked;
   const markedPapers = nook.marked ?? [];
   const [tag, setTag] = useState(null);
@@ -222,14 +222,14 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           </section>
 
           {/* Not a shelf: what the member wrote on, wherever it is kept. */}
-          <section className="desk-rail-part desk-rail-marked" aria-label="Marked">
+          <section className="desk-rail-part desk-rail-marked" aria-label="Aside">
             <ul className="desk-rail-list">
               <li>
-                <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/marked')} aria-current={marked ? 'page' : undefined}>
+                <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/aside')} aria-current={marked ? 'page' : undefined}>
                   <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
                     <path d="M10.6 2.6l2.8 2.8-7.6 7.6-3.4.6.6-3.4z" />
                   </svg>
-                  <span className="desk-row-name">Marked</span>
+                  <span className="desk-row-name">Aside</span>
                   <span className="desk-count">{markedPapers.length}</span>
                 </a>
               </li>
@@ -290,16 +290,16 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
       {marked && (
         <section className="desk-main desk-marked" aria-labelledby="desk-marked" hidden={Boolean(paper)}>
           {!(paper || reviewing) && (
-            <InWay><h2 id="desk-marked" className="desk-main-title">Marked<span className="desk-count">{markedPapers.length}</span></h2></InWay>
+            <InWay><h2 id="desk-marked" className="desk-main-title">Aside<span className="desk-count">{markedPapers.length}</span></h2></InWay>
           )}
-          <p className="desk-marked-note">Every paper you have written on, in your nook or not. A paper lands here with your first anchor, ink, clip or dig and stays. Only you see this list.</p>
+          <p className="desk-marked-note">Papers you have written on that are not in your nook. A paper lands here with your first anchor, ink, clip or dig. Add it to your nook and it moves to a shelf; take it out and it is back here. Only you see this list.</p>
           {markedPapers.length > 0 ? (
             <table className="desk-table">
               <thead>
                 <tr>
                   <th scope="col" className="desk-col-title">Title</th>
                   <th scope="col" className="desk-col-written">Written</th>
-                  <th scope="col" className="desk-col-date">Marked</th>
+                  <th scope="col" className="desk-col-date">Since</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,7 +311,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                         {[formatAuthors(p.authors), p.year].filter(Boolean).join(' · ')}
                         {p.journal && ` · ${p.journal}`}
                       </span>
-                      <span className={p.in_nook ? 'desk-marked-where is-kept' : 'desk-marked-where'}>{p.in_nook ? 'In your nook' : 'Not in your nook'}</span>
                     </td>
                     <td className="desk-col-written">{written(p)}</td>
                     <td className="desk-col-date">{added(p.marked_at)}</td>

@@ -90,16 +90,18 @@ export function nookRoutes(router: Router) {
         // The time spent on each paper is its user's alone: how long someone
         // spends on a paper says nothing a shelf was asked to show.
         own("SELECT subject, sum(seconds) AS seconds, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? GROUP BY subject"),
-        // Marked: every paper the user wrote on, in their nook or not
-        // (migration 0049). A paper enters with its first anchor, ink,
-        // clip or dig and never leaves; the list says where each stands
-        // with the nook and how much is written on it now. Theirs alone.
+        // Aside: the papers the user wrote on that are not in their
+        // nook. A paper is remembered from its first anchor, ink, clip
+        // or dig (migration 0049) and never forgotten; it is listed while
+        // no shelf of theirs holds it, so one added to the nook leaves the
+        // list and one taken out again is back on it. Theirs alone.
         own(`SELECT p.sha256, p.title, p.authors, p.journal, p.year, m.marked_at,
-               EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = m.paper_sha256 AND c.user_uuid = m.user_uuid AND c.deleted_at IS NULL) AS in_nook,
                (SELECT count(*) FROM annotations a WHERE a.paper_sha256 = m.paper_sha256 AND a.user_uuid = m.user_uuid AND a.deleted_at IS NULL) AS annotations,
                (SELECT count(*) FROM digs d WHERE d.paper_sha256 = m.paper_sha256 AND d.user_uuid = m.user_uuid AND d.board_item_uuid IS NULL) AS digs
              FROM marked_papers m JOIN papers p ON p.sha256 = m.paper_sha256 AND p.deleted_at IS NULL
-             WHERE m.user_uuid = ? ORDER BY m.marked_at DESC, p.sha256`),
+             WHERE m.user_uuid = ?
+               AND NOT EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = m.paper_sha256 AND c.user_uuid = m.user_uuid AND c.deleted_at IS NULL)
+             ORDER BY m.marked_at DESC, p.sha256`),
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
@@ -124,7 +126,7 @@ export function nookRoutes(router: Router) {
       tags: tags ?? [],
       marked: (markedRows ?? []).map((m) => ({
         sha256: m.sha256, title: m.title, authors: m.authors, journal: m.journal, year: m.year,
-        marked_at: m.marked_at, in_nook: Boolean(m.in_nook), annotations: m.annotations, digs: m.digs,
+        marked_at: m.marked_at, annotations: m.annotations, digs: m.digs,
       })),
       projects,
       shelves: shelves.map((s) => ({

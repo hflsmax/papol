@@ -120,9 +120,9 @@ test('a dig is not a place of its own', () => {
   assert.equal(parseRoute(`/dig/${UUID}`).page, 'unknown');
 });
 
-test('what a member marked has a page, and a paper picked from it keeps the place', () => {
-  assert.deepEqual(parseRoute('/marked'), { page: 'marked' });
-  assert.deepEqual(parseRoute(`/marked/paper/${NAME}`), { page: 'paper', uuid: NAME, marked: true });
+test('what a member set aside has a page, and a paper picked from it keeps the place', () => {
+  assert.deepEqual(parseRoute('/aside'), { page: 'marked' });
+  assert.deepEqual(parseRoute(`/aside/paper/${NAME}`), { page: 'paper', uuid: NAME, marked: true });
 });
 
 test('a shelf has a page of its own', () => {

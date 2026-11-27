@@ -1,11 +1,11 @@
--- Marked: the papers a user has written on.
+-- The papers a user has written on, remembered for good.
 --
 -- Nobody needs a paper in their nook to mark it, so what they marked
--- needs a place of its own to be found again. A paper goes onto its
--- writer's Marked list with their first anchor, ink, clip or dig on it,
--- and stays: adding it to the nook, taking it out, and rubbing the marks
--- out again all leave it listed. Their nook is where they read the list,
--- and it is theirs alone.
+-- needs a place of its own to be found again. A paper is remembered from
+-- its writer's first anchor, ink, clip or dig on it, and never forgotten:
+-- adding it to the nook, taking it out, and rubbing the marks out again
+-- all leave the row. Their nook lists the ones no shelf of theirs holds
+-- as Aside (routes/nook.ts), and the list is theirs alone.
 --
 -- Kept by the database rather than by each road a mark can arrive on —
 -- the website, a replica's push, a first thought written at upload — so
