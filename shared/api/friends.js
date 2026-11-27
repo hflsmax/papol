@@ -76,6 +76,17 @@ export function replyInThread(threadUuid, body) {
   return jsonRequest(`/threads/${threadUuid}/replies`, 'POST', { body });
 }
 
+// My own words on a thread I started, reworded (or added, or taken away
+// where something else is left to read).
+export function editThread(threadUuid, words) {
+  return jsonRequest(`/threads/${threadUuid}`, 'PUT', { words });
+}
+
+// A reply of mine, reworded.
+export function editThreadReply(replyUuid, body) {
+  return jsonRequest(`/thread-replies/${replyUuid}`, 'PUT', { body });
+}
+
 export function removeThread(threadUuid) {
   return request(`/threads/${threadUuid}`, { method: 'DELETE' });
 }

@@ -6104,6 +6104,8 @@ ${talkStyles}
 .thread-jacket-said .talk-posts:empty { display: none; }
 .thread-jacket-said .talk-post-body > :last-child { margin-bottom: 0; }
 .thread-jacket-said .talk-compose { margin-top: var(--space-3); padding: 0; background: none; }
+/* Rewording what was said: the page's buttons are a size too big for a line under a box. */
+.thread-jacket-said .talk-post-edit-foot button { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: var(--fs-sm); }
 
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
