@@ -6129,12 +6129,14 @@ ${talkStyles}
 a.friend-dig-focus-on { color: var(--accent); }
 a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset: 2px; }
 .friend-dig-focus-what { color: var(--ink-faint); }
-.paper-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
+.paper-dig .talk-card.is-conversation .talk-post { padding: 10px 14px 12px; }
 .paper-dig .talk-card.is-conversation .talk-post:first-child:hover { background: var(--accent-soft); }
 .paper-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
-.paper-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 36px; padding: 8px 0 2px; border-radius: 0; background: none; }
+.paper-dig .talk-card.is-conversation .talk-post + .talk-post { margin: var(--space-3) 14px 0 36px; padding: 0; border-radius: 0; background: none; }
+.paper-dig .talk-card.is-conversation .talk-post-edit { gap: var(--space-2); margin-top: var(--space-1); }
+.paper-dig .talk-card.is-conversation .talk-post-edit :is(textarea, .md-field) { padding: 8px 10px; }
 .paper-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
-.paper-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 36px; padding: 8px 0 0; }
+.paper-dig .talk-card.is-conversation .talk-compose { margin: var(--space-4) 14px var(--space-2) 36px; padding: 0; }
 .paper-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
