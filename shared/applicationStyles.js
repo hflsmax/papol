@@ -6121,7 +6121,7 @@ ${talkStyles}
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 /* A friend's dig, top to bottom: what it is about, the dig itself tinted
    and set in as my own is, then what was posted under it and the box that
-   posts, both stepped in behind one rule so they read as under the dig. */
+   posts, both stepped in so they read as under the dig. */
 .friend-dig-focus { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); font: var(--fs-sm)/1.4 var(--font-ui); }
 .friend-dig-focus-on { color: var(--ink); font-weight: 600; text-decoration: none; }
 a.friend-dig-focus-on { color: var(--accent); }
@@ -6129,9 +6129,9 @@ a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset:
 .friend-dig-focus-what { color: var(--ink-faint); }
 .friend-dig .talk-card.is-conversation .talk-post { padding: 6px 12px 8px; }
 .friend-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
-.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 20px; padding: 8px 0 2px 14px; border-left: 2px solid var(--line); border-radius: 0; background: none; }
+.friend-dig .talk-card.is-conversation .talk-post + .talk-post { margin: 0 0 0 36px; padding: 8px 0 2px; border-radius: 0; background: none; }
 .friend-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
-.friend-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 20px; padding: 8px 0 0 14px; border-left: 2px solid var(--line); }
+.friend-dig .talk-card.is-conversation .talk-compose { margin: 0 0 0 36px; padding: 8px 0 0; }
 .friend-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
