@@ -222,9 +222,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               <li>
                 <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/passing')} aria-current={marked ? 'page' : undefined}>
                   <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M1.5 5.5h7.2a1.9 1.9 0 1 0-1.9-1.9" />
-                    <path d="M1.5 8.5h11a1.9 1.9 0 1 1-1.9 1.9" />
-                    <path d="M1.5 11.5h5" />
+                    <path d="M1.5 8C3.5 4.6 5.6 3.5 8 3.5S12.5 4.6 14.5 8C12.5 11.4 10.4 12.5 8 12.5S3.5 11.4 1.5 8z" />
+                    <circle cx="8" cy="8" r="2" />
                   </svg>
                   <span className="desk-row-name">Passing</span>
                   <span className="desk-count">{markedPapers.length}</span>
