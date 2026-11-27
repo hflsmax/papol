@@ -50,6 +50,47 @@ describe("a nook", () => {
   });
 });
 
+describe("Marked", () => {
+  it("lists every paper its user wrote on, in the nook or not, for good, and to nobody else", async () => {
+    const keeper = await register(), reader = await register();
+    const dug = "c".repeat(64), anchored = "d".repeat(64), untouched = "e".repeat(64);
+    for (const [digest, title] of [[dug, "Dug"], [anchored, "Anchored"], [untouched, "Only read"]]) {
+      await paperWithCopy(keeper, digest, title, { shelfUuid: await defaultShelf(keeper) });
+    }
+    const marked = async (who: Account = reader) => (await ok("GET", `/api/users/${who.uuid}/nook`, { headers: who.headers })).marked;
+    expect(await marked()).toEqual([]);
+
+    // A dig and an anchor, each on a paper that is not in the reader's nook.
+    const dig = await ok("POST", "/api/digs", { headers: reader.headers, json: { subject: `paper:${dug}`, text: "Why this bound?" } });
+    const anchor = await ok("POST", `/api/papers/${anchored.slice(0, 32)}/annotations`, { headers: reader.headers, json: { kind: "anchor", page: 1, body: { anchor: { x: 0.5, y: 0.5 } } } });
+    const listed = await marked();
+    expect(listed.map((m: any) => m.sha256).sort()).toEqual([dug, anchored].sort());
+    expect(listed.find((m: any) => m.sha256 === dug)).toMatchObject({ title: "Dug", in_nook: false, digs: 1, annotations: 0 });
+    expect(listed.find((m: any) => m.sha256 === anchored)).toMatchObject({ title: "Anchored", in_nook: false, digs: 0, annotations: 1 });
+    // Marking a paper puts nothing in the nook.
+    const nook = await ok("GET", `/api/users/${reader.uuid}/nook`, { headers: reader.headers });
+    expect(nook.papers).toEqual([]);
+    expect(nook.stats).toEqual({ papers: 0, displayed: 0 });
+
+    // Into the nook and out of it again: listed all the while.
+    await ok("POST", `/api/papers/${dug.slice(0, 32)}/add-to-nook`, { headers: reader.headers });
+    expect((await marked()).find((m: any) => m.sha256 === dug)).toMatchObject({ in_nook: true });
+    await ok("DELETE", `/api/papers/${dug.slice(0, 32)}`, { headers: reader.headers });
+    expect((await marked()).find((m: any) => m.sha256 === dug)).toMatchObject({ in_nook: false, digs: 1 });
+    // And with everything written on it rubbed out.
+    await ok("DELETE", `/api/annotations/${anchor.uuid}`, { headers: reader.headers });
+    await ok("DELETE", `/api/digs/${dig.uuid}`, { headers: reader.headers });
+    expect((await marked()).map((m: any) => [m.sha256, m.annotations, m.digs]).sort()).toEqual([[dug, 0, 0], [anchored, 0, 0]].sort());
+
+    // A paper in the nook from the start joins the list with its first mark.
+    expect(await marked(keeper)).toEqual([]);
+    await ok("POST", "/api/digs", { headers: keeper.headers, json: { subject: `paper:${untouched}`, text: "Mine" } });
+    expect(await marked(keeper)).toMatchObject([{ sha256: untouched, in_nook: true, digs: 1 }]);
+    // Nobody is shown another's list.
+    expect((await ok("GET", `/api/users/${keeper.uuid}/nook`, { headers: reader.headers })).marked).toEqual([]);
+  });
+});
+
 describe("the list of every paper", () => {
   it("lists a paper nobody displays and one nobody holds, naming no reader for either", async () => {
     const keeper = await register("keeper@example.test", "Ada"), other = await register("other@example.test", "Grace");

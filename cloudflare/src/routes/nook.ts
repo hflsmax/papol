@@ -90,10 +90,20 @@ export function nookRoutes(router: Router) {
         // The time spent on each paper is its user's alone: how long someone
         // spends on a paper says nothing a shelf was asked to show.
         own("SELECT subject, sum(seconds) AS seconds, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? GROUP BY subject"),
+        // Marked: every paper the user wrote on, in their nook or not
+        // (migration 0049). A paper enters with its first anchor, ink,
+        // clip or dig and never leaves; the list says where each stands
+        // with the nook and how much is written on it now. Theirs alone.
+        own(`SELECT p.sha256, p.title, p.authors, p.journal, p.year, m.marked_at,
+               EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = m.paper_sha256 AND c.user_uuid = m.user_uuid AND c.deleted_at IS NULL) AS in_nook,
+               (SELECT count(*) FROM annotations a WHERE a.paper_sha256 = m.paper_sha256 AND a.user_uuid = m.user_uuid AND a.deleted_at IS NULL) AS annotations,
+               (SELECT count(*) FROM digs d WHERE d.paper_sha256 = m.paper_sha256 AND d.user_uuid = m.user_uuid AND d.board_item_uuid IS NULL) AS digs
+             FROM marked_papers m JOIN papers p ON p.sha256 = m.paper_sha256 AND p.deleted_at IS NULL
+             WHERE m.user_uuid = ? ORDER BY m.marked_at DESC, p.sha256`),
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
-    const [copies, paperRows, boards, shelves, tags, effortRows] = results.map((r) => r.results);
+    const [copies, paperRows, boards, shelves, tags, effortRows, markedRows] = results.map((r) => r.results);
     const papers = new Map(paperRows.map((p) => [p.sha256, p]));
     const effort = effortRows && new Map(effortRows.map((r) => [r.subject as string, { seconds: r.seconds, last_at: r.last_at }]));
     const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
@@ -112,6 +122,10 @@ export function nookRoutes(router: Router) {
         displayed: copies.filter((c) => c.shelf_public).length,
       },
       tags: tags ?? [],
+      marked: (markedRows ?? []).map((m) => ({
+        sha256: m.sha256, title: m.title, authors: m.authors, journal: m.journal, year: m.year,
+        marked_at: m.marked_at, in_nook: Boolean(m.in_nook), annotations: m.annotations, digs: m.digs,
+      })),
       projects,
       shelves: shelves.map((s) => ({
         uuid: s.uuid, name: s.name, color: s.color, is_public: Boolean(s.is_public),

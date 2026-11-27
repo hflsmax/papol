@@ -23,8 +23,14 @@ const added = (at) => {
 
 // Where a paper opens beside the rail, the shelf or board it came from kept
 // in front of it (frontend/DESIGN.md, Navigation).
-const paperPlace = (sha256, { shelf = null, board = null }) =>
-  appPath(`${board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
+const paperPlace = (sha256, { shelf = null, board = null, marked = false }) =>
+  appPath(`${board ? `/board/${board}` : marked ? '/marked' : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
+
+// What is written on a marked paper now: "2 marks · 1 dig".
+const written = ({ annotations, digs }) => [
+  annotations > 0 && `${annotations} ${annotations === 1 ? 'mark' : 'marks'}`,
+  digs > 0 && `${digs} ${digs === 1 ? 'dig' : 'digs'}`,
+].filter(Boolean).join(' · ') || 'Nothing now';
 
 // Who else is in a project, inside its card's link, the one way in.
 function Faces({ users, max }) {
@@ -87,9 +93,12 @@ const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users
 // still chosen. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, marked: markedAsked = false, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
+  // Marked: every paper the member wrote on, in their nook or not.
+  const marked = !project && !board && markedAsked;
+  const markedPapers = nook.marked ?? [];
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
   // The column heads stick just under the filter bar, whose height changes
@@ -188,7 +197,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             </div>
             <ul className="desk-rail-list">
               {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
-                const on = !board && !project && shelf === s.uuid;
+                const on = !board && !project && !marked && shelf === s.uuid;
                 return (
                   <li key={s.uuid ?? 'all'}>
                     <a
@@ -209,6 +218,21 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                   </li>
                 );
               })}
+            </ul>
+          </section>
+
+          {/* Not a shelf: what the member wrote on, wherever it is kept. */}
+          <section className="desk-rail-part desk-rail-marked" aria-label="Marked">
+            <ul className="desk-rail-list">
+              <li>
+                <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/marked')} aria-current={marked ? 'page' : undefined}>
+                  <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M10.6 2.6l2.8 2.8-7.6 7.6-3.4.6.6-3.4z" />
+                  </svg>
+                  <span className="desk-row-name">Marked</span>
+                  <span className="desk-count">{markedPapers.length}</span>
+                </a>
+              </li>
             </ul>
           </section>
 
@@ -263,8 +287,43 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           />
         </section>
       )}
-      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
-        {!(project || paper || board || reviewing) && (
+      {marked && (
+        <section className="desk-main desk-marked" aria-labelledby="desk-marked" hidden={Boolean(paper)}>
+          {!(paper || reviewing) && (
+            <InWay><h2 id="desk-marked" className="desk-main-title">Marked<span className="desk-count">{markedPapers.length}</span></h2></InWay>
+          )}
+          <p className="desk-marked-note">Every paper you have written on, in your nook or not. A paper lands here with your first anchor, ink, clip or dig and stays. Only you see this list.</p>
+          {markedPapers.length > 0 ? (
+            <table className="desk-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="desk-col-title">Title</th>
+                  <th scope="col" className="desk-col-written">Written</th>
+                  <th scope="col" className="desk-col-date">Marked</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markedPapers.map((p) => (
+                  <tr key={p.sha256}>
+                    <td className="desk-col-title">
+                      <a className="desk-title" href={paperPlace(p.sha256, { marked: true })}><PaperTitle title={p.title} /></a>
+                      <span className="desk-meta">
+                        {[formatAuthors(p.authors), p.year].filter(Boolean).join(' · ')}
+                        {p.journal && ` · ${p.journal}`}
+                      </span>
+                      <span className={p.in_nook ? 'desk-marked-where is-kept' : 'desk-marked-where'}>{p.in_nook ? 'In your nook' : 'Not in your nook'}</span>
+                    </td>
+                    <td className="desk-col-written">{written(p)}</td>
+                    <td className="desk-col-date">{added(p.marked_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="desk-none">Nothing yet. Open any paper and write on it.</p>}
+        </section>
+      )}
+      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board || marked)}>
+        {!(project || paper || board || marked || reviewing) && (
           <InWay><h2 id="desk-papers" className="desk-main-title">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2></InWay>
         )}
         <div ref={filterRef} className="desk-filter">

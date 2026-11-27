@@ -81,7 +81,7 @@ describe("client requirements", () => {
       "_server_change_log", "_server_clients", "activity", "admin_message_deliveries", "admin_messages",
       "annotations", "applied_mutations", "auth_tokens", "board_groups", "board_items", "boards",
       "copies", "copy_news", "copy_tags", "defined_terms", "dig_posts", "digs", "email_held", "error_logs", "feedback", "friend_suggestions", "friendships",
-      "jobs", "notifications", "paper_references", "papers", "password_resets",
+      "jobs", "marked_papers", "notifications", "paper_references", "papers", "password_resets",
       "project_asks", "project_boards", "project_member_reads", "project_members", "project_paper_tags", "project_papers", "project_tags", "projects",
       "settings", "sharables", "shelves", "tags", "thread_files", "thread_replies", "threads", "user_presence", "user_states", "users",
     ]);
