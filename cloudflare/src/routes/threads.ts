@@ -7,7 +7,8 @@
 // starter's friends, and whoever sees it can reply. Nothing is voted on
 // or counted for approval. A thread never marks the paper it came from:
 // it lives in the Lounge alone and keeps its place only to lead back
-// there. Its starter removes it, replies and all; a reply is taken back
+// there. It has a jacket of its own, as a paper and a board have, which
+// is why one thread is answered with its paper. Its starter removes it, replies and all; a reply is taken back
 // by whoever wrote it.
 
 import limits from "../../../config/app_limits.json";
@@ -55,6 +56,12 @@ function threadOut(env: Env, thread: Row, replies: Row[], me: User) {
 const THREAD = `t.uuid AS thread_uuid, t.user_uuid, t.paper_sha256, t.page, t.y, t.mark, t.box, t.excerpt, t.picture_sha256, t.words, t.created_at, ${PERSON}`;
 const REPLY = `r.uuid AS reply_uuid, r.thread_uuid, r.user_uuid, r.body, r.created_at, ${PERSON}`;
 
+// The paper a thread came from, for the thread's jacket and its Lounge
+// row to name. A thread outlives a paper taken out of Papol, and then
+// names none.
+const PAPER = "p.sha256 AS paper_found, p.title, p.authors, p.journal, p.year";
+const paperOut = (row: Row) => (row.paper_found == null ? null : { sha256: row.paper_sha256, title: row.title, authors: row.authors, journal: row.journal, year: row.year });
+
 async function repliesOf(env: Env, threadUuids: string[]): Promise<Map<string, Row[]>> {
   const found = new Map<string, Row[]>();
   if (!threadUuids.length) return found;
@@ -68,13 +75,15 @@ async function repliesOf(env: Env, threadUuids: string[]): Promise<Map<string, R
 // The thread a route was asked about, if the reader sees it.
 async function seenThread(env: Env, uuid: string, me: User): Promise<Row> {
   const thread = UUID.test(uuid) ? await one<Row>(env.DB,
-    `SELECT ${THREAD} FROM threads t JOIN users u ON u.uuid = t.user_uuid WHERE t.uuid = ? AND ${seesThread(userLiteral(me.uuid))}`, uuid.toLowerCase()) : null;
+    `SELECT ${THREAD}, ${PAPER} FROM threads t JOIN users u ON u.uuid = t.user_uuid LEFT JOIN papers p ON p.sha256 = t.paper_sha256 AND p.deleted_at IS NULL
+     WHERE t.uuid = ? AND ${seesThread(userLiteral(me.uuid))}`, uuid.toLowerCase()) : null;
   return thread ?? refuse(404, "Thread not found");
 }
 
 async function answer(env: Env, uuid: string, me: User) {
   const thread = await seenThread(env, uuid, me);
-  return json(threadOut(env, thread, (await repliesOf(env, [String(thread.thread_uuid)])).get(String(thread.thread_uuid)) ?? [], me));
+  const replies = (await repliesOf(env, [String(thread.thread_uuid)])).get(String(thread.thread_uuid)) ?? [];
+  return json({ ...threadOut(env, thread, replies, me), paper: paperOut(thread) });
 }
 
 // The Lounge's thread rows: every thread the reader sees that was started
@@ -83,7 +92,7 @@ async function answer(env: Env, uuid: string, me: User) {
 export async function threadRows(env: Env, me: User, since: string, seen: string) {
   const mine = userLiteral(me.uuid);
   const threads = await all<Row>(env.DB,
-    `SELECT ${THREAD}, p.title, p.authors, p.journal, p.year
+    `SELECT ${THREAD}, ${PAPER}
      FROM threads t JOIN users u ON u.uuid = t.user_uuid JOIN papers p ON p.sha256 = t.paper_sha256 AND p.deleted_at IS NULL
      WHERE ${seesThread(mine)}
        AND (t.created_at > ?1 OR EXISTS (SELECT 1 FROM thread_replies x WHERE x.thread_uuid = t.uuid AND x.created_at > ?1))`, since);
@@ -102,7 +111,7 @@ export async function threadRows(env: Env, me: User, since: string, seen: string
     const at = times.reduce((latest, x) => (x.at > latest ? x.at : latest), "");
     return {
       kind: "thread", key: `thread:${t.thread_uuid}`, at, is_new: times.some((x) => x.by !== me.uuid && x.at > seen),
-      thread: out, paper: { sha256: t.paper_sha256, title: t.title, authors: t.authors, journal: t.journal, year: t.year }, lines,
+      thread: out, paper: paperOut(t), lines,
     };
   });
 }

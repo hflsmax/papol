@@ -34,7 +34,8 @@ describe("threads in the Lounge", () => {
     expect(await room(ada)).toMatchObject([{ kind: "thread", key: `thread:${made.uuid}`, is_new: false, thread: { uuid: made.uuid, is_mine: true }, paper: { sha256: DIGEST, title: "Attention at depth" }, lines: [{ user: { uuid: ada.uuid }, did: "started" }] }]);
     const hers = (await room(grace)).filter((row) => row.kind === "thread");
     expect(hers).toMatchObject([{ thread: { uuid: made.uuid, is_mine: false, excerpt: made.excerpt, words: made.words } }]);
-    expect((await ok("GET", `/api/threads/${made.uuid}`, { headers: grace.headers })).uuid).toBe(made.uuid);
+    // One thread, as its jacket reads it, names its paper.
+    expect(await ok("GET", `/api/threads/${made.uuid}`, { headers: grace.headers })).toMatchObject({ uuid: made.uuid, paper: { sha256: DIGEST, title: "Attention at depth" } });
 
     // Alan is nobody's friend: no row, no thread, no reply.
     expect((await room(alan)).filter((row) => row.kind === "thread")).toEqual([]);

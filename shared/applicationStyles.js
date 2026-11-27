@@ -6123,24 +6123,31 @@ ${talkStyles}
    under it. Its row is told from a paper's by the word before it; opened,
    the passage stands as a quotation with the way back to its place, then
    everything said, then the box to reply in. */
-.room-thread-open { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: pointer; }
+.room-thread-open { display: block; text-decoration: none; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: pointer; }
 .room-thread-open:hover:not(:disabled) { background: none; }
 .room-thread-open:hover .room-thread-about, .room-thread-open:focus-visible .room-thread-about { color: var(--accent); text-decoration: underline; }
 .room-thread-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .room-thread-about { display: -webkit-inline-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; vertical-align: bottom; max-width: calc(100% - 5rem); }
 .room-thread-about.is-quote { font-style: italic; }
-.room-row.is-open .room-thread-about { -webkit-line-clamp: 3; }
-.room-thread { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); max-width: 44rem; margin: var(--space-3) 0 var(--space-2); }
-.room-thread-from { margin: 0; padding: var(--space-1) 0 var(--space-1) var(--space-3); border-left: 2px solid var(--gold-line); }
-.room-thread-from blockquote { margin: 0; color: var(--ink); font: 400 var(--fs-sm)/1.5 var(--font-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
-.room-thread-from img { display: block; max-width: 100%; max-height: 22rem; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
-.room-thread-from figcaption { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); margin-top: var(--space-2); color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }
-.room-thread-from figcaption a { color: var(--accent); text-decoration: none; }
-.room-thread-from figcaption a:hover, .room-thread-from figcaption a:focus-visible { text-decoration: underline; }
-.room-thread .talk-posts { padding: 0; }
-.room-thread .talk-post-body > :last-child { margin-bottom: 0; }
-.room-thread .talk-compose { padding: 0; background: none; }
-.room-thread .talk-compose :is(textarea, .md-field) { min-height: 34px; font-size: var(--fs-sm); }
+/* A thread's jacket: the passage it started from set as the page's
+   subject, then who sent it, the paper, and everything said. */
+.thread-jacket-title-row { align-items: center; }
+.thread-jacket-title-row .thread-jacket-kind { margin: 0; color: var(--ink-soft); font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 400; line-height: 1.4; }
+.thread-jacket-title-row .action-glyph { display: block; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.thread-jacket-from { margin: var(--space-3) 0 0; padding: var(--space-1) 0 var(--space-1) var(--space-4); border-left: 2px solid var(--gold-line); }
+.thread-jacket-from blockquote { margin: 0; color: var(--ink); font: 400 var(--fs-lg)/1.5 var(--font-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread-jacket-from img { display: block; max-width: 100%; max-height: 28rem; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.thread-jacket-from blockquote + img { margin-top: var(--space-3); }
+.thread-jacket .thread-jacket-facts { margin: var(--space-3) 0 0 -16px; }
+.thread-jacket-paper { display: grid; gap: 2px; margin: var(--space-3) 0 0; }
+.thread-jacket-paper-title { color: var(--ink); font: 400 var(--fs-md)/1.4 var(--font-serif); }
+.thread-jacket-paper-meta { color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }
+.thread-jacket .paper-actions .button { width: auto; }
+.thread-jacket-said { max-width: 44rem; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.thread-jacket-said .talk-posts { padding: 0; }
+.thread-jacket-said .talk-posts:empty { display: none; }
+.thread-jacket-said .talk-post-body > :last-child { margin-bottom: 0; }
+.thread-jacket-said .talk-compose { margin-top: var(--space-3); padding: 0; background: none; }
 
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
@@ -6154,7 +6161,7 @@ ${talkStyles}
   .room-who { position: static; }
   .room-head, .room-when { display: none; }
   .room-faces { width: auto; justify-content: flex-start; }
-  .room-thread-about, .room-row.is-open .room-thread-about { display: inline; max-width: none; }
+  .room-thread-about { display: inline; max-width: none; }
   .room-pop, .room-who.is-held .room-pop { left: 0; right: 0; width: auto; max-width: none; }
     .their-head { flex-wrap: wrap; }
 }

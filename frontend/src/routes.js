@@ -25,6 +25,8 @@ export function parseRoute(pathname = window.location.pathname || '/') {
   if (picked) return { page: 'paper', uuid: picked[3].toLowerCase(), [picked[1].toLowerCase()]: picked[2].toLowerCase() };
   if ((uuid = at(`/shelf/${UUID}`))) return { page: 'shelf', uuid };
   if ((uuid = at(`/board/${UUID}`))) return { page: 'board', uuid };
+  // A thread's jacket: the one screen a thread in the Lounge has.
+  if ((uuid = at(`/thread/${UUID}`))) return { page: 'thread', uuid };
   if ((uuid = at(`/project/${UUID}`))) return { page: 'project', uuid };
   const paperInProject = path.match(new RegExp(`^/project/${UUID}/paper/${PAPER}/?$`, 'i'));
   if (paperInProject) return { page: 'project', uuid: paperInProject[1].toLowerCase(), paper: paperInProject[2].toLowerCase() };
@@ -57,7 +59,7 @@ export function parseRoute(pathname = window.location.pathname || '/') {
 // The pages a visitor is asked to sign in for, in place, when they arrive
 // signed out.
 export const SIGN_IN_PAGES = new Set([
-  'nook', 'shelf', 'room', 'inbox', 'admin', 'profile',
+  'nook', 'shelf', 'room', 'thread', 'inbox', 'admin', 'profile',
   'projects', 'project', 'invitation',
 ]);
 

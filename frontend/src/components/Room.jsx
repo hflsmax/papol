@@ -1,19 +1,14 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import {
-  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen, removeThread, removeThreadReply, replyInThread, threadPlacePath,
+  findPeople, getRoom, getSuggestions, hideSuggestion, markRoomSeen,
 } from '../../../shared/api/friends.js';
-import appLimits from '../../../shared/appLimits.js';
-import { confirmAction } from '../../../shared/confirmAction';
-import ActionGlyph from '../../../shared/ui/ActionGlyph.jsx';
-import Markdown from '../../../shared/ui/Markdown.jsx';
-import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import { paperName } from '../../../shared/paperName.js';
 import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import Face, { FacesLead } from '../../../shared/ui/Face.jsx';
 import { TalkCard, when } from '../../../shared/ui/Talk.jsx';
-import { appPath, backendPath } from '../base';
+import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
 import { loadFriends, useFriends } from '../friendsStore';
@@ -207,75 +202,25 @@ function ProjectRow({ row }) {
   );
 }
 
-// One thing said in a thread: who, when, and their words. Its writer can
-// take it back.
-function ThreadSaid({ user, at, mine, words, removeLabel, onRemove }) {
-  return (
-    <li className={`talk-post${mine ? ' is-mine' : ''}`}>
-      <p className="talk-post-head">
-        <Face user={user} />
-        <b>{mine ? 'You' : user.display_name}</b>
-        <time dateTime={at}>{when(at, { time: true })}</time>
-        {mine && (
-          <span className="talk-post-actions" role="group" aria-label={removeLabel}>
-            <button type="button" className="is-danger" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
-              <ActionGlyph name="trash" />
-            </button>
-          </span>
-        )}
-      </p>
-      {words && <Markdown className="talk-post-body" text={words} />}
-    </li>
-  );
-}
-
 // A thread: something a friend, or I, sent to the Lounge from a paper,
 // and what was replied to it. The row says what it is about, in the
-// sender's words if they wrote any; opened, it shows the passage or the
-// picture with the way back to its place in the paper, everything said,
-// and a box to reply in. Free talk: no votes, nothing counted for approval.
-function ThreadRow({ row, currentUser, onThread }) {
+// sender's words if they wrote any, and leads to the thread's jacket,
+// where it is read and replied in.
+function ThreadRow({ row }) {
   const { thread, paper } = row;
-  const [open, setOpen] = useState(false);
-  const [body, setBody] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const picture = thread.picture_url && (thread.picture_url.startsWith('/') ? backendPath(thread.picture_url) : thread.picture_url);
-  const place = appPath(threadPlacePath(thread));
   const replies = thread.replies.length;
   const about = thread.words || thread.excerpt;
-
-  const act = async (work) => {
-    setBusy(true);
-    setError(null);
-    try { await work(); } catch (err) { setError(err.message); } finally { setBusy(false); }
-  };
-  const send = (event) => {
-    event?.preventDefault();
-    const text = body.trim();
-    if (!text || busy) return;
-    act(async () => { onThread(thread.uuid, await replyInThread(thread.uuid, text)); setBody(''); });
-  };
-  const remove = async () => {
-    if (!(await confirmAction(replies ? 'Remove this thread and its replies?' : 'Remove this thread?', { confirmLabel: 'Remove', destructive: true }))) return;
-    act(async () => { await removeThread(thread.uuid); onThread(thread.uuid, null); });
-  };
-  const takeBack = async (reply) => {
-    if (!(await confirmAction('Delete this reply?', { confirmLabel: 'Delete', destructive: true }))) return;
-    act(async () => onThread(thread.uuid, await removeThreadReply(reply.uuid)));
-  };
-
   return (
-    <li className={`room-row is-thread${row.is_new ? ' is-new' : ''}${open ? ' is-open' : ''}`}>
+    <li className={`room-row is-thread${row.is_new ? ' is-new' : ''}`}>
       <div className="room-row-head">
         <div className="room-row-text">
-          <button type="button" className="room-thread-open" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <a className="room-thread-open" href={appPath(`/thread/${thread.uuid}`)}>
             <span className="room-kind">Thread</span>
             <span className={`desk-title room-title room-thread-about${thread.words ? '' : ' is-quote'}`}>
               {about ? (thread.words ? about : `“${about}”`) : 'A clip'}
             </span>
             {row.is_new && <NewsDot />}
-          </button>
+          </a>
           <span className="desk-meta room-meta">
             {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'} · `}
             <PaperTitle title={paper.title} />, page {thread.page}
@@ -290,42 +235,6 @@ function ThreadRow({ row, currentUser, onThread }) {
         </span>
         <time className="room-when" dateTime={row.at} title={when(row.at, { time: true })}>{when(row.at)}</time>
       </div>
-      {open && (
-        <div className="room-thread">
-          <figure className="room-thread-from">
-            {thread.excerpt && <blockquote>{thread.excerpt}</blockquote>}
-            {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
-            <figcaption>
-              <a href={place}><PaperTitle title={paper.title} />, page {thread.page}</a>
-              <span className="room-thread-paper">{metaOf(paper)}</span>
-            </figcaption>
-          </figure>
-          <ol className="talk-posts">
-            <ThreadSaid
-              user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words}
-              removeLabel="Remove thread" onRemove={remove}
-            />
-            {thread.replies.map((reply) => (
-              <ThreadSaid
-                key={reply.uuid} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}
-                removeLabel="Delete reply" onRemove={() => takeBack(reply)}
-              />
-            ))}
-          </ol>
-          {error && <div className="error" role="alert">{error}</div>}
-          <form className="talk-compose room-thread-reply" onSubmit={send}>
-            <Face user={currentUser} />
-            <MarkdownField
-              rows={1} value={body} maxLength={appLimits.text.thread_words} placeholder="Reply" aria-label="Reply in this thread"
-              onChange={(event) => setBody(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send(event); }}
-            />
-            <button type="submit" className="talk-send" disabled={busy || !body.trim()} aria-label="Reply" title="Reply (⌘↩)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-            </button>
-          </form>
-        </div>
-      )}
     </li>
   );
 }
@@ -495,29 +404,6 @@ export default function Room({ currentUser, onSeen }) {
     // Friends made or ended here change who the room is made from.
   }, [friends?.friends.length]);
 
-  // A thread replied in or removed here: its row as it now stands, with
-  // the faces of everyone who spoke, or gone.
-  const onThread = (uuid, next) => {
-    if (!room) return;
-    const changed = {
-      ...room,
-      rows: room.rows.flatMap((row) => {
-        if (row.kind !== 'thread' || row.thread.uuid !== uuid) return [row];
-        if (!next) return [];
-        const lines = [{ user: next.user, did: 'started', at: next.created_at }];
-        for (const reply of next.replies) {
-          const line = lines.find((l) => l.user.uuid === reply.user.uuid);
-          if (!line) lines.push({ user: reply.user, did: 'replied', at: reply.created_at });
-          else if (line.did === 'replied') line.at = reply.created_at;
-        }
-        return [{ ...row, thread: next, lines }];
-      }),
-    };
-    keep('room', changed);
-    setRoom(changed);
-    setLounge({ rows: changed.rows });
-  };
-
   const rows = room?.rows ?? [];
   const mine = friends?.friends ?? [];
   // A friend who has since left the list is no longer narrowed to.
@@ -595,7 +481,7 @@ export default function Room({ currentUser, onSeen }) {
                   <ul className="room-rows">
                     {shown.slice(0, upTo).map((row) => {
                       const Row = ROWS[row.kind];
-                      return Row ? <Row key={row.key} row={row} currentUser={currentUser} onThread={onThread} /> : null;
+                      return Row ? <Row key={row.key} row={row} currentUser={currentUser} /> : null;
                     })}
                   </ul>
                   {shown.length > upTo && (

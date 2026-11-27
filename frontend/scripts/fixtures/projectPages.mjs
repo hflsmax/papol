@@ -387,6 +387,12 @@ function answer(method, path, search, sent = {}) {
   if (path === '/friends/suggestions') return suggestionsNow;
   const hidden = path.match(/^\/friends\/suggestions\/([0-9a-f-]{36})$/);
   if (hidden) { suggestionsNow = suggestionsNow.filter((s) => s.user.uuid !== hidden[1]); return suggestionsNow; }
+  // A thread read for its jacket, with its paper.
+  const read = method === 'GET' && path.match(/^\/threads\/([0-9a-f-]{36})$/);
+  if (read) {
+    const thread = threadsNow.find((t) => t.uuid === read[1]);
+    return thread ? { ...thread, paper: paperOut(papers.find((p) => p.sha256 === thread.paper_sha256)) } : undefined;
+  }
   // A reply in a thread, a reply taken back, a thread removed.
   const replying = method === 'POST' && path.match(/^\/threads\/([0-9a-f-]{36})\/replies$/);
   if (replying) {

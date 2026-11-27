@@ -48,3 +48,19 @@ export function narrowed(rows, pick) {
 }
 
 export const KINDS = [['', 'Everything'], ['thread', 'Threads'], ['paper', 'Papers'], ['board', 'Boards'], ['project', 'Projects']];
+
+// The Lounge's rows after a thread was replied in or removed: its row as
+// it now stands, with the faces of everyone who spoke, or gone.
+export function withThread(rows, uuid, next) {
+  return rows.flatMap((row) => {
+    if (row.kind !== 'thread' || row.thread.uuid !== uuid) return [row];
+    if (!next) return [];
+    const lines = [{ user: next.user, did: 'started', at: next.created_at }];
+    for (const reply of next.replies) {
+      const line = lines.find((l) => l.user.uuid === reply.user.uuid);
+      if (!line) lines.push({ user: reply.user, did: 'replied', at: reply.created_at });
+      else if (line.did === 'replied') line.at = reply.created_at;
+    }
+    return [{ ...row, thread: next, lines }];
+  });
+}

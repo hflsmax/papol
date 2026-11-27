@@ -59,8 +59,12 @@ export function getRoomNews() {
 }
 
 // A thread in the Lounge: something a friend, or I, sent there from a
-// paper. Replying, and taking a reply back, answer with the thread as it
-// now stands.
+// paper. Read for its jacket, it comes with its paper. Replying, and
+// taking a reply back, answer with the thread as it now stands.
+export function getThread(threadUuid) {
+  return request(`/threads/${threadUuid}`);
+}
+
 export function replyInThread(threadUuid, body) {
   return jsonRequest(`/threads/${threadUuid}/replies`, 'POST', { body });
 }
