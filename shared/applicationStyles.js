@@ -3861,7 +3861,7 @@ a.button:hover {
   position: absolute; z-index: 3;
   padding: 8px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-overlay);
   color: #14161a;
@@ -3925,7 +3925,7 @@ a.button:hover {
   background: color-mix(in srgb, var(--paper) 95%, transparent);
   animation: specimen-fade var(--motion-base) var(--ease-out);
 }
-.specimen-figure.large { width: min(560px, 86vw); padding: 14px 16px; border-radius: var(--radius-lg); background: var(--page, #fff); color: #14161a; box-shadow: var(--shadow-sm); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
+.specimen-figure.large { width: min(560px, 86vw); padding: 14px 16px; border-radius: var(--radius-lg); background: var(--page); color: #14161a; box-shadow: var(--shadow-sm); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
 .specimen-figure.large figcaption { font-size: var(--fs-sm); text-align: center; }
 .specimen-redrawn { display: block; margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-2xs) var(--font-serif); font-variant: normal; }
 .specimen-return {
