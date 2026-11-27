@@ -288,7 +288,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           {!(paper || reviewing) && (
             <InWay><h2 id="desk-marked" className="desk-main-title">Passing<span className="desk-count">{markedPapers.length}</span></h2></InWay>
           )}
-          <p className="desk-marked-note">Read but not kept. Only you see this list; a dig on one of these papers can still be seen by your friends.</p>
+          <p className="desk-marked-note">Read but not kept.</p>
           {markedPapers.length > 0 ? (
             <table className="desk-table">
               <thead>
