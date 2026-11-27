@@ -304,6 +304,9 @@ const suggestionState = () => [
 let suggestionsNow = suggestionState();
 // Threads: what Ana and the member sent to the Lounge from a paper, and
 // the replies under them. A reply typed in a picture is kept, as Papol would.
+// A clip as a reader cuts one from a page: a figure with its caption,
+// drawn here so the pictures need no file.
+const CLIP = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="620" height="330" viewBox="0 0 620 330"><rect width="620" height="330" fill="#fff"/><g stroke="#222" stroke-width="1.2" fill="none"><path d="M70 30v220h500"/><path d="M70 60c80 4 120 40 170 90s110 78 330 84" stroke="#1f4e79" stroke-width="2.2"/><path d="M70 60c90 10 150 70 210 120s120 56 290 60" stroke="#b5552d" stroke-width="2.2" stroke-dasharray="7 5"/></g><g font-family="Times New Roman, serif" font-size="13" fill="#222"><text x="300" y="275">Temporal frequency (Hz)</text><text transform="translate(40 190) rotate(-90)">Rejection (dB)</text><text x="430" y="70" fill="#1f4e79">integrator</text><text x="430" y="90" fill="#b5552d">predictive, 40 frames</text><text x="70" y="312" font-size="12.5"><tspan font-weight="bold">Figure 4.</tspan> Rejection transfer functions measured on sky for the two controllers.</text></g></svg>`)}`;
 const threadState = () => [
   {
     uuid: 'e2b2c3d4-0000-4000-8000-000000000070', user: ana, is_mine: false, paper_sha256: P_SURVEY, page: 7, y: 0.42, mark: 'W1s3LDAuMTMsMC44NywwLjQyLDAuMDIxXV0=', box: null,
@@ -313,6 +316,13 @@ const threadState = () => [
       { uuid: 'e2b2c3d4-0000-4000-8000-000000000071', user: ben, body: 'Three, and the top one moves fast. I would not trust the halving either way until we fit it to our own telemetry.', created_at: hoursAgo(6), is_mine: false },
       { uuid: 'e2b2c3d4-0000-4000-8000-000000000072', user: me, body: 'I have last month\u2019s telemetry. Give me a day.', created_at: hoursAgo(5), is_mine: true },
       { uuid: 'e2b2c3d4-0000-4000-8000-000000000073', user: ana, body: 'Wild idea while you are at it: fit the window length too, instead of fixing it.', created_at: hoursAgo(1), is_mine: false },
+    ],
+  },
+  {
+    uuid: 'e2b2c3d4-0000-4000-8000-000000000075', user: ben, is_mine: false, paper_sha256: P_SURVEY, page: 12, y: 0.3, mark: null, box: 'WzEyLDAuMSwwLjMsMC44LDAuMjhd',
+    excerpt: null, picture_url: CLIP, words: 'Look where the two curves cross. Below that the predictor buys us nothing.', created_at: hoursAgo(30),
+    replies: [
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000076', user: ana, body: 'And our vibration peak sits right at the crossing. Unlucky.', created_at: hoursAgo(27), is_mine: false },
     ],
   },
   {

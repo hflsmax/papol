@@ -177,6 +177,8 @@ const SHOTS = {
   // A thread sent to the Lounge from a paper, opened on its jacket: the
   // passage, what was said, and the box to reply in; a reply sent; and
   // the member's own thread, nobody having replied yet.
+  'thread-clip': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000075?shell=web', ready: "document.querySelector('.thread-jacket-from img')", size: wide },
+  'phone-thread-clip': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000075?shell=web', ready: "document.querySelector('.thread-jacket-from img')", size: phone },
   'thread-mine': { path: '/thread/e2b2c3d4-0000-4000-8000-000000000080?shell=web', ready: "document.querySelector('.thread-jacket-from')", size: wide },
   'room-thread': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: OPEN_THREAD, settled: "document.querySelector('.thread-jacket .talk-post')", size: wide },
   'room-thread-replied': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: `${OPEN_THREAD.replace('return true;', '')} const type = () => { const f = document.querySelector('.thread-jacket-reply textarea, .thread-jacket-reply .md-field'); if (!f) return setTimeout(type, 100); f.focus(); document.execCommand('insertText', false, 'Done. The window that fits best is 40 frames, not the 100 they fix.'); setTimeout(() => document.querySelector('.thread-jacket-reply .talk-send').click(), 200); }; type(); return true;`, settled: "document.querySelectorAll('.thread-jacket .talk-post').length === 5", size: wide },
