@@ -150,7 +150,7 @@ export function friendRoutes(router: Router) {
   });
 
   // Asking someone to be friends. Asking someone who already asked is
-  // accepting them.
+  // accepting them, and an admin's asking is accepted as it is made.
   router.on("POST", "/api/friends/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
     const them = await liveUser(env, params.uuid);
@@ -166,6 +166,14 @@ export function friendRoutes(router: Router) {
         ...befriend(env, existing, them.uuid, me.uuid, at),
         requestGone(env, them.uuid, me.uuid),
         notice(env, them.uuid, `${me.display_name} accepted your friend request.`, "friend_accepted", me, `/u/${me.uuid}`, at),
+      ]);
+    } else if (me.is_admin && (!existing || existing.state === "dropped")) {
+      // An admin's request needs no answer: they are friends at once, and
+      // the one asked is told so, and can end it from the admin's nook.
+      await batch(env.DB, [
+        ...(existing ? [statement(env.DB, "DELETE FROM friendships WHERE uuid = ?", existing.uuid)] : []),
+        ...befriend(env, null, me.uuid, them.uuid, at),
+        notice(env, them.uuid, `${me.display_name} added you as a friend.`, "friend_added", me, `/u/${me.uuid}`, at),
       ]);
     } else if (!existing || existing.state === "dropped") {
       const site = (await siteUrl(env)).replace(/\/$/, "");

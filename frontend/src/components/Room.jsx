@@ -308,26 +308,32 @@ export function suggestionReason(suggestion) {
 // How many people are suggested at once; the next come up as these go.
 const SUGGESTED = 3;
 
-// People to ask, above the news: who they are, why Papol names them, the
-// friend button, and Not interested, which takes them out for good.
-// Someone asked keeps their card for a week (the server's rule), so the
-// asking can be taken back where it was done.
+// People to ask, above the news: who they are, what we share if anything,
+// the friend button, and Not interested, which takes them out for good.
+// They are drawn afresh each time the Lounge is opened, so nothing is
+// shown from the last visit while the new ones come. Someone asked keeps
+// their card for a week (the server's rule), so the asking can be taken
+// back where it was done.
 function Suggestions({ currentUser }) {
-  const [people, setPeople] = useState(() => kept('room-suggestions') ?? null);
+  const [people, setPeople] = useState(null);
   const [error, setError] = useState(null);
-  const take = (next) => { keep('room-suggestions', next); setPeople(next); };
 
   useEffect(() => {
     let active = true;
-    getSuggestions().then((next) => { if (active) take(next); }).catch(() => {});
+    getSuggestions().then((next) => { if (active) setPeople(next); }).catch(() => {});
     return () => { active = false; };
   }, []);
 
   const hide = async (user) => {
     setError(null);
-    // Gone at once; the answer brings whoever is next.
-    setPeople((now) => now.filter((s) => s.user.uuid !== user.uuid));
-    try { take(await hideSuggestion(user.uuid)); } catch (err) { setError(err.message); }
+    const without = (list) => list.filter((s) => s.user.uuid !== user.uuid);
+    // Gone at once, and the others stay where they are: the answer is
+    // another draw, of which only who is not here yet comes up behind them.
+    setPeople(without);
+    try {
+      const drawn = await hideSuggestion(user.uuid);
+      setPeople((now) => [...now, ...without(drawn).filter((s) => !now.some((have) => have.user.uuid === s.user.uuid))]);
+    } catch (err) { setError(err.message); }
   };
 
   if (!people?.length) return null;
@@ -349,7 +355,7 @@ function Suggestions({ currentUser }) {
               <button type="button" className="room-suggestion-hide" title={`Not interested: stop suggesting ${first(user)}`} aria-label={`Not interested: stop suggesting ${user.display_name}`} onClick={() => hide(user)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
               </button>
-              <span className="room-suggestion-why">{suggestionReason(suggestion)}</span>
+              {suggestionReason(suggestion) && <span className="room-suggestion-why">{suggestionReason(suggestion)}</span>}
             </li>
           );
         })}
@@ -488,6 +494,12 @@ export default function Room({ currentUser, onSeen }) {
           {room && room.friend_count > 0 && !chosen && <ThreadComposer currentUser={currentUser} onStarted={onStarted} />}
           {room && !chosen && <Suggestions currentUser={currentUser} />}
           {!room && !error && <div className="loading"><Working label="Loading the Lounge…" /></div>}
+          {room && room.friend_count === 0 && rows.length === 0 && (
+            <p className="room-empty">
+              The Lounge is where your friends’ news is: what they add, think and dig.{' '}
+              <button type="button" className="link-button" onClick={() => setFinding(true)}>Find someone</button> by name or email to ask them.
+            </p>
+          )}
           {room && room.friend_count > 0 && rows.length === 0 && (
             <p className="room-empty">Your friends have been quiet this month. Start a thread above, or select something in a paper and send it here.</p>
           )}

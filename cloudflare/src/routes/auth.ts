@@ -4,11 +4,12 @@ import {
   currentUser, hashPassword, isLegacyHash, loginPlatform, newToken, sessionInsert, userPrivate,
   verifyPassword, type User,
 } from "../auth";
-import { batch, insert, newUuid, now, one, statement } from "../db";
+import { batch, insert, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { queueEmail, siteUrl } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import limits from "../../../config/app_limits.json";
+import { PAPER_NAME_LENGTH, keepPaper, paperByName } from "../papers/detail";
 import { registration } from "../validate";
 
 const RESET_LIFETIME_MS = 60 * 60 * 1000;
@@ -17,6 +18,24 @@ const RESET_REPLY = "If that address belongs to an account, a password reset lin
 async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// A paper every new user starts with, so their nook opens with something
+// to read: the one the settings table key "starter_paper" names, by the
+// name in its address (/paper/<name>) or its whole digest. Unset, or
+// naming no paper, a nook starts empty. It goes on their private shelf:
+// they did not choose it, so nobody is told they keep it, and it is
+// theirs to move or remove. Signing up never fails over it.
+async function starterPaper(env: Env, user: User): Promise<void> {
+  try {
+    const setting = await one<{ value: string | null }>(env.DB, "SELECT value FROM settings WHERE key = 'starter_paper'");
+    const paper = setting?.value ? await paperByName(env.DB, setting.value.trim().slice(0, PAPER_NAME_LENGTH)) : null;
+    if (!paper || paper.deleted_at) return;
+    const shelf = await one<Row>(env.DB, "SELECT * FROM shelves WHERE user_uuid = ? AND is_public = 0 AND deleted_at IS NULL ORDER BY position LIMIT 1", user.uuid);
+    await keepPaper(env.DB, user, paper.sha256, shelf);
+  } catch (error) {
+    console.error("starter paper not added", error);
+  }
 }
 
 // The {name} placeholder is filled with the new user's display name.
@@ -53,6 +72,7 @@ export function authRoutes(router: Router) {
       insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: user.uuid, content: (welcome?.value || DEFAULT_WELCOME).replace("{name}", user.display_name), read: 0, created_at: at }),
       sessionInsert(env.DB, token, user.uuid, loginPlatform(request)),
     ]);
+    await starterPaper(env, user as unknown as User);
     return json({ token, user: userPrivate(user as unknown as User) });
   });
 
