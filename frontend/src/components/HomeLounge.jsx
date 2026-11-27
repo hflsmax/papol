@@ -5,9 +5,9 @@ import React, { useState } from 'react';
 // of their own; nothing leaves the page.
 
 const READERS = [
-  { initial: 'M', tint: 0, name: 'Mei', thought: 'The per-residue confidence is what I actually use.' },
-  { initial: 'T', tint: 2, name: 'Tomás', thought: 'The supplement is where the method lives.' },
-  { initial: 'A', tint: 4, name: 'Aisha', thought: 'Still struggles when a protein has few relatives to learn from.' },
+  { initial: 'M', tint: 0, name: 'Mei', thought: 'The typing rules read best next to the example in Section 3.' },
+  { initial: 'T', tint: 2, name: 'Tomás', thought: 'The lifetime logic is the part I keep coming back to.' },
+  { initial: 'A', tint: 4, name: 'Aisha', thought: 'I trust Arc and Mutex a little more now.' },
 ];
 
 export default function HomeLounge({ beckoning, onTried }) {
@@ -18,8 +18,8 @@ export default function HomeLounge({ beckoning, onTried }) {
 
   return (
     <div className="landing-jacket">
-      <p className="landing-jacket-title">Highly accurate protein structure prediction with AlphaFold</p>
-      <p className="landing-jacket-meta">Jumper et al. · Nature, 2021 · {readers.length} friends</p>
+      <p className="landing-jacket-title">RustBelt: Securing the Foundations of the Rust Programming Language</p>
+      <p className="landing-jacket-meta">Jung et al. · POPL, 2018 · {readers.length} friends</p>
       <ul className="landing-readers">
         {readers.map((reader) => (
           <li key={reader.name} className={reader.own ? 'own' : ''}>

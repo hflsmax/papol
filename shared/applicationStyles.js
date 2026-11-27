@@ -3828,8 +3828,12 @@ a.button:hover {
 }
 .specimen-cite:focus-visible,
 .specimen-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.specimen-cite { position: relative; padding: 0 3px; font-size: 0.72em; vertical-align: super; line-height: 1; }
-.specimen-cite::after { content: ''; position: absolute; inset: -8px -6px; }
+.specimen-cite { position: relative; }
+.specimen-link { white-space: nowrap; }
+/* A rule's name, set in small capitals as the paper sets it. */
+.specimen-rule { position: relative; font-variant-caps: small-caps; letter-spacing: 0.02em; }
+.specimen-rule.active { background: var(--accent-soft); }
+@media (hover: none) { .specimen-rule.beckon[data-hint]::before { content: 'Tap'; } }
 .specimen-cite:hover:not(:disabled),
 .specimen-link:hover:not(:disabled) { border: 0; background: var(--accent-soft); color: var(--accent); }
 .specimen-cite.active,
@@ -3837,17 +3841,36 @@ a.button:hover {
 .specimen-page.painting .specimen-cite,
 .specimen-page.painting .specimen-link { pointer-events: none; color: inherit; animation: none; }
 
+/* A typing rule: premises over a bar, the conclusion under it, its name
+   over the bar's left end. */
+.rule { display: inline-grid; justify-items: center; gap: 2px; padding: 2px 4px; border-radius: 3px; font-size: var(--fs-sm); line-height: 1.4; white-space: nowrap; text-align: center; }
+.rule-name { justify-self: start; font-variant-caps: small-caps; letter-spacing: 0.02em; }
+.rule-row { display: inline-flex; gap: 1.6em; }
+.rule-bar { justify-self: stretch; height: 0; margin: 1px 0; border-top: 1px solid currentColor; }
+.rule-word { font-family: var(--font-ui); font-size: 0.92em; }
+.rule-many { text-decoration: overline; }
+.rule sub, .rule sup { font-size: 0.72em; line-height: 0; }
+.rule.flash { animation: specimen-flash 1.6s var(--ease-out); }
+.rule-judgment { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; margin-bottom: 10px; font-size: var(--fs-sm); text-align: left; }
+.specimen-rules { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 12px 28px; }
+.specimen-figure.rules { overflow-x: auto; padding-bottom: 2px; }
+
+/* The telescope: a rule brought under the line that names it, at the size
+   it is printed, looked at and not held. */
+.specimen-telescope {
+  position: absolute; z-index: 3;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md, 6px);
+  background: var(--card);
+  box-shadow: var(--shadow-overlay);
+  color: #14161a;
+  pointer-events: none;
+  animation: specimen-rise var(--motion-fast) var(--ease-out);
+}
+
 .specimen-figure { margin: 18px 0 4px; text-align: center; }
-.specimen-figure .fold-plot { width: 100%; max-width: 380px; height: auto; }
 .specimen-figure figcaption { margin-top: 4px; color: var(--ink-soft); font-size: var(--fs-xs); }
-.plot-grid { fill: none; stroke: var(--line); stroke-width: 0.8; }
-.plot-bar { fill: var(--fill-strong); }
-.plot-bar.own { fill: var(--accent); }
-.plot-ci { fill: none; stroke: var(--ink); stroke-width: 1; }
-.plot-atom { fill: none; stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 3 2; }
-.plot-label { fill: var(--ink-soft); font: 8px var(--font-ui); }
-.plot-label.end { text-anchor: end; }
-.plot-label.middle { text-anchor: middle; }
 
 .specimen-references {
   margin-top: 16px; padding-top: 10px;
@@ -3858,7 +3881,6 @@ a.button:hover {
   line-height: 1.5;
 }
 .specimen-references li + li { margin-top: 2px; }
-.specimen-references span { display: inline-block; min-width: 1.8em; }
 .specimen-licence { margin-top: 10px; color: var(--ink-faint); font: var(--fs-2xs)/1.5 var(--font-ui); }
 .specimen-licence a { color: inherit; }
 
@@ -3903,8 +3925,7 @@ a.button:hover {
   background: color-mix(in srgb, var(--paper) 95%, transparent);
   animation: specimen-fade var(--motion-base) var(--ease-out);
 }
-.specimen-figure.large { width: min(420px, 80vw); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
-.specimen-figure.large .fold-plot { max-width: none; filter: drop-shadow(0 8px 20px rgba(var(--shade-rgb), 0.1)); background: var(--card); }
+.specimen-figure.large { width: min(560px, 86vw); padding: 14px 16px; border-radius: var(--radius-lg); background: var(--page, #fff); color: #14161a; box-shadow: var(--shadow-sm); margin: 0; animation: specimen-zoom 280ms var(--ease-out); }
 .specimen-figure.large figcaption { font-size: var(--fs-sm); text-align: center; }
 .specimen-redrawn { display: block; margin-top: 2px; color: var(--ink-faint); font: italic var(--fs-2xs) var(--font-serif); font-variant: normal; }
 .specimen-return {
@@ -3989,8 +4010,8 @@ a.button:hover {
 .board-mock-file { color: var(--accent); font: var(--fs-xs) var(--font-ui); word-break: break-word; }
 .board-mock-image { display: block; width: 100%; height: 64px; border-radius: 3px; }
 .board-mock-image.video { display: grid; place-items: center; background: linear-gradient(135deg, #2f3440, #555d6b); color: rgba(255, 255, 255, 0.85); font-size: 18px; }
-.board-mock-image.distances { width: auto; height: 72px; justify-self: center; background: var(--paper-sunken); }
-.board-mock-image.distances rect { fill: var(--accent); }
+.board-mock-image.lifetimes { width: auto; height: 72px; justify-self: center; background: var(--paper-sunken); }
+.board-mock-image.lifetimes rect { fill: var(--accent); }
 .board-mock-image.thumb { border: 1px solid var(--line); background: var(--card); }
 .thumb-bar, .thumb-picture { fill: var(--fill); }
 .thumb-title { fill: var(--line-strong); }
@@ -4047,7 +4068,7 @@ a.button:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-figure-stage, .specimen-figure.large,
+  .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-telescope, .rule.flash, .specimen-figure-stage, .specimen-figure.large,
   .board-mock-card.excerpt, .specimen-sentence.flash, .landing-readers li.own, .specimen-landed { animation: none; }
   .board-mock-card[data-returning] { transition: none; }
 }

@@ -7,7 +7,7 @@ import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
-const TRIES = ['cite', 'figure', 'paint', 'drag', 'line'];
+const TRIES = ['cite', 'figure', 'rule', 'paint', 'drag', 'line'];
 
 // What a visitor sees: what Papol is in a line, the way in for someone who
 // already knows it, and for someone who does not, Papol itself to try — a

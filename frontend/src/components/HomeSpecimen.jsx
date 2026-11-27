@@ -1,133 +1,156 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-// The landing page's specimen: the opening of the AlphaFold 2 paper, in
-// excerpts, to be read the way Papol reads, before the visitor has an
-// account. Nothing here talks to a server; it acts out in miniature what
-// the viewer does with a real PDF. Nothing on it is explained either: what
-// can be tried pulses, one thing at a time, until it has been. What is
-// painted is the landing page's, which lays it on the board below.
+// The landing page's specimen: the RustBelt paper, in excerpts, to be read
+// the way Papol reads, before the visitor has an account. Nothing here
+// talks to a server; it acts out in miniature what the viewer does with a
+// real PDF. Nothing on it is explained either: what can be tried pulses,
+// one thing at a time, until it has been. What is painted is the landing
+// page's, which lays it on the board below.
 //
-// J. Jumper et al., "Highly accurate protein structure prediction with
-// AlphaFold", Nature 596, 583–589 (2021), under CC BY 4.0, which asks for
-// credit, a link to the licence and a note of what was changed: the page
-// shows all three. The sentences are the paper's own, whole, from
-// nature.com; the figure is redrawn from the numbers its text gives.
+// R. Jung, J.-H. Jourdan, R. Krebbers and D. Dreyer, "RustBelt: Securing
+// the Foundations of the Rust Programming Language", Proc. ACM Program.
+// Lang. 2, POPL, Article 66 (2018), under CC BY 4.0, which asks for credit,
+// a link to the licence and a note of what was changed: the page shows all
+// three. The sentences are the paper's own, whole; the rules are three of
+// the eight in its Fig. 2, set again in type.
 
-const SOURCE_URL = 'https://doi.org/10.1038/s41586-021-03819-2';
+const SOURCE_URL = 'https://doi.org/10.1145/3158154';
 const LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
 
 // The reference list's entries for the works these sentences cite, as
-// printed, and the parts a card shows.
+// printed, the label the text cites each by, and the parts a card shows.
 const REFERENCES = {
-  10: {
-    printed: 'Senior, A. W. et al. Improved protein structure prediction using potentials from deep learning. Nature 577, 706–710 (2020).',
-    title: 'Improved protein structure prediction using potentials from deep learning',
-    authors: 'Senior, A. W. et al.',
-    venue: 'Nature 577, 706–710 (2020)',
+  appendix: {
+    label: 'Jung et al. 2017a',
+    printed: 'Ralf Jung, Jacques-Henri Jourdan, Robbert Krebbers, and Derek Dreyer. 2017a. RustBelt: Securing the foundations of the Rust programming language – Technical appendix and Coq development. https://plv.mpi-sws.org/rustbelt/popl18/.',
+    title: 'RustBelt: Securing the foundations of the Rust programming language – Technical appendix and Coq development',
+    authors: 'Ralf Jung, Jacques-Henri Jourdan, Robbert Krebbers, and Derek Dreyer',
+    venue: 'plv.mpi-sws.org/rustbelt/popl18 (2017)',
   },
-  11: {
-    printed: 'Wang, S., Sun, S., Li, Z., Zhang, R. & Xu, J. Accurate de novo prediction of protein contact map by ultra-deep learning model. PLOS Comput. Biol. 13, e1005324 (2017).',
-    title: 'Accurate de novo prediction of protein contact map by ultra-deep learning model',
-    authors: 'Wang, S., Sun, S., Li, Z., Zhang, R. & Xu, J.',
-    venue: 'PLOS Comput. Biol. 13, e1005324 (2017)',
+  language: {
+    label: 'Matsakis and Klock II 2014',
+    printed: 'Nicholas D. Matsakis and Felix S. Klock II. 2014. The Rust language. In SIGAda Ada Letters, Vol. 34. https://doi.org/10.1145/2663171.2663188',
+    title: 'The Rust language',
+    authors: 'Nicholas D. Matsakis and Felix S. Klock II',
+    venue: 'SIGAda Ada Letters, Vol. 34 (2014)',
   },
-  12: {
-    printed: 'Zheng, W. et al. Deep-learning contact-map guided protein structure prediction in CASP13. Proteins 87, 1149–1164 (2019).',
-    title: 'Deep-learning contact-map guided protein structure prediction in CASP13',
-    authors: 'Zheng, W. et al.',
-    venue: 'Proteins 87, 1149–1164 (2019)',
-  },
-  13: {
-    printed: 'Abriata, L. A., Tamò, G. E. & Dal Peraro, M. A further leap of improvement in tertiary structure prediction in CASP13 prompts new routes for future assessments. Proteins 87, 1100–1112 (2019).',
-    title: 'A further leap of improvement in tertiary structure prediction in CASP13 prompts new routes for future assessments',
-    authors: 'Abriata, L. A., Tamò, G. E. & Dal Peraro, M.',
-    venue: 'Proteins 87, 1100–1112 (2019)',
-  },
-  14: {
-    printed: 'Pearce, R. & Zhang, Y. Deep learning techniques have significantly impacted protein structure prediction and protein design. Curr. Opin. Struct. Biol. 68, 194–207 (2021).',
-    title: 'Deep learning techniques have significantly impacted protein structure prediction and protein design',
-    authors: 'Pearce, R. & Zhang, Y.',
-    venue: 'Curr. Opin. Struct. Biol. 68, 194–207 (2021)',
+  team: {
+    label: 'Rust team 2017',
+    printed: 'The Rust team. 2017. The Rust programming language. http://rust-lang.org/.',
+    title: 'The Rust programming language',
+    authors: 'The Rust team',
+    venue: 'rust-lang.org (2017)',
   },
 };
 
 // The page, sentence by sentence. A sentence is a list of pieces: text, a
-// citation ({ cites, label }: one marker, which may name several works) or
-// the words that lead to the figure ({ figure }). An elision marks where
-// the paper's own sentences were left out.
+// citation ({ cites }: one bracketed marker, which may name several works),
+// the words that lead to the figure ({ figure }) or the name of a typing
+// rule ({ rule }). An elision marks where the paper's own sentences were
+// left out.
 const COLUMNS = [
   [
-    { id: 's1', parts: ['Proteins are essential to life, and understanding their structure can facilitate a mechanistic understanding of their function.'] },
+    { id: 's1', parts: ['Systems programming languages like C and C++ give programmers low-level control over resource management at the expense of safety, whereas most other modern languages give programmers safe, high-level abstractions at the expense of control.'] },
+    { id: 's2', parts: ['It has long been a “holy grail” of programming languages research to overcome this seemingly fundamental tradeoff and design a language that offers programmers both high-level safety and low-level control.'] },
+    { id: 's3', parts: ['Rust ', { cites: ['language', 'team'] }, ', developed at Mozilla Research, comes closer to achieving this holy grail than any other industrially supported programming language to date.'] },
     { elision: true },
-    { id: 's2', parts: ['Structural coverage is bottlenecked by the months to years of painstaking effort required to determine a single protein structure.'] },
+    { id: 's4', parts: ['All results in this paper have been fully formalized in the Coq proof assistant ', { cites: ['appendix'] }, '.'] },
     { elision: true },
-    { id: 's3', parts: ['Despite recent progress', { cites: [10, 11, 12, 13, 14], label: '10–14' }, ', existing methods fall far short of atomic accuracy, especially when no homologous structure is available.'] },
-    { id: 's4', parts: ['Here we provide the first computational method that can regularly predict protein structures with atomic accuracy even in cases in which no similar structure is known.'] },
-    { id: 's5', parts: ['The neural network AlphaFold that we developed was entered into the CASP14 assessment (May–July 2020; entered under the team name ‘AlphaFold2’ and a completely different model from our CASP13 AlphaFold system', { cites: [10], label: '10' }, ').'] },
   ],
   [
-    { id: 's6', parts: ['In CASP14, AlphaFold structures were vastly more accurate than competing methods.'] },
-    { id: 's7', parts: ['AlphaFold structures had a median backbone accuracy of 0.96 Å r.m.s.d.', { sub: '95' }, ' (Cα root-mean-square deviation at 95% residue coverage) (95% confidence interval = 0.85–1.16 Å) whereas the next best performing method had a median backbone accuracy of 2.8 Å r.m.s.d.', { sub: '95' }, ' (95% confidence interval = 2.7–4.0 Å) (measured on CASP domains; see ', { figure: 'Fig. 1a' }, ' for backbone accuracy and Supplementary Fig. 14 for all-atom accuracy).'] },
-    { id: 's8', parts: ['As a comparison point for this accuracy, the width of a carbon atom is approximately 1.4 Å.'] },
+    { id: 's5', parts: ['The details of the core language are fully spelled out in our technical appendix ', { cites: ['appendix'] }, '.'] },
+    { elision: true },
+    { id: 's6', parts: ['Selected typing rules are shown in Figure 1 and ', { figure: 'Figure 2' }, '.'] },
+    { elision: true },
+    { id: 's7', parts: ['Lifetimes begin and end at the newlft and endlft ghost instructions, following ', { rule: 'F-newlft' }, ' and ', { rule: 'F-endlft' }, '.'] },
+    { elision: true },
+    { id: 's8', parts: ['We mostly use ', { rule: 'F-let' }, ' to type-check the function one instruction at a time.'] },
   ],
 ];
+const FIGURE_SENTENCE = 's6';
 
 const BLOCKS = COLUMNS.flat().filter((block) => block.id);
+const citeLabel = (part) => part.cites.map((ref) => REFERENCES[ref].label).join('; ');
 const plain = (part) => {
   if (typeof part === 'string') return part;
-  if (part.cites) return part.label.replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]).replace('–', '⁻');
-  if (part.sub) return part.sub.replace(/\d/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[d]);
-  return part.figure;
+  if (part.cites) return `[${citeLabel(part)}]`;
+  return part.figure || part.rule;
 };
 export const SENTENCES = Object.fromEntries(BLOCKS.map((block) => [block.id, block.parts.map(plain).join('')]));
-export const SOURCE = 'Jumper et al., 2021';
+export const SOURCE = 'Jung et al., 2018';
 
 // Every citation, by where it stands, and every place each work is cited,
-// in reading order.
+// in reading order; and the first place a rule is named.
 const CITATIONS = {};
 const OCCURRENCES = {};
+let FIRST_RULE = null;
 BLOCKS.forEach((block) => block.parts.forEach((part, i) => {
-  if (!part.cites) return;
   const at = `${block.id}-${i}`;
+  if (part.rule) FIRST_RULE ||= at;
+  if (!part.cites) return;
   CITATIONS[at] = part.cites;
   part.cites.forEach((ref) => (OCCURRENCES[ref] ||= []).push(at));
 }));
 const FIRST_CITATION = Object.keys(CITATIONS)[0];
 
-// Fig. 1a, from the two of its bars the text gives: median Cα r.m.s.d.95
-// on the CASP14 domains, with its 95% confidence interval, and the width
-// of a carbon atom for comparison. The paper's figure has all top-15
-// entries.
-const BARS = [
-  { name: 'AlphaFold', median: 0.96, low: 0.85, high: 1.16, own: true },
-  { name: 'Next best', median: 2.8, low: 2.7, high: 4.0 },
-];
-const bx = (a) => 60 + a * 38; // 0–4.2 Å across 160 units
-function BackboneAccuracy() {
+// The typing rules the text names, as Fig. 2 prints them: premises over a
+// bar, the conclusion under it, the name over its left end. Contexts are
+// bold, keywords bold sans, a list of lifetimes overlined.
+const E = <b>E</b>;
+const L = <b>L</b>;
+const K = <b>K</b>;
+const T = <b>T</b>;
+const word = (w) => <b className="rule-word">{w}</b>;
+const many = (x) => <span className="rule-many">{x}</span>;
+const RULES = {
+  'F-let': {
+    premises: [
+      [<>Γ | {E}; {L} | {T}<sub>1</sub> ⊢ <i>I</i> ⊣ <i>x</i>. {T}<sub>2</sub></>],
+      [<>Γ, <i>x</i> : {word('val')} | {E}; {L} | {K}; {T}<sub>2</sub>, {T} ⊢ <i>F</i></>],
+    ],
+    conclusion: <>Γ | {E}; {L} | {K}; {T}<sub>1</sub>, {T} ⊢ {word('let')} <i>x</i> = <i>I</i> {word('in')} <i>F</i></>,
+  },
+  'F-newlft': {
+    premises: [[<>Γ, <i>α</i> : {word('lft')} | {E}; {L}, <i>α</i> ⊑<sub>l</sub> {many(<i>κ</i>)} | {K}; {T} ⊢ <i>F</i></>]],
+    conclusion: <>Γ | {E}; {L} | {K}; {T} ⊢ {word('newlft')}; <i>F</i></>,
+  },
+  'F-endlft': {
+    premises: [[<>Γ | {E}; {L} | {K}; <b>T′</b> ⊢ <i>F</i></>, <>{T} ⇒<sup>†<i>κ</i></sup> <b>T′</b></>]],
+    conclusion: <>Γ | {E}; {L}, <i>κ</i> ⊑<sub>l</sub> {many(<i>κ</i>)} | {K}; {T} ⊢ {word('endlft')}; <i>F</i></>,
+  },
+};
+
+function Rule({ name, flash }) {
+  const rule = RULES[name];
   return (
-    <svg viewBox="0 0 232 112" aria-hidden="true" focusable="false" className="fold-plot">
-      {[0, 1, 2, 3, 4].map((a) => (
-        <g key={a}>
-          <path className="plot-grid" d={`M${bx(a)} 12V84`} />
-          <text x={bx(a)} y="96" className="plot-label middle">{a}</text>
-        </g>
+    <span className={`rule${flash ? ' flash' : ''}`} data-rule={name}>
+      <span className="rule-name">{name}</span>
+      {rule.premises.map((row, i) => (
+        <span key={i} className="rule-row">
+          {row.map((premise, j) => <span key={j}>{premise}</span>)}
+        </span>
       ))}
-      <text x={bx(2.1)} y="108" className="plot-label middle">Median Cα r.m.s.d.₉₅ (Å)</text>
-      {BARS.map((bar, i) => {
-        const y = 22 + i * 30;
-        return (
-          <g key={bar.name}>
-            <text x="54" y={y + 12} className="plot-label end">{bar.name}</text>
-            <rect x={bx(0)} y={y} width={bx(bar.median) - bx(0)} height="18" className={`plot-bar${bar.own ? ' own' : ''}`} />
-            <path className="plot-ci" d={`M${bx(bar.low)} ${y + 9}H${bx(bar.high)}M${bx(bar.low)} ${y + 5}v8M${bx(bar.high)} ${y + 5}v8`} />
-          </g>
-        );
-      })}
-      <path className="plot-atom" d={`M${bx(1.4)} 8V84`} />
-      <text x={bx(1.4) + 3} y="11" className="plot-label">carbon atom, 1.4 Å</text>
-    </svg>
+      <span className="rule-bar" />
+      <span className="rule-row"><span>{rule.conclusion}</span></span>
+    </span>
   );
 }
+
+// Fig. 2, with the three of its rules the excerpts name.
+function TypingRules({ flash }) {
+  return (
+    <>
+      <p className="rule-judgment">
+        <b>Rules for typing of function bodies:</b>
+        <span>(Γ | {E}; {L} | {K}; {T} ⊢ <i>F</i>)</span>
+      </p>
+      <div className="specimen-rules">
+        {Object.keys(RULES).map((name) => <Rule key={name} name={name} flash={flash === name} />)}
+      </div>
+    </>
+  );
+}
+const CAPTION = <>A selection of the typing rules of λ<sub>Rust</sub> (function bodies).</>;
 
 const ICONS = {
   home: <path d="M2.5 8 8 3l5.5 5M4 7v6h3v-3.5h2V13h3V7" />,
@@ -159,7 +182,12 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
   const [card, setCard] = useState(null); // { at: where the citation stands, ref: the work shown }
   const [figureOpen, setFigureOpen] = useState(false);
   const [cardBox, setCardBox] = useState(null);
+  const [scope, setScope] = useState(null); // the telescope: { at: where the rule is named, name }
+  const [scopeBox, setScopeBox] = useState(null);
+  const [ruleFlash, setRuleFlash] = useState(null);
   const pageRef = useRef(null);
+  const scopeRef = useRef(null);
+  const wasScoped = useRef(false);
   const cardRef = useRef(null);
   const returnRef = useRef(null);
   const opener = useRef(null);
@@ -184,15 +212,31 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
     return { at: places[(places.indexOf(at) + by + places.length) % places.length], ref };
   });
 
+  // A rule's name brings the rule under its line while the pointer rests on
+  // it (or it has the focus, or a finger tapped it); a press then leads to
+  // the rule where the paper prints it.
+  const openScope = (at, name) => {
+    setCard(null);
+    setScope({ at, name });
+    onTried('rule');
+  };
+  const leadToRule = (name) => {
+    setScope(null);
+    pageRef.current?.querySelector(`.specimen-rules [data-rule="${name}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setRuleFlash(null);
+    requestAnimationFrame(() => setRuleFlash(name));
+  };
+
   const openFigure = (trigger) => {
     opener.current = trigger;
     setCard(null);
+    setScope(null);
     setFigureOpen(true);
     onTried('figure');
   };
   const closeFigure = () => {
     setFigureOpen(false);
-    onGlow('s7');
+    onGlow(FIGURE_SENTENCE);
     opener.current?.focus();
   };
 
@@ -209,6 +253,19 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
     const left = Math.max(12, Math.min(box.left - page.left - 20, page.width - width - 12));
     setCardBox({ top: box.bottom - page.top + 8, left, width });
   }, [activeAt]);
+
+  // The telescope hangs under the line that names its rule, kept on the page.
+  const scopeAt = scope?.at;
+  useLayoutEffect(() => {
+    if (!scopeAt || !pageRef.current || !scopeRef.current) { setScopeBox(null); return; }
+    const marker = pageRef.current.querySelector(`[data-rule-at="${scopeAt}"]`);
+    if (!marker) return;
+    const page = pageRef.current.getBoundingClientRect();
+    const box = marker.getBoundingClientRect();
+    const width = scopeRef.current.offsetWidth;
+    const left = Math.max(8, Math.min(box.left - page.left - 12, page.width - width - 8));
+    setScopeBox({ top: box.bottom - page.top + 6, left });
+  }, [scopeAt]);
 
   // What opens takes the focus, so the keyboard is where the eye is.
   const cardOpen = Boolean(card && cardBox);
@@ -237,7 +294,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
 
   const renderPart = (block, part, i) => {
     if (typeof part === 'string') return part;
-    if (part.sub) return <sub key={i}>{part.sub}</sub>;
+    const at = `${block.id}-${i}`;
     if (part.figure) {
       return (
         <span
@@ -250,17 +307,49 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
         </span>
       );
     }
-    const at = `${block.id}-${i}`;
+    if (part.rule) {
+      const beckon = beckoning === 'rule' && at === FIRST_RULE && scopeAt !== at;
+      return (
+        <span
+          key={i}
+          role="button"
+          tabIndex={0}
+          data-rule-at={at}
+          aria-label={`Rule ${part.rule}`}
+          className={`specimen-link specimen-rule${at === scopeAt ? ' active' : ''}${beckon ? ' beckon' : ''}`}
+          data-hint={beckon ? 'Hover' : undefined}
+          onPointerEnter={(e) => { if (e.pointerType === 'mouse') openScope(at, part.rule); }}
+          onPointerLeave={(e) => { if (e.pointerType === 'mouse') setScope(null); }}
+          onPointerDown={() => { wasScoped.current = scopeAt === at; }}
+          onFocus={() => openScope(at, part.rule)}
+          onBlur={() => setScope((current) => (current?.at === at ? null : current))}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (wasScoped.current) leadToRule(part.rule); else openScope(at, part.rule);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && scopeAt === at) { e.stopPropagation(); setScope(null); }
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            e.stopPropagation();
+            leadToRule(part.rule);
+          }}
+        >
+          {part.rule}
+        </span>
+      );
+    }
+    const label = citeLabel(part);
     return (
       <span
         key={i}
         data-occurrence={at}
-        aria-label={`References ${part.label}`}
+        aria-label={`Citation ${label}`}
         className={`specimen-cite${at === activeAt ? ' active' : ''}${beckoning === 'cite' && at === FIRST_CITATION ? ' beckon' : ''}`}
         data-hint={beckoning === 'cite' && at === FIRST_CITATION ? 'Click' : undefined}
         {...inline((trigger) => openCitation(at, trigger))}
       >
-        {part.label}
+        [{label}]
       </span>
     );
   };
@@ -294,7 +383,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
       <div className="specimen-window">
         <div className="specimen-toolbar">
           <svg className="specimen-home" viewBox="0 0 16 16" aria-hidden="true">{ICONS.home}</svg>
-          <span className="specimen-doc-title">Highly accurate protein structure prediction with AlphaFold</span>
+          <span className="specimen-doc-title">RustBelt: Securing the Foundations of the Rust Programming Language</span>
           <span className="specimen-tools" role="group" aria-label="Tool">
             <Tool name="read" label="Select" keyLetter="Z" active={tool === 'read'} onClick={() => setTool('read')} />
             <Tool
@@ -303,35 +392,44 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
               keyLetter="V"
               active={tool === 'paint'}
               beckon={beckoning === 'paint' && tool !== 'paint'}
-              onClick={() => { setTool('paint'); setCard(null); }}
+              onClick={() => { setTool('paint'); setCard(null); setScope(null); }}
             />
           </span>
         </div>
 
-        <div className={`specimen-page${tool === 'paint' ? ' painting' : ''}`} ref={pageRef} onClick={() => setCard(null)}>
-          <p className="specimen-running-head"><span>Nature | Vol 596</span><span>Article</span></p>
+        <div className={`specimen-page${tool === 'paint' ? ' painting' : ''}`} ref={pageRef} onClick={() => { setCard(null); setScope(null); }}>
+          <p className="specimen-running-head"><span>Proc. ACM Program. Lang., Vol. 2, No. POPL</span><span>Article 66</span></p>
           <header className="specimen-masthead">
-            <p className="specimen-title">Highly accurate protein structure prediction with AlphaFold</p>
-            <p className="specimen-authors">John Jumper, Richard Evans, Alexander Pritzel et al.</p>
+            <p className="specimen-title">RustBelt: Securing the Foundations of the Rust Programming Language</p>
+            <p className="specimen-authors">Ralf Jung, Jacques-Henri Jourdan, Robbert Krebbers, and Derek Dreyer</p>
           </header>
           <div className="specimen-columns">
             {COLUMNS.flat().map(renderBlock)}
           </div>
-          <figure className="specimen-figure">
-            <BackboneAccuracy />
-            <figcaption><b>Fig. 1:</b> AlphaFold produces highly accurate structures.</figcaption>
+          <figure className="specimen-figure rules">
+            <TypingRules flash={ruleFlash} />
+            <figcaption><b>Fig. 2.</b> {CAPTION}</figcaption>
           </figure>
           <ol className="specimen-references">
-            {Object.entries(REFERENCES).map(([n, ref]) => (
-              <li key={n}><span>{n}.</span> {ref.printed}</li>
-            ))}
+            {Object.entries(REFERENCES).map(([key, ref]) => <li key={key}>{ref.printed}</li>)}
           </ol>
           <p className="specimen-licence">
-            Excerpted from <a href={SOURCE_URL} target="_blank" rel="noreferrer">Jumper et al., Nature 2021</a>,
+            Excerpted from <a href={SOURCE_URL} target="_blank" rel="noreferrer">Jung et al., POPL 2018</a>,
             {' '}<a href={LICENCE_URL} target="_blank" rel="noreferrer">CC BY 4.0</a>. Sentences left out are marked […];
-            {' '}Fig. 1a is redrawn from the values in the text.
+            {' '}Fig. 2 is set again in type, with three of its eight rules.
           </p>
-          <p className="specimen-folio" aria-hidden="true">583</p>
+          <p className="specimen-folio" aria-hidden="true">66:1</p>
+
+          {scope && (
+            <div
+              ref={scopeRef}
+              className="specimen-telescope"
+              style={scopeBox ? { top: scopeBox.top, left: scopeBox.left } : { visibility: 'hidden' }}
+              aria-hidden="true"
+            >
+              <Rule name={scope.name} />
+            </div>
+          )}
 
           {reference && cardBox && (
             <div
@@ -342,12 +440,12 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
               onClick={(e) => e.stopPropagation()}
               onKeyDown={onEscape(closeCitation)}
               role="dialog"
-              aria-label={`Reference ${card.ref}`}
+              aria-label={`Reference ${reference.label}`}
             >
               {works.length > 1 && (
                 <div className="specimen-card-works">
                   <button type="button" aria-label="Previous work" onClick={() => stepWork(-1)}>‹</button>
-                  <span>{card.ref} · work {works.indexOf(card.ref) + 1} of {works.length}</span>
+                  <span>{reference.label} · work {works.indexOf(card.ref) + 1} of {works.length}</span>
                   <button type="button" aria-label="Next work" onClick={() => stepWork(1)}>›</button>
                 </div>
               )}
@@ -370,11 +468,11 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
 
           {figureOpen && (
             <div className="specimen-figure-stage" onClick={(e) => e.stopPropagation()} onKeyDown={onEscape(closeFigure)}>
-              <figure className="specimen-figure large">
-                <BackboneAccuracy />
+              <figure className="specimen-figure rules large">
+                <TypingRules />
                 <figcaption>
-                  <b>Fig. 1a</b> The performance of AlphaFold on the CASP14 dataset (n = 87 protein domains).
-                  <span className="specimen-redrawn">Redrawn with the two entries the text gives; the paper’s figure shows the top 15.</span>
+                  <b>Fig. 2.</b> {CAPTION}
+                  <span className="specimen-redrawn">Set again in type, with three of the figure’s eight rules.</span>
                 </figcaption>
               </figure>
               <button ref={returnRef} type="button" className="specimen-return" onClick={closeFigure}>
@@ -386,7 +484,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
       </div>
       {painted.length > 0 && (
         <a className="specimen-landed" href="#board">
-          {painted.length === 1 ? '1 sentence' : `${painted.length} sentences`} on Protein folding ↓
+          {painted.length === 1 ? '1 sentence' : `${painted.length} sentences`} on Rust, proved safe ↓
         </a>
       )}
     </div>
