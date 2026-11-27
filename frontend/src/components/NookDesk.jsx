@@ -26,11 +26,6 @@ const added = (at) => {
 const paperPlace = (sha256, { shelf = null, board = null, marked = false }) =>
   appPath(`${board ? `/board/${board}` : marked ? '/passing' : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
 
-// What is written on a marked paper now: "2 marks · 1 dig".
-const written = ({ annotations, digs }) => [
-  annotations > 0 && `${annotations} ${annotations === 1 ? 'mark' : 'marks'}`,
-  digs > 0 && `${digs} ${digs === 1 ? 'dig' : 'digs'}`,
-].filter(Boolean).join(' · ') || '';
 
 // Who else is in a project, inside its card's link, the one way in.
 function Faces({ users, max }) {
@@ -227,7 +222,8 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
               <li>
                 <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/passing')} aria-current={marked ? 'page' : undefined}>
                   <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M10.6 2.6l2.8 2.8-7.6 7.6-3.4.6.6-3.4z" />
+                    <path d="M2 12C4 5 10 4 13.5 8.5" />
+                    <path d="M13.8 4.4v4.4H9.4" />
                   </svg>
                   <span className="desk-row-name">Passing</span>
                   <span className="desk-count">{markedPapers.length}</span>
@@ -292,13 +288,12 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           {!(paper || reviewing) && (
             <InWay><h2 id="desk-marked" className="desk-main-title">Passing<span className="desk-count">{markedPapers.length}</span></h2></InWay>
           )}
-          <p className="desk-marked-note">Papers you have read or written on that are not in your nook. Add one to your nook and it moves to a shelf; take it out and it is back here. Only you see this list.</p>
+          <p className="desk-marked-note">Read or written on, not in your nook. Only you see this.</p>
           {markedPapers.length > 0 ? (
             <table className="desk-table">
               <thead>
                 <tr>
                   <th scope="col" className="desk-col-title">Title</th>
-                  <th scope="col" className="desk-col-written">Written</th>
                   <th scope="col" className="desk-col-effort">Effort</th>
                   <th scope="col" className="desk-col-date">Since</th>
                 </tr>
@@ -313,7 +308,6 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                         {p.journal && ` · ${p.journal}`}
                       </span>
                     </td>
-                    <td className="desk-col-written">{written(p)}</td>
                     <td className="desk-col-effort"><Effort effort={p.effort} subject={p.sha256} compact /></td>
                     <td className="desk-col-date">{added(p.since)}</td>
                   </tr>
