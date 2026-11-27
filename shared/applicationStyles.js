@@ -5923,7 +5923,6 @@ ${talkStyles}
 .preferences-row label strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .preferences-row label { line-height: 1.4; }
 .preferences-row select { width: 11rem; font-family: var(--font-ui); }
-.preferences-scope { color: var(--ink-faint); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
 .preferences-mac-note { display: grid; gap: 2px; margin: 0; }
 .preferences-mac-note strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .preferences-mac-note span { color: var(--ink-soft); font: 400 var(--fs-sm)/1.4 var(--font-ui); }

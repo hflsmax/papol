@@ -15,9 +15,11 @@ import { chooseDarkPages, chooseTheme, readDarkPages, readTheme } from '../../..
 // announcement) has no row.
 const OFTEN = { now: 'Immediately', daily: 'Every day', weekly: 'Every week', never: 'Never' };
 const EVERY = ['now', 'daily', 'weekly', 'never'];
+const SCHEDULED = ['daily', 'weekly', 'never'];
 const EMAILS = [
+  ['lounge_activity', 'Lounge activity', SCHEDULED],
   ['friend_request', 'Friend requests', EVERY],
-  ['friend_suggestions', 'Friend suggestions', ['daily', 'weekly', 'never']],
+  ['friend_suggestions', 'Friend suggestions', SCHEDULED],
   ['feedback_report', 'Feedback reports', EVERY],
 ];
 
@@ -51,7 +53,7 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
       <section className="panel preferences-block" aria-labelledby="preferences-appearance">
         <h2 className="panel-title" id="preferences-appearance">Appearance</h2>
         <div className="local-setting-row preferences-row">
-          <label htmlFor="preference-theme"><strong>Theme</strong> <span className="preferences-scope">on this device</span></label>
+          <label htmlFor="preference-theme"><strong>Theme</strong></label>
           <select id="preference-theme" value={theme} onChange={(e) => setTheme(chooseTheme(e.target.value))}>
             <option value="system">Same as system</option>
             <option value="light">Light</option>
@@ -61,9 +63,9 @@ export default function PreferencesPanel({ user, onUserUpdated }) {
         {/* The paper itself, apart from the theme: the viewer's bar has the
             same switch. */}
         <div className="local-setting-row preferences-row">
-          <label htmlFor="preference-pdf-pages"><strong>PDF pages</strong> <span className="preferences-scope">on this device</span></label>
+          <label htmlFor="preference-pdf-pages"><strong>Viewer</strong></label>
           <select id="preference-pdf-pages" value={darkPages ? 'dark' : 'printed'} onChange={(e) => setDarkPages(chooseDarkPages(e.target.value === 'dark'))}>
-            <option value="printed">As printed</option>
+            <option value="printed">Normal</option>
             <option value="dark">Dark</option>
           </select>
         </div>

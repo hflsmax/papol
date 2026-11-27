@@ -470,7 +470,7 @@ function answer(method, path, search, sent = {}) {
     friendDig.posts.push(post(`f1000000-0000-4000-8000-0000000000${60 + friendDig.posts.length}`, me, sent.body, hoursAgo(0), true));
     return friendDig;
   }
-  if (path === '/auth/me') { const admin = process.env.PAPOL_ADMIN === '1'; return { ...me, is_admin: admin, email: 'dana@example.org', emails: { friend_request: 'now', friend_suggestions: 'weekly', ...(admin ? { feedback_report: 'now' } : {}) } }; }
+  if (path === '/auth/me') { const admin = process.env.PAPOL_ADMIN === '1'; return { ...me, is_admin: admin, email: 'dana@example.org', emails: { lounge_activity: 'daily', friend_request: 'now', friend_suggestions: 'weekly', ...(admin ? { feedback_report: 'now' } : {}) } }; }
   if (path === '/notifications') {
     const note = (n, content, h, read, more = {}) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, kind: null, link: null, actor: null, ...more });
     return {
