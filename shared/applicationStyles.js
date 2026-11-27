@@ -3708,7 +3708,6 @@ a.button:hover {
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
 
 .landing-place-section { scroll-margin-top: 16px; }
-.landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
 
 /* Something to try, until it has been: outlined in the accent, a ring that
    breathes, and a tag over it naming the gesture. */
@@ -3936,37 +3935,6 @@ a.button:hover {
 @keyframes specimen-fade { from { opacity: 0; } }
 @keyframes specimen-zoom { from { opacity: 0; transform: scale(0.45) translate(30%, 10%); } }
 
-/* The landing page's Lounge: the specimen's paper as friends' news, which the visitor can add to. */
-.landing-jacket {
-  padding: 18px 20px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-}
-.landing-jacket-title { font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
-.landing-jacket-meta { margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-xs); }
-.landing-readers { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); list-style: none; }
-.landing-readers li { display: grid; grid-template-columns: 28px 1fr; align-items: start; gap: 10px; font-size: var(--fs-sm); line-height: 1.4; }
-.landing-readers li.own { animation: specimen-rise 300ms var(--ease-out); }
-.landing-readers b { display: block; font: 600 var(--fs-xs) var(--font-ui); }
-.landing-readers q { color: var(--ink-soft); }
-.landing-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--ink-inverse); font: 600 var(--fs-xs)/1 var(--font-ui); }
-.landing-avatar.tint-0 { background: var(--identity-0); }
-.landing-avatar.tint-1 { background: var(--identity-1); }
-.landing-avatar.tint-2 { background: var(--identity-2); }
-.landing-avatar.tint-4 { background: var(--identity-4); }
-.landing-thought-form { display: flex; gap: 8px; margin-top: 12px; }
-.landing-thought-form input {
-  flex: 1; min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-}
-.landing-thought-form input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.landing-thought-form button { padding: calc(6px + var(--cap-room, 0px)) 14px; }
-
 .landing-close { display: grid; justify-items: center; padding: 40px 24px 28px; border-radius: var(--radius-lg); background: var(--accent-soft); text-align: center; }
 .landing-close h2 { color: var(--ink); font-size: var(--fs-hero); font-weight: 600; }
 .landing-close .landing-doors { justify-content: center; margin-top: 20px; }
@@ -3987,7 +3955,7 @@ a.button:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .beckon, .beckon[data-hint]::before, .specimen-card, .specimen-telescope, .rule.flash, .specimen-figure-stage, .specimen-figure.large,
-  .specimen-sentence.flash, .landing-readers li.own { animation: none; }
+  .specimen-sentence.flash { animation: none; }
 }
 
 /* ---------- About ---------- */

@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { appPath } from '../base';
-import HomeLounge from './HomeLounge';
 import HomeSpecimen from './HomeSpecimen';
 import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
-const TRIES = ['cite', 'figure', 'rule', 'paint', 'line'];
+const TRIES = ['cite', 'figure', 'rule', 'paint'];
 
 // What a visitor sees: what Papol is in a line, the way in for someone who
 // already knows it, and for someone who does not, Papol itself to try: a
-// paper in the viewer, and the paper as it reaches you in the Lounge, from
-// friends. No feature is explained; each can be tried.
+// paper in the viewer. No feature is explained; each can be tried.
 export default function HomePage() {
   const [painted, setPainted] = useState([]);
   const [flash, setFlash] = useState(null);
@@ -40,7 +38,6 @@ export default function HomePage() {
       </header>
 
       <section id="viewer" className="landing-place-section" aria-label="Viewer">
-        <p className="landing-number">Viewer</p>
         <HomeSpecimen
           painted={painted}
           onTogglePaint={togglePaint}
@@ -49,11 +46,6 @@ export default function HomePage() {
           beckoning={beckoning}
           onTried={onTried}
         />
-      </section>
-
-      <section id="lounge" className="landing-place-section" aria-label="Lounge">
-        <p className="landing-number">Lounge</p>
-        <HomeLounge beckoning={beckoning} onTried={onTried} />
       </section>
 
       <section className="landing-close">
