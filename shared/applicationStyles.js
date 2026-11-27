@@ -179,6 +179,9 @@ ${commonStyles}
    page does. */
 #way-slot { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); color: var(--ink); }
 #way-slot:empty { display: none; }
+/* Everything on the bar's line shares its middle: the mark, the title and
+   its controls, the way to the other place and the member. */
+.way > #way-slot { align-self: center; }
 #way-slot > h2,
 #way-slot .project-title,
 #way-slot .detail-title-row h2 { margin: 0; font: 600 var(--fs-hero)/1.15 var(--font-serif); color: var(--ink); }
@@ -5844,6 +5847,9 @@ ${talkStyles}
   .nook-desk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .desk-rail, .desk-rail-body { position: static; display: contents; }
   .desk-rail-part:first-child { order: -2; }
+  /* A paper opened from the Lounge on a narrow window: the paper alone,
+     the bar's step back above it. */
+  .room.has-jacket .desk-rail { display: none; }
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
