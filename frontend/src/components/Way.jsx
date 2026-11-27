@@ -6,6 +6,8 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Glyph from './DesktopGlyph';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import LoungeTip from './LoungeTip';
+import NookTip from './NookTip';
+import { NOOK_TIP, setFeatureState } from '../../../shared/featureStates.js';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -27,7 +29,9 @@ export const ROOM_PATH = '/lounge';
 //
 // The member is in one of two places, their nook or the Lounge, and the bar
 // says which by what it offers: Papol's mark leads to the top of the place
-// they are in, and the button on the right to the other one. `inLounge` is
+// they are in, and the button on the right to the other one (which, in the
+// Lounge, wears a card saying it is the way back until the member has been
+// told: NookTip.jsx). `inLounge` is
 // whether that place is the Lounge: the Lounge itself, a thread, someone
 // else's nook, or a paper or board opened from the Lounge.
 export function WayBar({ user, route, trail = [], from = null, inLounge = route.page === 'room', unreadCount = 0, roomNews = false }) {
@@ -51,7 +55,7 @@ export function WayBar({ user, route, trail = [], from = null, inLounge = route.
         {user?.is_admin && <a href={appPath('/admin')} aria-current={route.page === 'admin' ? 'page' : undefined}>Admin</a>}
         <span className="way-room-anchor">
           {inLounge ? (
-            <a className="way-room is-nook" href={appPath('/')}>
+            <a className="way-room is-nook" href={appPath('/')} onClick={() => setFeatureState(NOOK_TIP, true)}>
               <Glyph name="nook" />
               <span className="way-room-word">My nook</span>
             </a>
@@ -63,6 +67,7 @@ export function WayBar({ user, route, trail = [], from = null, inLounge = route.
             </a>
           )}
           {user && <LoungeTip here={inLounge} />}
+          {user && inLounge && <NookTip />}
         </span>
       </nav>
       {user && <a

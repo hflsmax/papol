@@ -655,7 +655,9 @@ is a dig: one person's writing about one thing, under the one spade pin.
   The same card hangs under the way into the Lounge (the bar's button on
   the web, the Lounge segment of the Mac's switch): "See what your friends
   are doing here", until the member presses Got it or goes to the Lounge
-  (`LoungeTip.jsx`).
+  (`LoungeTip.jsx`). On the web, once in the Lounge, a like card hangs under
+  the bar's "My nook": "Go back to your nook here", until the member
+  presses Got it or the button (`NookTip.jsx`).
   Chrome is UI sans at `--fs-sm`, never selectable, and uses the arrow cursor
   rather than the pointing hand; rows and toolbar buttons are borderless,
   shadowless `--chrome-radius` shapes tinted `--chrome-hover` /

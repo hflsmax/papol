@@ -151,6 +151,9 @@ const SHOTS = {
   // told what is there: on the web's bar, under the Mac's switch, on a phone.
   'lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: wide },
   'mac-lounge-tip': { path: '/?shell=desktop&tip=lounge', ready: "document.querySelector('.desktop-row-title') && document.querySelector('.lounge-tip')", size: wide },
+  // The card under My nook, in the Lounge, until the member has been told.
+  'nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: wide },
+  'phone-nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: phone },
   'phone-lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: phone },
   // Two papers pinned: they lead the list, each with its pin; the pointer
   // rests on a paper that is not, whose pin shows while it does.
