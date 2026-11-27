@@ -6,7 +6,7 @@ import { currentUser, type User } from "../auth";
 import { all, batch, insert, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
 import { enqueue, wake } from "../jobs/queue";
-import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper } from "../papers/detail";
+import { copyOf, defaultShelf, keepPaper, paperDetail, paperOr404, requireCopy, type Copy, type Paper, joinsNook } from "../papers/detail";
 import { KIND as EXTRACT, indexedMetadata, knownVersion, reextractedMetadata, type Identifier } from "../papers/extract";
 import type { HeaderMetadata } from "../papers/reading";
 import { Unavailable } from "../papers/bibliography";
@@ -221,7 +221,7 @@ export function paperRoutes(router: Router) {
       summary: summary ?? null, thought: thought ?? null, is_author: data.is_author ? 1 : 0,
       rating_expertise: data.rating_expertise ?? null, rating_reading: data.rating_reading ?? null, rating_liking: data.rating_liking ?? null,
       ...NEW_COPY_VISIBILITY, pinned: 0, kept: 1,
-      created_at: removed?.created_at ?? at, updated_at: at, revision: removed?.revision ?? 0, deleted_at: null,
+      created_at: removed && !joinsNook(removed) ? removed.created_at : at, updated_at: at, revision: removed?.revision ?? 0, deleted_at: null,
     };
     const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, !removed)];
     statements.push(...await setCopyTags(env, copy, tagUuids));

@@ -532,6 +532,8 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
       // The same goes for a copy held only because they read the paper:
       // adding it keeps that copy.
       if (canonical && (canonical.row.deleted_at || !canonical.row.kept)) {
+        // Held until now, it joins the nook now: see joinsNook.
+        if (!canonical.row.deleted_at) canonical.row.created_at = now();
         canonical.row.deleted_at = null;
         canonical.row.kept = 1;
         canonical.modified = true;

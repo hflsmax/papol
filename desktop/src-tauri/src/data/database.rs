@@ -855,7 +855,7 @@ impl LocalStore {
                    SELECT p.sha256 AS digest, 'paper' AS kind
                    FROM papers p
                    JOIN copies c ON c.paper_sha256=p.sha256
-                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND p.deleted_at IS NULL
+                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND c.kept=1 AND p.deleted_at IS NULL
                    UNION ALL
                    SELECT bi.sha256 AS digest, 'board_file' AS kind
                    FROM board_items bi

@@ -74,6 +74,15 @@ export async function tookOut(db: D1Database, paperSha256: string, user: User): 
   return Boolean(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NOT NULL", paperSha256, user.uuid));
 }
 
+// Whether keeping this copy is the paper's first time in the nook: it
+// was held, not kept, until now. Then the copy is added now, whenever it
+// began. Its date is what the nook lists it by and what a friend's Lounge
+// reads as news, and when its user first read the paper is nobody's to
+// see (US-9.14).
+export function joinsNook(copy: Row): boolean {
+  return !copy.kept && !copy.deleted_at;
+}
+
 // Hold a paper for a user who read it or wrote on it without having it
 // in their nook: a copy that is not kept, on no shelf. It is what their
 // Passing list is read from (routes/nook.ts), and it is the same copy
@@ -85,7 +94,14 @@ export async function holdPaper(db: D1Database, user: User, paperSha256: string)
   const copy: Copy = { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: null, summary: null, thought: null,
     is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0, kept: 0,
     created_at: at, updated_at: at, revision: 0, deleted_at: null };
-  await batch(db, await writeSynced(db, "copies", copy, user.uuid, true));
+  try {
+    await batch(db, await writeSynced(db, "copies", copy, user.uuid, true));
+  } catch (error) {
+    // Two requests can find no copy at once (a span and an anchor from
+    // the same page). One copy per user and paper is the schema's rule,
+    // so the second insert is refused; the copy it wanted is there.
+    if (!(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid))) throw error;
+  }
 }
 
 export async function requireCopy(db: D1Database, paperSha256: string, user: User): Promise<Copy> {
@@ -111,7 +127,7 @@ export async function keepPaper(db: D1Database, user: User, paperSha256: string,
   const removed = await one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid);
   const at = now();
   const copy: Copy = removed
-    ? { ...removed, deleted_at: null, kept: 1, shelf_uuid: shelf?.uuid as string ?? null }
+    ? { ...removed, deleted_at: null, kept: 1, shelf_uuid: shelf?.uuid as string ?? null, ...(joinsNook(removed) ? { created_at: at } : {}) }
     : { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
         is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0, kept: 1,
         created_at: at, updated_at: at, revision: 0, deleted_at: null };

@@ -74,8 +74,14 @@ describe("Passing", () => {
 
     // A paper on a shelf is not listed: added to the nook it leaves the
     // list, and taken out again it is back.
+    // The copy is added now, whenever it began: when its user first read
+    // the paper is not what their nook, or a friend's Lounge, is told.
+    await exec("UPDATE copies SET created_at = '2020-01-01T00:00:00.000Z' WHERE user_uuid = ? AND paper_sha256 = ?", reader.uuid, dug);
     await ok("POST", `/api/papers/${dug.slice(0, 32)}/add-to-nook`, { headers: reader.headers });
     expect((await marked()).map((m: any) => m.sha256)).toEqual([anchored]);
+    const added = (await ok("GET", `/api/users/${reader.uuid}/nook`, { headers: reader.headers })).papers[0];
+    expect(added).toMatchObject({ sha256: dug });
+    expect(Date.now() - Date.parse(added.created_at)).toBeLessThan(60_000);
     await ok("DELETE", `/api/papers/${dug.slice(0, 32)}`, { headers: reader.headers });
     expect((await marked()).map((m: any) => m.sha256).sort()).toEqual([dug, anchored].sort());
     // It stays with everything written on it rubbed out.
