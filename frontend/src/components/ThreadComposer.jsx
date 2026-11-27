@@ -44,6 +44,10 @@ export default function ThreadComposer({ currentUser, onStarted }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [over, setOver] = useState(false);
+  // At rest the box is one quiet line. It opens, with its bar, when the
+  // caret goes in, and stays open while it holds anything.
+  const [active, setActive] = useState(false);
+  const picking = useRef(false); // the file chooser takes the focus away without the box being left
   const field = useRef(null);
   const pickPicture = useRef(null);
   const pickFile = useRef(null);
@@ -139,13 +143,26 @@ export default function ThreadComposer({ currentUser, onStarted }) {
     attach(event.dataTransfer.files);
   };
 
+  const open = active || Boolean(words) || files.length > 0 || Boolean(error);
+  const left = (event) => {
+    if (picking.current || event.currentTarget.contains(event.relatedTarget)) return;
+    setActive(false);
+  };
+  const choose = (input) => {
+    picking.current = true;
+    // The chooser closed, with files or without: the box has the caret again.
+    window.addEventListener('focus', () => { picking.current = false; field.current?.focus(); }, { once: true });
+    input.current?.click();
+  };
+
   const full = files.length >= FILES_MAX;
   const pictures = files.filter((f) => f.picture);
   const others = files.filter((f) => !f.picture);
 
   return (
     <form
-      className={`thread-composer${over ? ' is-over' : ''}`} onSubmit={send} aria-label="Start a thread"
+      className={`thread-composer${open ? ' is-open' : ''}${over ? ' is-over' : ''}`} onSubmit={send} aria-label="Start a thread"
+      onFocus={() => setActive(true)} onBlur={left}
       onDragOver={(event) => { if (carriesFiles(event)) { event.preventDefault(); event.stopPropagation(); setOver(true); } }}
       onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOver(false); }}
       onDrop={dropped}
@@ -153,7 +170,7 @@ export default function ThreadComposer({ currentUser, onStarted }) {
       <div className="thread-composer-write">
         <Face user={currentUser} />
         <MarkdownField
-          ref={field} rows={2} value={words} maxLength={appLimits.text.thread_words} placeholder="Start a thread" aria-label="Start a thread"
+          ref={field} rows={1} value={words} maxLength={appLimits.text.thread_words} placeholder="Start a thread" aria-label="Start a thread"
           onChange={(event) => setWords(event.target.value)} onKeyDown={keyDown} onPaste={pasted}
         />
       </div>
@@ -190,6 +207,7 @@ export default function ThreadComposer({ currentUser, onStarted }) {
 
       {error && <div className="error" role="alert">{error}</div>}
 
+      {open && (
       <div className="thread-composer-bar-row">
         {/* Pressing a button must not take the caret out of the box. */}
         <div className="thread-composer-tools" role="toolbar" aria-label="Formatting" onMouseDown={(event) => event.preventDefault()}>
@@ -202,10 +220,10 @@ export default function ThreadComposer({ currentUser, onStarted }) {
               {tool.mark}
             </button>
           ))}
-          <button type="button" className="thread-composer-tool has-gap" aria-label="Attach pictures" title="Attach pictures" disabled={full} onClick={() => pickPicture.current?.click()}>
+          <button type="button" className="thread-composer-tool has-gap" aria-label="Attach pictures" title="Attach pictures" disabled={full} onClick={() => choose(pickPicture)}>
             {icon(<><rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 17 5-4.5 3.5 3 3-2.5 4.5 4" /></>)}
           </button>
-          <button type="button" className="thread-composer-tool" aria-label="Attach files" title={`Attach files, up to ${FILE_MB} MB each`} disabled={full} onClick={() => pickFile.current?.click()}>
+          <button type="button" className="thread-composer-tool" aria-label="Attach files" title={`Attach files, up to ${FILE_MB} MB each`} disabled={full} onClick={() => choose(pickFile)}>
             {icon(<path d="m19.5 11.5-7.3 7.300a4.2 4.2 0 0 1-6-6l7.6-7.600a2.8 2.8 0 0 1 4 4l-7.5 7.500a1.4 1.4 0 0 1-2-2l6.8-6.8" />)}
           </button>
         </div>
@@ -215,6 +233,7 @@ export default function ThreadComposer({ currentUser, onStarted }) {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
         </button>
       </div>
+      )}
     </form>
   );
 }

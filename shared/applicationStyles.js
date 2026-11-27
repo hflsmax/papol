@@ -6127,6 +6127,8 @@ ${talkStyles}
    top, what is attached under them, then the bar: formatting and
    attaching on the left, sending on the right. */
 .thread-composer { display: grid; gap: var(--space-2); margin: 0 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--card); }
+.thread-composer:not(.is-open) { padding-block: var(--space-2); border-color: var(--line); cursor: text; }
+.thread-composer.is-open .md-field { min-height: 3.2em; }
 .thread-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); }
 .thread-composer.is-over { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
 .thread-composer-write { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
