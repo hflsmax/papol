@@ -3706,8 +3706,6 @@ a.button:hover {
 .landing-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .landing-button.primary { border-color: var(--accent); background: var(--accent); color: var(--ink-inverse); }
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
-.landing-button.landing-mac { display: inline-flex; align-items: center; gap: 6px; --cap-room: 0px; }
-.landing-mac svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .landing-place-section { scroll-margin-top: 16px; }
 .landing .landing-number { margin: 0 0 12px; color: var(--accent); font: 600 var(--fs-sm)/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
