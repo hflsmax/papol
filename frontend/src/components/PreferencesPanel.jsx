@@ -15,9 +15,11 @@ import { chooseDarkPages, chooseTheme, readDarkPages, readTheme } from '../../..
 // announcement) has no row.
 const OFTEN = { now: 'Immediately', daily: 'Every day', weekly: 'Every week', never: 'Never' };
 const EVERY = ['now', 'daily', 'weekly', 'never'];
+const SCHEDULED = ['daily', 'weekly', 'never'];
 const EMAILS = [
+  ['lounge_activity', 'Lounge activity', SCHEDULED],
   ['friend_request', 'Friend requests', EVERY],
-  ['friend_suggestions', 'Friend suggestions', ['daily', 'weekly', 'never']],
+  ['friend_suggestions', 'Friend suggestions', SCHEDULED],
   ['feedback_report', 'Feedback reports', EVERY],
 ];
 
