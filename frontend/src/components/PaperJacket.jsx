@@ -349,10 +349,22 @@ export default function PaperJacket({
     if (!(await confirmAction('Remove this paper from your nook? Your ratings and annotations will be deleted. This cannot be undone.', { confirmLabel: 'Remove', destructive: true }))) return;
     try {
       await deletePaper(paper.sha256);
-      onChanged?.();
-      (onDeleted || onBack)?.();
     } catch (err) {
       setError(err.message);
+      return;
+    }
+    // The page stays on the jacket: the paper is still a paper, only no
+    // longer one of theirs, so it is read again and shown as any paper
+    // outside their nook is, with the way to add it back. Only where it
+    // cannot be read again (Papol macOS offline, with the copy gone from
+    // this Mac) is there nothing left to show, and the jacket is left.
+    setEditMode(null);
+    try {
+      setPaper(await getPaper(paperSha256));
+      onChanged?.();
+    } catch {
+      onChanged?.();
+      (onDeleted || onBack)?.();
     }
   };
 
