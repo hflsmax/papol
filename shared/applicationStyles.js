@@ -5898,6 +5898,9 @@ ${talkStyles}
    press: the app's own button, with the glyph the Mac sidebar gives the
    Lounge, its name, and the gold dot when a friend has news. */
 .way-aside a.way-room {
+  /* One width for "Lounge" (with or without its dot) and "My nook", so the
+     button keeps its size and the member their place as the word changes. */
+  box-sizing: border-box; justify-content: center; width: 7.5rem;
   gap: 6px; padding: 5px 14px 5px 11px; border: 1px solid var(--line-strong); border-radius: var(--radius);
   background: var(--card); box-shadow: 0 1px 0 rgba(var(--shade-rgb), 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
   transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
