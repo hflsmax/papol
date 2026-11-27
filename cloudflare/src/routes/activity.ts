@@ -8,6 +8,7 @@ import { currentUser, type User } from "../auth";
 import { all, batch, one, statement, type Row } from "../db";
 import { DIGEST } from "../files";
 import { json, readJson, refuse, type Router } from "../http";
+import { holdPaper } from "../papers/detail";
 
 const KIND = "reading";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -84,6 +85,8 @@ export function activityRoutes(router: Router) {
        WHERE activity.user_uuid = excluded.user_uuid AND activity.subject = excluded.subject
          AND excluded.seconds >= activity.seconds`,
       s.uuid, user.uuid, s.kind, s.subject, s.started_at, s.ended_at, s.seconds)));
+    // A paper read outside the nook is held for its reader: read but not kept.
+    for (const subject of new Set(kept.filter((s) => s.seconds > 0).map((s) => s.subject))) await holdPaper(env.DB, user, subject);
     return json({ recorded: kept.length, skipped: data.spans.length - kept.length });
   });
 
@@ -103,7 +106,7 @@ export function activityRoutes(router: Router) {
     const papers: Record<string, { title: string; in_nook: boolean }> = {};
     if (named.length) {
       for (const p of await all<{ sha256: string; title: string; in_nook: number }>(env.DB,
-        `SELECT p.sha256, p.title, EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = p.sha256 AND c.user_uuid = ? AND c.deleted_at IS NULL) AS in_nook
+        `SELECT p.sha256, p.title, EXISTS (SELECT 1 FROM copies c WHERE c.paper_sha256 = p.sha256 AND c.user_uuid = ? AND c.deleted_at IS NULL AND c.kept) AS in_nook
          FROM papers p WHERE p.sha256 IN (${marks(named)})`, user.uuid, ...named)) {
         papers[p.sha256] = { title: p.title, in_nook: Boolean(p.in_nook) };
       }

@@ -193,7 +193,7 @@ async function projectOut(env: Env, project: Project, me: User, member: Member) 
        WHERE pp.project_uuid = ? ORDER BY pp.added_at DESC, pp.uuid`, member.seen_at, member.uuid, project.uuid),
     statement(env.DB,
       `SELECT DISTINCT c.paper_sha256 FROM copies c JOIN project_papers pp ON pp.paper_sha256 = c.paper_sha256 AND pp.project_uuid = ?
-       WHERE c.user_uuid = ? AND c.deleted_at IS NULL`, project.uuid, me.uuid),
+       WHERE c.user_uuid = ? AND c.deleted_at IS NULL AND c.kept`, project.uuid, me.uuid),
     statement(env.DB,
       `SELECT b.uuid, b.name, b.description, b.created_at, b.updated_at, u.uuid AS owner_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public,
               (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count,
@@ -381,13 +381,15 @@ END)`;
 // the members of a project that holds the paper. It follows the shelf the
 // paper sits on, and a paper they never put on any shelf counts as on a
 // public one (decided 2026-11-27): nobody needs a paper in their nook to
-// dig it, and a dig on a friend's paper is written to be read. A paper
-// taken out of the nook is withdrawn: what was written on it is its
+// dig it, and a dig on a friend's paper is written to be read. Their
+// copy of such a paper is one not kept (holdPaper). A paper taken out of
+// the nook is withdrawn: what was written on it is its
 // writer's alone until it is back on a public shelf. `user` and `paper`
 // are SQL expressions for the columns that name them.
 export function writingShown(user: string, paper: string): string {
   return `(${onPublicShelf(user, paper)}
-    OR NOT EXISTS (SELECT 1 FROM copies nc WHERE nc.user_uuid = ${user} AND nc.paper_sha256 = ${paper}))`;
+    OR NOT EXISTS (SELECT 1 FROM copies nc WHERE nc.user_uuid = ${user} AND nc.paper_sha256 = ${paper}
+      AND (nc.kept OR nc.deleted_at IS NOT NULL)))`;
 }
 
 // Whether a user keeps a paper on one of their public shelves.
@@ -849,7 +851,7 @@ export function projectRoutes(router: Router) {
     const check = validate.checking();
     const digest = check.string("paper_sha256", data.paper_sha256, { pattern: DIGEST });
     check.done();
-    if (!(await one(env.DB, "SELECT 1 FROM copies WHERE user_uuid = ? AND paper_sha256 = ? AND deleted_at IS NULL", me.uuid, digest))) {
+    if (!(await one(env.DB, "SELECT 1 FROM copies WHERE user_uuid = ? AND paper_sha256 = ? AND deleted_at IS NULL AND kept", me.uuid, digest))) {
       refuse(400, "Add the paper to your nook first");
     }
     if (!(await one(env.DB, "SELECT 1 FROM project_papers WHERE project_uuid = ? AND paper_sha256 = ?", project.uuid, digest))) {

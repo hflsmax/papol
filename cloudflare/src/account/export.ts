@@ -46,7 +46,7 @@ export function slug(text: string, limit = 60): string {
 export async function gather(db: D1Database, user: User) {
   const copies = await all<Row>(db, `SELECT c.*, p.sha256, p.title, p.authors, p.journal, p.year, p.doi, s.name AS shelf_name, s.is_public AS shelf_public
     FROM copies c JOIN papers p ON p.sha256 = c.paper_sha256 LEFT JOIN shelves s ON s.uuid = c.shelf_uuid
-    WHERE c.user_uuid = ? AND c.deleted_at IS NULL ORDER BY c.created_at, c.uuid`, user.uuid);
+    WHERE c.user_uuid = ? AND c.deleted_at IS NULL AND c.kept ORDER BY c.created_at, c.uuid`, user.uuid);
   const tagsByCopy = new Map<string, string[]>();
   for (const link of await all<{ copy_uuid: string; name: string }>(db, `SELECT l.copy_uuid, t.name FROM copy_tags l JOIN tags t ON t.uuid = l.tag_uuid
       WHERE l.user_uuid = ? AND l.deleted_at IS NULL AND t.deleted_at IS NULL ORDER BY lower(t.name)`, user.uuid)) {
@@ -264,7 +264,7 @@ export async function exportArchive(env: Env, user: User): Promise<Response> {
       // can slug the same, so the second gets a number.
       const seen = new Set<string>();
       for (const kept of await all<{ file_path: string; title: string; year: number | null }>(env.DB,
-          "SELECT p.file_path, p.title, p.year FROM copies c JOIN papers p ON p.sha256 = c.paper_sha256 WHERE c.user_uuid = ? AND c.deleted_at IS NULL ORDER BY c.created_at, c.uuid", user.uuid)) {
+          "SELECT p.file_path, p.title, p.year FROM copies c JOIN papers p ON p.sha256 = c.paper_sha256 WHERE c.user_uuid = ? AND c.deleted_at IS NULL AND c.kept ORDER BY c.created_at, c.uuid", user.uuid)) {
         const base = kept.year ? `${slug(kept.title)}-${kept.year}` : slug(kept.title);
         let candidate = `${base}.pdf`;
         for (let n = 2; seen.has(candidate); n++) candidate = `${base}-${n}.pdf`;

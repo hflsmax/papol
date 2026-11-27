@@ -220,7 +220,7 @@ export function paperRoutes(router: Router) {
       uuid: removed?.uuid ?? newUuid(), paper_sha256: paper.sha256, user_uuid: user.uuid, shelf_uuid: shelf.uuid as string,
       summary: summary ?? null, thought: thought ?? null, is_author: data.is_author ? 1 : 0,
       rating_expertise: data.rating_expertise ?? null, rating_reading: data.rating_reading ?? null, rating_liking: data.rating_liking ?? null,
-      ...NEW_COPY_VISIBILITY, pinned: 0,
+      ...NEW_COPY_VISIBILITY, pinned: 0, kept: 1,
       created_at: removed?.created_at ?? at, updated_at: at, revision: removed?.revision ?? 0, deleted_at: null,
     };
     const statements = [await writePaper(env.DB, paper, isNew), ...await writeSynced(env.DB, "copies", copy, user.uuid, !removed)];

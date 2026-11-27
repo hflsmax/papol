@@ -27,7 +27,7 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { copyOf, everKept, keepPaper, paperOr404 } from "../papers/detail";
+import { copyOf, holdPaper, keepPaper, paperOr404, tookOut } from "../papers/detail";
 import { friendSees, notice, userLiteral } from "./friends";
 import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, writingShown, type Member, type Project } from "./projects";
 
@@ -298,11 +298,13 @@ export function digRoutes(router: Router) {
     const at = now();
     // A dig on a card is the project's. One on a paper or a mark is the
     // writer's own, which the project sees while their writing on the
-    // paper is shown. A paper they never kept needs no copy for that. One
+    // paper is shown. A paper they never kept is held for them, not kept,
+    // which shows it. One
     // they took out of their nook is withdrawn, so it comes back first:
     // what is written in a project is written to be read there.
-    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me)) && (await everKept(env.DB, subject.paper_sha256, me))) {
-      await keepPaper(env.DB, me, subject.paper_sha256);
+    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) {
+      if (await tookOut(env.DB, subject.paper_sha256, me)) await keepPaper(env.DB, me, subject.paper_sha256);
+      else await holdPaper(env.DB, me, subject.paper_sha256);
     }
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: subject.board_item_uuid ? project.uuid : null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
@@ -324,6 +326,7 @@ export function digRoutes(router: Router) {
     if (await one(env.DB, "SELECT 1 FROM digs WHERE project_uuid IS NULL AND subject = ? AND user_uuid = ?", subject.subject, me.uuid)) refuse(409, "You have dug this already");
     const text = postBody(data.text, "text");
     const at = now();
+    if (subject.paper_sha256) await holdPaper(env.DB, me, subject.paper_sha256);
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
     return json(await digOut(env, made, null, me, OWN));

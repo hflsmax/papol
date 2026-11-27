@@ -65,8 +65,8 @@ describe("Passing", () => {
     const anchor = await ok("POST", `/api/papers/${anchored.slice(0, 32)}/annotations`, { headers: reader.headers, json: { kind: "anchor", page: 1, body: { anchor: { x: 0.5, y: 0.5 } } } });
     const listed = await marked();
     expect(listed.map((m: any) => m.sha256).sort()).toEqual([dug, anchored].sort());
-    expect(listed.find((m: any) => m.sha256 === dug)).toMatchObject({ title: "Dug", digs: 1, annotations: 0 });
-    expect(listed.find((m: any) => m.sha256 === anchored)).toMatchObject({ title: "Anchored", digs: 0, annotations: 1 });
+    expect(listed.find((m: any) => m.sha256 === dug)).toMatchObject({ title: "Dug", effort: null });
+    expect(listed.find((m: any) => m.sha256 === anchored)).toMatchObject({ title: "Anchored", effort: null });
     // Marking a paper puts nothing in the nook.
     const nook = await ok("GET", `/api/users/${reader.uuid}/nook`, { headers: reader.headers });
     expect(nook.papers).toEqual([]);
@@ -77,11 +77,11 @@ describe("Passing", () => {
     await ok("POST", `/api/papers/${dug.slice(0, 32)}/add-to-nook`, { headers: reader.headers });
     expect((await marked()).map((m: any) => m.sha256)).toEqual([anchored]);
     await ok("DELETE", `/api/papers/${dug.slice(0, 32)}`, { headers: reader.headers });
-    expect((await marked()).find((m: any) => m.sha256 === dug)).toMatchObject({ digs: 1 });
+    expect((await marked()).map((m: any) => m.sha256).sort()).toEqual([dug, anchored].sort());
     // It stays with everything written on it rubbed out.
     await ok("DELETE", `/api/annotations/${anchor.uuid}`, { headers: reader.headers });
     await ok("DELETE", `/api/digs/${dig.uuid}`, { headers: reader.headers });
-    expect((await marked()).map((m: any) => [m.sha256, m.annotations, m.digs]).sort()).toEqual([[dug, 0, 0], [anchored, 0, 0]].sort());
+    expect((await marked()).map((m: any) => m.sha256).sort()).toEqual([dug, anchored].sort());
 
     // A paper only read is listed too, with the time spent on it, and one
     // opened for no time at all is not.
@@ -94,12 +94,16 @@ describe("Passing", () => {
     await ok("POST", "/api/activity", { headers: reader.headers, json: { spans: [span(read, 240), span(glanced, 0)] } });
     const withRead = await marked();
     expect(withRead.map((m: any) => m.sha256).sort()).toEqual([dug, anchored, read].sort());
-    expect(withRead.find((m: any) => m.sha256 === read)).toMatchObject({ sha256: read, title: "Read through", annotations: 0, digs: 0, effort: { seconds: 240 } });
+    expect(withRead.find((m: any) => m.sha256 === read)).toMatchObject({ sha256: read, title: "Read through", effort: { seconds: 240 } });
     expect(withRead.find((m: any) => m.sha256 === dug).effort).toBeNull();
     // A paper its user keeps is not listed, however much is read or written on it.
     await ok("POST", "/api/activity", { headers: keeper.headers, json: { spans: [span(untouched, 120)] } });
     await ok("POST", "/api/digs", { headers: keeper.headers, json: { subject: `paper:${untouched}`, text: "Mine" } });
     expect(await marked(keeper)).toEqual([]);
+    // Each is one copy of the reader's, not kept or taken out, and the
+    // one read for no time left none.
+    expect(await rows("SELECT paper_sha256, kept, deleted_at IS NOT NULL AS removed FROM copies WHERE user_uuid = ? ORDER BY paper_sha256", reader.uuid))
+      .toEqual([{ paper_sha256: dug, kept: 1, removed: 1 }, { paper_sha256: anchored, kept: 0, removed: 0 }, { paper_sha256: read, kept: 0, removed: 0 }]);
     // Nobody is shown another's list.
     expect((await ok("GET", `/api/users/${keeper.uuid}/nook`, { headers: reader.headers })).unkept).toEqual([]);
   });

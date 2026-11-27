@@ -68,7 +68,7 @@ export async function openSharable(db: D1Database, uuid: string | null | undefin
     // alone was never theirs to take with them.
     const maker = sharable.user_uuid ? await one<{ deleted_at: string | null }>(db, "SELECT deleted_at FROM users WHERE uuid = ?", sharable.user_uuid) : null;
     if (!maker || maker.deleted_at) return null;
-    const kept = await one(db, "SELECT 1 FROM copies WHERE user_uuid = ? AND paper_sha256 = ? AND deleted_at IS NULL", sharable.user_uuid, sharable.paper_sha256);
+    const kept = await one(db, "SELECT 1 FROM copies WHERE user_uuid = ? AND paper_sha256 = ? AND deleted_at IS NULL AND kept", sharable.user_uuid, sharable.paper_sha256);
     // Written down rather than worked out on each read, so that putting
     // the paper back cannot quietly re-enrich a link already handed out.
     if (!kept) await stripToThePaper(db, sharable);

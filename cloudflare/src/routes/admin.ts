@@ -113,7 +113,7 @@ const USER_STATS = `u.uuid, u.display_name, u.email, u.affiliation, u.avatar_pat
     strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS created_at,
     strftime('%Y-%m-%dT%H:%M:%SZ', seen.at) AS last_active_at,
     (SELECT platform FROM auth_tokens t WHERE t.user_uuid = u.uuid AND t.last_used_at IS NOT NULL ORDER BY julianday(t.last_used_at) DESC LIMIT 1) AS platform,
-    (SELECT count(*) FROM copies c WHERE c.user_uuid = u.uuid AND c.deleted_at IS NULL) AS papers,
+    (SELECT count(*) FROM copies c WHERE c.user_uuid = u.uuid AND c.deleted_at IS NULL AND c.kept) AS papers,
     (SELECT count(*) FROM digs d WHERE d.user_uuid = u.uuid) AS digs,
     (SELECT count(*) FROM annotations a WHERE a.user_uuid = u.uuid AND a.kind = 'anchor' AND a.deleted_at IS NULL) AS anchors,
     (SELECT coalesce(sum(seconds), 0) FROM activity r WHERE r.user_uuid = u.uuid AND julianday(r.started_at) >= julianday('now', ?)) AS reading_recent_seconds,

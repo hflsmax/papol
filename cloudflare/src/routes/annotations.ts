@@ -9,7 +9,7 @@
 import { currentUser, type User } from "../auth";
 import { all, batch, newUuid, now, one, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
-import { annotationOut, paperOr404 } from "../papers/detail";
+import { annotationOut, holdPaper, paperOr404 } from "../papers/detail";
 import { writeSynced } from "../sync/write";
 import * as validate from "../validate";
 
@@ -54,6 +54,8 @@ export function annotationRoutes(router: Router) {
       content: "", name: null, body: JSON.stringify(validate.normalizedBody(String(data.kind), body)),
       created_at: at, updated_at: at, revision: 0, deleted_at: null,
     };
+    // The first mark on a paper outside the nook holds it for its writer.
+    await holdPaper(env.DB, user, paper.sha256);
     await batch(env.DB, await writeSynced(env.DB, "annotations", annotation, user.uuid, true));
     return json(annotationOut(annotation));
   });

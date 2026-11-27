@@ -156,7 +156,7 @@ export async function latest(env: Env, me: User, seen: string = me.room_seen_at 
   const marks = digests.map(() => "?").join(",");
   const [papers, kept] = digests.length ? (await env.DB.batch<Row>([
     statement(env.DB, `SELECT sha256, title, authors, journal, year FROM papers WHERE deleted_at IS NULL AND sha256 IN (${marks})`, ...digests),
-    statement(env.DB, `SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL AND paper_sha256 IN (${marks})`, me.uuid, ...digests),
+    statement(env.DB, `SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL AND kept AND paper_sha256 IN (${marks})`, me.uuid, ...digests),
   ])).map((r) => r.results) : [[], []];
   const paperOf = new Map(papers.map((p) => [p.sha256 as string, p]));
   const inNook = new Set(kept.map((k) => k.paper_sha256 as string));

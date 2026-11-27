@@ -184,7 +184,7 @@ describe("what a friend sees", () => {
     const onPaper = await ok("POST", "/api/digs", { headers: grace.headers, json: { subject: `paper:${digest("c")}`, text: "Does section 4 need the lemma?" } });
     const anchor = await ok("POST", `/api/papers/${name("c")}/annotations`, { headers: grace.headers, json: { kind: "anchor", page: 2, body: { anchor: { x: 0.5, y: 0.5 } } } });
     const onAnchor = await ok("POST", "/api/digs", { headers: grace.headers, json: { subject: `annotation:${anchor.uuid}`, text: "This step" } });
-    expect(await count("copies", "user_uuid = ?", grace.uuid)).toBe(0);
+    expect(await count("copies", "user_uuid = ? AND kept", grace.uuid)).toBe(0);
     expect((await ok("GET", `/api/papers/${name("c")}/digs`, { headers: grace.headers })).paper_digs).toMatchObject({ uuid: onPaper.uuid });
 
     // Her friend reads both, in the paper and in the Lounge, and posts; a stranger does not.

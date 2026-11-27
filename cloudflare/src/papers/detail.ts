@@ -61,14 +61,31 @@ export async function paperOr404(db: D1Database, name: string): Promise<Paper> {
   return paper;
 }
 
+// The user's copy of a paper kept in their nook. A copy that is not kept
+// is one they only read or wrote on (holdPaper): it is theirs, and
+// nothing that asks about the nook counts it.
 export async function copyOf(db: D1Database, paperSha256: string, user: User): Promise<Copy | null> {
-  return one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NULL", paperSha256, user.uuid);
+  return one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NULL AND kept", paperSha256, user.uuid);
 }
 
-// Whether the user ever had the paper in their nook: a copy, kept or
-// since taken out.
-export async function everKept(db: D1Database, paperSha256: string, user: User): Promise<boolean> {
-  return Boolean(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid));
+// Whether the user took the paper out of their nook: their copy is
+// there, removed.
+export async function tookOut(db: D1Database, paperSha256: string, user: User): Promise<boolean> {
+  return Boolean(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NOT NULL", paperSha256, user.uuid));
+}
+
+// Hold a paper for a user who read it or wrote on it without having it
+// in their nook: a copy that is not kept, on no shelf. It is what their
+// Passing list is read from (routes/nook.ts), and it is the same copy
+// their nook would keep: adding the paper later keeps this row and gives
+// it a shelf. A paper they already keep, or took out, is left as it is.
+export async function holdPaper(db: D1Database, user: User, paperSha256: string): Promise<void> {
+  if (await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid)) return;
+  const at = now();
+  const copy: Copy = { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: null, summary: null, thought: null,
+    is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0, kept: 0,
+    created_at: at, updated_at: at, revision: 0, deleted_at: null };
+  await batch(db, await writeSynced(db, "copies", copy, user.uuid, true));
 }
 
 export async function requireCopy(db: D1Database, paperSha256: string, user: User): Promise<Copy> {
@@ -83,7 +100,8 @@ export async function defaultShelf(db: D1Database, user: User): Promise<Row | nu
 
 // Take a paper into the user's nook: a copy of the one canonical paper
 // on their default shelf. One copy per user: a paper added back after
-// being removed revives that copy rather than storing a second. One
+// being removed, or only read until now, keeps that copy rather than
+// storing a second. One
 // road, however the paper was found — the Lounge, a nook, a link — so where it
 // lands does not depend on how it was found. The one exception names its
 // shelf: the paper a new user starts with (routes/auth.ts).
@@ -93,9 +111,9 @@ export async function keepPaper(db: D1Database, user: User, paperSha256: string,
   const removed = await one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid);
   const at = now();
   const copy: Copy = removed
-    ? { ...removed, deleted_at: null, shelf_uuid: shelf?.uuid as string ?? null }
+    ? { ...removed, deleted_at: null, kept: 1, shelf_uuid: shelf?.uuid as string ?? null }
     : { uuid: newUuid(), paper_sha256: paperSha256, user_uuid: user.uuid, shelf_uuid: shelf?.uuid as string ?? null, summary: null, thought: null,
-        is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0,
+        is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0, kept: 1,
         created_at: at, updated_at: at, revision: 0, deleted_at: null };
   await batch(db, await writeSynced(db, "copies", copy, user.uuid, !removed));
   return copy;
@@ -129,7 +147,7 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     // Whether the viewer's digs on this paper are shown to their friends
     // and their projects (writingShown): on a public shelf, or on no
     // shelf of theirs at all; not once they took the paper out.
-    digs_shown: !copy && !(await everKept(db, paper.sha256, viewer)),
+    digs_shown: !copy && !(await tookOut(db, paper.sha256, viewer)),
     anchors: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {
