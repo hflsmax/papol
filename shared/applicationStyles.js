@@ -4597,7 +4597,7 @@ a.button:hover {
 /* Written, the dig is carded like the summary: private, so tinted blue. */
 .paper-dig .talk-posts { padding: 0; }
 .paper-dig .talk-post { margin: 0; padding: 6px 12px 8px; border-radius: var(--radius); background: var(--accent-soft); }
-.paper-dig .talk-card .talk-compose.is-tucked { padding-left: 12px; padding-right: 12px; }
+.paper-dig .talk-card .talk-compose.is-tucked { margin-top: var(--space-3); padding: 0; background: none; }
 .paper-dig .talk-post-body { font-size: var(--fs-md); line-height: 1.45; }
 .paper-dig .talk-post-body :is(p, ol, ul) { margin-bottom: .3em; }
 .paper-dig .talk-post-body > :last-child { margin-bottom: 0; }
