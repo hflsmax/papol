@@ -170,13 +170,12 @@ export default function ThreadComposer({ currentUser, onStarted }) {
       <div className="thread-composer-write">
         <Face user={currentUser} />
         <MarkdownField
-          ref={field} rows={1} value={words} maxLength={appLimits.text.thread_words} placeholder={open ? 'Start a thread' : 'Start a thread with your friends'} aria-label="Start a thread"
+          ref={field} rows={1} value={words} maxLength={appLimits.text.thread_words} placeholder="Start a thread" aria-label="Start a thread"
           onChange={(event) => setWords(event.target.value)} onKeyDown={keyDown} onPaste={pasted}
         />
         {!open && (
           <span className="thread-composer-cue" aria-hidden="true" onMouseDown={(event) => { event.preventDefault(); field.current?.focus(); }}>
             <svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z" /><path d="M14.5 6.5l3 3" /></svg>
-            Write
           </span>
         )}
       </div>

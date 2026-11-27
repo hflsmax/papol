@@ -6132,10 +6132,9 @@ ${talkStyles}
 .thread-composer:not(.is-open) .thread-composer-write { grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
 .thread-composer:not(.is-open) .mini-avatar { width: 30px; height: 30px; margin-top: 0; font-size: 13px; }
 .thread-composer:not(.is-open) .md-field { font-size: var(--fs-lg); overflow: hidden; white-space: nowrap; }
-@media (max-width: 560px) { .thread-composer:not(.is-open) .md-field[data-empty]::before { content: 'Start a thread'; } }
 .thread-composer:not(.is-open) .md-field[data-empty]::before { color: var(--ink-soft); }
-.thread-composer-cue { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px 7px 11px; border-radius: 999px; background: var(--accent); color: var(--card); font: 600 var(--fs-sm)/1 var(--font-ui); cursor: pointer; }
-.thread-composer-cue svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.thread-composer-cue { display: inline-grid; place-items: center; width: 30px; height: 30px; color: var(--accent); cursor: pointer; }
+.thread-composer-cue svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .thread-composer.is-open .md-field { min-height: 3.2em; }
 .thread-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-soft); }
 .thread-composer.is-over { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
