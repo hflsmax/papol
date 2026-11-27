@@ -44,8 +44,9 @@ const REFERENCES = {
 
 // The page, sentence by sentence. A sentence is a list of pieces: text, a
 // citation ({ cites }: one bracketed marker, which may name several works),
-// the words that lead to the figure ({ figure }) or the name of a typing
-// rule ({ rule }). An elision marks where the paper's own sentences were
+// the words that lead to the figure ({ figure }), the name of a typing
+// rule ({ rule }) or a keyword of the calculus, set as the paper sets it
+// ({ word }). An elision marks where the paper's own sentences were
 // left out.
 const COLUMNS = [
   [
@@ -61,7 +62,7 @@ const COLUMNS = [
     { elision: true },
     { id: 's6', parts: ['Selected typing rules are shown in Figure 1 and ', { figure: 'Figure 2' }, '.'] },
     { elision: true },
-    { id: 's7', parts: ['Lifetimes begin and end at the newlft and endlft ghost instructions, following ', { rule: 'F-newlft' }, ' and ', { rule: 'F-endlft' }, '.'] },
+    { id: 's7', parts: ['Lifetimes begin and end at the ', { word: 'newlft' }, ' and ', { word: 'endlft' }, ' ghost instructions, following ', { rule: 'F-newlft' }, ' and ', { rule: 'F-endlft' }, '.'] },
     { elision: true },
     { id: 's8', parts: ['We mostly use ', { rule: 'F-let' }, ' to type-check the function one instruction at a time.'] },
   ],
@@ -286,6 +287,7 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
 
   const renderPart = (block, part, i) => {
     if (typeof part === 'string') return part;
+    if (part.word) return <b key={i} className="rule-word">{part.word}</b>;
     const at = `${block.id}-${i}`;
     if (part.figure) {
       return (
