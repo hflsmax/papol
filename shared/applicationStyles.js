@@ -5835,7 +5835,6 @@ ${talkStyles}
 .desk-mark { flex: none; width: 14px; height: 14px; margin: 0 -3px; fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
 .desk-marked .desk-col-date { width: 6rem; }
 .desk-marked-note { max-width: 46rem; margin: 0 0 var(--space-4); color: var(--ink-soft); font-size: var(--fs-sm); }
-.paper-marked-hint { margin: var(--space-2) 0 0; color: var(--ink-faint); font-size: var(--fs-xs); }
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
