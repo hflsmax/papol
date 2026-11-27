@@ -8,10 +8,14 @@ import { claim, type Job } from "../src/jobs/queue";
 import { runOne } from "../src/jobs/run";
 import { DAILY_CRON } from "../src/jobs/digests";
 import { reasonOf } from "../src/jobs/suggestions";
+import { suggestionsFor } from "../src/routes/suggestions";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
 
 const suggested = (account: Account) => ok("GET", "/api/friends/suggestions", { headers: account.headers });
 const names = async (account: Account) => (await suggested(account)).map((s: any) => s.user.display_name);
+// Those who share something with a user, the likeliest first: what the email is made of.
+const shares = (account: Account) => suggestionsFor(env, account.uuid);
+const sharers = async (account: Account) => (await shares(account)).map((s) => s.user.display_name);
 
 async function befriend(a: Account, b: Account) {
   await ok("POST", `/api/friends/${b.uuid}`, { headers: a.headers });
@@ -34,7 +38,34 @@ async function project(keeper: Account, name: string, ...joiners: Account[]) {
 }
 
 describe("people to ask", () => {
-  it("are those in a project with me and the friends of my friends, a project first", async () => {
+  it("are anyone in the Lounge, drawn afresh each time, with what we share said where there is any", async () => {
+    const ada = await register("ada@example.test", "Ada");
+    // A user alone has nobody to be shown, and nobody is shown themselves.
+    expect(await suggested(ada)).toEqual([]);
+    const grace = await register("grace@example.test", "Grace");
+    // Someone they share nothing with is suggested, with nothing said of why.
+    expect(await suggested(ada)).toEqual([{ user: expect.objectContaining({ uuid: grace.uuid }), project_count: 0, projects: [], mutual_count: 0 }]);
+    const lab = await project(ada, "Control Lab", grace);
+    expect(await suggested(ada)).toMatchObject([{ user: { uuid: grace.uuid }, project_count: 1, projects: [{ uuid: lab, name: "Control Lab" }] }]);
+    expect((await call("GET", "/api/friends/suggestions")).status).toBe(401);
+
+    // Six at a time out of everyone, and not the same six in the same order every time.
+    for (let i = 0; i < 12; i += 1) await register(`${uuid()}@example.test`, `Reader ${i}`);
+    const draws = new Set<string>();
+    for (let i = 0; i < 8; i += 1) {
+      const drawn = await names(ada);
+      expect(drawn).toHaveLength(6);
+      expect(new Set(drawn).size).toBe(6);
+      draws.add(drawn.join());
+    }
+    expect(draws.size).toBeGreaterThan(1);
+
+    // Someone I asked leads every draw, so the asking can be taken back.
+    await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
+    for (let i = 0; i < 4; i += 1) expect((await names(ada))[0]).toBe("Grace");
+  });
+
+  it("share a project with me or are friends of my friends, a project first, for the email", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     const edsger = await register("edsger@example.test", "Edsger"), stranger = await register("stranger@example.test", "Stranger");
     const one = await register("one@example.test", "One"), two = await register("two@example.test", "Two");
@@ -43,31 +74,30 @@ describe("people to ask", () => {
     const lab = await project(ada, "Control Lab", edsger);
 
     // Two friends in common are less than one project, and who they are is not said.
-    expect(await suggested(ada)).toEqual([
+    expect(await shares(ada)).toEqual([
       { user: expect.objectContaining({ uuid: edsger.uuid, display_name: "Edsger" }), project_count: 1, projects: [{ uuid: lab, name: "Control Lab" }], mutual_count: 0 },
       { user: expect.objectContaining({ uuid: grace.uuid }), project_count: 0, projects: [], mutual_count: 2 },
     ]);
     // It runs both ways, and to someone with nothing in common nobody is suggested.
-    expect(await names(grace)).toEqual(["Ada"]);
+    expect(await sharers(grace)).toEqual(["Ada"]);
     // The two in between share both of them.
-    expect(await names(one)).toEqual(["Two"]);
-    expect(await suggested(stranger)).toEqual([]);
-    expect((await call("GET", "/api/friends/suggestions")).status).toBe(401);
+    expect(await sharers(one)).toEqual(["Two"]);
+    expect(await shares(stranger)).toEqual([]);
   });
 
-  it("are not made from papers two people both keep, or from a request not yet accepted", async () => {
+  it("share nothing by papers two people both keep, or by a request not yet accepted", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), between = await register("between@example.test", "Between");
     await paperWithCopy(ada, "a".repeat(64), "Loss Curves", { shelfUuid: await defaultShelf(ada) });
     await ok("POST", `/api/papers/${"a".repeat(32)}/add-to-nook`, { headers: grace.headers, json: {} });
-    expect(await suggested(ada)).toEqual([]);
+    expect(await shares(ada)).toEqual([]);
     await befriend(ada, between);
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: between.headers });
-    expect(await suggested(ada)).toEqual([]);
+    expect(await shares(ada)).toEqual([]);
     await ok("POST", `/api/friends/${between.uuid}/accept`, { headers: grace.headers });
-    expect(await names(ada)).toEqual(["Grace"]);
+    expect(await sharers(ada)).toEqual(["Grace"]);
     // A friendship ended is a reason no longer.
     await ok("DELETE", `/api/friends/${grace.uuid}`, { headers: between.headers });
-    expect(await suggested(ada)).toEqual([]);
+    expect(await shares(ada)).toEqual([]);
   });
 
   it("leave out friends, anyone asked or asking, and whoever cannot be found", async () => {
@@ -125,7 +155,7 @@ describe("people to ask", () => {
     expect(await count("friend_suggestions")).toBe(1);
     expect(await names(ada)).toEqual(["Edsger"]);
     // It is hers alone: Grace is still suggested Ada, hears nothing, and can still be asked.
-    expect(await names(grace)).toEqual(["Ada", "Edsger"]);
+    expect((await names(grace)).sort()).toEqual(["Ada", "Edsger"]);
     expect(await count("notifications")).toBe(told);
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
     expect((await call("DELETE", `/api/friends/suggestions/${ada.uuid}`, { headers: ada.headers })).status).toBe(404);
@@ -206,7 +236,7 @@ describe("the weekly email of people to ask", () => {
     emailApi();
     expect(await monday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 3, recipients: 0 }) });
     expect(calls).toEqual([]);
-    expect(await names(ada)).toEqual(["Grace <b>Hopper</b>"]);
+    expect((await names(ada)).sort()).toEqual(["Grace <b>Hopper</b>", "Lone"]);
 
     // Someone new is named alone, to those they are new to.
     const edsger = await register("edsger@example.test", "Edsger");

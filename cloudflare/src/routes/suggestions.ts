@@ -1,19 +1,23 @@
 // People to ask: whom Papol suggests a user befriend, in the Lounge and
 // in the weekly email (jobs/suggestions.ts).
 //
-// Two things make a suggestion and nothing else: a project both users
-// are in, and friends they have in common (a friend of a friend). Of the
-// friends in common only how many is said, never who: nobody is shown
-// another user's friends (routes/friends.ts), and a count gives away the
-// least of them that a suggestion can.
+// In the Lounge anyone may be suggested: a handful of users drawn afresh
+// each time it is asked, so the room has someone to ask from a user's
+// first visit and somebody else at the next. What two users share is
+// still said beside a name where there is any: a project both are in,
+// and friends they have in common (a friend of a friend). The email is
+// made only of those, the likeliest first: it names people for a reason.
+// Of the friends in common only how many is said, never who: nobody is
+// shown another user's friends (routes/friends.ts), and a count gives
+// away the least of them that a suggestion can.
 //
 // Nobody is suggested who turned being found off, who is a friend
 // already, between whom and the user any request stands or once stood
 // (asked, declined or taken back), or whom the user said Not interested
 // to. One exception: someone the user asked in the last week keeps their
-// card in the Lounge, so the asking can be taken back there; the email
-// never names them. A suggestion is not kept; friend_suggestions keeps only that no,
-// and whom the weekly email already named.
+// card in the Lounge, ahead of the drawn ones, so the asking can be taken
+// back there; the email never names them. A suggestion is not kept;
+// friend_suggestions keeps only that no, and whom the email already named.
 
 import { currentUser } from "../auth";
 import { all, now, one, statement, type Row } from "../db";
@@ -42,10 +46,12 @@ export interface Suggestion {
   mutual_count: number;
 }
 
-// The people suggested to a user, the likeliest first: a shared project
-// counts for more than a friend in common. `unmailed` leaves out whomever
-// the weekly email already named to them.
-export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN, unmailed = false } = {}): Promise<Suggestion[]> {
+// The people suggested to a user. `anyone` is the Lounge's: whoever the
+// user asked lately, then users drawn at random, whatever they share.
+// Without it they are those who share something, the likeliest first: a
+// shared project counts for more than a friend in common. `unmailed`
+// leaves out whomever the email already named to them.
+export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN, unmailed = false, anyone = false } = {}): Promise<Suggestion[]> {
   const people = await all<Row>(env.DB,
     `WITH mine(uuid) AS ${friendsOf("?1")}, friend_hits AS (
        SELECT CASE WHEN f.asker_uuid = mine.uuid THEN f.asked_uuid ELSE f.asker_uuid END AS user_uuid, count(DISTINCT mine.uuid) AS n
@@ -60,13 +66,15 @@ export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN
      )
      SELECT ${PERSON}, coalesce(fh.n, 0) AS mutual_count, coalesce(jh.n, 0) AS project_count
      FROM users u LEFT JOIN friend_hits fh ON fh.user_uuid = u.uuid LEFT JOIN project_hits jh ON jh.user_uuid = u.uuid
-     WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.uuid != ?1 AND (fh.n > 0 OR jh.n > 0)
+     WHERE u.deleted_at IS NULL AND u.findable = 1 AND u.uuid != ?1${anyone ? "" : " AND (fh.n > 0 OR jh.n > 0)"}
        AND NOT EXISTS (SELECT 1 FROM friendships f
          WHERE ((f.asker_uuid = ?1 AND f.asked_uuid = u.uuid) OR (f.asker_uuid = u.uuid AND f.asked_uuid = ?1))
            AND NOT (f.asker_uuid = ?1 AND f.state != 'friends' AND f.created_at > ?3))
        AND NOT EXISTS (SELECT 1 FROM friend_suggestions fs
          WHERE fs.user_uuid = ?1 AND fs.suggested_uuid = u.uuid AND (fs.hidden_at IS NOT NULL${unmailed ? " OR fs.mailed_at IS NOT NULL" : ""}))
-     ORDER BY 3 * coalesce(jh.n, 0) + coalesce(fh.n, 0) DESC, lower(u.display_name), u.uuid LIMIT ?2`,
+     ORDER BY ${anyone
+    ? "EXISTS (SELECT 1 FROM friendships f WHERE f.asker_uuid = ?1 AND f.asked_uuid = u.uuid) DESC, random()"
+    : "3 * coalesce(jh.n, 0) + coalesce(fh.n, 0) DESC, lower(u.display_name), u.uuid"} LIMIT ?2`,
     userUuid, limit, unmailed ? "9999" : new Date(Date.now() - ASKED_STAYS_MS).toISOString());
   if (!people.length) return [];
 
@@ -88,7 +96,7 @@ export async function suggestionsFor(env: Env, userUuid: string, { limit = SHOWN
 export function suggestionRoutes(router: Router) {
   router.on("GET", "/api/friends/suggestions", async ({ request, env }) => {
     const me = await currentUser(request, env);
-    return json(await suggestionsFor(env, me.uuid));
+    return json(await suggestionsFor(env, me.uuid, { anyone: true }));
   });
 
   // Not interested: they are not suggested to this user again, here or by
@@ -100,6 +108,6 @@ export function suggestionRoutes(router: Router) {
     await statement(env.DB,
       `INSERT INTO friend_suggestions (user_uuid, suggested_uuid, hidden_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_uuid, suggested_uuid) DO UPDATE SET hidden_at = coalesce(hidden_at, ?3)`, me.uuid, them, now()).run();
-    return json(await suggestionsFor(env, me.uuid));
+    return json(await suggestionsFor(env, me.uuid, { anyone: true }));
   });
 }

@@ -79,10 +79,11 @@ export async function defaultShelf(db: D1Database, user: User): Promise<Row | nu
 // on their default shelf. One copy per user: a paper added back after
 // being removed revives that copy rather than storing a second. One
 // road, however the paper was found — the Lounge, a nook, a link — so where it
-// lands does not depend on how it was found.
-export async function keepPaper(db: D1Database, user: User, paperSha256: string): Promise<Copy> {
+// lands does not depend on how it was found. The one exception names its
+// shelf: the paper a new user starts with (routes/auth.ts).
+export async function keepPaper(db: D1Database, user: User, paperSha256: string, onShelf: Row | null = null): Promise<Copy> {
   if (await copyOf(db, paperSha256, user)) refuse(400, "This paper is already in your nook");
-  const shelf = await defaultShelf(db, user);
+  const shelf = onShelf ?? await defaultShelf(db, user);
   const removed = await one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ?", paperSha256, user.uuid);
   const at = now();
   const copy: Copy = removed
