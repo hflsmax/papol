@@ -70,6 +70,15 @@ export const LOUNGE_TIP = {
   unsetLabel: 'Not shown',
 };
 
+export const NOOK_TIP = {
+  key: 'papol_learn_nook_way',
+  value: 'seen',
+  name: 'Way back to the nook tip',
+  description: 'The Learn Papol card under “My nook” on the website’s bar, shown while the user is in the Lounge, that says the button is the way back to their nook, until they dismiss it or press the button.',
+  setLabel: 'Shown',
+  unsetLabel: 'Not shown',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -112,6 +121,7 @@ export const FEATURE_STATES = [
   PROJECT_VISIBILITY_TIP,
   DARK_PAGES_TIP,
   LOUNGE_TIP,
+  NOOK_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,

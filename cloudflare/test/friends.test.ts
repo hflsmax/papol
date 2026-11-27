@@ -19,7 +19,7 @@ describe("becoming friends", () => {
   it("is emailed as often as the one asked chose in Preferences, and reaches their inbox all the same", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     const kept = await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_request: "never" } } });
-    expect(kept.emails).toEqual({ friend_request: "never", friend_suggestions: "weekly" });
+    expect(kept.emails).toEqual({ friend_request: "never", friend_suggestions: "weekly", lounge_activity: "daily" });
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
     expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_request", actor: { uuid: ada.uuid } });
     expect(await count("jobs", "kind = 'send_email'")).toBe(0);
@@ -37,7 +37,7 @@ describe("becoming friends", () => {
     for (const emails of [{ feedback_report: "never" }, { password_reset: "never" }, { announcement: "never" }, { digest: "never" }, { friend_request: "hourly" }, { friend_request: false }, { friend_suggestions: "now" }, ["friend_request"], null]) {
       expect((await call("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails } })).status, JSON.stringify(emails)).toBe(422);
     }
-    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).emails).toEqual({ friend_request: "daily", friend_suggestions: "weekly" });
+    expect((await ok("GET", "/api/auth/me", { headers: grace.headers })).emails).toEqual({ friend_request: "daily", friend_suggestions: "weekly", lounge_activity: "daily" });
     // Closing the account takes what was held for it.
     await ok("DELETE", "/api/auth/account", { headers: grace.headers, json: { confirm_email: "grace@example.test" } });
     expect(await count("email_held")).toBe(0);

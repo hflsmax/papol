@@ -539,7 +539,7 @@ export default function PaperUpload({
           aria-expanded={onAddFolder ? menuOpen : undefined}
           onClick={() => (onAddFolder ? setMenuOpen((open) => !open) : fileInputRef.current?.click())}
         >
-          {isLoading ? 'Adding…' : 'Add papers'}
+          {isLoading ? 'Adding…' : 'Add'}
         </button>
         {menuOpen && (
           <div className="upload-menu" role="menu">

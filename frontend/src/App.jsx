@@ -889,7 +889,12 @@ export default function App({ startupUser = null, startupError = null }) {
   const hasWay = Boolean(user) && !DESKTOP;
   // Those pages all draw the one nook, kept mounted as a member moves
   // through it so its list, filters and scroll are there on the way Back.
-  const inNook = hasWay && NOOK_PAGES.has(route.page);
+  // A paper or board opened from the Lounge is still in the Lounge: its
+  // jacket is drawn there, beside the Lounge's rail and over its rows, not
+  // in the nook beside the member's shelves.
+  // A thread lives in the Lounge alone, so it is always drawn there.
+  const inLounge = hasWay && (route.page === 'room' || route.page === 'thread' || (onJacket && jacketBack.path === ROOM_PATH));
+  const inNook = hasWay && NOOK_PAGES.has(route.page) && !inLounge;
 
   // Keyed by identity: changing accounts remounts every page so no nook or
   // private paper state can survive an identity boundary.
@@ -897,7 +902,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // raised it and leaving that page starts clean.
   const pages = (
     <ErrorBoundary
-      key={inNook ? 'nook' : `${route.page}:${route.uuid ?? ''}`}
+      key={inNook ? 'nook' : inLounge ? 'lounge' : `${route.page}:${route.uuid ?? ''}`}
       area={`the ${route.page} page`}
     >
     <main className="main-content" key={`${mode}:${user?.uuid ?? 'none'}`}>
@@ -974,7 +979,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backHref={backHref}
         />
       )}
-      {!inNook && route.page === 'paper' && (
+      {!inNook && !inLounge && route.page === 'paper' && (
         <PaperJacket
           paperSha256={route.uuid}
           currentUser={user}
@@ -987,7 +992,7 @@ export default function App({ startupUser = null, startupError = null }) {
           onReportableError={offerErrorReport}
         />
       )}
-      {!inNook && route.page === 'board' && (
+      {!inNook && !inLounge && route.page === 'board' && (
         <BoardJacket
           boardUuid={route.uuid}
           onOpen={openBoardCanvas}
@@ -998,7 +1003,7 @@ export default function App({ startupUser = null, startupError = null }) {
           backLabel={jacketBack.label}
         />
       )}
-      {route.page === 'thread' && (
+      {!inLounge && route.page === 'thread' && (
         <ThreadJacket
           threadUuid={route.uuid}
           currentUser={user}
@@ -1009,10 +1014,40 @@ export default function App({ startupUser = null, startupError = null }) {
           onRemoved={() => navigate(ROOM_PATH, { replace: true })}
         />
       )}
-      {route.page === 'room' && (
+      {(route.page === 'room' || inLounge) && (
         <Room
           currentUser={user}
           onSeen={() => setRoomNews(false)}
+          onLeave={route.page === 'thread' ? goBackFromThread : goBackFromJacket}
+          jacketTitled={route.page !== 'thread'}
+          jacket={!inLounge || route.page === 'room' ? null : route.page === 'thread' ? (
+            <ThreadJacket
+              key={route.uuid}
+              threadUuid={route.uuid}
+              currentUser={user}
+              hideBack
+              onBack={goBackFromThread}
+              onRemoved={() => navigate(ROOM_PATH, { replace: true })}
+            />
+          ) : route.page === 'paper' ? (
+            <PaperJacket
+              key={route.uuid}
+              paperSha256={route.uuid}
+              currentUser={user}
+              hideBack
+              onBack={goBackFromJacket}
+              onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
+              onReportableError={offerErrorReport}
+            />
+          ) : (
+            <BoardJacket
+              key={route.uuid}
+              boardUuid={route.uuid}
+              onOpen={openBoardCanvas}
+              hideBack
+              onDeleted={() => navigate(ROOM_PATH, { replace: true })}
+            />
+          )}
         />
       )}
       {route.page === 'projects' && (
@@ -1217,7 +1252,10 @@ export default function App({ startupUser = null, startupError = null }) {
           <WayBar
             user={user}
             route={route}
-            from={jacketFrom}
+            // Papol's mark leads back to the Lounge from what was opened
+            // there, so only another place is named beside it.
+            from={jacketFrom?.path === ROOM_PATH ? null : jacketFrom}
+            inLounge={inLounge || (route.page === 'nook' && route.uuid !== user.uuid)}
             unreadCount={unreadCount}
             roomNews={roomNews}
           />

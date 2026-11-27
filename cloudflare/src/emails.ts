@@ -22,7 +22,8 @@
 // Mail to a user is queued by queueEmail (jobs/notifications.ts), which
 // takes the kind and asks here: it sends now, holds for the day's or the
 // week's email (jobs/digests.ts), or does nothing. A job that picks its
-// own recipients in SQL (jobs/suggestions.ts) filters with frequencySql.
+// own recipients in SQL (jobs/suggestions.ts, jobs/lounge.ts) filters
+// with frequencySql.
 
 import { refuse } from "./http";
 
@@ -42,6 +43,8 @@ const CHOSEN = {
   friend_request: { choices: EVERY, preset: "now", admins: false, many: (count) => `${count} friend requests on Papol` },
   // Made on a schedule, not by something happening: there is no "now".
   friend_suggestions: { choices: ["daily", "weekly", "never"], preset: "weekly", admins: false },
+  // What friends did in the Lounge since the last (jobs/lounge.ts).
+  lounge_activity: { choices: ["daily", "weekly", "never"], preset: "daily", admins: false },
   feedback_report: { choices: EVERY, preset: "now", admins: true, many: (count) => `${count} Papol feedback reports` },
 } satisfies Record<string, Choice>;
 

@@ -179,6 +179,9 @@ ${commonStyles}
    page does. */
 #way-slot { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); color: var(--ink); }
 #way-slot:empty { display: none; }
+/* Everything on the bar's line shares its middle: the mark, the title and
+   its controls, the way to the other place and the member. */
+.way > #way-slot { align-self: center; }
 #way-slot > h2,
 #way-slot .project-title,
 #way-slot .detail-title-row h2 { margin: 0; font: 600 var(--fs-hero)/1.15 var(--font-serif); color: var(--ink); }
@@ -5844,6 +5847,9 @@ ${talkStyles}
   .nook-desk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .desk-rail, .desk-rail-body { position: static; display: contents; }
   .desk-rail-part:first-child { order: -2; }
+  /* A paper opened from the Lounge on a narrow window: the paper alone,
+     the bar's step back above it. */
+  .room.has-jacket .desk-rail { display: none; }
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
@@ -5892,6 +5898,9 @@ ${talkStyles}
    press: the app's own button, with the glyph the Mac sidebar gives the
    Lounge, its name, and the gold dot when a friend has news. */
 .way-aside a.way-room {
+  /* One width for "Lounge" (with or without its dot) and "My nook", so the
+     button keeps its size and the member their place as the word changes. */
+  box-sizing: border-box; justify-content: center; width: 7.5rem;
   gap: 6px; padding: 5px 14px 5px 11px; border: 1px solid var(--line-strong); border-radius: var(--radius);
   background: var(--card); box-shadow: 0 1px 0 rgba(var(--shade-rgb), 0.12); color: var(--ink); font: 500 var(--fs-md)/1.5 var(--font-ui);
   transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
@@ -5917,7 +5926,6 @@ ${talkStyles}
 .preferences-row label strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .preferences-row label { line-height: 1.4; }
 .preferences-row select { width: 11rem; font-family: var(--font-ui); }
-.preferences-scope { color: var(--ink-faint); font: 400 var(--fs-xs)/1.4 var(--font-ui); }
 .preferences-mac-note { display: grid; gap: 2px; margin: 0; }
 .preferences-mac-note strong { color: var(--ink); font: 400 var(--fs-sm)/1.4 var(--font-ui); }
 .preferences-mac-note span { color: var(--ink-soft); font: 400 var(--fs-sm)/1.4 var(--font-ui); }

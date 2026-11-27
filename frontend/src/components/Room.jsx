@@ -376,7 +376,13 @@ const PAGE = 50;
 // says which shelf, and the rows in the nook's own card beside it. In the
 // Mac app that rail is the window's sidebar, in Lounge mode
 // (DesktopChrome.jsx), and the page is the card alone.
-export default function Room({ currentUser, onSeen }) {
+//
+// A paper, board or thread opened from here on the web (`jacket`) is drawn in the
+// rows' place, beside the same rail, so the member is still in the Lounge:
+// the rows stay mounted behind it as they were left, and narrowing by the
+// rail leaves the jacket for them (`onLeave`). A thread's jacket puts no
+// title on the bar (`jacketTitled`), so the Lounge's own stays over it.
+export default function Room({ currentUser, onSeen, jacket = null, jacketTitled = true, onLeave }) {
   const [room, setRoom] = useState(() => kept('room'));
   const [error, setError] = useState(null);
   const friends = useFriends();
@@ -389,10 +395,15 @@ export default function Room({ currentUser, onSeen }) {
   // The room is shown a part at a time; narrowing starts it from the top.
   const [upTo, setUpTo] = useState(PAGE);
   useEffect(() => { setUpTo(PAGE); }, [kind, pickedWho]);
-  const set = (name, value) => setLounge({ [name]: value });
+  const set = (name, value) => {
+    setLounge({ [name]: value });
+    if (jacket) onLeave?.();
+  };
   // The room is marked seen once per visit: what was new when it opened
   // keeps its dot until the member comes back.
   const marked = useRef(false);
+  // Whether the rows have been read on this visit, not only remembered.
+  const [fresh, setFresh] = useState(false);
   // Read again each visit: a friend may have accepted since.
   useEffect(() => { loadFriends().catch(() => {}); }, []);
 
@@ -406,16 +417,21 @@ export default function Room({ currentUser, onSeen }) {
         if (!active) return;
         keep('room', next);
         setRoom(next);
+        setFresh(true);
         setLounge({ rows: next.rows ?? [] });
-        if (!marked.current) {
-          marked.current = true;
-          markRoomSeen().then(() => onSeen?.()).catch(() => {});
-        }
       })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
-    // Friends made or ended here change who the room is made from.
-  }, [friends?.friends.length]);
+    // Friends made or ended here change who the room is made from, and
+    // what was done in a jacket (a reply, a thread removed) changes its row.
+  }, [friends?.friends.length, Boolean(jacket)]);
+
+  // Seen means the rows were shown: a jacket reloaded over them waits.
+  useEffect(() => {
+    if (!fresh || jacket || marked.current) return;
+    marked.current = true;
+    markRoomSeen().then(() => onSeen?.()).catch(() => {});
+  }, [fresh, Boolean(jacket)]);
 
   // A thread I started here: the room's newest row, at once.
   const onStarted = (thread) => {
@@ -439,14 +455,14 @@ export default function Room({ currentUser, onSeen }) {
 
   return (
     <FacesLead.Provider value>
-      <div className={`nook-desk room${DESKTOP ? ' is-railless' : ''}`}>
+      <div className={`nook-desk room${DESKTOP ? ' is-railless' : ''}${jacket ? ' has-jacket' : ''}`}>
         {!DESKTOP && (
         <aside className="desk-rail">
           <div className="desk-rail-body">
             <section className="desk-rail-part" aria-labelledby="room-friends">
               <div className="desk-rail-head">
                 <h3 id="room-friends">Friends</h3>
-                <button type="button" className="desk-quiet room-add" aria-expanded={finding} onClick={() => setFinding(!finding)}>{finding ? 'Done' : 'Find'}</button>
+                <button type="button" className="desk-quiet room-add" aria-expanded={finding} onClick={() => { setFinding(!finding); if (jacket) onLeave?.(); }}>{finding ? 'Done' : 'Find'}</button>
               </div>
               {finding && <Finder currentUser={currentUser} onDone={() => setFinding(false)} />}
               <ul className="desk-rail-list">
@@ -485,10 +501,11 @@ export default function Room({ currentUser, onSeen }) {
         </aside>
         )}
 
-        <section className="desk-main" aria-label="The Lounge">
+        {jacket && <section className="desk-main desk-paper-view">{jacket}</section>}
+        <section className="desk-main" aria-label="The Lounge" hidden={Boolean(jacket)}>
           {DESKTOP && finding && <Finder currentUser={currentUser} onDone={() => setFinding(false)} />}
-          {titled && (
-            <InWay><h2 className="desk-main-title">{chosen ? chosen.display_name : 'Lounge'}{chosen && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
+          {titled && !(jacket && jacketTitled) && (
+            <InWay><h2 className="desk-main-title">{chosen && !jacket ? chosen.display_name : 'Lounge'}{chosen && !jacket && <a className="room-nook-link" href={appPath(`/u/${chosen.uuid}`)}>{first(chosen)}’s nook</a>}</h2></InWay>
           )}
           {error && <div className="error" role="alert">{error}</div>}
           {room && room.friend_count > 0 && !chosen && <ThreadComposer currentUser={currentUser} onStarted={onStarted} />}

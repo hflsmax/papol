@@ -54,12 +54,14 @@ async function hasNews(env: Env, me: User): Promise<{ news: boolean }> {
   return { news: (await latest(env, me)).rows.some((row) => row.is_new) };
 }
 
-async function latest(env: Env, me: User) {
+// The room's rows, newest first. A row is new when a friend did something
+// in it after `seen`: the reader's last visit, or whatever time the
+// caller counts news from (the email of the Lounge, jobs/lounge.ts).
+export async function latest(env: Env, me: User, seen: string = me.room_seen_at as string | null ?? "9999") {
   const mine = userLiteral(me.uuid);
   const friends = friendsOf(mine);
   const people = friends;
   const since = new Date(Date.now() - DAYS * DAY).toISOString();
-  const seen = me.room_seen_at as string | null ?? "9999";
   const digOn = "d.uuid AS dig_uuid, d.user_uuid AS owner_uuid, d.paper_sha256, d.created_at AS dug_at, d.text, an.page AS on_page, an.kind AS on_kind";
 
   const [added, changed, dug, posted, boards, joined] = (await env.DB.batch<Row>([

@@ -470,7 +470,7 @@ function answer(method, path, search, sent = {}) {
     friendDig.posts.push(post(`f1000000-0000-4000-8000-0000000000${60 + friendDig.posts.length}`, me, sent.body, hoursAgo(0), true));
     return friendDig;
   }
-  if (path === '/auth/me') { const admin = process.env.PAPOL_ADMIN === '1'; return { ...me, is_admin: admin, email: 'dana@example.org', emails: { friend_request: 'now', friend_suggestions: 'weekly', ...(admin ? { feedback_report: 'now' } : {}) } }; }
+  if (path === '/auth/me') { const admin = process.env.PAPOL_ADMIN === '1'; return { ...me, is_admin: admin, email: 'dana@example.org', emails: { lounge_activity: 'daily', friend_request: 'now', friend_suggestions: 'weekly', ...(admin ? { feedback_report: 'now' } : {}) } }; }
   if (path === '/notifications') {
     const note = (n, content, h, read, more = {}) => ({ uuid: `fa000000-0000-4000-8000-00000000000${n}`, content, created_at: hoursAgo(h), read, kind: null, link: null, actor: null, ...more });
     return {
@@ -675,7 +675,8 @@ function projectFixture(server) {
 
 // The tab is a member's before the app loads: a token where the app keeps
 // it, no Mac banner, and the Lounge's tip already seen unless the address
-// asks for it (?tip=lounge).
+// asks for it (?tip=lounge), and likewise the tip on the way back to the
+// nook (?tip=nook).
 const signIn = () => ({
   name: 'project-fixture-sign-in',
   transformIndexHtml: (html) => html.replace('<head>', `<head><script>
@@ -683,6 +684,8 @@ const signIn = () => ({
     localStorage.setItem('papol.macosDownloadBannerDismissed', '1');
     if (location.search.includes('tip=lounge')) localStorage.removeItem('papol_learn_lounge');
     else localStorage.setItem('papol_learn_lounge', 'seen');
+    if (location.search.includes('tip=nook')) localStorage.removeItem('papol_learn_nook_way');
+    else localStorage.setItem('papol_learn_nook_way', 'seen');
   </script>`),
 });
 

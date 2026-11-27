@@ -6,6 +6,8 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import Glyph from './DesktopGlyph';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import LoungeTip from './LoungeTip';
+import NookTip from './NookTip';
+import { NOOK_TIP, setFeatureState } from '../../../shared/featureStates.js';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -21,17 +23,24 @@ export const ROOM_PATH = '/lounge';
 // there, on every page. A page names its own trail through InWay;
 // `trail` is the one said for it when it names none. Before the member is
 // known (their sign-in still being checked) the bar stands without them.
-// `from` is where a jacket was opened from, when that is not the member's
-// own nook (the Lounge, a friend's nook): a step back to it beside Papol's
-// mark, over the rail, so the jacket's title still starts where the page
-// does.
-export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, roomNews = false }) {
+// `from` is where a jacket was opened from, when Papol's mark does not
+// lead there (a friend's nook): a step back to it beside the mark, over the
+// rail, so the jacket's title still starts where the page does.
+//
+// The member is in one of two places, their nook or the Lounge, and the bar
+// says which by what it offers: Papol's mark leads to the top of the place
+// they are in, and the button on the right to the other one (which, in the
+// Lounge, wears a card saying it is the way back until the member has been
+// told: NookTip.jsx). `inLounge` is
+// whether that place is the Lounge: the Lounge itself, a thread, someone
+// else's nook, or a paper or board opened from the Lounge.
+export function WayBar({ user, route, trail = [], from = null, inLounge = route.page === 'room', unreadCount = 0, roomNews = false }) {
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
         {/* The bar's mark is the PNG drawn from favicon.svg, not the SVG
             itself: Safari drew the SVG's gradient P as solid black. */}
-        <a className="way-mark" href={appPath('/')} title="Papol"><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
+        <a className="way-mark" href={appPath(inLounge ? ROOM_PATH : '/')} title={inLounge ? ROOM : 'My nook'}><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
         {from && (
           <BackLink className="way-from" href={from.href} onBack={from.onBack} title={`Back to ${from.label === 'Nook' ? 'the nook' : `the ${from.label}`}`}>
             <span className="way-from-chevron" aria-hidden="true">‹</span>{from.label}
@@ -45,16 +54,20 @@ export function WayBar({ user, route, trail = [], from = null, unreadCount = 0, 
       <nav className="way-aside" aria-label="Elsewhere">
         {user?.is_admin && <a href={appPath('/admin')} aria-current={route.page === 'admin' ? 'page' : undefined}>Admin</a>}
         <span className="way-room-anchor">
-          <a
-            className="way-room"
-            href={appPath(ROOM_PATH)}
-            aria-current={route.page === 'room' ? 'page' : undefined}
-          >
-            <Glyph name="room" />
-            <span className="way-room-word">{ROOM}</span>
-            {roomNews && <NewsDot />}
-          </a>
-          {user && <LoungeTip here={route.page === 'room'} />}
+          {inLounge ? (
+            <a className="way-room is-nook" href={appPath('/')} onClick={() => setFeatureState(NOOK_TIP, true)}>
+              <Glyph name="nook" />
+              <span className="way-room-word">My nook</span>
+            </a>
+          ) : (
+            <a className="way-room" href={appPath(ROOM_PATH)}>
+              <Glyph name="room" />
+              <span className="way-room-word">{ROOM}</span>
+              {roomNews && <NewsDot />}
+            </a>
+          )}
+          {user && <LoungeTip here={inLounge} />}
+          {user && inLounge && <NookTip />}
         </span>
       </nav>
       {user && <a
