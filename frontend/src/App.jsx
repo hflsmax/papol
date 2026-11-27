@@ -1024,7 +1024,7 @@ export default function App({ startupUser = null, startupError = null }) {
               paperSha256={route.uuid}
               currentUser={user}
               hideBack
-              onDeleted={() => navigate(ROOM_PATH, { replace: true })}
+              onBack={goBackFromJacket}
               onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
               onReportableError={offerErrorReport}
             />
