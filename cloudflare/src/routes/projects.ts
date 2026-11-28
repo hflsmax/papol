@@ -139,7 +139,7 @@ async function newCounts(env: Env, user: User): Promise<Map<string, number>> {
      JOIN digs d ON (d.project_uuid = m.project_uuid OR (d.project_uuid IS NULL AND d.paper_sha256 IN (SELECT xp.paper_sha256 FROM project_papers xp WHERE xp.project_uuid = m.project_uuid)))
      LEFT JOIN project_member_reads r ON r.member_uuid = m.uuid AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
      WHERE m.user_uuid = ? AND d.phase = 'digging' AND ${inProject("m.project_uuid")} AND ((d.created_at > coalesce(r.seen_at, m.seen_at) AND d.user_uuid != m.user_uuid)
-       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > coalesce(r.seen_at, m.seen_at) AND dp.user_uuid != m.user_uuid))
+       OR EXISTS (SELECT 1 FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL AND dp.created_at > coalesce(r.seen_at, m.seen_at) AND dp.user_uuid != m.user_uuid))
      GROUP BY m.project_uuid
      UNION ALL
      SELECT m.project_uuid, count(DISTINCT b.uuid) AS n FROM project_members m
@@ -287,10 +287,10 @@ export async function digsOf(env: Env, projectUuid: string, me: User, member: Me
 function digsStatement(env: Env, projectUuid: string, me: User, member: Member, only?: string) {
   return statement(env.DB,
     `SELECT d.*, ${SUBJECT_COLUMNS},
-            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid), d.created_at)) AS news_through,
-            (d.phase = 'digging') * ((d.created_at > coalesce(r.seen_at, ?) AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > coalesce(r.seen_at, ?) AND dp.user_uuid != ?)) AS unread,
-            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL) AS post_count,
+            max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL), d.created_at)) AS news_through,
+            (d.phase = 'digging') * ((d.created_at > coalesce(r.seen_at, ?) AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL AND dp.created_at > coalesce(r.seen_at, ?) AND dp.user_uuid != ?)) AS unread,
+            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL)) AS voices
      FROM digs d ${SUBJECT_JOINS}
      LEFT JOIN project_member_reads r ON r.member_uuid = ? AND r.item_kind = 'dig' AND r.item_uuid = d.uuid
      WHERE ${inProject(projectLiteral(projectUuid))} ${only ? "AND d.uuid = ?" : ""} ORDER BY d.updated_at DESC, d.uuid`,
@@ -305,8 +305,8 @@ export async function digsFrom(env: Env, rows: Row[], me: User) {
     statement(env.DB,
       `SELECT dp.dig_uuid, dp.body, dp.created_at, u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
        FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
-       WHERE dp.dig_uuid IN (${rows.map(() => "?").join(",")})
-       AND dp.created_at = (SELECT max(created_at) FROM dig_posts x WHERE x.dig_uuid = dp.dig_uuid)`,
+       WHERE dp.dig_uuid IN (${rows.map(() => "?").join(",")}) AND dp.emoji IS NULL
+       AND dp.created_at = (SELECT max(created_at) FROM dig_posts x WHERE x.dig_uuid = dp.dig_uuid AND x.emoji IS NULL)`,
       ...rows.map((r) => r.uuid)),
     statement(env.DB,
       `SELECT uuid, display_name, affiliation, avatar_path, email, email_public FROM users WHERE uuid IN (${peopleUuids.map(() => "?").join(",")})`,
@@ -527,7 +527,7 @@ export function projectRoutes(router: Router) {
       : kind === 'board'
         ? await one(env.DB, `SELECT b.uuid, max(bi.created_at) AS latest FROM project_boards pb JOIN boards b ON b.uuid = pb.board_uuid AND b.deleted_at IS NULL
             LEFT JOIN board_items bi ON bi.board_uuid = b.uuid AND bi.deleted_at IS NULL AND NOT bi.staged WHERE pb.project_uuid = ? AND b.uuid = ?`, project.uuid, item)
-        : await one(env.DB, `SELECT d.uuid, max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid), d.created_at)) AS latest
+        : await one(env.DB, `SELECT d.uuid, max(d.created_at, coalesce((SELECT max(dp.created_at) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL), d.created_at)) AS latest
             FROM digs d WHERE ${inProject(projectLiteral(project.uuid))} AND d.uuid = ?`, item);
     if (!belongs || (kind !== 'paper' && !belongs.uuid)) refuse(404, "Project item not found");
     const latest = String(belongs.latest ?? through);

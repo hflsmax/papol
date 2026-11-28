@@ -52,14 +52,18 @@ export async function closeAccount(env: Env, user: User): Promise<Record<string,
   // replicas; then the row itself.
   const counted: [string, D1PreparedStatement][] = [
     ["dig_posts", statement(db, `DELETE FROM dig_posts WHERE dig_uuid IN (${inDigs})`, ...goneDigs)],
+    // The emoji they set in other people's digs. What they posted there stays.
+    ["dig_reactions", statement(db, "DELETE FROM dig_posts WHERE user_uuid = ? AND emoji IS NOT NULL", user.uuid)],
     ["digs", statement(db, `DELETE FROM digs WHERE uuid IN (${inDigs})`, ...goneDigs)],
     ["annotations", statement(db, "DELETE FROM annotations WHERE user_uuid = ?", user.uuid)],
     ["activity", statement(db, "DELETE FROM activity WHERE user_uuid = ?", user.uuid)],
     ["user_states", statement(db, "DELETE FROM user_states WHERE user_uuid = ?", user.uuid)],
     ["defined_terms", statement(db, "DELETE FROM defined_terms WHERE user_uuid = ?", user.uuid)],
     // What they said in the Lounge: the threads they started, with every
-    // reply in them, and their replies in other people's.
-    ["thread_replies", statement(db, "DELETE FROM thread_replies WHERE user_uuid = ? OR thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?)", user.uuid, user.uuid)],
+    // reply in them, and their replies in other people's, with the emoji
+    // set on those (a reaction is a reply, so theirs go as replies do).
+    ["thread_replies", statement(db, `DELETE FROM thread_replies WHERE user_uuid = ?1 OR thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?1)
+       OR on_reply_uuid IN (SELECT uuid FROM thread_replies WHERE user_uuid = ?1)`, user.uuid)],
     ["thread_files", statement(db, "DELETE FROM thread_files WHERE thread_uuid IN (SELECT uuid FROM threads WHERE user_uuid = ?)", user.uuid)],
     ["threads", statement(db, "DELETE FROM threads WHERE user_uuid = ?", user.uuid)],
     ["copy_tags", statement(db, "DELETE FROM copy_tags WHERE user_uuid = ?", user.uuid)],

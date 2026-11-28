@@ -31,6 +31,7 @@ import { copyOf, holdPaper, paperOr404 } from "../papers/detail";
 import { queueEmail, siteUrl, type Queued } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import { friendSees, notice, userLiteral } from "./friends";
+import { reactionsIn } from "./reactions";
 import { digsFrom, digsOf, excerpt, inProject, liveProject, membership, projectLiteral, SUBJECT_COLUMNS, SUBJECT_JOINS, subjectOut, writingShown, type Member, type Project } from "./projects";
 
 const DIGEST = /^[0-9a-f]{64}$/;
@@ -195,7 +196,8 @@ async function subjectRow(env: Env, projectUuid: string | null, subject: Subject
 // writing on the paper is shown (friendSees), or, by its writer, outside
 // any. `open` says a dig outside a project can be posted
 // in: by a friend who sees it, and by its writer once somebody has.
-async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member; open: boolean }> {
+// Whoever is answered here sees the dig, its posts and their reactions.
+export async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; project: Project | null; member: Member; open: boolean }> {
   const dig = await one<Dig>(env.DB, "SELECT * FROM digs WHERE uuid = ?", uuid);
   if (!dig) return refuse(404, "Dig not found");
   if (dig.project_uuid === null) {
@@ -207,7 +209,7 @@ async function openDig(env: Env, uuid: string, me: User): Promise<{ dig: Dig; pr
       return { dig, project, member: await membership(env, project, me), open: true };
     }
     if (dig.user_uuid === me.uuid) {
-      return { dig, project: null, member: OWN, open: Boolean(await one(env.DB, "SELECT 1 FROM dig_posts WHERE dig_uuid = ? LIMIT 1", dig.uuid)) };
+      return { dig, project: null, member: OWN, open: Boolean(await one(env.DB, "SELECT 1 FROM dig_posts WHERE dig_uuid = ? AND emoji IS NULL LIMIT 1", dig.uuid)) };
     }
     if (!(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(me.uuid))}`, dig.uuid))) refuse(404, "Dig not found");
     return { dig, project: null, member: OWN, open: true };
@@ -223,19 +225,22 @@ const PERSON = "u.uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u
 async function digOut(env: Env, dig: Dig, project: Project | null, me: User, member: Member, open = Boolean(project)) {
   const posts = await all<Row>(env.DB,
     `SELECT dp.*, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public FROM dig_posts dp JOIN users u ON u.uuid = dp.user_uuid
-     WHERE dp.dig_uuid = ? ORDER BY dp.created_at, dp.uuid`, dig.uuid);
+     WHERE dp.dig_uuid = ? AND dp.emoji IS NULL ORDER BY dp.created_at, dp.uuid`, dig.uuid);
   const owner = await one<Row>(env.DB, `SELECT ${PERSON} FROM users u WHERE u.uuid = ?`, dig.user_uuid);
   const ownerOut = owner ? userPublic(owner) : null;
+  // The emoji set on the dig's own words, and on each post.
+  const reacted = (await reactionsIn(env, "dig", [dig.uuid], me)).get(dig.uuid);
   const postOut = (p: Row) => ({
     uuid: p.uuid, user: userPublic({ ...p, uuid: p.user_uuid }), body: p.body,
     created_at: p.created_at, edited_at: p.edited_at, is_mine: p.user_uuid === me.uuid,
+    reactions: reacted?.get(String(p.uuid)) ?? [],
   });
   return {
     uuid: dig.uuid, created_at: dig.created_at, updated_at: dig.updated_at,
     project: project && { uuid: project.uuid, name: project.name },
     subject: subjectOut(await subjectRow(env, dig.project_uuid, dig)),
     owner: ownerOut, is_mine: dig.user_uuid === me.uuid,
-    text: dig.text, phase: dig.phase, edited_at: dig.edited_at,
+    text: dig.text, phase: dig.phase, edited_at: dig.edited_at, reactions: reacted?.get("") ?? [],
     // Whether the reader may post here: always in a project; outside one,
     // a friend may, and its writer once somebody has.
     can_post: open || posts.length > 0,
@@ -255,9 +260,9 @@ function newPost(dig: Dig, me: User, body: string, at: string): Row {
 export async function pinsOf(env: Env, projectUuid: string | null, me: User, member: Member, subjects?: string[]) {
   const rows = await all<Row>(env.DB,
     `SELECT d.uuid, d.subject, d.user_uuid, d.text, d.phase, d.created_at,
-            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count,
-            (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
-            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+            (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL) AS post_count,
+            (d.phase = 'digging') * ((d.created_at > ? AND d.user_uuid != ?) + (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL AND dp.created_at > ? AND dp.user_uuid != ?)) AS unread,
+            (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL)) AS voices
      FROM digs d WHERE ${projectUuid ? `${inProject(projectLiteral(projectUuid))} AND d.phase != 'stashed'` : "d.project_uuid IS NULL AND d.user_uuid = ?"} ${subjects ? `AND d.subject IN (${subjects.map(() => "?").join(",")})` : ""}
      ORDER BY d.updated_at DESC, d.uuid`,
     member.seen_at, me.uuid, member.seen_at, me.uuid, ...(projectUuid ? [] : [me.uuid]), ...(subjects ?? []));
@@ -300,7 +305,8 @@ async function digsOn(env: Env, project: Project, me: User, member: Member, subj
 }
 
 async function postIn(env: Env, uuid: string, me: User) {
-  const post = await one<Row>(env.DB, "SELECT * FROM dig_posts WHERE uuid = ?", uuid);
+  // A reaction is not a post: it is taken back as it was set (reactions.ts).
+  const post = await one<Row>(env.DB, "SELECT * FROM dig_posts WHERE uuid = ? AND emoji IS NULL", uuid);
   if (!post) refuse(404, "Post not found");
   return { post: post!, ...(await openDig(env, String(post!.dig_uuid), me)) };
 }
@@ -387,8 +393,8 @@ export function digRoutes(router: Router) {
     const paper = await paperOr404(env.DB, params.name);
     const { results } = await statement(env.DB,
       `SELECT d.*, ${SUBJECT_COLUMNS},
-              (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count, 0 AS unread,
-              (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid)) AS voices
+              (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL) AS post_count, 0 AS unread,
+              (SELECT group_concat(user_uuid) FROM (SELECT d.user_uuid AS user_uuid UNION SELECT DISTINCT dp.user_uuid FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL)) AS voices
        FROM digs d ${SUBJECT_JOINS} WHERE d.paper_sha256 = ? AND ${friendSees(userLiteral(me.uuid))}
        ORDER BY d.annotation_uuid IS NOT NULL, an.page, d.created_at, d.uuid`, paper.sha256).all<Row>();
     return json({ digs: await digsFrom(env, results, me) });
@@ -449,7 +455,7 @@ export function digRoutes(router: Router) {
     if (!project && dig.paper_sha256) {
       const paper = await one<{ title: string }>(env.DB, "SELECT title FROM papers WHERE sha256 = ?", dig.paper_sha256);
       const owner = await one<{ display_name: string }>(env.DB, "SELECT display_name FROM users WHERE uuid = ?", dig.user_uuid);
-      const others = await all<{ user_uuid: string }>(env.DB, "SELECT DISTINCT user_uuid FROM dig_posts WHERE dig_uuid = ?", dig.uuid);
+      const others = await all<{ user_uuid: string }>(env.DB, "SELECT DISTINCT user_uuid FROM dig_posts WHERE dig_uuid = ? AND emoji IS NULL", dig.uuid);
       const link = digLink(dig);
       const site = (await siteUrl(env)).replace(/\/$/, "");
       for (const uuid of new Set([dig.user_uuid, ...others.map((o) => o.user_uuid)])) {
@@ -493,7 +499,8 @@ export function digRoutes(router: Router) {
     const me = await currentUser(request, env);
     const { post, dig, project, member, open } = await postIn(env, params.uuid, me);
     if (post.user_uuid !== me.uuid) refuse(403, "Only its writer can take a post back");
-    await batch(env.DB, [statement(env.DB, "DELETE FROM dig_posts WHERE uuid = ?", post.uuid)]);
+    // The emoji set on it go with it.
+    await batch(env.DB, [statement(env.DB, "DELETE FROM dig_posts WHERE uuid = ?1 OR on_post_uuid = ?1", post.uuid)]);
     return json(await digOut(env, dig, project, me, member, open));
   });
 }

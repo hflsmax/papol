@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Working } from '../../../shared/ui/Waiting.js';
 import { editThread, editThreadReply, getThread, removeThread, removeThreadReply, replyInThread, threadPlacePath } from '../../../shared/api/friends.js';
 import appLimits from '../../../shared/appLimits.js';
@@ -9,6 +9,7 @@ import Face from '../../../shared/ui/Face.jsx';
 import Markdown from '../../../shared/ui/Markdown.jsx';
 import MarkdownField from '../../../shared/ui/MarkdownField.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
+import { ReactionAdd, ReactionChips } from '../../../shared/ui/Reactions.jsx';
 import { when } from '../../../shared/ui/Talk.jsx';
 import { appPath, backendPath } from '../base';
 import { formatAuthors } from '../paperFormat';
@@ -26,6 +27,9 @@ import { FileGlyph } from './ThreadComposer';
  * and the way back to that place in it (a thread started in the Lounge
  * itself has neither), everything said, and a box to
  * reply in. Free talk: no votes, nothing counted for approval.
+ *
+ * Whoever sees the thread sets an emoji on it, or on a reply: a reply of
+ * a special sort, drawn as a chip under what it is on.
  *
  * What was said is reworded in place by whoever said it: the starter's
  * own words and each reply, with the pencil a dig's post has. What was
@@ -74,21 +78,23 @@ function Attached({ files }) {
 // One thing said: who, when, and their words. Its writer rewords it in
 // place and can take it back. `edit` is the rewording under way, if this
 // is the one being reworded: its words so far, and what Save and Cancel do.
-function Said({ user, at, mine, words, files = [], editLabel, onEdit, removeLabel, onRemove, edit }) {
+// `react` is its reactions and what setting one does (Reactions.jsx).
+function Said({ user, at, mine, words, files = [], editLabel, onEdit, removeLabel, onRemove, edit, react }) {
   return (
     <li className={`talk-post${mine ? ' is-mine' : ''}`}>
       <p className="talk-post-head">
         <Face user={user} />
         <b>{mine ? 'You' : user.display_name}</b>
         <time dateTime={at}>{when(at, { time: true })}</time>
-        {mine && !edit && (onEdit || onRemove) && (
+        {!edit && (react || (mine && (onEdit || onRemove))) && (
           <span className="talk-post-actions" role="group" aria-label={onRemove ? 'Reply actions' : 'Thread actions'}>
-            {onEdit && (
+            {react && <ReactionAdd {...react} />}
+            {mine && onEdit && (
               <button type="button" aria-label={editLabel} title={editLabel} onClick={onEdit}>
                 <ActionGlyph name="edit" />
               </button>
             )}
-            {onRemove && (
+            {mine && onRemove && (
               <button type="button" className="is-danger" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
                 <ActionGlyph name="trash" />
               </button>
@@ -114,6 +120,7 @@ function Said({ user, at, mine, words, files = [], editLabel, onEdit, removeLabe
         </form>
       ) : words && <Markdown className="talk-post-body" text={words} />}
       {files.length > 0 && <Attached files={files} />}
+      {react && <ReactionChips {...react} />}
     </li>
   );
 }
@@ -137,6 +144,9 @@ export default function ThreadJacket({
   // What is being reworded: the thread's uuid for its starter's words, or
   // a reply's, with the words so far.
   const [editing, setEditing] = useState(null);
+  // The thread as last drawn, for a reaction answered after another was set.
+  const latest = useRef(thread);
+  latest.current = thread;
 
   useEffect(() => {
     let gone = false;
@@ -222,6 +232,18 @@ export default function ThreadJacket({
     };
   };
   const editingWords = edit(thread.uuid, from || attached.length > 0);
+  // The emoji set on the thread itself, or on one reply, as they now stand.
+  const onThread = {
+    kind: 'thread', uuid: thread.uuid, reactions: thread.reactions ?? [],
+    onChanged: (reactions) => changed({ ...latest.current, reactions }),
+  };
+  const onReply = (reply) => ({
+    kind: 'reply', uuid: reply.uuid, reactions: reply.reactions ?? [],
+    onChanged: (reactions) => changed({ ...latest.current, replies: latest.current.replies.map((r) => (r.uuid === reply.uuid ? { ...r, reactions } : r)) }),
+  });
+  // A thread's own reactions go under its starter's words; a passage or
+  // a clip sent with no words wears them itself.
+  const worded = Boolean(thread.words || attached.length > 0 || editingWords);
   const takeBack = async (reply) => {
     if (!(await confirmAction('Delete this reply?', { confirmLabel: 'Delete', destructive: true }))) return;
     act(async () => changed(await removeThreadReply(reply.uuid)));
@@ -260,6 +282,7 @@ export default function ThreadJacket({
             {picture && <img src={picture} alt={`A clip from page ${thread.page}`} />}
           </figure>
         )}
+        {from && !worded && <ReactionChips {...onThread} withAdd className="thread-jacket-reactions" />}
 
         {/* Words alone say who and when on their own first line. */}
         {from && (
@@ -288,15 +311,16 @@ export default function ThreadJacket({
 
         <section className={`board-jacket-section thread-jacket-said${from ? '' : ' is-all'}`} aria-label="What was said">
           <ol className="talk-posts">
-            {(thread.words || attached.length > 0 || editingWords) && (
+            {worded && (
               <Said
+                react={onThread}
                 user={thread.user} at={thread.created_at} mine={thread.is_mine} words={thread.words} files={attached}
                 editLabel={thread.words ? 'Edit your words' : 'Add words of your own'} onEdit={() => setEditing({ uuid: thread.uuid, body: thread.words ?? '' })} edit={editingWords}
               />
             )}
             {thread.replies.map((reply) => (
               <Said
-                key={reply.uuid} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}
+                key={reply.uuid} react={onReply(reply)} user={reply.user} at={reply.created_at} mine={reply.is_mine} words={reply.body}
                 editLabel="Edit reply" onEdit={() => setEditing({ uuid: reply.uuid, body: reply.body })} edit={edit(reply.uuid)}
                 removeLabel="Delete reply" onRemove={() => takeBack(reply)}
               />

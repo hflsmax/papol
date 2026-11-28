@@ -10,6 +10,7 @@ import Face from './Face.jsx';
 import Markdown from './Markdown.jsx';
 import MarkdownField from './MarkdownField.jsx';
 import PaperTitle from './PaperTitle.jsx';
+import { ReactionAdd, ReactionChips } from './Reactions.jsx';
 import { plainTitle } from '../texTitle.js';
 import { useDismiss } from '../useDismiss.js';
 
@@ -531,8 +532,16 @@ export function TalkCard({
 
   // The dig's own words come first, then every post in it.
   const posts = discussion
-    ? [{ uuid: discussion.uuid, user: discussion.owner, body: discussion.text, created_at: discussion.created_at, edited_at: discussion.edited_at, is_mine: discussion.is_mine }, ...discussion.posts]
+    ? [{ uuid: discussion.uuid, user: discussion.owner, body: discussion.text, created_at: discussion.created_at, edited_at: discussion.edited_at, is_mine: discussion.is_mine, reactions: discussion.reactions }, ...discussion.posts]
     : [];
+  // The emoji set on the dig's own words or on one post, as they now
+  // stand. Nothing a pin counts: a reaction is nothing said.
+  const reacted = (post, reactions) => setDiscussion((now) => (!now || now.uuid !== discussion.uuid ? now
+    : post.uuid === now.uuid ? { ...now, reactions }
+      : { ...now, posts: now.posts.map((p) => (p.uuid === post.uuid ? { ...p, reactions } : p)) }));
+  const reactionsOf = (post) => ({
+    kind: post.uuid === discussion.uuid ? 'dig' : 'post', uuid: post.uuid, reactions: post.reactions ?? [], onChanged: (next) => reacted(post, next),
+  });
   const style = spot && !spot.sheet
     ? { left: spot.left, top: spot.top, width: spot.width, transformOrigin: `${spot.originX}px ${spot.originY}px` }
     : undefined;
@@ -649,14 +658,19 @@ export function TalkCard({
                     <time dateTime={post.created_at} title={conversation ? when(post.created_at, { time: true }) : undefined}>{when(post.created_at, { time: !conversation })}</time>
                     {conversation && index === 0 && picker}
                     {unread > 0 && index >= posts.length - unread && <span className="visually-hidden">New</span>}
-                    {editing?.uuid !== post.uuid && post.is_mine && (
+                    {editing?.uuid !== post.uuid && (post.is_mine || currentUser) && (
                       <span className="talk-post-actions" role="group" aria-label={post.uuid === discussion.uuid ? 'Dig actions' : 'Post actions'}>
-                        <button type="button" aria-label="Edit" title="Edit" onClick={() => setEditing({ uuid: post.uuid, body: post.body })}>
-                          <ActionGlyph name="edit" />
-                        </button>
-                        <button type="button" className="is-danger" aria-label="Delete" title="Delete" onClick={() => remove(post)}>
-                          <ActionGlyph name="trash" />
-                        </button>
+                        {currentUser && <ReactionAdd {...reactionsOf(post)} />}
+                        {post.is_mine && (
+                          <>
+                            <button type="button" aria-label="Edit" title="Edit" onClick={() => setEditing({ uuid: post.uuid, body: post.body })}>
+                              <ActionGlyph name="edit" />
+                            </button>
+                            <button type="button" className="is-danger" aria-label="Delete" title="Delete" onClick={() => remove(post)}>
+                              <ActionGlyph name="trash" />
+                            </button>
+                          </>
+                        )}
                       </span>
                     )}
                   </p>
@@ -676,6 +690,7 @@ export function TalkCard({
                       </span>
                     </form>
                   ) : <Markdown className="talk-post-body" text={post.body} />}
+                  {currentUser && <ReactionChips {...reactionsOf(post)} />}
                 </li>
               ))}
             </ol>
