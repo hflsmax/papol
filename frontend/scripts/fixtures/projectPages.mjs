@@ -125,6 +125,15 @@ const subject = {
 };
 
 const post = (uuid, u, body, at, mine = false) => ({ uuid, user: u, body, created_at: at, edited_at: null, is_mine: mine });
+// An emoji set on something said: who set it, by name, and whether the member did.
+const reaction = (emoji, who, mine = false) => ({ emoji, count: who.length, mine, who });
+// The emoji set on the project's digs and their posts, by uuid; set afresh at sign-in.
+const digReactionState = () => new Map([
+  ['f0000000-0000-4000-8000-000000000001', [reaction('👀', ['Ben Hall', 'Dana Okafor'], true)]],
+  ['f0000000-0000-4000-8000-000000000002', [reaction('👍', ['Ana Ruiz']), reaction('💡', ['Ana Ruiz', 'Mia Tanaka'])]],
+]);
+let digReactionsNow = digReactionState();
+const reactionsAt = (uuid) => digReactionsNow.get(uuid) ?? [];
 const errorPosts = [
   post('f0000000-0000-4000-8000-000000000001', ana, `I think Section 3 is where our model breaks, and it matters for the bench plan.
 
@@ -188,7 +197,7 @@ const digOf = (uuid) => {
   if (!d) return null;
   const posts = uuid === DIG_PAPER ? errorPosts.slice(1)
     : d.post_count ? [post(`f1000000-0000-4000-8000-${uuid.slice(-12)}`, d.last_post.user, d.last_post.excerpt, d.last_post.created_at, d.last_post.user.uuid === ME)] : [];
-  return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, phase: d.phase ?? 'digging', can_moderate: true, posts };
+  return { uuid, created_at: d.created_at, updated_at: d.updated_at, edited_at: null, project: { uuid: PROJECT, name: project.name }, subject: d.subject, owner: d.owner, is_mine: d.is_mine, text: d.text, phase: d.phase ?? 'digging', can_moderate: true, reactions: reactionsAt(uuid === DIG_PAPER ? errorPosts[0].uuid : uuid), posts: posts.map((p) => ({ ...p, reactions: reactionsAt(p.uuid) })) };
 };
 
 // A paper as a nook lists it: the members' takes are the
@@ -291,8 +300,8 @@ const FRIEND_DIG = 'e1b2c3d4-0000-4000-8000-000000000060';
 const friendDig = {
   uuid: FRIEND_DIG, created_at: hoursAgo(7), updated_at: hoursAgo(2), edited_at: null, project: null, subject: subject.paperSurvey, owner: ana, is_mine: false,
   text: 'Section 4 undersells the pyramid sensor: the gain they quote is for a point source. I think the comparison flips for our extended guide star.',
-  phase: 'digging', can_moderate: false, can_post: true,
-  posts: [post('f1000000-0000-4000-8000-000000000060', ben, 'It does flip. Table 3 in the Nakamura paper has the extended case.', hoursAgo(2), false)],
+  phase: 'digging', can_moderate: false, can_post: true, reactions: [reaction('💡', ['Ben Hall'])],
+  posts: [{ ...post('f1000000-0000-4000-8000-000000000060', ben, 'It does flip. Table 3 in the Nakamura paper has the extended case.', hoursAgo(2), false), reactions: [reaction('👍', ['Ana Ruiz', 'Dana Okafor'], true)] }],
 };
 const friendDigListed = { uuid: FRIEND_DIG, project_uuid: null, created_at: friendDig.created_at, updated_at: friendDig.updated_at, owner: ana, is_mine: false, text: friendDig.text, excerpt: friendDig.text, phase: 'digging', subject: subject.paperSurvey, post_count: 1, unread: 0, is_new: false, voices: [ana, ben], last_post: { user: ben, excerpt: friendDig.posts[0].body, created_at: hoursAgo(2) } };
 const paperOut = (p) => ({ sha256: p.sha256, title: p.title, authors: p.authors, year: p.year, journal: p.journal });
@@ -314,9 +323,10 @@ const threadState = () => [
     uuid: 'e2b2c3d4-0000-4000-8000-000000000070', user: ana, is_mine: false, paper_sha256: P_SURVEY, page: 7, y: 0.42, mark: 'W1s3LDAuMTMsMC44NywwLjQyLDAuMDIxXV0=', box: null,
     excerpt: 'Predictive control recovers most of the servo-lag error only when the wind profile is stationary over the fitting window; in the two-layer case the gain halves.',
     picture_url: null, words: 'Is the two-layer case the one we care about? Our site is closer to three most nights.', created_at: hoursAgo(9),
+    reactions: [reaction('🤔', ['Ben Hall', 'Dana Okafor'], true), reaction('👀', ['Ben Hall'])],
     replies: [
-      { uuid: 'e2b2c3d4-0000-4000-8000-000000000071', user: ben, body: 'Three, and the top one moves fast. I would not trust the halving either way until we fit it to our own telemetry.', created_at: hoursAgo(6), is_mine: false },
-      { uuid: 'e2b2c3d4-0000-4000-8000-000000000072', user: me, body: 'I have last month\u2019s telemetry. Give me a day.', created_at: hoursAgo(5), is_mine: true },
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000071', user: ben, body: 'Three, and the top one moves fast. I would not trust the halving either way until we fit it to our own telemetry.', created_at: hoursAgo(6), is_mine: false, reactions: [reaction('👍', ['Ana Ruiz', 'Dana Okafor'], true)] },
+      { uuid: 'e2b2c3d4-0000-4000-8000-000000000072', user: me, body: 'I have last month\u2019s telemetry. Give me a day.', created_at: hoursAgo(5), is_mine: true, reactions: [reaction('🙏', ['Ana Ruiz']), reaction('🎉', ['Ben Hall', 'Ana Ruiz'])] },
       { uuid: 'e2b2c3d4-0000-4000-8000-000000000073', user: ana, body: 'Wild idea while you are at it: fit the window length too, instead of fixing it.', created_at: hoursAgo(1), is_mine: false },
     ],
   },
@@ -337,7 +347,7 @@ const threadState = () => [
   },
   {
     uuid: 'e2b2c3d4-0000-4000-8000-000000000080', user: me, is_mine: true, paper_sha256: P_LEARN, page: 3, y: 0.6, mark: 'W1szLDAuMTMsMC44NywwLjYsMC4wMjFdXQ==', box: null,
-    excerpt: 'Twelve examples suffice when the prior is the instrument\u2019s own interaction matrix.', picture_url: null, words: null, created_at: daysAgo(3), replies: [],
+    excerpt: 'Twelve examples suffice when the prior is the instrument\u2019s own interaction matrix.', picture_url: null, words: null, created_at: daysAgo(3), reactions: [reaction('💡', ['Ana Ruiz'])], replies: [],
   },
 ];
 let threadsNow = threadState();
@@ -388,7 +398,7 @@ function answer(method, path, search, sent = {}) {
     else if (sha256) pinnedNow.delete(sha256);
   }
   // Each picture loads the app afresh: the project is back.
-  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); threadsNow = threadState(); }
+  if (path === '/auth/me') { deleted = false; friendsNow = friendState(); suggestionsNow = suggestionState(); threadsNow = threadState(); digReactionsNow = digReactionState(); }
   // Friends: what the member's friends say now, changed by each answer.
   if (path === '/friends' || path === '/friends/settings') {
     return friendsNow;
@@ -422,6 +432,20 @@ function answer(method, path, search, sent = {}) {
     const thread = { uuid: 'e2b2c3d4-0000-4000-8000-000000000099', user: me, is_mine: true, paper_sha256: null, page: null, y: null, mark: null, box: null, excerpt: null, picture_url: null, words: sent.words, created_at: hoursAgo(0), files, replies: [] };
     threadsNow = [thread, ...threadsNow];
     return { ...thread, paper: null };
+  }
+  // An emoji set on a thread, a reply, a dig or a post, or the member's own taken back.
+  const reacting = (method === 'PUT' || method === 'DELETE') && path.match(/^\/reactions\/(thread|reply|dig|post)\/([0-9a-f-]{36})$/);
+  if (reacting) {
+    const uuid = reacting[2];
+    const emoji = method === 'PUT' ? sent.emoji : search.get('emoji');
+    const held = [...threadsNow, ...threadsNow.flatMap((t) => t.replies), friendDig, ...friendDig.posts].find((x) => x.uuid === uuid);
+    const was = held ? held.reactions ?? [] : reactionsAt(uuid);
+    const at = was.find((r) => r.emoji === emoji);
+    const next = method === 'PUT'
+      ? (at ? was.map((r) => (r === at && !r.mine ? reaction(emoji, [...r.who, me.display_name], true) : r)) : [...was, reaction(emoji, [me.display_name], true)])
+      : was.flatMap((r) => (r !== at || !r.mine ? [r] : r.count > 1 ? [reaction(emoji, r.who.filter((name) => name !== me.display_name))] : []));
+    if (held) held.reactions = next; else digReactionsNow.set(uuid, next);
+    return { reactions: next };
   }
   // A thread read for its jacket, with its paper.
   const read = method === 'GET' && path.match(/^\/threads\/([0-9a-f-]{36})$/);

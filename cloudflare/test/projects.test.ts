@@ -481,6 +481,9 @@ describe("a paper with the project on", () => {
     await env.DB.batch(migration.queries.map((query) => env.DB.prepare(query)));
     expect(await row("SELECT count(*) AS n FROM digs WHERE phase = 'stashed'")).toEqual({ n: 2 });
     expect(await row("SELECT count(*) AS n FROM dig_posts WHERE dig_uuid = ?", onAnchor.uuid)).toEqual({ n: 1 });
+    // 0026 built dig_posts again as it then was, so what 0051 added to it is added again.
+    const reactions = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0051_"))!;
+    await env.DB.batch(reactions.queries.filter((query) => query.includes("dig_posts")).map((query) => env.DB.prepare(query)));
   });
 
   it("lists only the digs whose subject is still the project's", async () => {

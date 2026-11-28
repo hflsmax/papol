@@ -64,7 +64,7 @@ export async function gather(db: D1Database, user: User) {
   const projectPapers = await all<Row>(db, `SELECT pp.project_uuid, pp.added_at, p.sha256, p.title, p.authors, p.journal, p.year, p.doi
     FROM project_papers pp JOIN papers p ON p.sha256 = pp.paper_sha256 WHERE pp.added_by = ? ORDER BY pp.added_at, pp.uuid`, user.uuid);
   const posts = await all<Row>(db, `SELECT dp.dig_uuid, dp.body, dp.created_at, dp.edited_at, d.project_uuid
-    FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid WHERE dp.user_uuid = ? ORDER BY dp.created_at, dp.uuid`, user.uuid);
+    FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid WHERE dp.user_uuid = ? AND dp.emoji IS NULL ORDER BY dp.created_at, dp.uuid`, user.uuid);
   const digs = await all<Row>(db, `SELECT uuid, project_uuid, subject, text, created_at, edited_at FROM digs WHERE user_uuid = ? ORDER BY created_at, uuid`, user.uuid);
   // Digs of one's own, outside any project, with the paper each is on.
   const ownDigs = await all<Row>(db, `SELECT d.uuid, d.subject, d.text, d.created_at, d.edited_at, d.annotation_uuid, a.page, p.sha256, p.title, p.authors, p.journal, p.year, p.doi
