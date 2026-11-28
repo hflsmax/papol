@@ -8,7 +8,7 @@
 //
 //   now     as it happens, an email each
 //   daily   once a day, what gathered since the last as one email
-//   weekly  the same, on Mondays
+//   weekly  the same, on Sunday evenings (23:00 UTC)
 //   never   not at all
 //
 // A kind says which of those it offers and which it starts at (`preset`).

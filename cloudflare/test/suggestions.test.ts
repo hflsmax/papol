@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { claim, type Job } from "../src/jobs/queue";
 import { runOne } from "../src/jobs/run";
-import { DAILY_CRON } from "../src/jobs/digests";
+import { DAILY_CRON, WEEKLY_CRON } from "../src/jobs/digests";
 import { reasonOf } from "../src/jobs/suggestions";
 import { suggestionsFor } from "../src/routes/suggestions";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
@@ -195,19 +195,19 @@ describe("the weekly email of people to ask", () => {
   }
   const sent = () => calls.flatMap((c) => c.body);
 
-  // A day's cron (a Monday's, unless told another day), then the
+  // A cron (the week's, on Sunday evening, unless told the day's), then the
   // suggestions job it queued run with mail configured.
-  const MONDAY = Date.UTC(2026, 10, 23, 14), TUESDAY = Date.UTC(2026, 10, 24, 14);
-  async function monday(mailEnv: Env = { ...env, ...configured } as Env, scheduledTime = MONDAY) {
+  const SUNDAY = Date.UTC(2026, 10, 22, 23), TUESDAY = Date.UTC(2026, 10, 24, 14);
+  async function sunday(mailEnv: Env = { ...env, ...configured } as Env, scheduledTime = SUNDAY) {
     const ctx = createExecutionContext();
-    await worker.scheduled(createScheduledController({ cron: DAILY_CRON, scheduledTime }), env, ctx);
+    await worker.scheduled(createScheduledController({ cron: scheduledTime === SUNDAY ? WEEKLY_CRON : DAILY_CRON, scheduledTime }), env, ctx);
     await waitOnExecutionContext(ctx);
     const queued = await rows<{ uuid: string }>("SELECT uuid FROM jobs WHERE kind = 'suggest_friends' AND status = 'queued' ORDER BY created_at");
     expect(queued.length).toBe(1);
     await runOne(mailEnv, await claim(env.DB, queued[0].uuid, "test") as Job);
     return row<Job>("SELECT * FROM jobs WHERE uuid = ?", queued[0].uuid);
   }
-  const tuesday = () => monday(undefined, TUESDAY);
+  const tuesday = () => sunday(undefined, TUESDAY);
 
   it("names whoever is new to each user, once, and says where to turn it off", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace <b>Hopper</b>");
@@ -216,7 +216,7 @@ describe("the weekly email of people to ask", () => {
     await exec("UPDATE users SET affiliation = 'Yale' WHERE uuid = ?", grace.uuid);
 
     emailApi();
-    expect(await monday()).toMatchObject({ status: "done", result: JSON.stringify({ sent: true, users: 3, recipients: 2 }) });
+    expect(await sunday()).toMatchObject({ status: "done", result: JSON.stringify({ sent: true, users: 3, recipients: 2 }) });
     // One batch, an email each, and none to whoever has nobody to be suggested.
     expect(calls.map((c) => c.url)).toEqual(["https://mail.example.test/emails/batch"]);
     expect(sent().map((m) => m.to[0]).sort()).toEqual(["ada@example.test", "grace@example.test"]);
@@ -234,7 +234,7 @@ describe("the weekly email of people to ask", () => {
 
     // The next week has nobody new: nothing is sent, and the Lounge still shows her.
     emailApi();
-    expect(await monday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 3, recipients: 0 }) });
+    expect(await sunday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 3, recipients: 0 }) });
     expect(calls).toEqual([]);
     expect((await names(ada)).sort()).toEqual(["Grace <b>Hopper</b>", "Lone"]);
 
@@ -243,7 +243,7 @@ describe("the weekly email of people to ask", () => {
     const { invite_code } = await ok("POST", `/api/projects/${lab}/invite`, { headers: ada.headers });
     await ok("POST", `/api/project-invites/${invite_code}`, { headers: edsger.headers });
     emailApi();
-    await monday();
+    await sunday();
     expect(sent().map((m) => [m.to[0], m.subject]).sort()).toEqual([
       ["ada@example.test", "Edsger is on Papol too"],
       ["edsger@example.test", "People you may know on Papol"],
@@ -263,38 +263,38 @@ describe("the weekly email of people to ask", () => {
     await ok("DELETE", `/api/friends/suggestions/${edsger.uuid}`, { headers: grace.headers });
     await ok("PUT", "/api/auth/profile", { headers: edsger.headers, json: { emails: { friend_suggestions: "daily" } } });
 
-    // A day that is not Monday writes only to whoever chose every day, and says so.
+    // The day's run writes only to whoever chose every day, and says so.
     emailApi();
     await tuesday();
     expect(sent().map((m) => m.to[0])).toEqual(["edsger@example.test"]);
     expect(sent()[0].text).toContain("Papol sends this once a day, when there is someone new to suggest.");
-    // Monday writes to the weekly too; the daily has nobody new.
+    // Sunday evening's writes to the weekly, and not to the daily.
     emailApi();
-    await monday();
+    await sunday();
     expect(sent().map((m) => m.to[0])).toEqual(["grace@example.test"]);
     expect(sent()[0].text).not.toContain("Edsger");
     expect(sent()[0].text).toContain("Papol sends this once a week");
     expect(await count("friend_suggestions", "user_uuid = ? AND mailed_at IS NOT NULL", ada.uuid)).toBe(0);
-    // Back to weekly, the next Monday writes to her.
+    // Back to weekly, the next Sunday evening writes to her.
     await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { emails: { friend_suggestions: "weekly" } } });
     emailApi();
     await tuesday();
     expect(sent()).toEqual([]);
     emailApi();
-    await monday();
+    await sunday();
     expect(sent().map((m) => m.to[0])).toEqual(["ada@example.test"]);
   });
 
   it("records nothing as said when the mail cannot be sent, or is not configured", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await project(ada, "Control Lab", grace);
-    expect(await monday(env)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
+    expect(await sunday(env)).toMatchObject({ status: "done", result: JSON.stringify({ sent: false, skipped: "Email not configured" }) });
     emailApi(502);
-    expect(await monday()).toMatchObject({ status: "failed" });
+    expect(await sunday()).toMatchObject({ status: "failed" });
     expect(await count("friend_suggestions")).toBe(0);
     // So the next week says it.
     emailApi();
-    await monday();
+    await sunday();
     expect(sent().length).toBe(2);
   });
 
@@ -302,7 +302,7 @@ describe("the weekly email of people to ask", () => {
     const accounts = await Promise.all(Array.from({ length: 23 }, (_, i) => register(`reader${i}@example.test`, `Reader ${i}`)));
     await project(accounts[0], "Control Lab", ...accounts.slice(1));
     emailApi();
-    expect(await monday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 20, recipients: 20 }) });
+    expect(await sunday()).toMatchObject({ result: JSON.stringify({ sent: true, users: 20, recipients: 20 }) });
     // The job queued the rest after itself.
     const next = await row<{ uuid: string }>("SELECT uuid FROM jobs WHERE kind = 'suggest_friends' AND status = 'queued'");
     await runOne({ ...env, ...configured } as Env, await claim(env.DB, next!.uuid, "test") as Job);
