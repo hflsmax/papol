@@ -70,8 +70,8 @@ export async function areFriends(env: Env, a: string, b: string): Promise<boolea
 
 // One line in someone's inbox that is more than its words: what it is,
 // who it is from and where it leads.
-export function notice(env: Env, userUuid: string, content: string, kind: string, actor: User, link: string, at = now()): D1PreparedStatement {
-  return insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: userUuid, content, read: 0, created_at: at, kind, actor_uuid: actor.uuid, link });
+export function notice(env: Env, userUuid: string, content: string, kind: string, actor: User, link: string, at = now(), uuid = newUuid()): D1PreparedStatement {
+  return insert(env.DB, "notifications", { uuid, user_uuid: userUuid, content, read: 0, created_at: at, kind, actor_uuid: actor.uuid, link });
 }
 
 async function liveUser(env: Env, uuid: string): Promise<User> {
@@ -179,13 +179,14 @@ export function friendRoutes(router: Router) {
       ]);
     } else if (!existing || existing.state === "dropped") {
       const site = (await siteUrl(env)).replace(/\/$/, "");
+      const line = newUuid();
       const mail = queueEmail(env.DB, "friend_request", them, `${me.display_name} asks to be friends on Papol`,
         [`${me.display_name}${me.affiliation ? ` (${me.affiliation})` : ""} asks to be friends on Papol.`, "",
-          `Respond in your inbox: ${site}/inbox`, "", "— Papol"].join("\n"));
+          `Respond in your inbox: ${site}/inbox`, "", "— Papol"].join("\n"), line);
       await batch(env.DB, [
         ...(existing ? [statement(env.DB, "DELETE FROM friendships WHERE uuid = ?", existing.uuid)] : []),
         insert(env.DB, "friendships", { uuid: newUuid(), asker_uuid: me.uuid, asked_uuid: them.uuid, state: "asked", created_at: at, answered_at: null }),
-        notice(env, them.uuid, `${me.display_name} asks to be friends.`, "friend_request", me, `/u/${me.uuid}`, at),
+        notice(env, them.uuid, `${me.display_name} asks to be friends.`, "friend_request", me, `/u/${me.uuid}`, at, line),
         ...(mail ? [mail.statement] : []),
       ]);
       if (mail) await wake(env, mail.wake);

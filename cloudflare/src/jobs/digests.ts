@@ -8,6 +8,10 @@
 // waits for the Monday run. One held email goes as it was written;
 // several of a kind go as one, each under its own subject.
 //
+// An email held with a line in the inbox is not sent once that line was
+// read, or is gone (a request answered): its user saw it in Papol. Such
+// rows go on any day's run, and a user left with nothing is sent nothing.
+//
 // How often is asked when the job runs, not when the email was held: a
 // user who since chose "never" is sent nothing and the rows go, and one
 // who since chose "now" is sent what was waiting.
@@ -69,7 +73,12 @@ export async function sendDigestsJob(env: Env, payload: Row): Promise<Row> {
   const mails: Mail[] = [];
   const gone: string[] = [];
   for (const user of users) {
-    const held = await all<Held>(env.DB, "SELECT uuid, kind, subject, body FROM email_held WHERE user_uuid = ? ORDER BY created_at, uuid", user.uuid);
+    const all_ = await all<Held & { seen: number }>(env.DB,
+      `SELECT h.uuid, h.kind, h.subject, h.body,
+         (h.notification_uuid IS NOT NULL AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.uuid = h.notification_uuid AND n.read = 0)) AS seen
+       FROM email_held h WHERE h.user_uuid = ? ORDER BY h.created_at, h.uuid`, user.uuid);
+    gone.push(...all_.filter((mail) => mail.seen).map((mail) => mail.uuid));
+    const held = all_.filter((mail) => !mail.seen);
     for (const kind of new Set(held.map((mail) => mail.kind))) {
       const theirs = held.filter((mail) => mail.kind === kind);
       // A kind Papol no longer has, or one they no longer want, is let go.

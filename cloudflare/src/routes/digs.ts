@@ -156,10 +156,11 @@ async function tellKeepers(env: Env, dig: Dig, me: User, at: string): Promise<vo
   const line = `${me.display_name} dug ${paper?.title ?? "a paper"}, a paper in your nook.`;
   const mails: Queued[] = [];
   const told = keepers.map((them) => {
+    const inInbox = newUuid();
     const mail = queueEmail(env.DB, "friend_dig", them, `${me.display_name} dug a paper in your nook`,
-      [line, "", excerpt(dig.text), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"));
+      [line, "", excerpt(dig.text), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"), inInbox);
     if (mail) mails.push(mail);
-    return notice(env, them.uuid, line, "friend_dig", me, link, at);
+    return notice(env, them.uuid, line, "friend_dig", me, link, at, inInbox);
   });
   await batch(env.DB, [...told, ...mails.map((mail) => mail.statement)]);
   await wake(env, mails.flatMap((mail) => mail.wake));
@@ -458,11 +459,12 @@ export function digRoutes(router: Router) {
         if (uuid !== dig.user_uuid && !(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(uuid))}`, dig.uuid))) continue;
         const whose = uuid === dig.user_uuid ? "your dig" : dig.user_uuid === me.uuid ? "a dig you posted in" : `${owner?.display_name ?? "a friend"}'s dig`;
         const line = `${me.display_name} replied in ${whose} on ${paper?.title ?? "a paper"}.`;
-        told.push(notice(env, uuid, line, "dig_post", me, link, at));
+        const inInbox = newUuid();
+        told.push(notice(env, uuid, line, "dig_post", me, link, at, inInbox));
         // And by email, as often as they chose for replies (emails.ts).
         const them = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", uuid);
         const mail = them && queueEmail(env.DB, "dig_reply", them, `${me.display_name} replied in ${whose} on Papol`,
-          [line, "", excerpt(body), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"));
+          [line, "", excerpt(body), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"), inInbox);
         if (mail) mails.push(mail);
       }
     }

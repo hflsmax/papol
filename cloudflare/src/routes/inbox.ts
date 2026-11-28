@@ -179,8 +179,9 @@ export function inboxRoutes(router: Router) {
     const statements: D1PreparedStatement[] = [insert(env.DB, "feedback", fb)];
     const wakeups: string[] = [];
     for (const admin of admins) {
-      statements.push(insert(env.DB, "notifications", { uuid: newUuid(), user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, created_at: at }));
-      const mail = queueEmail(env.DB, "feedback_report", admin, `Papol feedback: ${headline}`, body);
+      const line = newUuid();
+      statements.push(insert(env.DB, "notifications", { uuid: line, user_uuid: admin.uuid, content: `Feedback from ${reporter}${where}:\n\n${fb.content}`, read: 0, created_at: at }));
+      const mail = queueEmail(env.DB, "feedback_report", admin, `Papol feedback: ${headline}`, body, line);
       if (!mail) continue;
       statements.push(mail.statement);
       wakeups.push(...mail.wake);
