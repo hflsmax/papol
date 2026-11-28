@@ -58,20 +58,24 @@ function ReactGlyph() {
   );
 }
 
-// The button that offers the emoji. Pressed, they open in a row under it;
+// The button that offers the emoji. Pressed, they open in rows under it;
 // one picked is set (or, if the reader had set it, taken back).
 export function ReactionAdd({ kind, uuid, reactions = [], onChanged, className = '' }) {
   const [open, setOpen] = useState(false);
   const self = useRef(null);
   const toggle = useToggle(kind, uuid, reactions, onChanged);
   useDismiss(open, self, () => setOpen(false));
-  // Left and right walk the emoji.
+  // The arrows walk the emoji: left and right along a row, up and down
+  // between rows, however many the menu is wide.
   const walk = (event) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    const items = [...event.currentTarget.querySelectorAll('button')];
+    const wide = items.filter((item) => item.offsetTop === items[0].offsetTop).length || 1;
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: wide, ArrowUp: -wide }[event.key];
     if (!step) return;
     event.preventDefault();
-    const items = [...event.currentTarget.querySelectorAll('button')];
-    items[(items.indexOf(document.activeElement) + step + items.length) % items.length]?.focus();
+    const at = items.indexOf(document.activeElement);
+    const to = Math.abs(step) === 1 ? (at + step + items.length) % items.length : at + step;
+    items[to]?.focus();
   };
   return (
     <span ref={self} className={`reaction-add${open ? ' is-open' : ''} ${className}`}>

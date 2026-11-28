@@ -500,6 +500,9 @@ function answer(method, path, search, sent = {}) {
     return {
       notifications: [
         ...(project.asks.length ? [note(7, 'Leo Marsh asks to join Adaptive optics control.', 1, false, { kind: 'project_ask', link: `/project/${PROJECT}`, actor: leo, waiting: true })] : []),
+        // An emoji set on something of the reader's: a line that leads to it.
+        note(8, 'Ben Hall reacted 🔥 to your reply in a thread.', 0.3, false, { kind: 'reaction', link: '/thread/e2b2c3d4-0000-4000-8000-000000000078', actor: ben }),
+        note(9, 'Mia Tanaka reacted 👏 to your dig on A survey of predictive control for telescopes.', 0.6, false, { kind: 'reaction', link: `/paper/${P_SURVEY.slice(0, 32)}`, actor: mia }),
         note(5, 'Mia Tanaka asks to be friends.', 4, false, { kind: 'friend_request', link: `/u/${MIA}`, actor: mia, waiting: true }),
         note(6, 'Ben Hall posted in your dig on “A survey of predictive control for telescopes”.', 2, false, { kind: 'dig_post', link: `/paper/${P_SURVEY.slice(0, 32)}`, actor: ben }),
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
@@ -507,7 +510,7 @@ function answer(method, path, search, sent = {}) {
         note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
         note(4, 'Welcome to Papol, Dana Okafor—your paper-reading companion. Your nook is where you document your reading: upload the papers you read, rate them, and keep what you think of each.', 24 * 40, true),
       ],
-      unread_count: 4,
+      unread_count: 6,
     };
   }
   if (path === '/admin-messages/pending') return [];

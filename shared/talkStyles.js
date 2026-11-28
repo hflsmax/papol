@@ -198,7 +198,7 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
   :is(.talk-post, .thread-jacket):hover .reaction-add-button, .talk-post:focus-within .reaction-add-button, .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { opacity: 1; }
   .thread-jacket:hover .talk-post:not(:hover) .reaction-add:not(.is-open) .reaction-add-button:not(:focus-visible) { opacity: 0; }
 }
-.reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-md); }
+.reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: grid; grid-template-columns: repeat(8, max-content); gap: 2px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-md); }
 .reaction-add .reaction-menu button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
 .reaction-add .reaction-menu button:hover, .reaction-add .reaction-menu button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
 .reaction-add .reaction-menu button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -206,7 +206,7 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 /* A chip as chat apps draw one: the emoji the larger of the two and the
    count a small, quieter number after it, both set on a line of their own
    height and centred by the row. */
-.reaction { display: inline-flex; align-items: center; justify-content: center; gap: 5px; box-sizing: border-box; height: 24px; min-width: 34px; min-height: 0; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); box-shadow: none; color: var(--ink-faint); font: 600 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction { display: inline-flex; align-items: center; justify-content: center; gap: 5px; box-sizing: border-box; height: 24px; min-width: 34px; min-height: 0; margin: 0; padding: 0 8px; border: 2px solid var(--line); border-radius: 999px; background: var(--paper); box-shadow: none; color: var(--ink-faint); font: 600 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
 .reaction-emoji, .reaction-count { display: block; flex: none; line-height: 1; }
 .reaction-emoji { font-size: 15px; }
 /* A digit has no descender, so a line box centred would leave its ink
@@ -221,5 +221,5 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 /* At the end of a row of chips the emoji open from the row's start. */
 .reactions .reaction-menu { right: auto; left: -4px; }
 .reaction-tally { display: inline-flex; gap: 6px; white-space: nowrap; }
-@media (pointer: coarse) { .reaction-add-button { width: 32px; height: 32px; } .reaction { height: 30px; padding: 0 10px; } .reaction-add .reaction-menu button { width: 34px; height: 34px; } }
+@media (pointer: coarse) { .reaction-add-button { width: 32px; height: 32px; } .reaction { height: 30px; padding: 0 10px; } .reaction-add .reaction-menu button { width: 34px; height: 34px; } .reaction-menu { grid-template-columns: repeat(6, max-content); } }
 `;
