@@ -134,9 +134,12 @@ max_retries = 0
 [env.dev.browser]
 binding = "BROWSER"
 
-# Dev has no weekly run. Workers Free allows five cron triggers to an
-# account, production takes three, and a sixth made every deploy fail at
-# its triggers (and cancelled production's beside it). What a dev user
-# chose weekly is never sent there; the daily run still is.
+# Dev has no cron triggers. Workers Free allows five to an account and
+# production takes three; dev asking for its own made every deploy fail at
+# its triggers (and cancelled production's beside it). So on dev nothing
+# sweeps for a job nobody was woken for, and the day's and the week's
+# emails are never sent; a job still runs when its queue message arrives.
+# The list is written empty, not left out: a deploy then removes the
+# triggers dev already has.
 [env.dev.triggers]
-crons = ["*/2 * * * *", "0 14 * * *"]
+crons = []
