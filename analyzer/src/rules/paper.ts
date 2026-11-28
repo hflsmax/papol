@@ -14,7 +14,7 @@ import { findFloats, findMentions } from "./floats";
 import { findFootnoteMarkers, findFootnotes } from "./footnotes";
 import { findRuleMentions, findRules } from "./inference";
 import { findSectionMentions, findSections } from "./sections";
-import { findStatements } from "./statements";
+import { findStatementMentions, findStatements } from "./statements";
 import { flowOf, layout as layOut, type Layout, type Line } from "./layout";
 import type { Page } from "./page";
 import { Trace } from "./trace";
@@ -71,6 +71,7 @@ function analyzed(layout: Layout) {
   const statements = findStatements(layout, bibliography.lines, floats.values(), trace, new Set([...sections.values()].map((s) => s.caption)));
   const links = flows.flatMap((flow) => [
     ...findMentions(flow, floats, layout, trace), ...findSectionMentions(flow, sections, layout, trace), ...findRuleMentions(flow, rules, layout, trace),
+    ...findStatementMentions(flow, statements, layout, trace),
   ]);
   const citations = findCitations(layout, flows, bibliography, trace);
   const notes = findFootnotes(layout, trace);

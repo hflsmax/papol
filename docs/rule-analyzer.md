@@ -62,7 +62,10 @@ gone.
   the float's `whole`): its line and the lines after it down its column to
   the end of its paragraph, through a formula it displays. That is what
   the viewer shows where a term the reader defined is read
-  (`viewer/src/definedTerms.js`).
+  (`viewer/src/definedTerms.js`). A mention of a definition, theorem,
+  lemma, proposition or corollary by its number, the word whole or
+  shortened ("Def. 3.1", "Lemmas 2 and 3", "Prop. 3.2";
+  `mention.statement`), is a link to where that statement opens.
 - `footnotes.ts` — footnotes: each note found at the foot of its page (a
   line smaller than the text opening with a raised number and then words,
   nothing at the text's size under it; `footnote.note`), and each raised
