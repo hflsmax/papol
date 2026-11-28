@@ -68,12 +68,6 @@ export async function copyOf(db: D1Database, paperSha256: string, user: User): P
   return one<Copy>(db, "SELECT * FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NULL AND kept", paperSha256, user.uuid);
 }
 
-// Whether the user took the paper out of their nook: their copy is
-// there, removed.
-export async function tookOut(db: D1Database, paperSha256: string, user: User): Promise<boolean> {
-  return Boolean(await one(db, "SELECT 1 FROM copies WHERE paper_sha256 = ? AND user_uuid = ? AND deleted_at IS NOT NULL", paperSha256, user.uuid));
-}
-
 // Whether keeping this copy is the paper's first time in the nook: it
 // was held, not kept, until now. Then the copy is added now, whenever it
 // began. Its date is what the nook lists it by and what a friend's Lounge
@@ -161,9 +155,9 @@ export async function paperDetail(env: Env, paper: Paper, viewer: User) {
     // Whether the viewer pinned their copy to the top of their nook.
     pinned: null,
     // Whether the viewer's digs on this paper are shown to their friends
-    // and their projects (writingShown): on a public shelf, or on no
-    // shelf of theirs at all; not once they took the paper out.
-    digs_shown: !copy && !(await tookOut(db, paper.sha256, viewer)),
+    // and their projects (writingShown): on a public shelf, or not in
+    // their nook at all.
+    digs_shown: !copy,
     anchors: [], also_read_by: [], tags: [], shelf_uuid: null, copy_uuid: null, sharable_uuid: null,
   };
   if (copy) {

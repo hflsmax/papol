@@ -15,7 +15,7 @@
 // A dig on a paper, or on a mark on one, is its writer's own, never a
 // project's: the people they share a project with see it there, and post
 // in it, while the writer's writing on the paper is shown (writingShown:
-// on a public shelf, or on no shelf of theirs at all) and the project
+// on a public shelf, or not in their nook at all) and the project
 // holds it (inProject). Otherwise it is theirs alone, with no posts and
 // no phase to move. Nobody needs a paper in their nook to dig it. A dig on a card belongs to its project.
 // What someone writes at a place on a page, or about a paper, is always a
@@ -27,7 +27,7 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { copyOf, holdPaper, keepPaper, paperOr404, tookOut } from "../papers/detail";
+import { copyOf, holdPaper, paperOr404 } from "../papers/detail";
 import { queueEmail, siteUrl, type Queued } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import { friendSees, notice, userLiteral } from "./friends";
@@ -156,10 +156,11 @@ async function tellKeepers(env: Env, dig: Dig, me: User, at: string): Promise<vo
   const line = `${me.display_name} dug ${paper?.title ?? "a paper"}, a paper in your nook.`;
   const mails: Queued[] = [];
   const told = keepers.map((them) => {
+    const inInbox = newUuid();
     const mail = queueEmail(env.DB, "friend_dig", them, `${me.display_name} dug a paper in your nook`,
-      [line, "", excerpt(dig.text), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"));
+      [line, "", excerpt(dig.text), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"), inInbox);
     if (mail) mails.push(mail);
-    return notice(env, them.uuid, line, "friend_dig", me, link, at);
+    return notice(env, them.uuid, line, "friend_dig", me, link, at, inInbox);
   });
   await batch(env.DB, [...told, ...mails.map((mail) => mail.statement)]);
   await wake(env, mails.flatMap((mail) => mail.wake));
@@ -331,14 +332,9 @@ export function digRoutes(router: Router) {
     const at = now();
     // A dig on a card is the project's. One on a paper or a mark is the
     // writer's own, which the project sees while their writing on the
-    // paper is shown. A paper they never kept is held for them, not kept,
-    // which shows it. One
-    // they took out of their nook is withdrawn, so it comes back first:
-    // what is written in a project is written to be read there.
-    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) {
-      if (await tookOut(env.DB, subject.paper_sha256, me)) await keepPaper(env.DB, me, subject.paper_sha256);
-      else await holdPaper(env.DB, me, subject.paper_sha256);
-    }
+    // paper is shown. A paper not in their nook is held for them, not
+    // kept, which shows it; one they took out stays out, and shows it too.
+    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) await holdPaper(env.DB, me, subject.paper_sha256);
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: subject.board_item_uuid ? project.uuid : null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
     return json(await digOut(env, made, project, me, member));
@@ -463,11 +459,12 @@ export function digRoutes(router: Router) {
         if (uuid !== dig.user_uuid && !(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(uuid))}`, dig.uuid))) continue;
         const whose = uuid === dig.user_uuid ? "your dig" : dig.user_uuid === me.uuid ? "a dig you posted in" : `${owner?.display_name ?? "a friend"}'s dig`;
         const line = `${me.display_name} replied in ${whose} on ${paper?.title ?? "a paper"}.`;
-        told.push(notice(env, uuid, line, "dig_post", me, link, at));
+        const inInbox = newUuid();
+        told.push(notice(env, uuid, line, "dig_post", me, link, at, inInbox));
         // And by email, as often as they chose for replies (emails.ts).
         const them = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", uuid);
         const mail = them && queueEmail(env.DB, "dig_reply", them, `${me.display_name} replied in ${whose} on Papol`,
-          [line, "", excerpt(body), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"));
+          [line, "", excerpt(body), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"), inInbox);
         if (mail) mails.push(mail);
       }
     }

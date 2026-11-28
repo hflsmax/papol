@@ -22,17 +22,19 @@ export interface Queued {
 }
 
 // A kind nobody chooses is always queued, to an address; one its
-// recipient chose never to be sent is nothing.
+// recipient chose never to be sent is nothing. `noticeUuid` is the inbox
+// line written with the email, if one is: a held email names it, and is
+// not sent once the line was read (digests.ts).
 export function queueEmail(db: D1Database, kind: SureEmailKind, to: { email: string }, subject: string, body: string): Queued;
-export function queueEmail(db: D1Database, kind: ChosenEmailKind, to: Mailed, subject: string, body: string): Queued | null;
-export function queueEmail(db: D1Database, kind: EmailKind, to: { email: string } | Mailed, subject: string, body: string): Queued | null {
+export function queueEmail(db: D1Database, kind: ChosenEmailKind, to: Mailed, subject: string, body: string, noticeUuid?: string): Queued | null;
+export function queueEmail(db: D1Database, kind: EmailKind, to: { email: string } | Mailed, subject: string, body: string, noticeUuid?: string): Queued | null {
   const often = kind === "password_reset" || kind === "announcement" ? "now" : frequencyOf(to as Mailed, kind);
   if (often === "never") return null;
   if (often === "now") {
     const job = enqueue(db, SEND_EMAIL, { to: to.email, subject, body });
     return { statement: job.statement, wake: [job.uuid] };
   }
-  return { statement: insert(db, "email_held", { uuid: newUuid(), user_uuid: (to as Mailed).uuid, kind, subject, body, created_at: now() }), wake: [] };
+  return { statement: insert(db, "email_held", { uuid: newUuid(), user_uuid: (to as Mailed).uuid, kind, subject, body, created_at: now(), notification_uuid: noticeUuid ?? null }), wake: [] };
 }
 
 export async function sendEmailJob(env: Env, payload: Row): Promise<Row> {

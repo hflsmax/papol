@@ -358,7 +358,7 @@ export const SUBJECT_JOINS = `LEFT JOIN papers p ON p.sha256 = d.paper_sha256
 // own dig on a paper the project holds, or on a mark on that paper, while
 // that member's writing on the paper is shown (writingShown). Otherwise a
 // dig is its writer's alone. A dig whose subject is gone (a deleted mark, a paper
-// taken out, a card removed) is kept, unshown, and comes back with it.
+// taken out of the project, a card removed) is kept, unshown, and comes back with it.
 // `project` is an SQL expression for the project's uuid: a column, or a
 // uuid made a literal by projectLiteral.
 export function inProject(project: string): string {
@@ -379,17 +379,17 @@ END)`;
 // Whether what a user wrote on a paper (their digs, and their ink in a
 // project) is shown to the people allowed to read it: their friends, and
 // the members of a project that holds the paper. It follows the shelf the
-// paper sits on, and a paper they never put on any shelf counts as on a
-// public one (decided 2026-11-27): nobody needs a paper in their nook to
-// dig it, and a dig on a friend's paper is written to be read. Their
-// copy of such a paper is one not kept (holdPaper). A paper taken out of
-// the nook is withdrawn: what was written on it is its
-// writer's alone until it is back on a public shelf. `user` and `paper`
-// are SQL expressions for the columns that name them.
+// paper sits on, and a paper not in their nook counts as on a public one
+// (decided 2026-11-27): nobody needs a paper in their nook to dig it, and
+// a dig on a friend's paper is written to be read. That is every paper
+// under Passing: one never added, whose copy is not kept (holdPaper),
+// and one taken out of the nook. Only a private shelf keeps what was
+// written to its writer. `user` and `paper` are SQL expressions for the
+// columns that name them.
 export function writingShown(user: string, paper: string): string {
   return `(${onPublicShelf(user, paper)}
     OR NOT EXISTS (SELECT 1 FROM copies nc WHERE nc.user_uuid = ${user} AND nc.paper_sha256 = ${paper}
-      AND (nc.kept OR nc.deleted_at IS NOT NULL)))`;
+      AND nc.kept AND nc.deleted_at IS NULL))`;
 }
 
 // Whether a user keeps a paper on one of their public shelves.

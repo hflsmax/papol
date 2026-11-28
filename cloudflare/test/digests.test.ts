@@ -102,6 +102,34 @@ describe("email held for the day or the week", () => {
     expect(await count("email_held")).toBe(0);
   });
 
+  it("leaves out what was read in the inbox, or answered there, and sends nothing when that is all of it", async () => {
+    const daily = await register("daily@example.test", "Daily"), ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
+    await choose(daily, { friend_request: "daily" });
+    await ask(ada, daily);
+    await ask(grace, daily);
+    await ask(alan, daily);
+    expect(await count("email_held", "notification_uuid IS NOT NULL")).toBe(3);
+    // Ada's line is read, Grace's request is answered: Alan's alone is sent.
+    const lines = (await ok("GET", "/api/notifications", { headers: daily.headers })).notifications as any[];
+    await ok("POST", `/api/notifications/${lines.find((n) => n.actor.uuid === ada.uuid).uuid}/read`, { headers: daily.headers });
+    await ok("POST", `/api/friends/${grace.uuid}/accept`, { headers: daily.headers });
+    emailApi();
+    await day(TUESDAY);
+    expect(sent().map((m) => [m.to[0], m.subject])).toEqual([["daily@example.test", "Alan asks to be friends on Papol"]]);
+    expect(await count("email_held")).toBe(0);
+
+    // Everything read: no email, and nothing left held. A weekly one read goes on any day.
+    await choose(daily, { friend_request: "weekly" });
+    const eve = await register("eve@example.test", "Eve");
+    await ask(eve, daily);
+    expect(await count("email_held")).toBe(1);
+    await ok("POST", "/api/notifications/read", { headers: daily.headers });
+    emailApi();
+    expect(await day(TUESDAY)).toMatchObject({ result: JSON.stringify({ sent: true, users: 1, emails: 0 }) });
+    expect(calls).toEqual([]);
+    expect(await count("email_held")).toBe(0);
+  });
+
   it("gathers an admin's feedback reports", async () => {
     const admin = await register("admin@example.test", "Admin");
     await exec("UPDATE users SET is_admin = 1 WHERE uuid = ?", admin.uuid);
