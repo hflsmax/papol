@@ -1270,19 +1270,6 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
-            <a
-              className="macos-download-link"
-              href={MACOS_DOWNLOAD_URL}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Download Papol macOS"
-              title="Download Papol macOS"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />
-              </svg>
-              Mac app
-            </a>
           </nav>
           {mode === 'guest' && (
             <button className="primary" onClick={() => navigate('/signin')}>

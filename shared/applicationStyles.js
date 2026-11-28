@@ -94,22 +94,6 @@ ${commonStyles}
   border-bottom-color: var(--accent);
 }
 
-.topnav nav .macos-download-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.macos-download-link svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 /* ---------- The way bar ----------
    A signed-in member's one bar on the web: Papol, the page's own title (or
    the trail back), then the Lounge and the member. One row with no rule
