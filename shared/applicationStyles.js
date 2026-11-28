@@ -6139,6 +6139,9 @@ a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset:
 .paper-dig .talk-card.is-conversation .talk-post-edit { gap: var(--space-2); margin-top: var(--space-1); }
 .paper-dig .talk-card.is-conversation .talk-post-edit :is(textarea, .md-field) { padding: 8px 10px; }
 .paper-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
+.paper-dig .talk-card.is-conversation .talk-reply { margin: var(--space-2) 14px 0 36px; }
+.paper-dig .talk-reply button { min-height: 0; padding: 2px 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); cursor: pointer; }
+.paper-dig .talk-reply button:hover { background: none; text-decoration: underline; text-underline-offset: 2px; }
 .paper-dig .talk-card.is-conversation .talk-compose { margin: var(--space-4) 14px var(--space-2) 36px; padding: 0; }
 .paper-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {

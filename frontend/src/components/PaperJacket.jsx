@@ -541,7 +541,7 @@ export default function PaperJacket({
             : 'You took this paper out of your nook, so your dig on it is yours alone. Add it back on a public shelf for your friends to read it.'}>private</span>}
       </h4>
       <TalkCard
-        key={paper.sha256} inline single conversation tucked dig="mine" projectUuid={null}
+        key={paper.sha256} inline single conversation tucked folded dig="mine" projectUuid={null}
         subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
       />
     </section>
@@ -1390,7 +1390,7 @@ export default function PaperJacket({
                     paper, or a place in it, which opens the paper there. */}
                 <FriendDigFocus dig={dig} paper={paper} />
                 <TalkCard
-                  inline single conversation tucked only projectUuid={null} dig={dig.uuid}
+                  inline single conversation tucked folded only projectUuid={null} dig={dig.uuid}
                   subject={`dig:${dig.uuid}`} label={paper.title} currentUser={currentUser}
                 />
               </li>
