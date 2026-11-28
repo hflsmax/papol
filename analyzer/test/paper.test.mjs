@@ -774,6 +774,28 @@ describe("statements", () => {
     assert.deepEqual(titles, ["Typing", "Every typed term halts", undefined, "It is decidable", "Weakening"]);
   });
 
+  it("links a mention of a statement, whole or shortened, to where it opens, and not a cited work's", async () => {
+    const pdf = writtenPdf([
+      [60, 700, "Definition 3.1. (Syntax) We collect our types and values.", 10, "italic"],
+      [60, 680, "Lemma 7.2 (Cloning). Every type can be cloned.", 10, "italic"],
+      [60, 660, "Proposition 3.2. It is reversible.", 10, "italic"],
+      [60, 640, "Lemma 7.3. And again.", 10, "italic"],
+      [60, 620, "Lemma 7.4. And once more.", 10, "italic"],
+      [60, 580, "We extend Def. 3.1 as follows, by Lemma 7.2 and Prop. 3.2, and Lemmas 7.2-7.4 hold."],
+      [60, 560, "It is unlike Theorem 3.1 of Knuth (1974) and Definition 9.9, which this paper has not."],
+    ]);
+    const { analysis } = await analyzeWithRules(pdf);
+    const labelled = new Map(analysis.floats.map((f) => [f.key, f.label]));
+    const links = analysis.links.map((l) => [l.label, labelled.get(l.float)]);
+    assert.deepEqual(links, [
+      ["3.1", "Definition 3.1"], ["7.2", "Lemma 7.2"], ["3.2", "Proposition 3.2"],
+      ["7.2", "Lemma 7.2"], ["7.2-7.4", "Lemma 7.3"], ["7.4", "Lemma 7.4"],
+    ]);
+    // "Def. 3.1" is one thing to press, the word with its number.
+    const def = analysis.links[0];
+    assert.ok(def.w * 600 > 25, `the link covers the word and the number: ${JSON.stringify(def)}`);
+  });
+
   it("reads a definition whole: down to the end of its paragraph, through a formula it displays", async () => {
     const pdf = writtenPdf([
       [60, 700, "Definition 1 (Typing). A term is typed when a derivation of its type exists, and", 10, "italic"],

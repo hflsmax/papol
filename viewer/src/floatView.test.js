@@ -99,3 +99,7 @@ test('a link to a named rule keeps the zoom, as a footnote does', () => {
   assert.equal(fitsFloat('footnote'), false);
   assert.equal(fitsFloat('figure'), true);
 });
+
+test('a link to a statement the text mentions keeps the zoom too', () => {
+  for (const kind of ['definition', 'theorem', 'lemma', 'proof']) assert.equal(fitsFloat(kind), false);
+});
