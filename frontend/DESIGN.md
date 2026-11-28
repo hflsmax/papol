@@ -191,6 +191,14 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - The board compacts its toolbar at 700px and scales canvas affordances against
   zoom. Screen-space targets must remain usable even while board content is
   transformed.
+- A paper's jacket at 560px is one column of full-width rows: the shelf
+  fills its row with the pin and the bin at its end, the actions are two
+  equal columns (the first of an odd number takes a row to itself), and a
+  menu opens under the whole block, as wide as it. A Learn Papol card under
+  the bar's mark takes a line of its own above the title instead of lying
+  over it.
+- At 640px the floating Feedback button becomes the last word of the page's
+  foot, so it never lies over what is being read or written.
 - New breakpoints should follow one of those existing behavioral transitions,
   not a particular device model. Test at 320, 560, 760/860, and a wide desktop.
 

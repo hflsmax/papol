@@ -112,12 +112,15 @@ export function InWay({ children, held = false }) {
 
 // Where Papol's pages for visitors live once a member is signed in: at
 // the foot of the page, out of the way of the work.
-export function WayFoot({ macDownloadUrl }) {
+// On a phone Feedback is here too (`onFeedback` opens it), in place of the
+// button that floats over the page's corner on a wider window.
+export function WayFoot({ macDownloadUrl, onFeedback = null }) {
   return (
     <footer className="way-foot">
       <a href={appPath('/about')}>About</a>
       <a href={appPath('/learn')}>Learn</a>
       <a href={macDownloadUrl} target="_blank" rel="noreferrer">Mac app</a>
+      {onFeedback && <button type="button" className="way-foot-feedback" onClick={onFeedback} title="Report a bug or ask for a feature">Feedback</button>}
     </footer>
   );
 }
