@@ -3830,13 +3830,18 @@ a.button:hover {
 /* The nook: a few papers, listed as a nook lists them, in the same window
    the viewer then opens in. A row is one thing to click, all of it. */
 .landing-nook {
-  padding: 18px 22px 8px;
+  padding: 18px 22px 0;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-md);
 }
-.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+/* The list scrolls in the window, which opens tall enough for three papers
+   and half of the fourth. Its padding keeps the first title's ring and the
+   tag over it inside what it clips. */
+.landing-nook-list { overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 26px 8px 0; }
+.landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .landing-nook-name { color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
 .landing-nook-column { width: 4.75rem; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: center; text-transform: uppercase; }
 /* No shelf bars here, so a row needs no lane for one. */

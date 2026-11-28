@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { effortLevel, formatDurationShort } from '../activityView';
 
 // The landing page's nook: a few papers, listed the way a nook lists them,
@@ -34,14 +34,47 @@ const PAPERS = [
   },
 ];
 
+// How many papers show before the list is scrolled: the last one cut in
+// half, which says there are more under it.
+const SHOWN = 3.5;
+
 export default function HomeNook({ onOpen }) {
+  const listRef = useRef(null);
+  const [height, setHeight] = useState(null);
+
+  // Rows are as tall as their titles wrap, so the height that shows three
+  // and a half of them is measured, and measured again when the width
+  // changes.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+    const measure = () => {
+      const cut = list.querySelectorAll('li')[Math.floor(SHOWN)];
+      if (!cut) { setHeight(null); return; }
+      const top = cut.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+      setHeight(Math.round(top + cut.offsetHeight * (SHOWN % 1)));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(list.querySelector('ul'));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="landing-nook">
       <p className="landing-nook-head">
         <span className="landing-nook-name">My nook</span>
         <span className="landing-nook-column">Effort</span>
       </p>
-      <div className="paper-list">
+      <div
+        ref={listRef}
+        className="paper-list landing-nook-list"
+        style={height ? { maxHeight: height } : undefined}
+        tabIndex={0}
+        role="group"
+        aria-label="Papers in the nook"
+      >
         <ul>
           {PAPERS.map((paper, index) => (
             <li key={paper.title} onClick={onOpen}>
