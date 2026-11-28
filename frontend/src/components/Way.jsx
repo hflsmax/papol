@@ -7,7 +7,8 @@ import Glyph from './DesktopGlyph';
 import BackLink from '../../../shared/ui/BackLink.jsx';
 import LoungeTip from './LoungeTip';
 import NookTip from './NookTip';
-import { NOOK_TIP, setFeatureState } from '../../../shared/featureStates.js';
+import JacketTip from './JacketTip';
+import { JACKET_TIP, LOUNGE_TIP, NOOK_TIP, isFeatureStateSet, setFeatureState } from '../../../shared/featureStates.js';
 
 // A member's nook is the centre of Papol: Papol itself leads there, and
 // every page is a trail back to it. Beside it sits, quietly, the one place
@@ -34,18 +35,27 @@ export const ROOM_PATH = '/lounge';
 // told: NookTip.jsx). `inLounge` is
 // whether that place is the Lounge: the Lounge itself, a thread, someone
 // else's nook, or a paper or board opened from the Lounge.
-export function WayBar({ user, route, trail = [], from = null, inLounge = route.page === 'room', unreadCount = 0, roomNews = false }) {
+//
+// `onJacket` is whether the page is a work's jacket: a paper, a board or a
+// thread. There the mark is the way back to where the work was opened, and
+// until the member has been told a card under it says so (JacketTip.jsx).
+// It waits its turn behind the card under the button on the right, so the
+// bar teaches one thing at a time, and is left out where the mark does not
+// lead back (`from`: a friend's nook, which is named beside the mark).
+export function WayBar({ user, route, trail = [], from = null, inLounge = route.page === 'room', onJacket = false, unreadCount = 0, roomNews = false }) {
+  const jacketTip = Boolean(user) && onJacket && !from && isFeatureStateSet(inLounge ? NOOK_TIP : LOUNGE_TIP);
   return (
     <header className="way-bar">
       <nav className="way" aria-label="Where this is">
         {/* The bar's mark is the PNG drawn from favicon.svg, not the SVG
             itself: Safari drew the SVG's gradient P as solid black. */}
-        <a className="way-mark" href={appPath(inLounge ? ROOM_PATH : '/')} title={inLounge ? ROOM : 'My nook'}><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
+        <a className="way-mark" href={appPath(inLounge ? ROOM_PATH : '/')} title={inLounge ? ROOM : 'My nook'} onClick={jacketTip ? () => setFeatureState(JACKET_TIP, true) : undefined}><img src={appPath('/apple-touch-icon.png')} alt="Papol" width="28" height="28" /></a>
         {from && (
           <BackLink className="way-from" href={from.href} onBack={from.onBack} title={`Back to ${from.label === 'Nook' ? 'the nook' : `the ${from.label}`}`}>
             <span className="way-from-chevron" aria-hidden="true">‹</span>{from.label}
           </BackLink>
         )}
+        {jacketTip && <JacketTip lounge={inLounge} />}
         <span className="way-trail" id="way-slot" />
         <span className="way-trail way-default">
           {trail.map(({ path, label }) => <a key={path} href={appPath(path)}>{label}</a>)}

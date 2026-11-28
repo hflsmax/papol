@@ -79,6 +79,15 @@ export const NOOK_TIP = {
   unsetLabel: 'Not shown',
 };
 
+export const JACKET_TIP = {
+  key: 'papol_learn_jacket_way',
+  value: 'seen',
+  name: 'Way back from a jacket tip',
+  description: 'The Learn Papol card under Papol’s mark on the website’s bar, shown while the user is on a paper, board or thread opened from their nook or the Lounge, that says the mark is the way back there, until they dismiss it or press the mark.',
+  setLabel: 'Shown',
+  unsetLabel: 'Not shown',
+};
+
 export const RETURN_PILL_HIDDEN = {
   key: 'papol_link_return_pill',
   value: 'hidden',
@@ -122,6 +131,7 @@ export const FEATURE_STATES = [
   DARK_PAGES_TIP,
   LOUNGE_TIP,
   NOOK_TIP,
+  JACKET_TIP,
   RETURN_PILL_HIDDEN,
   ANNOTATION_STORAGE_NOTICE_HIDDEN,
   MAC_HANDOFF_RETIRED,

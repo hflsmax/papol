@@ -657,7 +657,12 @@ is a dig: one person's writing about one thing, under the one spade pin.
   are doing here", until the member presses Got it or goes to the Lounge
   (`LoungeTip.jsx`). On the web, once in the Lounge, a like card hangs under
   the bar's "My nook": "Go back to your nook here", until the member
-  presses Got it or the button (`NookTip.jsx`).
+  presses Got it or the button (`NookTip.jsx`). On a jacket (a paper, a
+  board, a thread) a like card hangs under Papol's mark: "Go back to your
+  nook here", or "Go back to the Lounge here" for what was opened there,
+  until the member presses Got it or the mark (`JacketTip.jsx`). It waits
+  until the card on the right has been answered, and is left out where the
+  step back is named beside the mark (a friend's nook).
   Chrome is UI sans at `--fs-sm`, never selectable, and uses the arrow cursor
   rather than the pointing hand; rows and toolbar buttons are borderless,
   shadowless `--chrome-radius` shapes tinted `--chrome-hover` /
