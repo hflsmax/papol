@@ -1267,12 +1267,6 @@ export default function App({ startupUser = null, startupError = null }) {
         {!hasWay && <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
-            <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
-              Home
-            </a>
-            <a href={appPath(ROOM_PATH)} className={route.page === 'room' ? 'active' : ''}>
-              {ROOM}
-            </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
@@ -1290,7 +1284,6 @@ export default function App({ startupUser = null, startupError = null }) {
               Mac app
             </a>
           </nav>
-          <span className="spacer" />
           {mode === 'guest' && (
             <button className="primary" onClick={() => navigate('/signin')}>
               Sign in

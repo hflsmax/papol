@@ -70,6 +70,7 @@ ${commonStyles}
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
+  margin-left: auto; /* About and Mac app sit at the right, beside Sign in */
 }
 
 .topnav nav a,
@@ -4973,13 +4974,12 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     padding: 16px 12px 48px;
   }
 
-  /* Masthead + tab bar: brand and account items on a centered top row,
-     section links as a full-bleed, equal-cell tab bar beneath it whose
-     active underline sits on the header's bottom rule */
+  /* The masthead stays one row: the brand, then About and Mac app at the
+     right beside Sign in. */
   .topnav {
     align-items: center;
-    row-gap: 0;
-    padding-bottom: 0;
+    column-gap: 8px;
+    padding-bottom: 10px;
   }
 
   .topnav .whoami-name {
@@ -4991,22 +4991,12 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
   }
 
   .topnav nav {
-    order: 10;
-    flex-basis: 100%;
-    margin: 10px -12px 0;
-    border-top: 1px solid var(--line);
-    gap: 0;
+    gap: 10px;
+    flex-wrap: nowrap;
   }
 
-  /* Each tab takes its own words' width plus an equal share of what is
-     left, on one line: an equal fifth of a phone was narrower than
-     "Mac app" with its glyph, which broke onto two lines. */
   .topnav nav a {
-    flex: 1 1 auto;
-    min-width: 0;
     white-space: nowrap;
-    text-align: center;
-    padding: 9px 2px;
     font-family: var(--font-ui);
     font-size: var(--fs-sm);
   }
