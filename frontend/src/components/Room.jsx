@@ -313,8 +313,8 @@ const SUGGESTED = 3;
 
 // People to ask, above the news: who they are, what we share if anything,
 // the friend button, and Not interested, which takes them out for good.
-// They are drawn afresh each time the Lounge is opened, so nothing is
-// shown from the last visit while the new ones come. Someone asked keeps
+// They are drawn once a day (the server's weighted lot), and asked for
+// each time the Lounge is opened. Someone asked keeps
 // their card for a week (the server's rule), so the asking can be taken
 // back where it was done.
 function Suggestions({ currentUser }) {
