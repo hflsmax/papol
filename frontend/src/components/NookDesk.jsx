@@ -23,8 +23,9 @@ const added = (at) => {
 
 // Where a paper opens beside the rail, the shelf or board it came from kept
 // in front of it (frontend/DESIGN.md, Navigation).
-const paperPlace = (sha256, { shelf = null, board = null }) =>
-  appPath(`${board ? `/board/${board}` : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
+const paperPlace = (sha256, { shelf = null, board = null, marked = false }) =>
+  appPath(`${board ? `/board/${board}` : marked ? '/passing' : shelf ? `/shelf/${shelf}` : ''}/paper/${paperName(sha256)}`);
+
 
 // Who else is in a project, inside its card's link, the one way in.
 function Faces({ users, max }) {
@@ -87,9 +88,12 @@ const youFirst = (users, me) => [...users.filter((u) => u.uuid === me), ...users
 // still chosen. Search and tags narrow what the main area shows. Every place
 // is a link the app follows without reloading; the papers stay mounted
 // behind whatever opens, so Back finds them filtered and scrolled as left.
-export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
+export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onManage, board: boardAsked = null, shelf: shelfAsked = null, marked: markedAsked = false, project = null, renderProject, paper = null, renderPaper, onOpenCanvas, onChanged, onOpenProject }) {
   const board = project ? null : boardAsked;
   const shelf = nook.shelves.some((s) => s.uuid === shelfAsked) ? shelfAsked : null;
+  // Passing: what the member read or wrote on that is not in their nook.
+  const marked = !project && !board && markedAsked;
+  const markedPapers = nook.unkept ?? [];
   const [tag, setTag] = useState(null);
   const [search, setSearch] = useState('');
   // The column heads stick just under the filter bar, whose height changes
@@ -188,7 +192,7 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
             </div>
             <ul className="desk-rail-list">
               {[{ uuid: null, name: 'All papers', paper_count: nook.papers.length, is_public: true }, ...nook.shelves].map((s) => {
-                const on = !board && !project && shelf === s.uuid;
+                const on = !board && !project && !marked && shelf === s.uuid;
                 return (
                   <li key={s.uuid ?? 'all'}>
                     <a
@@ -209,6 +213,22 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
                   </li>
                 );
               })}
+            </ul>
+          </section>
+
+          {/* Not a shelf: what the member wrote on, wherever it is kept. */}
+          <section className="desk-rail-part desk-rail-marked" aria-label="Passing">
+            <ul className="desk-rail-list">
+              <li>
+                <a className={marked ? 'desk-row is-on' : 'desk-row'} href={appPath('/passing')} aria-current={marked ? 'page' : undefined}>
+                  <svg className="desk-mark" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 4.2C6.4 3.2 4.2 3 2 3.4v8.8c2.2-.4 4.4-.2 6 .8 1.6-1 3.8-1.2 6-.8V3.4c-2.2-.4-4.4-.2-6 .8z" />
+                    <path d="M8 4.2V13" />
+                  </svg>
+                  <span className="desk-row-name">Passing</span>
+                  <span className="desk-count">{markedPapers.length}</span>
+                </a>
+              </li>
             </ul>
           </section>
 
@@ -263,8 +283,42 @@ export default function NookDesk({ nook, adding, reviewing, onSelectBoard, onMan
           />
         </section>
       )}
-      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board)}>
-        {!(project || paper || board || reviewing) && (
+      {marked && (
+        <section className="desk-main desk-marked" aria-labelledby="desk-marked" hidden={Boolean(paper)}>
+          {!(paper || reviewing) && (
+            <InWay><h2 id="desk-marked" className="desk-main-title">Passing<span className="desk-count">{markedPapers.length}</span></h2></InWay>
+          )}
+          <p className="desk-marked-note">Read but not kept.</p>
+          {markedPapers.length > 0 ? (
+            <table className="desk-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="desk-col-title">Title</th>
+                  <th scope="col" className="desk-col-effort">Effort</th>
+                  <th scope="col" className="desk-col-date">Last read</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markedPapers.map((p) => (
+                  <tr key={p.sha256}>
+                    <td className="desk-col-title">
+                      <a className="desk-title" href={paperPlace(p.sha256, { marked: true })}><PaperTitle title={p.title} /></a>
+                      <span className="desk-meta">
+                        {[formatAuthors(p.authors), p.year].filter(Boolean).join(' · ')}
+                        {p.journal && ` · ${p.journal}`}
+                      </span>
+                    </td>
+                    <td className="desk-col-effort"><Effort effort={p.effort} subject={p.sha256} compact /></td>
+                    <td className="desk-col-date">{p.effort ? added(p.effort.last_at) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="desk-none">Nothing yet. A paper you read without adding it shows up here.</p>}
+        </section>
+      )}
+      <section ref={papersRef} className="desk-main" aria-labelledby="desk-papers" hidden={Boolean(project || paper || board || marked)}>
+        {!(project || paper || board || marked || reviewing) && (
           <InWay><h2 id="desk-papers" className="desk-main-title">{chosen ? chosen.name : 'Papers'}<span className="desk-count">{papers.length}</span></h2></InWay>
         )}
         <div ref={filterRef} className="desk-filter">

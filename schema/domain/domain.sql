@@ -113,6 +113,9 @@ CREATE TABLE IF NOT EXISTS copies (
   tags_public INTEGER NOT NULL DEFAULT 0,
   -- Pinned by its user to the top of their nook. Theirs alone to see.
   pinned INTEGER NOT NULL DEFAULT 0,
+  -- Whether the paper is kept in the nook. A copy not kept is one its
+  -- user only read or wrote on: on no shelf, and listed nowhere here.
+  kept INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 0,

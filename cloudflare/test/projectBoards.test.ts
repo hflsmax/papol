@@ -192,8 +192,9 @@ describe("digs", () => {
 
     expect((await call("GET", `/api/digs/${dug.uuid}`, { headers: sam.headers })).status).toBe(404);
     expect((await call("POST", `/api/digs/${dug.uuid}/posts`, { headers: sam.headers, json: { body: "x" } })).status).toBe(404);
-    // Ana did not keep the paper: digging it put it in her nook.
-    expect((await ok("GET", `/api/viewer/${A_PAPER}`, { headers: ana.headers })).sha256).toBe(A_PAPER);
+    // Ana did not keep the paper, and digging it did not put it in her
+    // nook: the project read her dig all the same.
+    expect((await call("GET", `/api/viewer/${A_PAPER}`, { headers: ana.headers })).status).toBe(403);
     expect((await call("POST", `/api/projects/${project.uuid}/digs`, { headers: ana.headers, json: { subject: `paper:${"d".repeat(64)}`, text: "x" } })).status).toBe(404);
   });
 

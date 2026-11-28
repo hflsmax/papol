@@ -315,6 +315,7 @@ const talkKey = (projectUuid, topic) => `${projectUuid}|${topic.subject}|${topic
 // the one that says what the dig is about.
 // With conversation the phase word sits on the dig's own line, after its date,
 // and dates name only the day (the time shows on hover).
+// With folded, the box that posts is the word Reply until pressed.
 // With tucked, the box that starts your dig and the box that posts are each
 // one thin line with a send button at its end, opening downward when pressed.
 // What a change leaves on the thing: how many digs and posts it holds, and
@@ -336,13 +337,18 @@ export function DigThread(props) {
 
 export function TalkCard({
   anchor, projectUuid, subject, label, dig = null, currentUser, onChanged, onClose, inline = false, askBeforeRemoving = true, focus = false, unread = 0, seekUnread = () => true,
-  single = false, conversation = false, tucked = false, only = false,
+  single = false, conversation = false, tucked = false, only = false, folded = false,
 }) {
   const [topic, setTopic] = useState({ subject, label, dig });
   const [digs, setDigs] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.digs ?? []);
   const [discussion, setDiscussion] = useState(() => seenTalk.get(talkKey(projectUuid, topic))?.discussion);
   const [error, setError] = useState(null);
   const [body, setBody] = useState('');
+  // Folded, the box that posts is a word, Reply, until it is pressed; it
+  // folds away again when left empty. A page of many digs is not a page
+  // of many boxes.
+  const [replying, setReplying] = useState(false);
+  useEffect(() => { if (folded && replying) box.current?.focus?.(); }, [folded, replying]);
   const [busy, setBusy] = useState(false);
   const [spot, setSpot] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -678,8 +684,14 @@ export function TalkCard({
       </div>
 
       {error && <p className="talk-card-error" role="alert">{error}</p>}
-      {discussion && (!personal || discussion.can_post) && (
-        <form className={`talk-compose${tucked ? ' is-tucked' : ''}`} onSubmit={send}>
+      {discussion && (!personal || discussion.can_post) && folded && !replying && !body.trim() && (
+        <p className="talk-reply"><button type="button" onClick={() => setReplying(true)}>Reply</button></p>
+      )}
+      {discussion && (!personal || discussion.can_post) && (!folded || replying || body.trim()) && (
+        <form
+          className={`talk-compose${tucked ? ' is-tucked' : ''}`} onSubmit={send}
+          onBlur={folded ? (e) => { if (!e.currentTarget.contains(e.relatedTarget) && !body.trim()) setReplying(false); } : undefined}
+        >
           {currentUser && !tucked && <Face user={currentUser} />}
           <MarkdownField
             ref={box}

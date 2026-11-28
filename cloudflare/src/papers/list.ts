@@ -42,7 +42,7 @@ async function shownCopies(db: D1Database, digests: string[], { join = "", where
             c.thought_public, c.ratings_public, c.summary_public, c.tags_public,
             u.uuid AS user_uuid, u.display_name, u.affiliation, u.avatar_path, u.email, u.email_public
      FROM copies c ${join} JOIN users u ON u.uuid = c.user_uuid
-     WHERE c.deleted_at IS NULL ${where} AND c.paper_sha256 IN (${digests.map(() => "?").join(",")})
+     WHERE c.deleted_at IS NULL AND c.kept ${where} AND c.paper_sha256 IN (${digests.map(() => "?").join(",")})
      ORDER BY c.created_at, c.uuid`,
     ...binds, ...digests,
   );

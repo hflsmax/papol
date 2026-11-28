@@ -163,7 +163,7 @@ const OTHER_APPLICATIONS = ['/boards/', '/viewer/'];
 
 // On the web every thing has one path (frontend/DESIGN.md, Navigation), and
 // a signed-in member sees these ones inside their nook, beside its rail.
-const NOOK_PAGES = new Set(['home', 'shelf', 'board', 'project', 'paper']);
+const NOOK_PAGES = new Set(['home', 'shelf', 'marked', 'board', 'project', 'paper']);
 
 // Where a PDF dropped on the window is taken in: the member's own nook,
 // whose papers it joins, straight into its upload (in the Mac app, All
@@ -835,7 +835,8 @@ export default function App({ startupUser = null, startupError = null }) {
     // the nook (an upload's form) is put away, even when the address is
     // the nook's already and the move itself would change nothing.
     if (routePath === '/' && !destination.search) window.dispatchEvent(new Event(GOING_HOME));
-    navigate(`${routePath}${destination.search}`);
+    // A place named on the page it leads to (a dig on a jacket) goes with it.
+    navigate(`${routePath}${destination.search}${destination.hash}`);
   };
 
   // The page a visitor lands on offers Papol to try and nothing else: no
@@ -917,6 +918,7 @@ export default function App({ startupUser = null, startupError = null }) {
             onSelectPaper={(sha256) => navigate(`/paper/${paperName(sha256)}`)}
             onSelectBoard={(uuid) => navigate(uuid ? `/board/${uuid}` : '/')}
             shelf={route.page === 'shelf' ? route.uuid : route.shelf ?? null}
+            marked={route.page === 'marked' || Boolean(route.marked)}
             board={route.page === 'board' ? route.uuid : route.page === 'paper' ? route.board ?? null : null}
             project={route.page === 'project' ? route.uuid : null}
             paper={route.page === 'paper' ? route.uuid : null}

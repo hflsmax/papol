@@ -34,6 +34,26 @@ import { friendDigsOn } from '../../../shared/api/friends.js';
 import { relationTo, useFriends } from '../friendsStore';
 import PinButton from './PinButton';
 
+// What a friend's dig is about, at its head: the whole paper, or a place
+// in it. A place opens the paper on its page, as far down as the mark
+// sits; the mark itself is its writer's and is not drawn for anyone else.
+function FriendDigFocus({ dig, paper }) {
+  const { kind, page, down, annotation_kind: mark } = dig.subject;
+  if (kind !== 'annotation' || !page) {
+    return <p className="friend-dig-focus"><span className="friend-dig-focus-on">On the whole paper</span></p>;
+  }
+  const what = mark === 'ink' ? 'painted text' : mark === 'clip' ? 'a clip' : 'an anchor';
+  const place = appPath(`/viewer/?pdf=${paper.sha256}&page=${page}${down == null ? '' : `&y=${Math.round(down * 1000) / 1000}`}`);
+  return (
+    <p className="friend-dig-focus">
+      <a className="friend-dig-focus-on" href={place} data-document title={`Open the paper on page ${page}`}>
+        On page {page}
+      </a>
+      <span className="friend-dig-focus-what">at {what}</span>
+    </p>
+  );
+}
+
 export default function PaperJacket({
   paperSha256, currentUser, onBack, backHref, onSelectPaper, onChanged, onRead,
   onDeleted, hideBack = false, backLabel = 'Back', onReportableError,
@@ -60,9 +80,28 @@ export default function PaperJacket({
     let active = true;
     friendDigsOn(paperName(paperSha256))
       .then((found) => { if (active) setFriendDigs(found.digs ?? []); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (active) setDigsRead(paperSha256); });
     return () => { active = false; };
   }, [paperSha256, currentUser?.uuid, friends?.friends.length]);
+  // A link from the inbox or an email names one dig (#dig-<uuid>): once the
+  // friends' digs are in, the jacket goes to it, a friend's by its own row
+  // and otherwise mine, and marks it for a moment.
+  const [digsRead, setDigsRead] = useState(null);
+  useEffect(() => {
+    const named = window.location.hash.match(/^#dig-([0-9a-f-]{36})$/i)?.[1];
+    if (!named || digsRead !== paperSha256) return undefined;
+    const at = document.getElementById(`dig-${named.toLowerCase()}`) ?? document.getElementById('your-dig');
+    if (!at) return undefined;
+    // The digs above it are still filling with their posts, which moves
+    // it down the page: it is gone to again as they settle.
+    const go = () => at.scrollIntoView({ block: 'center' });
+    go();
+    at.classList.add('is-pointed');
+    const again = [300, 900].map((after) => setTimeout(go, after));
+    const done = setTimeout(() => at.classList.remove('is-pointed'), 3000);
+    return () => { [...again, done].forEach(clearTimeout); at.classList.remove('is-pointed'); };
+  }, [digsRead, paperSha256]);
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [metadataExtractStatus, setMetadataExtractStatus] = useState('Reading PDF…');
@@ -483,6 +522,30 @@ export default function PaperJacket({
 
   const authors = authorList(paper.authors);
   const hasEntry = currentUser != null && paper.copy_uuid != null;
+  // The reader's own dig on the paper, which they write whether or not
+  // they keep it.
+  const yourDig = (
+    <section className="paper-dig" id="your-dig" aria-labelledby="paper-dig-title">
+      <h4 id="paper-dig-title">
+        Your dig
+        {/* A dig goes where its paper goes: on a public shelf, or on
+            no shelf of mine at all, my friends can read it and post
+            in it, and nobody else. A paper I took out of my nook is
+            withdrawn, and my dig on it with it. */}
+        {(paper.digs_shown ?? paper.is_public)
+          ? <span className="badge visibility-badge friends" title={hasEntry
+            ? 'Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.'
+            : 'Your friends can read this dig and post in it. Nobody else can. To keep it to yourself, add the paper to your nook and move it to a private shelf.'}>friends</span>
+          : <span className="badge visibility-badge private" title={hasEntry
+            ? 'On a private shelf, a dig is yours alone.'
+            : 'You took this paper out of your nook, so your dig on it is yours alone. Add it back on a public shelf for your friends to read it.'}>private</span>}
+      </h4>
+      <TalkCard
+        key={paper.sha256} inline single conversation tucked folded dig="mine" projectUuid={null}
+        subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
+      />
+    </section>
+  );
   // A link hands over a PDF, so there has to be one to hand over: a paper
   // with no readable file has nothing for the viewer to open.
   const canShareThisPdf = hasEntry && Boolean(paper.file_path);
@@ -817,9 +880,10 @@ export default function PaperJacket({
 
           <div className="paper-actions">
             {/* Reading does not wait for the paper to be taken: the viewer
-                opens one that is not yet theirs as a lean link, and asks
-                for it only when they reach for an anchor or the ink. Until
-                it is theirs, adding it is the step that carries the weight. */}
+                opens one that is not yet theirs all the same, to read and
+                to dig, with the nook on offer in its bar (on the Mac, as a
+                lean link). Until it is theirs, adding it is the step that
+                carries the weight. */}
             {currentUser && viewerHref() && (
               <a
                 className={hasEntry ? 'button primary' : 'button'}
@@ -1304,21 +1368,15 @@ export default function PaperJacket({
             </div>
           </section>
 
-          <section className="paper-dig" aria-labelledby="paper-dig-title">
-            <h4 id="paper-dig-title">
-              Your dig
-              {/* A dig goes where its paper goes: on a public shelf my
-                  friends can read it and post in it, and nobody else. */}
-              {paper.is_public
-                ? <span className="badge visibility-badge friends" title="Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.">friends</span>
-                : <span className="badge visibility-badge private" title="On a private shelf, a dig is yours alone.">private</span>}
-            </h4>
-            <TalkCard
-              key={paper.sha256} inline single tucked dig="mine" projectUuid={null}
-              subject={`paper:${paper.sha256}`} label={paper.title} currentUser={currentUser}
-            />
-          </section>
+          {yourDig}
 
+        </div>
+      )}
+      {/* Nobody needs a paper in their nook to dig it: a friend's paper,
+          or one opened from the Lounge, takes a dig as it stands. */}
+      {currentUser && !hasEntry && editMode !== 'metadata' && (
+        <div className="paper-notes paper-notes-unkept">
+          {yourDig}
         </div>
       )}
       {friendDigs.length > 0 && (
@@ -1326,15 +1384,13 @@ export default function PaperJacket({
           <h4 id="paper-friend-digs-title">Friends’ digs</h4>
           <ul className="friend-digs">
             {friendDigs.map((dig) => (
-              <li key={dig.uuid} className="friend-dig">
+              <li key={dig.uuid} id={`dig-${dig.uuid}`} className="friend-dig">
                 {/* The dig's own first line already says whose it is and when,
-                    so nothing stands over it but its place, and only when
-                    it is somewhere in the paper and not on the whole of it. */}
-                {dig.subject.kind === 'annotation' && (
-                  <p className="friend-dig-place">On {dig.subject.label.charAt(0).toLowerCase()}{dig.subject.label.slice(1)}</p>
-                )}
+                    so what stands over it is what it is about: the whole
+                    paper, or a place in it, which opens the paper there. */}
+                <FriendDigFocus dig={dig} paper={paper} />
                 <TalkCard
-                  inline single conversation tucked only projectUuid={null} dig={dig.uuid}
+                  inline single conversation tucked folded only projectUuid={null} dig={dig.uuid}
                   subject={`dig:${dig.uuid}`} label={paper.title} currentUser={currentUser}
                 />
               </li>

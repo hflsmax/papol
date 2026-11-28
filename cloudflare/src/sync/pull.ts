@@ -11,7 +11,8 @@ import { WRITE_ORDER } from "./registry";
 import { rowSnapshot } from "./rows";
 
 // The account's synchronized rows, complete, with the papers its copies
-// name, and the log cursor they are current to. This is the authoritative half of a pull: every reconciliation
+// and its annotations name (an annotation may stand on a paper its user
+// does not keep), and the log cursor they are current to. This is the authoritative half of a pull: every reconciliation
 // fetches it first, so a replica that missed a change learns the same
 // state here a moment later. Listed parents before children, which is
 // the order a replica can store them in.
@@ -28,7 +29,8 @@ export async function snapshot({ request, env }: RouteContext): Promise<Response
   const nookBoards = `SELECT uuid FROM boards WHERE user_uuid = ? AND uuid NOT IN (SELECT board_uuid FROM project_boards)`;
   const throughBoards = (table: string) => all(env.DB, `SELECT * FROM ${table} WHERE board_uuid IN (${nookBoards})`, user.uuid);
   const byTable: Record<string, Row[]> = {
-    papers: await all(env.DB, "SELECT p.* FROM papers p WHERE p.sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ?)", user.uuid),
+    papers: await all(env.DB, `SELECT p.* FROM papers p WHERE p.sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ?)
+      OR p.sha256 IN (SELECT paper_sha256 FROM annotations WHERE user_uuid = ?)`, user.uuid, user.uuid),
     shelves: await mine("shelves"),
     tags: await mine("tags"),
     boards: await all(env.DB, `SELECT * FROM boards WHERE uuid IN (${nookBoards})`, user.uuid),

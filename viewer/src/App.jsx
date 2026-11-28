@@ -1219,7 +1219,9 @@ export default function App() {
       })
       .catch((e) => {
         if (cancelled) return;
-        if (notKept(e)) setSource(source.leanFallback());
+        // 403 is the service knowing the reader and that the paper is not
+        // in their nook; 401 is not knowing them at all.
+        if (notKept(e)) setSource(source.leanFallback(e.status === 403));
         else setError(e.message);
       });
     if (loadedAnchors) {

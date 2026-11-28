@@ -269,7 +269,7 @@ async function newRecord(work: Working, env: Env, change: RowChange): Promise<En
       const paper = await visiblePaper(work, values.paper_sha256);
       const shelf = await ownedShelf(work, values.shelf_uuid);
       return work.create(table, { uuid, paper_sha256: paper.row.sha256, user_uuid: user, shelf_uuid: shelf?.row.uuid ?? null,
-        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0,
+        summary: null, thought: null, is_author: 0, rating_expertise: null, rating_reading: null, rating_liking: null, ...NEW_COPY_VISIBILITY, pinned: 0, kept: 1,
         ...bookkeeping });
     }
     case "copy_tags": {
@@ -529,8 +529,13 @@ export async function push({ request, env }: RouteContext): Promise<Response> {
       // removed revives that tombstone rather than inserting a second row.
       // Only a fresh addition may do this: a stale edit still loses to the
       // delete.
-      if (canonical?.row.deleted_at) {
+      // The same goes for a copy held only because they read the paper:
+      // adding it keeps that copy.
+      if (canonical && (canonical.row.deleted_at || !canonical.row.kept)) {
+        // Held until now, it joins the nook now: see joinsNook.
+        if (!canonical.row.deleted_at) canonical.row.created_at = now();
         canonical.row.deleted_at = null;
+        canonical.row.kept = 1;
         canonical.modified = true;
       }
     }

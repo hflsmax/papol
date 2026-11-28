@@ -34,7 +34,7 @@ interface Line {
   at: string;
   words?: string | null;
   ratings?: { expertise: number | null; reading: number | null; liking: number | null } | null;
-  dig?: { uuid: string; page: number | null; on: string | null; owner: unknown; post_count?: number };
+  dig?: { uuid: string; page: number | null; on: string | null; owner: unknown; post_count?: number; involved?: boolean };
 }
 
 const PUBLIC_SHELF = "JOIN shelves s ON s.uuid = c.shelf_uuid AND s.is_public = 1 AND s.deleted_at IS NULL";
@@ -80,7 +80,8 @@ export async function latest(env: Env, me: User, seen: string = me.room_seen_at 
        WHERE d.created_at > ? AND ${friendSees(mine)}`, since),
     // A post in a dig the reader can see, a friend's or their own.
     statement(env.DB,
-      `SELECT ${digOn}, dp.body, dp.created_at AS posted_at, ${PERSON}
+      `SELECT ${digOn}, dp.body, dp.created_at AS posted_at,
+              (d.user_uuid = ${mine} OR EXISTS (SELECT 1 FROM dig_posts x WHERE x.dig_uuid = d.uuid AND x.user_uuid = ${mine})) AS involved, ${PERSON}
        FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid LEFT JOIN annotations an ON an.uuid = d.annotation_uuid JOIN users u ON u.uuid = dp.user_uuid
        WHERE dp.created_at > ? AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND d.paper_sha256 IS NOT NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})
        ORDER BY dp.created_at`, since),
@@ -148,7 +149,7 @@ export async function latest(env: Env, me: User, seen: string = me.room_seen_at 
   for (const p of lastPost.values()) {
     say(p.paper_sha256, {
       user: who(p), did: "posted", at: p.posted_at as string, words: excerpt(String(p.body)),
-      dig: { uuid: String(p.dig_uuid), page: p.on_page as number | null, on: p.on_kind as string | null, owner: owners.get(String(p.owner_uuid)) ?? null },
+      dig: { uuid: String(p.dig_uuid), page: p.on_page as number | null, on: p.on_kind as string | null, owner: owners.get(String(p.owner_uuid)) ?? null, involved: Boolean(p.involved) },
     });
   }
 
@@ -156,7 +157,7 @@ export async function latest(env: Env, me: User, seen: string = me.room_seen_at 
   const marks = digests.map(() => "?").join(",");
   const [papers, kept] = digests.length ? (await env.DB.batch<Row>([
     statement(env.DB, `SELECT sha256, title, authors, journal, year FROM papers WHERE deleted_at IS NULL AND sha256 IN (${marks})`, ...digests),
-    statement(env.DB, `SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL AND paper_sha256 IN (${marks})`, me.uuid, ...digests),
+    statement(env.DB, `SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL AND kept AND paper_sha256 IN (${marks})`, me.uuid, ...digests),
   ])).map((r) => r.results) : [[], []];
   const paperOf = new Map(papers.map((p) => [p.sha256 as string, p]));
   const inNook = new Set(kept.map((k) => k.paper_sha256 as string));

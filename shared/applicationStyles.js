@@ -5832,6 +5832,9 @@ ${talkStyles}
 .desk-col-effort .effort-pop { left: auto; right: -4px; }
 .effort-pop:empty { visibility: hidden; }
 .desk-none { color: var(--ink-faint); font-size: var(--fs-sm); }
+.desk-mark { flex: none; width: 14px; height: 14px; margin: 0 -3px; fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
+.desk-marked .desk-col-date { width: 6rem; }
+.desk-marked-note { max-width: 46rem; margin: 0 0 var(--space-4); color: var(--ink-soft); font-size: var(--fs-sm); }
 /* Inside a project there is no rail: the project takes the width. */
 .nook-desk.is-project { grid-template-columns: minmax(0, 1fr); }
 .nook-desk.is-reviewing { grid-template-columns: minmax(0, 1fr); }
@@ -5853,8 +5856,7 @@ ${talkStyles}
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
-  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort { display: none; }
-  .desk-table, .desk-table tbody { display: block; table-layout: auto; }
+  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort, .desk-table   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
   .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--line); }
   .desk-table tbody tr:last-child { border-bottom: 0; }
   .desk-table td { display: block; height: auto; border: 0; }
@@ -6118,8 +6120,30 @@ ${talkStyles}
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
+/* The dig a link from the inbox named, for a moment. */
+:is(.friend-dig, #your-dig) { border-radius: var(--radius); transition: box-shadow var(--motion-fast) var(--ease-out); }
+:is(.friend-dig, #your-dig).is-pointed { box-shadow: 0 0 0 6px var(--card), 0 0 0 8px var(--accent); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-.friend-dig-place { margin: 0 0 var(--space-1); color: var(--ink-faint); font: 400 var(--fs-xs) var(--font-ui); }
+/* A dig on the jacket, mine or a friend's, top to bottom: what it is about, the dig itself tinted
+   and set in as my own is, then what was posted under it and the box that
+   posts, both stepped in so they read as under the dig. */
+.friend-dig-focus { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-1); font: var(--fs-sm)/1.4 var(--font-ui); }
+.friend-dig-focus-on { color: var(--ink); font-weight: 600; text-decoration: none; }
+a.friend-dig-focus-on { color: var(--accent); }
+a.friend-dig-focus-on:hover { text-decoration: underline; text-underline-offset: 2px; }
+.friend-dig-focus-what { color: var(--ink-faint); }
+.paper-dig .talk-card.is-conversation .talk-post { padding: 10px 14px 12px; }
+.paper-dig .talk-card.is-conversation .talk-post:first-child:hover { background: var(--accent-soft); }
+.paper-dig .talk-card.is-conversation .talk-post-body { font-size: var(--fs-md); }
+.paper-dig .talk-card.is-conversation .talk-post + .talk-post { margin: var(--space-3) 14px 0 36px; padding: 0; border-radius: 0; background: none; }
+.paper-dig .talk-card.is-conversation .talk-post-edit { gap: var(--space-2); margin-top: var(--space-1); }
+.paper-dig .talk-card.is-conversation .talk-post-edit :is(textarea, .md-field) { padding: 8px 10px; }
+.paper-dig .talk-card.is-conversation .talk-post + .talk-post .talk-post-body { font-size: var(--fs-sm); }
+.paper-dig .talk-card.is-conversation .talk-reply { margin: var(--space-2) 14px 0 36px; }
+.paper-dig .talk-reply button { min-height: 0; padding: 2px 0; border: 0; background: none; box-shadow: none; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); cursor: pointer; }
+.paper-dig .talk-reply button:hover { background: none; text-decoration: underline; text-underline-offset: 2px; }
+.paper-dig .talk-card.is-conversation .talk-compose { margin: var(--space-4) 14px var(--space-2) 36px; padding: 0; }
+.paper-dig .talk-card.is-conversation .talk-compose :is(textarea, .md-field) { background: var(--card); }
 @media (max-width: 640px) {
   .room { gap: var(--space-4); }
   .room-row-head { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }

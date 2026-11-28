@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "tables": {
     "boards": {
       "owner": "user_uuid",
@@ -118,7 +118,8 @@
       ],
       "server_owned": [
         "thought",
-        "is_author"
+        "is_author",
+        "kept"
       ]
     },
     "copy_tags": {

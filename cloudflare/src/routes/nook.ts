@@ -75,7 +75,7 @@ export function nookRoutes(router: Router) {
     // is the user and their project none.
     const reads = [
       own(`SELECT c.*, coalesce(s.is_public, 0) AS shelf_public FROM copies c LEFT JOIN shelves s ON s.uuid = c.shelf_uuid
-           WHERE c.user_uuid = ? AND c.deleted_at IS NULL ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY c.created_at DESC`),
+           WHERE c.user_uuid = ? AND c.deleted_at IS NULL AND c.kept ${hidePrivate ? "AND s.is_public = 1" : ""} ORDER BY c.created_at DESC`),
       own(`SELECT * FROM papers WHERE sha256 IN (SELECT paper_sha256 FROM copies WHERE user_uuid = ? AND deleted_at IS NULL)`),
       own(`SELECT b.*, (SELECT count(*) FROM board_items i WHERE i.board_uuid = b.uuid AND i.deleted_at IS NULL AND NOT i.staged) AS item_count
            FROM boards b LEFT JOIN shelves s ON s.uuid = b.shelf_uuid
@@ -90,10 +90,23 @@ export function nookRoutes(router: Router) {
         // The time spent on each paper is its user's alone: how long someone
         // spends on a paper says nothing a shelf was asked to show.
         own("SELECT subject, sum(seconds) AS seconds, max(ended_at) AS last_at FROM activity WHERE user_uuid = ? GROUP BY subject"),
+        // Passing: read but not kept. The user's copies that are not in
+        // their nook: one held because they read the paper or wrote on it
+        // (holdPaper), and one they took out. Adding a paper keeps its
+        // copy, which leaves this list, and taking it out puts it back.
+        // Theirs alone, as their reading is.
+        own(`SELECT p.sha256, p.title, p.authors, p.journal, p.year,
+               coalesce(c.deleted_at, c.created_at) AS since, t.seconds, t.last_read_at
+             FROM copies c JOIN papers p ON p.sha256 = c.paper_sha256 AND p.deleted_at IS NULL
+             LEFT JOIN (SELECT user_uuid, subject, sum(seconds) AS seconds, max(ended_at) AS last_read_at
+                        FROM activity WHERE seconds > 0 GROUP BY user_uuid, subject) t
+               ON t.user_uuid = c.user_uuid AND t.subject = c.paper_sha256
+             WHERE c.user_uuid = ? AND (c.deleted_at IS NOT NULL OR NOT c.kept)
+             ORDER BY coalesce(t.last_read_at, c.deleted_at, c.created_at) DESC, p.sha256`),
       ]),
     ];
     const [results, projects] = await Promise.all([env.DB.batch<Row>(reads), projectsOfUser(env, user.uuid, me)]);
-    const [copies, paperRows, boards, shelves, tags, effortRows] = results.map((r) => r.results);
+    const [copies, paperRows, boards, shelves, tags, effortRows, unkeptRows] = results.map((r) => r.results);
     const papers = new Map(paperRows.map((p) => [p.sha256, p]));
     const effort = effortRows && new Map(effortRows.map((r) => [r.subject as string, { seconds: r.seconds, last_at: r.last_at }]));
     const entries = await paperListEntries(env.DB, copies.map((c) => ({ paper: papers.get(c.paper_sha256)!, copy: { ...c, is_public: Boolean(c.shelf_public) } })), hidePrivate);
@@ -112,6 +125,11 @@ export function nookRoutes(router: Router) {
         displayed: copies.filter((c) => c.shelf_public).length,
       },
       tags: tags ?? [],
+      unkept: (unkeptRows ?? []).map((m) => ({
+        sha256: m.sha256, title: m.title, authors: m.authors, journal: m.journal, year: m.year,
+        since: m.since,
+        effort: m.seconds ? { seconds: m.seconds, last_at: m.last_read_at } : null,
+      })),
       projects,
       shelves: shelves.map((s) => ({
         uuid: s.uuid, name: s.name, color: s.color, is_public: Boolean(s.is_public),

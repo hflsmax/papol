@@ -142,6 +142,37 @@ describe("the email of the Lounge", () => {
     expect(to(grace)).toBeUndefined();
   });
 
+  it("leaves out a friend's dig and a reply the reader is emailed about on their own, unless they chose never", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    // Grace keeps the paper, so Ada's dig on it is her "friends' digs" email; Grace's post in it is Ada's "replies" email.
+    await paperWithCopy(grace, DIGEST, "Attention at depth", { shelfUuid: await defaultShelf(grace) });
+    await exec("UPDATE copies SET created_at = '2026-01-01T00:00:00.000Z' WHERE user_uuid = ?", grace.uuid);
+    const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${DIGEST}`, text: "The bound is loose" } });
+    await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: grace.headers, json: { body: "Tight for d = 2" } });
+    emailApi();
+    await day();
+    expect(sent()).toEqual([]);
+
+    // Chosen never for those, the Lounge email says it instead.
+    await exec("UPDATE users SET lounge_mailed_at = NULL");
+    await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_dig: "never" } } });
+    await ok("PUT", "/api/auth/profile", { headers: ada.headers, json: { emails: { dig_reply: "never" } } });
+    await exec("UPDATE jobs SET status = 'done' WHERE kind = 'lounge_news'");
+    emailApi();
+    await day();
+    expect(to(grace).text).toContain("Ada dug");
+    expect(to(ada).text).toContain("Grace posted in your dig");
+
+    // Chosen weekly, it is said here too: nobody waits a week for what the Lounge would say today.
+    await exec("UPDATE users SET lounge_mailed_at = NULL");
+    await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_dig: "weekly" } } });
+    await exec("UPDATE jobs SET status = 'done' WHERE kind = 'lounge_news'");
+    emailApi();
+    await day();
+    expect(to(grace).text).toContain("Ada dug");
+  });
+
   it("is sent as often as each user chose in Preferences", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace"), alan = await register("alan@example.test", "Alan");
     await befriend(ada, grace);

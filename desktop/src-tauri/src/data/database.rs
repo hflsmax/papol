@@ -855,7 +855,7 @@ impl LocalStore {
                    SELECT p.sha256 AS digest, 'paper' AS kind
                    FROM papers p
                    JOIN copies c ON c.paper_sha256=p.sha256
-                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND p.deleted_at IS NULL
+                   WHERE c.user_uuid=?1 AND c.deleted_at IS NULL AND c.kept=1 AND p.deleted_at IS NULL
                    UNION ALL
                    SELECT bi.sha256 AS digest, 'board_file' AS kind
                    FROM board_items bi
@@ -1297,7 +1297,7 @@ fn reject_duplicate_pdf_import(
         let existing: Option<i64> = connection
             .query_row(
                 "SELECT 1 FROM copies JOIN papers ON papers.sha256=copies.paper_sha256 \
-                 WHERE copies.user_uuid=?1 AND copies.deleted_at IS NULL \
+                 WHERE copies.user_uuid=?1 AND copies.deleted_at IS NULL AND copies.kept=1 \
                  AND papers.sha256=?2 LIMIT 1",
                 params![account_uuid, digest],
                 |row| row.get(0),
@@ -2369,7 +2369,19 @@ fn query_nook(connection: &Connection, account_uuid: &str) -> Result<Value, Stri
     Ok(json!({
         "shelves": query_owned_rows(connection, account_uuid, "shelves", "position,name,uuid")?,
         "tags": query_owned_rows(connection, account_uuid, "tags", "name,uuid")?,
-        "copies": query_owned_rows(connection, account_uuid, "copies", "updated_at DESC,uuid")?,
+        // The nook's copies are the kept ones. A copy held only because its
+        // user read the paper or wrote on it is not in the nook.
+        "copies": Value::Array(
+            query_owned_rows(connection, account_uuid, "copies", "updated_at DESC,uuid")?
+                .as_array()
+                .map(|rows| {
+                    rows.iter()
+                        .filter(|row| row["kept"].as_i64() != Some(0) && row["kept"].as_bool() != Some(false))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default(),
+        ),
         "copy_tags": query_owned_rows(connection, account_uuid, "copy_tags", "created_at,uuid")?,
     }))
 }
@@ -2381,7 +2393,7 @@ fn paper_view(
 ) -> Result<Value, String> {
     let copy_uuid: String = connection
         .query_row(
-            "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_sha256=?2 AND deleted_at IS NULL",
+            "SELECT uuid FROM copies WHERE user_uuid=?1 AND paper_sha256=?2 AND deleted_at IS NULL AND kept=1",
             params![account_uuid, paper_sha256],
             |row| row.get(0),
         )
@@ -2458,7 +2470,7 @@ fn copy_is_public(connection: &Connection, copy: &Map<String, Value>) -> Result<
 
 fn query_papers(connection: &Connection, account_uuid: &str) -> Result<Value, String> {
     let mut statement = connection.prepare(
-        "SELECT paper_sha256,created_at FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL ORDER BY created_at DESC,uuid"
+        "SELECT paper_sha256,created_at FROM copies WHERE user_uuid=?1 AND deleted_at IS NULL AND kept=1 ORDER BY created_at DESC,uuid"
     ).map_err(|error| error.to_string())?;
     let copies = statement
         .query_map([account_uuid], |row| {

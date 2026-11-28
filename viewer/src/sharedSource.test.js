@@ -325,6 +325,36 @@ test('a paper’s own address asks a signed-in user’s nook first, and falls ba
   }
 });
 
+test('a signed-in user who does not keep a paper still writes on it, with the nook on offer', async () => {
+  await signedInAs('a-session-token');
+  try {
+    await at(`http://127.0.0.1/viewer/?pdf=${HASH}`, async () => {
+      // The service knew the reader and said the paper is not in their nook.
+      const unkept = resolveSource().leanFallback(true);
+      assert.equal(unkept.readOnly, undefined);
+      assert.equal(unkept.annotationsRequireNook, undefined);
+      assert.equal(typeof unkept.annotations.create, 'function');
+      assert.equal(typeof unkept.loadPersonalDigs, 'function');
+      // Defined terms belong to a copy, and there is nothing further to fall back to.
+      assert.equal(unkept.terms, undefined);
+      assert.equal(unkept.leanFallback, undefined);
+      asked.length = 0;
+      const { doc } = await unkept.load();
+      assert.equal(doc.sha256, HASH);
+      assert.equal(doc.shared_kind, undefined);
+      assert.deepEqual(pathsAsked(), [`/api/viewer/${HASH}/lean`]);
+      // Its home is the paper's jacket, and the nook is still offered.
+      assert.equal(unkept.homeHref, `/paper/${HASH.slice(0, 32)}`);
+      assert.equal(await unkept.loadNookPaper(), null);
+      asked.length = 0;
+      await unkept.addToNook();
+      assert.deepEqual(pathsAsked(), [`/api/papers/${HASH.slice(0, 32)}/add-to-nook`]);
+    });
+  } finally {
+    await signedOut();
+  }
+});
+
 test('a project paper returns home to its focused brief in the project', async () => {
   await signedInAs('a-session-token');
   try {
