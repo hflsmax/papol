@@ -4979,8 +4979,11 @@ body.board-workspace-open .main-content { display: block; padding: 0; }
     flex-wrap: nowrap;
   }
 
+  /* The room above the word matches the room and rule under it, so the
+     word stands on the same centre line as Sign in's. */
   .topnav nav a {
     white-space: nowrap;
+    padding-top: 4px;
     font-family: var(--font-ui);
     font-size: var(--fs-sm);
   }
