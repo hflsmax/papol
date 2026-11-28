@@ -3783,6 +3783,9 @@ a.button:hover {
 .landing-button.primary:hover { background: var(--accent-strong); color: var(--ink-inverse); }
 
 .landing-place-section { scroll-margin-top: 16px; }
+/* The paper to try belongs to the line above it, so it sits closer to the
+   heading than the sections after it sit to each other. */
+.landing-hero + .landing-place-section { margin-top: -28px; }
 
 /* Something to try, until it has been: outlined in the accent, a ring that
    breathes, and a tag over it naming the gesture. */
@@ -4023,6 +4026,7 @@ a.button:hover {
 
 @media (max-width: 640px) {
   .landing { gap: 44px; }
+  .landing-hero + .landing-place-section { margin-top: -20px; }
   .specimen-page { margin: 10px; padding: 18px 16px 16px; }
   .specimen-columns { columns: 1; }
   .specimen-doc-title { visibility: hidden; }

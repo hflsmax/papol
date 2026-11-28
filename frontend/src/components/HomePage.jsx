@@ -31,10 +31,6 @@ export default function HomePage() {
       <header className="landing-hero">
         <h1 className="landing-title">Read more papers, more intelligently</h1>
         <p className="landing-fact">A paper reader for researchers, free and open source.</p>
-        <div className="landing-doors">
-          <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
-          <a className="landing-button" href="#viewer">Try it ↓</a>
-        </div>
       </header>
 
       <section id="viewer" className="landing-place-section" aria-label="Viewer">
