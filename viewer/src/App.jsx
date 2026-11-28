@@ -706,6 +706,9 @@ export default function App() {
   // Where a send goes: one of the reader's boards, by its uuid, or the
   // Lounge. Kept from the last send.
   const [sendTo, setSendTo] = useState('');
+  // The board the sheet was set to when it was turned to the Lounge, so
+  // that turning back to a board finds it again.
+  const [sendBoardKept, setSendBoardKept] = useState('');
   const [sendBusy, setSendBusy] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [sendComplete, setSendComplete] = useState(false);
@@ -5646,35 +5649,52 @@ export default function App() {
                       autoFocus
                     />
                   </label>}
-                  {/* Where it goes: the Lounge, for friends to reply to,
-                      on a button of its own, or one of the reader's own
-                      boards, in the list beside it. */}
+                  {/* Where it goes: one of the reader's own boards, or the
+                      Lounge, for friends to reply to. One or the other, so
+                      the two are the halves of one switch, and what belongs
+                      to a board sits under it: the list of boards. */}
                   {source?.threads ? (
-                    <div className="send-selection-field" role="group" aria-label="Send to">
-                      <span>Send to</span>
-                      <div className="send-to">
-                        <button
-                          type="button"
-                          className={`send-to-lounge${sendTo === LOUNGE ? ' is-on' : ''}`}
-                          aria-pressed={sendTo === LOUNGE}
-                          onClick={() => setSendTo(LOUNGE)}
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(0 -0.5)"><circle cx="9" cy="9" r="3" /><path d="M3.5 19c.4-3.2 2.6-5 5.5-5s5.1 1.8 5.5 5" /><circle cx="16.8" cy="8.2" r="2.4" /><path d="M16.6 13.2c2.2.2 3.7 1.7 4 4.3" /></g></svg>
-                          Lounge
-                        </button>
-                        <select
-                          aria-label="Board"
-                          className={sendTo === LOUNGE ? 'is-unpicked' : ''}
-                          value={sendTo === LOUNGE ? '' : sendTo}
-                          onChange={(event) => setSendTo(event.target.value)}
-                          disabled={!sendBoards.length}
-                        >
-                          {(sendTo === LOUNGE || !sendBoards.length) && <option value="" disabled>{sendBoards.length ? 'A board' : 'No boards yet'}</option>}
-                          {sendBoards.map((candidate) => (
-                            <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
-                          ))}
-                        </select>
+                    <div className="send-selection-field">
+                      <span id="send-to-label">Send to</span>
+                      <div className="send-to" role="radiogroup" aria-labelledby="send-to-label">
+                        <label className="send-to-choice">
+                          <input
+                            type="radio"
+                            name="send-to"
+                            className="send-to-board"
+                            checked={sendTo !== LOUNGE}
+                            onChange={() => setSendTo(sendBoards.some((board) => board.uuid === sendBoardKept) ? sendBoardKept : sendBoards[0]?.uuid || '')}
+                          />
+                          <span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><rect x="7" y="8" width="4.5" height="5" rx=".8" /><rect x="14" y="10.5" width="3.5" height="5.5" rx=".8" /></svg>
+                            A board
+                          </span>
+                        </label>
+                        <label className="send-to-choice is-lounge">
+                          <input
+                            type="radio"
+                            name="send-to"
+                            className="send-to-lounge"
+                            checked={sendTo === LOUNGE}
+                            onChange={() => { setSendBoardKept(sendTo); setSendTo(LOUNGE); }}
+                          />
+                          <span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(0 -0.5)"><circle cx="9" cy="9" r="3" /><path d="M3.5 19c.4-3.2 2.6-5 5.5-5s5.1 1.8 5.5 5" /><circle cx="16.8" cy="8.2" r="2.4" /><path d="M16.6 13.2c2.2.2 3.7 1.7 4 4.3" /></g></svg>
+                            The Lounge
+                          </span>
+                        </label>
                       </div>
+                      {sendTo !== LOUNGE && <select
+                        aria-label="Board"
+                        value={sendTo}
+                        onChange={(event) => setSendTo(event.target.value)}
+                        disabled={!sendBoards.length}
+                      >
+                        {!sendBoards.length && <option value="">No boards yet</option>}
+                        {sendBoards.map((candidate) => (
+                          <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
+                        ))}
+                      </select>}
                     </div>
                   ) : (
                     <label className="send-selection-field">
@@ -5698,7 +5718,6 @@ export default function App() {
                       maxLength={sendTo === LOUNGE ? appLimits.text.thread_words : appLimits.text.board_content}
                       value={sendSelection.comment}
                       onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
-                      placeholder={sendTo === LOUNGE ? 'What do you make of it?' : 'Why are you saving this?'}
                     />
                   </label>
                   {sendTo !== LOUNGE && <p className="send-selection-source">
