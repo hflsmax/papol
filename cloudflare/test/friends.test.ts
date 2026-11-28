@@ -203,10 +203,16 @@ describe("what a friend sees", () => {
     expect(await seen(ada)).toEqual([]);
     await ok("PUT", `/api/papers/${name("c")}`, { headers: grace.headers, json: { shelf_uuid: await defaultShelf(grace) } });
     expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
-    // Taking the paper out of her nook withdraws what she wrote on it.
+    // Taken out of her nook, the paper is under Passing and what she
+    // wrote on it is read as before she added it, even from a private shelf.
     await ok("DELETE", `/api/papers/${name("c")}`, { headers: grace.headers });
-    expect((await ok("GET", `/api/papers/${name("c")}`, { headers: grace.headers }))).toMatchObject({ copy_uuid: null, digs_shown: false });
+    expect((await ok("GET", `/api/papers/${name("c")}`, { headers: grace.headers }))).toMatchObject({ copy_uuid: null, digs_shown: true });
+    expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
+    await ok("POST", `/api/papers/${name("c")}/add-to-nook`, { headers: grace.headers, json: {} });
+    await ok("PUT", `/api/papers/${name("c")}`, { headers: grace.headers, json: { shelf_uuid: await privateShelf(grace) } });
     expect(await seen(ada)).toEqual([]);
+    await ok("DELETE", `/api/papers/${name("c")}`, { headers: grace.headers });
+    expect(await seen(ada)).toEqual([onPaper.uuid, onAnchor.uuid]);
     expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: grace.headers })).text).toBe("Does section 4 need the lemma?");
   });
 

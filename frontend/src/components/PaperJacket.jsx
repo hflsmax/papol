@@ -528,17 +528,15 @@ export default function PaperJacket({
     <section className="paper-dig" id="your-dig" aria-labelledby="paper-dig-title">
       <h4 id="paper-dig-title">
         Your dig
-        {/* A dig goes where its paper goes: on a public shelf, or on
-            no shelf of mine at all, my friends can read it and post
-            in it, and nobody else. A paper I took out of my nook is
-            withdrawn, and my dig on it with it. */}
+        {/* A dig goes where its paper goes: on a public shelf, or not
+            in my nook at all (never added, or taken out), my friends
+            can read it and post in it, and nobody else. Only a
+            private shelf keeps it to me. */}
         {(paper.digs_shown ?? paper.is_public)
           ? <span className="badge visibility-badge friends" title={hasEntry
             ? 'Your friends can read this dig and post in it while the paper is on a public shelf. Nobody else can.'
             : 'Your friends can read this dig and post in it. Nobody else can. To keep it to yourself, add the paper to your nook and move it to a private shelf.'}>friends</span>
-          : <span className="badge visibility-badge private" title={hasEntry
-            ? 'On a private shelf, a dig is yours alone.'
-            : 'You took this paper out of your nook, so your dig on it is yours alone. Add it back on a public shelf for your friends to read it.'}>private</span>}
+          : <span className="badge visibility-badge private" title="On a private shelf, a dig is yours alone.">private</span>}
       </h4>
       <TalkCard
         key={paper.sha256} inline single conversation tucked folded dig="mine" projectUuid={null}

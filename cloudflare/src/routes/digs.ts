@@ -15,7 +15,7 @@
 // A dig on a paper, or on a mark on one, is its writer's own, never a
 // project's: the people they share a project with see it there, and post
 // in it, while the writer's writing on the paper is shown (writingShown:
-// on a public shelf, or on no shelf of theirs at all) and the project
+// on a public shelf, or not in their nook at all) and the project
 // holds it (inProject). Otherwise it is theirs alone, with no posts and
 // no phase to move. Nobody needs a paper in their nook to dig it. A dig on a card belongs to its project.
 // What someone writes at a place on a page, or about a paper, is always a
@@ -27,7 +27,7 @@ import { all, batch, insert, newUuid, now, one, statement, update, type Row } fr
 import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
-import { copyOf, holdPaper, keepPaper, paperOr404, tookOut } from "../papers/detail";
+import { copyOf, holdPaper, paperOr404 } from "../papers/detail";
 import { queueEmail, siteUrl, type Queued } from "../jobs/notifications";
 import { wake } from "../jobs/queue";
 import { friendSees, notice, userLiteral } from "./friends";
@@ -331,14 +331,9 @@ export function digRoutes(router: Router) {
     const at = now();
     // A dig on a card is the project's. One on a paper or a mark is the
     // writer's own, which the project sees while their writing on the
-    // paper is shown. A paper they never kept is held for them, not kept,
-    // which shows it. One
-    // they took out of their nook is withdrawn, so it comes back first:
-    // what is written in a project is written to be read there.
-    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) {
-      if (await tookOut(env.DB, subject.paper_sha256, me)) await keepPaper(env.DB, me, subject.paper_sha256);
-      else await holdPaper(env.DB, me, subject.paper_sha256);
-    }
+    // paper is shown. A paper not in their nook is held for them, not
+    // kept, which shows it; one they took out stays out, and shows it too.
+    if (subject.paper_sha256 && !(await copyOf(env.DB, subject.paper_sha256, me))) await holdPaper(env.DB, me, subject.paper_sha256);
     const made: Dig = { uuid: newUuid(), user_uuid: me.uuid, project_uuid: subject.board_item_uuid ? project.uuid : null, ...subject, text, phase: "digging", edited_at: null, created_at: at, updated_at: at };
     await batch(env.DB, [insert(env.DB, "digs", made)]);
     return json(await digOut(env, made, project, me, member));

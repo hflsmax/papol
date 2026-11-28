@@ -48,7 +48,7 @@ export function friendsOf(user: string): string {
 
 // Whether a friend of its writer sees dig `d`: one on a paper, or on a
 // mark on it, while its writer's writing there is shown (writingShown:
-// the paper on a public shelf of theirs, or on none). `reader` is an SQL
+// the paper on a public shelf of theirs, or not in their nook). `reader` is an SQL
 // expression for the reader's uuid. The rule a project follows
 // (inProject), with friendship where the project stood.
 export function friendSees(reader: string): string {
