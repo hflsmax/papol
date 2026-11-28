@@ -3836,10 +3836,15 @@ a.button:hover {
   background: var(--card);
   box-shadow: var(--shadow-md);
 }
-.landing-nook-name { margin-bottom: 6px; color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
-.landing-nook li { cursor: pointer; }
+.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.landing-nook-name { color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
+.landing-nook-column { width: 4rem; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+/* No shelf bars here, so a row needs no lane for one. */
+.landing-nook .paper-list li { padding-left: 0; padding-right: 0; cursor: pointer; }
 .landing-nook li:hover .paper-title-link { color: var(--accent); }
 .landing-nook .paper-title-link.beckon { border-radius: 2px; }
+.landing-nook-effort { flex: none; justify-content: center; min-width: 4rem; cursor: inherit; }
+.landing-nook-effort:hover { box-shadow: none; }
 
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }
