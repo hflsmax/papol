@@ -11,7 +11,6 @@ export default function MacAppPanel() {
         <div className="local-setting-row preferences-row">
           <p className="preferences-mac-note">
             <strong>Papol as a Mac app. Your papers are available offline.</strong>
-            <span>For Macs with Apple silicon.</span>
           </p>
           <a className="button preferences-mac-download" href={MAC_DOWNLOAD_URL}>Download</a>
         </div>
