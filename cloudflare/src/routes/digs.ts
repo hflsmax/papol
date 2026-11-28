@@ -41,7 +41,7 @@ const DIGEST = /^[0-9a-f]{64}$/;
 export const PHASES = ["digging", "stashed", "gold"] as const;
 type Phase = typeof PHASES[number];
 
-interface Dig extends Row {
+export interface Dig extends Row {
   uuid: string;
   user_uuid: string;
   project_uuid: string | null;
@@ -137,7 +137,7 @@ const OWN: Member = { seen_at: "9999" } as Member;
 
 // Where a line about a dig leads: the paper's jacket, at that dig
 // (PaperJacket.jsx scrolls to it).
-const digLink = (dig: Dig) => `/paper/${String(dig.paper_sha256).slice(0, 32)}#dig-${dig.uuid}`;
+export const digLink = (dig: Dig) => `/paper/${String(dig.paper_sha256).slice(0, 32)}#dig-${dig.uuid}`;
 
 // A dig of one's own on a paper is news to the friends who keep that
 // paper on a shelf of their nook, while they can read it (friendSees):

@@ -1,5 +1,5 @@
 import emojis from '../config/reactions.json' with { type: 'json' };
 
-// The emoji Papol offers as reactions, in the order the picker shows
-// them: the same list the server accepts.
+// The common emoji the picker offers first, in the order it shows them.
+// Every other emoji is behind More (allEmojis.js); the server takes any.
 export default emojis;

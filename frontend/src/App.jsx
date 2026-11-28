@@ -1267,33 +1267,10 @@ export default function App({ startupUser = null, startupError = null }) {
         {!hasWay && <header className="topnav">
           <a className="brand" href={appPath('/')}>Papol</a>
           <nav>
-            <a href={appPath('/')} className={route.page === 'home' ? 'active' : ''}>
-              Home
-            </a>
-            <a href={appPath(ROOM_PATH)} className={route.page === 'room' ? 'active' : ''}>
-              {ROOM}
-            </a>
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
-            <a href={appPath('/learn')} className={route.page === 'learn' ? 'active' : ''}>
-              Learn
-            </a>
-            <a
-              className="macos-download-link"
-              href={MACOS_DOWNLOAD_URL}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Download Papol macOS"
-              title="Download Papol macOS"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M8 2.5v7m0 0 3-3m-3 3-3-3M3 11.5v2h10v-2" />
-              </svg>
-              Mac app
-            </a>
           </nav>
-          <span className="spacer" />
           {mode === 'guest' && (
             <button className="primary" onClick={() => navigate('/signin')}>
               Sign in

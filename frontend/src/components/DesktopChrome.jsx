@@ -75,7 +75,7 @@ function loungeNavigation({ route, lounge, friends = [], onPick }) {
 }
 
 // The sidebar's destinations, in groups. Items numbered with `shortcut`
-// are also reachable with ⌘3…⌘4; ⌘1 and ⌘2 are the modes.
+// are also reachable with ⌘3; ⌘1 and ⌘2 are the modes.
 export function desktopNavigation({
   user, route, unreadCount, projects = [], nook, listing,
   mode = 'nook', lounge = null, friends = [], onPickLounge = () => {},
@@ -89,19 +89,12 @@ export function desktopNavigation({
           { key: 'join', label: 'Create account', path: '/join', glyph: 'join', shortcut: '2', active: page === 'join' },
         ],
       },
-      {
-        label: 'Discover',
-        items: [
-          { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '3', active: page === 'learn' },
-        ],
-      },
     ];
   }
   const papol = {
     label: 'Papol',
     items: [
       { key: 'inbox', label: 'Inbox', path: '/inbox', glyph: 'inbox', shortcut: '3', active: page === 'inbox', count: unreadCount, unread: true },
-      { key: 'learn', label: 'Learn', path: '/learn', glyph: 'learn', shortcut: '4', active: page === 'learn' },
       ...(user.is_admin
         ? [{ key: 'admin', label: 'Admin', path: '/admin', glyph: 'admin', active: page === 'admin' }]
         : []),
@@ -181,7 +174,7 @@ const TITLES = {
   inbox: 'Inbox',
   admin: 'Admin',
   about: 'About Papol',
-  learn: 'Learn',
+  learn: 'Tutorials',
   join: 'Create account',
   signin: 'Sign in',
   profile: 'Settings',
@@ -466,7 +459,7 @@ export function DesktopSidebar({ groups, modes, user, profileActive, finding = f
   );
 }
 
-// ⌘1…⌘4 open the modes and the sidebar's numbered rows. Papol has no
+// ⌘1…⌘3 open the modes and the sidebar's numbered rows. Papol has no
 // in-app history to walk, so there is no Back or Forward: the sidebar is
 // how a user moves.
 export function useDesktopShortcuts({ groups, modes = [], onNavigate }) {

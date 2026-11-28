@@ -8,7 +8,7 @@ const pageName = (view) => (view.page ? `Page ${view.page}` : 'Previous place');
  * pages naming the page to go back to, like a user app's "Back to page 4".
  * It is the document's own history, kept apart from the bar's navigation,
  * and exists only while there is somewhere to return to. The user can hide
- * it for good; a Learn Papol card then says [ and ] still do its job.
+ * it for good; a tip card then says [ and ] still do its job.
  *
  * returnView / onwardView: the views Back and Forward lead to, or null.
  * notice: whether that card is up; onDismiss closes it, onUndo shows the pill again.
@@ -65,12 +65,12 @@ export default function ReturnPill({
           {children}
         </div>
       )}
-      {/* Hiding is explained the way the pill was introduced: a Learn Papol
+      {/* Hiding is explained the way the pill was introduced: a tip
           card where the pill stood, kept until the user has read it. */}
       {notice && (
         <div className="link-return-notice">
           <span ref={noticeRef} className="learn-papol" role="dialog" aria-labelledby="return-pill-hidden-title">
-            <span className="kicker">Learn Papol</span>
+            <span className="kicker">Tip</span>
             <strong id="return-pill-hidden-title">The return pill is hidden</strong>
             <span>
               You can still press <kbd>[</kbd> and <kbd>]</kbd> to jump back and forward after
