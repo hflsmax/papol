@@ -4,8 +4,9 @@ import { Browser } from '../../scripts/share-e2e/cdp.mjs';
 
 // Pictures of sending a selection to the Lounge from the viewer: the
 // selected-text bar, the send sheet as it opens (set to a board, the
-// Lounge's button beside the list), the sheet set to the Lounge with the
-// reader's words written, and what it says once sent.
+// list of boards under the switch between a board and the Lounge), the
+// sheet set to the Lounge with the reader's words written, and what it
+// says once sent.
 //
 //   node scripts/lounge-send-shots.mjs <out dir> [select | board | sheet | sent ...]
 //
