@@ -1816,6 +1816,23 @@ ${inDark([[
 .way-room-anchor { position: relative; display: inline-flex; }
 .learn-papol.lounge-tip { left: auto; right: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
 .learn-papol.lounge-tip::before { left: auto; right: 24px; }
+/* The card saying Papol's mark is the way back from a jacket, hung from
+   the mark at the bar's left end, its notch under the middle of the mark. */
+.way-bar { position: relative; }
+.learn-papol.way-tip { left: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
+.learn-papol.way-tip::before { left: calc(1.5rem - 6px); }
+@media (min-width: 761px) {
+  .app:has(.nook-desk:not(.is-project)) .learn-papol.way-tip::before { left: calc(1.5rem + var(--space-2) - 6px); }
+}
+/* Where the title takes a line of its own under the mark, the card still
+   hangs from the mark, over the title. */
+@media (max-width: 760px) {
+  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(3rem + 12px); }
+}
+@media (max-width: 640px) {
+  .learn-papol.way-tip::before { left: calc(1.25rem - 6px); }
+  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(2.5rem + 12px); }
+}
 
 /* Keeps its own colours on hover, where every other button turns blue:
    a public chip that went blue would be saying private. */
@@ -5855,8 +5872,23 @@ ${talkStyles}
   .room.has-jacket .desk-rail { display: none; }
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
-  .desk-search { flex: 1 1 100%; }
-  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort, .desk-table   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
+  /* The top of a phone: a project is one line, its faces at the right; the
+     filter and Add share a line; the tags are one line that scrolls
+     sideways, fading at its right edge where more may wait. The papers start as high as they can. */
+  .nook-desk { gap: var(--space-4); }
+  .desk-project { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; padding: 0 var(--space-2); box-sizing: border-box; }
+  .desk-project-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desk-project-foot { flex: none; flex-direction: row-reverse; gap: var(--space-2); }
+  .desk-filter { gap: var(--space-2); }
+  .desk-search { flex: 1 1 0; }
+  .desk-actions { order: 1; }
+  .desk-chips { order: 2; flex: 1 1 100%; }
+  .desk-chips:empty { display: none; }
+  .desk-tags { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; padding-right: var(--space-5); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--space-5)), transparent); mask-image: linear-gradient(to right, #000 calc(100% - var(--space-5)), transparent); }
+  .desk-tags::-webkit-scrollbar { display: none; }
+  .desk-tag { flex: none; white-space: nowrap; }
+  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort { display: none; }
+  .desk-table, .desk-table tbody { display: block; table-layout: auto; }
   .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--line); }
   .desk-table tbody tr:last-child { border-bottom: 0; }
   .desk-table td { display: block; height: auto; border: 0; }

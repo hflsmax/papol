@@ -1,10 +1,10 @@
 // The day's and the week's email: what users chose to be sent daily or
-// weekly, held, and sent by the daily cron.
+// weekly, held, and sent by the daily cron or the Sunday evening one.
 import { createExecutionContext, createScheduledController, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
-import { DAILY_CRON } from "../src/jobs/digests";
+import { DAILY_CRON, WEEKLY_CRON } from "../src/jobs/digests";
 import { claim, type Job } from "../src/jobs/queue";
 import { runOne } from "../src/jobs/run";
 import { count, exec, ok, register, row, rows, type Account } from "./helpers";
@@ -20,12 +20,12 @@ describe("email held for the day or the week", () => {
     });
   }
   const sent = () => calls.flatMap((c) => c.body);
-  const MONDAY = Date.UTC(2026, 10, 23, 14), TUESDAY = Date.UTC(2026, 10, 24, 14);
+  const SUNDAY = Date.UTC(2026, 10, 22, 23), TUESDAY = Date.UTC(2026, 10, 24, 14);
 
-  // A day's cron, then the digest job it queued run with mail configured.
+  // A day's cron (the week's, on Sunday evening), then the digest job it queued run with mail configured.
   async function day(scheduledTime: number, mailEnv: Env = { ...env, ...configured } as Env) {
     const ctx = createExecutionContext();
-    await worker.scheduled(createScheduledController({ cron: DAILY_CRON, scheduledTime }), env, ctx);
+    await worker.scheduled(createScheduledController({ cron: scheduledTime === SUNDAY ? WEEKLY_CRON : DAILY_CRON, scheduledTime }), env, ctx);
     await waitOnExecutionContext(ctx);
     const queued = await rows<{ uuid: string }>("SELECT uuid FROM jobs WHERE kind = 'send_digests' AND status = 'queued' ORDER BY created_at");
     expect(queued.length).toBe(1);
@@ -35,7 +35,7 @@ describe("email held for the day or the week", () => {
   const choose = (account: Account, emails: object) => ok("PUT", "/api/auth/profile", { headers: account.headers, json: { emails } });
   const ask = (asker: Account, asked: Account) => ok("POST", `/api/friends/${asked.uuid}`, { headers: asker.headers });
 
-  it("goes daily to whoever chose every day, and on Monday to whoever chose every week", async () => {
+  it("goes daily to whoever chose every day, and on Sunday evening to whoever chose every week", async () => {
     const daily = await register("daily@example.test", "Daily"), weekly = await register("weekly@example.test", "Weekly");
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await choose(daily, { friend_request: "daily" });
@@ -52,19 +52,25 @@ describe("email held for the day or the week", () => {
     expect(sent()[0].text).toContain("Ada asks to be friends on Papol.");
     expect(await rows("SELECT DISTINCT user_uuid FROM email_held")).toEqual([{ user_uuid: weekly.uuid }]);
 
-    // Monday: the week's, several of a kind as one email, signed once.
+    // Sunday evening: the week's, several of a kind as one email, signed
+    // once. What is sent daily waits for the day's.
+    await ask(grace, daily);
     emailApi();
-    await day(MONDAY);
+    await day(SUNDAY);
     expect(sent().map((m) => [m.to[0], m.subject])).toEqual([["weekly@example.test", "2 friend requests on Papol"]]);
     const text: string = sent()[0].text;
     expect(text).toContain("Ada asks to be friends on Papol\n\nAda asks to be friends on Papol.");
     expect(text).toContain("Grace asks to be friends on Papol");
     expect(text.match(/— Papol/g)).toHaveLength(1);
+    expect(await rows("SELECT DISTINCT user_uuid FROM email_held")).toEqual([{ user_uuid: daily.uuid }]);
+    emailApi();
+    await day(TUESDAY);
+    expect(sent().map((m) => [m.to[0], m.subject])).toEqual([["daily@example.test", "Grace asks to be friends on Papol"]]);
     expect(await count("email_held")).toBe(0);
 
     // Nothing held, nothing sent.
     emailApi();
-    expect(await day(MONDAY)).toMatchObject({ result: JSON.stringify({ sent: true, users: 0, emails: 0 }) });
+    expect(await day(SUNDAY)).toMatchObject({ result: JSON.stringify({ sent: true, users: 0, emails: 0 }) });
     expect(calls).toEqual([]);
   });
 

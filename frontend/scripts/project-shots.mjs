@@ -125,6 +125,13 @@ const SHOTS = {
   // A link in the app to such a path: the report, and the page stays put.
   'unknown-link': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const a = document.createElement('a'); a.href = '/nowhere'; document.querySelector('.desk-title').append(a); a.click(); return true;", settled: "document.querySelector('[role=dialog]') && location.pathname === '/' && document.querySelector('.nook .desk-title')", size: wide },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
+  // My nook on a phone: the page from its top, and the whole of it down to
+  // the shelves and boards under the papers.
+  'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
+  // A nook with more tags than a phone is wide: one line of them, the rest
+  // a swipe away.
+  'phone-nook-tags': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "const tags = document.querySelector('.desk-tags'); ['adaptive optics', 'to read', 'thesis', 'favourite', 'vibration', 'hardware', 'review'].forEach((name) => { const tag = tags.lastElementChild.cloneNode(true); tag.lastChild.textContent = name; tags.append(tag); }); return true;", size: phone },
+  'phone-nook-whole': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: { ...phone, height: 2400 } },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
   'phone-their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: phone },
@@ -157,6 +164,12 @@ const SHOTS = {
   // The card under My nook, in the Lounge, until the member has been told.
   'nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: wide },
   'phone-nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: phone },
+  // On a jacket, the card under Papol's mark saying it is the way back:
+  // to the nook for a paper opened there, to the Lounge for one opened there.
+  'jacket-tip': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web&tip=jacket', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2') && document.querySelector('#jacket-tip-title')", size: wide },
+  'room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: wide },
+  'phone-jacket-tip': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web&tip=jacket', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2') && document.querySelector('#jacket-tip-title')", size: phone },
+  'phone-room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: phone },
   'phone-lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: phone },
   // Two papers pinned: they lead the list, each with its pin; the pointer
   // rests on a paper that is not, whose pin shows while it does.

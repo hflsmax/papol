@@ -3,9 +3,10 @@
 //
 // queueEmail (notifications.ts) holds such an email as a row of
 // `email_held` where it would have queued a send. Once a day the cron
-// trigger queues this job; it sends each user what is held for them, a
-// kind to an email, and deletes the rows. What a user is sent weekly
-// waits for the Monday run. One held email goes as it was written;
+// trigger queues this job; it sends each user what is held for them to
+// be sent daily, a kind to an email, and deletes the rows. What a user
+// is sent weekly waits for the week's run, on Sunday evening, which
+// leaves the day's to the day's. One held email goes as it was written;
 // several of a kind go as one, each under its own subject.
 //
 // An email held with a line in the inbox is not sent once that line was
@@ -29,10 +30,11 @@ import { enqueue, wake } from "./queue";
 export const SEND_DIGESTS = "send_digests";
 
 // Every day at 14:00 UTC, as wrangler.toml declares it: morning in the
-// Americas, afternoon in Europe, the evening in Asia. Monday's is also
-// the week's.
+// Americas, afternoon in Europe, the evening in Asia.
 export const DAILY_CRON = "0 14 * * *";
-export const isWeekly = (at: number) => new Date(at).getUTCDay() === 1;
+// The week's, on Sunday at 23:00 UTC: Sunday evening in the Americas
+// (6 PM in New York, 7 PM in summer), before Monday begins in Europe.
+export const WEEKLY_CRON = "0 23 * * SUN";
 
 // Users to a job.
 const CHUNK = 20;
@@ -83,7 +85,8 @@ export async function sendDigestsJob(env: Env, payload: Row): Promise<Row> {
       const theirs = held.filter((mail) => mail.kind === kind);
       // A kind Papol no longer has, or one they no longer want, is let go.
       const often = isChosenKind(kind) ? frequencyOf(user, kind) : "never";
-      if (often === "weekly" && !weekly) continue;
+      // The day's run leaves the week's held, and the week's the day's.
+      if (often === (weekly ? "daily" : "weekly")) continue;
       if (often !== "never") mails.push(digestMail(user.email, kind as ChosenEmailKind, theirs));
       gone.push(...theirs.map((mail) => mail.uuid));
     }

@@ -5,8 +5,9 @@
 // new sends nothing, so nobody is written to about the same people
 // twice, and a user nobody can be suggested to never hears of it at all.
 //
-// The daily cron trigger queues one job, which on Monday writes to those
-// who chose every week as well; a job writes to a chunk of users, in
+// The daily cron trigger queues one job, which writes to those who chose
+// every day; the weekly one, on Sunday evening, queues one for those who
+// chose every week. A job writes to a chunk of users, in
 // uuid order, and queues the next chunk after itself, as the venues job
 // does (papers/venues.ts): a Worker invocation has only so many requests
 // out. Each email is its recipient's own, sent a batch to a chunk.
@@ -84,7 +85,7 @@ export function suggestionMail(to: { email: string; display_name: string }, sugg
 }
 
 // The cron trigger's part: one job, starting from the first user.
-// `weekly` on the day those who chose every week are written to.
+// `weekly` for the run that writes to those who chose every week.
 export async function queueSuggestions(env: Env, weekly: boolean): Promise<string> {
   const first = enqueue(env.DB, SUGGEST_FRIENDS, { weekly, after: "" });
   await first.statement.run();
@@ -99,7 +100,7 @@ export async function suggestFriendsJob(env: Env, payload: Row): Promise<Row> {
   const weekly = Boolean(payload.weekly);
   const users = await all<{ uuid: string; email: string; display_name: string; often: Frequency }>(env.DB,
     `SELECT uuid, email, display_name, ${frequencySql("friend_suggestions")} AS often FROM users
-     WHERE deleted_at IS NULL AND ${frequencySql("friend_suggestions")} IN ('daily'${weekly ? ", 'weekly'" : ""}) AND uuid > ? ORDER BY uuid LIMIT ?`, after, CHUNK);
+     WHERE deleted_at IS NULL AND ${frequencySql("friend_suggestions")} = ? AND uuid > ? ORDER BY uuid LIMIT ?`, weekly ? "weekly" : "daily", after, CHUNK);
   const site = (await siteUrl(env)).replace(/\/$/, "");
 
   const mails: Mail[] = [];
