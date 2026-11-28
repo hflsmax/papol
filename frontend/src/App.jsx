@@ -1276,9 +1276,6 @@ export default function App({ startupUser = null, startupError = null }) {
             <a href={appPath('/about')} className={route.page === 'about' ? 'active' : ''}>
               About
             </a>
-            <a href={appPath('/learn')} className={route.page === 'learn' ? 'active' : ''}>
-              Learn
-            </a>
             <a
               className="macos-download-link"
               href={MACOS_DOWNLOAD_URL}

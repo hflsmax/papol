@@ -14,7 +14,7 @@ export default function NookTip() {
   if (told) return null;
   return (
     <span className="learn-papol lounge-tip" role="dialog" aria-labelledby="nook-tip-title">
-      <span className="learn-papol-kicker">Learn Papol</span>
+      <span className="learn-papol-kicker">Tip</span>
       <strong id="nook-tip-title">Go back to your nook here</strong>
       <button type="button" className="learn-papol-close" onClick={() => { setFeatureState(NOOK_TIP, true); setTold(true); }} aria-label="Dismiss this tip">
         Got it

@@ -194,7 +194,7 @@ Section kickers ("Your ratings", "My thought", mini-titles) are
 - A paper's jacket at 560px is one column of full-width rows: the shelf
   fills its row with the pin and the bin at its end, the actions are two
   equal columns (the first of an odd number takes a row to itself), and a
-  menu opens under the whole block, as wide as it. A Learn Papol card under
+  menu opens under the whole block, as wide as it. A tip card under
   the bar's mark takes a line of its own above the title instead of lying
   over it.
 - At 640px the floating Feedback button becomes the last word of the page's
@@ -309,7 +309,8 @@ is a dig: one person's writing about one thing, under the one spade pin.
   Every block and day says its content in words to hover, focus and a
   screen reader; colour is never the only channel. `ActivityPanel.jsx`.
 
-- **Learn lesson** — tutorial videos live on the public Learn page in a
+- **Tutorial lesson** — tutorial videos live on the public `/learn` page (no
+  link in the app leads to it) in a
   two-column grid of bordered white cards. Each card contains only a 16:9
   video and one serif title. The grid collapses to one column on narrow
   screens; new lessons are added as catalog entries.
@@ -619,12 +620,12 @@ is a dig: one person's writing about one thing, under the one spade pin.
   way to a native reference-manager layout. A 220px `--chrome` source-list
   sidebar (`components/DesktopChrome.jsx`) lists the user's sources — All
   papers, each shelf (by its swatch, once there are two), Boards, their tags —
-  then Projects, and Inbox, Learn, with Manage nook as the icon
+  then Projects, and Inbox, with Manage nook as the icon
   beside "My nook". Above them a segmented switch, **My nook | Lounge**
   (⌘1, ⌘2), puts the whole window in one of two modes. In Lounge mode the
   sidebar takes a green tint (`--chrome-lounge`) and lists the Lounge's
   own rail instead: Friends (with Find as the icon beside it), then Show,
-  then Inbox and Learn; the Lounge page is its card alone. Pages opened in
+  then Inbox; the Lounge page is its card alone. Pages opened in
   either mode (a paper, a friend's nook, the Inbox) keep it: in Lounge
   mode a paper opens on its own page, not beside the nook's list. Only the
   switch, the Lounge itself, or the nook's own lists change the mode. There is no Library: other people's papers reach the
@@ -641,10 +642,10 @@ is a dig: one person's writing about one thing, under the one spade pin.
   becomes the selected board in the Desk and shows its jacket; creation
   never opens the document window on the user's behalf.
   Adding a paper or a board also happens in the detail pane. Every
-  other page (Inbox, Profile, Learn, someone else's nook) fills the
+  other page (Inbox, Profile, someone else's nook) fills the
   space beside the sidebar under a toolbar holding just its title.
   Papol is small enough that the sidebar is all the navigation the app needs:
-  its window has no Back or Forward and no history to walk (⌘1…⌘4 open the
+  its window has no Back or Forward and no history to walk (⌘1…⌘3 open the
   sidebar's numbered rows). The viewer and a board are the exception, because
   they replace the sidebar: their bars lead with `shared/ui/DesktopNav.jsx`,
   a single borderless Back chevron at the leading edge, as in the App Store
@@ -655,7 +656,7 @@ is a dig: one person's writing about one thing, under the one spade pin.
   alike as a return pill centred over the pages: it names the page to go back
   to ("Back to page 4", or "‹ Page 4 │ Page 12 ›" once there is a way forward
   too), answers to [ and ], and exists only while there is somewhere to return
-  to. Its × hides it for good in that browser: a Learn Papol card takes its
+  to. Its × hides it for good in that browser: a tip card takes its
   place, says [ and ] still work, offers Undo, and stays until dismissed.
   What a browser remembers having shown or been told — the tip, the hidden
   pill — is listed in `shared/featureStates.js`, and Admin's Feature
