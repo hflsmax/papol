@@ -270,8 +270,8 @@ try {
   await clickSelector('.paper-clip.selected .clip-send', 1.15);
   await page.waitForSelector('.send-selection-sheet', { timeout: 5000 });
   await chooseBoard();
-  await clickSelector('.send-selection-sheet textarea[placeholder="Why are you saving this?"]', 1.15);
-  await page.type('.send-selection-sheet textarea[placeholder="Why are you saving this?"]', 'Compare this mechanism across papers.', { delay: 30 });
+  await clickSelector('.send-selection-sheet textarea[rows="3"]', 1.15);
+  await page.type('.send-selection-sheet textarea[rows="3"]', 'Compare this mechanism across papers.', { delay: 30 });
   await hold(0.2);
   await clickSelector('.send-selection-sheet button.primary', 1.25);
   await page.waitForFunction(() => document.querySelector('.send-selection-sheet h3')?.textContent.includes('Sent to staging'));

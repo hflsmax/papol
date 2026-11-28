@@ -221,8 +221,8 @@ try {
     throw new Error(`The selected excerpt is not one complete sentence: ${excerpt}`);
   }
   await chooseBoard();
-  await clickSelector('.send-selection-sheet textarea[placeholder="Why are you saving this?"]', 0.55);
-  await page.type('.send-selection-sheet textarea[placeholder="Why are you saving this?"]', 'Worth discussing together.', { delay: 35 });
+  await clickSelector('.send-selection-sheet textarea[rows="3"]', 0.55);
+  await page.type('.send-selection-sheet textarea[rows="3"]', 'Worth discussing together.', { delay: 35 });
   await hold(0.2);
   await clickSelector('.send-selection-sheet button.primary', 0.8);
   await page.waitForFunction(() => document.querySelector('.send-selection-sheet h3')?.textContent.includes('Sent to staging'));

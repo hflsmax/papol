@@ -5652,8 +5652,7 @@ export default function App() {
                   {/* Where it goes: one of the reader's own boards, or the
                       Lounge, for friends to reply to. One or the other, so
                       the two are the halves of one switch, and what belongs
-                      to the chosen half sits under it: the list of boards,
-                      or who will see it. */}
+                      to a board sits under it: the list of boards. */}
                   {source?.threads ? (
                     <div className="send-selection-field">
                       <span id="send-to-label">Send to</span>
@@ -5685,21 +5684,17 @@ export default function App() {
                           </span>
                         </label>
                       </div>
-                      {sendTo === LOUNGE ? (
-                        <p className="send-to-note">Your friends see it in the Lounge and can reply. It is not kept on a board.</p>
-                      ) : (
-                        <select
-                          aria-label="Board"
-                          value={sendTo}
-                          onChange={(event) => setSendTo(event.target.value)}
-                          disabled={!sendBoards.length}
-                        >
-                          {!sendBoards.length && <option value="">No boards yet</option>}
-                          {sendBoards.map((candidate) => (
-                            <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
-                          ))}
-                        </select>
-                      )}
+                      {sendTo !== LOUNGE && <select
+                        aria-label="Board"
+                        value={sendTo}
+                        onChange={(event) => setSendTo(event.target.value)}
+                        disabled={!sendBoards.length}
+                      >
+                        {!sendBoards.length && <option value="">No boards yet</option>}
+                        {sendBoards.map((candidate) => (
+                          <option key={candidate.uuid} value={candidate.uuid}>{candidate.name}</option>
+                        ))}
+                      </select>}
                     </div>
                   ) : (
                     <label className="send-selection-field">
@@ -5723,7 +5718,6 @@ export default function App() {
                       maxLength={sendTo === LOUNGE ? appLimits.text.thread_words : appLimits.text.board_content}
                       value={sendSelection.comment}
                       onChange={(event) => setSendSelection({ ...sendSelection, comment: event.target.value })}
-                      placeholder={sendTo === LOUNGE ? 'What do you make of it?' : 'Why are you saving this?'}
                     />
                   </label>
                   {sendTo !== LOUNGE && <p className="send-selection-source">

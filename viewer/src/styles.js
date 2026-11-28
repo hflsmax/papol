@@ -1913,9 +1913,8 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 }
 /* Where a send goes: a board or the Lounge, never both, so the two are
    the halves of one switch (a pair of radio buttons under the paint). The
-   chosen half is the raised one, the Lounge's in the Lounge's gold. What
-   belongs to the choice sits under it: the list of boards, or a line on
-   who sees it. */
+   chosen half is the raised one, the Lounge's in the Lounge's gold. The
+   list of boards sits under it while it is set to a board. */
 .send-to {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1942,7 +1941,6 @@ body:has(.pages.with-margin) .feedback-button { right: auto; left: 20px; }
 .send-to-choice.is-lounge input:checked + span { background: var(--gold-soft); color: var(--gold-ink); box-shadow: 0 1px 2px rgba(var(--shade-rgb), .16), 0 0 0 1px var(--gold-line); }
 .send-to-choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .send-selection-field .send-to + select { margin-top: 3px; }
-.send-to-note { margin: 3px 0 0; color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }
 @media (hover: none) { .send-to-choice span { height: 40px; } }
 /* After a send to the Lounge: the way there, beside Done. */
 .send-selection-lounge { align-self: center; margin-right: auto; color: var(--accent); font: 500 var(--fs-sm) var(--font-ui); text-decoration: none; }
