@@ -10,8 +10,7 @@ export default function MacAppPanel() {
         <h2 className="panel-title" id="mac-app-title">Papol for Mac</h2>
         <div className="local-setting-row preferences-row">
           <p className="preferences-mac-note">
-            <strong>The same Papol, with your papers there when the Wi-Fi is not.</strong>
-            <span>For Macs with Apple silicon.</span>
+            <strong>Papol as a Mac app. Your papers are available offline.</strong>
           </p>
           <a className="button preferences-mac-download" href={MAC_DOWNLOAD_URL}>Download</a>
         </div>

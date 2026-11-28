@@ -45,9 +45,6 @@ export default function AuthPage({ onAuth, initialMode = 'login', resetToken = '
     <div className="auth-page">
       <div className="auth-card">
         <h2>{mode === 'login' ? 'Sign in' : mode === 'register' ? 'Join Papol' : mode === 'forgot' ? 'Reset password' : mode === 'complete' ? 'Password reset' : 'Choose a new password'}</h2>
-        <p className="auth-subtitle">
-          Papol is your paper-reading companion.
-        </p>
 
         {error && <div className="error" role="alert">{error}</div>}
         {message && <div className="notice" role="status">{message}</div>}
