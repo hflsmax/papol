@@ -150,6 +150,7 @@ const LET_GO_AFTER_MS = 200;
 const linkTitle = (link) => {
   if (link.href) return link.href;
   if (link.kind === 'term') return `Go to ${link.defined}, where you defined “${link.label}”`;
+  if (link.name) return `Go to ${link.name}`;
   if (link.kind) return `Go to ${link.kind[0].toUpperCase()}${link.kind.slice(1)} ${link.label}`;
   return `Go to page ${link.spot.page}`;
 };

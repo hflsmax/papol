@@ -27,6 +27,9 @@ import { findTerms, termSpot } from './definedTerms.js';
  * pdf.js viewer finds it.
  */
 
+// What a paper states and numbers: "Def. 3.1" in the text is a link to one.
+const STATEMENTS = new Set(['definition', 'theorem', 'lemma']);
+
 // How near a link's destination has to land to a reference's first line to
 // be that reference, as a fraction of page height. A destination is
 // usually set a little above the line it points at, so this is generous
@@ -113,7 +116,9 @@ export async function pageOverlays(doc, pageNumber, analysis, terms = []) {
   // (floatView.js, sectionView).
   const floats = new Map((analysis?.floats || []).map((float) => [float.uuid, float]));
   // A section's box is its heading across the column it begins in.
-  const spotOf = (float) => ({ page: float.page, y: float.y, kind: float.kind, box: { x: float.x, y: float.y, w: float.w, h: float.h } });
+  // A statement's is the line it opens on, or the whole of it where the
+  // analyzer read a definition whole.
+  const spotOf = (float) => ({ page: float.page, y: float.y, kind: float.kind, box: (STATEMENTS.has(float.kind) && float.whole) || { x: float.x, y: float.y, w: float.w, h: float.h } });
   // A name more than one rule goes by shows each of them (sameNamedRules.js).
   const shared = sharedNames(analysis?.floats || []);
   const analyzedLinks = (analysis?.links || [])
@@ -125,6 +130,9 @@ export async function pageOverlays(doc, pageNumber, analysis, terms = []) {
       return {
         kind: float.kind,
         label: link.label,
+        // A statement is named by its head ("Proposition 3.2"), which a
+        // mention may shorten ("Prop. 3.2") and its kind does not say.
+        ...(STATEMENTS.has(float.kind) ? { name: float.label } : {}),
         x: link.x,
         y: link.y,
         w: link.w,

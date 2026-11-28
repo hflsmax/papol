@@ -5,9 +5,11 @@
 // Propositions and corollaries are theorems: they are the same kind of
 // claim, and a reader looking for what a paper proves wants all three.
 
+import type { DocumentLink } from "../../../cloudflare/src/papers/reading";
+import { citedAway } from "./cited";
 import type { Found } from "./floats";
-import type { Layout, Line } from "./layout";
-import { STATEMENT_LEAD, STATEMENT_WHOLE } from "./registry";
+import { boxesOf, type Flow, type Layout, type Line } from "./layout";
+import { MENTION_CITED, MENTION_STATEMENT, STATEMENT_LEAD, STATEMENT_WHOLE } from "./registry";
 import { briefly, joined } from "./title";
 import type { Trace } from "./trace";
 
@@ -232,4 +234,79 @@ export function wholeOf(lead: Line, lines: Line[], stops: (line: Line) => boolea
     take(false);
   }
   return whole;
+}
+
+// The word a mention means, whole: "Def." and "Defn." are Definition,
+// "Thm." Theorem, "Lemmata" Lemma. A statement is labelled by the same
+// word and its number ("Definition 3.1").
+const MEANT: [RegExp, string][] = [
+  [/^def/i, "Definition"], [/^th/i, "Theorem"], [/^lem/i, "Lemma"], [/^prop/i, "Proposition"], [/^cor/i, "Corollary"],
+];
+
+// The numbers a mention lists, with where each sits: "Lemmas 2 and 3" is
+// two, "Theorems 4.1–4.3" three (the middle one has no print of its own
+// and points at the whole range).
+function numbersIn(list: string): { number: string; start: number; end: number }[] {
+  const out: { number: string; start: number; end: number }[] = [];
+  const re = /(?:[A-Z]\.)?\d{1,3}(?:\.\d{1,3}){0,2}/g;
+  let previous: { number: string; start: number; end: number } | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(list))) {
+    const number = match[0];
+    const start = match.index, end = start + number.length;
+    if (previous && /^\s*(?:[-–—]|to)\s*$/.test(list.slice(previous.end, start))) {
+      // A range counts in its last part, the parts before it the same.
+      const [, stem, from] = /^(.*?)(\d+)$/.exec(previous.number)!;
+      const [, toStem, to] = /^(.*?)(\d+)$/.exec(number)!;
+      if (stem === toStem) for (let n = Number(from) + 1; n < Number(to) && n - Number(from) <= 20; n += 1) out.push({ number: `${stem}${n}`, start: previous.start, end });
+    }
+    out.push({ number, start, end });
+    previous = { number, start, end };
+  }
+  return out;
+}
+
+// Mentions of statements (mention.statement), as links to where each opens.
+export function findStatementMentions(flow: Flow, statements: Map<string, Found>, layout: Layout, trace: Trace): DocumentLink[] {
+  const links: DocumentLink[] = [];
+  // By the word and number it is headed with; where a paper states one
+  // twice (in the text, and again in an appendix), the first.
+  const headed = new Map<string, Found>();
+  for (const statement of statements.values()) {
+    const key = statement.label.toLowerCase();
+    if (statement.kind !== "proof" && !headed.has(key)) headed.set(key, statement);
+  }
+  if (!headed.size) return links;
+  const size = (page: number): [number, number] => [layout.pages[page - 1].width, layout.pages[page - 1].height];
+  const re = new RegExp(MENTION_STATEMENT.pattern!.source, "gu");
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(flow.text))) {
+    const groups = match.groups!;
+    const word = MEANT.find(([abbreviated]) => abbreviated.test(groups.kind))![1];
+    const of = (number: string) => headed.get(`${word} ${number}`.toLowerCase());
+    // A mention inside a citation, or of a cited work's part, is the cited
+    // paper's, not this one's (mention.cited-locator, mention.cited-of).
+    if (citedAway(flow.text, match.index, match.index + match[0].length)) {
+      trace.add(MENTION_CITED.id, 0, match[0], []);
+      continue;
+    }
+    const listStart = match.index + match[0].length - groups.list.length;
+    const items = numbersIn(groups.list);
+    // The head of a statement is not a pointer to itself: its word is the
+    // first on the line it opens on.
+    const first = flow.at[match.index];
+    const own = items[0] && of(items[0].number);
+    if (first && own && own.caption === first.line && !/\p{L}/u.test(first.line.text.slice(0, Math.max(0, first.char)))) continue;
+    items.forEach((item, index) => {
+      const statement = of(item.number);
+      if (!statement) return;
+      // The first number takes the word before it: "Def. 3.1" is one
+      // thing to press.
+      const from = index === 0 ? match!.index : listStart + item.start;
+      const boxes = boxesOf(flow, from, listStart + item.end, size);
+      for (const box of boxes) links.push({ float: statement.key, label: groups.list.slice(item.start, item.end).trim(), ...box });
+      trace.add(MENTION_STATEMENT.id, boxes[0]?.page ?? 0, `${groups.kind} ${item.number}`, boxes);
+    });
+  }
+  return links;
 }

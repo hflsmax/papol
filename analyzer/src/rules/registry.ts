@@ -551,6 +551,15 @@ export const MENTION_SECTION = rule({
   rejects: ["this section", "Section", "the sections below", "Section In", "the appendix"],
 });
 
+export const MENTION_STATEMENT = rule({
+  id: "mention.statement", stage: "mention",
+  summary: "\"Definition\", \"Theorem\", \"Lemma\", \"Proposition\" or \"Corollary\", whole or shortened (\"Def.\", \"Defn.\", \"Thm.\", \"Lem.\", \"Prop.\", \"Cor.\"), capitalised or in capitals, followed by one or more of their numbers (\"Def. 3.1\", \"Lemmas 2 and 3\", \"Theorems 4.1–4.3\", \"Proposition A.2\") mentions each statement the paper heads with that word and number. The line a statement opens on does not mention itself, and a statement of a cited work (\"Theorem 3 of [12]\", \"[5, Lemma 2]\") is not this paper's.",
+  why: "\"We extend Def. 3.1 as follows\" sends the reader to Definition 3.1 as \"Sec. 7\" sends them to a section; papers shorten the word in the text and never in the head, so the mention is matched to the head by the word it stands for and the number.",
+  pattern: /\b(?<kind>Definitions?|DEFINITIONS?|Defs?\.|Defns?\.|Theorems?|THEOREMS?|Thms?\.|Lemmas?|LEMMAS?|Lemmata|Lems?\.|Propositions?|PROPOSITIONS?|Props?\.|Corollar(?:y|ies)|COROLLAR(?:Y|IES)|Cors?\.)\s*(?<list>(?:[A-Z]\.)?\d{1,3}(?:\.\d{1,3}){0,2}(?![\d\p{L}])(?:\s*(?:,|,?\s*and|,?\s*&|[-–—]|to)\s*(?:[A-Z]\.)?\d{1,3}(?:\.\d{1,3}){0,2}(?![\d\p{L}]))*)/u,
+  matches: ["extend Def. 3.1 as follows", "(see Definition 4)", "by Lemma 7.2.", "Lemmas 2 and 3", "Theorems 4.1–4.3", "Thm. 2", "Prop. 3.2", "Cor. 5", "Proposition A.2", "Defn. 2.4", "THEOREM 3.1"],
+  rejects: ["the definition", "Definition", "this lemma", "Theorem of Pythagoras", "Def. of entropy", "predefined 3", "Lemma 2nd"],
+});
+
 // --------------------------------------------------------------- footnotes
 
 export const FOOTNOTE_NOTE = rule({
