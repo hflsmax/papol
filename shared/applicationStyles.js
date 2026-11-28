@@ -3838,12 +3838,14 @@ a.button:hover {
 }
 .landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .landing-nook-name { color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
-.landing-nook-column { width: 4rem; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.landing-nook-column { width: 4.75rem; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: center; text-transform: uppercase; }
 /* No shelf bars here, so a row needs no lane for one. */
 .landing-nook .paper-list li { padding-left: 0; padding-right: 0; cursor: pointer; }
 .landing-nook li:hover .paper-title-link { color: var(--accent); }
 .landing-nook .paper-title-link.beckon { border-radius: 2px; }
-.landing-nook-effort { flex: none; justify-content: center; min-width: 4rem; cursor: inherit; }
+/* The chip is the column here, so it is larger than on a nook's line, with
+   its time in the middle of it. */
+.landing-nook-effort.nook-effort { flex: none; justify-content: center; min-width: 4.75rem; padding: 7px 12px; font-size: var(--fs-sm); line-height: 1; text-align: center; cursor: inherit; }
 .landing-nook-effort:hover { box-shadow: none; }
 
 /* The specimen: a viewer window around one page of the paper. */
