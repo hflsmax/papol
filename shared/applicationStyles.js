@@ -3813,7 +3813,7 @@ a.button:hover {
 .specimen-tool.beckon[data-hint]::before { top: calc(100% + 8px); bottom: auto; }
 
 /* The nook: a few papers, listed as a nook lists them, in the same window
-   the viewer then opens in. A row is one thing to click, all of it. */
+   the viewer then opens in. */
 .landing-nook {
   padding: 18px 22px 0;
   border: 1px solid var(--line-strong);
@@ -3821,7 +3821,7 @@ a.button:hover {
   background: var(--card);
   box-shadow: var(--shadow-md);
 }
-.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 /* The list scrolls in the window, which opens tall enough for three papers
    and half of the fourth. Its padding keeps the first title's ring and the
    tag over it inside what it clips. */
@@ -3829,9 +3829,10 @@ a.button:hover {
 .landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .landing-nook-column { color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .landing-nook-column.is-effort { width: 4.75rem; text-align: center; }
+/* A tag as a nook's line writes one: the name after a #, quietly. */
+.landing-nook-tag { margin-top: 3px; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
 /* No shelf bars here, so a row needs no lane for one. */
-.landing-nook .paper-list li { padding-left: 0; padding-right: 0; cursor: pointer; }
-.landing-nook li:hover .paper-title-link { color: var(--accent); }
+.landing-nook .paper-list li { padding-left: 0; padding-right: 0; }
 .landing-nook .paper-title-link.beckon { border-radius: 2px; }
 /* The chip is the column here, so it is larger than on a nook's line, with
    its time in the middle of it. */
