@@ -18,7 +18,6 @@
 // It is told one way only: a line in the inbox of whoever wrote the thing
 // (told, below), there while the emoji stands unread.
 
-import emojis from "../../../config/reactions.json";
 import { currentUser, type User } from "../auth";
 import { all, batch, newUuid, now, one, statement, type Row } from "../db";
 import { json, readJson, refuse, type Router } from "../http";
@@ -26,7 +25,11 @@ import { digLink, openDig } from "./digs";
 import { friendSees, notice, userLiteral } from "./friends";
 import { seesThread } from "./threads";
 
-const EMOJIS: string[] = emojis;
+// Any one emoji is a reaction: one the Unicode standard recommends, alone
+// (a flag, a family and a face with a skin tone are each one). The pages
+// offer a common few first and the rest behind More (config/reactions.json,
+// config/emoji.json); the server holds neither list.
+const EMOJI = new RegExp("^\\p{RGI_Emoji}$", "v");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface Reaction { emoji: string; count: number; mine: boolean; who: string[] }
@@ -136,7 +139,7 @@ function told(env: Env, subject: Subject, me: User, emoji: string) {
 }
 
 function emojiOf(value: unknown): string {
-  return typeof value === "string" && EMOJIS.includes(value) ? value : refuse(422, "That is not a reaction Papol offers");
+  return typeof value === "string" && value.length <= 32 && EMOJI.test(value) ? value : refuse(422, "A reaction is one emoji");
 }
 
 export function reactionRoutes(router: Router) {

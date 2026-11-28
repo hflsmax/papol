@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { setReaction, takeBackReaction } from '../api/reactions.js';
+import { allEmojis } from '../allEmojis.js';
 import EMOJIS from '../reactionEmojis.js';
 import { useDismiss } from '../useDismiss.js';
 
@@ -58,22 +59,76 @@ function ReactGlyph() {
   );
 }
 
-// The button that offers the emoji. Pressed, they open in rows under it;
-// one picked is set (or, if the reader had set it, taken back).
+// Every emoji, behind More: a field that narrows them by name, then the
+// groups one under another in a panel that scrolls.
+function EveryEmoji({ reactions, pick }) {
+  const [groups, setGroups] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [wanted, setWanted] = useState('');
+  useEffect(() => {
+    let live = true;
+    allEmojis().then((found) => live && setGroups(found), () => live && setFailed(true));
+    return () => { live = false; };
+  }, []);
+  const words = wanted.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // The common ones stay on top, as a group of their own, until a name is asked for.
+  const named = new Map((groups ?? []).flatMap((group) => group.emojis));
+  const common = { name: 'Common', emojis: EMOJIS.map((emoji) => [emoji, named.get(emoji) ?? emoji]) };
+  const shown = (groups ? (words.length ? groups : [common, ...groups]) : [])
+    .map((group) => ({ ...group, emojis: words.length ? group.emojis.filter(([, name]) => words.every((word) => name.includes(word))) : group.emojis }))
+    .filter((group) => group.emojis.length);
+  return (
+    <>
+      <input
+        type="search" className="reaction-search" placeholder="Search emoji" aria-label="Search emoji" autoFocus
+        value={wanted} onChange={(event) => setWanted(event.target.value)}
+      />
+      <span className="reaction-every" tabIndex={-1}>
+        {failed && <span className="reaction-none" role="alert">The emoji could not be loaded.</span>}
+        {!groups && !failed && <span className="reaction-none">Loading…</span>}
+        {groups && !shown.length && <span className="reaction-none">No emoji by that name.</span>}
+        {shown.map((group) => (
+          <span key={group.name} className="reaction-group" role="group" aria-label={group.name}>
+            <span className="reaction-group-name" aria-hidden="true">{group.name}</span>
+            <span className="reaction-grid">
+              {group.emojis.map(([emoji, name]) => {
+                const mine = reactions.some((r) => r.emoji === emoji && r.mine);
+                return (
+                  <button key={emoji} type="button" className={mine ? 'is-mine' : ''} aria-pressed={mine} aria-label={`React with ${name}`} title={name} onClick={() => pick(emoji)}>
+                    {emoji}
+                  </button>
+                );
+              })}
+            </span>
+          </span>
+        ))}
+      </span>
+    </>
+  );
+}
+
+// The button that offers the emoji. Pressed, the common ones open in rows
+// under it, with More at their foot, which opens every emoji in their
+// place; one picked is set (or, if the reader had set it, taken back).
 export function ReactionAdd({ kind, uuid, reactions = [], onChanged, className = '' }) {
   const [open, setOpen] = useState(false);
+  const [every, setEvery] = useState(false);
   const self = useRef(null);
   const toggle = useToggle(kind, uuid, reactions, onChanged);
-  useDismiss(open, self, () => setOpen(false));
+  const shut = () => { setOpen(false); setEvery(false); };
+  useDismiss(open, self, shut);
+  const pick = (emoji) => { shut(); toggle(emoji); };
   // The arrows walk the emoji: left and right along a row, up and down
-  // between rows, however many the menu is wide.
+  // between rows, however many the menu is wide. In the search field
+  // they move its caret as they always do.
   const walk = (event) => {
-    const items = [...event.currentTarget.querySelectorAll('button')];
-    const wide = items.filter((item) => item.offsetTop === items[0].offsetTop).length || 1;
+    if (event.target.tagName === 'INPUT') return;
+    const items = [...event.currentTarget.querySelectorAll('.reaction-grid button')];
+    const wide = items.filter((item) => item.offsetTop === items[0]?.offsetTop).length || 1;
     const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: wide, ArrowUp: -wide }[event.key];
-    if (!step) return;
-    event.preventDefault();
     const at = items.indexOf(document.activeElement);
+    if (!step || at < 0) return;
+    event.preventDefault();
     const to = Math.abs(step) === 1 ? (at + step + items.length) % items.length : at + step;
     items[to]?.focus();
   };
@@ -81,23 +136,30 @@ export function ReactionAdd({ kind, uuid, reactions = [], onChanged, className =
     <span ref={self} className={`reaction-add${open ? ' is-open' : ''} ${className}`}>
       <button
         type="button" className="reaction-add-button" aria-label="React" title="React" aria-haspopup="true" aria-expanded={open}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => (open ? shut() : setOpen(true))}
       >
         <ReactGlyph />
       </button>
       {open && (
-        <span className="reaction-menu" role="group" aria-label="React with" onKeyDown={walk}>
-          {EMOJIS.map((emoji, at) => {
-            const mine = reactions.some((r) => r.emoji === emoji && r.mine);
-            return (
-              <button
-                key={emoji} type="button" className={mine ? 'is-mine' : ''} aria-pressed={mine} aria-label={`React with ${emoji}`} autoFocus={at === 0}
-                onClick={() => { setOpen(false); toggle(emoji); }}
-              >
-                {emoji}
-              </button>
-            );
-          })}
+        <span className={`reaction-menu${every ? ' is-every' : ''}`} role="group" aria-label="React with" onKeyDown={walk}>
+          {every ? <EveryEmoji reactions={reactions} pick={pick} /> : (
+            <>
+              <span className="reaction-grid">
+                {EMOJIS.map((emoji, at) => {
+                  const mine = reactions.some((r) => r.emoji === emoji && r.mine);
+                  return (
+                    <button
+                      key={emoji} type="button" className={mine ? 'is-mine' : ''} aria-pressed={mine} aria-label={`React with ${emoji}`} autoFocus={at === 0}
+                      onClick={() => pick(emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </span>
+              <button type="button" className="reaction-more" onClick={() => setEvery(true)}>More emoji</button>
+            </>
+          )}
         </span>
       )}
     </span>

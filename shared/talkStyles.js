@@ -198,10 +198,18 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
   :is(.talk-post, .thread-jacket):hover .reaction-add-button, .talk-post:focus-within .reaction-add-button, .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { opacity: 1; }
   .thread-jacket:hover .talk-post:not(:hover) .reaction-add:not(.is-open) .reaction-add-button:not(:focus-visible) { opacity: 0; }
 }
-.reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: grid; grid-template-columns: repeat(8, max-content); gap: 2px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-md); }
-.reaction-add .reaction-menu button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
-.reaction-add .reaction-menu button:hover, .reaction-add .reaction-menu button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
-.reaction-add .reaction-menu button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-md); }
+.reaction-grid { display: grid; grid-template-columns: repeat(8, max-content); gap: 2px; }
+.reaction-add .reaction-grid button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction-add .reaction-grid button:hover, .reaction-add .reaction-grid button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
+.reaction-add .reaction-grid button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.reaction-add .reaction-more { align-self: stretch; min-height: 0; height: 26px; margin: 0; padding: 0 8px; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: none; box-shadow: none; color: var(--ink-faint); font: 500 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction-add .reaction-more:hover, .reaction-add .reaction-more:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+.reaction-add .reaction-search { box-sizing: border-box; width: 100%; min-height: 0; height: 28px; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: 13px/1 var(--font-ui); }
+.reaction-every { display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow-y: auto; overscroll-behavior: contain; outline: none; }
+.reaction-group { display: flex; flex-direction: column; gap: 2px; }
+.reaction-group-name { position: sticky; top: 0; z-index: 1; padding: 3px 4px; background: var(--card); color: var(--ink-faint); font: 600 11px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; }
+.reaction-none { box-sizing: border-box; width: 254px; padding: 12px 4px; color: var(--ink-faint); font: 13px/1.3 var(--font-ui); }
 .reactions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 0; }
 /* A chip as chat apps draw one: the emoji the larger of the two and the
    count a small, quieter number after it, both set on a line of their own
@@ -221,5 +229,5 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 /* At the end of a row of chips the emoji open from the row's start. */
 .reactions .reaction-menu { right: auto; left: -4px; }
 .reaction-tally { display: inline-flex; gap: 6px; white-space: nowrap; }
-@media (pointer: coarse) { .reaction-add-button { width: 32px; height: 32px; } .reaction { height: 30px; padding: 0 10px; } .reaction-add .reaction-menu button { width: 34px; height: 34px; } .reaction-menu { grid-template-columns: repeat(6, max-content); } }
+@media (pointer: coarse) { .reaction-add-button { width: 32px; height: 32px; } .reaction { height: 30px; padding: 0 10px; } .reaction-add .reaction-grid button { width: 34px; height: 34px; } .reaction-grid { grid-template-columns: repeat(7, max-content); } .reaction-none { width: 250px; } }
 `;

@@ -59,8 +59,14 @@ describe("reactions", () => {
     expect(await reacted(await unreact(ada, "thread", thread.uuid))).toEqual([{ emoji: "👍", count: 1, mine: false, who: ["Grace"] }, { emoji: "🎉", count: 1, mine: false, who: ["Grace"] }]);
     expect(await reacted(await unreact(ada, "thread", thread.uuid, "🎉"))).toHaveLength(2);
 
-    // Only what Papol offers, and only on what takes one.
+    // Only an emoji, and only on what takes one.
     expect((await react(ada, "thread", thread.uuid, "x")).status).toBe(422);
+    // Any one emoji is a reaction, whether or not the pages offer it first: a
+    // flag, a face with a skin tone. Two emoji, or an emoji with words, are not.
+    expect(await reacted(await react(ada, "reply", said.uuid, "🦉"))).toContainEqual({ emoji: "🦉", count: 1, mine: true, who: ["Ada"] });
+    expect((await react(ada, "reply", said.uuid, "🇳🇱")).status).toBe(200);
+    expect((await react(ada, "reply", said.uuid, "👋🏽")).status).toBe(200);
+    for (const not of ["👍👍", "👍 yes", "", "🦉".repeat(20)]) expect((await react(ada, "reply", said.uuid, not)).status).toBe(422);
     expect((await react(ada, "thread", thread.uuid, null)).status).toBe(422);
     expect((await react(ada, "paper", thread.uuid)).status).toBe(404);
     expect((await react(ada, "thread", uuid())).status).toBe(404);
