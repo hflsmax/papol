@@ -77,7 +77,8 @@ describe("people to ask", () => {
 
   it("are likelier a friend of a friend than a stranger, though a stranger may still be drawn", async () => {
     // What someone shares is their weight in the lot.
-    expect(weightOf(0, 0)).toBe(1);
+    expect(weightOf(0, 0)).toBe(5);
+    expect(weightOf(1, 0)).toBe(9);
     expect(weightOf(1, 0)).toBeGreaterThan(weightOf(0, 0));
     expect(weightOf(2, 0)).toBeGreaterThan(weightOf(1, 0));
     expect(weightOf(9, 0)).toBe(weightOf(3, 0));
@@ -101,8 +102,8 @@ describe("people to ask", () => {
         if (s.mutual_count > 0) nearDrawn += 1; else farDrawn += 1;
       }
     }
-    // Each of the two comes up far more often than each of the eighteen, who still come up.
-    expect(nearDrawn / 2).toBeGreaterThan(3 * (farDrawn / 18));
+    // Each of the two comes up more often than each of the eighteen, who still come up.
+    expect(nearDrawn / 2).toBeGreaterThan(1.3 * (farDrawn / 18));
     expect(farDrawn).toBeGreaterThan(100);
   });
 

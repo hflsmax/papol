@@ -41,11 +41,11 @@ const ASKED_STAYS_MS = 7 * 24 * 60 * 60 * 1000;
 // The lot's weights. A stranger weighs STRANGER; friends in common add
 // MUTUAL_FIRST for the first and MUTUAL_MORE for each after, up to
 // MUTUAL_COUNTED of them; a shared project adds SHARED_PROJECT.
-const STRANGER = 1;
-const MUTUAL_FIRST = 8;
+const STRANGER = 5;
+const MUTUAL_FIRST = 4;
 const MUTUAL_MORE = 2;
 const MUTUAL_COUNTED = 3;
-const SHARED_PROJECT = 8;
+const SHARED_PROJECT = 4;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface Suggestion {
