@@ -33,7 +33,6 @@ export default function HomePage() {
         <p className="landing-fact">A paper reader for researchers, free and open source.</p>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
-          <a className="landing-button" href="#viewer">Try it ↓</a>
         </div>
       </header>
 
