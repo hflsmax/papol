@@ -5856,7 +5856,8 @@ ${talkStyles}
   .desk-main { order: -1; }
   .desk-filter { position: static; flex-wrap: wrap; padding: 0; margin-bottom: var(--space-3); }
   .desk-search { flex: 1 1 100%; }
-  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort, .desk-table   .desk-table, .desk-table tbody { display: block; table-layout: auto; }
+  .desk-table thead, .desk-table .desk-col-date, .desk-table .desk-col-effort { display: none; }
+  .desk-table, .desk-table tbody { display: block; table-layout: auto; }
   .desk-table tr { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--line); }
   .desk-table tbody tr:last-child { border-bottom: 0; }
   .desk-table td { display: block; height: auto; border: 0; }

@@ -96,3 +96,7 @@ test('every surface that shows the update panel styles it', () => {
   assert.match(applicationStyles, /\.compatibility-stop[\s,:{]/);
   assert.match(read('../../viewer/src/styles.js'), /\$\{compatibilityStyles\}/);
 });
+
+test("on a phone the nook's papers are a list: no column heads, no Effort or Added cells", () => {
+  assert.match(applicationStyles, /\.desk-table thead, \.desk-table \.desk-col-date, \.desk-table \.desk-col-effort \{ display: none; \}/);
+});

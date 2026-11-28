@@ -125,6 +125,10 @@ const SHOTS = {
   // A link in the app to such a path: the report, and the page stays put.
   'unknown-link': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", then: "const a = document.createElement('a'); a.href = '/nowhere'; document.querySelector('.desk-title').append(a); a.click(); return true;", settled: "document.querySelector('[role=dialog]') && location.pathname === '/' && document.querySelector('.nook .desk-title')", size: wide },
   nook: { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: wide },
+  // My nook on a phone: the page from its top, and the whole of it down to
+  // the shelves and boards under the papers.
+  'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
+  'phone-nook-whole': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: { ...phone, height: 2400 } },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
   'phone-their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: phone },
