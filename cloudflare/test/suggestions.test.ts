@@ -8,7 +8,7 @@ import { claim, type Job } from "../src/jobs/queue";
 import { runOne } from "../src/jobs/run";
 import { DAILY_CRON, WEEKLY_CRON } from "../src/jobs/digests";
 import { reasonOf } from "../src/jobs/suggestions";
-import { suggestionsFor } from "../src/routes/suggestions";
+import { lotOf, suggestionsFor, weightOf } from "../src/routes/suggestions";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, uuid, type Account } from "./helpers";
 
 const suggested = (account: Account) => ok("GET", "/api/friends/suggestions", { headers: account.headers });
@@ -38,7 +38,7 @@ async function project(keeper: Account, name: string, ...joiners: Account[]) {
 }
 
 describe("people to ask", () => {
-  it("are anyone in the Lounge, drawn afresh each time, with what we share said where there is any", async () => {
+  it("are anyone in the Lounge, drawn once a day, with what we share said where there is any", async () => {
     const ada = await register("ada@example.test", "Ada");
     // A user alone has nobody to be shown, and nobody is shown themselves.
     expect(await suggested(ada)).toEqual([]);
@@ -49,20 +49,61 @@ describe("people to ask", () => {
     expect(await suggested(ada)).toMatchObject([{ user: { uuid: grace.uuid }, project_count: 1, projects: [{ uuid: lab, name: "Control Lab" }] }]);
     expect((await call("GET", "/api/friends/suggestions")).status).toBe(401);
 
-    // Six at a time out of everyone, and not the same six in the same order every time.
+    // Six at a time out of everyone, the same six in the same order all day.
     for (let i = 0; i < 12; i += 1) await register(`${uuid()}@example.test`, `Reader ${i}`);
-    const draws = new Set<string>();
-    for (let i = 0; i < 8; i += 1) {
-      const drawn = await names(ada);
-      expect(drawn).toHaveLength(6);
-      expect(new Set(drawn).size).toBe(6);
-      draws.add(drawn.join());
-    }
-    expect(draws.size).toBeGreaterThan(1);
+    const today = await names(ada);
+    expect(today).toHaveLength(6);
+    expect(new Set(today).size).toBe(6);
+    for (let i = 0; i < 3; i += 1) expect(await names(ada)).toEqual(today);
+    // Another day draws others, and each user's draw is their own.
+    const on = async (account: Account, day: string) => (await suggestionsFor(env, account.uuid, { anyone: true, day })).map((s) => s.user.display_name).join();
+    const days = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const adas = await Promise.all(days.map((day) => on(ada, day)));
+    expect(new Set(adas).size).toBeGreaterThan(1);
+    expect(await on(ada, days[0])).toBe(adas[0]);
+    expect(await Promise.all(days.map((day) => on(grace, day)))).not.toEqual(adas);
+
+    // Sending one away leaves the rest in their order, and the next comes up.
+    const all = (await suggestionsFor(env, ada.uuid, { anyone: true, limit: 7 })).map((s) => s.user);
+    expect(all.slice(0, 6).map((u) => u.display_name)).toEqual(today);
+    const gone = all.findIndex((u) => u.uuid !== grace.uuid);
+    const left = await ok("DELETE", `/api/friends/suggestions/${all[gone].uuid}`, { headers: ada.headers });
+    expect(left.map((s: any) => s.user.uuid)).toEqual(all.filter((_, i) => i !== gone).map((u) => u.uuid));
 
     // Someone I asked leads every draw, so the asking can be taken back.
     await ok("POST", `/api/friends/${grace.uuid}`, { headers: ada.headers });
     for (let i = 0; i < 4; i += 1) expect((await names(ada))[0]).toBe("Grace");
+  });
+
+  it("are likelier a friend of a friend than a stranger, though a stranger may still be drawn", async () => {
+    // What someone shares is their weight in the lot.
+    expect(weightOf(0, 0)).toBe(1);
+    expect(weightOf(1, 0)).toBeGreaterThan(weightOf(0, 0));
+    expect(weightOf(2, 0)).toBeGreaterThan(weightOf(1, 0));
+    expect(weightOf(9, 0)).toBe(weightOf(3, 0));
+    expect(weightOf(0, 1)).toBeGreaterThan(weightOf(0, 0));
+    expect(weightOf(1, 1)).toBeGreaterThan(weightOf(1, 0));
+    // The same lot for the same three, another for any other.
+    expect(lotOf("a", "2026-03-01", "b", 1)).toBe(lotOf("a", "2026-03-01", "b", 1));
+    expect(lotOf("a", "2026-03-01", "b", 1)).not.toBe(lotOf("a", "2026-03-02", "b", 1));
+    expect(lotOf("a", "2026-03-01", "b", 1)).not.toBe(lotOf("b", "2026-03-01", "a", 1));
+
+    // Two friends of a friend among eighteen strangers, three drawn a day for a year.
+    const ada = await register("ada@example.test", "Ada");
+    const near = [await register("grace@example.test", "Near 1"), await register("edsger@example.test", "Near 2")];
+    const between = await linked(ada, near[0]);
+    await befriend(between, near[1]);
+    for (let i = 0; i < 18; i += 1) await register(`${uuid()}@example.test`, `Far ${i}`);
+    let nearDrawn = 0, farDrawn = 0;
+    for (let d = 0; d < 365; d += 1) {
+      const day = new Date(Date.UTC(2026, 0, 1 + d)).toISOString().slice(0, 10);
+      for (const s of await suggestionsFor(env, ada.uuid, { anyone: true, limit: 3, day })) {
+        if (s.mutual_count > 0) nearDrawn += 1; else farDrawn += 1;
+      }
+    }
+    // Each of the two comes up far more often than each of the eighteen, who still come up.
+    expect(nearDrawn / 2).toBeGreaterThan(3 * (farDrawn / 18));
+    expect(farDrawn).toBeGreaterThan(100);
   });
 
   it("share a project with me or are friends of my friends, a project first, for the email", async () => {
