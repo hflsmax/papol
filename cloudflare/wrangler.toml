@@ -134,5 +134,9 @@ max_retries = 0
 [env.dev.browser]
 binding = "BROWSER"
 
+# Dev has no weekly run. Workers Free allows five cron triggers to an
+# account, production takes three, and a sixth made every deploy fail at
+# its triggers (and cancelled production's beside it). What a dev user
+# chose weekly is never sent there; the daily run still is.
 [env.dev.triggers]
-crons = ["*/2 * * * *", "0 14 * * *", "0 23 * * SUN"]
+crons = ["*/2 * * * *", "0 14 * * *"]
