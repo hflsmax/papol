@@ -154,7 +154,7 @@ export default function InboxPage({ onUnread }) {
               </span>
             ) : n.link && expanded[n.uuid] ? (
               <span className="notification-acts">
-                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' ? 'Open the paper' : n.kind?.startsWith('project_') ? 'Open the project' : 'Open their nook'}</a>
+                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' || n.kind === 'friend_dig' ? 'Open the dig' : n.kind?.startsWith('project_') ? 'Open the project' : 'Open their nook'}</a>
               </span>
             ) : null}
           </li>

@@ -33,6 +33,11 @@ import { mailConfigured, sendEmails, type Mail } from "./mail";
 import { siteUrl } from "./notifications";
 import { enqueue, wake } from "./queue";
 
+// An email of its own that comes at least as soon as this one does: what
+// it says is left out here. One chosen weekly or never is not, so nobody
+// waits a week for what the Lounge would have said today.
+const SOON: Frequency[] = ["now", "daily"];
+
 export const LOUNGE_NEWS = "lounge_news";
 
 // Users to a job: each costs the room's queries, and one batch of mail.
@@ -82,7 +87,7 @@ function didWith(line: Row, reader: string): string {
 // done after `since` by someone other than the reader, oldest first
 // under each as a conversation reads.
 //
-// `told` names what the reader is already emailed about on its own
+// `told` names what the reader is emailed about on its own, at once or daily
 // (emails.ts): a friend's dig on a paper in their nook, a post in a dig
 // they are in. Those lines are left out, so nothing is said twice.
 export function itemsOf(rows: RoomRow[], reader: string, since: string, told: { friend_dig?: boolean; dig_reply?: boolean } = {}): Item[] {
@@ -228,7 +233,7 @@ export async function loungeNewsJob(env: Env, payload: Row): Promise<Row> {
   for (const user of users) {
     const since = newsSince(user, user.often, Date.parse(at));
     const items = itemsOf((await latest(env, user, since)).rows, user.uuid, since,
-      { friend_dig: frequencyOf(user, "friend_dig") !== "never", dig_reply: frequencyOf(user, "dig_reply") !== "never" });
+      { friend_dig: SOON.includes(frequencyOf(user, "friend_dig")), dig_reply: SOON.includes(frequencyOf(user, "dig_reply")) });
     if (items.length) mails.push(loungeMail(user, items, site, user.often));
   }
   if (mails.length) await sendEmails(env, mails);

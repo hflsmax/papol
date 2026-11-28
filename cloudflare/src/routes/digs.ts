@@ -134,6 +134,10 @@ async function ownSubjectOf(env: Env, me: User, key: unknown): Promise<Subject> 
 // A dig of one's own, read the way a project's are: nothing in it is new.
 const OWN: Member = { seen_at: "9999" } as Member;
 
+// Where a line about a dig leads: the paper's jacket, at that dig
+// (PaperJacket.jsx scrolls to it).
+const digLink = (dig: Dig) => `/paper/${String(dig.paper_sha256).slice(0, 32)}#dig-${dig.uuid}`;
+
 // A dig of one's own on a paper is news to the friends who keep that
 // paper on a shelf of their nook, while they can read it (friendSees):
 // a line in each one's inbox, and an email as often as they chose for
@@ -147,9 +151,9 @@ async function tellKeepers(env: Env, dig: Dig, me: User, at: string): Promise<vo
        AND EXISTS (SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees("u.uuid")})`, me.uuid, dig.paper_sha256, dig.uuid);
   if (!keepers.length) return;
   const paper = await one<{ title: string }>(env.DB, "SELECT title FROM papers WHERE sha256 = ?", dig.paper_sha256);
-  const link = `/paper/${dig.paper_sha256.slice(0, 32)}`;
+  const link = digLink(dig);
   const site = (await siteUrl(env)).replace(/\/$/, "");
-  const line = `${me.display_name} dug ${paper?.title ?? "a paper"}, which is in your nook.`;
+  const line = `${me.display_name} dug ${paper?.title ?? "a paper"}, a paper in your nook.`;
   const mails: Queued[] = [];
   const told = keepers.map((them) => {
     const mail = queueEmail(env.DB, "friend_dig", them, `${me.display_name} dug a paper in your nook`,
@@ -450,19 +454,19 @@ export function digRoutes(router: Router) {
       const paper = await one<{ title: string }>(env.DB, "SELECT title FROM papers WHERE sha256 = ?", dig.paper_sha256);
       const owner = await one<{ display_name: string }>(env.DB, "SELECT display_name FROM users WHERE uuid = ?", dig.user_uuid);
       const others = await all<{ user_uuid: string }>(env.DB, "SELECT DISTINCT user_uuid FROM dig_posts WHERE dig_uuid = ?", dig.uuid);
-      const link = `/paper/${dig.paper_sha256.slice(0, 32)}`;
+      const link = digLink(dig);
       const site = (await siteUrl(env)).replace(/\/$/, "");
       for (const uuid of new Set([dig.user_uuid, ...others.map((o) => o.user_uuid)])) {
         if (uuid === me.uuid) continue;
         // Someone who can no longer read the dig is not told of it: a friend
         // no longer one, or anyone once the paper went to a private shelf.
         if (uuid !== dig.user_uuid && !(await one(env.DB, `SELECT 1 FROM digs d WHERE d.uuid = ? AND ${friendSees(userLiteral(uuid))}`, dig.uuid))) continue;
-        const whose = uuid === dig.user_uuid ? "your" : dig.user_uuid === me.uuid ? "their" : `${owner?.display_name ?? "a friend"}'s`;
-        const line = `${me.display_name} posted in ${whose} dig on ${paper?.title ?? "a paper"}.`;
+        const whose = uuid === dig.user_uuid ? "your dig" : dig.user_uuid === me.uuid ? "a dig you posted in" : `${owner?.display_name ?? "a friend"}'s dig`;
+        const line = `${me.display_name} replied in ${whose} on ${paper?.title ?? "a paper"}.`;
         told.push(notice(env, uuid, line, "dig_post", me, link, at));
         // And by email, as often as they chose for replies (emails.ts).
         const them = await one<User>(env.DB, "SELECT * FROM users WHERE uuid = ? AND deleted_at IS NULL", uuid);
-        const mail = them && queueEmail(env.DB, "dig_reply", them, `${me.display_name} posted in ${whose} dig on Papol`,
+        const mail = them && queueEmail(env.DB, "dig_reply", them, `${me.display_name} replied in ${whose} on Papol`,
           [line, "", excerpt(body), "", `Read it: ${site}${link}`, "", "— Papol"].join("\n"));
         if (mail) mails.push(mail);
       }

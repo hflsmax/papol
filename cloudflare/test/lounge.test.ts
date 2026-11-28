@@ -163,6 +163,14 @@ describe("the email of the Lounge", () => {
     await day();
     expect(to(grace).text).toContain("Ada dug");
     expect(to(ada).text).toContain("Grace posted in your dig");
+
+    // Chosen weekly, it is said here too: nobody waits a week for what the Lounge would say today.
+    await exec("UPDATE users SET lounge_mailed_at = NULL");
+    await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { friend_dig: "weekly" } } });
+    await exec("UPDATE jobs SET status = 'done' WHERE kind = 'lounge_news'");
+    emailApi();
+    await day();
+    expect(to(grace).text).toContain("Ada dug");
   });
 
   it("is sent as often as each user chose in Preferences", async () => {

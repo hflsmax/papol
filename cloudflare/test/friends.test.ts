@@ -246,10 +246,10 @@ describe("what a friend sees", () => {
     expect((await call("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: alan.headers, json: { body: "?" } })).status).toBe(404);
 
     // Ada hears of it, and can answer now that somebody has posted.
-    expect((await inbox(ada))[0]).toMatchObject({ kind: "dig_post", content: "Grace posted in your dig on Out in the open.", link: `/paper/${name("a")}` });
+    expect((await inbox(ada))[0]).toMatchObject({ kind: "dig_post", content: "Grace replied in your dig on Out in the open.", link: `/paper/${name("a")}#dig-${onPaper.uuid}` });
     expect((await ok("GET", `/api/digs/${onPaper.uuid}`, { headers: ada.headers })).can_post).toBe(true);
     await ok("POST", `/api/digs/${onPaper.uuid}/posts`, { headers: ada.headers, json: { body: "Fair" } });
-    expect((await inbox(grace))[0]).toMatchObject({ kind: "dig_post", content: "Ada posted in their dig on Out in the open." });
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "dig_post", content: "Ada replied in a dig you posted in on Out in the open." });
 
     // The shelf has the last word: private, and the dig is hers alone again; public, and it is back.
     await ok("PUT", `/api/papers/${name("a")}`, { headers: ada.headers, json: { shelf_uuid: await privateShelf(ada) } });
@@ -283,14 +283,14 @@ describe("what a friend is told", () => {
 
     // A dig: an inbox line for the friend who keeps the paper, and an email held for the day's.
     const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${digest("a")}`, text: "The bound in section 3 is loose" } });
-    expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_dig", content: "Ada dug Out in the open, which is in your nook.", link: `/paper/${name("a")}`, actor: { uuid: ada.uuid } });
+    expect((await inbox(grace))[0]).toMatchObject({ kind: "friend_dig", content: "Ada dug Out in the open, a paper in your nook.", link: `/paper/${name("a")}#dig-${dig.uuid}`, actor: { uuid: ada.uuid } });
     expect(await rows("SELECT user_uuid, kind FROM email_held")).toEqual([{ user_uuid: grace.uuid, kind: "friend_dig" }]);
     expect((await mailed()).length).toBe(before);
     for (const other of [alan, eve]) expect((await inbox(other)).some((n: any) => n.kind === "friend_dig")).toBe(false);
 
     // A post in it: its writer is emailed at once, and whoever posted before, until they choose never.
     await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: grace.headers, json: { body: "Tight for d = 2 though" } });
-    expect((await mailed()).slice(before)).toMatchObject([{ to: "ada@example.test", subject: "Grace posted in your dig on Papol" }]);
+    expect((await mailed()).slice(before)).toMatchObject([{ to: "ada@example.test", subject: "Grace replied in your dig on Papol" }]);
     expect((await mailed())[before].body).toContain("Tight for d = 2 though");
     await ok("PUT", "/api/auth/profile", { headers: grace.headers, json: { emails: { dig_reply: "never" } } });
     await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: ada.headers, json: { body: "Fair" } });

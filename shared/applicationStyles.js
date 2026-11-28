@@ -6120,6 +6120,9 @@ ${talkStyles}
 /* A friend's dig on a paper's jacket: whose, where, then the dig itself. */
 .paper-friend-digs { margin-top: var(--space-5); }
 .paper-friend-digs > h4 { margin-bottom: var(--space-2); }
+/* The dig a link from the inbox named, for a moment. */
+:is(.friend-dig, #your-dig) { border-radius: var(--radius); transition: box-shadow var(--motion-fast) var(--ease-out); }
+:is(.friend-dig, #your-dig).is-pointed { box-shadow: 0 0 0 6px var(--card), 0 0 0 8px var(--accent); }
 .friend-digs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 /* A dig on the jacket, mine or a friend's, top to bottom: what it is about, the dig itself tinted
    and set in as my own is, then what was posted under it and the box that

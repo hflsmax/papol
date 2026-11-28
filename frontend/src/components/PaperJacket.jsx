@@ -80,9 +80,28 @@ export default function PaperJacket({
     let active = true;
     friendDigsOn(paperName(paperSha256))
       .then((found) => { if (active) setFriendDigs(found.digs ?? []); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (active) setDigsRead(paperSha256); });
     return () => { active = false; };
   }, [paperSha256, currentUser?.uuid, friends?.friends.length]);
+  // A link from the inbox or an email names one dig (#dig-<uuid>): once the
+  // friends' digs are in, the jacket goes to it, a friend's by its own row
+  // and otherwise mine, and marks it for a moment.
+  const [digsRead, setDigsRead] = useState(null);
+  useEffect(() => {
+    const named = window.location.hash.match(/^#dig-([0-9a-f-]{36})$/i)?.[1];
+    if (!named || digsRead !== paperSha256) return undefined;
+    const at = document.getElementById(`dig-${named.toLowerCase()}`) ?? document.getElementById('your-dig');
+    if (!at) return undefined;
+    // The digs above it are still filling with their posts, which moves
+    // it down the page: it is gone to again as they settle.
+    const go = () => at.scrollIntoView({ block: 'center' });
+    go();
+    at.classList.add('is-pointed');
+    const again = [300, 900].map((after) => setTimeout(go, after));
+    const done = setTimeout(() => at.classList.remove('is-pointed'), 3000);
+    return () => { [...again, done].forEach(clearTimeout); at.classList.remove('is-pointed'); };
+  }, [digsRead, paperSha256]);
   const [isAddingToNook, setIsAddingToNook] = useState(false);
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false);
   const [metadataExtractStatus, setMetadataExtractStatus] = useState('Reading PDF…');
@@ -506,7 +525,7 @@ export default function PaperJacket({
   // The reader's own dig on the paper, which they write whether or not
   // they keep it.
   const yourDig = (
-    <section className="paper-dig" aria-labelledby="paper-dig-title">
+    <section className="paper-dig" id="your-dig" aria-labelledby="paper-dig-title">
       <h4 id="paper-dig-title">
         Your dig
         {/* A dig goes where its paper goes: on a public shelf, or on
@@ -1365,7 +1384,7 @@ export default function PaperJacket({
           <h4 id="paper-friend-digs-title">Friends’ digs</h4>
           <ul className="friend-digs">
             {friendDigs.map((dig) => (
-              <li key={dig.uuid} className="friend-dig">
+              <li key={dig.uuid} id={`dig-${dig.uuid}`} className="friend-dig">
                 {/* The dig's own first line already says whose it is and when,
                     so what stands over it is what it is about: the whole
                     paper, or a place in it, which opens the paper there. */}

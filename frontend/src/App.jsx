@@ -835,7 +835,8 @@ export default function App({ startupUser = null, startupError = null }) {
     // the nook (an upload's form) is put away, even when the address is
     // the nook's already and the move itself would change nothing.
     if (routePath === '/' && !destination.search) window.dispatchEvent(new Event(GOING_HOME));
-    navigate(`${routePath}${destination.search}`);
+    // A place named on the page it leads to (a dig on a jacket) goes with it.
+    navigate(`${routePath}${destination.search}${destination.hash}`);
   };
 
   // The page a visitor lands on offers Papol to try and nothing else: no
