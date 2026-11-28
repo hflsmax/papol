@@ -3822,8 +3822,8 @@ a.button:hover {
   box-shadow: var(--shadow-md);
 }
 .landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-/* The list scrolls in the window, which opens tall enough for three papers
-   and half of the fourth. Its padding keeps the first title's ring and the
+/* The list scrolls in the window, which opens tall enough for six papers
+   and half of the seventh. Its padding keeps the first title's ring and the
    tag over it inside what it clips. */
 .landing-nook-list { overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 26px 8px 0; }
 .landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

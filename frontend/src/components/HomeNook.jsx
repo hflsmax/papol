@@ -67,15 +67,14 @@ const PAPERS = [
 
 // How many papers show before the list is scrolled: the last one cut in
 // half, which says there are more under it.
-const SHOWN = 3.5;
+const SHOWN = 6.5;
 
 export default function HomeNook({ onOpen }) {
   const listRef = useRef(null);
   const [height, setHeight] = useState(null);
 
-  // Rows are as tall as their titles wrap, so the height that shows three
-  // and a half of them is measured, and measured again when the width
-  // changes.
+  // Rows are as tall as their titles wrap, so the height that shows that
+  // many of them is measured, and measured again when the width changes.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
