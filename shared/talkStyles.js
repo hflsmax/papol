@@ -123,13 +123,13 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 /* Edit and Delete sit on the post's own head line, at its end, in every
    place a dig is read: the brief, the Digs tab and the viewer's margin. */
 .talk-post-actions { display: inline-flex; gap: 2px; margin: -3px -4px -3px auto; }
-.talk-post-actions button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); --cap-room: 0px; }
+.talk-post-actions > button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); --cap-room: 0px; }
 .talk-post-actions svg { display: block; width: 14px; height: 14px; }
 .talk-post-actions .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .talk-post-actions .action-glyph-fill { fill: currentColor; stroke: none; }
-.talk-post-actions button:hover:not(:disabled), .talk-post-actions button:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+.talk-post-actions > button:hover:not(:disabled), .talk-post-actions > button:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
 .talk-post-actions button.is-danger:hover:not(:disabled), .talk-post-actions button.is-danger:focus-visible { background: var(--red-soft); color: var(--red); }
-@media (pointer: coarse) { .talk-post-actions { margin-block: -8px; } .talk-post-actions button { width: 32px; height: 32px; } }
+@media (pointer: coarse) { .talk-post-actions { margin-block: -8px; } .talk-post-actions > button { width: 32px; height: 32px; } }
 .talk-post-edit { display: grid; gap: var(--space-1); }
 .talk-post-edit :is(textarea, .md-field) { width: 100%; margin: 0; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--card); color: var(--ink); font: var(--fs-sm)/1.4 var(--font-serif); resize: vertical; }
 .talk-post-edit :is(textarea, .md-field):focus { box-shadow: 0 0 0 2px var(--focus-soft); outline: none; }
@@ -178,4 +178,48 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 .talk-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .talk-send:hover:not(:disabled) { border: 0; background: var(--accent-strong); color: var(--ink-inverse); }
 .talk-send:disabled { border: 1px solid var(--line-strong); background: none; color: var(--ink-faint); opacity: 1; cursor: default; }
+
+/* Reactions: the emoji set on something said, in a dig and in a thread
+   alike. The button that offers them sits with Edit and Delete on the
+   line that says who and when; the chips sit under the words, there only
+   once somebody has set one. The reader's own chips take the accent. */
+.reaction-add { position: relative; display: inline-flex; }
+.reaction-add-button { display: grid; width: 24px; height: 24px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink-faint); cursor: pointer; --cap-room: 0px; }
+.reaction-add-button svg { display: block; width: 15px; height: 15px; }
+.reaction-add-button .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.reaction-add-button .action-glyph-fill { fill: currentColor; stroke: none; }
+.reaction-add-button:hover:not(:disabled), .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { background: var(--accent-soft); color: var(--accent); outline: none; }
+/* The button shows when the reader reaches for what it is on: the pointer
+   over the post (or the thread's jacket, for a thread sent with no
+   words), the keyboard inside it, or its emoji open. A finger has no
+   hover, so there it always shows. */
+@media (hover: hover) {
+  .reaction-add-button { opacity: 0; transition: opacity .12s; }
+  :is(.talk-post, .thread-jacket):hover .reaction-add-button, .talk-post:focus-within .reaction-add-button, .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { opacity: 1; }
+  .thread-jacket:hover .talk-post:not(:hover) .reaction-add:not(.is-open) .reaction-add-button:not(:focus-visible) { opacity: 0; }
+}
+.reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-md); }
+.reaction-add .reaction-menu button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction-add .reaction-menu button:hover, .reaction-add .reaction-menu button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
+.reaction-add .reaction-menu button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.reactions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 0; }
+/* A chip as chat apps draw one: the emoji the larger of the two and the
+   count a small, quieter number after it, both set on a line of their own
+   height and centred by the row. */
+.reaction { display: inline-flex; align-items: center; justify-content: center; gap: 5px; box-sizing: border-box; height: 24px; min-width: 34px; min-height: 0; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); box-shadow: none; color: var(--ink-faint); font: 600 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction-emoji, .reaction-count { display: block; flex: none; line-height: 1; }
+.reaction-emoji { font-size: 15px; }
+/* A digit has no descender, so a line box centred would leave its ink
+   high: the count's box is trimmed to the digit itself, from its cap
+   height to its baseline, and that is what the row centres, in any font.
+   Where the trim is not known the count is nudged down by the half
+   descender it carries. */
+.reaction-count { position: relative; top: 1px; font-variant-numeric: tabular-nums; }
+@supports (text-box: trim-both cap alphabetic) { .reaction-count { top: 0; text-box: trim-both cap alphabetic; } }
+.reaction:hover:not(:disabled), .reaction:focus-visible { border-color: var(--accent); background: var(--paper); color: var(--ink); outline: none; }
+.reaction.is-mine { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
+/* At the end of a row of chips the emoji open from the row's start. */
+.reactions .reaction-menu { right: auto; left: -4px; }
+.reaction-tally { display: inline-flex; gap: 6px; white-space: nowrap; }
+@media (pointer: coarse) { .reaction-add-button { width: 32px; height: 32px; } .reaction { height: 30px; padding: 0 10px; } .reaction-add .reaction-menu button { width: 34px; height: 34px; } }
 `;

@@ -5,7 +5,9 @@
 //
 // One audience and one rule: a thread is seen by its starter and by the
 // starter's friends, and whoever sees it can reply. Nothing is voted on
-// or counted for approval. A thread never marks the paper it came from:
+// or counted for approval; an emoji set on a thread or a reply (reactions.ts)
+// is a reply of a special sort, kept with the replies and left out of
+// every reading of them here (emoji IS NULL). A thread never marks the paper it came from:
 // it lives in the Lounge alone and keeps its place only to lead back
 // there. It has a jacket of its own, as a paper and a board have, which
 // is why one thread is answered with its paper. Its starter removes it, replies and all; a reply is taken back
@@ -21,6 +23,7 @@ import { json, readJson, refuse, type Router } from "../http";
 import * as validate from "../validate";
 import { userPublic } from "./boards";
 import { friendsOf, PERSON, userLiteral } from "./friends";
+import { reactionsIn, type Reaction } from "./reactions";
 
 const FILES_MAX = limits.counts.thread_files;
 const { thread_excerpt: EXCERPT_MAX, thread_words: WORDS_MAX, thread_place: PLACE_MAX } = limits.text;
@@ -70,18 +73,24 @@ export async function dropUnnamedFiles(env: Env, digests: string[]) {
   }
 }
 
-const replyOut = (row: Row, me: User) => ({
+// The emoji set in one thread, by what each is on: "" for the thread
+// itself, else the reply's uuid.
+type Reacted = Map<string, Reaction[]> | undefined;
+
+const replyOut = (row: Row, me: User, reacted: Reacted) => ({
   uuid: row.reply_uuid, user: userPublic({ ...row, uuid: row.user_uuid }), body: row.body, created_at: row.created_at, edited_at: row.edited_at ?? null, is_mine: row.user_uuid === me.uuid,
+  reactions: reacted?.get(String(row.reply_uuid)) ?? [],
 });
 
 // A thread as the API answers it. `thread` carries its starter's PERSON
 // columns beside its own, the starter's uuid as `user_uuid`.
-function threadOut(env: Env, thread: Row, replies: Row[], me: User, attached: Row[] = []) {
+function threadOut(env: Env, thread: Row, replies: Row[], me: User, reacted: Reacted, attached: Row[] = []) {
   return {
     uuid: thread.thread_uuid, user: userPublic({ ...thread, uuid: thread.user_uuid }), is_mine: thread.user_uuid === me.uuid,
     paper_sha256: thread.paper_sha256, page: thread.page, y: thread.y, mark: thread.mark ?? null, box: thread.box ?? null,
     excerpt: thread.excerpt ?? null, picture_url: pictureUrl(env, thread), words: thread.words ?? null,
-    created_at: thread.created_at, edited_at: thread.edited_at ?? null, files: attached.map((f) => fileOut(env, f)), replies: replies.map((r) => replyOut(r, me)),
+    created_at: thread.created_at, edited_at: thread.edited_at ?? null, files: attached.map((f) => fileOut(env, f)),
+    reactions: reacted?.get("") ?? [], replies: replies.map((r) => replyOut(r, me, reacted)),
   };
 }
 
@@ -99,7 +108,7 @@ async function repliesOf(env: Env, threadUuids: string[]): Promise<Map<string, R
   if (!threadUuids.length) return found;
   const rows = await all<Row>(env.DB,
     `SELECT ${REPLY} FROM thread_replies r JOIN users u ON u.uuid = r.user_uuid
-     WHERE r.thread_uuid IN (${threadUuids.map(() => "?").join(",")}) ORDER BY r.created_at, r.uuid`, ...threadUuids);
+     WHERE r.emoji IS NULL AND r.thread_uuid IN (${threadUuids.map(() => "?").join(",")}) ORDER BY r.created_at, r.uuid`, ...threadUuids);
   for (const row of rows) found.set(String(row.thread_uuid), [...(found.get(String(row.thread_uuid)) ?? []), row]);
   return found;
 }
@@ -115,9 +124,9 @@ async function seenThread(env: Env, uuid: string, me: User): Promise<Row> {
 async function answer(env: Env, uuid: string, me: User) {
   const thread = await seenThread(env, uuid, me);
   const uuids = [String(thread.thread_uuid)];
-  const replies = (await repliesOf(env, uuids)).get(uuids[0]) ?? [];
+  const said = await repliesOf(env, uuids);
   const attached = (await filesOf(env, uuids)).get(uuids[0]) ?? [];
-  return json({ ...threadOut(env, thread, replies, me, attached), paper: paperOut(thread) });
+  return json({ ...threadOut(env, thread, said.get(uuids[0]) ?? [], me, (await reactionsIn(env, "thread", uuids, me)).get(uuids[0]), attached), paper: paperOut(thread) });
 }
 
 // The Lounge's thread rows: every thread the reader sees that was started
@@ -129,12 +138,13 @@ export async function threadRows(env: Env, me: User, since: string, seen: string
     `SELECT ${THREAD}, ${PAPER}
      FROM threads t JOIN users u ON u.uuid = t.user_uuid LEFT JOIN papers p ON p.sha256 = t.paper_sha256 AND p.deleted_at IS NULL
      WHERE ${seesThread(mine)} AND (t.paper_sha256 IS NULL OR p.sha256 IS NOT NULL)
-       AND (t.created_at > ?1 OR EXISTS (SELECT 1 FROM thread_replies x WHERE x.thread_uuid = t.uuid AND x.created_at > ?1))`, since);
+       AND (t.created_at > ?1 OR EXISTS (SELECT 1 FROM thread_replies x WHERE x.thread_uuid = t.uuid AND x.emoji IS NULL AND x.created_at > ?1))`, since);
   const replies = await repliesOf(env, threads.map((t) => String(t.thread_uuid)));
   const attached = await filesOf(env, threads.map((t) => String(t.thread_uuid)));
+  const reacted = await reactionsIn(env, "thread", threads.map((t) => String(t.thread_uuid)), me);
   return threads.map((t) => {
     const said = replies.get(String(t.thread_uuid)) ?? [];
-    const out = threadOut(env, t, said, me, attached.get(String(t.thread_uuid)) ?? []);
+    const out = threadOut(env, t, said, me, reacted.get(String(t.thread_uuid)), attached.get(String(t.thread_uuid)) ?? []);
     // Who spoke in it, each once, the starter first: what the Lounge
     // narrows a friend's rows by.
     const lines = [{ user: out.user, did: "started", at: String(t.created_at) }];
@@ -253,16 +263,17 @@ export function threadRoutes(router: Router) {
   // A reply is taken back by whoever wrote it; the thread stays.
   router.on("DELETE", "/api/thread-replies/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const reply = UUID.test(params.uuid) ? await one<Row>(env.DB, "SELECT uuid, thread_uuid FROM thread_replies WHERE uuid = ? AND user_uuid = ?", params.uuid.toLowerCase(), me.uuid) : null;
+    const reply = UUID.test(params.uuid) ? await one<Row>(env.DB, "SELECT uuid, thread_uuid FROM thread_replies WHERE uuid = ? AND user_uuid = ? AND emoji IS NULL", params.uuid.toLowerCase(), me.uuid) : null;
     if (!reply) refuse(404, "Reply not found");
-    await batch(env.DB, [statement(env.DB, "DELETE FROM thread_replies WHERE uuid = ?", reply.uuid)]);
+    // The emoji set on it go with it.
+    await batch(env.DB, [statement(env.DB, "DELETE FROM thread_replies WHERE uuid = ?1 OR on_reply_uuid = ?1", reply.uuid)]);
     return answer(env, String(reply.thread_uuid), me);
   });
 
   // A reply is reworded by whoever wrote it, while they still see the thread.
   router.on("PUT", "/api/thread-replies/:uuid", async ({ request, env, params }) => {
     const me = await currentUser(request, env);
-    const reply = UUID.test(params.uuid) ? await one<Row>(env.DB, "SELECT uuid, thread_uuid, body FROM thread_replies WHERE uuid = ? AND user_uuid = ?", params.uuid.toLowerCase(), me.uuid) : null;
+    const reply = UUID.test(params.uuid) ? await one<Row>(env.DB, "SELECT uuid, thread_uuid, body FROM thread_replies WHERE uuid = ? AND user_uuid = ? AND emoji IS NULL", params.uuid.toLowerCase(), me.uuid) : null;
     if (!reply) refuse(404, "Reply not found");
     const thread = await seenThread(env, String(reply.thread_uuid), me);
     const data = await readJson<Row>(request);

@@ -9,6 +9,7 @@ import NewsDot from '../../../shared/ui/NewsDot.jsx';
 import PaperTitle from '../../../shared/ui/PaperTitle.jsx';
 import Face, { FacesLead } from '../../../shared/ui/Face.jsx';
 import { TalkCard, when } from '../../../shared/ui/Talk.jsx';
+import { ReactionTally } from '../../../shared/ui/Reactions.jsx';
 import { appPath } from '../base';
 import { formatAuthors } from '../paperFormat';
 import { keep, kept } from '../lastMember';
@@ -231,6 +232,8 @@ function ThreadRow({ row }) {
           <span className="desk-meta room-meta">
             {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'}${paper || (about && carried) ? ' · ' : ''}`}
             {paper ? <><PaperTitle title={paper.title} />, page {thread.page}</> : [replies > 0 ? null : 'No replies yet', about && carried].filter(Boolean).join(' · ')}
+            {/* The emoji set on the thread itself, to read; they are set on its jacket. */}
+            <ReactionTally reactions={thread.reactions} className="room-reactions" />
           </span>
         </div>
         <span className="room-faces">

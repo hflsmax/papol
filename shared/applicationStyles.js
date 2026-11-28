@@ -6136,6 +6136,8 @@ ${talkStyles}
 .thread-jacket-from img { display: block; max-width: 100%; max-height: 28rem; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
 .thread-jacket-from blockquote + img { margin-top: var(--space-3); }
 .thread-jacket .thread-jacket-facts { margin: var(--space-3) 0 0 -16px; }
+.thread-jacket-reactions { margin-top: var(--space-2); }
+.room-reactions { margin-left: var(--space-2); }
 .thread-jacket-paper { display: grid; gap: 2px; margin: var(--space-3) 0 0; }
 .thread-jacket-paper-title { color: var(--ink); font: 400 var(--fs-md)/1.4 var(--font-serif); }
 .thread-jacket-paper-meta { color: var(--ink-faint); font: 400 var(--fs-xs)/1.45 var(--font-ui); }

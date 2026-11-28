@@ -75,15 +75,15 @@ export async function latest(env: Env, me: User, seen: string = me.room_seen_at 
        WHERE c.deleted_at IS NULL AND (n.thought_at > ?1 OR n.rated_at > ?1) AND c.user_uuid IN ${people}`, since),
     // A friend's dig.
     statement(env.DB,
-      `SELECT ${digOn}, (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid) AS post_count, ${PERSON}
+      `SELECT ${digOn}, (SELECT count(*) FROM dig_posts dp WHERE dp.dig_uuid = d.uuid AND dp.emoji IS NULL) AS post_count, ${PERSON}
        FROM digs d LEFT JOIN annotations an ON an.uuid = d.annotation_uuid JOIN users u ON u.uuid = d.user_uuid
        WHERE d.created_at > ? AND ${friendSees(mine)}`, since),
     // A post in a dig the reader can see, a friend's or their own.
     statement(env.DB,
       `SELECT ${digOn}, dp.body, dp.created_at AS posted_at,
-              (d.user_uuid = ${mine} OR EXISTS (SELECT 1 FROM dig_posts x WHERE x.dig_uuid = d.uuid AND x.user_uuid = ${mine})) AS involved, ${PERSON}
+              (d.user_uuid = ${mine} OR EXISTS (SELECT 1 FROM dig_posts x WHERE x.dig_uuid = d.uuid AND x.emoji IS NULL AND x.user_uuid = ${mine})) AS involved, ${PERSON}
        FROM dig_posts dp JOIN digs d ON d.uuid = dp.dig_uuid LEFT JOIN annotations an ON an.uuid = d.annotation_uuid JOIN users u ON u.uuid = dp.user_uuid
-       WHERE dp.created_at > ? AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND d.paper_sha256 IS NOT NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})
+       WHERE dp.emoji IS NULL AND dp.created_at > ? AND dp.user_uuid != ${mine} AND d.project_uuid IS NULL AND d.paper_sha256 IS NOT NULL AND (d.user_uuid = ${mine} OR ${friendSees(mine)})
        ORDER BY dp.created_at`, since),
     // A board put on a public shelf.
     statement(env.DB,
