@@ -67,7 +67,7 @@ const PAPERS = [
 
 // How many papers show before the list is scrolled: the last one cut in
 // half, which says there are more under it.
-const SHOWN = 6.5;
+const SHOWN = 4.5;
 
 export default function HomeNook({ onOpen }) {
   const listRef = useRef(null);

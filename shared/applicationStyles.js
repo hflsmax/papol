@@ -3822,8 +3822,8 @@ a.button:hover {
   box-shadow: var(--shadow-md);
 }
 .landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-/* The list scrolls in the window, which opens tall enough for six papers
-   and half of the seventh. Its padding keeps the first title's ring and the
+/* The list scrolls in the window, which opens tall enough for four papers
+   and half of the fifth. Its padding keeps the first title's ring and the
    tag over it inside what it clips. */
 .landing-nook-list { overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 26px 8px 0; }
 .landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -3855,9 +3855,11 @@ a.button:hover {
   background: var(--card);
   font-family: var(--font-ui);
 }
-.specimen-home { flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin: 0 -6px; padding: 0; border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink-soft); }
-.specimen-home:hover { background: var(--accent-soft); color: var(--accent); }
-.specimen-home svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+/* The way back to the list is the one thing in the bar that leaves the
+   paper, so it is drawn larger and heavier than a tool, in the accent. */
+.specimen-home { flex: none; display: grid; place-items: center; width: 36px; height: 34px; margin: 0 -4px; padding: 0; border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--accent); }
+.specimen-home:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.specimen-home svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .specimen-doc-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; text-overflow: ellipsis; }
 .specimen-tools { display: inline-flex; gap: 4px; flex: none; }
 .specimen-tool { position: relative; display: grid; place-items: center; width: 34px; height: 32px; padding: 0; }
