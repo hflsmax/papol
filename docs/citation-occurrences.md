@@ -104,7 +104,7 @@ takes:
 - If the exploration ends on the view it started from (stepped all the way
   round, or scrolled home by hand), the entry is taken off again: nothing
   moved.
-- The first step does not bring up the Learn Papol lesson on the pill
+- The first step does not bring up the tip card on the pill
   (`LINK_NAVIGATION_TIP`), which a followed link does: it would sit over
   the ↑ ↓ the reader is stepping with, and the pill itself shows `[`.
 

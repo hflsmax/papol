@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { appPath } from '../base';
 import HomeSpecimen from './HomeSpecimen';
-import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
 
 // What can be tried, in the order the page offers it. One thing beckons at
 // a time: the first not yet tried.
@@ -54,8 +53,6 @@ export default function HomePage() {
 
       <footer className="landing-footer">
         <a href={appPath('/about')}>About</a>
-        <a href={appPath('/learn')}>Learn</a>
-        <a href={MAC_DOWNLOAD_URL}>Mac app</a>
         <a href="https://github.com/hflsmax/papol" target="_blank" rel="noreferrer">Open source on GitHub</a>
       </footer>
     </div>

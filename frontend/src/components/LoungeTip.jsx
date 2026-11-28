@@ -20,7 +20,7 @@ export default function LoungeTip({ here = false }) {
   if (told || here) return null;
   return (
     <span className="learn-papol lounge-tip" role="dialog" aria-labelledby="lounge-tip-title">
-      <span className="learn-papol-kicker">Learn Papol</span>
+      <span className="learn-papol-kicker">Tip</span>
       <strong id="lounge-tip-title">See what your friends are doing here</strong>
       <button type="button" className="learn-papol-close" onClick={tell} aria-label="Dismiss this tip">
         Got it

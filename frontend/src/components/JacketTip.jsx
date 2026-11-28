@@ -15,7 +15,7 @@ export default function JacketTip({ lounge = false }) {
   if (told) return null;
   return (
     <span className="learn-papol way-tip" role="dialog" aria-labelledby="jacket-tip-title">
-      <span className="learn-papol-kicker">Learn Papol</span>
+      <span className="learn-papol-kicker">Tip</span>
       <strong id="jacket-tip-title">{lounge ? 'Go back to the Lounge here' : 'Go back to your nook here'}</strong>
       <button type="button" className="learn-papol-close" onClick={() => { setFeatureState(JACKET_TIP, true); setTold(true); }} aria-label="Dismiss this tip">
         Got it

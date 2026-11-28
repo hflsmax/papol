@@ -118,7 +118,6 @@ export function WayFoot({ macDownloadUrl, onFeedback = null }) {
   return (
     <footer className="way-foot">
       <a href={appPath('/about')}>About</a>
-      <a href={appPath('/learn')}>Learn</a>
       <a href={macDownloadUrl} target="_blank" rel="noreferrer">Mac app</a>
       {onFeedback && <button type="button" className="way-foot-feedback" onClick={onFeedback} title="Report a bug or ask for a feature">Feedback</button>}
     </footer>

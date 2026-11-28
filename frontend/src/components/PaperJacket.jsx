@@ -1165,7 +1165,7 @@ export default function PaperJacket({
                   {visibilityChip('ratings_public')}
                   {learnVisibility && (
                     <span ref={learnVisibilityRef} className="learn-papol" role="dialog" aria-labelledby="learn-visibility-title">
-                      <span className="learn-papol-kicker">Learn Papol</span>
+                      <span className="learn-papol-kicker">Tip</span>
                       <strong id="learn-visibility-title">Private or public</strong>
                       <span>Each part of this paper can be kept to yourself or shown to others. Press its badge to switch.</span>
                       <button type="button" className="learn-papol-close" onClick={() => setLearnVisibility(false)}>

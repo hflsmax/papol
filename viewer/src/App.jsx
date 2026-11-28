@@ -4465,7 +4465,7 @@ export default function App() {
 
   const learnLinkTip = learnLinkNavigation && (
     <span ref={learnLinkTipRef} className="learn-papol" role="dialog" aria-labelledby="learn-link-title">
-      <span className="kicker">Learn Papol</span>
+      <span className="kicker">Tip</span>
       <strong id="learn-link-title">Jump back to where you were</strong>
       <span>
         Use this pill after following a link, or press <kbd>[</kbd> and <kbd>]</kbd>

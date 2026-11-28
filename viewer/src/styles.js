@@ -1438,7 +1438,7 @@ ${fileDropStyles}
   stroke-linecap: round;
 }
 
-/* Where the pill stood, the Learn Papol card that explains hiding it: the
+/* Where the pill stood, the tip card that explains hiding it: the
    same card as the pill's own lesson, drawn in place rather than hung off an
    anchor, since the pill it would point at is gone. */
 .link-return-notice {
