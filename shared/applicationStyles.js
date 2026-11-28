@@ -3739,7 +3739,7 @@ a.button:hover {
    has been. */
 .landing { display: grid; gap: 56px; padding-bottom: 24px; }
 
-.landing-hero { padding: 28px 0 0; }
+.landing-hero { display: grid; justify-items: center; padding: 28px 0 0; text-align: center; }
 .landing-title {
   max-width: 20ch;
   color: var(--ink);
@@ -3750,9 +3750,9 @@ a.button:hover {
   text-wrap: balance;
 }
 .landing-fact { margin-top: 14px; color: var(--ink-soft); font: var(--fs-lg)/1.5 var(--font-ui); }
-/* What sits under the heading is there to be tried, and this line says
-   so before the visitor reaches it. */
-.landing-try { margin-top: 20px; color: var(--ink); font: 600 var(--fs-2xl)/1.3 var(--font-ui); }
+/* The line over the list is the heading of what is to be tried, set as
+   the page's other headings are and close over the card it names. */
+.landing-try { margin-bottom: 14px; color: var(--ink); font: 600 var(--fs-2xl)/1.3 var(--font-serif); text-align: center; }
 .landing-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; }
 .landing-button {
   display: inline-block;
@@ -3773,7 +3773,7 @@ a.button:hover {
 .landing-place-section { scroll-margin-top: 16px; }
 /* The paper to try belongs to the line above it, so it sits closer to the
    heading than the sections after it sit to each other. */
-.landing-hero + .landing-place-section { margin-top: -28px; }
+.landing-hero + .landing-place-section { margin-top: -22px; }
 
 /* Something to try, until it has been: outlined in the accent, a ring that
    breathes, and a tag over it naming the gesture. */
@@ -3828,7 +3828,7 @@ a.button:hover {
 /* The list scrolls in the window, which opens tall enough for four papers
    and half of the fifth. Its padding keeps the first title's ring and the
    tag over it inside what it clips. */
-.landing-nook-list { overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 26px 8px 0; }
+.landing-nook-list { overflow-y: auto; margin: 0 -8px; padding: 26px 8px 0; }
 .landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .landing-nook-column { color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .landing-nook-column.is-effort { width: 4.75rem; text-align: center; }
@@ -3841,6 +3841,13 @@ a.button:hover {
    its time in the middle of it. */
 .landing-nook-effort.nook-effort { flex: none; justify-content: center; min-width: 4.75rem; padding: 7px 12px; font-size: var(--fs-sm); line-height: 1; text-align: center; cursor: inherit; }
 .landing-nook-effort:hover { box-shadow: none; }
+/* The levels keep their order but are paler here than on a nook, so the
+   titles, one of which opens, are what the eye finds first. */
+.landing-nook-effort.effort-level-1 { background: color-mix(in srgb, var(--activity-heat-1) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-2 { background: color-mix(in srgb, var(--activity-heat-2) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-3 { background: color-mix(in srgb, var(--activity-heat-3) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-4 { background: color-mix(in srgb, var(--activity-heat-4) 40%, var(--card)); color: var(--ink); }
+.landing-nook-effort.effort-level-5 { background: color-mix(in srgb, var(--activity-heat-5) 40%, var(--card)); color: var(--ink); }
 
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }

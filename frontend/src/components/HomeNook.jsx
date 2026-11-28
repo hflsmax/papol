@@ -66,8 +66,11 @@ const PAPERS = [
 ];
 
 // How many papers show before the list is scrolled: the last one cut in
-// half, which says there are more under it.
+// half, which says there are more under it. A phone shows fewer, so the
+// list never fills the screen and the page under it stays in reach.
 const SHOWN = 4.5;
+const SHOWN_NARROW = 2.5;
+const NARROW = '(max-width: 640px)';
 
 export default function HomeNook({ onOpen }) {
   const listRef = useRef(null);
@@ -78,11 +81,13 @@ export default function HomeNook({ onOpen }) {
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
+    const narrow = typeof window.matchMedia === 'function' ? window.matchMedia(NARROW) : null;
     const measure = () => {
-      const cut = list.querySelectorAll('li')[Math.floor(SHOWN)];
+      const shown = narrow && narrow.matches ? SHOWN_NARROW : SHOWN;
+      const cut = list.querySelectorAll('li')[Math.floor(shown)];
       if (!cut) { setHeight(null); return; }
       const top = cut.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
-      setHeight(Math.round(top + cut.offsetHeight * (SHOWN % 1)));
+      setHeight(Math.round(top + cut.offsetHeight * (shown % 1)));
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;

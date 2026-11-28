@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { appPath } from '../base';
 import HomeNook from './HomeNook';
 import HomeSpecimen from './HomeSpecimen';
@@ -15,6 +15,19 @@ export default function HomePage() {
   const [flash, setFlash] = useState(null);
   const [tried, setTried] = useState({});
   const [reading, setReading] = useState(false);
+  const placeRef = useRef(null);
+
+  // The list and the viewer are not the same height, so the swap is made
+  // with the top of the place in view: the page does not seem to jump.
+  const show = (next) => {
+    setReading(next);
+    requestAnimationFrame(() => {
+      const place = placeRef.current;
+      if (!place) return;
+      const top = place.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight * 0.5) place.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  };
 
   const onTried = (key) => setTried((current) => (current[key] ? current : { ...current, [key]: true }));
   const beckoning = TRIES.find((key) => !tried[key]);
@@ -32,10 +45,10 @@ export default function HomePage() {
       <header className="landing-hero">
         <h1 className="landing-title">Read more papers, more intelligently</h1>
         <p className="landing-fact">A paper reader for researchers, free and open source.</p>
-        <p className="landing-try">Try it below <span aria-hidden="true">↓</span></p>
       </header>
 
-      <section id="viewer" className="landing-place-section" aria-label={reading ? 'Viewer' : 'Nook'}>
+      <section id="viewer" ref={placeRef} className="landing-place-section" aria-label={reading ? 'Viewer' : 'Nook'}>
+        <h2 className="landing-try">Try it below <span aria-hidden="true">↓</span></h2>
         {reading ? (
           <HomeSpecimen
             painted={painted}
@@ -44,15 +57,15 @@ export default function HomePage() {
             onGlow={glow}
             beckoning={beckoning}
             onTried={onTried}
-            onHome={() => setReading(false)}
+            onHome={() => show(false)}
           />
         ) : (
-          <HomeNook onOpen={() => setReading(true)} />
+          <HomeNook onOpen={() => show(true)} />
         )}
       </section>
 
       <section className="landing-close">
-        <h2>Now bring your own papers.</h2>
+        <h2>Bring your own papers.</h2>
         <div className="landing-doors">
           <a className="landing-button primary" href={appPath('/join')}>Create an account</a>
           <a className="landing-button" href={appPath('/signin')}>Sign in</a>
