@@ -505,7 +505,7 @@ function answer(method, path, search, sent = {}) {
         note(1, 'Ben Hall replied in your dig on “Error dynamics in adaptive optics loops”.', 3, false),
         note(2, 'Mia Tanaka joined Adaptive optics control.', 26, false),
         note(3, 'Ana Reyes added “A survey of predictive control for telescopes” to Adaptive optics control.', 24 * 6, true),
-        note(4, 'Welcome to Papol, Dana Okafor—your paper-reading companion. Your nook is where you document your reading: upload the papers you read, rate them, and keep what you think of each.', 24 * 40, true),
+        note(4, 'Welcome to Papol, Dana Okafor. Your nook is where you keep the papers you read: add a PDF, read it in Papol, and keep your summary, ratings and digs with it. Each shelf is public or private, so you choose what others see. In the Lounge, ask people to be friends to see what they are reading.', 24 * 40, true),
       ],
       unread_count: 4,
     };

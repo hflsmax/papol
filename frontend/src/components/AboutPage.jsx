@@ -1,7 +1,7 @@
 import React from 'react';
 
-// The author's page: what Papol is, who makes it, and how to reach them. One
-// typeface, the title and three paragraphs (styles under "About").
+// The author's page: what Papol is and who makes it. One
+// typeface, the title and two paragraphs (styles under "About").
 export default function AboutPage() {
   return (
     <div className="about-page">
@@ -16,10 +16,6 @@ export default function AboutPage() {
           <a href="https://mc-pony.com" target="_blank" rel="noreferrer">Cong Ma</a>.
           The source code is publicly available on{' '}
           <a href="https://github.com/hflsmax/papol" target="_blank" rel="noreferrer">GitHub</a>.
-        </p>
-        <p>
-          Questions, bug reports and suggestions are welcome. Messages sent through the
-          Feedback button go directly to the developer.
         </p>
       </article>
     </div>

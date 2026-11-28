@@ -57,6 +57,8 @@ const PAPER_OPEN = "location.pathname.startsWith('/paper/') && document.querySel
 const NO_LESSON = "localStorage.setItem('papol_learn_visibility', 'seen');";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
+  'join': { path: '/join?shell=web', ready: "document.querySelector('#auth-display-name')", size: wide },
+  'about': { path: '/about?shell=web', ready: "document.querySelector('.about-story')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
   'reset-password': { path: `/reset-password/${'ab'.repeat(32)}?shell=web`, ready: "document.querySelector('#auth-password-confirmation')", size: wide },
   'desk-papers': { ...desk('papers', '.project-paper'), size: wide },
@@ -305,6 +307,8 @@ const SHOTS = {
   'phone-paper-dig': { path: `/paper/${P_SURVEY.slice(0, 32)}?shell=web`, ready: "document.querySelector('.paper-dig .talk-post')", then: "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Got it')?.click(); document.querySelector('.paper-dig').scrollIntoView({ block: 'center' }); return true;", size: phone },
   you: { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: wide },
   'you-inbox': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", size: wide },
+  // The member's page on its Papol for Mac tab.
+  'you-mac': { path: '/inbox?shell=web', ready: "document.querySelector('.you-page .notification-item')", then: "document.getElementById('you-tab-mac').click(); return true;", settled: "document.querySelector('.preferences-mac-note')", size: wide },
   'you-account': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", then: "document.getElementById('you-tab-account').click(); return true;", settled: "document.querySelector('.profile-page')", size: wide },
   'phone-you': { path: '/profile?shell=web', ready: "document.querySelector('.you-page .activity-block')", size: phone },
   // One notification opened in the inbox.

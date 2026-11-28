@@ -767,10 +767,6 @@ export const desktopStyles = `
   box-shadow: 0 1px 3px rgba(var(--shade-rgb), 0.08), 0 10px 30px rgba(var(--shade-rgb), 0.08);
 }
 
-[data-shell='desktop'] .auth-subtitle {
-  font-style: normal;
-}
-
 /* Beside a list pane a notice has less room than a website header:
    it keeps to one line and lets its sentence give way to its actions. */
 [data-shell='desktop'] .notice-banner {

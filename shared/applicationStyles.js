@@ -947,13 +947,6 @@ button.full-width {
 }
 
 .auth-card h2 {
-  margin-bottom: 6px;
-}
-
-.auth-subtitle {
-  color: var(--ink-soft);
-  font-size: var(--fs-md);
-  font-style: italic;
   margin-bottom: 20px;
 }
 
