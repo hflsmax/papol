@@ -35,8 +35,8 @@ export default function CompatibilityGate() {
       <div className="compatibility-stop-panel">
         <h1 id="compatibility-stop-title">Papol needs updating</h1>
         <p>
-          This version can no longer work with the backend service, so it has
-          stopped. Please download the latest app.
+          This version can no longer work with the backend service. Please
+          download the latest app. Your data will not be lost.
         </p>
         <div className="compatibility-stop-actions">
           <a href={state.downloadUrl || DEFAULT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
