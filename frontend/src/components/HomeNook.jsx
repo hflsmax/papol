@@ -64,8 +64,8 @@ export default function HomeNook({ onOpen }) {
   return (
     <div className="landing-nook">
       <p className="landing-nook-head">
-        <span className="landing-nook-name">My nook</span>
-        <span className="landing-nook-column">Effort</span>
+        <span className="landing-nook-column">Title</span>
+        <span className="landing-nook-column is-effort">Effort</span>
       </p>
       <div
         ref={listRef}

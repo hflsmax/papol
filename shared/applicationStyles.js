@@ -3842,8 +3842,8 @@ a.button:hover {
    tag over it inside what it clips. */
 .landing-nook-list { overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 26px 8px 0; }
 .landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.landing-nook-name { color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
-.landing-nook-column { width: 4.75rem; color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.landing-nook-column { color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.landing-nook-column.is-effort { width: 4.75rem; text-align: center; }
 /* No shelf bars here, so a row needs no lane for one. */
 .landing-nook .paper-list li { padding-left: 0; padding-right: 0; cursor: pointer; }
 .landing-nook li:hover .paper-title-link { color: var(--accent); }
