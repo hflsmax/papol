@@ -59,15 +59,21 @@ describe("reactions", () => {
     expect(await reacted(await unreact(ada, "thread", thread.uuid))).toEqual([{ emoji: "👍", count: 1, mine: false, who: ["Grace"] }, { emoji: "🎉", count: 1, mine: false, who: ["Grace"] }]);
     expect(await reacted(await unreact(ada, "thread", thread.uuid, "🎉"))).toHaveLength(2);
 
-    // Only what Papol offers, and only on what takes one.
+    // Only an emoji, and only on what takes one.
     expect((await react(ada, "thread", thread.uuid, "x")).status).toBe(422);
+    // Any one emoji is a reaction, whether or not the pages offer it first: a
+    // flag, a face with a skin tone. Two emoji, or an emoji with words, are not.
+    expect(await reacted(await react(ada, "reply", said.uuid, "🦉"))).toContainEqual({ emoji: "🦉", count: 1, mine: true, who: ["Ada"] });
+    expect((await react(ada, "reply", said.uuid, "🇳🇱")).status).toBe(200);
+    expect((await react(ada, "reply", said.uuid, "👋🏽")).status).toBe(200);
+    for (const not of ["👍👍", "👍 yes", "", "🦉".repeat(20)]) expect((await react(ada, "reply", said.uuid, not)).status).toBe(422);
     expect((await react(ada, "thread", thread.uuid, null)).status).toBe(422);
     expect((await react(ada, "paper", thread.uuid)).status).toBe(404);
     expect((await react(ada, "thread", uuid())).status).toBe(404);
     expect((await react(ada, "post", uuid())).status).toBe(404);
   });
 
-  it("are nothing said: no reply, no post, no news, and not theirs to edit as one", async () => {
+  it("are nothing said: no reply, no post, no news in the Lounge, and not theirs to edit as one", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
     await paperWithCopy(ada, DIGEST, "Attention at depth", { shelfUuid: await defaultShelf(ada) });
     await befriend(ada, grace);
@@ -86,7 +92,10 @@ describe("reactions", () => {
     const row = ((await ok("GET", "/api/room", { headers: ada.headers })).rows as Record<string, any>[]).find((r) => r.kind === "thread");
     expect(row).toMatchObject({ is_new: false, at: thread.created_at, lines: [{ did: "started" }] });
     expect((await ok("GET", "/api/room/news", { headers: ada.headers })).news).toBe(false);
-    expect(await count("notifications", "user_uuid = ?", ada.uuid)).toBe(told);
+    // Told one way only: a line in her inbox for each emoji a friend set, and no email.
+    expect(await count("notifications", "user_uuid = ?", ada.uuid)).toBe(told + 2);
+    expect(await count("notifications", "user_uuid = ? AND kind = 'reaction'", ada.uuid)).toBe(2);
+    expect(await count("email_held", "user_uuid = ?", ada.uuid)).toBe(0);
 
     // The dig has no posts, and its writer still waits for a friend to post before answering.
     const dug = await ok("GET", `/api/digs/${dig.uuid}`, { headers: ada.headers });
@@ -190,5 +199,49 @@ describe("reactions", () => {
     await ok("DELETE", "/api/auth/account", { headers: grace.headers, json: { confirm_email: grace.email } });
     expect(await kept()).toBe(1);
     expect((await ok("GET", `/api/threads/${stays.uuid}`, { headers: ada.headers }))).toMatchObject({ replies: [], reactions: [{ emoji: "🎉", count: 1, mine: true, who: ["Ada"] }] });
+  });
+
+  it("put a line in the inbox of whoever wrote the thing, gone if taken back unread", async () => {
+    const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace");
+    await befriend(ada, grace);
+    const lines = async (account: Account) => (await rows<{ content: string; link: string; kind: string; actor_uuid: string; read: number }>(
+      "SELECT content, link, kind, actor_uuid, read FROM notifications WHERE user_uuid = ? AND kind = 'reaction' ORDER BY created_at, uuid", account.uuid));
+    const thread = await start(ada);
+    const said = (await reply(grace, thread.uuid, "Once per night, last spring.")).replies[0];
+
+    // One's own words reacted to by oneself tell nobody.
+    await react(ada, "thread", thread.uuid);
+    expect(await lines(ada)).toEqual([]);
+
+    await react(grace, "thread", thread.uuid, "🔥");
+    expect(await lines(ada)).toEqual([{ content: "Grace reacted 🔥 to your thread.", link: `/thread/${thread.uuid}`, kind: "reaction", actor_uuid: grace.uuid, read: 0 }]);
+    // Set again, it is still one line; the inbox reads it with who it is from.
+    await react(grace, "thread", thread.uuid, "🔥");
+    expect(await lines(ada)).toHaveLength(1);
+    const inbox = await ok("GET", "/api/notifications", { headers: ada.headers });
+    expect(inbox.notifications.find((n: { kind: string }) => n.kind === "reaction")).toMatchObject({ content: "Grace reacted 🔥 to your thread.", link: `/thread/${thread.uuid}`, actor: { uuid: grace.uuid } });
+    // Taken back unread, the line goes; set anew, it is there once.
+    await unreact(grace, "thread", thread.uuid, "🔥");
+    expect(await lines(ada)).toEqual([]);
+    await react(grace, "thread", thread.uuid, "🔥");
+    expect(await lines(ada)).toHaveLength(1);
+    // A line already read stays when the emoji is taken back.
+    await ok("POST", "/api/notifications/read", { headers: ada.headers });
+    await unreact(grace, "thread", thread.uuid, "🔥");
+    expect(await lines(ada)).toMatchObject([{ read: 1 }]);
+
+    // A reply's writer is told, not the thread's starter.
+    await react(ada, "reply", said.uuid, "💡");
+    expect(await lines(grace)).toMatchObject([{ content: "Ada reacted 💡 to your reply in a thread.", link: `/thread/${thread.uuid}` }]);
+    expect(await lines(ada)).toHaveLength(1);
+
+    // A dig's writer and a post's writer are told, with the paper named.
+    await paperWithCopy(ada, DIGEST, "Sleep and memory", { shelfUuid: await defaultShelf(ada) });
+    const dig = await ok("POST", "/api/digs", { headers: ada.headers, json: { subject: `paper:${DIGEST}`, text: "The delay matters." } });
+    const posted = await ok("POST", `/api/digs/${dig.uuid}/posts`, { headers: grace.headers, json: { body: "Agreed." } });
+    await react(grace, "dig", dig.uuid, "🚀");
+    expect((await lines(ada)).at(-1)).toMatchObject({ content: "Grace reacted 🚀 to your dig on Sleep and memory.", link: `/paper/${DIGEST.slice(0, 32)}#dig-${dig.uuid}` });
+    await react(ada, "post", posted.posts[0].uuid, "🙌");
+    expect((await lines(grace)).at(-1)).toMatchObject({ content: "Ada reacted 🙌 to your post in a dig on Sleep and memory.", link: `/paper/${DIGEST.slice(0, 32)}#dig-${dig.uuid}` });
   });
 });

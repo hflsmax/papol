@@ -14,6 +14,16 @@ import { acceptAsk, declineAsk } from '../../../shared/api/projects.js';
 // The project an ask to join is about: its line leads there.
 const askedProject = (n) => n.link.split('/').pop();
 
+// What a line's link says it opens. An emoji set on something of the
+// member's leads to the thing: a thread, a project's dig, or a dig on a
+// paper's jacket.
+function leadsTo(n) {
+  if (n.link.startsWith('/thread/')) return 'Open the thread';
+  if (n.kind?.startsWith('project_') || n.link.startsWith('/project/')) return 'Open the project';
+  if (n.kind === 'dig_post' || n.kind === 'friend_dig' || n.kind === 'reaction') return 'Open the dig';
+  return 'Open their nook';
+}
+
 const unreadIn = (notifications) => notifications.filter((x) => !x.read).length;
 
 // What has come for a member, newest first, as a mail list: one line
@@ -154,7 +164,7 @@ export default function InboxPage({ onUnread }) {
               </span>
             ) : n.link && expanded[n.uuid] ? (
               <span className="notification-acts">
-                <a className="notification-link" href={appPath(n.link)}>{n.kind === 'dig_post' || n.kind === 'friend_dig' ? 'Open the dig' : n.kind?.startsWith('project_') ? 'Open the project' : 'Open their nook'}</a>
+                <a className="notification-link" href={appPath(n.link)}>{leadsTo(n)}</a>
               </span>
             ) : null}
           </li>
