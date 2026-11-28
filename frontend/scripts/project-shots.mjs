@@ -157,6 +157,12 @@ const SHOTS = {
   // The card under My nook, in the Lounge, until the member has been told.
   'nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: wide },
   'phone-nook-tip': { path: '/lounge?shell=web&tip=nook', ready: "document.querySelector('.room-row') && document.querySelector('#nook-tip-title')", size: phone },
+  // On a jacket, the card under Papol's mark saying it is the way back:
+  // to the nook for a paper opened there, to the Lounge for one opened there.
+  'jacket-tip': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web&tip=jacket', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.desk-paper-view .paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2') && document.querySelector('#jacket-tip-title')", size: wide },
+  'room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: wide },
+  'phone-jacket-tip': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web&tip=jacket', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2') && document.querySelector('#jacket-tip-title')", size: phone },
+  'phone-room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: phone },
   'phone-lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: phone },
   // Two papers pinned: they lead the list, each with its pin; the pointer
   // rests on a paper that is not, whose pin shows while it does.

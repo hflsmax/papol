@@ -1258,6 +1258,7 @@ export default function App({ startupUser = null, startupError = null }) {
             // there, so only another place is named beside it.
             from={jacketFrom?.path === ROOM_PATH ? null : jacketFrom}
             inLounge={inLounge || (route.page === 'nook' && route.uuid !== user.uuid)}
+            onJacket={onJacket || route.page === 'thread'}
             unreadCount={unreadCount}
             roomNews={roomNews}
           />

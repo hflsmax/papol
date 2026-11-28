@@ -1816,6 +1816,23 @@ ${inDark([[
 .way-room-anchor { position: relative; display: inline-flex; }
 .learn-papol.lounge-tip { left: auto; right: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
 .learn-papol.lounge-tip::before { left: auto; right: 24px; }
+/* The card saying Papol's mark is the way back from a jacket, hung from
+   the mark at the bar's left end, its notch under the middle of the mark. */
+.way-bar { position: relative; }
+.learn-papol.way-tip { left: 0; transform: none; width: max-content; max-width: calc(100vw - 24px); }
+.learn-papol.way-tip::before { left: calc(1.5rem - 6px); }
+@media (min-width: 761px) {
+  .app:has(.nook-desk:not(.is-project)) .learn-papol.way-tip::before { left: calc(1.5rem + var(--space-2) - 6px); }
+}
+/* Where the title takes a line of its own under the mark, the card still
+   hangs from the mark, over the title. */
+@media (max-width: 760px) {
+  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(3rem + 12px); }
+}
+@media (max-width: 640px) {
+  .learn-papol.way-tip::before { left: calc(1.25rem - 6px); }
+  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(2.5rem + 12px); }
+}
 
 /* Keeps its own colours on hover, where every other button turns blue:
    a public chip that went blue would be saying private. */

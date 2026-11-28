@@ -676,7 +676,7 @@ function projectFixture(server) {
 // The tab is a member's before the app loads: a token where the app keeps
 // it, no Mac banner, and the Lounge's tip already seen unless the address
 // asks for it (?tip=lounge), and likewise the tip on the way back to the
-// nook (?tip=nook).
+// nook (?tip=nook) and the tip on the way back from a jacket (?tip=jacket).
 const signIn = () => ({
   name: 'project-fixture-sign-in',
   transformIndexHtml: (html) => html.replace('<head>', `<head><script>
@@ -686,6 +686,8 @@ const signIn = () => ({
     else localStorage.setItem('papol_learn_lounge', 'seen');
     if (location.search.includes('tip=nook')) localStorage.removeItem('papol_learn_nook_way');
     else localStorage.setItem('papol_learn_nook_way', 'seen');
+    if (location.search.includes('tip=jacket')) localStorage.removeItem('papol_learn_jacket_way');
+    else localStorage.setItem('papol_learn_jacket_way', 'seen');
   </script>`),
 });
 
