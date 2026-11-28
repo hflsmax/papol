@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { appPath } from '../base';
+import HomeNook from './HomeNook';
 import HomeSpecimen from './HomeSpecimen';
 import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
 
@@ -7,13 +8,14 @@ import { MAC_DOWNLOAD_URL } from '../../../shared/macDownload.js';
 // a time: the first not yet tried.
 const TRIES = ['cite', 'figure', 'rule', 'paint'];
 
-// What a visitor sees: what Papol is in a line, the way in for someone who
-// already knows it, and for someone who does not, Papol itself to try: a
-// paper in the viewer. No feature is explained; each can be tried.
+// What a visitor sees: what Papol is in a line, and Papol itself to try: a
+// nook with a few papers in it, and behind any of them a paper in the
+// viewer. No feature is explained; each can be tried.
 export default function HomePage() {
   const [painted, setPainted] = useState([]);
   const [flash, setFlash] = useState(null);
   const [tried, setTried] = useState({});
+  const [reading, setReading] = useState(false);
 
   const onTried = (key) => setTried((current) => (current[key] ? current : { ...current, [key]: true }));
   const beckoning = TRIES.find((key) => !tried[key]);
@@ -33,15 +35,20 @@ export default function HomePage() {
         <p className="landing-fact">A paper reader for researchers, free and open source.</p>
       </header>
 
-      <section id="viewer" className="landing-place-section" aria-label="Viewer">
-        <HomeSpecimen
-          painted={painted}
-          onTogglePaint={togglePaint}
-          flash={flash}
-          onGlow={glow}
-          beckoning={beckoning}
-          onTried={onTried}
-        />
+      <section id="viewer" className="landing-place-section" aria-label={reading ? 'Viewer' : 'Nook'}>
+        {reading ? (
+          <HomeSpecimen
+            painted={painted}
+            onTogglePaint={togglePaint}
+            flash={flash}
+            onGlow={glow}
+            beckoning={beckoning}
+            onTried={onTried}
+            onHome={() => setReading(false)}
+          />
+        ) : (
+          <HomeNook onOpen={() => setReading(true)} />
+        )}
       </section>
 
       <section className="landing-close">

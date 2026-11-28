@@ -170,7 +170,7 @@ function Tool({ name, label, keyLetter, active, beckon, onClick }) {
   );
 }
 
-export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, beckoning, onTried }) {
+export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, beckoning, onTried, onHome }) {
   const [tool, setTool] = useState('read');
   const [card, setCard] = useState(null); // { at: where the citation stands, ref: the work shown }
   const [figureOpen, setFigureOpen] = useState(false);
@@ -376,7 +376,9 @@ export default function HomeSpecimen({ painted, onTogglePaint, flash, onGlow, be
     <div className="specimen">
       <div className="specimen-window">
         <div className="specimen-toolbar">
-          <svg className="specimen-home" viewBox="0 0 16 16" aria-hidden="true">{ICONS.home}</svg>
+          <button type="button" className="specimen-home" aria-label="Back to the nook" title="Back to the nook" onClick={onHome}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">{ICONS.home}</svg>
+          </button>
           <span className="specimen-doc-title">RustBelt: Securing the Foundations of the Rust Programming Language</span>
           <span className="specimen-tools" role="group" aria-label="Tool">
             <Tool name="read" label="Select" keyLetter="Z" active={tool === 'read'} onClick={() => setTool('read')} />

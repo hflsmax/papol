@@ -3827,6 +3827,20 @@ a.button:hover {
 /* The window clips above the toolbar, so a tool's tag hangs below it. */
 .specimen-tool.beckon[data-hint]::before { top: calc(100% + 8px); bottom: auto; }
 
+/* The nook: a few papers, listed as a nook lists them, in the same window
+   the viewer then opens in. A row is one thing to click, all of it. */
+.landing-nook {
+  padding: 18px 22px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+.landing-nook-name { margin-bottom: 6px; color: var(--ink); font-size: var(--fs-xl); font-weight: 600; }
+.landing-nook li { cursor: pointer; }
+.landing-nook li:hover .paper-title-link { color: var(--accent); }
+.landing-nook .paper-title-link.beckon { border-radius: 2px; }
+
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }
 .specimen-window {
@@ -3843,7 +3857,9 @@ a.button:hover {
   background: var(--card);
   font-family: var(--font-ui);
 }
-.specimen-home { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linejoin: round; }
+.specimen-home { flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin: 0 -6px; padding: 0; border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--ink-soft); }
+.specimen-home:hover { background: var(--accent-soft); color: var(--accent); }
+.specimen-home svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
 .specimen-doc-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; text-overflow: ellipsis; }
 .specimen-tools { display: inline-flex; gap: 4px; flex: none; }
 .specimen-tool { position: relative; display: grid; place-items: center; width: 34px; height: 32px; padding: 0; }
