@@ -59,6 +59,15 @@ function ReactGlyph() {
   );
 }
 
+// Three dots: there is more than is shown.
+function MoreGlyph() {
+  return (
+    <svg className="action-glyph" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="5" cy="12" r="2.1" /><circle cx="12" cy="12" r="2.1" /><circle cx="19" cy="12" r="2.1" />
+    </svg>
+  );
+}
+
 // Every emoji, behind More: a field that narrows them by name, then the
 // groups one under another in a panel that scrolls.
 function EveryEmoji({ reactions, pick }) {
@@ -157,7 +166,7 @@ export function ReactionAdd({ kind, uuid, reactions = [], onChanged, className =
                   );
                 })}
               </span>
-              <button type="button" className="reaction-more" onClick={() => setEvery(true)}>More emoji</button>
+              <button type="button" className="reaction-more" aria-label="More emoji" title="More emoji" onClick={() => setEvery(true)}><MoreGlyph /></button>
             </>
           )}
         </span>

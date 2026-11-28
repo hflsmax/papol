@@ -203,7 +203,8 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 .reaction-add .reaction-grid button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
 .reaction-add .reaction-grid button:hover, .reaction-add .reaction-grid button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
 .reaction-add .reaction-grid button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.reaction-add .reaction-more { align-self: stretch; min-height: 0; height: 26px; margin: 0; padding: 0 8px; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: none; box-shadow: none; color: var(--ink-faint); font: 500 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+.reaction-add .reaction-more svg { display: block; width: 18px; height: 18px; fill: currentColor; stroke: none; }
+.reaction-add .reaction-more { display: grid; place-items: center; align-self: stretch; min-height: 0; height: 26px; margin: 0; padding: 0 8px; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; background: none; box-shadow: none; color: var(--ink-faint); font: 500 12px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
 .reaction-add .reaction-more:hover, .reaction-add .reaction-more:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
 .reaction-add .reaction-search { box-sizing: border-box; width: 100%; min-height: 0; height: 28px; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: 13px/1 var(--font-ui); }
 .reaction-every { display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow-y: auto; overscroll-behavior: contain; outline: none; }
