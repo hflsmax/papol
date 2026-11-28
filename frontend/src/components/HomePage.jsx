@@ -32,7 +32,7 @@ export default function HomePage() {
       <header className="landing-hero">
         <h1 className="landing-title">Read more papers, more intelligently</h1>
         <p className="landing-fact">A paper reader for researchers, free and open source.</p>
-        <p className="landing-try"><span className="landing-try-mark">Demo</span>Try it below <span aria-hidden="true">↓</span></p>
+        <p className="landing-try">Try it below <span aria-hidden="true">↓</span></p>
       </header>
 
       <section id="viewer" className="landing-place-section" aria-label={reading ? 'Viewer' : 'Nook'}>

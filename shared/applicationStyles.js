@@ -3750,10 +3750,9 @@ a.button:hover {
   text-wrap: balance;
 }
 .landing-fact { margin-top: 14px; color: var(--ink-soft); font: var(--fs-lg)/1.5 var(--font-ui); }
-/* What sits under the heading is a demo, not the visitor's own nook, and
-   this line says so before they reach it. */
-.landing-try { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--ink); font: 600 var(--fs-md)/1.4 var(--font-ui); }
-.landing-try-mark { padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; }
+/* What sits under the heading is there to be tried, and this line says
+   so before the visitor reaches it. */
+.landing-try { margin-top: 20px; color: var(--ink); font: 600 var(--fs-2xl)/1.3 var(--font-ui); }
 .landing-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; }
 .landing-button {
   display: inline-block;
