@@ -100,3 +100,7 @@ test('every surface that shows the update panel styles it', () => {
 test("on a phone the nook's papers are a list: no column heads, no Effort or Added cells", () => {
   assert.match(applicationStyles, /\.desk-table thead, \.desk-table \.desk-col-date, \.desk-table \.desk-col-effort \{ display: none; \}/);
 });
+
+test("on a phone the nook's tags keep to one line that scrolls sideways", () => {
+  assert.match(applicationStyles, /\.desk-tags \{ flex-wrap: nowrap; min-width: 0; overflow-x: auto;/);
+});

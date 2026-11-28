@@ -128,6 +128,9 @@ const SHOTS = {
   // My nook on a phone: the page from its top, and the whole of it down to
   // the shelves and boards under the papers.
   'phone-nook': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: phone },
+  // A nook with more tags than a phone is wide: one line of them, the rest
+  // a swipe away.
+  'phone-nook-tags': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-tag')", then: "const tags = document.querySelector('.desk-tags'); ['adaptive optics', 'to read', 'thesis', 'favourite', 'vibration', 'hardware', 'review'].forEach((name) => { const tag = tags.lastElementChild.cloneNode(true); tag.lastChild.textContent = name; tags.append(tag); }); return true;", size: phone },
   'phone-nook-whole': { path: '/?shell=web', ready: "document.querySelector('.nook .desk-title')", size: { ...phone, height: 2400 } },
   // Someone else's nook, as a visitor sees it.
   'their-nook': { path: '/u/a1b2c3d4-0000-4000-8000-000000000002?shell=web', ready: "document.body.innerText.includes('Ana Reyes')", size: wide },
