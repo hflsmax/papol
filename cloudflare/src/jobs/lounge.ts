@@ -14,8 +14,9 @@
 // is told of the last day, or the last week if they chose every week;
 // nobody is told of more than a week.
 //
-// The daily cron trigger queues one job, which on Monday writes to those
-// who chose every week as well; a job writes to a chunk of users, in
+// The daily cron trigger queues one job, which writes to those who chose
+// every day; the weekly one, on Sunday evening, queues one for those who
+// chose every week. A job writes to a chunk of users, in
 // uuid order, and queues the next chunk after itself, as the suggestions
 // job does. Someone with no friends has no Lounge and is passed over.
 //
@@ -207,7 +208,7 @@ export function newsSince(user: Row, often: Frequency, at: number): string {
 }
 
 // The cron trigger's part: one job, starting from the first user.
-// `weekly` on the day those who chose every week are written to.
+// `weekly` for the run that writes to those who chose every week.
 export async function queueLoungeNews(env: Env, weekly: boolean): Promise<string> {
   const first = enqueue(env.DB, LOUNGE_NEWS, { weekly, after: "" });
   await first.statement.run();
@@ -223,9 +224,9 @@ export async function loungeNewsJob(env: Env, payload: Row): Promise<Row> {
   const often = frequencySql("lounge_activity");
   const users = await all<User & { often: Frequency }>(env.DB,
     `SELECT users.*, ${often} AS often FROM users
-     WHERE deleted_at IS NULL AND ${often} IN ('daily'${weekly ? ", 'weekly'" : ""}) AND uuid > ?
+     WHERE deleted_at IS NULL AND ${often} = ? AND uuid > ?
        AND EXISTS (SELECT 1 FROM friendships f WHERE f.state = 'friends' AND (f.asker_uuid = users.uuid OR f.asked_uuid = users.uuid))
-     ORDER BY uuid LIMIT ?`, after, CHUNK);
+     ORDER BY uuid LIMIT ?`, weekly ? "weekly" : "daily", after, CHUNK);
   const site = (await siteUrl(env)).replace(/\/$/, "");
 
   const mails: Mail[] = [];

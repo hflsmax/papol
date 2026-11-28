@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { claim, type Job } from "../src/jobs/queue";
 import { runOne } from "../src/jobs/run";
-import { DAILY_CRON } from "../src/jobs/digests";
+import { DAILY_CRON, WEEKLY_CRON } from "../src/jobs/digests";
 import { newsSince } from "../src/jobs/lounge";
 import { call, count, defaultShelf, exec, ok, paperWithCopy, register, row, rows, type Account } from "./helpers";
 
@@ -34,12 +34,12 @@ describe("the email of the Lounge", () => {
   const sent = () => calls.flatMap((c) => c.body);
   const to = (account: Account) => sent().find((m) => m.to[0] === account.email);
 
-  // A day's cron (a Tuesday's, unless told Monday), then the Lounge job
+  // A day's cron (a Tuesday's, unless told the week's, on Sunday evening), then the Lounge job
   // it queued run with mail configured.
-  const MONDAY = Date.UTC(2026, 10, 23, 14), TUESDAY = Date.UTC(2026, 10, 24, 14);
+  const SUNDAY = Date.UTC(2026, 10, 22, 23), TUESDAY = Date.UTC(2026, 10, 24, 14);
   async function day(mailEnv: Env = { ...env, ...configured } as Env, scheduledTime = TUESDAY) {
     const ctx = createExecutionContext();
-    await worker.scheduled(createScheduledController({ cron: DAILY_CRON, scheduledTime }), env, ctx);
+    await worker.scheduled(createScheduledController({ cron: scheduledTime === SUNDAY ? WEEKLY_CRON : DAILY_CRON, scheduledTime }), env, ctx);
     await waitOnExecutionContext(ctx);
     const queued = await rows<{ uuid: string }>("SELECT uuid FROM jobs WHERE kind = 'lounge_news' AND status = 'queued' ORDER BY created_at");
     expect(queued.length).toBe(1);
@@ -47,7 +47,7 @@ describe("the email of the Lounge", () => {
     await tick();
     return row<Job>("SELECT * FROM jobs WHERE uuid = ?", queued[0].uuid);
   }
-  const monday = () => day(undefined, MONDAY);
+  const sunday = () => day(undefined, SUNDAY);
 
   it("tells each user what their friends did, once, and nobody of what they did themselves", async () => {
     const ada = await register("ada@example.test", "Ada"), grace = await register("grace@example.test", "Grace <b>Hopper</b>");
@@ -184,13 +184,13 @@ describe("the email of the Lounge", () => {
     await ok("PUT", "/api/auth/profile", { headers: alan.headers, json: { emails: { lounge_activity: "weekly" } } });
     await start(grace, { words: "Reading group on Friday" });
 
-    // A day that is not Monday writes to neither.
+    // The day's run writes to neither.
     emailApi();
     expect(await day()).toMatchObject({ result: JSON.stringify({ sent: true, users: 1, recipients: 0 }) });
     expect(sent()).toEqual([]);
-    // Monday writes to whoever chose every week, and says so.
+    // Sunday evening's writes to whoever chose every week, and says so.
     emailApi();
-    await monday();
+    await sunday();
     expect(sent().map((m) => m.to[0])).toEqual(["alan@example.test"]);
     expect(sent()[0].text).toContain("Papol sends this once a week, when there is something new in the Lounge.");
     // Back to every day, Ada is told of the last day.

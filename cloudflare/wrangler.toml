@@ -53,11 +53,12 @@ max_retries = 0
 binding = "BROWSER"
 
 # Every two minutes, jobs nobody was woken for (src/jobs/run.ts); and
-# every day at 14:00 UTC, the emails users chose to be sent daily or
-# weekly (src/jobs/digests.ts, src/jobs/suggestions.ts), Monday's run
-# being the week's.
+# every day at 14:00 UTC, the emails users chose to be sent daily, and on
+# Sunday at 23:00 UTC (Sunday evening in the Americas) those they chose
+# to be sent weekly (src/jobs/digests.ts, src/jobs/suggestions.ts,
+# src/jobs/lounge.ts).
 [triggers]
-crons = ["*/2 * * * *", "0 14 * * *"]
+crons = ["*/2 * * * *", "0 14 * * *", "0 23 * * SUN"]
 
 # Secrets are set with `wrangler secret put`, never written here:
 # EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for mail (src/jobs/mail.ts),
@@ -134,4 +135,4 @@ max_retries = 0
 binding = "BROWSER"
 
 [env.dev.triggers]
-crons = ["*/2 * * * *", "0 14 * * *"]
+crons = ["*/2 * * * *", "0 14 * * *", "0 23 * * SUN"]
