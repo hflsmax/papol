@@ -9,8 +9,8 @@ import { useDismiss } from '../useDismiss.js';
 //
 // Two parts, drawn apart: the button that offers the emoji, on the line
 // that says who and when, beside Edit and Delete; and the chips, under
-// the words, one per emoji with how many set it, there only once somebody
-// has. A chip pressed sets that emoji or takes the reader's own back.
+// the words, one per emoji, with how many set it once more than one has, there only
+// once somebody has. A chip pressed sets that emoji or takes the reader's own back.
 // Both answer with the reactions as they now stand (`onChanged`).
 
 // Who set an emoji, as a chip's title says it.
@@ -116,7 +116,7 @@ export function ReactionChips({ kind, uuid, reactions = [], onChanged, withAdd =
           onClick={() => toggle(reaction.emoji)}
         >
           <span className="reaction-emoji" aria-hidden="true">{reaction.emoji}</span>
-          <span className="reaction-count" aria-hidden="true">{reaction.count}</span>
+          {reaction.count > 1 && <span className="reaction-count" aria-hidden="true">{reaction.count}</span>}
         </button>
       ))}
       {withAdd && <ReactionAdd kind={kind} uuid={uuid} reactions={reactions} onChanged={onChanged} />}

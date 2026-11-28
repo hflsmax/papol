@@ -189,13 +189,26 @@ ${inDark([['.phase-glyph.is-stashed', 'color: #95a6d6;']])}
 .reaction-add-button .action-glyph { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .reaction-add-button .action-glyph-fill { fill: currentColor; stroke: none; }
 .reaction-add-button:hover:not(:disabled), .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { background: var(--accent-soft); color: var(--accent); outline: none; }
+/* The button shows when the reader reaches for what it is on: the pointer
+   over the post (or the thread's jacket, for a thread sent with no
+   words), the keyboard inside it, or its emoji open. A finger has no
+   hover, so there it always shows. */
+@media (hover: hover) {
+  .reaction-add-button { opacity: 0; transition: opacity .12s; }
+  :is(.talk-post, .thread-jacket):hover .reaction-add-button, .talk-post:focus-within .reaction-add-button, .reaction-add-button:focus-visible, .reaction-add.is-open .reaction-add-button { opacity: 1; }
+  .thread-jacket:hover .talk-post:not(:hover) .reaction-add:not(.is-open) .reaction-add-button:not(:focus-visible) { opacity: 0; }
+}
 .reaction-menu { position: absolute; top: calc(100% + 4px); right: -4px; z-index: 30; display: flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-md); }
 .reaction-add .reaction-menu button { display: grid; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; place-items: center; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--ink); font: 17px/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
 .reaction-add .reaction-menu button:hover, .reaction-add .reaction-menu button:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
 .reaction-add .reaction-menu button.is-mine { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .reactions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 0; }
-.reaction { display: inline-flex; align-items: center; gap: 4px; height: 22px; min-height: 0; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
-.reaction-emoji { font-size: 13px; line-height: 1; }
+.reaction { display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; height: 22px; min-width: 30px; min-height: 0; margin: 0; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); box-shadow: none; color: var(--ink-soft); font: 600 var(--fs-xs)/1 var(--font-ui); cursor: pointer; --cap-room: 0px; }
+/* Each part is a box as tall as its own line, so the row centres the
+   emoji and the count on the chip's middle whatever the emoji font's
+   own ascent is. */
+.reaction-emoji, .reaction-count { display: block; flex: none; height: 14px; line-height: 14px; }
+.reaction-emoji { font-size: 13px; }
 .reaction-count { font-variant-numeric: tabular-nums; }
 .reaction:hover:not(:disabled), .reaction:focus-visible { border-color: var(--accent); background: var(--paper); color: var(--ink); outline: none; }
 .reaction.is-mine { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
