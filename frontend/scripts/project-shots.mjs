@@ -50,6 +50,11 @@ const COMPOSE = "const type = () => { const f = document.querySelector('.thread-
 // The bin on a jacket pressed and answered: the same jacket, offering the
 // paper again.
 const REMOVED = "location.pathname.includes('/paper/') && !document.querySelector('[aria-label=\"Remove from my nook\"]') && [...document.querySelectorAll('.paper-jacket .paper-actions button')].some((b) => b.textContent.trim() === 'Add to my nook')";
+// The first paper in the Lounge, opened on its jacket; and the card about
+// private and public already seen, so the jacket is shown plain.
+const OPEN_PAPER = "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;";
+const PAPER_OPEN = "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket .paper-actions') && document.querySelector('.paper-way-head h2')";
+const NO_LESSON = "localStorage.setItem('papol_learn_visibility', 'seen');";
 const SHOTS = {
   'sign-in': { path: '/signin?shell=web', ready: "document.querySelector('#auth-password')", size: wide },
   'forgot-password': { path: '/signin?shell=web', ready: "document.querySelector('.auth-card')", then: "[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Forgot password?').click(); return true;", settled: "document.querySelector('.auth-card h2')?.textContent === 'Reset password'", size: wide },
@@ -163,6 +168,12 @@ const SHOTS = {
   'room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: wide },
   'phone-jacket-tip': { path: '/shelf/ab000000-0000-4000-8000-000000000001?shell=web&tip=jacket', ready: "document.querySelector('.nook .desk-title')", then: "document.querySelector('.desk-title').click(); return true;", settled: "document.querySelector('.paper-jacket') && document.querySelector('.detail-title-row h2, .paper-way-head h2') && document.querySelector('#jacket-tip-title')", size: phone },
   'phone-room-jacket-tip': { path: '/lounge?shell=web&tip=jacket', ready: "document.querySelector('.room-row')", then: "const go = () => { const t = document.querySelector('.is-paper a.room-title'); if (t) t.click(); else setTimeout(go, 100); }; go(); return true;", settled: "location.pathname.startsWith('/paper/') && document.querySelector('.paper-jacket') && document.querySelector('#jacket-tip-title')", size: phone },
+  // A paper's jacket on a phone, opened from the Lounge with every card
+  // already seen: its shelf row and its actions; its Share menu open under
+  // them; and its foot, where Feedback is on a phone.
+  'phone-jacket': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: `${NO_LESSON} ${OPEN_PAPER}`, settled: PAPER_OPEN, size: phone },
+  'phone-jacket-share': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: `${NO_LESSON} ${OPEN_PAPER}`, settled: PAPER_OPEN, pointer: [['click', '.paper-actions .share-control > button']], size: phone },
+  'phone-jacket-foot': { path: '/lounge?shell=web', ready: "document.querySelector('.room-row')", then: `${NO_LESSON} ${OPEN_PAPER}`, settled: `${PAPER_OPEN} && (window.scrollTo(0, document.documentElement.scrollHeight), true)`, size: phone },
   'phone-lounge-tip': { path: '/?shell=web&tip=lounge', ready: "document.querySelector('.nook .desk-title') && document.querySelector('.lounge-tip')", size: phone },
   // Two papers pinned: they lead the list, each with its pin; the pointer
   // rests on a paper that is not, whose pin shows while it does.

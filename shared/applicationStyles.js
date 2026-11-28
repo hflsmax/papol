@@ -203,6 +203,11 @@ ${commonStyles}
 .paper-way-head .metadata { margin: 0 0 0 auto; gap: var(--space-1); justify-content: flex-end; text-align: right; }
 .paper-way-head .metadata span { font-size: var(--fs-sm); }
 .paper-way-head .metadata span + span::before { content: '·'; margin-right: var(--space-1); }
+/* On a phone the venue and year start a line of their own under the
+   authors, from the same left edge as the title. */
+@media (max-width: 560px) {
+  .paper-way-head .metadata { margin-left: 0; justify-content: flex-start; text-align: left; }
+}
 .paper-own-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
 .paper-own-row > .detail-toggle { margin-left: auto; }
 .paper-own-row > .checkbox-row.inline { margin: 0; }
@@ -304,6 +309,24 @@ ${commonStyles}
 @media (max-width: 640px) { .way-foot { justify-content: flex-start; } }
 .way-foot a { color: var(--ink-faint); text-decoration: none; }
 .way-foot a:hover { color: var(--accent); }
+/* On a phone the floating button would lie over whatever is being read or
+   written in the page's last lines, so there Feedback is the foot's last
+   word instead, at the end the button used to keep clear. */
+.way-foot-feedback { display: none; }
+@media (max-width: 640px) {
+  .way-foot .way-foot-feedback {
+    display: inline;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--ink-faint);
+    font: inherit;
+  }
+  .way-foot .way-foot-feedback:hover:not(:disabled) { color: var(--accent); background: none; }
+  body:has(.way-foot-feedback) .feedback-button { display: none; }
+}
 
 /* ---------- Learn ---------- */
 
@@ -1824,14 +1847,15 @@ ${inDark([[
 @media (min-width: 761px) {
   .app:has(.nook-desk:not(.is-project)) .learn-papol.way-tip::before { left: calc(1.5rem + var(--space-2) - 6px); }
 }
-/* Where the title takes a line of its own under the mark, the card still
-   hangs from the mark, over the title. */
+/* Where the title takes a line of its own under the mark, the card takes
+   one too, between them: it still hangs from the mark, and the title it
+   would have covered starts under it. */
 @media (max-width: 760px) {
-  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(3rem + 12px); }
+  .app:has(.nook-desk) .learn-papol.way-tip { position: relative; top: auto; order: 1; margin-right: auto; }
+  .app:has(.nook-desk) .way-bar:has(.way-tip) #way-slot { order: 2; }
 }
 @media (max-width: 640px) {
   .learn-papol.way-tip::before { left: calc(1.25rem - 6px); }
-  .app:has(.nook-desk) .learn-papol.way-tip { top: calc(2.5rem + 12px); }
 }
 
 /* Keeps its own colours on hover, where every other button turns blue:
@@ -2657,6 +2681,9 @@ ${inDark([[
   background: var(--card);
   text-decoration: none;
   color: var(--ink);
+  /* A link dressed as a button is set as one: in the interface's sans, like
+     the buttons beside it, not the page's serif. */
+  font-family: var(--font-ui);
   font-size: var(--fs-xs);
   line-height: 1.5;
   box-shadow: 0 1px 0 rgba(var(--shade-rgb), 0.12);
@@ -2690,6 +2717,40 @@ ${inDark([[
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+/* On a phone a paper's jacket is one column, and every row in it runs from
+   the panel's left edge to its right: the shelf fills its row, with the pin
+   and the bin at the end of it; the actions are two equal columns, the
+   first of an odd number taking a row to itself, so none is left alone
+   beside a gap; and a menu opens under the whole block, as wide as it. */
+@media (max-width: 560px) {
+  .paper-own-row { gap: var(--space-3); }
+  .paper-own-row > .detail-toggle { flex: 1 1 100%; margin-left: 0; gap: var(--space-2); }
+  .paper-own-row .paper-shelf-picker { flex: 1; min-width: 0; gap: var(--space-2); }
+  .paper-own-row .paper-shelf-picker select { flex: 1; min-width: 0; max-width: none; min-height: 40px; font-size: var(--fs-sm); }
+  .paper-own-row .icon-button { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; }
+  /* The bin's glyph, not its touch area, ends on the panel's right edge. */
+  .paper-own-row .detail-toggle > .icon-button:last-child { margin-right: -10px; }
+  .paper-jacket .paper-actions { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }
+  .paper-jacket .paper-actions > :first-child:nth-last-child(odd) { grid-column: 1 / -1; }
+  .paper-jacket .paper-actions > .share-control { position: static; }
+  .paper-jacket .paper-actions > .button,
+  .paper-jacket .paper-actions > button,
+  .paper-jacket .paper-actions > .share-control > button {
+    /* Links and buttons alike are flex rows, so their words sit on one line
+       across a row of them. */
+    --cap-room: 0px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3em;
+    width: 100%;
+    min-height: 40px;
+    padding-block: 6px;
+    font-size: var(--fs-sm);
+  }
+  .paper-jacket .paper-actions .share-menu { left: 0; right: 0; width: auto; }
 }
 
 .share-control {
@@ -3008,6 +3069,7 @@ ${inDark([[
 }
 
 .nooks-label {
+  font-family: var(--font-ui);
   font-size: var(--fs-sm);
   color: var(--ink-soft);
 }

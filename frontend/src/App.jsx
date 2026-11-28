@@ -1230,6 +1230,7 @@ export default function App({ startupUser = null, startupError = null }) {
   // The pages inside a project fill the window: a member at work in a
   // project is not browsing Papol.
   const insideProject = user && PROJECT_PAGES.has(route.page) && !inNook;
+  const askFeedback = () => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false });
   return (
     <>
       <DeskFileDropFeedback state={deskFileDrag} message={deskDropNotice} folders={mode === 'signed-in'} into={mode === 'signed-in' ? dropTarget() : null} />
@@ -1239,7 +1240,7 @@ export default function App({ startupUser = null, startupError = null }) {
         <button
           type="button"
           className="feedback-button"
-          onClick={() => setFeedbackRequest({ key: `manual:${Date.now()}`, content: '', reportError: false })}
+          onClick={askFeedback}
           title="Report a bug or ask for a feature"
         >
           Feedback
@@ -1300,7 +1301,7 @@ export default function App({ startupUser = null, startupError = null }) {
           )}
         </header>}
         <WayShown.Provider value={hasWay}>{pages}</WayShown.Provider>
-        {hasWay && !insideProject && <WayFoot macDownloadUrl={MACOS_DOWNLOAD_URL} />}
+        {hasWay && !insideProject && <WayFoot macDownloadUrl={MACOS_DOWNLOAD_URL} onFeedback={onLanding ? null : askFeedback} />}
       </div>
     </>
   );
