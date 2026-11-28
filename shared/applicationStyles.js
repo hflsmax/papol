@@ -3739,7 +3739,7 @@ a.button:hover {
    has been. */
 .landing { display: grid; gap: 56px; padding-bottom: 24px; }
 
-.landing-hero { padding: 28px 0 0; }
+.landing-hero { display: grid; justify-items: center; padding: 28px 0 0; text-align: center; }
 .landing-title {
   max-width: 20ch;
   color: var(--ink);
@@ -3750,6 +3750,9 @@ a.button:hover {
   text-wrap: balance;
 }
 .landing-fact { margin-top: 14px; color: var(--ink-soft); font: var(--fs-lg)/1.5 var(--font-ui); }
+/* The line over the list is the heading of what is to be tried, set as
+   the page's other headings are and close over the card it names. */
+.landing-try { margin-bottom: 14px; color: var(--ink); font: 600 var(--fs-2xl)/1.3 var(--font-serif); text-align: center; }
 .landing-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; }
 .landing-button {
   display: inline-block;
@@ -3770,7 +3773,7 @@ a.button:hover {
 .landing-place-section { scroll-margin-top: 16px; }
 /* The paper to try belongs to the line above it, so it sits closer to the
    heading than the sections after it sit to each other. */
-.landing-hero + .landing-place-section { margin-top: -28px; }
+.landing-hero + .landing-place-section { margin-top: -22px; }
 
 /* Something to try, until it has been: outlined in the accent, a ring that
    breathes, and a tag over it naming the gesture. */
@@ -3812,6 +3815,40 @@ a.button:hover {
 /* The window clips above the toolbar, so a tool's tag hangs below it. */
 .specimen-tool.beckon[data-hint]::before { top: calc(100% + 8px); bottom: auto; }
 
+/* The nook: a few papers, listed as a nook lists them, in the same window
+   the viewer then opens in. */
+.landing-nook {
+  padding: 18px 22px 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+.landing-nook-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+/* The list scrolls in the window, which opens tall enough for four papers
+   and half of the fifth. Its padding keeps the first title's ring and the
+   tag over it inside what it clips. */
+.landing-nook-list { overflow-y: auto; margin: 0 -8px; padding: 26px 8px 0; }
+.landing-nook-list:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.landing-nook-column { color: var(--ink-faint); font: 600 var(--fs-2xs) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.landing-nook-column.is-effort { width: 4.75rem; text-align: center; }
+/* A tag as a nook's line writes one: the name after a #, quietly. */
+.landing-nook-tag { margin-top: 3px; color: var(--ink-soft); font: 400 var(--fs-xs) var(--font-ui); }
+/* No shelf bars here, so a row needs no lane for one. */
+.landing-nook .paper-list li { padding-left: 0; padding-right: 0; }
+.landing-nook .paper-title-link.beckon { border-radius: 2px; }
+/* The chip is the column here, so it is larger than on a nook's line, with
+   its time in the middle of it. */
+.landing-nook-effort.nook-effort { flex: none; justify-content: center; min-width: 4.75rem; padding: 7px 12px; font-size: var(--fs-sm); line-height: 1; text-align: center; cursor: inherit; }
+.landing-nook-effort:hover { box-shadow: none; }
+/* The levels keep their order but are paler here than on a nook, so the
+   titles, one of which opens, are what the eye finds first. */
+.landing-nook-effort.effort-level-1 { background: color-mix(in srgb, var(--activity-heat-1) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-2 { background: color-mix(in srgb, var(--activity-heat-2) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-3 { background: color-mix(in srgb, var(--activity-heat-3) 40%, var(--card)); color: var(--ink-soft); }
+.landing-nook-effort.effort-level-4 { background: color-mix(in srgb, var(--activity-heat-4) 40%, var(--card)); color: var(--ink); }
+.landing-nook-effort.effort-level-5 { background: color-mix(in srgb, var(--activity-heat-5) 40%, var(--card)); color: var(--ink); }
+
 /* The specimen: a viewer window around one page of the paper. */
 .specimen { display: grid; gap: 14px; }
 .specimen-window {
@@ -3828,7 +3865,11 @@ a.button:hover {
   background: var(--card);
   font-family: var(--font-ui);
 }
-.specimen-home { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linejoin: round; }
+/* The way back to the list is the one thing in the bar that leaves the
+   paper, so it is drawn larger and heavier than a tool, in the accent. */
+.specimen-home { flex: none; display: grid; place-items: center; width: 36px; height: 34px; margin: 0 -4px; padding: 0; border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--accent); }
+.specimen-home:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.specimen-home svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .specimen-doc-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-faint); font-size: var(--fs-xs); white-space: nowrap; text-overflow: ellipsis; }
 .specimen-tools { display: inline-flex; gap: 4px; flex: none; }
 .specimen-tool { position: relative; display: grid; place-items: center; width: 34px; height: 32px; padding: 0; }
